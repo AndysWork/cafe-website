@@ -1,2 +1,1 @@
-# cafe-website
-Maa Tara Cafe Website
+# Maa Tara Cafe Website
