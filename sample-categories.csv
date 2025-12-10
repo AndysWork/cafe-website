@@ -1,0 +1,12 @@
+CategoryName,CategoryDescription,CategoryDisplayOrder,SubCategoryName,SubCategoryDescription,SubCategoryDisplayOrder
+Beverages,All types of drinks,1,Hot Beverages,Coffee and tea,1
+Beverages,All types of drinks,1,Cold Beverages,Juices and smoothies,2
+Beverages,All types of drinks,1,Alcoholic,Beer and wine,3
+Food,Main dishes and sides,2,Breakfast,Morning meals,1
+Food,Main dishes and sides,2,Lunch,Afternoon meals,2
+Food,Main dishes and sides,2,Dinner,Evening meals,3
+Snacks,Light bites,3,Chips,Potato chips and crisps,1
+Snacks,Light bites,3,Nuts,Mixed nuts and seeds,2
+Desserts,Sweet treats,4,Cakes,Fresh baked cakes,1
+Desserts,Sweet treats,4,Ice Cream,Various flavors,2
+Desserts,Sweet treats,4,Pastries,Croissants and donuts,3

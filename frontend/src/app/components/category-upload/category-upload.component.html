@@ -1,0 +1,134 @@
+<div class="upload-container">
+  <div class="upload-header">
+    <h1>📤 Category & SubCategory Upload</h1>
+    <p class="subtitle">Upload Excel or CSV files to bulk import categories and subcategories</p>
+  </div>
+
+  <!-- Template Download Section -->
+  <div class="template-section">
+    <h3>📥 Download Template</h3>
+    <p>Start by downloading a template file with the required format</p>
+    <div class="template-buttons">
+      <button class="btn btn-template" (click)="downloadTemplate('csv')">
+        <span class="icon">📄</span>
+        Download CSV Template
+      </button>
+      <button class="btn btn-template" (click)="downloadTemplate('excel')">
+        <span class="icon">📊</span>
+        Download Excel Template
+      </button>
+    </div>
+  </div>
+
+  <!-- File Upload Section -->
+  <div class="upload-section">
+    <h3>📁 Upload File</h3>
+
+    <!-- Drag & Drop Zone -->
+    <div
+      class="drop-zone"
+      [class.dragging]="isDragging"
+      [class.has-file]="selectedFile"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+      (click)="fileInput.click()">
+
+      <input
+        #fileInput
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        (change)="onFileSelected($event)"
+        style="display: none">
+
+      <div *ngIf="!selectedFile" class="drop-zone-content">
+        <div class="upload-icon">☁️</div>
+        <p class="drop-text">Drag & drop your file here</p>
+        <p class="or-text">or</p>
+        <button class="btn btn-browse">Browse Files</button>
+        <p class="file-info">Supported formats: .xlsx, .xls, .csv (Max 5MB)</p>
+      </div>
+
+      <div *ngIf="selectedFile" class="selected-file">
+        <div class="file-icon">{{ getFileIcon() }}</div>
+        <div class="file-details">
+          <p class="file-name">{{ selectedFile.name }}</p>
+          <p class="file-size">{{ formatFileSize(selectedFile.size) }}</p>
+        </div>
+        <button class="btn-remove" (click)="clearFile(); $event.stopPropagation()">✕</button>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div *ngIf="isUploading" class="progress-container">
+      <div class="progress-bar">
+        <div class="progress-fill" [style.width.%]="uploadProgress"></div>
+      </div>
+      <p class="progress-text">Uploading... {{ uploadProgress }}%</p>
+    </div>
+
+    <!-- Upload Button -->
+    <div class="action-buttons" *ngIf="selectedFile && !isUploading">
+      <button class="btn btn-upload" (click)="uploadFile()">
+        <span class="icon">🚀</span>
+        Upload File
+      </button>
+      <button class="btn btn-cancel" (click)="clearFile()">
+        Cancel
+      </button>
+    </div>
+  </div>
+
+  <!-- Error Message -->
+  <div *ngIf="errorMessage" class="alert alert-error">
+    <span class="alert-icon">⚠️</span>
+    <span>{{ errorMessage }}</span>
+  </div>
+
+  <!-- Upload Result -->
+  <div *ngIf="uploadResult" class="upload-result">
+    <div class="result-card" [class.success]="uploadResult.success" [class.error]="!uploadResult.success">
+      <div class="result-header">
+        <span class="result-icon">{{ uploadResult.success ? '✅' : '❌' }}</span>
+        <h3>{{ uploadResult.success ? 'Upload Successful!' : 'Upload Failed' }}</h3>
+      </div>
+
+      <p class="result-message">{{ uploadResult.message }}</p>
+
+      <div class="result-stats" *ngIf="uploadResult.success">
+        <div class="stat">
+          <span class="stat-value">{{ uploadResult.categoriesProcessed }}</span>
+          <span class="stat-label">Categories Imported</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">{{ uploadResult.subCategoriesProcessed }}</span>
+          <span class="stat-label">SubCategories Imported</span>
+        </div>
+      </div>
+
+      <div *ngIf="uploadResult.errors && uploadResult.errors.length > 0" class="error-list">
+        <h4>Errors:</h4>
+        <ul>
+          <li *ngFor="let error of uploadResult.errors">{{ error }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Instructions -->
+  <div class="instructions">
+    <h3>📋 File Format Instructions</h3>
+    <div class="instruction-content">
+      <p><strong>Required Columns:</strong></p>
+      <ol>
+        <li><strong>CategoryName</strong> - Name of the category (required)</li>
+        <li><strong>CategoryDescription</strong> - Description of the category</li>
+        <li><strong>CategoryDisplayOrder</strong> - Display order number (e.g., 1, 2, 3)</li>
+        <li><strong>SubCategoryName</strong> - Name of the subcategory</li>
+        <li><strong>SubCategoryDescription</strong> - Description of the subcategory</li>
+        <li><strong>SubCategoryDisplayOrder</strong> - Display order number for subcategory</li>
+      </ol>
+      <p class="tip"><strong>💡 Tip:</strong> You can have multiple rows with the same CategoryName to add multiple subcategories to a single category.</p>
+    </div>
+  </div>
+</div>

@@ -7,6 +7,7 @@ var host = new HostBuilder()
     .ConfigureServices(s =>
     {
         s.AddSingleton<MongoService>();
+        s.AddSingleton<FileUploadService>();
     })
     .Build();
 

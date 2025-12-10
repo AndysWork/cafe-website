@@ -19,4 +19,8 @@ public class MenuSubCategory
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public string LastUpdatedBy { get; set; } = "System";
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+
+    // Temporary property for file upload processing (not saved to DB)
+    [BsonIgnore]
+    public string? CategoryName { get; set; }
 }
