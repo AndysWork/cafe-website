@@ -2,6 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Models;
 using System.Net;
 
 namespace Cafe.Api.Functions;
@@ -17,11 +18,246 @@ public class MenuFunction
         _log = loggerFactory.CreateLogger<MenuFunction>();
     }
 
+    // GET: Get all menu items
     [Function("GetMenu")]
-    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu")] HttpRequestData req)
+    public async Task<HttpResponseData> GetMenu([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu")] HttpRequestData req)
     {
-        var res = req.CreateResponse(HttpStatusCode.OK);
-        await res.WriteAsJsonAsync(await _mongo.GetMenuAsync());
-        return res;
+        try
+        {
+            var items = await _mongo.GetMenuAsync();
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(items);
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting menu items");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
+
+    // GET: Get menu items by CategoryId
+    [Function("GetMenuItemsByCategory")]
+    public async Task<HttpResponseData> GetMenuItemsByCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories/{categoryId}/menu")] HttpRequestData req, string categoryId)
+    {
+        try
+        {
+            var items = await _mongo.GetMenuItemsByCategoryAsync(categoryId);
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(items);
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting menu items for category {CategoryId}", categoryId);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
+
+    // GET: Get menu items by SubCategoryId
+    [Function("GetMenuItemsBySubCategory")]
+    public async Task<HttpResponseData> GetMenuItemsBySubCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "subcategories/{subCategoryId}/menu")] HttpRequestData req, string subCategoryId)
+    {
+        try
+        {
+            var items = await _mongo.GetMenuItemsBySubCategoryAsync(subCategoryId);
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(items);
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting menu items for subcategory {SubCategoryId}", subCategoryId);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
+
+    // GET: Get single menu item by ID
+    [Function("GetMenuItem")]
+    public async Task<HttpResponseData> GetMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu/{id}")] HttpRequestData req, string id)
+    {
+        try
+        {
+            var item = await _mongo.GetMenuItemAsync(id);
+            if (item == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Menu item not found" });
+                return notFound;
+            }
+
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(item);
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting menu item {Id}", id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
+
+    // POST: Create new menu item
+    [Function("CreateMenuItem")]
+    public async Task<HttpResponseData> CreateMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "menu")] HttpRequestData req)
+    {
+        try
+        {
+            var item = await req.ReadFromJsonAsync<CafeMenuItem>();
+            if (item == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid menu item data" });
+                return badRequest;
+            }
+
+            // Validate CategoryId exists
+            if (!string.IsNullOrEmpty(item.CategoryId))
+            {
+                var category = await _mongo.GetCategoryAsync(item.CategoryId);
+                if (category == null)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = $"Category with ID {item.CategoryId} not found" });
+                    return badRequest;
+                }
+            }
+
+            // Validate SubCategoryId exists and belongs to the specified Category
+            if (!string.IsNullOrEmpty(item.SubCategoryId))
+            {
+                var subCategory = await _mongo.GetSubCategoryAsync(item.SubCategoryId);
+                if (subCategory == null)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = $"SubCategory with ID {item.SubCategoryId} not found" });
+                    return badRequest;
+                }
+
+                // Verify SubCategory belongs to the specified Category
+                if (!string.IsNullOrEmpty(item.CategoryId) && subCategory.CategoryId != item.CategoryId)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = $"SubCategory {item.SubCategoryId} does not belong to Category {item.CategoryId}" });
+                    return badRequest;
+                }
+            }
+
+            var created = await _mongo.CreateMenuItemAsync(item);
+            var res = req.CreateResponse(HttpStatusCode.Created);
+            await res.WriteAsJsonAsync(created);
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error creating menu item");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
+
+    // PUT: Update menu item
+    [Function("UpdateMenuItem")]
+    public async Task<HttpResponseData> UpdateMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "menu/{id}")] HttpRequestData req, string id)
+    {
+        try
+        {
+            var item = await req.ReadFromJsonAsync<CafeMenuItem>();
+            if (item == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid menu item data" });
+                return badRequest;
+            }
+
+            // Validate CategoryId exists
+            if (!string.IsNullOrEmpty(item.CategoryId))
+            {
+                var category = await _mongo.GetCategoryAsync(item.CategoryId);
+                if (category == null)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = $"Category with ID {item.CategoryId} not found" });
+                    return badRequest;
+                }
+            }
+
+            // Validate SubCategoryId exists and belongs to the specified Category
+            if (!string.IsNullOrEmpty(item.SubCategoryId))
+            {
+                var subCategory = await _mongo.GetSubCategoryAsync(item.SubCategoryId);
+                if (subCategory == null)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = $"SubCategory with ID {item.SubCategoryId} not found" });
+                    return badRequest;
+                }
+
+                // Verify SubCategory belongs to the specified Category
+                if (!string.IsNullOrEmpty(item.CategoryId) && subCategory.CategoryId != item.CategoryId)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = $"SubCategory {item.SubCategoryId} does not belong to Category {item.CategoryId}" });
+                    return badRequest;
+                }
+            }
+
+            item.Id = id;
+            var success = await _mongo.UpdateMenuItemAsync(id, item);
+            
+            if (!success)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Menu item not found" });
+                return notFound;
+            }
+
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(item);
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating menu item {Id}", id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
+
+    // DELETE: Delete menu item
+    [Function("DeleteMenuItem")]
+    public async Task<HttpResponseData> DeleteMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "menu/{id}")] HttpRequestData req, string id)
+    {
+        try
+        {
+            var success = await _mongo.DeleteMenuItemAsync(id);
+            
+            if (!success)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Menu item not found" });
+                return notFound;
+            }
+
+            var res = req.CreateResponse(HttpStatusCode.NoContent);
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting menu item {Id}", id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
     }
 }
