@@ -1,0 +1,64 @@
+<!-- Hero Section -->
+<div class="hero-section">
+  <div class="hero-content">
+    <h1 class="hero-title">
+      Welcome to <span class="brand">Cafe Management</span>
+    </h1>
+    <p class="hero-subtitle">
+      Streamline your cafe operations with our powerful management system
+    </p>
+    <div class="hero-buttons">
+      <a routerLink="/category/upload" class="btn btn-primary">
+        <span>Get Started</span>
+        <span class="arrow">→</span>
+      </a>
+      <a routerLink="/category/crud" class="btn btn-secondary">
+        <span>Manage Categories</span>
+      </a>
+    </div>
+  </div>
+  <div class="hero-illustration">
+    <div class="floating-card card-1">☕</div>
+    <div class="floating-card card-2">🍰</div>
+    <div class="floating-card card-3">🥪</div>
+  </div>
+</div>
+
+<!-- Features Section -->
+<div class="features-section">
+  <h2 class="section-title">Powerful Features</h2>
+  <div class="features-grid">
+    <div class="feature-card" *ngFor="let feature of features">
+      <div class="feature-icon">{{ feature.icon }}</div>
+      <h3 class="feature-title">{{ feature.title }}</h3>
+      <p class="feature-description">{{ feature.description }}</p>
+      <a [routerLink]="feature.link" class="feature-link">
+        Learn more <span>→</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Section -->
+<div class="stats-section">
+  <div class="stats-grid">
+    <div class="stat-card" *ngFor="let stat of stats">
+      <div class="stat-value">{{ stat.value }}</div>
+      <div class="stat-label">{{ stat.label }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- CTA Section -->
+<div class="cta-section">
+  <h2 class="cta-title">Ready to get started?</h2>
+  <p class="cta-subtitle">Upload your menu categories or manage them manually</p>
+  <div class="cta-buttons">
+    <a routerLink="/category/upload" class="btn btn-large btn-primary">
+      Upload Categories
+    </a>
+    <a routerLink="/category/crud" class="btn btn-large btn-outline">
+      Manage Manually
+    </a>
+  </div>
+</div>

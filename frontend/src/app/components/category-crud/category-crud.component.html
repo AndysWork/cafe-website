@@ -1,0 +1,219 @@
+<div class="crud-container">
+  <div class="crud-header">
+    <h1>Category Management</h1>
+    <p>Create, update, and delete categories and subcategories</p>
+  </div>
+
+  <!-- Message Alert -->
+  <div class="alert" *ngIf="message.text" [class.success]="message.type === 'success'" [class.error]="message.type === 'error'">
+    {{ message.text }}
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab" [class.active]="selectedTab === 'categories'" (click)="selectedTab = 'categories'">
+      📁 Categories
+    </button>
+    <button class="tab" [class.active]="selectedTab === 'subcategories'" (click)="selectedTab = 'subcategories'">
+      📂 SubCategories
+    </button>
+  </div>
+
+  <!-- Categories Tab -->
+  <div class="tab-content" *ngIf="selectedTab === 'categories'">
+    <!-- Create Category Form -->
+    <div class="create-form">
+      <h2>Create New Category</h2>
+      <div class="form-group">
+        <input
+          type="text"
+          [(ngModel)]="newCategory"
+          placeholder="Enter category name"
+          class="form-input"
+          (keyup.enter)="createCategory()">
+        <button
+          class="btn btn-primary"
+          (click)="createCategory()"
+          [disabled]="loading.saving">
+          {{ loading.saving ? 'Creating...' : 'Create Category' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Categories Table -->
+    <div class="table-container">
+      <h2>All Categories ({{ categories.length }})</h2>
+
+      <div class="loading" *ngIf="loading.categories">
+        <div class="spinner"></div>
+        <p>Loading categories...</p>
+      </div>
+
+      <table class="data-table" *ngIf="!loading.categories && categories.length > 0">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let category of categories" [class.editing]="category.isEditing">
+            <td>{{ category.id }}</td>
+            <td>
+              <span *ngIf="!category.isEditing">{{ category.name }}</span>
+              <input
+                *ngIf="category.isEditing"
+                type="text"
+                [(ngModel)]="editingCategory!.name"
+                class="edit-input">
+            </td>
+            <td class="actions">
+              <div *ngIf="!category.isEditing">
+                <button class="btn btn-edit" (click)="startEdit(category, 'category')">
+                  ✏️ Edit
+                </button>
+                <button class="btn btn-delete" (click)="deleteCategory(category)" [disabled]="loading.deleting">
+                  🗑️ Delete
+                </button>
+              </div>
+              <div *ngIf="category.isEditing">
+                <button class="btn btn-save" (click)="saveCategory(category)" [disabled]="loading.saving">
+                  ✓ Save
+                </button>
+                <button class="btn btn-cancel" (click)="cancelEdit(category)">
+                  ✗ Cancel
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="empty-state" *ngIf="!loading.categories && categories.length === 0">
+        <span class="empty-icon">📁</span>
+        <p>No categories found</p>
+        <p class="empty-hint">Create your first category above</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SubCategories Tab -->
+  <div class="tab-content" *ngIf="selectedTab === 'subcategories'">
+    <!-- Create SubCategory Form -->
+    <div class="create-form">
+      <h2>Create New SubCategory</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select
+            [(ngModel)]="newSubCategory.categoryId"
+            class="form-select">
+            <option value="">Select a category</option>
+            <option *ngFor="let category of categories" [value]="category.id">
+              {{ category.name }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>SubCategory Name</label>
+          <input
+            type="text"
+            [(ngModel)]="newSubCategory.name"
+            placeholder="Enter subcategory name"
+            class="form-input"
+            (keyup.enter)="createSubCategory()">
+        </div>
+        <button
+          class="btn btn-primary"
+          (click)="createSubCategory()"
+          [disabled]="loading.saving">
+          {{ loading.saving ? 'Creating...' : 'Create SubCategory' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-section">
+      <h2>Filter by Category</h2>
+      <select
+        [(ngModel)]="selectedCategoryId"
+        (change)="filterSubCategories()"
+        class="form-select">
+        <option value="">All Categories</option>
+        <option *ngFor="let category of categories" [value]="category.id">
+          {{ category.name }}
+        </option>
+      </select>
+    </div>
+
+    <!-- SubCategories Table -->
+    <div class="table-container">
+      <h2>All SubCategories ({{ filteredSubCategories.length }})</h2>
+
+      <div class="loading" *ngIf="loading.subCategories">
+        <div class="spinner"></div>
+        <p>Loading subcategories...</p>
+      </div>
+
+      <table class="data-table" *ngIf="!loading.subCategories && filteredSubCategories.length > 0">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Category</th>
+            <th>SubCategory Name</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let subCategory of filteredSubCategories" [class.editing]="subCategory.isEditing">
+            <td>{{ subCategory.id }}</td>
+            <td>
+              <span *ngIf="!subCategory.isEditing">{{ getCategoryName(subCategory.categoryId) }}</span>
+              <select
+                *ngIf="subCategory.isEditing"
+                [(ngModel)]="editingSubCategory!.categoryId"
+                class="edit-select">
+                <option *ngFor="let category of categories" [value]="category.id">
+                  {{ category.name }}
+                </option>
+              </select>
+            </td>
+            <td>
+              <span *ngIf="!subCategory.isEditing">{{ subCategory.name }}</span>
+              <input
+                *ngIf="subCategory.isEditing"
+                type="text"
+                [(ngModel)]="editingSubCategory!.name"
+                class="edit-input">
+            </td>
+            <td class="actions">
+              <div *ngIf="!subCategory.isEditing">
+                <button class="btn btn-edit" (click)="startEdit(subCategory, 'subcategory')">
+                  ✏️ Edit
+                </button>
+                <button class="btn btn-delete" (click)="deleteSubCategory(subCategory)" [disabled]="loading.deleting">
+                  🗑️ Delete
+                </button>
+              </div>
+              <div *ngIf="subCategory.isEditing">
+                <button class="btn btn-save" (click)="saveSubCategory(subCategory)" [disabled]="loading.saving">
+                  ✓ Save
+                </button>
+                <button class="btn btn-cancel" (click)="cancelEdit(subCategory)">
+                  ✗ Cancel
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="empty-state" *ngIf="!loading.subCategories && filteredSubCategories.length === 0">
+        <span class="empty-icon">📂</span>
+        <p>No subcategories found</p>
+        <p class="empty-hint">Create your first subcategory above</p>
+      </div>
+    </div>
+  </div>
+</div>
