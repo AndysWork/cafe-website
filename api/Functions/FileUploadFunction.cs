@@ -173,11 +173,11 @@ public class FileUploadFunction
 
             if (format.ToLower() == "csv")
             {
-                var csvContent = "CategoryName,CategoryDescription,CategoryDisplayOrder,SubCategoryName,SubCategoryDescription,SubCategoryDisplayOrder\n" +
-                                "Beverages,Hot and cold drinks,1,Coffee,Coffee beverages,1\n" +
-                                "Beverages,Hot and cold drinks,1,Tea,Tea varieties,2\n" +
-                                "Food,Fresh food items,2,Pastries,Baked goods,1\n" +
-                                "Food,Fresh food items,2,Sandwiches,Deli sandwiches,2";
+                var csvContent = "CategoryName,SubCategoryName\n" +
+                                "Beverages,Coffee\n" +
+                                "Beverages,Tea\n" +
+                                "Food,Pastries\n" +
+                                "Food,Sandwiches";
 
                 var res = req.CreateResponse(HttpStatusCode.OK);
                 res.Headers.Add("Content-Type", "text/csv");
@@ -194,33 +194,20 @@ public class FileUploadFunction
 
                 // Headers
                 worksheet.Cells[1, 1].Value = "CategoryName";
-                worksheet.Cells[1, 2].Value = "CategoryDescription";
-                worksheet.Cells[1, 3].Value = "CategoryDisplayOrder";
-                worksheet.Cells[1, 4].Value = "SubCategoryName";
-                worksheet.Cells[1, 5].Value = "SubCategoryDescription";
-                worksheet.Cells[1, 6].Value = "SubCategoryDisplayOrder";
+                worksheet.Cells[1, 2].Value = "SubCategoryName";
 
                 // Sample data
                 worksheet.Cells[2, 1].Value = "Beverages";
-                worksheet.Cells[2, 2].Value = "Hot and cold drinks";
-                worksheet.Cells[2, 3].Value = 1;
-                worksheet.Cells[2, 4].Value = "Coffee";
-                worksheet.Cells[2, 5].Value = "Coffee beverages";
-                worksheet.Cells[2, 6].Value = 1;
+                worksheet.Cells[2, 2].Value = "Coffee";
 
                 worksheet.Cells[3, 1].Value = "Beverages";
-                worksheet.Cells[3, 2].Value = "Hot and cold drinks";
-                worksheet.Cells[3, 3].Value = 1;
-                worksheet.Cells[3, 4].Value = "Tea";
-                worksheet.Cells[3, 5].Value = "Tea varieties";
-                worksheet.Cells[3, 6].Value = 2;
+                worksheet.Cells[3, 2].Value = "Tea";
 
                 worksheet.Cells[4, 1].Value = "Food";
-                worksheet.Cells[4, 2].Value = "Fresh food items";
-                worksheet.Cells[4, 3].Value = 2;
-                worksheet.Cells[4, 4].Value = "Pastries";
-                worksheet.Cells[4, 5].Value = "Baked goods";
-                worksheet.Cells[4, 6].Value = 1;
+                worksheet.Cells[4, 2].Value = "Pastries";
+
+                worksheet.Cells[5, 1].Value = "Food";
+                worksheet.Cells[5, 2].Value = "Sandwiches";
 
                 // Auto-fit columns
                 worksheet.Cells.AutoFitColumns();

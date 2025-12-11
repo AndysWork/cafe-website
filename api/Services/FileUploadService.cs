@@ -11,11 +11,7 @@ public class FileUploadService
     public class CategoryUploadDto
     {
         public string CategoryName { get; set; } = string.Empty;
-        public string CategoryDescription { get; set; } = string.Empty;
-        public int CategoryDisplayOrder { get; set; }
         public string SubCategoryName { get; set; } = string.Empty;
-        public string SubCategoryDescription { get; set; } = string.Empty;
-        public int SubCategoryDisplayOrder { get; set; }
     }
 
     public class UploadResult
@@ -52,11 +48,7 @@ public class FileUploadService
                 try
                 {
                     var categoryName = worksheet.Cells[row, 1].Value?.ToString()?.Trim();
-                    var categoryDesc = worksheet.Cells[row, 2].Value?.ToString()?.Trim() ?? "";
-                    var categoryOrder = int.TryParse(worksheet.Cells[row, 3].Value?.ToString(), out var co) ? co : 0;
-                    var subCategoryName = worksheet.Cells[row, 4].Value?.ToString()?.Trim();
-                    var subCategoryDesc = worksheet.Cells[row, 5].Value?.ToString()?.Trim() ?? "";
-                    var subCategoryOrder = int.TryParse(worksheet.Cells[row, 6].Value?.ToString(), out var sco) ? sco : 0;
+                    var subCategoryName = worksheet.Cells[row, 2].Value?.ToString()?.Trim();
 
                     if (string.IsNullOrEmpty(categoryName))
                     {
@@ -69,12 +61,7 @@ public class FileUploadService
                     {
                         categories[categoryName] = new MenuCategory
                         {
-                            Name = categoryName,
-                            Description = categoryDesc,
-                            DisplayOrder = categoryOrder,
-                            IsActive = true,
-                            CreatedBy = uploadedBy,
-                            CreatedDate = DateTime.UtcNow
+                            Name = categoryName
                         };
                     }
 
@@ -84,12 +71,7 @@ public class FileUploadService
                         subCategories.Add(new MenuSubCategory
                         {
                             CategoryName = categoryName,
-                            Name = subCategoryName,
-                            Description = subCategoryDesc,
-                            DisplayOrder = subCategoryOrder,
-                            IsActive = true,
-                            CreatedBy = uploadedBy,
-                            CreatedDate = DateTime.UtcNow
+                            Name = subCategoryName
                         });
                     }
                 }
@@ -172,12 +154,7 @@ public class FileUploadService
                     {
                         categories[record.CategoryName] = new MenuCategory
                         {
-                            Name = record.CategoryName,
-                            Description = record.CategoryDescription,
-                            DisplayOrder = record.CategoryDisplayOrder,
-                            IsActive = true,
-                            CreatedBy = uploadedBy,
-                            CreatedDate = DateTime.UtcNow
+                            Name = record.CategoryName
                         };
                     }
 
@@ -187,12 +164,7 @@ public class FileUploadService
                         subCategories.Add(new MenuSubCategory
                         {
                             CategoryName = record.CategoryName,
-                            Name = record.SubCategoryName,
-                            Description = record.SubCategoryDescription,
-                            DisplayOrder = record.SubCategoryDisplayOrder,
-                            IsActive = true,
-                            CreatedBy = uploadedBy,
-                            CreatedDate = DateTime.UtcNow
+                            Name = record.SubCategoryName
                         });
                     }
                 }

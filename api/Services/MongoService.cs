@@ -90,8 +90,6 @@ public class MongoService
     // Create new category
     public async Task<MenuCategory> CreateCategoryAsync(MenuCategory category)
     {
-        category.CreatedDate = DateTime.UtcNow;
-        category.LastUpdated = DateTime.UtcNow;
         await _categories.InsertOneAsync(category);
         return category;
     }
@@ -99,7 +97,6 @@ public class MongoService
     // Update existing category
     public async Task<bool> UpdateCategoryAsync(string id, MenuCategory category)
     {
-        category.LastUpdated = DateTime.UtcNow;
         var result = await _categories.ReplaceOneAsync(x => x.Id == id, category);
         return result.ModifiedCount > 0;
     }
@@ -130,8 +127,6 @@ public class MongoService
     // Create new subcategory
     public async Task<MenuSubCategory> CreateSubCategoryAsync(MenuSubCategory subCategory)
     {
-        subCategory.CreatedDate = DateTime.UtcNow;
-        subCategory.LastUpdated = DateTime.UtcNow;
         await _subCategories.InsertOneAsync(subCategory);
         return subCategory;
     }
@@ -139,7 +134,6 @@ public class MongoService
     // Update existing subcategory
     public async Task<bool> UpdateSubCategoryAsync(string id, MenuSubCategory subCategory)
     {
-        subCategory.LastUpdated = DateTime.UtcNow;
         var result = await _subCategories.ReplaceOneAsync(x => x.Id == id, subCategory);
         return result.ModifiedCount > 0;
     }
@@ -149,6 +143,18 @@ public class MongoService
     {
         var result = await _subCategories.DeleteOneAsync(x => x.Id == id);
         return result.DeletedCount > 0;
+    }
+    
+    // Clear all categories (for schema migration)
+    public async Task ClearCategoriesAsync()
+    {
+        await _categories.DeleteManyAsync(_ => true);
+    }
+    
+    // Clear all subcategories (for schema migration)
+    public async Task ClearSubCategoriesAsync()
+    {
+        await _subCategories.DeleteManyAsync(_ => true);
     }
     
     #endregion
