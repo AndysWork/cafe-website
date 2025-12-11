@@ -34,6 +34,7 @@
   right: 0;
   bottom: 0;
   background: linear-gradient(135deg, rgba(255, 107, 107, 0.05) 0%, rgba(238, 90, 111, 0.05) 100%);
+  pointer-events: none;
 }
 
 .hero-content {

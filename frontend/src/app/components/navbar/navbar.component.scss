@@ -346,9 +346,11 @@
   opacity: 0;
   transition: opacity 0.3s ease;
   z-index: 998;
+  pointer-events: none;
 
   &.active {
     opacity: 1;
+    pointer-events: auto;
   }
 }
 

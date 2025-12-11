@@ -10,9 +10,33 @@ body {
   background: #f7fafc;
   color: #2d3748;
   line-height: 1.6;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
+}
+
+/* Ensure buttons and clickable elements work on mobile */
+button,
+a,
+[role="button"],
+input[type="submit"],
+input[type="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Minimum touch target size for mobile accessibility */
+@media (max-width: 768px) {
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
