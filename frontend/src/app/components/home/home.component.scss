@@ -6,7 +6,7 @@
 // Hero Section
 .hero {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background: white;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -33,21 +33,22 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.05) 0%, rgba(238, 90, 111, 0.05) 100%);
 }
 
 .hero-content {
   position: relative;
   z-index: 2;
-  color: white;
+  color: #2d3748;
   padding: 40px 20px;
 }
 
 .hero-logo {
-  max-width: 350px;
+  max-width: 500px;
   width: 100%;
   height: auto;
   margin-bottom: 30px;
+  margin-top: -80px;
   filter: brightness(1.3) saturate(2) contrast(1.5) hue-rotate(-10deg);
   mix-blend-mode: lighten;
   animation: fadeInUp 1s ease-out;
@@ -67,13 +68,14 @@
   font-weight: 300;
   margin-bottom: 15px;
   font-style: italic;
+  color: #4a5568;
   animation: fadeInUp 1s ease-out 0.2s both;
 }
 
 .subtitle {
   font-size: 1.2rem;
   margin-bottom: 40px;
-  opacity: 0.95;
+  color: #718096;
   animation: fadeInUp 1s ease-out 0.4s both;
 }
 
@@ -97,9 +99,9 @@
   gap: 10px;
 
   &.btn-primary {
-    background: white;
-    color: #667eea;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+    color: white;
+    box-shadow: 0 4px 20px rgba(255, 107, 107, 0.3);
 
     &:hover {
       transform: translateY(-3px);
@@ -109,18 +111,18 @@
 
   &.btn-outline {
     background: transparent;
-    color: white;
-    border: 2px solid white;
+    color: #ff6b6b;
+    border: 2px solid #ff6b6b;
 
     &:hover {
-      background: white;
-      color: #667eea;
+      background: #ff6b6b;
+      color: white;
       transform: translateY(-3px);
     }
   }
 
   &.btn-play {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
     color: white;
     margin-top: 15px;
   }
@@ -133,7 +135,7 @@
   transform: translateX(-50%);
   text-align: center;
   cursor: pointer;
-  color: white;
+  color: #4a5568;
   animation: bounce 2s infinite;
 
   span {
@@ -226,14 +228,14 @@
 .price {
   font-size: 1.8rem;
   font-weight: 800;
-  color: #667eea;
+  color: #ff6b6b;
 }
 
 // Testimonials Section
 .testimonials {
   padding: 100px 40px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: #f7fafc;
+  color: #2d3748;
 }
 
 .testimonials-slider {
@@ -248,14 +250,14 @@
   top: 0;
   left: 0;
   right: 0;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: white;
   border-radius: 20px;
   padding: 50px;
   text-align: center;
   opacity: 0;
   transform: scale(0.9);
   transition: all 0.5s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 
   &.active {
     opacity: 1;
@@ -306,12 +308,12 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.4);
+    background: #cbd5e0;
     cursor: pointer;
     transition: all 0.3s ease;
 
     &.active {
-      background: white;
+      background: #ff6b6b;
       transform: scale(1.3);
     }
   }
@@ -347,7 +349,7 @@
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
   color: white;
   display: flex;
   align-items: center;
@@ -504,7 +506,7 @@
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -526,7 +528,7 @@
 // Stats Section
 .stats {
   padding: 80px 40px;
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
   color: white;
 }
 
@@ -582,8 +584,8 @@
 
   &:hover {
     transform: translateY(-5px);
-    box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
-    border-color: #667eea;
+    box-shadow: 0 8px 30px rgba(255, 107, 107, 0.2);
+    border-color: #ff6b6b;
   }
 }
 
@@ -653,7 +655,7 @@
 // Responsive Design
 @media (max-width: 768px) {
   .hero-logo {
-    max-width: 250px;
+    max-width: 350px;
   }
 
   .cafe-name {
@@ -705,7 +707,7 @@
 
 @media (max-width: 480px) {
   .hero-logo {
-    max-width: 200px;
+    max-width: 280px;
   }
 
   .cafe-name {

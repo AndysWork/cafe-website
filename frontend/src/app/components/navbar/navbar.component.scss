@@ -44,7 +44,7 @@
 }
 
 .brand-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -106,13 +106,13 @@
 }
 
 .btn-login {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
   color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
   }
 }
 
@@ -149,11 +149,11 @@
 
   &:hover {
     background: #f7fafc;
-    color: #667eea;
+    color: #ff6b6b;
   }
 
   &.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
     color: white;
 
     .nav-icon {
@@ -260,7 +260,7 @@
   transition: all 0.3s ease;
 
   &:hover {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
     color: white;
     transform: translateX(5px);
 
@@ -271,7 +271,7 @@
 
   &.active {
     background: #f7fafc;
-    color: #667eea;
+    color: #ff6b6b;
     font-weight: 600;
   }
 }
@@ -308,7 +308,7 @@
   padding: 8px;
 
   &:hover .hamburger-line {
-    background: #667eea;
+    background: #ff6b6b;
   }
 
   &.active .hamburger-line {
