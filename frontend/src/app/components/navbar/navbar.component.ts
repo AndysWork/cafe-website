@@ -1,6 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
+import { AuthService, User } from '../../services/auth.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-navbar',
@@ -9,10 +11,41 @@ import { RouterModule } from '@angular/router';
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.scss']
 })
-export class NavbarComponent {
+export class NavbarComponent implements OnInit, OnDestroy {
   isMobileMenuOpen = false;
   activeDropdown: string | null = null;
   private closeTimeout: any;
+  currentUser: User | null = null;
+  private authSubscription?: Subscription;
+
+  constructor(
+    private authService: AuthService,
+    private router: Router
+  ) {}
+
+  ngOnInit() {
+    this.authSubscription = this.authService.currentUser$.subscribe(
+      user => this.currentUser = user
+    );
+  }
+
+  ngOnDestroy() {
+    if (this.authSubscription) {
+      this.authSubscription.unsubscribe();
+    }
+  }
+
+  get isAdmin(): boolean {
+    return this.currentUser?.role === 'admin';
+  }
+
+  get isUser(): boolean {
+    return this.currentUser?.role === 'user';
+  }
+
+  get isLoggedIn(): boolean {
+    return this.currentUser !== null;
+  }
 
   toggleMobileMenu() {
     this.isMobileMenuOpen = !this.isMobileMenuOpen;
@@ -48,5 +81,16 @@ export class NavbarComponent {
   closeMobileMenu() {
     this.isMobileMenuOpen = false;
     this.activeDropdown = null;
+  }
+
+  onLogin() {
+    this.router.navigate(['/login']);
+    this.closeMobileMenu();
+  }
+
+  onLogout() {
+    this.authService.logout();
+    this.router.navigate(['/']);
+    this.closeMobileMenu();
   }
 }

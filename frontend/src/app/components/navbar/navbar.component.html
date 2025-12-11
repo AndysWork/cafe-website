@@ -2,23 +2,22 @@
   <div class="navbar-container">
     <!-- Logo -->
     <a routerLink="/" class="navbar-brand" (click)="closeMobileMenu()">
-      <span class="brand-icon">☕</span>
-      <span class="brand-text">Cafe Manager</span>
+      <img src="/Logo.jpg" alt="Maa Tara Cafe Logo" class="brand-logo">
     </a>
 
     <!-- Desktop Menu -->
     <div class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
-        <!-- Menu Update -->
-        <li class="nav-item">
+        <!-- Admin Only: Menu Update -->
+        <li class="nav-item" *ngIf="isAdmin">
           <a routerLink="/menu" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
             <span class="nav-icon">🍽️</span>
             Menu Update
           </a>
         </li>
 
-        <!-- Category Update with Dropdown -->
-        <li class="nav-item dropdown"
+        <!-- Admin Only: Category Update with Dropdown -->
+        <li class="nav-item dropdown" *ngIf="isAdmin"
             [class.active]="activeDropdown === 'category'"
             (mouseenter)="openDropdown('category')"
             (mouseleave)="scheduleCloseDropdown()">
@@ -59,7 +58,46 @@
             </li>
           </ul>
         </li>
+
+        <!-- Regular User: Orders -->
+        <li class="nav-item" *ngIf="isUser">
+          <a routerLink="/orders" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+            <span class="nav-icon">🛒</span>
+            Orders
+          </a>
+        </li>
+
+        <!-- Regular User: Offers -->
+        <li class="nav-item" *ngIf="isUser">
+          <a routerLink="/offers" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+            <span class="nav-icon">🎁</span>
+            Offers
+          </a>
+        </li>
+
+        <!-- Regular User: Loyalty Points -->
+        <li class="nav-item" *ngIf="isUser">
+          <a routerLink="/loyalty" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+            <span class="nav-icon">⭐</span>
+            Loyalty Points
+          </a>
+        </li>
       </ul>
+
+      <!-- Login/Logout Button -->
+      <div class="auth-section">
+        <button *ngIf="!isLoggedIn" class="btn-login" (click)="onLogin()">
+          <span class="login-icon">🔐</span>
+          Login
+        </button>
+        <div *ngIf="isLoggedIn" class="user-section">
+          <span class="username">{{ currentUser?.username }}</span>
+          <button class="btn-logout" (click)="onLogout()">
+            <span class="logout-icon">🚪</span>
+            Logout
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Mobile Menu Toggle -->

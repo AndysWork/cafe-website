@@ -1,0 +1,21 @@
+<div class="offers-container">
+  <div class="page-header">
+    <h1>Special Offers</h1>
+    <p>Exclusive deals and discounts just for you</p>
+  </div>
+
+  <div class="offers-grid">
+    <div *ngFor="let offer of offers" class="offer-card">
+      <div class="offer-icon">{{ offer.icon }}</div>
+      <div class="offer-badge">{{ offer.discount }}</div>
+      <h3>{{ offer.title }}</h3>
+      <p class="offer-description">{{ offer.description }}</p>
+      <div class="offer-code">
+        <span class="code-label">Use Code:</span>
+        <span class="code-value">{{ offer.code }}</span>
+        <button class="btn-copy" (click)="copyCode(offer.code)">📋</button>
+      </div>
+      <p class="offer-validity">{{ offer.validTill }}</p>
+    </div>
+  </div>
+</div>

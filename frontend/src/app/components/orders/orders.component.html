@@ -1,0 +1,29 @@
+<div class="orders-container">
+  <div class="page-header">
+    <h1>My Orders</h1>
+    <p>Track your order history and current orders</p>
+  </div>
+
+  <div class="orders-list">
+    <div *ngFor="let order of orders" class="order-card">
+      <div class="order-header">
+        <div>
+          <h3>{{ order.id }}</h3>
+          <p class="order-date">{{ order.date }}</p>
+        </div>
+        <span class="order-status" [class.delivered]="order.status === 'Delivered'"
+              [class.in-progress]="order.status === 'In Progress'">
+          {{ order.status }}
+        </span>
+      </div>
+      <div class="order-body">
+        <p class="order-items">{{ order.items }}</p>
+        <div class="order-total">Total: {{ order.total }}</div>
+      </div>
+      <div class="order-actions">
+        <button class="btn-reorder">Reorder</button>
+        <button class="btn-details">View Details</button>
+      </div>
+    </div>
+  </div>
+</div>

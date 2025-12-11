@@ -9,5 +9,5 @@ import { NavbarComponent } from './components/navbar/navbar.component';
   styleUrl: './app.component.scss'
 })
 export class AppComponent {
-  title = 'Cafe Management';
+  title = 'Dashboard';
 }

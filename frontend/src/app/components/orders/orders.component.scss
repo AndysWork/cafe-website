@@ -1,0 +1,145 @@
+.orders-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.page-header {
+  margin-bottom: 40px;
+
+  h1 {
+    font-size: 2.5rem;
+    color: #2d3748;
+    margin-bottom: 10px;
+  }
+
+  p {
+    color: #718096;
+    font-size: 1.1rem;
+  }
+}
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.order-card {
+  background: white;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.12);
+  }
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f7fafc;
+
+  h3 {
+    font-size: 1.3rem;
+    color: #2d3748;
+    margin-bottom: 5px;
+  }
+
+  .order-date {
+    color: #718096;
+    font-size: 0.9rem;
+  }
+}
+
+.order-status {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.85rem;
+
+  &.delivered {
+    background: #c6f6d5;
+    color: #22543d;
+  }
+
+  &.in-progress {
+    background: #feebc8;
+    color: #7c2d12;
+  }
+}
+
+.order-body {
+  margin-bottom: 20px;
+
+  .order-items {
+    color: #4a5568;
+    margin-bottom: 10px;
+    line-height: 1.6;
+  }
+
+  .order-total {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #667eea;
+  }
+}
+
+.order-actions {
+  display: flex;
+  gap: 12px;
+
+  button {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .btn-reorder {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+  }
+
+  .btn-details {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+
+    &:hover {
+      background: #f7fafc;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .page-header h1 {
+    font-size: 2rem;
+  }
+
+  .order-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .order-actions {
+    flex-direction: column;
+
+    button {
+      width: 100%;
+    }
+  }
+}

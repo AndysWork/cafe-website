@@ -13,14 +13,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 70px;
+  height: 80px;
 }
 
 // Brand
 .navbar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 15px;
   text-decoration: none;
   font-size: 1.5rem;
   font-weight: 700;
@@ -30,6 +30,13 @@
   &:hover {
     transform: scale(1.05);
   }
+}
+
+.brand-logo {
+  height: 65px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
 }
 
 .brand-icon {
@@ -47,6 +54,7 @@
 .navbar-menu {
   display: flex;
   align-items: center;
+  gap: 20px;
 }
 
 .navbar-nav {
@@ -56,6 +64,68 @@
   margin: 0;
   padding: 0;
   gap: 10px;
+}
+
+// Auth Section
+.auth-section {
+  margin-left: auto;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+
+  .username {
+    color: #4a5568;
+    font-weight: 600;
+    padding: 8px 16px;
+    background: #f7fafc;
+    border-radius: 20px;
+    font-size: 0.9rem;
+  }
+}
+
+.btn-login,
+.btn-logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 25px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  .login-icon,
+  .logout-icon {
+    font-size: 1.1rem;
+  }
+}
+
+.btn-login {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  }
+}
+
+.btn-logout {
+  background: #f56565;
+  color: white;
+  box-shadow: 0 4px 15px rgba(245, 101, 101, 0.3);
+
+  &:hover {
+    background: #e53e3e;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(245, 101, 101, 0.4);
+  }
 }
 
 .nav-item {
@@ -300,6 +370,8 @@
     z-index: 999;
     overflow-y: auto;
     padding: 20px;
+    flex-direction: column;
+    gap: 20px;
 
     &.active {
       right: 0;
@@ -310,6 +382,7 @@
     flex-direction: column;
     align-items: stretch;
     gap: 5px;
+    width: 100%;
   }
 
   .nav-item {
@@ -341,6 +414,33 @@
 
     &.active {
       display: block;
+    }
+  }
+
+  .auth-section {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+
+    .user-section {
+      flex-direction: column;
+      width: 100%;
+
+      .username {
+        width: 100%;
+        text-align: center;
+      }
+
+      .btn-logout {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    .btn-login {
+      width: 100%;
+      justify-content: center;
     }
   }
 }

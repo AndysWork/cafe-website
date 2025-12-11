@@ -1,0 +1,59 @@
+<div class="login-container">
+  <div class="login-box">
+    <div class="login-header">
+      <div class="logo">☕</div>
+      <h1>Admin Login</h1>
+      <p>Access the Cafe Management System</p>
+    </div>
+
+    <form (ngSubmit)="onLogin()" class="login-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input
+          type="text"
+          id="username"
+          [(ngModel)]="username"
+          name="username"
+          placeholder="Enter your username"
+          required
+          autocomplete="username"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          [(ngModel)]="password"
+          name="password"
+          placeholder="Enter your password"
+          required
+          autocomplete="current-password"
+        />
+      </div>
+
+      <div *ngIf="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </div>
+
+      <button type="submit" class="btn-login">
+        Login
+      </button>
+
+      <div class="login-info">
+        <p>Available Accounts:</p>
+        <div class="account-info">
+          <div>
+            <strong>Admin:</strong>
+            <p>Username: admin | Password: admin123</p>
+          </div>
+          <div>
+            <strong>User:</strong>
+            <p>Username: user | Password: user123</p>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

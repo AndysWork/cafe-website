@@ -1,0 +1,61 @@
+<div class="loyalty-container">
+  <div class="page-header">
+    <h1>Loyalty Points</h1>
+    <p>Earn points with every order and redeem exciting rewards</p>
+  </div>
+
+  <!-- Points Overview -->
+  <div class="points-card">
+    <div class="points-display">
+      <div class="points-icon">⭐</div>
+      <div class="points-info">
+        <h2>{{ currentPoints }}</h2>
+        <p>Available Points</p>
+      </div>
+    </div>
+    <div class="tier-info">
+      <div class="tier-badge">{{ tier }} Member</div>
+      <div class="progress-section">
+        <p>{{ pointsToNextTier }} points to {{ nextTier }}</p>
+        <div class="progress-bar">
+          <div class="progress-fill" [style.width.%]="(currentPoints / (currentPoints + pointsToNextTier)) * 100"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Available Rewards -->
+  <div class="section">
+    <h2>Redeem Rewards</h2>
+    <div class="rewards-grid">
+      <div *ngFor="let reward of availableRewards" class="reward-card">
+        <div class="reward-icon">{{ reward.icon }}</div>
+        <h3>{{ reward.name }}</h3>
+        <div class="reward-points">{{ reward.points }} Points</div>
+        <button class="btn-redeem"
+                [disabled]="currentPoints < reward.points"
+                (click)="redeemReward(reward)">
+          {{ currentPoints >= reward.points ? 'Redeem' : 'Not Enough Points' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Points History -->
+  <div class="section">
+    <h2>Points History</h2>
+    <div class="history-list">
+      <div *ngFor="let history of rewardsHistory" class="history-item">
+        <div class="history-info">
+          <p class="history-action">{{ history.action }}</p>
+          <p class="history-date">{{ history.date }}</p>
+        </div>
+        <span class="history-points"
+              [class.earned]="history.type === 'earned'"
+              [class.redeemed]="history.type === 'redeemed'">
+          {{ history.points }}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
