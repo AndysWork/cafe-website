@@ -114,28 +114,53 @@ public class FileUploadFunction
         var buffer = new byte[stream.Length];
         stream.Read(buffer, 0, buffer.Length);
         
-        var content = System.Text.Encoding.UTF8.GetString(buffer);
-        var boundaryDelimiter = "--" + boundary;
-        var sections = content.Split(new[] { boundaryDelimiter }, StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var section in sections)
+        // Find all boundary positions
+        var boundaryPositions = new List<int>();
+        for (int i = 0; i <= buffer.Length - boundaryBytes.Length; i++)
         {
-            if (section.Trim() == "--" || string.IsNullOrWhiteSpace(section))
-                continue;
-
-            // Find the double CRLF that separates headers from body
-            var headerEndIndex = section.IndexOf("\r\n\r\n");
-            if (headerEndIndex < 0)
+            bool match = true;
+            for (int j = 0; j < boundaryBytes.Length; j++)
             {
-                headerEndIndex = section.IndexOf("\n\n");
-                if (headerEndIndex < 0) continue;
+                if (buffer[i + j] != boundaryBytes[j])
+                {
+                    match = false;
+                    break;
+                }
+            }
+            if (match)
+            {
+                boundaryPositions.Add(i);
+            }
+        }
+
+        // Process each section between boundaries
+        for (int i = 0; i < boundaryPositions.Count - 1; i++)
+        {
+            var start = boundaryPositions[i] + boundaryBytes.Length;
+            var end = boundaryPositions[i + 1];
+            var sectionBytes = new byte[end - start];
+            Array.Copy(buffer, start, sectionBytes, 0, sectionBytes.Length);
+
+            // Find header end (double CRLF or double LF)
+            int headerEnd = -1;
+            for (int j = 0; j < sectionBytes.Length - 3; j++)
+            {
+                if ((sectionBytes[j] == '\r' && sectionBytes[j + 1] == '\n' && 
+                     sectionBytes[j + 2] == '\r' && sectionBytes[j + 3] == '\n') ||
+                    (sectionBytes[j] == '\n' && sectionBytes[j + 1] == '\n'))
+                {
+                    headerEnd = j;
+                    break;
+                }
             }
 
-            var headers = section.Substring(0, headerEndIndex);
-            var bodyStartIndex = headerEndIndex + (section[headerEndIndex + 1] == '\n' && section[headerEndIndex + 2] == '\n' ? 2 : 4);
-            var body = section.Substring(bodyStartIndex).TrimEnd('\r', '\n', '-');
+            if (headerEnd < 0) continue;
 
-            // Parse Content-Disposition
+            var headerBytes = new byte[headerEnd];
+            Array.Copy(sectionBytes, 0, headerBytes, 0, headerEnd);
+            var headers = System.Text.Encoding.UTF8.GetString(headerBytes);
+
+            // Parse headers
             var dispositionMatch = System.Text.RegularExpressions.Regex.Match(headers, @"name=""([^""]+)""");
             if (!dispositionMatch.Success) continue;
 
@@ -144,17 +169,30 @@ public class FileUploadFunction
 
             var part = new MultipartPart();
 
+            // Calculate body start
+            int bodyStart = headerEnd + (sectionBytes[headerEnd] == '\r' ? 4 : 2);
+            int bodyLength = sectionBytes.Length - bodyStart;
+            
+            // Trim trailing CRLF or LF
+            while (bodyLength > 0 && (sectionBytes[bodyStart + bodyLength - 1] == '\n' || 
+                                       sectionBytes[bodyStart + bodyLength - 1] == '\r'))
+            {
+                bodyLength--;
+            }
+
             if (fileNameMatch.Success)
             {
-                // This is a file field
+                // This is a file - keep as binary
                 part.FileName = fileNameMatch.Groups[1].Value;
-                // For file content, convert back to bytes using UTF8
-                part.Data = System.Text.Encoding.UTF8.GetBytes(body);
+                part.Data = new byte[bodyLength];
+                Array.Copy(sectionBytes, bodyStart, part.Data, 0, bodyLength);
             }
             else
             {
-                // This is a text field
-                part.Text = body.Trim();
+                // This is text - decode to string
+                var textBytes = new byte[bodyLength];
+                Array.Copy(sectionBytes, bodyStart, textBytes, 0, bodyLength);
+                part.Text = System.Text.Encoding.UTF8.GetString(textBytes).Trim();
             }
 
             parts[fieldName] = part;

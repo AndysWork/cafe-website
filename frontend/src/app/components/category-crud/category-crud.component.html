@@ -59,13 +59,13 @@
         </thead>
         <tbody>
           <tr *ngFor="let category of categories" [class.editing]="category.isEditing">
-            <td>{{ category.id }}</td>
+            <td>{{ category.Id }}</td>
             <td>
-              <span *ngIf="!category.isEditing">{{ category.name }}</span>
+              <span *ngIf="!category.isEditing">{{ category.Name }}</span>
               <input
                 *ngIf="category.isEditing"
                 type="text"
-                [(ngModel)]="editingCategory!.name"
+                [(ngModel)]="editingCategory!.Name"
                 class="edit-input">
             </td>
             <td class="actions">
@@ -107,11 +107,11 @@
         <div class="form-group">
           <label>Category</label>
           <select
-            [(ngModel)]="newSubCategory.categoryId"
+            [(ngModel)]="newSubCategory.CategoryId"
             class="form-select">
             <option value="">Select a category</option>
-            <option *ngFor="let category of categories" [value]="category.id">
-              {{ category.name }}
+            <option *ngFor="let category of categories" [value]="category.Id">
+              {{ category.Name }}
             </option>
           </select>
         </div>
@@ -119,7 +119,7 @@
           <label>SubCategory Name</label>
           <input
             type="text"
-            [(ngModel)]="newSubCategory.name"
+            [(ngModel)]="newSubCategory.Name"
             placeholder="Enter subcategory name"
             class="form-input"
             (keyup.enter)="createSubCategory()">
@@ -141,8 +141,8 @@
         (change)="filterSubCategories()"
         class="form-select">
         <option value="">All Categories</option>
-        <option *ngFor="let category of categories" [value]="category.id">
-          {{ category.name }}
+        <option *ngFor="let category of categories" [value]="category.Id">
+          {{ category.Name }}
         </option>
       </select>
     </div>
@@ -167,24 +167,24 @@
         </thead>
         <tbody>
           <tr *ngFor="let subCategory of filteredSubCategories" [class.editing]="subCategory.isEditing">
-            <td>{{ subCategory.id }}</td>
+            <td>{{ subCategory.Id }}</td>
             <td>
-              <span *ngIf="!subCategory.isEditing">{{ getCategoryName(subCategory.categoryId) }}</span>
+              <span *ngIf="!subCategory.isEditing">{{ getCategoryName(subCategory.CategoryId) }}</span>
               <select
                 *ngIf="subCategory.isEditing"
-                [(ngModel)]="editingSubCategory!.categoryId"
+                [(ngModel)]="editingSubCategory!.CategoryId"
                 class="edit-select">
-                <option *ngFor="let category of categories" [value]="category.id">
-                  {{ category.name }}
+                <option *ngFor="let category of categories" [value]="category.Id">
+                  {{ category.Name }}
                 </option>
               </select>
             </td>
             <td>
-              <span *ngIf="!subCategory.isEditing">{{ subCategory.name }}</span>
+              <span *ngIf="!subCategory.isEditing">{{ subCategory.Name }}</span>
               <input
                 *ngIf="subCategory.isEditing"
                 type="text"
-                [(ngModel)]="editingSubCategory!.name"
+                [(ngModel)]="editingSubCategory!.Name"
                 class="edit-input">
             </td>
             <td class="actions">

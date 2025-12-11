@@ -42,6 +42,7 @@ public class FileUploadService
 
             var categories = new Dictionary<string, MenuCategory>();
             var subCategories = new List<MenuSubCategory>();
+            var subCategoryKeys = new HashSet<string>(); // Track unique subcategories
 
             for (int row = 2; row <= rowCount; row++)
             {
@@ -56,7 +57,7 @@ public class FileUploadService
                         continue;
                     }
 
-                    // Add or get category
+                    // Add or get category (skip if already exists)
                     if (!categories.ContainsKey(categoryName))
                     {
                         categories[categoryName] = new MenuCategory
@@ -65,14 +66,23 @@ public class FileUploadService
                         };
                     }
 
-                    // Add subcategory if provided
-                    if (!string.IsNullOrEmpty(subCategoryName))
+                    // Add subcategory if provided and not same as category name
+                    if (!string.IsNullOrEmpty(subCategoryName) && 
+                        !subCategoryName.Equals(categoryName, StringComparison.OrdinalIgnoreCase))
                     {
-                        subCategories.Add(new MenuSubCategory
+                        // Create unique key for subcategory (category:subcategory)
+                        var subCategoryKey = $"{categoryName}:{subCategoryName}";
+                        
+                        // Only add if not duplicate
+                        if (!subCategoryKeys.Contains(subCategoryKey))
                         {
-                            CategoryName = categoryName,
-                            Name = subCategoryName
-                        });
+                            subCategories.Add(new MenuSubCategory
+                            {
+                                CategoryName = categoryName,
+                                Name = subCategoryName
+                            });
+                            subCategoryKeys.Add(subCategoryKey);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -104,12 +114,22 @@ public class FileUploadService
                 }
             }
 
-            result.Success = true;
-            result.Message = $"Successfully imported {result.CategoriesProcessed} categories and {result.SubCategoriesProcessed} subcategories";
+            if (result.CategoriesProcessed > 0 || result.SubCategoriesProcessed > 0)
+            {
+                result.Success = true;
+                result.Message = $"Successfully imported {result.CategoriesProcessed} categories and {result.SubCategoriesProcessed} subcategories";
+            }
+            else
+            {
+                result.Success = false;
+                result.Message = "No data was imported. Please check your file format.";
+            }
         }
         catch (Exception ex)
         {
+            result.Success = false;
             result.Errors.Add($"File processing error: {ex.Message}");
+            result.Message = "Upload failed due to an error.";
         }
 
         return result;
@@ -138,6 +158,7 @@ public class FileUploadService
 
             var categories = new Dictionary<string, MenuCategory>();
             var subCategories = new List<MenuSubCategory>();
+            var subCategoryKeys = new HashSet<string>(); // Track unique subcategories
 
             foreach (var record in records)
             {
@@ -149,7 +170,7 @@ public class FileUploadService
                         continue;
                     }
 
-                    // Add or get category
+                    // Add or get category (skip if already exists)
                     if (!categories.ContainsKey(record.CategoryName))
                     {
                         categories[record.CategoryName] = new MenuCategory
@@ -158,14 +179,23 @@ public class FileUploadService
                         };
                     }
 
-                    // Add subcategory if provided
-                    if (!string.IsNullOrEmpty(record.SubCategoryName))
+                    // Add subcategory if provided and not same as category name
+                    if (!string.IsNullOrEmpty(record.SubCategoryName) && 
+                        !record.SubCategoryName.Equals(record.CategoryName, StringComparison.OrdinalIgnoreCase))
                     {
-                        subCategories.Add(new MenuSubCategory
+                        // Create unique key for subcategory (category:subcategory)
+                        var subCategoryKey = $"{record.CategoryName}:{record.SubCategoryName}";
+                        
+                        // Only add if not duplicate
+                        if (!subCategoryKeys.Contains(subCategoryKey))
                         {
-                            CategoryName = record.CategoryName,
-                            Name = record.SubCategoryName
-                        });
+                            subCategories.Add(new MenuSubCategory
+                            {
+                                CategoryName = record.CategoryName,
+                                Name = record.SubCategoryName
+                            });
+                            subCategoryKeys.Add(subCategoryKey);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -197,12 +227,22 @@ public class FileUploadService
                 }
             }
 
-            result.Success = true;
-            result.Message = $"Successfully imported {result.CategoriesProcessed} categories and {result.SubCategoriesProcessed} subcategories";
+            if (result.CategoriesProcessed > 0 || result.SubCategoriesProcessed > 0)
+            {
+                result.Success = true;
+                result.Message = $"Successfully imported {result.CategoriesProcessed} categories and {result.SubCategoriesProcessed} subcategories";
+            }
+            else
+            {
+                result.Success = false;
+                result.Message = "No data was imported. Please check your file format.";
+            }
         }
         catch (Exception ex)
         {
+            result.Success = false;
             result.Errors.Add($"CSV processing error: {ex.Message}");
+            result.Message = "Upload failed due to an error.";
         }
 
         return result;

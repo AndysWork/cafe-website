@@ -87,29 +87,29 @@
 
   <!-- Upload Result -->
   <div *ngIf="uploadResult" class="upload-result">
-    <div class="result-card" [class.success]="uploadResult.success" [class.error]="!uploadResult.success">
+    <div class="result-card" [class.success]="uploadResult.Success" [class.error]="!uploadResult.Success">
       <div class="result-header">
-        <span class="result-icon">{{ uploadResult.success ? '✅' : '❌' }}</span>
-        <h3>{{ uploadResult.success ? 'Upload Successful!' : 'Upload Failed' }}</h3>
+        <span class="result-icon">{{ uploadResult.Success ? '✅' : '❌' }}</span>
+        <h3>{{ uploadResult.Success ? 'Upload Successful!' : 'Upload Failed' }}</h3>
       </div>
 
-      <p class="result-message">{{ uploadResult.message }}</p>
+      <p class="result-message">{{ uploadResult.Message }}</p>
 
-      <div class="result-stats" *ngIf="uploadResult.success">
+      <div class="result-stats" *ngIf="uploadResult.Success">
         <div class="stat">
-          <span class="stat-value">{{ uploadResult.categoriesProcessed }}</span>
+          <span class="stat-value">{{ uploadResult.CategoriesProcessed }}</span>
           <span class="stat-label">Categories Imported</span>
         </div>
         <div class="stat">
-          <span class="stat-value">{{ uploadResult.subCategoriesProcessed }}</span>
+          <span class="stat-value">{{ uploadResult.SubCategoriesProcessed }}</span>
           <span class="stat-label">SubCategories Imported</span>
         </div>
       </div>
 
-      <div *ngIf="uploadResult.errors && uploadResult.errors.length > 0" class="error-list">
+      <div *ngIf="uploadResult.Errors && uploadResult.Errors.length > 0" class="error-list">
         <h4>Errors:</h4>
         <ul>
-          <li *ngFor="let error of uploadResult.errors">{{ error }}</li>
+          <li *ngFor="let error of uploadResult.Errors">{{ error }}</li>
         </ul>
       </div>
     </div>
@@ -119,16 +119,47 @@
   <div class="instructions">
     <h3>📋 File Format Instructions</h3>
     <div class="instruction-content">
-      <p><strong>Required Columns:</strong></p>
+      <p><strong>Required Columns (Simplified Format):</strong></p>
       <ol>
         <li><strong>CategoryName</strong> - Name of the category (required)</li>
-        <li><strong>CategoryDescription</strong> - Description of the category</li>
-        <li><strong>CategoryDisplayOrder</strong> - Display order number (e.g., 1, 2, 3)</li>
-        <li><strong>SubCategoryName</strong> - Name of the subcategory</li>
-        <li><strong>SubCategoryDescription</strong> - Description of the subcategory</li>
-        <li><strong>SubCategoryDisplayOrder</strong> - Display order number for subcategory</li>
+        <li><strong>SubCategoryName</strong> - Name of the subcategory (optional)</li>
       </ol>
-      <p class="tip"><strong>💡 Tip:</strong> You can have multiple rows with the same CategoryName to add multiple subcategories to a single category.</p>
+      <p><strong>Example Data:</strong></p>
+      <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+        <thead>
+          <tr style="background: #f7fafc;">
+            <th style="padding: 0.5rem; border: 1px solid #e2e8f0; text-align: left;">CategoryName</th>
+            <th style="padding: 0.5rem; border: 1px solid #e2e8f0; text-align: left;">SubCategoryName</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Beverages</td>
+            <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Coffee</td>
+          </tr>
+          <tr style="background: #f7fafc;">
+            <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Beverages</td>
+            <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Tea</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Food</td>
+            <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Sandwiches</td>
+          </tr>
+          <tr style="background: #f7fafc;">
+            <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Snacks</td>
+            <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="tip">
+        <p><strong>💡 Tips:</strong></p>
+        <ul>
+          <li>Multiple rows with the same CategoryName will create multiple subcategories under one category</li>
+          <li>Leave SubCategoryName empty to create a category without subcategories</li>
+          <li>If CategoryName equals SubCategoryName, only the category will be created</li>
+          <li>Duplicate entries are automatically skipped</li>
+        </ul>
+      </div>
     </div>
   </div>
 </div>

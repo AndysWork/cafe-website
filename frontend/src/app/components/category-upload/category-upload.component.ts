@@ -4,11 +4,11 @@ import { HttpClient, HttpEventType } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
 interface UploadResult {
-  success: boolean;
-  categoriesProcessed: number;
-  subCategoriesProcessed: number;
-  errors: string[];
-  message: string;
+  Success: boolean;
+  CategoriesProcessed: number;
+  SubCategoriesProcessed: number;
+  Errors: string[];
+  Message: string;
 }
 
 @Component({
@@ -85,6 +85,7 @@ export class CategoryUploadComponent {
       return;
     }
 
+    console.log('Starting upload...', this.selectedFile.name);
     this.isUploading = true;
     this.uploadProgress = 0;
     this.uploadResult = null;
@@ -95,15 +96,23 @@ export class CategoryUploadComponent {
     formData.append('uploadedBy', 'Admin'); // You can get this from auth service
 
     const apiUrl = `${environment.apiUrl}/upload/categories`;
+    console.log('Upload URL:', apiUrl);
+    console.log('FormData entries:');
+    formData.forEach((value, key) => {
+      console.log(key, ':', value instanceof File ? `File: ${value.name}` : value);
+    });
 
     this.http.post<UploadResult>(apiUrl, formData, {
       reportProgress: true,
       observe: 'events'
     }).subscribe({
       next: (event) => {
+        console.log('Upload event:', event.type);
         if (event.type === HttpEventType.UploadProgress && event.total) {
           this.uploadProgress = Math.round((100 * event.loaded) / event.total);
+          console.log('Upload progress:', this.uploadProgress);
         } else if (event.type === HttpEventType.Response) {
+          console.log('Upload response:', event.body);
           this.uploadResult = event.body;
           this.isUploading = false;
           this.selectedFile = null;
@@ -111,7 +120,9 @@ export class CategoryUploadComponent {
         }
       },
       error: (error) => {
-        this.errorMessage = error.error?.error || 'Upload failed. Please try again.';
+        console.error('Upload error:', error);
+        console.error('Error details:', JSON.stringify(error.error));
+        this.errorMessage = error.error?.error || error.error?.message || error.statusText || 'Upload failed. Please try again.';
         this.isUploading = false;
         this.uploadProgress = 0;
       }
