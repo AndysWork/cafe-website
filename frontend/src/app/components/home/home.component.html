@@ -100,15 +100,15 @@
     </div>
     <div class="categories-grid">
       <div
-        *ngFor="let category of menuCategories"
+        *ngFor="let category of categories; let i = index"
         class="category-card"
-        [style.border-color]="category.color"
+        [style.border-color]="getCategoryColor(i)"
       >
-        <div class="category-icon" [style.color]="category.color">
-          {{ category.icon }}
+        <div class="category-icon" [style.color]="getCategoryColor(i)">
+          {{ getCategoryIcon(category.name) }}
         </div>
         <h3>{{ category.name }}</h3>
-        <p>{{ category.count }}</p>
+        <p>{{ getMenuItemCount(category.id) }} items</p>
       </div>
     </div>
   </section>
@@ -120,9 +120,9 @@
       <p>A glimpse of our delicious creations</p>
     </div>
     <div class="gallery-grid">
-      <div *ngFor="let item of gallery" class="gallery-item">
-        <div class="gallery-image">{{ item.image }}</div>
-        <div class="gallery-caption">{{ item.caption }}</div>
+      <div *ngFor="let item of getGalleryItems()" class="gallery-item">
+        <div class="gallery-image">{{ getCategoryIcon(getCategoryNameById(item.categoryId)) }}</div>
+        <div class="gallery-caption">{{ item.catalogueName }}</div>
       </div>
     </div>
   </section>
