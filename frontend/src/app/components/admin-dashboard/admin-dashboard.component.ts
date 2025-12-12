@@ -28,7 +28,13 @@ export class AdminDashboardComponent {
       active: false
     },
     {
-      icon: '📁',
+      icon: '�',
+      label: 'Menu Upload',
+      route: '/admin/menu/upload',
+      active: false
+    },
+    {
+      icon: '�📁',
       label: 'Category Upload',
       route: '/admin/category/upload',
       active: false

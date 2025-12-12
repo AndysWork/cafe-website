@@ -7,6 +7,8 @@ import { OrdersComponent } from './components/orders/orders.component';
 import { OffersComponent } from './components/offers/offers.component';
 import { LoyaltyComponent } from './components/loyalty/loyalty.component';
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
+import { MenuUploadComponent } from './components/menu-upload/menu-upload.component';
+import { MenuManagementComponent } from './components/menu-management/menu-management.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -18,6 +20,7 @@ export const routes: Routes = [
   { path: 'admin/dashboard', component: AdminDashboardComponent },
   { path: 'admin/category/upload', component: CategoryUploadComponent },
   { path: 'admin/category/crud', component: CategoryCrudComponent },
-  { path: 'admin/menu', component: HomeComponent }, // Placeholder for menu component
+  { path: 'admin/menu/upload', component: MenuUploadComponent },
+  { path: 'admin/menu', component: MenuManagementComponent },
   { path: '**', redirectTo: '' }
 ];

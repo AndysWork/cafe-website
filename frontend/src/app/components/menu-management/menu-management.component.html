@@ -1,0 +1,226 @@
+<div class="menu-management-container">
+  <div class="header">
+    <div class="header-content">
+      <h1>🍽️ Menu Management</h1>
+      <p>Manage your cafe menu items, variants, and pricing</p>
+    </div>
+    <button class="btn-create" (click)="openCreateModal()">
+      <span class="icon">➕</span>
+      Add Menu Item
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        placeholder="Search menu items..."
+        class="search-input">
+    </div>
+    <div class="filter-group">
+      <label>Filter by Category:</label>
+      <select [(ngModel)]="filterCategory" class="filter-select">
+        <option value="">All Categories</option>
+        <option *ngFor="let cat of categories" [value]="cat.id">{{ cat.name }}</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading" *ngIf="loading && menuItems.length === 0">
+    <div class="spinner">⏳</div>
+    <p>Loading menu items...</p>
+  </div>
+
+  <!-- Menu Items Table -->
+  <div class="table-container" *ngIf="!loading || menuItems.length > 0">
+    <table class="menu-table">
+      <thead>
+        <tr>
+          <th>Item Name</th>
+          <th>Category</th>
+          <th>Description</th>
+          <th>Variants</th>
+          <th>Online Price</th>
+          <th>Shop Price</th>
+          <th>Packaging</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of filteredMenuItems" class="menu-row">
+          <td class="item-name">
+            <div class="name-cell">
+              <span class="name">{{ item.name }}</span>
+            </div>
+          </td>
+          <td>
+            <span class="category-badge">{{ item.category }}</span>
+          </td>
+          <td class="description">{{ item.description || 'No description' }}</td>
+          <td>
+            <div class="variants-cell">
+              <span class="variant-count" *ngIf="item.variants && item.variants.length > 0">
+                {{ item.variants.length }} variant(s)
+              </span>
+              <div class="variant-list" *ngIf="item.variants && item.variants.length > 0">
+                <div class="variant-item" *ngFor="let variant of item.variants">
+                  <span class="variant-name">{{ variant.variantName }}</span>
+                  <span class="variant-price">₹{{ variant.price }}</span>
+                  <span class="variant-qty" *ngIf="variant.quantity">({{ variant.quantity }})</span>
+                </div>
+              </div>
+              <span class="no-variants" *ngIf="!item.variants || item.variants.length === 0">
+                No variants
+              </span>
+            </div>
+          </td>
+          <td>
+            <div class="price-cell">
+              <span class="price">₹{{ item.onlinePrice }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="price-cell">
+              <span class="price">₹{{ item.shopSellingPrice }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="price-cell">
+              <span class="price">₹{{ item.packagingCharge }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="actions">
+              <button class="btn-edit" (click)="openEditModal(item)" title="Edit">
+                ✏️
+              </button>
+              <button class="btn-delete" (click)="deleteMenuItem(item)" title="Delete">
+                🗑️
+              </button>
+            </div>
+          </td>
+        </tr>
+        <tr *ngIf="filteredMenuItems.length === 0">
+          <td colspan="8" class="no-data">
+            <div class="no-data-content">
+              <span class="icon">📭</span>
+              <p>No menu items found</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ isEditMode ? '✏️ Edit Menu Item' : '➕ Add Menu Item' }}</h2>
+        <button class="btn-close" (click)="closeModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <form class="menu-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Item Name *</label>
+              <input type="text" [(ngModel)]="formData.name" name="name" placeholder="e.g., Cappuccino" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Category *</label>
+              <select [(ngModel)]="formData.categoryId" name="categoryId" (change)="onCategoryChange(formData.categoryId!)" required>
+                <option value="">Select Category</option>
+                <option *ngFor="let cat of categories" [value]="cat.id">{{ cat.name }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Sub Category</label>
+              <select [(ngModel)]="formData.subCategoryId" name="subCategoryId" [disabled]="!formData.categoryId">
+                <option [value]="undefined">Select Sub Category</option>
+                <option *ngFor="let subCat of filteredSubCategories" [value]="subCat.id">{{ subCat.name }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Description</label>
+            <textarea [(ngModel)]="formData.description" name="description" rows="3" placeholder="Item description..."></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Online Price *</label>
+              <input type="number" [(ngModel)]="formData.onlinePrice" name="onlinePrice" placeholder="0.00" step="0.01" required>
+            </div>
+            <div class="form-group">
+              <label>Shop Price</label>
+              <input type="number" [(ngModel)]="formData.shopSellingPrice" name="shopSellingPrice" placeholder="0.00" step="0.01">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Making Price</label>
+              <input type="number" [(ngModel)]="formData.makingPrice" name="makingPrice" placeholder="0.00" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Packaging Charge</label>
+              <input type="number" [(ngModel)]="formData.packagingCharge" name="packagingCharge" placeholder="0.00" step="0.01">
+            </div>
+          </div>
+
+          <!-- Variants Section -->
+          <div class="variants-section">
+            <h3>Variants</h3>
+            <div class="variant-form">
+              <input
+                type="text"
+                [(ngModel)]="newVariant.variantName"
+                name="variantName"
+                placeholder="Variant name (e.g., 250ml)">
+              <input
+                type="number"
+                [(ngModel)]="newVariant.price"
+                name="variantPrice"
+                placeholder="Price"
+                step="0.01">
+              <input
+                type="number"
+                [(ngModel)]="newVariant.quantity"
+                name="variantQuantity"
+                placeholder="Quantity (optional)">
+              <button type="button" class="btn-add-variant" (click)="addVariant()">
+                ➕ Add
+              </button>
+            </div>
+
+            <div class="variants-list" *ngIf="formData.variants && formData.variants.length > 0">
+              <div class="variant-chip" *ngFor="let variant of formData.variants; let i = index">
+                <span class="variant-info">
+                  <strong>{{ variant.variantName }}</strong> - ₹{{ variant.price }}
+                  <span *ngIf="variant.quantity"> ({{ variant.quantity }})</span>
+                </span>
+                <button type="button" class="btn-remove-variant" (click)="removeVariant(i)">✕</button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="closeModal()">Cancel</button>
+        <button class="btn-save" (click)="saveMenuItem()" [disabled]="loading">
+          {{ loading ? 'Saving...' : (isEditMode ? 'Update' : 'Create') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -74,6 +74,22 @@ public class MongoService
         var result = await _menu.DeleteOneAsync(x => x.Id == id);
         return result.DeletedCount > 0;
     }
+
+    // Bulk insert menu items (for Excel upload)
+    public async Task<int> BulkInsertMenuItemsAsync(List<CafeMenuItem> items)
+    {
+        if (items == null || items.Count == 0)
+            return 0;
+
+        await _menu.InsertManyAsync(items);
+        return items.Count;
+    }
+    
+    // Clear all menu items (useful before bulk upload)
+    public async Task ClearMenuItemsAsync()
+    {
+        await _menu.DeleteManyAsync(_ => true);
+    }
     
     #endregion
 

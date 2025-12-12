@@ -23,9 +23,19 @@ public class CafeMenuItem
     public decimal PackagingCharge { get; set; }
     public decimal ShopSellingPrice { get; set; }
     public decimal OnlinePrice { get; set; }
+    
+    // Variants for menu items (e.g., different sizes, quantities)
+    public List<MenuItemVariant> Variants { get; set; } = new List<MenuItemVariant>();
+    
     public string CreatedBy { get; set; } = "System";
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public string LastUpdatedBy { get; set; } = "System";
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+}
 
+public class MenuItemVariant
+{
+    public string VariantName { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public int? Quantity { get; set; } // If variant name contains numeric value
 }
