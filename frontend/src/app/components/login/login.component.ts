@@ -26,7 +26,7 @@ export class LoginComponent {
     if (success) {
       const user = this.authService.getCurrentUser();
       if (user?.role === 'admin') {
-        this.router.navigate(['/menu']);
+        this.router.navigate(['/admin/dashboard']);
       } else {
         this.router.navigate(['/orders']);
       }

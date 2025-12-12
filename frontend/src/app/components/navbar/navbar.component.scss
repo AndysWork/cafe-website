@@ -362,10 +362,10 @@
 
   .navbar-menu {
     position: fixed;
-    top: 70px;
+    top: 80px;
     right: -100%;
     width: 280px;
-    height: calc(100vh - 70px);
+    height: calc(100vh - 80px);
     background: white;
     box-shadow: -5px 0 20px rgba(0, 0, 0, 0.1);
     transition: right 0.3s ease;
@@ -401,8 +401,12 @@
     margin-top: 8px;
     box-shadow: none;
     background: #f7fafc;
-    opacity: 1;
-    transform: none;
+    padding: 0;
+
+    &.show {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   .dropdown-item {

@@ -6,6 +6,7 @@ import { LoginComponent } from './components/login/login.component';
 import { OrdersComponent } from './components/orders/orders.component';
 import { OffersComponent } from './components/offers/offers.component';
 import { LoyaltyComponent } from './components/loyalty/loyalty.component';
+import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -14,8 +15,9 @@ export const routes: Routes = [
   { path: 'orders', component: OrdersComponent },
   { path: 'offers', component: OffersComponent },
   { path: 'loyalty', component: LoyaltyComponent },
-  { path: 'category/upload', component: CategoryUploadComponent },
-  { path: 'category/crud', component: CategoryCrudComponent },
-  { path: 'menu', component: HomeComponent }, // Placeholder for menu component
+  { path: 'admin/dashboard', component: AdminDashboardComponent },
+  { path: 'admin/category/upload', component: CategoryUploadComponent },
+  { path: 'admin/category/crud', component: CategoryCrudComponent },
+  { path: 'admin/menu', component: HomeComponent }, // Placeholder for menu component
   { path: '**', redirectTo: '' }
 ];

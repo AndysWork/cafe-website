@@ -1,0 +1,14 @@
+.main-content {
+  min-height: 100vh;
+  transition: margin-left 0.3s ease;
+
+  &.no-sidebar {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+  }
+}

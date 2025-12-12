@@ -1,4 +1,18 @@
-<nav class="navbar">
+<!-- Mobile Menu Toggle -->
+<button class="mobile-menu-toggle"
+        [class.active]="isMobileMenuOpen"
+        (click)="toggleMobileMenu()">
+  <span class="hamburger-line"></span>
+  <span class="hamburger-line"></span>
+  <span class="hamburger-line"></span>
+</button>
+
+<!-- Mobile Overlay -->
+<div class="mobile-overlay"
+     [class.active]="isMobileMenuOpen"
+     (click)="closeMobileMenu()"></div>
+
+<nav class="navbar" [class.mobile-open]="isMobileMenuOpen">
   <div class="navbar-container">
     <!-- Logo -->
     <a routerLink="/" class="navbar-brand" (click)="closeMobileMenu()">
@@ -99,18 +113,5 @@
         </div>
       </div>
     </div>
-
-    <!-- Mobile Menu Toggle -->
-    <button class="mobile-menu-toggle" (click)="toggleMobileMenu()" [class.active]="isMobileMenuOpen">
-      <span class="hamburger-line"></span>
-      <span class="hamburger-line"></span>
-      <span class="hamburger-line"></span>
-    </button>
   </div>
 </nav>
-
-<!-- Mobile Menu Overlay -->
-<div class="mobile-overlay"
-     [class.active]="isMobileMenuOpen"
-     (click)="closeMobileMenu()">
-</div>
