@@ -55,11 +55,20 @@ export class MenuManagementComponent implements OnInit {
 
   loading = false;
   showModal = false;
+  showUploadModal = false;
   isEditMode = false;
   selectedItem: MenuItem | null = null;
 
   searchTerm = '';
   filterCategory = '';
+
+  // Upload properties
+  selectedFile: File | null = null;
+  uploading = false;
+  uploadResult: any = null;
+  uploadError: string | null = null;
+  dragOver = false;
+  clearExisting = false;
 
   formData: Partial<MenuItem> = {
     name: '',
@@ -288,5 +297,127 @@ export class MenuManagementComponent implements OnInit {
           }
         });
     }
+  }
+
+  // Upload methods
+  openUploadModal(): void {
+    this.showUploadModal = true;
+    this.selectedFile = null;
+    this.uploadResult = null;
+    this.uploadError = null;
+    this.clearExisting = false;
+  }
+
+  closeUploadModal(): void {
+    this.showUploadModal = false;
+    this.selectedFile = null;
+    this.uploadResult = null;
+    this.uploadError = null;
+  }
+
+  onFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file && this.isValidFile(file)) {
+      this.selectedFile = file;
+      this.uploadError = null;
+      this.uploadResult = null;
+    } else {
+      this.uploadError = 'Please select a valid Excel file (.xlsx or .xls)';
+      this.selectedFile = null;
+    }
+  }
+
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragOver = true;
+  }
+
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragOver = false;
+  }
+
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragOver = false;
+
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (this.isValidFile(file)) {
+        this.selectedFile = file;
+        this.uploadError = null;
+        this.uploadResult = null;
+      } else {
+        this.uploadError = 'Please select a valid Excel file (.xlsx or .xls)';
+      }
+    }
+  }
+
+  isValidFile(file: File): boolean {
+    const validExtensions = ['.xlsx', '.xls'];
+    const fileName = file.name.toLowerCase();
+    return validExtensions.some(ext => fileName.endsWith(ext));
+  }
+
+  uploadFile(): void {
+    if (!this.selectedFile) {
+      this.uploadError = 'Please select a file first';
+      return;
+    }
+
+    this.uploading = true;
+    this.uploadError = null;
+    this.uploadResult = null;
+
+    const formData = new FormData();
+    formData.append('file', this.selectedFile);
+
+    const url = this.clearExisting
+      ? `${environment.apiUrl}/menu/upload?clearExisting=true`
+      : `${environment.apiUrl}/menu/upload`;
+
+    this.http.post(url, formData)
+      .subscribe({
+        next: (response: any) => {
+          this.uploading = false;
+          this.uploadResult = response;
+          this.selectedFile = null;
+          // Reload menu items after successful upload
+          this.loadMenuItems();
+        },
+        error: (error) => {
+          this.uploading = false;
+          this.uploadError = error.error?.error || 'Failed to upload file. Please try again.';
+          console.error('Upload error:', error);
+        }
+      });
+  }
+
+  clearUploadSelection(): void {
+    this.selectedFile = null;
+    this.uploadResult = null;
+    this.uploadError = null;
+  }
+
+  downloadTemplate(): void {
+    const template =
+      'category_name,subcategory_name,catalogue_name,variant_name,current_price,description\n' +
+      'Beverages,Hot Drinks,Cappuccino,250ml,120,Classic Italian coffee with steamed milk foam\n' +
+      'Beverages,Hot Drinks,Cappuccino,350ml,150,Classic Italian coffee with steamed milk foam\n' +
+      'Beverages,Cold Drinks,Iced Latte,Regular,130,Refreshing iced latte with milk\n' +
+      'Beverages,Cold Drinks,Iced Latte,Large,160,Refreshing iced latte with milk\n' +
+      'Food,Breakfast,Sandwich,Regular,80,Grilled vegetable sandwich\n';
+
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'menu_upload_template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
   }
 }

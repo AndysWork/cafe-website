@@ -4,10 +4,16 @@
       <h1>🍽️ Menu Management</h1>
       <p>Manage your cafe menu items, variants, and pricing</p>
     </div>
-    <button class="btn-create" (click)="openCreateModal()">
-      <span class="icon">➕</span>
-      Add Menu Item
-    </button>
+    <div class="header-actions">
+      <button class="btn-upload" (click)="openUploadModal()">
+        <span class="icon">📤</span>
+        Upload Excel
+      </button>
+      <button class="btn-create" (click)="openCreateModal()">
+        <span class="icon">➕</span>
+        Add Menu Item
+      </button>
+    </div>
   </div>
 
   <!-- Filters -->
@@ -220,6 +226,133 @@
         <button class="btn-save" (click)="saveMenuItem()" [disabled]="loading">
           {{ loading ? 'Saving...' : (isEditMode ? 'Update' : 'Create') }}
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" *ngIf="showUploadModal" (click)="closeUploadModal()">
+    <div class="modal upload-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>📤 Upload Menu Items</h2>
+        <button class="btn-close" (click)="closeUploadModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Instructions -->
+        <div class="upload-instructions">
+          <h3>📋 Excel File Format</h3>
+          <p>Your Excel file should have the following columns:</p>
+          <div class="column-tags">
+            <span class="column-tag">category_name</span>
+            <span class="column-tag">subcategory_name</span>
+            <span class="column-tag">catalogue_name</span>
+            <span class="column-tag">variant_name</span>
+            <span class="column-tag">current_price</span>
+            <span class="column-tag">description</span>
+          </div>
+          <button class="btn-template" (click)="downloadTemplate()">
+            <span class="icon">📥</span>
+            Download CSV Template
+          </button>
+        </div>
+
+        <!-- Upload Area -->
+        <div class="upload-area"
+             [class.drag-over]="dragOver"
+             (dragover)="onDragOver($event)"
+             (dragleave)="onDragLeave($event)"
+             (drop)="onDrop($event)">
+
+          <div *ngIf="!selectedFile" class="upload-prompt">
+            <div class="upload-icon">📁</div>
+            <h3>Drag & Drop Excel File Here</h3>
+            <p>or</p>
+            <label for="uploadFileInput" class="btn-select-file">
+              <span class="icon">📂</span>
+              Browse Files
+            </label>
+            <input
+              type="file"
+              id="uploadFileInput"
+              accept=".xlsx,.xls"
+              (change)="onFileSelected($event)"
+              style="display: none;">
+            <p class="file-info">Supported formats: .xlsx, .xls</p>
+          </div>
+
+          <div *ngIf="selectedFile" class="file-selected">
+            <div class="file-icon">📄</div>
+            <div class="file-details">
+              <h4>{{ selectedFile.name }}</h4>
+              <p>{{ (selectedFile.size / 1024).toFixed(2) }} KB</p>
+            </div>
+            <button class="btn-remove" (click)="clearUploadSelection()" [disabled]="uploading">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Clear Existing Option -->
+        <div class="upload-options" *ngIf="selectedFile">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [(ngModel)]="clearExisting"
+              [disabled]="uploading">
+            <span>Clear existing menu items before upload</span>
+          </label>
+          <p class="option-hint">⚠️ This will delete all current menu items from the database</p>
+        </div>
+
+        <!-- Upload Button -->
+        <div class="upload-actions" *ngIf="selectedFile">
+          <button
+            class="btn-upload-file"
+            (click)="uploadFile()"
+            [disabled]="uploading">
+            <span class="icon" *ngIf="!uploading">🚀</span>
+            <span class="spinner" *ngIf="uploading">⏳</span>
+            {{ uploading ? 'Uploading...' : 'Upload Menu Items' }}
+          </button>
+        </div>
+
+        <!-- Error Message -->
+        <div class="error-message" *ngIf="uploadError">
+          <span class="error-icon">⚠️</span>
+          <p>{{ uploadError }}</p>
+        </div>
+
+        <!-- Upload Result -->
+        <div class="upload-result" *ngIf="uploadResult">
+          <div class="result-success">
+            <span class="success-icon">✅</span>
+            <h3>Upload Successful!</h3>
+          </div>
+          <p class="result-message">{{ uploadResult.message }}</p>
+          <div class="result-stats">
+            <div class="stat">
+              <strong>{{ uploadResult.processedItems }}</strong>
+              <span>Items Processed</span>
+            </div>
+            <div class="stat">
+              <strong>{{ uploadResult.savedItems }}</strong>
+              <span>Items Saved</span>
+            </div>
+          </div>
+          <div class="errors-section" *ngIf="uploadResult.errors && uploadResult.errors.length > 0">
+            <h4>⚠️ Errors ({{ uploadResult.errors.length }})</h4>
+            <div class="error-list">
+              <div class="error-item" *ngFor="let err of uploadResult.errors">
+                {{ err }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="closeUploadModal()">Close</button>
       </div>
     </div>
   </div>

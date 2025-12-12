@@ -1,7 +1,13 @@
 <div class="crud-container">
   <div class="crud-header">
-    <h1>Category Management</h1>
-    <p>Create, update, and delete categories and subcategories</p>
+    <div class="header-content">
+      <h1>Category Management</h1>
+      <p>Create, update, and delete categories and subcategories</p>
+    </div>
+    <button class="btn-upload" (click)="openUploadModal()">
+      <span class="icon">📤</span>
+      Upload File
+    </button>
   </div>
 
   <!-- Message Alert -->
@@ -52,20 +58,18 @@
       <table class="data-table" *ngIf="!loading.categories && categories.length > 0">
         <thead>
           <tr>
-            <th>ID</th>
             <th>Name</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let category of categories" [class.editing]="category.isEditing">
-            <td>{{ category.Id }}</td>
             <td>
-              <span *ngIf="!category.isEditing">{{ category.Name }}</span>
+              <span *ngIf="!category.isEditing">{{ category.name }}</span>
               <input
                 *ngIf="category.isEditing"
                 type="text"
-                [(ngModel)]="editingCategory!.Name"
+                [(ngModel)]="editingCategory!.name"
                 class="edit-input">
             </td>
             <td class="actions">
@@ -107,11 +111,11 @@
         <div class="form-group">
           <label>Category</label>
           <select
-            [(ngModel)]="newSubCategory.CategoryId"
+            [(ngModel)]="newSubCategory.categoryId"
             class="form-select">
             <option value="">Select a category</option>
-            <option *ngFor="let category of categories" [value]="category.Id">
-              {{ category.Name }}
+            <option *ngFor="let category of categories" [value]="category.id">
+              {{ category.name }}
             </option>
           </select>
         </div>
@@ -119,7 +123,7 @@
           <label>SubCategory Name</label>
           <input
             type="text"
-            [(ngModel)]="newSubCategory.Name"
+            [(ngModel)]="newSubCategory.name"
             placeholder="Enter subcategory name"
             class="form-input"
             (keyup.enter)="createSubCategory()">
@@ -141,8 +145,8 @@
         (change)="filterSubCategories()"
         class="form-select">
         <option value="">All Categories</option>
-        <option *ngFor="let category of categories" [value]="category.Id">
-          {{ category.Name }}
+        <option *ngFor="let category of categories" [value]="category.id">
+          {{ category.name }}
         </option>
       </select>
     </div>
@@ -159,7 +163,6 @@
       <table class="data-table" *ngIf="!loading.subCategories && filteredSubCategories.length > 0">
         <thead>
           <tr>
-            <th>ID</th>
             <th>Category</th>
             <th>SubCategory Name</th>
             <th>Actions</th>
@@ -167,24 +170,23 @@
         </thead>
         <tbody>
           <tr *ngFor="let subCategory of filteredSubCategories" [class.editing]="subCategory.isEditing">
-            <td>{{ subCategory.Id }}</td>
             <td>
-              <span *ngIf="!subCategory.isEditing">{{ getCategoryName(subCategory.CategoryId) }}</span>
+              <span *ngIf="!subCategory.isEditing">{{ getCategoryName(subCategory.categoryId) }}</span>
               <select
                 *ngIf="subCategory.isEditing"
-                [(ngModel)]="editingSubCategory!.CategoryId"
+                [(ngModel)]="editingSubCategory!.categoryId"
                 class="edit-select">
-                <option *ngFor="let category of categories" [value]="category.Id">
-                  {{ category.Name }}
+                <option *ngFor="let category of categories" [value]="category.id">
+                  {{ category.name }}
                 </option>
               </select>
             </td>
             <td>
-              <span *ngIf="!subCategory.isEditing">{{ subCategory.Name }}</span>
+              <span *ngIf="!subCategory.isEditing">{{ subCategory.name }}</span>
               <input
                 *ngIf="subCategory.isEditing"
                 type="text"
-                [(ngModel)]="editingSubCategory!.Name"
+                [(ngModel)]="editingSubCategory!.name"
                 class="edit-input">
             </td>
             <td class="actions">
@@ -213,6 +215,127 @@
         <span class="empty-icon">📂</span>
         <p>No subcategories found</p>
         <p class="empty-hint">Create your first subcategory above</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" *ngIf="showUploadModal" (click)="closeUploadModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>📤 Upload Categories & Subcategories</h2>
+        <button class="btn-close" (click)="closeUploadModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Instructions -->
+        <div class="upload-instructions">
+          <h3>📋 File Format</h3>
+          <p>Upload an Excel (.xlsx, .xls) or CSV file with the following columns:</p>
+          <div class="column-tags">
+            <span class="column-tag">Category</span>
+            <span class="column-tag">SubCategory</span>
+          </div>
+          <div class="template-buttons">
+            <button class="btn-template" (click)="downloadTemplate('excel')">
+              <span class="icon">📊</span>
+              Download Excel Template
+            </button>
+            <button class="btn-template" (click)="downloadTemplate('csv')">
+              <span class="icon">📄</span>
+              Download CSV Template
+            </button>
+          </div>
+        </div>
+
+        <!-- Upload Area -->
+        <div class="upload-area"
+             [class.drag-over]="isDragging"
+             (dragover)="onDragOver($event)"
+             (dragleave)="onDragLeave($event)"
+             (drop)="onDrop($event)">
+
+          <div *ngIf="!selectedFile" class="upload-prompt">
+            <div class="upload-icon">📁</div>
+            <h3>Drag & Drop File Here</h3>
+            <p>or</p>
+            <label for="categoryFileInput" class="btn-select-file">
+              <span class="icon">📂</span>
+              Browse Files
+            </label>
+            <input
+              type="file"
+              id="categoryFileInput"
+              accept=".xlsx,.xls,.csv"
+              (change)="onFileSelected($event)"
+              style="display: none;">
+            <p class="file-info">Supported formats: .xlsx, .xls, .csv (Max 5MB)</p>
+          </div>
+
+          <div *ngIf="selectedFile" class="file-selected">
+            <div class="file-icon">{{ getFileIcon() }}</div>
+            <div class="file-details">
+              <h4>{{ selectedFile.name }}</h4>
+              <p>{{ formatFileSize(selectedFile.size) }}</p>
+            </div>
+            <button class="btn-remove" (click)="clearFile()" [disabled]="isUploading">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Upload Progress -->
+        <div class="upload-progress" *ngIf="isUploading">
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width.%]="uploadProgress"></div>
+          </div>
+          <p class="progress-text">Uploading... {{ uploadProgress }}%</p>
+        </div>
+
+        <!-- Upload Button -->
+        <div class="upload-actions" *ngIf="selectedFile && !isUploading">
+          <button class="btn-upload-file" (click)="uploadFile()">
+            <span class="icon">🚀</span>
+            Upload File
+          </button>
+        </div>
+
+        <!-- Error Message -->
+        <div class="error-message" *ngIf="uploadError">
+          <span class="error-icon">⚠️</span>
+          <p>{{ uploadError }}</p>
+        </div>
+
+        <!-- Upload Result -->
+        <div class="upload-result" *ngIf="uploadResult">
+          <div class="result-success" *ngIf="uploadResult.Success">
+            <span class="success-icon">✅</span>
+            <h3>Upload Successful!</h3>
+          </div>
+          <p class="result-message">{{ uploadResult.Message }}</p>
+          <div class="result-stats">
+            <div class="stat">
+              <strong>{{ uploadResult.CategoriesProcessed }}</strong>
+              <span>Categories</span>
+            </div>
+            <div class="stat">
+              <strong>{{ uploadResult.SubCategoriesProcessed }}</strong>
+              <span>Subcategories</span>
+            </div>
+          </div>
+          <div class="errors-section" *ngIf="uploadResult.Errors && uploadResult.Errors.length > 0">
+            <h4>⚠️ Errors ({{ uploadResult.Errors.length }})</h4>
+            <div class="error-list">
+              <div class="error-item" *ngFor="let err of uploadResult.Errors">
+                {{ err }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="closeUploadModal()">Close</button>
       </div>
     </div>
   </div>
