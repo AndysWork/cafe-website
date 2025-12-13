@@ -11,6 +11,9 @@ public class MongoService
     private readonly IMongoCollection<MenuSubCategory> _subCategories;
     private readonly IMongoCollection<User> _users;
     private readonly IMongoCollection<Order> _orders;
+    private readonly IMongoCollection<LoyaltyAccount> _loyaltyAccounts;
+    private readonly IMongoCollection<Reward> _rewards;
+    private readonly IMongoCollection<PointsTransaction> _transactions;
     
     public MongoService(IConfiguration config)
     {
@@ -35,6 +38,9 @@ public class MongoService
         _subCategories = db.GetCollection<MenuSubCategory>("MenuSubCategory");
         _users = db.GetCollection<User>("Users");
         _orders = db.GetCollection<Order>("Orders");
+        _loyaltyAccounts = db.GetCollection<LoyaltyAccount>("LoyaltyAccounts");
+        _rewards = db.GetCollection<Reward>("Rewards");
+        _transactions = db.GetCollection<PointsTransaction>("PointsTransactions");
 
         // Ensure default admin user exists
         try
@@ -46,6 +52,28 @@ public class MongoService
         {
             Console.WriteLine($"✗ Error ensuring default admin: {ex.Message}");
             Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+
+        // Ensure indexes for loyalty collections
+        try
+        {
+            EnsureIndexesAsync().Wait();
+            Console.WriteLine("✓ Database indexes check completed");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Error ensuring indexes: {ex.Message}");
+        }
+
+        // Ensure default rewards exist
+        try
+        {
+            EnsureDefaultRewardsAsync().Wait();
+            Console.WriteLine("✓ Default rewards check completed");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Error ensuring default rewards: {ex.Message}");
         }
     }
 
@@ -330,13 +358,272 @@ public class MongoService
         return result.ModifiedCount > 0;
     }
 
+    #endregion
+
+    #region Loyalty Operations
+
+    // Get or create loyalty account for user
+    public async Task<LoyaltyAccount> GetOrCreateLoyaltyAccountAsync(string userId, string username)
+    {
+        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        
+        if (account == null)
+        {
+            account = new LoyaltyAccount
+            {
+                UserId = userId,
+                Username = username,
+                CurrentPoints = 0,
+                TotalPointsEarned = 0,
+                TotalPointsRedeemed = 0,
+                Tier = "Bronze",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _loyaltyAccounts.InsertOneAsync(account);
+        }
+        
+        return account;
+    }
+
+    // Get loyalty account by user ID
+    public async Task<LoyaltyAccount?> GetLoyaltyAccountByUserIdAsync(string userId)
+    {
+        return await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+    }
+
+    // Get all loyalty accounts (admin)
+    public async Task<List<LoyaltyAccount>> GetAllLoyaltyAccountsAsync()
+    {
+        return await _loyaltyAccounts
+            .Find(_ => true)
+            .SortByDescending(x => x.CurrentPoints)
+            .ToListAsync();
+    }
+
+    // Award points to user
+    public async Task<LoyaltyAccount?> AwardPointsAsync(string userId, int points, string description, string? orderId = null)
+    {
+        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        if (account == null) return null;
+
+        // Update account
+        account.CurrentPoints += points;
+        account.TotalPointsEarned += points;
+        account.UpdatedAt = DateTime.UtcNow;
+
+        // Update tier based on total points earned
+        account.Tier = CalculateTier(account.TotalPointsEarned);
+
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+
+        // Create transaction record
+        var transaction = new PointsTransaction
+        {
+            UserId = userId,
+            Points = points,
+            Type = "earned",
+            Description = description,
+            OrderId = orderId,
+            CreatedAt = DateTime.UtcNow
+        };
+        await _transactions.InsertOneAsync(transaction);
+
+        return account;
+    }
+
+    // Redeem points for reward
+    public async Task<(bool Success, string Message, LoyaltyAccount? Account)> RedeemRewardAsync(string userId, string rewardId)
+    {
+        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        if (account == null)
+            return (false, "Loyalty account not found", null);
+
+        var reward = await _rewards.Find(x => x.Id == rewardId && x.IsActive).FirstOrDefaultAsync();
+        if (reward == null)
+            return (false, "Reward not found or inactive", null);
+
+        if (reward.ExpiresAt.HasValue && reward.ExpiresAt.Value < DateTime.UtcNow)
+            return (false, "Reward has expired", null);
+
+        if (account.CurrentPoints < reward.PointsCost)
+            return (false, $"Insufficient points. Need {reward.PointsCost}, have {account.CurrentPoints}", null);
+
+        // Deduct points
+        account.CurrentPoints -= reward.PointsCost;
+        account.TotalPointsRedeemed += reward.PointsCost;
+        account.UpdatedAt = DateTime.UtcNow;
+
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+
+        // Create transaction record
+        var transaction = new PointsTransaction
+        {
+            UserId = userId,
+            Points = -reward.PointsCost,
+            Type = "redeemed",
+            Description = $"Redeemed: {reward.Name}",
+            RewardId = rewardId,
+            CreatedAt = DateTime.UtcNow
+        };
+        await _transactions.InsertOneAsync(transaction);
+
+        return (true, $"Successfully redeemed {reward.Name}", account);
+    }
+
+    // Get user's transaction history
+    public async Task<List<PointsTransaction>> GetUserTransactionsAsync(string userId)
+    {
+        return await _transactions
+            .Find(x => x.UserId == userId)
+            .SortByDescending(x => x.CreatedAt)
+            .ToListAsync();
+    }
+
+    // Get all available rewards
+    public async Task<List<Reward>> GetActiveRewardsAsync()
+    {
+        var now = DateTime.UtcNow;
+        return await _rewards
+            .Find(x => x.IsActive && (!x.ExpiresAt.HasValue || x.ExpiresAt.Value > now))
+            .SortBy(x => x.PointsCost)
+            .ToListAsync();
+    }
+
+    // Get all rewards (admin)
+    public async Task<List<Reward>> GetAllRewardsAsync()
+    {
+        return await _rewards
+            .Find(_ => true)
+            .SortBy(x => x.PointsCost)
+            .ToListAsync();
+    }
+
+    // Create reward (admin)
+    public async Task<Reward> CreateRewardAsync(Reward reward)
+    {
+        reward.CreatedAt = DateTime.UtcNow;
+        await _rewards.InsertOneAsync(reward);
+        return reward;
+    }
+
+    // Update reward (admin)
+    public async Task<bool> UpdateRewardAsync(string id, Reward reward)
+    {
+        var result = await _rewards.ReplaceOneAsync(x => x.Id == id, reward);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete reward (admin)
+    public async Task<bool> DeleteRewardAsync(string id)
+    {
+        var result = await _rewards.DeleteOneAsync(x => x.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    // Calculate tier based on total points earned
+    private string CalculateTier(int totalPoints)
+    {
+        if (totalPoints >= 3000) return "Platinum";
+        if (totalPoints >= 1500) return "Gold";
+        if (totalPoints >= 500) return "Silver";
+        return "Bronze";
+    }
+
+    // Ensure database indexes for performance
+    private async Task EnsureIndexesAsync()
+    {
+        // Index on LoyaltyAccounts.userId for faster user lookups
+        var loyaltyUserIdIndex = Builders<LoyaltyAccount>.IndexKeys.Ascending(x => x.UserId);
+        await _loyaltyAccounts.Indexes.CreateOneAsync(new CreateIndexModel<LoyaltyAccount>(
+            loyaltyUserIdIndex,
+            new CreateIndexOptions { Name = "userId_1", Unique = true }
+        ));
+
+        // Index on PointsTransactions.userId for faster transaction history queries
+        var transactionUserIdIndex = Builders<PointsTransaction>.IndexKeys.Ascending(x => x.UserId);
+        await _transactions.Indexes.CreateOneAsync(new CreateIndexModel<PointsTransaction>(
+            transactionUserIdIndex,
+            new CreateIndexOptions { Name = "userId_1" }
+        ));
+
+        // Index on PointsTransactions.createdAt for sorting
+        var transactionDateIndex = Builders<PointsTransaction>.IndexKeys.Descending(x => x.CreatedAt);
+        await _transactions.Indexes.CreateOneAsync(new CreateIndexModel<PointsTransaction>(
+            transactionDateIndex,
+            new CreateIndexOptions { Name = "createdAt_-1" }
+        ));
+
+        // Index on Rewards.isActive for faster active rewards queries
+        var rewardActiveIndex = Builders<Reward>.IndexKeys.Ascending(x => x.IsActive);
+        await _rewards.Indexes.CreateOneAsync(new CreateIndexModel<Reward>(
+            rewardActiveIndex,
+            new CreateIndexOptions { Name = "isActive_1" }
+        ));
+
+        Console.WriteLine("✓ Created indexes: LoyaltyAccounts(userId), PointsTransactions(userId, createdAt), Rewards(isActive)");
+    }
+
+    // Ensure default rewards exist in database
+    private async Task EnsureDefaultRewardsAsync()
+    {
+        var count = await _rewards.CountDocumentsAsync(_ => true);
+        if (count > 0) return;
+
+        var defaultRewards = new List<Reward>
+        {
+            new Reward
+            {
+                Name = "Free Coffee",
+                Description = "Enjoy a complimentary coffee of your choice",
+                PointsCost = 100,
+                Icon = "☕",
+                IsActive = true
+            },
+            new Reward
+            {
+                Name = "10% Off Next Order",
+                Description = "Get 10% discount on your next order",
+                PointsCost = 150,
+                Icon = "🎁",
+                IsActive = true
+            },
+            new Reward
+            {
+                Name = "Free Dessert",
+                Description = "Choose any dessert from our menu",
+                PointsCost = 120,
+                Icon = "🍰",
+                IsActive = true
+            },
+            new Reward
+            {
+                Name = "Free Burger",
+                Description = "Get a burger of your choice on the house",
+                PointsCost = 200,
+                Icon = "🍔",
+                IsActive = true
+            },
+            new Reward
+            {
+                Name = "20% Off Next Order",
+                Description = "Save 20% on your next order",
+                PointsCost = 300,
+                Icon = "💰",
+                IsActive = true
+            }
+        };
+
+        await _rewards.InsertManyAsync(defaultRewards);
+        Console.WriteLine($"✓ Inserted {defaultRewards.Count} default rewards");
+    }
+
+    #endregion
+
     // Delete order (for testing/admin purposes)
     public async Task<bool> DeleteOrderAsync(string orderId)
     {
         var result = await _orders.DeleteOneAsync(x => x.Id == orderId);
         return result.DeletedCount > 0;
     }
-
-    #endregion
-
 }

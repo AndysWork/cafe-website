@@ -332,6 +332,35 @@ public class OrderFunction
                 return notFound;
             }
 
+            // Award loyalty points when order is delivered
+            if (statusRequest.Status.ToLower() == "delivered")
+            {
+                var order = await _mongo.GetOrderByIdAsync(id);
+                if (order != null)
+                {
+                    // Award 1 point per ₹10 spent
+                    int pointsToAward = (int)(order.Total / 10);
+                    if (pointsToAward > 0)
+                    {
+                        try
+                        {
+                            await _mongo.AwardPointsAsync(
+                                order.UserId,
+                                pointsToAward,
+                                $"Order #{order.Id}",
+                                order.Id
+                            );
+                            _log.LogInformation($"Awarded {pointsToAward} points to user {order.UserId} for order {order.Id}");
+                        }
+                        catch (Exception pointsEx)
+                        {
+                            _log.LogWarning($"Failed to award points for order {id}: {pointsEx.Message}");
+                            // Don't fail the order status update if points award fails
+                        }
+                    }
+                }
+            }
+
             _log.LogInformation($"Order {id} status updated to {statusRequest.Status}");
 
             var response = req.CreateResponse(HttpStatusCode.OK);

@@ -4,57 +4,86 @@
     <p>Earn points with every order and redeem exciting rewards</p>
   </div>
 
-  <!-- Points Overview -->
-  <div class="points-card">
-    <div class="points-display">
-      <div class="points-icon">⭐</div>
-      <div class="points-info">
-        <h2>{{ currentPoints }}</h2>
-        <p>Available Points</p>
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-container">
+    <p>Loading loyalty data...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error && !loading" class="error-container">
+    <p>{{ error }}</p>
+    <button class="btn-retry" (click)="loadLoyaltyData()">Retry</button>
+  </div>
+
+  <!-- Content -->
+  <div *ngIf="!loading && !error">
+    <!-- Points Overview -->
+    <div class="points-card">
+      <div class="points-display">
+        <div class="points-icon">⭐</div>
+        <div class="points-info">
+          <h2>{{ currentPoints }}</h2>
+          <p>Available Points</p>
+        </div>
       </div>
-    </div>
-    <div class="tier-info">
-      <div class="tier-badge">{{ tier }} Member</div>
-      <div class="progress-section">
-        <p>{{ pointsToNextTier }} points to {{ nextTier }}</p>
-        <div class="progress-bar">
-          <div class="progress-fill" [style.width.%]="(currentPoints / (currentPoints + pointsToNextTier)) * 100"></div>
+      <div class="tier-info">
+        <div class="tier-badge" [ngClass]="getTierColorClass()">{{ tier }} Member</div>
+        <div class="progress-section" *ngIf="nextTier">
+          <p>{{ pointsToNextTier }} points to {{ nextTier }}</p>
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width.%]="(currentPoints / (currentPoints + pointsToNextTier)) * 100"></div>
+          </div>
+        </div>
+        <div class="progress-section" *ngIf="!nextTier">
+          <p>🎉 Maximum tier achieved!</p>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Available Rewards -->
-  <div class="section">
-    <h2>Redeem Rewards</h2>
-    <div class="rewards-grid">
-      <div *ngFor="let reward of availableRewards" class="reward-card">
-        <div class="reward-icon">{{ reward.icon }}</div>
-        <h3>{{ reward.name }}</h3>
-        <div class="reward-points">{{ reward.points }} Points</div>
-        <button class="btn-redeem"
-                [disabled]="currentPoints < reward.points"
-                (click)="redeemReward(reward)">
-          {{ currentPoints >= reward.points ? 'Redeem' : 'Not Enough Points' }}
-        </button>
+    <!-- Available Rewards -->
+    <div class="section">
+      <h2>Redeem Rewards</h2>
+      <div *ngIf="availableRewards.length === 0" class="empty-state rewards-empty">
+        <div class="empty-icon">🎁</div>
+        <h3>No Rewards Available</h3>
+        <p>New rewards are coming soon! Keep earning points by placing orders.</p>
+      </div>
+      <div class="rewards-grid" *ngIf="availableRewards.length > 0">
+        <div *ngFor="let reward of availableRewards" class="reward-card">
+          <div class="reward-icon">{{ reward.icon }}</div>
+          <h3>{{ reward.name }}</h3>
+          <p class="reward-description" *ngIf="reward.description">{{ reward.description }}</p>
+          <div class="reward-points">{{ reward.pointsCost }} Points</div>
+          <button class="btn-redeem"
+                  [disabled]="!reward.canRedeem"
+                  (click)="redeemReward(reward)">
+            {{ reward.canRedeem ? 'Redeem' : 'Not Enough Points' }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Points History -->
-  <div class="section">
-    <h2>Points History</h2>
-    <div class="history-list">
-      <div *ngFor="let history of rewardsHistory" class="history-item">
-        <div class="history-info">
-          <p class="history-action">{{ history.action }}</p>
-          <p class="history-date">{{ history.date }}</p>
+    <!-- Points History -->
+    <div class="section">
+      <h2>Points History</h2>
+      <div *ngIf="rewardsHistory.length === 0" class="empty-state history-empty">
+        <div class="empty-icon">📊</div>
+        <h3>No Transactions Yet</h3>
+        <p>Start ordering to earn points! You'll get 1 point for every ₹10 spent on delivered orders.</p>
+        <a routerLink="/menu" class="btn-start-earning">Start Earning Points</a>
+      </div>
+      <div class="history-list" *ngIf="rewardsHistory.length > 0">
+        <div *ngFor="let history of rewardsHistory" class="history-item">
+          <div class="history-info">
+            <p class="history-action">{{ history.action }}</p>
+            <p class="history-date">{{ history.date }}</p>
+          </div>
+          <span class="history-points"
+                [class.earned]="history.type === 'earned'"
+                [class.redeemed]="history.type === 'redeemed'">
+            {{ history.points }}
+          </span>
         </div>
-        <span class="history-points"
-              [class.earned]="history.type === 'earned'"
-              [class.redeemed]="history.type === 'redeemed'">
-          {{ history.points }}
-        </span>
       </div>
     </div>
   </div>

@@ -201,6 +201,126 @@
   }
 }
 
+.loading-container,
+.error-container {
+  text-align: center;
+  padding: 60px 20px;
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+
+  p {
+    font-size: 1.1rem;
+    color: #718096;
+    margin-bottom: 20px;
+  }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 30px;
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 2px dashed #cbd5e0;
+
+  .empty-icon {
+    font-size: 5rem;
+    margin-bottom: 20px;
+    display: inline-block;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  h3 {
+    font-size: 1.6rem;
+    color: #2d3748;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  p {
+    font-size: 1.05rem;
+    color: #718096;
+    margin-bottom: 0;
+    line-height: 1.6;
+  }
+
+  .btn-start-earning {
+    display: inline-block;
+    margin-top: 25px;
+    padding: 12px 28px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+    }
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-15px) rotate(5deg);
+  }
+}
+
+.error-container {
+  p {
+    color: #f56565;
+  }
+
+  .btn-retry {
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+  }
+}
+
+// Tier color classes
+.tier-badge {
+  &.tier-bronze {
+    background: rgba(205, 127, 50, 0.3) !important;
+  }
+
+  &.tier-silver {
+    background: rgba(192, 192, 192, 0.3) !important;
+  }
+
+  &.tier-gold {
+    background: rgba(255, 215, 0, 0.3) !important;
+  }
+
+  &.tier-platinum {
+    background: rgba(229, 228, 226, 0.3) !important;
+  }
+}
+
+.reward-description {
+  color: #718096;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
 @media (max-width: 768px) {
   .page-header h1 {
     font-size: 2rem;

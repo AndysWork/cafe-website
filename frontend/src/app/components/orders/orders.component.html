@@ -22,8 +22,10 @@
 
   <!-- Empty State -->
   <div *ngIf="!isLoading && !errorMessage && orders.length === 0" class="empty-state">
-    <p>No orders found</p>
-    <a routerLink="/menu" class="btn-browse">Browse Menu</a>
+    <div class="empty-icon">📦</div>
+    <h3>{{ isAdmin ? 'No Orders Yet' : 'No Orders Found' }}</h3>
+    <p>{{ isAdmin ? 'Customer orders will appear here once they start placing orders.' : 'You haven\'t placed any orders yet. Start exploring our delicious menu!' }}</p>
+    <a *ngIf="!isAdmin" routerLink="/menu" class="btn-browse">Browse Menu</a>
   </div>
 
   <!-- Orders List -->
