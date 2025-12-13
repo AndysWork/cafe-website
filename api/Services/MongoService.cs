@@ -10,6 +10,7 @@ public class MongoService
     private readonly IMongoCollection<MenuCategory> _categories;
     private readonly IMongoCollection<MenuSubCategory> _subCategories;
     private readonly IMongoCollection<User> _users;
+    private readonly IMongoCollection<Order> _orders;
     
     public MongoService(IConfiguration config)
     {
@@ -33,6 +34,7 @@ public class MongoService
         _categories = db.GetCollection<MenuCategory>("MenuCategory");
         _subCategories = db.GetCollection<MenuSubCategory>("MenuSubCategory");
         _users = db.GetCollection<User>("Users");
+        _orders = db.GetCollection<Order>("Orders");
 
         // Ensure default admin user exists
         try
@@ -277,4 +279,64 @@ public class MongoService
     }
 
     #endregion
+
+    #region Order Operations
+
+    // Create new order
+    public async Task<Order> CreateOrderAsync(Order order)
+    {
+        await _orders.InsertOneAsync(order);
+        return order;
+    }
+
+    // Get user's orders
+    public async Task<List<Order>> GetUserOrdersAsync(string userId)
+    {
+        return await _orders
+            .Find(x => x.UserId == userId)
+            .SortByDescending(x => x.CreatedAt)
+            .ToListAsync();
+    }
+
+    // Get all orders (admin)
+    public async Task<List<Order>> GetAllOrdersAsync()
+    {
+        return await _orders
+            .Find(_ => true)
+            .SortByDescending(x => x.CreatedAt)
+            .ToListAsync();
+    }
+
+    // Get order by ID
+    public async Task<Order?> GetOrderByIdAsync(string orderId)
+    {
+        return await _orders.Find(x => x.Id == orderId).FirstOrDefaultAsync();
+    }
+
+    // Update order status
+    public async Task<bool> UpdateOrderStatusAsync(string orderId, string status)
+    {
+        var update = Builders<Order>.Update
+            .Set(x => x.Status, status)
+            .Set(x => x.UpdatedAt, DateTime.UtcNow);
+
+        // If status is delivered, set completedAt
+        if (status == "delivered")
+        {
+            update = update.Set(x => x.CompletedAt, DateTime.UtcNow);
+        }
+
+        var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete order (for testing/admin purposes)
+    public async Task<bool> DeleteOrderAsync(string orderId)
+    {
+        var result = await _orders.DeleteOneAsync(x => x.Id == orderId);
+        return result.DeletedCount > 0;
+    }
+
+    #endregion
+
 }

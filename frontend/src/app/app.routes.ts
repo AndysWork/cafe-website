@@ -10,6 +10,9 @@ import { LoyaltyComponent } from './components/loyalty/loyalty.component';
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
 import { MenuUploadComponent } from './components/menu-upload/menu-upload.component';
 import { MenuManagementComponent } from './components/menu-management/menu-management.component';
+import { MenuComponent } from './components/menu/menu.component';
+import { CartComponent } from './components/cart/cart.component';
+import { CheckoutComponent } from './components/checkout/checkout.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -17,6 +20,9 @@ export const routes: Routes = [
   { path: 'home', component: HomeComponent },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
+  { path: 'menu', component: MenuComponent },
+  { path: 'cart', component: CartComponent },
+  { path: 'checkout', component: CheckoutComponent, canActivate: [authGuard] },
   { path: 'orders', component: OrdersComponent, canActivate: [authGuard] },
   { path: 'offers', component: OffersComponent },
   { path: 'loyalty', component: LoyaltyComponent, canActivate: [authGuard] },

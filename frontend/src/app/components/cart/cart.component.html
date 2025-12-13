@@ -1,0 +1,87 @@
+<div class="cart-container">
+  <div class="page-header">
+    <h1>Shopping Cart</h1>
+    <p *ngIf="cart.itemCount > 0">{{ cart.itemCount }} item{{ cart.itemCount !== 1 ? 's' : '' }} in your cart</p>
+  </div>
+
+  <!-- Empty Cart State -->
+  <div *ngIf="cart.items.length === 0" class="empty-cart">
+    <div class="empty-icon">🛒</div>
+    <h2>Your cart is empty</h2>
+    <p>Add some delicious items from our menu!</p>
+    <button class="btn-primary" (click)="continueShopping()">Browse Menu</button>
+  </div>
+
+  <!-- Cart Content -->
+  <div *ngIf="cart.items.length > 0" class="cart-content">
+    <div class="cart-items">
+      <div class="cart-header">
+        <h2>Items</h2>
+        <button class="btn-clear" (click)="clearCart()">Clear Cart</button>
+      </div>
+
+      <div class="cart-item" *ngFor="let item of cart.items">
+        <div class="item-image" *ngIf="item.imageUrl">
+          <img [src]="item.imageUrl" [alt]="item.name">
+        </div>
+        <div class="item-image-placeholder" *ngIf="!item.imageUrl">
+          <span>📷</span>
+        </div>
+
+        <div class="item-details">
+          <h3>{{ item.name }}</h3>
+          <p class="item-description" *ngIf="item.description">{{ item.description }}</p>
+          <span class="item-category" *ngIf="item.categoryName">{{ item.categoryName }}</span>
+          <p class="item-price">₹{{ item.price }} each</p>
+        </div>
+
+        <div class="item-quantity">
+          <button class="qty-btn" (click)="decreaseQuantity(item)">−</button>
+          <input
+            type="number"
+            [value]="item.quantity"
+            (change)="updateQuantity(item, +$any($event.target).value)"
+            min="1"
+            class="qty-input">
+          <button class="qty-btn" (click)="increaseQuantity(item)">+</button>
+        </div>
+
+        <div class="item-total">
+          <p class="total-price">₹{{ getItemTotal(item) }}</p>
+          <button class="btn-remove" (click)="removeItem(item)">Remove</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cart Summary -->
+    <div class="cart-summary">
+      <h2>Order Summary</h2>
+
+      <div class="summary-row">
+        <span>Subtotal:</span>
+        <span>₹{{ cart.subtotal }}</span>
+      </div>
+
+      <div class="summary-row">
+        <span>Tax (10%):</span>
+        <span>₹{{ cart.tax }}</span>
+      </div>
+
+      <div class="summary-divider"></div>
+
+      <div class="summary-row total">
+        <span>Total:</span>
+        <span>₹{{ cart.total }}</span>
+      </div>
+
+      <div class="summary-actions">
+        <button class="btn-secondary" (click)="continueShopping()">
+          Continue Shopping
+        </button>
+        <button class="btn-primary" (click)="proceedToCheckout()">
+          Proceed to Checkout
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

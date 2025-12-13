@@ -1,28 +1,103 @@
 <div class="orders-container">
   <div class="page-header">
-    <h1>My Orders</h1>
-    <p>Track your order history and current orders</p>
+    <h1>{{ isAdmin ? 'All Orders' : 'My Orders' }}</h1>
+    <p>{{ isAdmin ? 'Manage customer orders' : 'Track your order history and current orders' }}</p>
   </div>
 
-  <div class="orders-list">
+  <!-- Success Message -->
+  <div *ngIf="successMessage" class="success-message">
+    {{ successMessage }}
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-state">
+    <p>Loading orders...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage && !isLoading" class="error-state">
+    <p class="error-message">{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="loadOrders()">Retry</button>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!isLoading && !errorMessage && orders.length === 0" class="empty-state">
+    <p>No orders found</p>
+    <a routerLink="/menu" class="btn-browse">Browse Menu</a>
+  </div>
+
+  <!-- Orders List -->
+  <div *ngIf="!isLoading && !errorMessage && orders.length > 0" class="orders-list">
     <div *ngFor="let order of orders" class="order-card">
       <div class="order-header">
         <div>
-          <h3>{{ order.id }}</h3>
-          <p class="order-date">{{ order.date }}</p>
+          <h3>#{{ order.id }}</h3>
+          <p class="order-date">{{ formatDate(order.createdAt) }}</p>
+          <p *ngIf="isAdmin" class="order-customer">Customer: {{ order.username }}</p>
         </div>
-        <span class="order-status" [class.delivered]="order.status === 'Delivered'"
-              [class.in-progress]="order.status === 'In Progress'">
-          {{ order.status }}
+        <span class="order-status"
+              [ngClass]="getStatusColorClass(order.status)">
+          {{ getStatusDisplayText(order.status) }}
         </span>
       </div>
+
       <div class="order-body">
-        <p class="order-items">{{ order.items }}</p>
-        <div class="order-total">Total: {{ order.total }}</div>
+        <div class="order-items">
+          <h4>Items:</h4>
+          <ul>
+            <li *ngFor="let item of order.items">
+              {{ item.name }} × {{ item.quantity }} - ₹{{ item.total }}
+            </li>
+          </ul>
+        </div>
+
+        <div class="order-summary">
+          <div class="summary-row">
+            <span>Subtotal:</span>
+            <span>₹{{ order.subtotal }}</span>
+          </div>
+          <div class="summary-row">
+            <span>Tax (10%):</span>
+            <span>₹{{ order.tax }}</span>
+          </div>
+          <div class="summary-row total">
+            <span>Total:</span>
+            <span>₹{{ order.total }}</span>
+          </div>
+        </div>
+
+        <div *ngIf="order.deliveryAddress" class="order-details">
+          <p><strong>Delivery Address:</strong> {{ order.deliveryAddress }}</p>
+        </div>
+        <div *ngIf="order.phoneNumber" class="order-details">
+          <p><strong>Phone:</strong> {{ order.phoneNumber }}</p>
+        </div>
+        <div *ngIf="order.notes" class="order-details">
+          <p><strong>Notes:</strong> {{ order.notes }}</p>
+        </div>
       </div>
+
       <div class="order-actions">
-        <button class="btn-reorder">Reorder</button>
-        <button class="btn-details">View Details</button>
+        <!-- User Actions -->
+        <button *ngIf="!isAdmin && canCancelOrder(order)"
+                class="btn-cancel"
+                (click)="cancelOrder(order.id)">
+          Cancel Order
+        </button>
+
+        <!-- Admin Actions -->
+        <div *ngIf="isAdmin" class="admin-actions">
+          <select (change)="updateOrderStatus(order.id, $any($event.target).value)"
+                  [value]="order.status"
+                  class="status-select">
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="preparing">Preparing</option>
+            <option value="ready">Ready</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
       </div>
     </div>
   </div>

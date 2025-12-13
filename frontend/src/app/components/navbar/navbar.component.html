@@ -22,11 +22,11 @@
     <!-- Desktop Menu -->
     <div class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
-        <!-- Admin Only: Menu Update -->
-        <li class="nav-item" *ngIf="isAdmin">
+        <!-- Menu (All Users) -->
+        <li class="nav-item">
           <a routerLink="/menu" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
             <span class="nav-icon">🍽️</span>
-            Menu Update
+            Menu
           </a>
         </li>
 
@@ -94,6 +94,17 @@
           <a routerLink="/loyalty" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
             <span class="nav-icon">⭐</span>
             Loyalty Points
+          </a>
+        </li>
+
+        <!-- Cart (All Users) -->
+        <li class="nav-item cart-item">
+          <a routerLink="/cart" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+            <span class="nav-icon cart-icon">
+              🛒
+              <span class="cart-badge" *ngIf="cartItemCount > 0">{{ cartItemCount }}</span>
+            </span>
+            Cart
           </a>
         </li>
       </ul>

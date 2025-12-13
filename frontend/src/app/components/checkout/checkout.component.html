@@ -1,0 +1,110 @@
+<div class="checkout-container">
+  <div class="page-header">
+    <h1>Checkout</h1>
+    <p>Complete your order</p>
+  </div>
+
+  <div class="checkout-content">
+    <!-- Order Summary -->
+    <div class="order-summary-section">
+      <h2>Order Summary</h2>
+
+      <div class="summary-items">
+        <div *ngFor="let item of cart.items" class="summary-item">
+          <div class="item-info">
+            <span class="item-name">{{ item.name }}</span>
+            <span class="item-qty">× {{ item.quantity }}</span>
+          </div>
+          <span class="item-price">₹{{ item.price * item.quantity }}</span>
+        </div>
+      </div>
+
+      <div class="summary-totals">
+        <div class="total-row">
+          <span>Subtotal:</span>
+          <span>₹{{ cart.subtotal }}</span>
+        </div>
+        <div class="total-row">
+          <span>Tax (10%):</span>
+          <span>₹{{ cart.tax }}</span>
+        </div>
+        <div class="total-divider"></div>
+        <div class="total-row final">
+          <span>Total:</span>
+          <span>₹{{ cart.total }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delivery Form -->
+    <div class="delivery-form-section">
+      <h2>Delivery Details</h2>
+
+      <form (ngSubmit)="placeOrder()" #checkoutForm="ngForm">
+        <div class="form-group">
+          <label for="deliveryAddress">Delivery Address *</label>
+          <textarea
+            id="deliveryAddress"
+            name="deliveryAddress"
+            [(ngModel)]="deliveryAddress"
+            placeholder="Enter your complete delivery address"
+            rows="3"
+            required
+            [disabled]="isSubmitting"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="phoneNumber">Phone Number *</label>
+          <input
+            type="tel"
+            id="phoneNumber"
+            name="phoneNumber"
+            [(ngModel)]="phoneNumber"
+            placeholder="Enter your 10-digit phone number"
+            pattern="[0-9]{10}"
+            required
+            [disabled]="isSubmitting">
+          <small>Enter 10 digits without spaces or special characters</small>
+        </div>
+
+        <div class="form-group">
+          <label for="notes">Special Instructions (Optional)</label>
+          <textarea
+            id="notes"
+            name="notes"
+            [(ngModel)]="notes"
+            placeholder="Any special requests or instructions?"
+            rows="2"
+            [disabled]="isSubmitting"></textarea>
+        </div>
+
+        <!-- Error Message -->
+        <div *ngIf="errorMessage" class="error-message">
+          {{ errorMessage }}
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="form-actions">
+          <button
+            type="button"
+            class="btn-secondary"
+            (click)="goBackToCart()"
+            [disabled]="isSubmitting">
+            Back to Cart
+          </button>
+          <button
+            type="submit"
+            class="btn-primary"
+            [disabled]="!checkoutForm.valid || isSubmitting">
+            {{ isSubmitting ? 'Placing Order...' : 'Place Order' }}
+          </button>
+        </div>
+      </form>
+
+      <div class="payment-info">
+        <p><strong>Payment:</strong> Cash on Delivery</p>
+        <p class="info-text">You can pay when your order is delivered</p>
+      </div>
+    </div>
+  </div>
+</div>

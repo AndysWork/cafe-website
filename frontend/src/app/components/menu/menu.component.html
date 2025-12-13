@@ -1,0 +1,82 @@
+<div class="menu-container">
+  <!-- Header -->
+  <div class="page-header">
+    <h1>Our Menu</h1>
+    <p>Explore our delicious offerings</p>
+  </div>
+
+  <!-- Success Message -->
+  <div *ngIf="addedToCartMessage" class="success-message">
+    {{ addedToCartMessage }}
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-state">
+    <p>Loading menu...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage && !isLoading" class="error-state">
+    <p class="error-message">{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="loadMenu()">Retry</button>
+  </div>
+
+  <!-- Menu Content -->
+  <div *ngIf="!isLoading && !errorMessage" class="menu-content">
+    <!-- Category Filter -->
+    <div class="category-filter">
+      <button
+        class="filter-btn"
+        [class.active]="selectedCategoryId === null"
+        (click)="filterByCategory(null)">
+        All Items
+      </button>
+      <button
+        *ngFor="let category of categories"
+        class="filter-btn"
+        [class.active]="selectedCategoryId === category.id"
+        (click)="filterByCategory(category.id)">
+        {{ category.name }}
+      </button>
+    </div>
+
+    <!-- Menu Items Grid -->
+    <div *ngIf="filteredItems.length > 0" class="menu-grid">
+      <div *ngFor="let item of filteredItems" class="menu-item-card">
+        <div class="item-image" *ngIf="item.imageUrl">
+          <img [src]="item.imageUrl" [alt]="item.name">
+        </div>
+        <div class="item-image-placeholder" *ngIf="!item.imageUrl">
+          <span>📷</span>
+        </div>
+
+        <div class="item-content">
+          <div class="item-header">
+            <h3>{{ item.name }}</h3>
+            <span class="category-badge">{{ item.categoryName }}</span>
+          </div>
+
+          <p class="item-description" *ngIf="item.description">
+            {{ item.description }}
+          </p>
+
+          <div class="item-footer">
+            <span class="item-price">₹{{ item.onlinePrice }}</span>
+            <button
+              class="btn-add-to-cart"
+              (click)="addToCart(item)"
+              [disabled]="item.isAvailable === false">
+              {{ item.isAvailable === false ? 'Unavailable' : 'Add to Cart' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="filteredItems.length === 0" class="empty-state">
+      <p>No items found in this category</p>
+      <button class="btn-retry" (click)="filterByCategory(null)">View All Items</button>
+    </div>
+  </div>
+</div>

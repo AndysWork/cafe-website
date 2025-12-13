@@ -167,6 +167,38 @@
   transition: transform 0.3s ease;
 }
 
+// Cart Icon with Badge
+.cart-icon {
+  position: relative;
+  display: inline-block;
+}
+
+.cart-badge {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  background-color: #ff6b35;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.cart-item {
+  .nav-link {
+    &:hover .cart-badge,
+    &.active .cart-badge {
+      background-color: white;
+      color: #ff6b35;
+    }
+  }
+}
+
 // Dropdown
 .dropdown {
   &:hover .dropdown-menu {

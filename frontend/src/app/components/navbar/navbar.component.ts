@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
+import { CartService } from '../../services/cart.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -16,10 +17,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
   activeDropdown: string | null = null;
   private closeTimeout: any;
   currentUser: User | null = null;
+  cartItemCount = 0;
   private authSubscription?: Subscription;
+  private cartSubscription?: Subscription;
 
   constructor(
     private authService: AuthService,
+    private cartService: CartService,
     private router: Router
   ) {}
 
@@ -27,11 +31,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.authSubscription = this.authService.currentUser$.subscribe(
       user => this.currentUser = user
     );
+    this.cartSubscription = this.cartService.cart$.subscribe(
+      cart => this.cartItemCount = cart.itemCount
+    );
   }
 
   ngOnDestroy() {
     if (this.authSubscription) {
       this.authSubscription.unsubscribe();
+    }
+    if (this.cartSubscription) {
+      this.cartSubscription.unsubscribe();
     }
   }
 
