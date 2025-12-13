@@ -3,7 +3,7 @@
   <section class="hero">
     <div class="hero-overlay"></div>
     <div class="hero-content">
-      <img src="/Logo.jpg" alt="Maa Tara Cafe" class="hero-logo">
+      <img src="/Logo.jpg" alt="Maa Tara Cafe" class="hero-logo" />
       <p class="tagline">Where Every Bite Tells a Story</p>
       <p class="subtitle">
         Experience the perfect blend of taste, quality, and warmth
@@ -121,7 +121,9 @@
     </div>
     <div class="gallery-grid">
       <div *ngFor="let item of getGalleryItems()" class="gallery-item">
-        <div class="gallery-image">{{ getCategoryIcon(getCategoryNameById(item.categoryId)) }}</div>
+        <div class="gallery-image">
+          {{ getCategoryIcon(getCategoryNameById(item.categoryId)) }}
+        </div>
         <div class="gallery-caption">{{ item.catalogueName }}</div>
       </div>
     </div>
@@ -171,12 +173,13 @@
         <div class="info-icon">🕐</div>
         <h3>Opening Hours</h3>
         <p>Monday - Sunday</p>
-        <p>10:00 AM - 11:00 PM</p>
+        <p>9:00 AM - 12:00 PM</p>
+        <p>3:00 PM - 11:00 PM</p>
       </div>
       <div class="info-card">
         <div class="info-icon">📞</div>
         <h3>Contact Us</h3>
-        <p>+91 8240443533s</p>
+        <p>+91 8240443533</p>
       </div>
     </div>
   </section>
