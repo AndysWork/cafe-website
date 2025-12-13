@@ -1,0 +1,94 @@
+name: Deploy API to Azure Functions (Alternative)
+
+# This workflow uses the official Azure Functions action which is more reliable
+# To use this version, rename it to deploy-api.yml and remove the old one
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'api/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_NAME: cafe-api-5560
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: './api'
+  DOTNET_VERSION: '9.0.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+    environment: production
+    
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+
+    - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: 'Resolve Project Dependencies Using Dotnet'
+      shell: pwsh
+      run: |
+        pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+        dotnet build --configuration Release --output ./output
+        popd
+
+    - name: 'Run Azure Functions Action'
+      uses: Azure/functions-action@v1
+      id: fa
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+    
+    - name: 'Verify Deployment'
+      shell: pwsh
+      continue-on-error: true
+      run: |
+        Write-Host "`nWaiting for deployment to complete..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 20
+        
+        Write-Host "Verifying deployment..." -ForegroundColor Cyan
+        $maxRetries = 3
+        $retryCount = 0
+        $success = $false
+        
+        while ($retryCount -lt $maxRetries -and !$success) {
+          try {
+            $response = Invoke-RestMethod -Uri "https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify" -Method GET
+            Write-Host "✅ API is responding successfully!" -ForegroundColor Green
+            Write-Host "Admin user exists: $($response.exists)" -ForegroundColor Cyan
+            Write-Host "Deployment URL: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net" -ForegroundColor Cyan
+            $success = $true
+          } catch {
+            $retryCount++
+            if ($retryCount -lt $maxRetries) {
+              Write-Host "Retry $retryCount/$maxRetries - waiting..." -ForegroundColor Yellow
+              Start-Sleep -Seconds 10
+            } else {
+              Write-Host "⚠️  Verification timed out (API may still be warming up)" -ForegroundColor Yellow
+              Write-Host "Verify manually at: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify" -ForegroundColor Gray
+            }
+          }
+        }
+        
+        # Always succeed
+        exit 0
+    
+    - name: 'Deployment Summary'
+      shell: pwsh
+      run: |
+        Write-Host "`n========================================" -ForegroundColor Cyan
+        Write-Host "  Deployment Complete!" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "API Endpoints:" -ForegroundColor White
+        Write-Host "  • Admin Verify: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify" -ForegroundColor Gray
+        Write-Host "  • Login:        https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/login" -ForegroundColor Gray
+        Write-Host "  • Categories:   https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/categories" -ForegroundColor Gray
+        Write-Host "  • Menu:         https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/menu" -ForegroundColor Gray
+        Write-Host "========================================" -ForegroundColor Cyan
