@@ -1,0 +1,121 @@
+name: Deploy API (WebDeploy Alternative)
+
+on:
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_NAME: cafe-api-5560
+  DOTNET_VERSION: '9.0.x'
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Build
+      shell: pwsh
+      run: |
+        Write-Host "Building..." -ForegroundColor Cyan
+        cd api
+        dotnet publish --configuration Release --output ./publish
+        Write-Host "Build complete" -ForegroundColor Green
+
+    - name: Extract Credentials and Deploy
+      shell: pwsh
+      run: |
+        $publishProfile = '${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}'
+        
+        if ([string]::IsNullOrWhiteSpace($publishProfile)) {
+          Write-Host "ERROR: Secret is empty!" -ForegroundColor Red
+          exit 1
+        }
+        
+        Write-Host "Parsing publish profile..." -ForegroundColor Cyan
+        
+        try {
+          [xml]$profile = $publishProfile
+          
+          # Try ZipDeploy profile first (newer)
+          $deployProfile = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'ZipDeploy' }
+          
+          # Fallback to MSDeploy
+          if (-not $deployProfile) {
+            $deployProfile = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'MSDeploy' }
+          }
+          
+          if (-not $deployProfile) {
+            Write-Host "ERROR: No deploy profile found!" -ForegroundColor Red
+            exit 1
+          }
+          
+          $username = $deployProfile.userName
+          $password = $deployProfile.userPWD
+          
+          Write-Host "Found credentials for: $username" -ForegroundColor Green
+          
+        } catch {
+          Write-Host "ERROR parsing XML: $($_.Exception.Message)" -ForegroundColor Red
+          exit 1
+        }
+        
+        # Create ZIP
+        Write-Host "Creating deployment package..." -ForegroundColor Cyan
+        Compress-Archive -Path ./api/publish/* -DestinationPath ./deploy.zip -Force
+        
+        # Deploy using REST API
+        Write-Host "Deploying to Azure..." -ForegroundColor Cyan
+        
+        $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${username}:${password}"))
+        $apiUrl = "https://${{ env.AZURE_FUNCTIONAPP_NAME }}.scm.azurewebsites.net/api/zipdeploy"
+        
+        try {
+          $ProgressPreference = 'SilentlyContinue'
+          
+          Invoke-RestMethod -Uri $apiUrl `
+            -Method POST `
+            -InFile ./deploy.zip `
+            -Headers @{ Authorization = "Basic $base64Auth" } `
+            -ContentType "application/zip" `
+            -TimeoutSec 600
+          
+          Write-Host "✓ Deployment successful!" -ForegroundColor Green
+          
+        } catch {
+          $statusCode = $_.Exception.Response.StatusCode.value__
+          Write-Host "✗ Deployment failed!" -ForegroundColor Red
+          Write-Host "Status Code: $statusCode" -ForegroundColor Yellow
+          
+          if ($statusCode -eq 401) {
+            Write-Host "`nThe publish profile credentials are STILL invalid." -ForegroundColor Red
+            Write-Host "Try RESETTING the publish profile:" -ForegroundColor Yellow
+            Write-Host "1. Azure Portal -> cafe-api-5560" -ForegroundColor White
+            Write-Host "2. Deployment Center -> Manage publish profile" -ForegroundColor White
+            Write-Host "3. Click 'Reset publish profile'" -ForegroundColor White
+            Write-Host "4. Download the NEW profile" -ForegroundColor White
+            Write-Host "5. Update GitHub secret with the NEW XML" -ForegroundColor White
+          }
+          
+          Write-Host "`nError: $($_.Exception.Message)" -ForegroundColor Gray
+          exit 1
+        }
+    
+    - name: Verify
+      shell: pwsh
+      run: |
+        Write-Host "Waiting for app to restart..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 30
+        
+        try {
+          $response = Invoke-RestMethod -Uri "https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify"
+          Write-Host "✓ API is live!" -ForegroundColor Green
+          Write-Host "Admin exists: $($response.exists)" -ForegroundColor Cyan
+        } catch {
+          Write-Host "API not responding yet (may need more time to warm up)" -ForegroundColor Yellow
+        }
