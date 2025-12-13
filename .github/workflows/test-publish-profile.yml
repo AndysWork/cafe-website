@@ -1,0 +1,88 @@
+name: Test Publish Profile Secret
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-secret:
+    runs-on: windows-latest
+    
+    steps:
+    - name: 'Check Publish Profile Secret'
+      shell: pwsh
+      run: |
+        Write-Host "`n========================================" -ForegroundColor Cyan
+        Write-Host "  Testing Publish Profile Secret" -ForegroundColor Cyan
+        Write-Host "========================================`n" -ForegroundColor Cyan
+        
+        $publishProfile = '${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}'
+        
+        if ([string]::IsNullOrWhiteSpace($publishProfile)) {
+          Write-Host "❌ FAILED: Publish profile secret is EMPTY or NOT SET!" -ForegroundColor Red
+          Write-Host "`nACTION REQUIRED:" -ForegroundColor Yellow
+          Write-Host "1. Go to: https://portal.azure.com" -ForegroundColor White
+          Write-Host "2. Find Function App: cafe-api-5560" -ForegroundColor White
+          Write-Host "3. Click 'Get publish profile' button" -ForegroundColor White
+          Write-Host "4. Open the downloaded .PublishSettings file" -ForegroundColor White
+          Write-Host "5. Copy the ENTIRE XML contents" -ForegroundColor White
+          Write-Host "6. Go to GitHub: Settings -> Secrets -> Actions" -ForegroundColor White
+          Write-Host "7. Add/Update secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor White
+          Write-Host "8. Paste the XML and save`n" -ForegroundColor White
+          exit 1
+        }
+        
+        Write-Host "✓ Secret exists (length: $($publishProfile.Length) chars)" -ForegroundColor Green
+        
+        # Test if it's valid XML
+        try {
+          [xml]$profile = $publishProfile
+          Write-Host "✓ Secret is valid XML" -ForegroundColor Green
+        } catch {
+          Write-Host "❌ FAILED: Secret is NOT valid XML!" -ForegroundColor Red
+          Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+          Write-Host "`nThe secret appears corrupted. Re-download from Azure Portal." -ForegroundColor Yellow
+          exit 1
+        }
+        
+        # Check for MSDeploy profile
+        $msDeploy = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'MSDeploy' }
+        if (-not $msDeploy) {
+          Write-Host "❌ FAILED: MSDeploy profile not found in XML!" -ForegroundColor Red
+          Write-Host "`nRe-download publish profile from Azure Portal." -ForegroundColor Yellow
+          exit 1
+        }
+        
+        Write-Host "✓ MSDeploy profile found" -ForegroundColor Green
+        
+        # Show extracted info (masked)
+        $username = $msDeploy.userName
+        $password = $msDeploy.userPWD
+        $publishUrl = $msDeploy.publishUrl
+        
+        Write-Host "`nExtracted Information:" -ForegroundColor Cyan
+        Write-Host "  Username: $username" -ForegroundColor White
+        Write-Host "  Publish URL: $publishUrl" -ForegroundColor White
+        Write-Host "  Password length: $($password.Length) chars" -ForegroundColor White
+        
+        # Test if credentials work
+        Write-Host "`nTesting credentials with Azure..." -ForegroundColor Cyan
+        
+        $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${username}:${password}"))
+        $kuduUrl = "https://cafe-api-5560.scm.azurewebsites.net/api/settings"
+        
+        try {
+          $headers = @{
+            Authorization = "Basic $base64AuthInfo"
+          }
+          
+          $response = Invoke-RestMethod -Uri $kuduUrl -Method GET -Headers $headers -TimeoutSec 10
+          Write-Host "✓ Credentials are VALID! Successfully authenticated with Azure!" -ForegroundColor Green
+          Write-Host "`n✓✓✓ PUBLISH PROFILE IS WORKING! ✓✓✓" -ForegroundColor Green
+          Write-Host "`nYou can now run the deployment workflow." -ForegroundColor Cyan
+        } catch {
+          Write-Host "❌ FAILED: Credentials are INVALID!" -ForegroundColor Red
+          Write-Host "Status: $($_.Exception.Response.StatusCode.value__)" -ForegroundColor Yellow
+          Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+          Write-Host "`nACTION: Download a FRESH publish profile from Azure Portal!" -ForegroundColor Yellow
+          exit 1
+        }
