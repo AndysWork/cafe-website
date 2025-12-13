@@ -44,14 +44,73 @@ jobs:
         Compress-Archive -Path '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output/*' -DestinationPath './deploy.zip' -Force
         Write-Host "Package created: deploy.zip" -ForegroundColor Green
 
-    - name: 'Deploy to Azure Functions'
-      uses: Azure/functions-action@v1
-      id: deploy
-      with:
-        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-        package: './deploy.zip'
-        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-        respect-funcignore: true
+    - name: 'Extract Publish Profile Credentials'
+      shell: pwsh
+      id: extract-creds
+      run: |
+        $publishProfile = '${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}'
+        if ([string]::IsNullOrWhiteSpace($publishProfile)) {
+          Write-Host "ERROR: Publish profile secret is empty!" -ForegroundColor Red
+          exit 1
+        }
+        
+        try {
+          [xml]$profile = $publishProfile
+          $msDeploy = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'MSDeploy' }
+          
+          if (-not $msDeploy) {
+            Write-Host "ERROR: MSDeploy profile not found in publish profile!" -ForegroundColor Red
+            exit 1
+          }
+          
+          $username = $msDeploy.userName
+          $password = $msDeploy.userPWD
+          $siteName = $msDeploy.msdeploySite
+          
+          Write-Host "Successfully extracted credentials for: $siteName" -ForegroundColor Green
+          
+          # Create base64 encoded credentials for Kudu API
+          $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${username}:${password}"))
+          
+          echo "::add-mask::$base64AuthInfo"
+          echo "username=$username" >> $env:GITHUB_OUTPUT
+          echo "password=$password" >> $env:GITHUB_OUTPUT
+          echo "auth=$base64AuthInfo" >> $env:GITHUB_OUTPUT
+        } catch {
+          Write-Host "ERROR: Failed to parse publish profile XML!" -ForegroundColor Red
+          Write-Host $_.Exception.Message -ForegroundColor Yellow
+          exit 1
+        }
+    
+    - name: 'Deploy via Kudu ZIP API'
+      shell: pwsh
+      run: |
+        $appName = "${{ env.AZURE_FUNCTIONAPP_NAME }}"
+        $zipFile = "./deploy.zip"
+        $kuduUrl = "https://$appName.scm.azurewebsites.net/api/zipdeploy"
+        $auth = "${{ steps.extract-creds.outputs.auth }}"
+        
+        Write-Host "Deploying to: $kuduUrl" -ForegroundColor Cyan
+        
+        try {
+          $headers = @{
+            Authorization = "Basic $auth"
+          }
+          
+          $response = Invoke-RestMethod -Uri $kuduUrl `
+            -Method POST `
+            -InFile $zipFile `
+            -Headers $headers `
+            -ContentType "application/zip" `
+            -TimeoutSec 600
+          
+          Write-Host "Deployment successful!" -ForegroundColor Green
+        } catch {
+          Write-Host "Deployment failed!" -ForegroundColor Red
+          Write-Host "Status: $($_.Exception.Response.StatusCode.value__)" -ForegroundColor Yellow
+          Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+          exit 1
+        }
     
     - name: 'Verify Deployment'
       shell: pwsh
