@@ -32,67 +32,62 @@ jobs:
       shell: pwsh
       run: |
         Write-Host "Building API in Release mode..." -ForegroundColor Cyan
-        cd api
+        pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
         dotnet build --configuration Release --output ./output
         Write-Host "Build completed successfully" -ForegroundColor Green
-
-    - name: 'Install Azure Functions Core Tools'
-      shell: pwsh
-      run: |
-        Write-Host "Installing Azure Functions Core Tools..." -ForegroundColor Cyan
-        npm install -g azure-functions-core-tools@4 --unsafe-perm true
-        Write-Host "Azure Functions Core Tools installed" -ForegroundColor Green
+        popd
 
     - name: 'Deploy to Azure Functions'
-      shell: pwsh
-      env:
-        AZURE_FUNCTIONAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-      run: |
-        Write-Host "Deploying to Azure Function App: ${{ env.AZURE_FUNCTIONAPP_NAME }}..." -ForegroundColor Cyan
-        cd api/output
-        
-        # Create publish settings file from secret
-        $publishProfile = $env:AZURE_FUNCTIONAPP_PUBLISH_PROFILE
-        $publishProfile | Out-File -FilePath publish.xml -Encoding UTF8
-        
-        # Deploy using func CLI (same method that works locally)
-        try {
-          func azure functionapp publish ${{ env.AZURE_FUNCTIONAPP_NAME }} --csharp
-          $deploymentExitCode = $LASTEXITCODE
-          
-          # Clean up
-          Remove-Item publish.xml -ErrorAction SilentlyContinue
-          
-          if ($deploymentExitCode -eq 0) {
-            Write-Host "Deployment completed successfully!" -ForegroundColor Green
-          } else {
-            Write-Host "Deployment may have issues. Exit code: $deploymentExitCode" -ForegroundColor Yellow
-            # Don't fail the step - Azure Functions deployment sometimes returns non-zero even on success
-          }
-        } catch {
-          Write-Host "Deployment command encountered an error, but may have succeeded" -ForegroundColor Yellow
-          Write-Host $_.Exception.Message -ForegroundColor Gray
-          # Clean up
-          Remove-Item publish.xml -ErrorAction SilentlyContinue
-        }
+      uses: Azure/functions-action@v1
+      id: deploy
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
     
     - name: 'Verify Deployment'
       shell: pwsh
       continue-on-error: true
       run: |
-        Write-Host "`nVerifying deployment..." -ForegroundColor Cyan
-        Start-Sleep -Seconds 15
+        Write-Host "`nWaiting for deployment to complete..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 20
         
-        # Test the admin verification endpoint (doesn't require auth)
-        try {
-          $response = Invoke-WebRequest -Uri "https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify" -Method GET
-          Write-Host "✅ API is responding: Status $($response.StatusCode)" -ForegroundColor Green
-          Write-Host "Deployment URL: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net" -ForegroundColor Cyan
-        } catch {
-          Write-Host "⚠️  API verification endpoint check failed (may still be warming up)" -ForegroundColor Yellow
-          Write-Host "Deployment completed - verify manually at:" -ForegroundColor Cyan
-          Write-Host "  https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify" -ForegroundColor Gray
+        Write-Host "Verifying deployment..." -ForegroundColor Cyan
+        $maxRetries = 3
+        $retryCount = 0
+        $success = $false
+        
+        while ($retryCount -lt $maxRetries -and !$success) {
+          try {
+            $response = Invoke-RestMethod -Uri "https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify" -Method GET
+            Write-Host "✅ API is responding successfully!" -ForegroundColor Green
+            Write-Host "Admin user exists: $($response.exists)" -ForegroundColor Cyan
+            Write-Host "Deployment URL: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net" -ForegroundColor Cyan
+            $success = $true
+          } catch {
+            $retryCount++
+            if ($retryCount -lt $maxRetries) {
+              Write-Host "Retry $retryCount/$maxRetries - waiting..." -ForegroundColor Yellow
+              Start-Sleep -Seconds 10
+            } else {
+              Write-Host "⚠️  Verification timed out (API may still be warming up)" -ForegroundColor Yellow
+              Write-Host "Verify manually at: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify" -ForegroundColor Gray
+            }
+          }
         }
         
-        # Always exit successfully from verification step
+        # Always succeed
         exit 0
+    
+    - name: 'Deployment Summary'
+      shell: pwsh
+      run: |
+        Write-Host "`n========================================" -ForegroundColor Cyan
+        Write-Host "  Deployment Complete!" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "API Endpoints:" -ForegroundColor White
+        Write-Host "  • Admin Verify: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/admin/verify" -ForegroundColor Gray
+        Write-Host "  • Login:        https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/login" -ForegroundColor Gray
+        Write-Host "  • Categories:   https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/categories" -ForegroundColor Gray
+        Write-Host "  • Menu:         https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/menu" -ForegroundColor Gray
+        Write-Host "========================================" -ForegroundColor Cyan
