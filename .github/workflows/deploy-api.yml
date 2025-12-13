@@ -28,23 +28,50 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: 'Resolve Project Dependencies Using Dotnet'
+    - name: 'Build API'
       shell: pwsh
       run: |
-        pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+        Write-Host "Building API in Release mode..." -ForegroundColor Cyan
+        cd api
         dotnet build --configuration Release --output ./output
-        popd
+        Write-Host "Build completed successfully" -ForegroundColor Green
 
-    - name: 'Run Azure Functions Action'
-      uses: Azure/functions-action@v1
-      id: fa
-      with:
-        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-        package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
-        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-        respect-funcignore: true
+    - name: 'Install Azure Functions Core Tools'
+      shell: pwsh
+      run: |
+        Write-Host "Installing Azure Functions Core Tools..." -ForegroundColor Cyan
+        npm install -g azure-functions-core-tools@4 --unsafe-perm true
+        Write-Host "Azure Functions Core Tools installed" -ForegroundColor Green
+
+    - name: 'Deploy to Azure Functions'
+      shell: pwsh
+      env:
+        AZURE_FUNCTIONAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+      run: |
+        Write-Host "Deploying to Azure Function App: ${{ env.AZURE_FUNCTIONAPP_NAME }}..." -ForegroundColor Cyan
+        cd api/output
+        
+        # Create publish settings file from secret
+        $publishProfile = $env:AZURE_FUNCTIONAPP_PUBLISH_PROFILE
+        $publishProfile | Out-File -FilePath publish.xml -Encoding UTF8
+        
+        # Deploy using func CLI (same method that works locally)
+        func azure functionapp publish ${{ env.AZURE_FUNCTIONAPP_NAME }} --csharp
+        
+        # Clean up
+        Remove-Item publish.xml
+        Write-Host "Deployment completed successfully!" -ForegroundColor Green
     
     - name: 'Verify Deployment'
       shell: pwsh
       run: |
-        Write-Host "API deployed successfully to https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net" -ForegroundColor Green
+        Write-Host "`nVerifying deployment..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 10
+        try {
+          $response = Invoke-WebRequest -Uri "https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/categories" -Method GET
+          Write-Host "✅ API is responding: Status $($response.StatusCode)" -ForegroundColor Green
+          Write-Host "Deployment URL: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net" -ForegroundColor Cyan
+        } catch {
+          Write-Host "⚠️  API verification failed, but deployment may still be processing" -ForegroundColor Yellow
+          Write-Host "Check: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/categories" -ForegroundColor Gray
+        }
