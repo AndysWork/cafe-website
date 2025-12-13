@@ -40,6 +40,18 @@ export class AdminDashboardComponent {
       active: false
     },
     {
+      icon: '🎁',
+      label: 'Offers',
+      route: '/admin/offers',
+      active: false
+    },
+    {
+      icon: '🏆',
+      label: 'Loyalty',
+      route: '/admin/loyalty',
+      active: false
+    },
+    {
       icon: '👥',
       label: 'Customers',
       route: '/admin/customers',

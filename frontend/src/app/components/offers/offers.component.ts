@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { OffersService, Offer } from '../../services/offers.service';
 
 @Component({
   selector: 'app-offers',
@@ -8,44 +9,67 @@ import { CommonModule } from '@angular/common';
   templateUrl: './offers.component.html',
   styleUrls: ['./offers.component.scss']
 })
-export class OffersComponent {
-  offers = [
-    {
-      title: 'Burger Combo Blast',
-      description: 'Get 2 Burgers + 2 Beverages at 30% OFF',
-      discount: '30% OFF',
-      code: 'BURGER30',
-      validTill: 'Valid till Dec 31, 2025',
-      icon: '🍔'
-    },
-    {
-      title: 'Tea Lover Special',
-      description: 'Buy 2 Teas, Get 1 Free',
-      discount: 'BOGO',
-      code: 'TEA2FOR1',
-      validTill: 'Valid till Dec 25, 2025',
-      icon: '🍵'
-    },
-    {
-      title: 'Weekend Feast',
-      description: 'Flat ₹100 OFF on orders above ₹500',
-      discount: '₹100 OFF',
-      code: 'WEEKEND100',
-      validTill: 'Valid on Sat & Sun',
-      icon: '🎉'
-    },
-    {
-      title: 'First Order Delight',
-      description: 'Get 50% OFF on your first order',
-      discount: '50% OFF',
-      code: 'FIRST50',
-      validTill: 'One time use',
-      icon: '⭐'
-    }
-  ];
+export class OffersComponent implements OnInit {
+  offers: Offer[] = [];
+  loading = true;
+  error: string | null = null;
+
+  constructor(private offersService: OffersService) {}
+
+  ngOnInit() {
+    this.loadOffers();
+  }
+
+  loadOffers() {
+    this.loading = true;
+    this.error = null;
+
+    this.offersService.getActiveOffers().subscribe({
+      next: (offers) => {
+        this.offers = offers;
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error('Error loading offers:', err);
+        this.error = 'Failed to load offers';
+        this.loading = false;
+      }
+    });
+  }
 
   copyCode(code: string) {
     navigator.clipboard.writeText(code);
     alert(`Code "${code}" copied to clipboard!`);
+  }
+
+  getDiscountDisplay(offer: Offer): string {
+    switch (offer.discountType) {
+      case 'percentage':
+        return `${offer.discountValue}% OFF`;
+      case 'flat':
+        return `₹${offer.discountValue} OFF`;
+      case 'bogo':
+        return 'BOGO';
+      default:
+        return 'SPECIAL';
+    }
+  }
+
+  getValidityDisplay(offer: Offer): string {
+    const validTill = new Date(offer.validTill);
+    const now = new Date();
+    const daysLeft = Math.ceil((validTill.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysLeft < 0) {
+      return 'Expired';
+    } else if (daysLeft === 0) {
+      return 'Expires today!';
+    } else if (daysLeft === 1) {
+      return 'Expires tomorrow!';
+    } else if (daysLeft <= 7) {
+      return `${daysLeft} days left`;
+    } else {
+      return `Valid till ${validTill.toLocaleDateString()}`;
+    }
   }
 }

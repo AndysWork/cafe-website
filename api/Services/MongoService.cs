@@ -14,6 +14,7 @@ public class MongoService
     private readonly IMongoCollection<LoyaltyAccount> _loyaltyAccounts;
     private readonly IMongoCollection<Reward> _rewards;
     private readonly IMongoCollection<PointsTransaction> _transactions;
+    private readonly IMongoCollection<Offer> _offers;
     
     public MongoService(IConfiguration config)
     {
@@ -41,6 +42,7 @@ public class MongoService
         _loyaltyAccounts = db.GetCollection<LoyaltyAccount>("LoyaltyAccounts");
         _rewards = db.GetCollection<Reward>("Rewards");
         _transactions = db.GetCollection<PointsTransaction>("PointsTransactions");
+        _offers = db.GetCollection<Offer>("Offers");
 
         // Ensure default admin user exists
         try
@@ -480,6 +482,15 @@ public class MongoService
             .ToListAsync();
     }
 
+    // Get all transactions (admin)
+    public async Task<List<PointsTransaction>> GetAllTransactionsAsync()
+    {
+        return await _transactions
+            .Find(_ => true)
+            .SortByDescending(x => x.CreatedAt)
+            .ToListAsync();
+    }
+
     // Get all available rewards
     public async Task<List<Reward>> GetActiveRewardsAsync()
     {
@@ -616,6 +627,154 @@ public class MongoService
 
         await _rewards.InsertManyAsync(defaultRewards);
         Console.WriteLine($"✓ Inserted {defaultRewards.Count} default rewards");
+    }
+
+    #endregion
+
+    #region Offer Operations
+
+    // Get all active offers
+    public async Task<List<Offer>> GetActiveOffersAsync()
+    {
+        var now = DateTime.UtcNow;
+        return await _offers.Find(o => 
+            o.IsActive && 
+            o.ValidFrom <= now && 
+            o.ValidTill >= now
+        ).ToListAsync();
+    }
+
+    // Get all offers (admin)
+    public async Task<List<Offer>> GetAllOffersAsync() =>
+        await _offers.Find(_ => true).ToListAsync();
+
+    // Get offer by ID
+    public async Task<Offer?> GetOfferByIdAsync(string id) =>
+        await _offers.Find(o => o.Id == id).FirstOrDefaultAsync();
+
+    // Get offer by code
+    public async Task<Offer?> GetOfferByCodeAsync(string code) =>
+        await _offers.Find(o => o.Code.ToLower() == code.ToLower()).FirstOrDefaultAsync();
+
+    // Create new offer
+    public async Task<Offer> CreateOfferAsync(Offer offer)
+    {
+        offer.CreatedAt = DateTime.UtcNow;
+        offer.UpdatedAt = DateTime.UtcNow;
+        await _offers.InsertOneAsync(offer);
+        return offer;
+    }
+
+    // Update offer
+    public async Task<bool> UpdateOfferAsync(string id, Offer offer)
+    {
+        offer.UpdatedAt = DateTime.UtcNow;
+        var result = await _offers.ReplaceOneAsync(o => o.Id == id, offer);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete offer
+    public async Task<bool> DeleteOfferAsync(string id)
+    {
+        var result = await _offers.DeleteOneAsync(o => o.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    // Increment offer usage count
+    public async Task<bool> IncrementOfferUsageAsync(string id)
+    {
+        var update = Builders<Offer>.Update.Inc(o => o.UsageCount, 1);
+        var result = await _offers.UpdateOneAsync(o => o.Id == id, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Validate offer
+    public async Task<OfferValidationResponse> ValidateOfferAsync(OfferValidationRequest request)
+    {
+        var offer = await GetOfferByCodeAsync(request.Code);
+
+        if (offer == null)
+        {
+            return new OfferValidationResponse
+            {
+                IsValid = false,
+                Message = "Invalid offer code"
+            };
+        }
+
+        if (!offer.IsActive)
+        {
+            return new OfferValidationResponse
+            {
+                IsValid = false,
+                Message = "This offer is no longer active"
+            };
+        }
+
+        var now = DateTime.UtcNow;
+        if (now < offer.ValidFrom)
+        {
+            return new OfferValidationResponse
+            {
+                IsValid = false,
+                Message = "This offer is not yet valid"
+            };
+        }
+
+        if (now > offer.ValidTill)
+        {
+            return new OfferValidationResponse
+            {
+                IsValid = false,
+                Message = "This offer has expired"
+            };
+        }
+
+        if (offer.UsageLimit.HasValue && offer.UsageCount >= offer.UsageLimit.Value)
+        {
+            return new OfferValidationResponse
+            {
+                IsValid = false,
+                Message = "This offer has reached its usage limit"
+            };
+        }
+
+        if (offer.MinOrderAmount.HasValue && request.OrderAmount < offer.MinOrderAmount.Value)
+        {
+            return new OfferValidationResponse
+            {
+                IsValid = false,
+                Message = $"Minimum order amount of ₹{offer.MinOrderAmount.Value} required"
+            };
+        }
+
+        // Calculate discount
+        decimal discountAmount = 0;
+        switch (offer.DiscountType.ToLower())
+        {
+            case "percentage":
+                discountAmount = (request.OrderAmount * offer.DiscountValue) / 100;
+                if (offer.MaxDiscount.HasValue && discountAmount > offer.MaxDiscount.Value)
+                {
+                    discountAmount = offer.MaxDiscount.Value;
+                }
+                break;
+            case "flat":
+                discountAmount = offer.DiscountValue;
+                break;
+            case "bogo":
+                // For BOGO, discount is handled differently, set to 0 for now
+                discountAmount = 0;
+                break;
+        }
+
+        return new OfferValidationResponse
+        {
+            IsValid = true,
+            Message = "Offer applied successfully",
+            Offer = offer,
+            DiscountAmount = discountAmount
+        };
     }
 
     #endregion

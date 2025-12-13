@@ -1,0 +1,179 @@
+<div class="admin-offers-container">
+  <div class="page-header">
+    <h1>📢 Offers Management</h1>
+    <button class="btn-create" (click)="openCreateModal()">
+      ➕ Create New Offer
+    </button>
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner">
+    <div class="spinner"></div>
+    <p>Loading offers...</p>
+  </div>
+
+  <div *ngIf="!loading && offers.length === 0" class="empty-state">
+    <div class="empty-icon">🎁</div>
+    <h2>No Offers Yet</h2>
+    <p>Create your first offer to attract more customers!</p>
+    <button class="btn-create-empty" (click)="openCreateModal()">
+      Create First Offer
+    </button>
+  </div>
+
+  <div *ngIf="!loading && offers.length > 0" class="offers-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Icon</th>
+          <th>Title</th>
+          <th>Code</th>
+          <th>Discount</th>
+          <th>Valid Till</th>
+          <th>Usage</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let offer of offers">
+          <td class="icon-cell">{{ offer.icon }}</td>
+          <td class="title-cell">
+            <div class="title">{{ offer.title }}</div>
+            <div class="description">{{ offer.description }}</div>
+          </td>
+          <td class="code-cell">{{ offer.code }}</td>
+          <td class="discount-cell">{{ getDiscountDisplay(offer) }}</td>
+          <td>{{ formatDate(offer.validTill) }}</td>
+          <td>{{ offer.usageCount }} / {{ offer.usageLimit || '∞' }}</td>
+          <td>
+            <button
+              class="status-toggle"
+              [class.active]="offer.isActive"
+              (click)="toggleActive(offer)">
+              {{ offer.isActive ? '✓ Active' : '✗ Inactive' }}
+            </button>
+          </td>
+          <td class="actions-cell">
+            <button class="btn-edit" (click)="openEditModal(offer)" title="Edit">
+              ✏️
+            </button>
+            <button class="btn-delete" (click)="deleteOffer(offer.id!)" title="Delete">
+              🗑️
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>{{ isEditMode ? 'Edit Offer' : 'Create New Offer' }}</h2>
+      <button class="btn-close" (click)="closeModal()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <form (ngSubmit)="saveOffer()">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Icon</label>
+            <input type="text" [(ngModel)]="offerForm.icon" name="icon" required maxlength="2">
+          </div>
+          <div class="form-group flex-2">
+            <label>Title *</label>
+            <input type="text" [(ngModel)]="offerForm.title" name="title" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Description *</label>
+          <textarea [(ngModel)]="offerForm.description" name="description" rows="3" required></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Code *</label>
+            <input
+              type="text"
+              [(ngModel)]="offerForm.code"
+              name="code"
+              required
+              [disabled]="isEditMode"
+              style="text-transform: uppercase;">
+          </div>
+          <div class="form-group">
+            <label>Discount Type *</label>
+            <select [(ngModel)]="offerForm.discountType" name="discountType" required>
+              <option value="percentage">Percentage</option>
+              <option value="flat">Flat Amount</option>
+              <option value="bogo">BOGO</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Discount Value *</label>
+            <input
+              type="number"
+              [(ngModel)]="offerForm.discountValue"
+              name="discountValue"
+              required
+              min="0"
+              [disabled]="offerForm.discountType === 'bogo'">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Min Order Amount</label>
+            <input type="number" [(ngModel)]="offerForm.minOrderAmount" name="minOrderAmount" min="0">
+          </div>
+          <div class="form-group">
+            <label>Max Discount</label>
+            <input type="number" [(ngModel)]="offerForm.maxDiscount" name="maxDiscount" min="0">
+          </div>
+          <div class="form-group">
+            <label>Usage Limit</label>
+            <input type="number" [(ngModel)]="offerForm.usageLimit" name="usageLimit" min="1">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Valid From *</label>
+            <input
+              type="datetime-local"
+              [(ngModel)]="offerForm.validFrom"
+              name="validFrom"
+              required>
+          </div>
+          <div class="form-group">
+            <label>Valid Till *</label>
+            <input
+              type="datetime-local"
+              [(ngModel)]="offerForm.validTill"
+              name="validTill"
+              required>
+          </div>
+        </div>
+
+        <div class="form-group checkbox-group">
+          <label>
+            <input type="checkbox" [(ngModel)]="offerForm.isActive" name="isActive">
+            <span>Active</span>
+          </label>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-cancel" (click)="closeModal()">
+            Cancel
+          </button>
+          <button type="submit" class="btn-save">
+            {{ isEditMode ? 'Update' : 'Create' }} Offer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

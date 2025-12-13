@@ -30,6 +30,7 @@ export interface Reward {
 
 export interface PointsTransaction {
   id: string;
+  userId: string;
   points: number;
   type: string; // 'earned', 'redeemed', 'expired'
   description: string;
@@ -90,6 +91,21 @@ export class LoyaltyService {
   // Admin: Get all rewards
   getAllRewards(): Observable<Reward[]> {
     return this.http.get<Reward[]>(`${this.apiUrl}/admin/loyalty/rewards`);
+  }
+
+  // Admin: Update reward
+  updateReward(id: string, reward: Partial<Reward>): Observable<Reward> {
+    return this.http.put<Reward>(`${this.apiUrl}/admin/loyalty/rewards/${id}`, reward);
+  }
+
+  // Admin: Delete reward
+  deleteReward(id: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/admin/loyalty/rewards/${id}`);
+  }
+
+  // Admin: Get all redemptions
+  getAllRedemptions(): Observable<PointsTransaction[]> {
+    return this.http.get<PointsTransaction[]>(`${this.apiUrl}/admin/loyalty/redemptions`);
   }
 
   // Helper: Get tier color class

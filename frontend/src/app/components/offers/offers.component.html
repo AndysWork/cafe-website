@@ -4,10 +4,26 @@
     <p>Exclusive deals and discounts just for you</p>
   </div>
 
-  <div class="offers-grid">
+  <div *ngIf="loading" class="loading-spinner">
+    <div class="spinner"></div>
+    <p>Loading offers...</p>
+  </div>
+
+  <div *ngIf="error" class="error-message">
+    <p>{{ error }}</p>
+    <button class="btn-retry" (click)="loadOffers()">Try Again</button>
+  </div>
+
+  <div *ngIf="!loading && !error && offers.length === 0" class="empty-state">
+    <div class="empty-icon">🎁</div>
+    <h2>No Active Offers</h2>
+    <p>Check back soon for exciting deals and discounts!</p>
+  </div>
+
+  <div *ngIf="!loading && !error && offers.length > 0" class="offers-grid">
     <div *ngFor="let offer of offers" class="offer-card">
       <div class="offer-icon">{{ offer.icon }}</div>
-      <div class="offer-badge">{{ offer.discount }}</div>
+      <div class="offer-badge">{{ getDiscountDisplay(offer) }}</div>
       <h3>{{ offer.title }}</h3>
       <p class="offer-description">{{ offer.description }}</p>
       <div class="offer-code">
@@ -15,7 +31,7 @@
         <span class="code-value">{{ offer.code }}</span>
         <button class="btn-copy" (click)="copyCode(offer.code)">📋</button>
       </div>
-      <p class="offer-validity">{{ offer.validTill }}</p>
+      <p class="offer-validity">{{ getValidityDisplay(offer) }}</p>
     </div>
   </div>
 </div>
