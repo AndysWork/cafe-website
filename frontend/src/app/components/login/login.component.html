@@ -2,8 +2,8 @@
   <div class="login-box">
     <div class="login-header">
       <div class="logo">☕</div>
-      <h1>Admin Login</h1>
-      <p>Access the Cafe Management System</p>
+      <h1>Welcome Back</h1>
+      <p>Sign in to access your account</p>
     </div>
 
     <form (ngSubmit)="onLogin()" class="login-form">
@@ -37,22 +37,13 @@
         {{ errorMessage }}
       </div>
 
-      <button type="submit" class="btn-login">
-        Login
+      <button type="submit" class="btn-login" [disabled]="isLoading">
+        <span *ngIf="!isLoading">Login</span>
+        <span *ngIf="isLoading">Logging in...</span>
       </button>
 
-      <div class="login-info">
-        <p>Available Accounts:</p>
-        <div class="account-info">
-          <div>
-            <strong>Admin:</strong>
-            <p>Username: admin | Password: admin123</p>
-          </div>
-          <div>
-            <strong>User:</strong>
-            <p>Username: user | Password: user123</p>
-          </div>
-        </div>
+      <div class="register-link">
+        <p>Don't have an account? <a routerLink="/register">Register here</a></p>
       </div>
     </form>
   </div>

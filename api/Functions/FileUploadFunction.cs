@@ -2,6 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Helpers;
 using System.Net;
 
 namespace Cafe.Api.Functions;
@@ -10,12 +11,14 @@ public class FileUploadFunction
 {
     private readonly MongoService _mongo;
     private readonly FileUploadService _fileUploadService;
+    private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public FileUploadFunction(MongoService mongo, FileUploadService fileUploadService, ILoggerFactory loggerFactory)
+    public FileUploadFunction(MongoService mongo, FileUploadService fileUploadService, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _fileUploadService = fileUploadService;
+        _auth = auth;
         _log = loggerFactory.CreateLogger<FileUploadFunction>();
     }
 
@@ -25,6 +28,10 @@ public class FileUploadFunction
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             // Read the content type header
             var contentType = req.Headers.GetValues("Content-Type").FirstOrDefault() ?? "";
             

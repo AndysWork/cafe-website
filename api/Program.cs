@@ -11,6 +11,7 @@ var host = new HostBuilder()
     {
         s.AddSingleton<MongoService>();
         s.AddSingleton<FileUploadService>();
+        s.AddSingleton<AuthService>();
         
         // Configure JSON serialization to use camelCase for Azure Functions Worker
         s.Configure<WorkerOptions>(options =>

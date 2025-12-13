@@ -15,7 +15,11 @@
         }
     },
     "cors": {
-        "allowedOrigins": ["http://localhost:4200"],
-        "supportCredentials": false
+        "allowedOrigins": [
+            "http://localhost:4200",
+            "https://*.azurewebsites.net",
+            "https://*.azurestaticapps.net"
+        ],
+        "supportCredentials": true
     }
 }

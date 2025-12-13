@@ -9,6 +9,7 @@ public class MongoService
     private readonly IMongoCollection<CafeMenuItem> _menu;
     private readonly IMongoCollection<MenuCategory> _categories;
     private readonly IMongoCollection<MenuSubCategory> _subCategories;
+    private readonly IMongoCollection<User> _users;
     
     public MongoService(IConfiguration config)
     {
@@ -31,6 +32,19 @@ public class MongoService
         _menu = db.GetCollection<CafeMenuItem>("CafeMenu");
         _categories = db.GetCollection<MenuCategory>("MenuCategory");
         _subCategories = db.GetCollection<MenuSubCategory>("MenuSubCategory");
+        _users = db.GetCollection<User>("Users");
+
+        // Ensure default admin user exists
+        try
+        {
+            EnsureDefaultAdminAsync().Wait();
+            Console.WriteLine("✓ Default admin user check completed");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Error ensuring default admin: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
     }
 
     #region CafeMenuItem Operations
@@ -173,5 +187,94 @@ public class MongoService
         await _subCategories.DeleteManyAsync(_ => true);
     }
     
+    #endregion
+
+    #region User Operations
+
+    // Get user by username
+    public async Task<User?> GetUserByUsernameAsync(string username) =>
+        await _users.Find(x => x.Username == username).FirstOrDefaultAsync();
+
+    // Get user by email
+    public async Task<User?> GetUserByEmailAsync(string email) =>
+        await _users.Find(x => x.Email == email).FirstOrDefaultAsync();
+
+    // Get user by ID
+    public async Task<User?> GetUserByIdAsync(string id) =>
+        await _users.Find(x => x.Id == id).FirstOrDefaultAsync();
+
+    // Create new user
+    public async Task<User> CreateUserAsync(User user)
+    {
+        await _users.InsertOneAsync(user);
+        return user;
+    }
+
+    // Update user last login time
+    public async Task UpdateUserLastLoginAsync(string userId)
+    {
+        var update = Builders<User>.Update.Set(x => x.LastLoginAt, DateTime.UtcNow);
+        await _users.UpdateOneAsync(x => x.Id == userId, update);
+    }
+
+    // Ensure default admin user exists
+    private async Task EnsureDefaultAdminAsync()
+    {
+        Console.WriteLine("Checking for default admin user...");
+        
+        // Get default admin credentials from environment or use defaults
+        var defaultAdminUsername = Environment.GetEnvironmentVariable("DefaultAdmin__Username") ?? "admin";
+        var defaultAdminPassword = Environment.GetEnvironmentVariable("DefaultAdmin__Password") ?? "Admin@123";
+        var defaultAdminEmail = Environment.GetEnvironmentVariable("DefaultAdmin__Email") ?? "admin@cafemaatara.com";
+        
+        var adminExists = await _users.Find(x => x.Username == defaultAdminUsername).AnyAsync();
+        if (!adminExists)
+        {
+            Console.WriteLine($"Admin user '{defaultAdminUsername}' not found. Creating default admin...");
+            var authService = new AuthService();
+            var adminUser = new User
+            {
+                Username = defaultAdminUsername,
+                Email = defaultAdminEmail,
+                PasswordHash = authService.HashPassword(defaultAdminPassword),
+                Role = "admin",
+                FirstName = "System",
+                LastName = "Administrator",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _users.InsertOneAsync(adminUser);
+            Console.WriteLine("✓ Default admin user created successfully!");
+            Console.WriteLine($"  Username: {defaultAdminUsername}");
+            Console.WriteLine($"  Email: {defaultAdminEmail}");
+            Console.WriteLine($"  Password: {defaultAdminPassword}");
+            Console.WriteLine("  IMPORTANT: Please change the default password after first login!");
+        }
+        else
+        {
+            Console.WriteLine($"✓ Admin user '{defaultAdminUsername}' already exists");
+        }
+    }
+
+    // Reset admin password (useful for password recovery)
+    public async Task<bool> ResetAdminPasswordAsync(string newPassword)
+    {
+        var defaultAdminUsername = Environment.GetEnvironmentVariable("DefaultAdmin__Username") ?? "admin";
+        var admin = await _users.Find(x => x.Username == defaultAdminUsername).FirstOrDefaultAsync();
+        
+        if (admin == null)
+        {
+            Console.WriteLine($"Admin user '{defaultAdminUsername}' not found");
+            return false;
+        }
+
+        var authService = new AuthService();
+        var update = Builders<User>.Update.Set(x => x.PasswordHash, authService.HashPassword(newPassword));
+        var result = await _users.UpdateOneAsync(x => x.Id == admin.Id, update);
+        
+        return result.ModifiedCount > 0;
+    }
+
     #endregion
 }

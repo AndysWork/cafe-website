@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
 using Cafe.Api.Models;
+using Cafe.Api.Helpers;
 using System.Net;
 
 namespace Cafe.Api.Functions;
@@ -10,11 +11,13 @@ namespace Cafe.Api.Functions;
 public class MenuFunction
 {
     private readonly MongoService _mongo;
+    private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public MenuFunction(MongoService mongo, ILoggerFactory loggerFactory)
+    public MenuFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
+        _auth = auth;
         _log = loggerFactory.CreateLogger<MenuFunction>();
     }
 
@@ -105,12 +108,16 @@ public class MenuFunction
         }
     }
 
-    // POST: Create new menu item
+    // POST: Create new menu item (Admin only)
     [Function("CreateMenuItem")]
     public async Task<HttpResponseData> CreateMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "menu")] HttpRequestData req)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var item = await req.ReadFromJsonAsync<CafeMenuItem>();
             if (item == null)
             {
@@ -165,12 +172,16 @@ public class MenuFunction
         }
     }
 
-    // PUT: Update menu item
+    // PUT: Update menu item (Admin only)
     [Function("UpdateMenuItem")]
     public async Task<HttpResponseData> UpdateMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "menu/{id}")] HttpRequestData req, string id)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var item = await req.ReadFromJsonAsync<CafeMenuItem>();
             if (item == null)
             {
@@ -234,12 +245,16 @@ public class MenuFunction
         }
     }
 
-    // DELETE: Delete menu item
+    // DELETE: Delete menu item (Admin only)
     [Function("DeleteMenuItem")]
     public async Task<HttpResponseData> DeleteMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "menu/{id}")] HttpRequestData req, string id)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var success = await _mongo.DeleteMenuItemAsync(id);
             
             if (!success)

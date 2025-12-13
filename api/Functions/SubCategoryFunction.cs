@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
 using Cafe.Api.Models;
+using Cafe.Api.Helpers;
 using System.Net;
 
 namespace Cafe.Api.Functions;
@@ -10,11 +11,13 @@ namespace Cafe.Api.Functions;
 public class SubCategoryFunction
 {
     private readonly MongoService _mongo;
+    private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public SubCategoryFunction(MongoService mongo, ILoggerFactory loggerFactory)
+    public SubCategoryFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
+        _auth = auth;
         _log = loggerFactory.CreateLogger<SubCategoryFunction>();
     }
 
@@ -85,12 +88,16 @@ public class SubCategoryFunction
         }
     }
 
-    // POST: Create new subcategory
+    // POST: Create new subcategory (Admin only)
     [Function("CreateSubCategory")]
     public async Task<HttpResponseData> CreateSubCategory([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "subcategories")] HttpRequestData req)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var subcategory = await req.ReadFromJsonAsync<MenuSubCategory>();
             if (subcategory == null)
             {
@@ -113,12 +120,16 @@ public class SubCategoryFunction
         }
     }
 
-    // PUT: Update subcategory
+    // PUT: Update subcategory (Admin only)
     [Function("UpdateSubCategory")]
     public async Task<HttpResponseData> UpdateSubCategory([HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "subcategories/{id}")] HttpRequestData req, string id)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var subcategory = await req.ReadFromJsonAsync<MenuSubCategory>();
             if (subcategory == null)
             {
@@ -150,12 +161,16 @@ public class SubCategoryFunction
         }
     }
 
-    // DELETE: Delete subcategory
+    // DELETE: Delete subcategory (Admin only)
     [Function("DeleteSubCategory")]
     public async Task<HttpResponseData> DeleteSubCategory([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "subcategories/{id}")] HttpRequestData req, string id)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var success = await _mongo.DeleteSubCategoryAsync(id);
             
             if (!success)

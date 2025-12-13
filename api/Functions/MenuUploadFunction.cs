@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
 using Cafe.Api.Models;
+using Cafe.Api.Helpers;
 using System.Net;
 using OfficeOpenXml;
 using System.Text.RegularExpressions;
@@ -12,11 +13,13 @@ namespace Cafe.Api.Functions;
 public class MenuUploadFunction
 {
     private readonly MongoService _mongo;
+    private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public MenuUploadFunction(MongoService mongo, ILoggerFactory loggerFactory)
+    public MenuUploadFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
+        _auth = auth;
         _log = loggerFactory.CreateLogger<MenuUploadFunction>();
     }
 
@@ -26,6 +29,10 @@ public class MenuUploadFunction
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             // Check if we should clear existing menu items before upload
             var queryString = req.Url.Query;
             var clearExisting = queryString.Contains("clearExisting=true", StringComparison.OrdinalIgnoreCase);

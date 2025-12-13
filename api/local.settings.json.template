@@ -3,8 +3,15 @@
     "Values": {
         "AzureWebJobsStorage": "UseDevelopmentStorage=true",
         "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-        "Mongo__ConnectionString": "YOUR_LOCAL_MONGODB_CONNECTION_STRING",
-        "Mongo__Database": "CafeDB"
+        "Mongo__ConnectionString": "YOUR_MONGODB_CONNECTION_STRING",
+        "Mongo__Database": "CafeDB",
+        "Jwt__Secret": "CafeWebsite_SuperSecretKey_2024_MinimumLength32Characters_Required!",
+        "Jwt__Issuer": "CafeWebsiteAPI",
+        "Jwt__Audience": "CafeWebsiteApp",
+        "Jwt__ExpiryMinutes": "1440",
+        "DefaultAdmin__Username": "admin",
+        "DefaultAdmin__Password": "Admin@123",
+        "DefaultAdmin__Email": "admin@cafemaatara.com"
     },
     "Host": {
         "LocalHttpPort": 7071,

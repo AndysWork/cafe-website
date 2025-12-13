@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
 using Cafe.Api.Models;
+using Cafe.Api.Helpers;
 using System.Net;
 
 namespace Cafe.Api.Functions;
@@ -10,11 +11,13 @@ namespace Cafe.Api.Functions;
 public class CategoryFunction
 {
     private readonly MongoService _mongo;
+    private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public CategoryFunction(MongoService mongo, ILoggerFactory loggerFactory)
+    public CategoryFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
+        _auth = auth;
         _log = loggerFactory.CreateLogger<CategoryFunction>();
     }
 
@@ -65,12 +68,16 @@ public class CategoryFunction
         }
     }
 
-    // POST: Create new category
+    // POST: Create new category (Admin only)
     [Function("CreateCategory")]
     public async Task<HttpResponseData> CreateCategory([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "categories")] HttpRequestData req)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var category = await req.ReadFromJsonAsync<MenuCategory>();
             if (category == null)
             {
@@ -93,12 +100,16 @@ public class CategoryFunction
         }
     }
 
-    // PUT: Update category
+    // PUT: Update category (Admin only)
     [Function("UpdateCategory")]
     public async Task<HttpResponseData> UpdateCategory([HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "categories/{id}")] HttpRequestData req, string id)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var category = await req.ReadFromJsonAsync<MenuCategory>();
             if (category == null)
             {
@@ -130,12 +141,16 @@ public class CategoryFunction
         }
     }
 
-    // DELETE: Delete category
+    // DELETE: Delete category (Admin only)
     [Function("DeleteCategory")]
     public async Task<HttpResponseData> DeleteCategory([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "categories/{id}")] HttpRequestData req, string id)
     {
         try
         {
+            // Validate admin authorization
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var success = await _mongo.DeleteCategoryAsync(id);
             
             if (!success)
