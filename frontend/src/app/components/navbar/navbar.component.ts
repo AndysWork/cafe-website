@@ -57,6 +57,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.currentUser !== null;
   }
 
+  get displayName(): string {
+    if (this.currentUser?.firstName) {
+      return this.currentUser.firstName;
+    }
+    return this.currentUser?.username || '';
+  }
+
   toggleMobileMenu() {
     this.isMobileMenuOpen = !this.isMobileMenuOpen;
   }

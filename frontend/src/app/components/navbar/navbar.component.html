@@ -22,8 +22,8 @@
     <!-- Desktop Menu -->
     <div class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
-        <!-- Menu (All Users) -->
-        <li class="nav-item">
+        <!-- Menu (Users Only) -->
+        <li class="nav-item" *ngIf="isUser">
           <a routerLink="/menu" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
             <span class="nav-icon">🍽️</span>
             Menu
@@ -97,8 +97,8 @@
           </a>
         </li>
 
-        <!-- Cart (All Users) -->
-        <li class="nav-item cart-item">
+        <!-- Cart (Users Only) -->
+        <li class="nav-item cart-item" *ngIf="isUser">
           <a routerLink="/cart" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
             <span class="nav-icon cart-icon">
               🛒
@@ -116,7 +116,7 @@
           Login
         </button>
         <div *ngIf="isLoggedIn" class="user-section">
-          <span class="username">{{ currentUser?.username }}</span>
+          <span class="username">{{ displayName }}</span>
           <button class="btn-logout" (click)="onLogout()">
             <span class="logout-icon">🚪</span>
             Logout
