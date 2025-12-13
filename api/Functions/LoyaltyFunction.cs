@@ -403,34 +403,6 @@ public class LoyaltyFunction
         return (null, null); // Already at max tier
     }
 
-    // GET: Get all loyalty accounts (Admin only)
-    [Function("GetAllLoyaltyAccounts")]
-    public async Task<HttpResponseData> GetAllLoyaltyAccounts(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "admin/loyalty/accounts")] HttpRequestData req)
-    {
-        try
-        {
-            var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
-            
-            if (!isAuthorized)
-                return errorResponse!;
-
-            var accounts = await _mongo.GetAllLoyaltyAccountsAsync();
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(accounts);
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError($"Error getting all loyalty accounts: {ex.Message}");
-            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to get loyalty accounts" });
-            return error;
-        }
-    }
-
     // GET: Get all redemption history (Admin only)
     [Function("GetAllRedemptions")]
     public async Task<HttpResponseData> GetAllRedemptions(
@@ -445,7 +417,7 @@ public class LoyaltyFunction
                 return errorResponse!;
 
             var transactions = await _mongo.GetAllTransactionsAsync();
-            var redemptions = transactions.Where(t => t.TransactionType == "redemption").ToList();
+            var redemptions = transactions.Where(t => t.Type == "redeemed").ToList();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(redemptions);

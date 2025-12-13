@@ -12,11 +12,13 @@ namespace Cafe.Api.Functions;
 public class OfferFunction
 {
     private readonly MongoService _mongoService;
+    private readonly AuthService _authService;
     private readonly ILogger<OfferFunction> _logger;
 
-    public OfferFunction(MongoService mongoService, ILogger<OfferFunction> logger)
+    public OfferFunction(MongoService mongoService, AuthService authService, ILogger<OfferFunction> logger)
     {
         _mongoService = mongoService;
+        _authService = authService;
         _logger = logger;
     }
 
@@ -53,13 +55,11 @@ public class OfferFunction
 
         try
         {
-            var authResult = await AuthorizationHelper.AuthorizeAdminAsync(req, _mongoService);
-            if (!authResult.IsAuthorized)
-            {
-                var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await errorResponse.WriteAsJsonAsync(new { message = authResult.Message });
-                return errorResponse;
-            }
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            
+            if (!isAuthorized)
+                return errorResponse!;
 
             var offers = await _mongoService.GetAllOffersAsync();
             
@@ -86,13 +86,11 @@ public class OfferFunction
 
         try
         {
-            var authResult = await AuthorizationHelper.AuthorizeAdminAsync(req, _mongoService);
-            if (!authResult.IsAuthorized)
-            {
-                var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await errorResponse.WriteAsJsonAsync(new { message = authResult.Message });
-                return errorResponse;
-            }
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            
+            if (!isAuthorized)
+                return errorResponse!;
 
             var offer = await _mongoService.GetOfferByIdAsync(id);
             
@@ -125,13 +123,11 @@ public class OfferFunction
 
         try
         {
-            var authResult = await AuthorizationHelper.AuthorizeAdminAsync(req, _mongoService);
-            if (!authResult.IsAuthorized)
-            {
-                var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await errorResponse.WriteAsJsonAsync(new { message = authResult.Message });
-                return errorResponse;
-            }
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            
+            if (!isAuthorized)
+                return errorResponse!;
 
             var offer = await JsonSerializer.DeserializeAsync<Offer>(req.Body);
             if (offer == null)
@@ -175,13 +171,11 @@ public class OfferFunction
 
         try
         {
-            var authResult = await AuthorizationHelper.AuthorizeAdminAsync(req, _mongoService);
-            if (!authResult.IsAuthorized)
-            {
-                var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await errorResponse.WriteAsJsonAsync(new { message = authResult.Message });
-                return errorResponse;
-            }
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            
+            if (!isAuthorized)
+                return errorResponse!;
 
             var offer = await JsonSerializer.DeserializeAsync<Offer>(req.Body);
             if (offer == null)
@@ -224,13 +218,11 @@ public class OfferFunction
 
         try
         {
-            var authResult = await AuthorizationHelper.AuthorizeAdminAsync(req, _mongoService);
-            if (!authResult.IsAuthorized)
-            {
-                var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await errorResponse.WriteAsJsonAsync(new { message = authResult.Message });
-                return errorResponse;
-            }
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            
+            if (!isAuthorized)
+                return errorResponse!;
 
             var success = await _mongoService.DeleteOfferAsync(id);
             
@@ -263,13 +255,11 @@ public class OfferFunction
 
         try
         {
-            var authResult = await AuthorizationHelper.AuthorizeAsync(req, _mongoService);
-            if (!authResult.IsAuthorized)
-            {
-                var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await errorResponse.WriteAsJsonAsync(new { message = authResult.Message });
-                return errorResponse;
-            }
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAuthenticatedUser(req, _authService);
+            
+            if (!isAuthorized)
+                return errorResponse!;
 
             var validationRequest = await JsonSerializer.DeserializeAsync<OfferValidationRequest>(req.Body);
             if (validationRequest == null)
@@ -304,13 +294,11 @@ public class OfferFunction
 
         try
         {
-            var authResult = await AuthorizationHelper.AuthorizeAsync(req, _mongoService);
-            if (!authResult.IsAuthorized)
-            {
-                var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await errorResponse.WriteAsJsonAsync(new { message = authResult.Message });
-                return errorResponse;
-            }
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAuthenticatedUser(req, _authService);
+            
+            if (!isAuthorized)
+                return errorResponse!;
 
             var success = await _mongoService.IncrementOfferUsageAsync(id);
             
