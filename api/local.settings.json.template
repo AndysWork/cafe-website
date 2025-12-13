@@ -1,0 +1,14 @@
+{
+    "IsEncrypted": false,
+    "Values": {
+        "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+        "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+        "Mongo__ConnectionString": "YOUR_LOCAL_MONGODB_CONNECTION_STRING",
+        "Mongo__Database": "CafeDB"
+    },
+    "Host": {
+        "LocalHttpPort": 7071,
+        "CORS": "http://localhost:4200",
+        "CORSCredentials": false
+    }
+}
