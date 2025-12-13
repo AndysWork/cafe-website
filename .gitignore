@@ -6,6 +6,7 @@ local.settings.json
 
 # Azure publish profiles (contains sensitive credentials)
 publish-profile.xml
+new-publish-profile.xml
 *.PublishSettings
 
 # User-specific files
