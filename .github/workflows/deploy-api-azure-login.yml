@@ -1,4 +1,11 @@
-name: Deploy API to Azure Functions
+name: Deploy API (Azure Login Method)
+
+# This workflow uses Azure Service Principal instead of publish profile
+# More reliable for CI/CD deployments
+# 
+# Setup:
+# 1. Create service principal: az ad sp create-for-rbac --name "cafe-api-deploy" --role contributor --scopes /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.Web/sites/cafe-api-5560 --sdk-auth
+# 2. Add output JSON to GitHub secret: AZURE_CREDENTIALS
 
 on:
   push:
@@ -6,7 +13,7 @@ on:
       - main
     paths:
       - 'api/**'
-      - '.github/workflows/deploy-api.yml'
+      - '.github/workflows/deploy-api-azure-login.yml'
   workflow_dispatch:
 
 env:
@@ -17,7 +24,6 @@ env:
 jobs:
   build-and-deploy:
     runs-on: windows-latest
-    environment: production
     
     steps:
     - name: 'Checkout GitHub Action'
@@ -37,21 +43,22 @@ jobs:
         Write-Host "Build completed successfully" -ForegroundColor Green
         popd
     
-    - name: 'Prepare Deployment Package'
-      shell: pwsh
-      run: |
-        Write-Host "Preparing deployment package..." -ForegroundColor Cyan
-        Compress-Archive -Path '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output/*' -DestinationPath './deploy.zip' -Force
-        Write-Host "Package created: deploy.zip" -ForegroundColor Green
-
+    - name: 'Login to Azure'
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
     - name: 'Deploy to Azure Functions'
       uses: Azure/functions-action@v1
       id: deploy
       with:
         app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-        package: './deploy.zip'
-        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-        respect-funcignore: true
+        package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+    
+    - name: 'Logout from Azure'
+      run: |
+        az logout
+      if: always()
     
     - name: 'Verify Deployment'
       shell: pwsh
@@ -84,7 +91,6 @@ jobs:
           }
         }
         
-        # Always succeed
         exit 0
     
     - name: 'Deployment Summary'
