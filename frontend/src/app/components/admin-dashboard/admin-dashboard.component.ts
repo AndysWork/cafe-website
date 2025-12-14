@@ -52,7 +52,19 @@ export class AdminDashboardComponent {
       active: false
     },
     {
-      icon: '👥',
+      icon: '�',
+      label: 'Sales',
+      route: '/admin/sales',
+      active: false
+    },
+    {
+      icon: '💸',
+      label: 'Expenses',
+      route: '/admin/expenses',
+      active: false
+    },
+    {
+      icon: '�👥',
       label: 'Customers',
       route: '/admin/customers',
       active: false

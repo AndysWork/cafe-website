@@ -1,0 +1,199 @@
+<div class="admin-expenses-container">
+  <div class="page-header">
+    <h1>💸 Expense Management</h1>
+    <div class="header-actions">
+      <button class="btn-primary" (click)="openAddModal()">➕ Add Expense</button>
+      <button class="btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
+      <button class="btn-info" (click)="loadSummary()">📊 View Summary</button>
+    </div>
+  </div>
+
+  <!-- Summary Section -->
+  <div *ngIf="summary" class="summary-card">
+    <h2>Expense Summary - {{ formatDate(summary.date) }}</h2>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <span class="label">Total Expenses:</span>
+        <span class="value">{{ formatCurrency(summary.totalExpenses) }}</span>
+      </div>
+    </div>
+    <div class="expense-breakdown">
+      <h3>Expense Type Breakdown</h3>
+      <div *ngFor="let type of summary.expenseTypeBreakdown | keyvalue" class="breakdown-item">
+        <span>{{ getExpenseTypeIcon(type.key) }} {{ type.key }}:</span>
+        <span>{{ formatCurrency(+(type.value || 0)) }}</span>
+      </div>
+    </div>
+    <div class="summary-date-picker">
+      <label>Summary Date:</label>
+      <input type="date" [(ngModel)]="summaryDate" (change)="loadSummary()">
+    </div>
+  </div>
+
+  <!-- Expenses List -->
+  <div class="expenses-list">
+    <div *ngIf="loading" class="loading">Loading...</div>
+
+    <div *ngIf="!loading && expenses.length === 0" class="empty-state">
+      <p>No expense records found</p>
+    </div>
+
+    <div *ngFor="let expense of expenses" class="expense-card">
+      <div class="expense-header">
+        <div class="expense-type" [style.color]="getExpenseTypeColor(expense.expenseType)">
+          {{ getExpenseTypeIcon(expense.expenseType) }} {{ expense.expenseType }}
+        </div>
+        <div class="expense-amount">
+          {{ formatCurrency(expense.amount) }}
+        </div>
+      </div>
+
+      <div class="expense-details">
+        <div class="detail-row">
+          <span class="label">📅 Date:</span>
+          <span class="value">{{ formatDate(expense.date) }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">🏪 Vendor:</span>
+          <span class="value">{{ expense.vendor }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">📝 Description:</span>
+          <span class="value">{{ expense.description }}</span>
+        </div>
+        <div *ngIf="expense.invoiceNumber" class="detail-row">
+          <span class="label">🧾 Invoice #:</span>
+          <span class="value">{{ expense.invoiceNumber }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">💳 Payment:</span>
+          <span class="value payment-method">{{ expense.paymentMethod }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">👤 Recorded By:</span>
+          <span class="value">{{ expense.recordedBy }}</span>
+        </div>
+      </div>
+
+      <div *ngIf="expense.notes" class="expense-notes">
+        <em>Note: {{ expense.notes }}</em>
+      </div>
+
+      <div class="expense-actions">
+        <button class="btn-edit" (click)="openEditModal(expense)">✏️ Edit</button>
+        <button class="btn-delete" (click)="deleteExpense(expense.id)">🗑️ Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div *ngIf="showModal" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ editingId ? 'Edit' : 'Add' }} Expense</h2>
+        <button class="btn-close" (click)="closeModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date *</label>
+            <input type="date" [(ngModel)]="formData.date" required>
+          </div>
+
+          <div class="form-group">
+            <label>Expense Type *</label>
+            <select [(ngModel)]="formData.expenseType" required>
+              <option *ngFor="let type of expenseTypes" [value]="type">{{ type }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount *</label>
+            <input type="number" [(ngModel)]="formData.amount" min="0" step="0.01" required>
+          </div>
+
+          <div class="form-group">
+            <label>Payment Method *</label>
+            <select [(ngModel)]="formData.paymentMethod" required>
+              <option *ngFor="let method of paymentMethods" [value]="method">{{ method }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Vendor *</label>
+          <input type="text" [(ngModel)]="formData.vendor" placeholder="Enter vendor name" required>
+        </div>
+
+        <div class="form-group">
+          <label>Description *</label>
+          <input type="text" [(ngModel)]="formData.description" placeholder="Enter description" required>
+        </div>
+
+        <div class="form-group">
+          <label>Invoice Number</label>
+          <input type="text" [(ngModel)]="formData.invoiceNumber" placeholder="Enter invoice number (optional)">
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea [(ngModel)]="formData.notes" rows="2" placeholder="Any additional notes..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" (click)="saveExpense()" [disabled]="loading">
+          {{ loading ? 'Saving...' : 'Save Expense' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div *ngIf="showUploadModal" class="modal-overlay" (click)="closeUploadModal()">
+    <div class="modal-content upload-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>📤 Upload Expenses from Excel</h2>
+        <button class="btn-close" (click)="closeUploadModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="upload-instructions">
+          <h3>Excel Format</h3>
+          <p>Columns: Date, ExpenseType, Amount, Vendor, Description, InvoiceNumber, PaymentMethod, Notes</p>
+          <button class="btn-template" (click)="downloadTemplate()">📥 Download Template</button>
+        </div>
+
+        <div class="file-upload-area">
+          <input type="file" id="fileInput" accept=".xlsx,.xls" (change)="onFileSelected($event)" style="display: none;">
+          <label for="fileInput" class="upload-label">
+            <span *ngIf="!selectedFile">📂 Choose Excel File</span>
+            <span *ngIf="selectedFile">{{ selectedFile.name }}</span>
+          </label>
+        </div>
+
+        <div *ngIf="uploadError" class="error-message">{{ uploadError }}</div>
+
+        <div *ngIf="uploadResult" class="success-message">
+          <h3>✅ Upload Successful!</h3>
+          <p>{{ uploadResult.message }}</p>
+          <ul>
+            <li>Processed Records: {{ uploadResult.processedRecords }}</li>
+            <li>Total Amount: {{ formatCurrency(uploadResult.totalAmount) }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeUploadModal()">Close</button>
+        <button class="btn-primary" (click)="uploadFile()" [disabled]="!selectedFile || uploading">
+          {{ uploading ? 'Uploading...' : 'Upload' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

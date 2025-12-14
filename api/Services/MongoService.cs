@@ -15,6 +15,9 @@ public class MongoService
     private readonly IMongoCollection<Reward> _rewards;
     private readonly IMongoCollection<PointsTransaction> _transactions;
     private readonly IMongoCollection<Offer> _offers;
+    private readonly IMongoCollection<Sales> _sales;
+    private readonly IMongoCollection<Expense> _expenses;
+    private readonly IMongoCollection<SalesItemType> _salesItemTypes;
     
     public MongoService(IConfiguration config)
     {
@@ -43,6 +46,9 @@ public class MongoService
         _rewards = db.GetCollection<Reward>("Rewards");
         _transactions = db.GetCollection<PointsTransaction>("PointsTransactions");
         _offers = db.GetCollection<Offer>("Offers");
+        _sales = db.GetCollection<Sales>("Sales");
+        _expenses = db.GetCollection<Expense>("Expenses");
+        _salesItemTypes = db.GetCollection<SalesItemType>("SalesItemTypes");
 
         // Ensure default admin user exists
         try
@@ -785,4 +791,188 @@ public class MongoService
         var result = await _orders.DeleteOneAsync(x => x.Id == orderId);
         return result.DeletedCount > 0;
     }
+
+    #region Sales Operations
+
+    // Get all sales records
+    public async Task<List<Sales>> GetAllSalesAsync() =>
+        await _sales.Find(_ => true).SortByDescending(s => s.Date).ToListAsync();
+
+    // Get sales by date range
+    public async Task<List<Sales>> GetSalesByDateRangeAsync(DateTime startDate, DateTime endDate) =>
+        await _sales.Find(s => s.Date >= startDate && s.Date <= endDate)
+            .SortByDescending(s => s.Date)
+            .ToListAsync();
+
+    // Get sales by ID
+    public async Task<Sales?> GetSalesByIdAsync(string id) =>
+        await _sales.Find(x => x.Id == id).FirstOrDefaultAsync();
+
+    // Create new sales record
+    public async Task<Sales> CreateSalesAsync(Sales sales)
+    {
+        sales.CreatedAt = DateTime.UtcNow;
+        sales.UpdatedAt = DateTime.UtcNow;
+        await _sales.InsertOneAsync(sales);
+        return sales;
+    }
+
+    // Update sales record
+    public async Task<bool> UpdateSalesAsync(string id, Sales sales)
+    {
+        sales.UpdatedAt = DateTime.UtcNow;
+        var result = await _sales.ReplaceOneAsync(x => x.Id == id, sales);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete sales record
+    public async Task<bool> DeleteSalesAsync(string id)
+    {
+        var result = await _sales.DeleteOneAsync(x => x.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    // Get sales summary by date
+    public async Task<SalesSummary> GetSalesSummaryByDateAsync(DateTime date)
+    {
+        var startOfDay = date.Date;
+        var endOfDay = startOfDay.AddDays(1);
+
+        var salesRecords = await _sales.Find(s => s.Date >= startOfDay && s.Date < endOfDay).ToListAsync();
+
+        var summary = new SalesSummary
+        {
+            Date = date,
+            TotalSales = salesRecords.Sum(s => s.TotalAmount),
+            TotalTransactions = salesRecords.Count,
+            PaymentMethodBreakdown = salesRecords
+                .GroupBy(s => s.PaymentMethod)
+                .ToDictionary(g => g.Key, g => g.Sum(s => s.TotalAmount))
+        };
+
+        return summary;
+    }
+
+    #endregion
+
+    #region Expense Operations
+
+    // Get all expenses
+    public async Task<List<Expense>> GetAllExpensesAsync() =>
+        await _expenses.Find(_ => true).SortByDescending(e => e.Date).ToListAsync();
+
+    // Get expenses by date range
+    public async Task<List<Expense>> GetExpensesByDateRangeAsync(DateTime startDate, DateTime endDate) =>
+        await _expenses.Find(e => e.Date >= startDate && e.Date <= endDate)
+            .SortByDescending(e => e.Date)
+            .ToListAsync();
+
+    // Get expense by ID
+    public async Task<Expense?> GetExpenseByIdAsync(string id) =>
+        await _expenses.Find(x => x.Id == id).FirstOrDefaultAsync();
+
+    // Create new expense
+    public async Task<Expense> CreateExpenseAsync(Expense expense)
+    {
+        expense.CreatedAt = DateTime.UtcNow;
+        expense.UpdatedAt = DateTime.UtcNow;
+        await _expenses.InsertOneAsync(expense);
+        return expense;
+    }
+
+    // Update expense
+    public async Task<bool> UpdateExpenseAsync(string id, Expense expense)
+    {
+        expense.UpdatedAt = DateTime.UtcNow;
+        var result = await _expenses.ReplaceOneAsync(x => x.Id == id, expense);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete expense
+    public async Task<bool> DeleteExpenseAsync(string id)
+    {
+        var result = await _expenses.DeleteOneAsync(x => x.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    // Get expense summary by date
+    public async Task<ExpenseSummary> GetExpenseSummaryByDateAsync(DateTime date)
+    {
+        var startOfDay = date.Date;
+        var endOfDay = startOfDay.AddDays(1);
+
+        var expenses = await _expenses.Find(e => e.Date >= startOfDay && e.Date < endOfDay).ToListAsync();
+
+        var summary = new ExpenseSummary
+        {
+            Date = date,
+            TotalExpenses = expenses.Sum(e => e.Amount),
+            ExpenseTypeBreakdown = expenses
+                .GroupBy(e => e.ExpenseType)
+                .ToDictionary(g => g.Key, g => g.Sum(e => e.Amount))
+        };
+
+        return summary;
+    }
+
+    #endregion
+
+    #region SalesItemType Methods
+
+    public async Task<List<SalesItemType>> GetAllSalesItemTypesAsync() =>
+        await _salesItemTypes.Find(_ => true).ToListAsync();
+
+    public async Task<List<SalesItemType>> GetActiveSalesItemTypesAsync() =>
+        await _salesItemTypes.Find(s => s.IsActive).ToListAsync();
+
+    public async Task<SalesItemType?> GetSalesItemTypeByIdAsync(string id) =>
+        await _salesItemTypes.Find(s => s.Id == id).FirstOrDefaultAsync();
+
+    public async Task<SalesItemType> CreateSalesItemTypeAsync(SalesItemType itemType)
+    {
+        itemType.CreatedAt = DateTime.UtcNow;
+        itemType.UpdatedAt = DateTime.UtcNow;
+        await _salesItemTypes.InsertOneAsync(itemType);
+        return itemType;
+    }
+
+    public async Task<SalesItemType?> UpdateSalesItemTypeAsync(string id, SalesItemType itemType)
+    {
+        itemType.UpdatedAt = DateTime.UtcNow;
+        var result = await _salesItemTypes.ReplaceOneAsync(s => s.Id == id, itemType);
+        return result.ModifiedCount > 0 ? itemType : null;
+    }
+
+    public async Task<bool> DeleteSalesItemTypeAsync(string id)
+    {
+        var result = await _salesItemTypes.DeleteOneAsync(s => s.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    public async Task InitializeDefaultSalesItemTypesAsync()
+    {
+        var count = await _salesItemTypes.CountDocumentsAsync(_ => true);
+        if (count == 0)
+        {
+            var defaultItems = new List<SalesItemType>
+            {
+                new() { ItemName = "Tea - 5", DefaultPrice = 5, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Tea - 10", DefaultPrice = 10, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Tea - 20", DefaultPrice = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Tea - 30", DefaultPrice = 30, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Black Tea", DefaultPrice = 10, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Tea Parcel", DefaultPrice = 50, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Coffee", DefaultPrice = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Biscuit", DefaultPrice = 10, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Cigarete", DefaultPrice = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Snacks", DefaultPrice = 15, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Water", DefaultPrice = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ItemName = "Campa", DefaultPrice = 30, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            };
+
+            await _salesItemTypes.InsertManyAsync(defaultItems);
+        }
+    }
+
+    #endregion
 }

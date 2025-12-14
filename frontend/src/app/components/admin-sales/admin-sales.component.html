@@ -1,0 +1,207 @@
+<div class="admin-sales-container">
+  <div class="page-header">
+    <h1>📊 Sales Management</h1>
+    <div class="header-actions">
+      <button class="btn-primary" (click)="openAddModal()">➕ Add Sales</button>
+      <button class="btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
+      <button class="btn-info" (click)="loadSummary()">📈 View Summary</button>
+    </div>
+  </div>
+
+  <!-- Summary Section -->
+  <div *ngIf="summary" class="summary-card">
+    <h2>Sales Summary - {{ formatDate(summary.date) }}</h2>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <span class="label">Total Sales:</span>
+        <span class="value">{{ formatCurrency(summary.totalSales) }}</span>
+      </div>
+      <div class="summary-item">
+        <span class="label">Total Transactions:</span>
+        <span class="value">{{ summary.totalTransactions }}</span>
+      </div>
+    </div>
+    <div class="payment-breakdown">
+      <h3>Payment Method Breakdown</h3>
+      <div *ngFor="let method of summary.paymentMethodBreakdown | keyvalue" class="breakdown-item">
+        <span>{{ method.key }}:</span>
+        <span>{{ formatCurrency(+(method.value || 0)) }}</span>
+      </div>
+    </div>
+    <div class="summary-date-picker">
+      <label>Summary Date:</label>
+      <input type="date" [(ngModel)]="summaryDate" (change)="loadSummary()">
+    </div>
+  </div>
+
+  <!-- Sales List -->
+  <div class="sales-list">
+    <div *ngIf="loading" class="loading">Loading...</div>
+
+    <div *ngIf="!loading && sales.length === 0" class="empty-state">
+      <p>No sales records found</p>
+    </div>
+
+    <div *ngFor="let sale of sales" class="sales-card">
+      <div class="sales-header">
+        <div class="sales-date">
+          <strong>📅 {{ formatDate(sale.date) }}</strong>
+        </div>
+        <div class="sales-amount">
+          {{ formatCurrency(sale.totalAmount) }}
+        </div>
+      </div>
+
+      <div class="sales-items">
+        <div *ngFor="let item of sale.items" class="item-row">
+          <span class="item-name">{{ item.itemName }}</span>
+          <span class="item-qty">× {{ item.quantity }}</span>
+          <span class="item-price">{{ formatCurrency(item.totalPrice) }}</span>
+        </div>
+      </div>
+
+      <div class="sales-footer">
+        <div class="sales-meta">
+          <span class="payment-method">💳 {{ sale.paymentMethod }}</span>
+          <span class="recorded-by">👤 {{ sale.recordedBy }}</span>
+        </div>
+        <div class="sales-actions">
+          <button class="btn-edit" (click)="openEditModal(sale)">✏️ Edit</button>
+          <button class="btn-delete" (click)="deleteSales(sale.id)">🗑️ Delete</button>
+        </div>
+      </div>
+
+      <div *ngIf="sale.notes" class="sales-notes">
+        <em>Note: {{ sale.notes }}</em>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div *ngIf="showModal" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ editingId ? 'Edit' : 'Add' }} Sales Record</h2>
+        <button class="btn-close" (click)="closeModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" [(ngModel)]="formData.date" required>
+        </div>
+
+        <div class="form-group">
+          <label>Payment Method *</label>
+          <select [(ngModel)]="formData.paymentMethod" required>
+            <option *ngFor="let method of paymentMethods" [value]="method">{{ method }}</option>
+          </select>
+        </div>
+
+        <!-- Add Item Section -->
+        <div class="add-item-section">
+          <h3>Add Items</h3>
+          <div class="item-form">
+            <div class="form-group">
+              <label>Sales Item</label>
+              <select [(ngModel)]="currentItem.menuItemId" (change)="onMenuItemChange()">
+                <option value="">-- Select Item --</option>
+                <option *ngFor="let item of salesItemTypes" [value]="item.id">{{ item.itemName }} - ₹{{ item.defaultPrice }}</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Item Name *</label>
+                <input type="text" [(ngModel)]="currentItem.itemName" placeholder="Enter item name">
+              </div>
+
+              <div class="form-group">
+                <label>Quantity *</label>
+                <input type="number" [(ngModel)]="currentItem.quantity" min="1">
+              </div>
+
+              <div class="form-group">
+                <label>Unit Price *</label>
+                <input type="number" [(ngModel)]="currentItem.unitPrice" min="0" step="0.01">
+              </div>
+            </div>
+
+            <button type="button" class="btn-add-item" (click)="addItem()">+ Add Item</button>
+          </div>
+
+          <!-- Items List -->
+          <div *ngIf="formData.items.length > 0" class="items-list">
+            <h4>Items ({{ formData.items.length }})</h4>
+            <div *ngFor="let item of formData.items; let i = index" class="item-card">
+              <div class="item-details">
+                <strong>{{ item.itemName }}</strong>
+                <span>{{ item.quantity }} × ₹{{ item.unitPrice }} = ₹{{ item.quantity * item.unitPrice }}</span>
+              </div>
+              <button type="button" class="btn-remove" (click)="removeItem(i)">🗑️</button>
+            </div>
+            <div class="total-amount">
+              <strong>Total: {{ formatCurrency(getTotalAmount()) }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea [(ngModel)]="formData.notes" rows="2" placeholder="Any additional notes..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" (click)="saveSales()" [disabled]="loading || formData.items.length === 0">
+          {{ loading ? 'Saving...' : 'Save Sales' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div *ngIf="showUploadModal" class="modal-overlay" (click)="closeUploadModal()">
+    <div class="modal-content upload-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>📤 Upload Sales from Excel</h2>
+        <button class="btn-close" (click)="closeUploadModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="upload-instructions">
+          <h3>Excel Format</h3>
+          <p>Columns: Date, ItemName, Quantity, UnitPrice, TotalSale, PaymentMethod</p>
+          <button class="btn-template" (click)="downloadTemplate()">📥 Download Template</button>
+        </div>
+
+        <div class="file-upload-area">
+          <input type="file" id="fileInput" accept=".xlsx,.xls" (change)="onFileSelected($event)" style="display: none;">
+          <label for="fileInput" class="upload-label">
+            <span *ngIf="!selectedFile">📂 Choose Excel File</span>
+            <span *ngIf="selectedFile">{{ selectedFile.name }}</span>
+          </label>
+        </div>
+
+        <div *ngIf="uploadError" class="error-message">{{ uploadError }}</div>
+
+        <div *ngIf="uploadResult" class="success-message">
+          <h3>✅ Upload Successful!</h3>
+          <p>{{ uploadResult.message }}</p>
+          <ul>
+            <li>Processed Records: {{ uploadResult.processedRecords }}</li>
+            <li>Total Amount: {{ formatCurrency(uploadResult.totalAmount) }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeUploadModal()">Close</button>
+        <button class="btn-primary" (click)="uploadFile()" [disabled]="!selectedFile || uploading">
+          {{ uploading ? 'Uploading...' : 'Upload' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
