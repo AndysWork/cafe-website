@@ -2,6 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary } from '../../services/expense.service';
+import { OfflineExpenseTypeService, OfflineExpenseType } from '../../services/offline-expense-type.service';
+import { OnlineExpenseTypeService, OnlineExpenseType } from '../../services/online-expense-type.service';
 
 @Component({
   selector: 'app-admin-expenses',
@@ -12,7 +14,9 @@ import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary } from '.
 })
 export class AdminExpensesComponent implements OnInit {
   expenses: Expense[] = [];
-  expenseTypes: string[] = [];
+  offlineExpenseTypes: OfflineExpenseType[] = [];
+  onlineExpenseTypes: OnlineExpenseType[] = [];
+  currentExpenseSource: 'Offline' | 'Online' = 'Offline'; // Tab selection
   loading = false;
   showModal = false;
   showUploadModal = false;
@@ -22,11 +26,9 @@ export class AdminExpensesComponent implements OnInit {
 
   formData: CreateExpenseRequest = {
     date: new Date().toISOString().split('T')[0],
-    expenseType: 'Inventory',
+    expenseType: '',
+    expenseSource: 'Offline',
     amount: 0,
-    vendor: '',
-    description: '',
-    invoiceNumber: '',
     paymentMethod: 'Cash',
     notes: ''
   };
@@ -37,11 +39,16 @@ export class AdminExpensesComponent implements OnInit {
   uploadError = '';
   uploadResult: any = null;
 
-  constructor(private expenseService: ExpenseService) {}
+  constructor(
+    private expenseService: ExpenseService,
+    private offlineExpenseTypeService: OfflineExpenseTypeService,
+    private onlineExpenseTypeService: OnlineExpenseTypeService
+  ) {}
 
   ngOnInit() {
     this.loadExpenses();
-    this.loadExpenseTypes();
+    this.loadOfflineExpenseTypes();
+    this.loadOnlineExpenseTypes();
   }
 
   loadExpenses() {
@@ -58,8 +65,84 @@ export class AdminExpensesComponent implements OnInit {
     });
   }
 
-  loadExpenseTypes() {
-    this.expenseTypes = this.expenseService.getExpenseTypes();
+  loadOfflineExpenseTypes() {
+    this.offlineExpenseTypeService.getActiveOfflineExpenseTypes().subscribe({
+      next: (types) => {
+        this.offlineExpenseTypes = types;
+        console.log('Loaded offline expense types:', types);
+        if (types.length === 0) {
+          console.warn('No offline expense types found. You may need to initialize them.');
+        }
+      },
+      error: (err) => {
+        console.error('Error loading offline expense types:', err);
+        alert('Error loading offline expense types. Please make sure you are logged in as admin.');
+      }
+    });
+  }
+
+  loadOnlineExpenseTypes() {
+    this.onlineExpenseTypeService.getActiveOnlineExpenseTypes().subscribe({
+      next: (types) => {
+        this.onlineExpenseTypes = types;
+        console.log('Loaded online expense types:', types);
+        if (types.length === 0) {
+          console.warn('No online expense types found. You may need to initialize them.');
+        }
+      },
+      error: (err) => {
+        console.error('Error loading online expense types:', err);
+        alert('Error loading online expense types. Please make sure you are logged in as admin.');
+      }
+    });
+  }
+
+  get currentExpenseTypes(): Array<{expenseType: string}> {
+    return this.currentExpenseSource === 'Offline' ? this.offlineExpenseTypes : this.onlineExpenseTypes;
+  }
+
+  get filteredExpenses() {
+    return this.expenses.filter(e => (e as any).expenseSource === this.currentExpenseSource);
+  }
+
+  switchExpenseSource(source: 'Offline' | 'Online') {
+    this.currentExpenseSource = source;
+  }
+
+  initializeOfflineExpenseTypes() {
+    if (confirm('Initialize default offline expense types? This will add 21 predefined expense categories like Milk, Cup, Rent, etc.')) {
+      this.loading = true;
+      this.offlineExpenseTypeService.initializeDefaultExpenseTypes().subscribe({
+        next: (response) => {
+          alert('Offline expense types initialized successfully!');
+          this.loadOfflineExpenseTypes();
+          this.loading = false;
+        },
+        error: (err) => {
+          console.error('Error initializing offline expense types:', err);
+          alert('Error initializing offline expense types. Please check console.');
+          this.loading = false;
+        }
+      });
+    }
+  }
+
+  initializeOnlineExpenseTypes() {
+    if (confirm('Initialize default online expense types? This will add 27 predefined expense categories like Hyperpure, Blinkit, Vishal Megamart, etc.')) {
+      this.loading = true;
+      this.onlineExpenseTypeService.initializeDefaultExpenseTypes().subscribe({
+        next: (response) => {
+          alert('Online expense types initialized successfully!');
+          this.loadOnlineExpenseTypes();
+          this.loading = false;
+        },
+        error: (err) => {
+          console.error('Error initializing online expense types:', err);
+          alert('Error initializing online expense types. Please check console.');
+          this.loading = false;
+        }
+      });
+    }
   }
 
   loadSummary() {
@@ -78,6 +161,7 @@ export class AdminExpensesComponent implements OnInit {
   openAddModal() {
     this.editingId = null;
     this.resetForm();
+    this.formData.expenseSource = this.currentExpenseSource;
     this.showModal = true;
   }
 
@@ -86,10 +170,8 @@ export class AdminExpensesComponent implements OnInit {
     this.formData = {
       date: expense.date.split('T')[0],
       expenseType: expense.expenseType,
+      expenseSource: (expense as any).expenseSource || 'Offline',
       amount: expense.amount,
-      vendor: expense.vendor,
-      description: expense.description,
-      invoiceNumber: expense.invoiceNumber || '',
       paymentMethod: expense.paymentMethod,
       notes: expense.notes || ''
     };
@@ -105,18 +187,16 @@ export class AdminExpensesComponent implements OnInit {
   resetForm() {
     this.formData = {
       date: new Date().toISOString().split('T')[0],
-      expenseType: 'Inventory',
+      expenseType: '',
+      expenseSource: this.currentExpenseSource,
       amount: 0,
-      vendor: '',
-      description: '',
-      invoiceNumber: '',
       paymentMethod: 'Cash',
       notes: ''
     };
   }
 
   saveExpense() {
-    if (!this.formData.date || !this.formData.expenseType || !this.formData.vendor || this.formData.amount <= 0) {
+    if (!this.formData.date || !this.formData.expenseType || this.formData.amount <= 0) {
       alert('Please fill in all required fields');
       return;
     }
@@ -200,10 +280,17 @@ export class AdminExpensesComponent implements OnInit {
     this.uploadError = '';
     this.uploadResult = null;
 
-    this.expenseService.uploadExpensesExcel(this.selectedFile).subscribe({
-      next: (result) => {
+    this.expenseService.uploadExpensesExcel(this.selectedFile, this.currentExpenseSource).subscribe({
+      next: (result: any) => {
         this.uploading = false;
         this.uploadResult = result;
+
+        // Show warning if there were invalid expense types
+        if (result.invalidExpenseTypes && result.invalidExpenseTypes.length > 0) {
+          const invalidTypes = result.invalidExpenseTypes.join(', ');
+          alert(`Upload completed with warnings!\n\n${result.processedRecords} records processed successfully.\n${result.skippedRecords} records skipped due to invalid expense types: ${invalidTypes}\n\nValid ${this.currentExpenseSource.toLowerCase()} expense types are: ${this.currentExpenseTypes.map(t => t.expenseType).join(', ')}`);
+        }
+
         this.loadExpenses();
       },
       error: (error) => {
@@ -215,17 +302,32 @@ export class AdminExpensesComponent implements OnInit {
   }
 
   downloadTemplate() {
-    const csvContent = 'Date,ExpenseType,Amount,Vendor,Description,InvoiceNumber,PaymentMethod,Notes\n' +
-                      '2024-01-15,Inventory,5000,ABC Suppliers,Coffee beans purchase,INV-001,Cash,Monthly stock\n' +
-                      '2024-01-15,Salary,25000,Employee Name,Monthly salary,SAL-001,Online,January salary\n' +
-                      '2024-01-15,Rent,15000,Landlord,Shop rent,RENT-001,Online,January rent\n' +
-                      '2024-01-15,Utilities,2000,Electricity Board,Electricity bill,EB-001,Online,January bill';
-    
+    // Use actual expense types from the database for better examples
+    const exampleTypes = this.currentExpenseTypes.length > 0
+      ? [this.currentExpenseTypes[0]?.expenseType || 'Milk',
+         this.currentExpenseTypes[1]?.expenseType || 'Tea',
+         this.currentExpenseTypes[2]?.expenseType || 'Rent',
+         this.currentExpenseTypes[3]?.expenseType || 'Grocerry']
+      : ['Milk', 'Tea', 'Rent', 'Grocerry'];
+
+    // Add comment with all valid expense types
+    const validTypesComment = this.currentExpenseTypes.length > 0
+      ? `# Valid ${this.currentExpenseSource} Expense Types: ${this.currentExpenseTypes.map(t => t.expenseType).join(', ')}\n`
+      : `# Valid ${this.currentExpenseSource} Expense Types: Please initialize expense types first\n`;
+
+    const csvContent = validTypesComment +
+                      '# Format: Date (YYYY-MM-DD), ExpenseType, Amount, PaymentMethod\n' +
+                      'Date,ExpenseType,Amount,PaymentMethod\n' +
+                      `2024-12-15,${exampleTypes[0]},500,Cash\n` +
+                      `2024-12-15,${exampleTypes[1]},1200,Cash\n` +
+                      `2024-12-15,${exampleTypes[2]},15000,Online\n` +
+                      `2024-12-15,${exampleTypes[3]},800,Cash\n`;
+
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'expense_template.csv';
+    a.download = `${this.currentExpenseSource.toLowerCase()}_expense_template.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   }

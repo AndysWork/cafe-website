@@ -1,0 +1,152 @@
+<div class="admin-analytics-container">
+  <div class="page-header">
+    <h1>📈 Sales Analytics</h1>
+    <div class="date-filter">
+      <label>From:</label>
+      <input type="date" [(ngModel)]="dateRange.startDate" (change)="onDateRangeChange()">
+      <label>To:</label>
+      <input type="date" [(ngModel)]="dateRange.endDate" (change)="onDateRangeChange()">
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="loading">
+    <p>Loading insights...</p>
+  </div>
+
+  <div *ngIf="!loading && !insights" class="empty-state">
+    <p>No sales data available for the selected date range</p>
+  </div>
+
+  <div *ngIf="!loading && insights" class="insights-container">
+    <!-- Summary Cards -->
+    <div class="summary-cards">
+      <div class="summary-card revenue">
+        <div class="card-icon">💰</div>
+        <div class="card-content">
+          <h3>Total Revenue</h3>
+          <p class="card-value">{{ formatCurrency(insights.totalRevenue) }}</p>
+          <span class="card-subtext">{{ insights.totalTransactions }} transactions</span>
+        </div>
+      </div>
+
+      <div class="summary-card average">
+        <div class="card-icon">📊</div>
+        <div class="card-content">
+          <h3>Avg Transaction</h3>
+          <p class="card-value">{{ formatCurrency(insights.averageTransaction) }}</p>
+          <span class="card-subtext">Per order</span>
+        </div>
+      </div>
+
+      <div class="summary-card daily">
+        <div class="card-icon">📅</div>
+        <div class="card-content">
+          <h3>Daily Average</h3>
+          <p class="card-value">{{ formatCurrency(insights.dailyAverage) }}</p>
+          <span class="card-subtext">Per day</span>
+        </div>
+      </div>
+
+      <div class="summary-card growth">
+        <div class="card-icon">{{ insights.growthRate >= 0 ? '📈' : '📉' }}</div>
+        <div class="card-content">
+          <h3>Growth Rate</h3>
+          <p class="card-value" [class.positive]="insights.growthRate >= 0" [class.negative]="insights.growthRate < 0">
+            {{ formatPercentage(insights.growthRate) }}
+          </p>
+          <span class="card-subtext">Period comparison</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Selling Items -->
+    <div class="insight-section">
+      <h2>🏆 Top Selling Items</h2>
+      <div class="top-items-grid">
+        <div *ngFor="let item of insights.topSellingItems; let i = index" class="top-item-card" [class.top-1]="i === 0" [class.top-2]="i === 1" [class.top-3]="i === 2">
+          <div class="item-rank">{{ i + 1 }}</div>
+          <div class="item-details">
+            <h4>{{ item.name }}</h4>
+            <p>Quantity: {{ item.quantity }}</p>
+            <p class="item-revenue">{{ formatCurrency(item.revenue) }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment Method Breakdown -->
+    <div class="insight-section">
+      <h2>💳 Payment Method Breakdown</h2>
+      <div class="payment-breakdown">
+        <div *ngFor="let payment of insights.paymentMethodBreakdown" class="payment-card">
+          <div class="payment-header">
+            <h3>{{ payment.method }}</h3>
+            <span class="payment-count">{{ payment.count }} transactions</span>
+          </div>
+          <div class="payment-amount">{{ formatCurrency(payment.total) }}</div>
+          <div class="payment-bar">
+            <div class="payment-bar-fill" [style.width.%]="(payment.total / insights.totalRevenue) * 100"></div>
+          </div>
+          <span class="payment-percentage">{{ ((payment.total / insights.totalRevenue) * 100).toFixed(1) }}% of total</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Breakdown -->
+    <div class="insight-section">
+      <h2>🍽️ Sales by Category</h2>
+      <div class="category-breakdown">
+        <div *ngFor="let category of insights.itemCategoryBreakdown" class="category-card">
+          <div class="category-icon">{{ getCategoryIcon(category.category) }}</div>
+          <div class="category-details">
+            <h3>{{ category.category }}</h3>
+            <p>{{ category.count }} items sold</p>
+            <p class="category-revenue">{{ formatCurrency(category.revenue) }}</p>
+          </div>
+          <div class="category-percentage">
+            {{ ((category.revenue / insights.totalRevenue) * 100).toFixed(1) }}%
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weekly Trend -->
+    <div class="insight-section">
+      <h2>📊 Weekly Trend (Last 4 Weeks)</h2>
+      <div class="trend-chart">
+        <div *ngFor="let week of insights.weeklyTrend" class="trend-bar-container">
+          <div class="trend-bar" [style.height.%]="(week.total / getMaxWeeklyTotal()) * 100">
+            <span class="trend-value">{{ formatCurrency(week.total) }}</span>
+          </div>
+          <span class="trend-label">{{ week.week }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly Comparison -->
+    <div class="insight-section">
+      <h2>📈 Monthly Comparison (Last 6 Months)</h2>
+      <div class="monthly-chart">
+        <div *ngFor="let month of insights.monthlyComparison" class="monthly-bar-container">
+          <div class="monthly-bar" [style.height.%]="(month.total / getMaxMonthlyTotal()) * 100">
+            <span class="monthly-value">{{ formatCurrency(month.total) }}</span>
+            <span class="monthly-transactions">{{ month.transactions }} orders</span>
+          </div>
+          <span class="monthly-label">{{ month.month }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Peak Sales Days -->
+    <div class="insight-section">
+      <h2>🔥 Top 5 Peak Sales Days</h2>
+      <div class="peak-days-list">
+        <div *ngFor="let day of insights.peakSalesDays; let i = index" class="peak-day-card">
+          <div class="peak-rank">{{ i + 1 }}</div>
+          <div class="peak-date">{{ day.day }}</div>
+          <div class="peak-amount">{{ formatCurrency(day.total) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

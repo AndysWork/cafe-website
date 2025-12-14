@@ -1,10 +1,39 @@
 <div class="admin-expenses-container">
   <div class="page-header">
     <h1>💸 Expense Management</h1>
+
+    <!-- Expense Source Tabs -->
+    <div class="expense-source-tabs">
+      <button
+        class="tab-btn"
+        [class.active]="currentExpenseSource === 'Offline'"
+        (click)="switchExpenseSource('Offline')">
+        🏪 Offline Expenses
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="currentExpenseSource === 'Online'"
+        (click)="switchExpenseSource('Online')">
+        🌐 Online Expenses
+      </button>
+    </div>
+
     <div class="header-actions">
       <button class="btn-primary" (click)="openAddModal()">➕ Add Expense</button>
       <button class="btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
       <button class="btn-info" (click)="loadSummary()">📊 View Summary</button>
+      <button
+        class="btn-secondary"
+        (click)="initializeOfflineExpenseTypes()"
+        *ngIf="currentExpenseSource === 'Offline' && offlineExpenseTypes.length === 0">
+        🔧 Initialize Offline Types
+      </button>
+      <button
+        class="btn-secondary"
+        (click)="initializeOnlineExpenseTypes()"
+        *ngIf="currentExpenseSource === 'Online' && onlineExpenseTypes.length === 0">
+        🔧 Initialize Online Types
+      </button>
     </div>
   </div>
 
@@ -34,11 +63,11 @@
   <div class="expenses-list">
     <div *ngIf="loading" class="loading">Loading...</div>
 
-    <div *ngIf="!loading && expenses.length === 0" class="empty-state">
-      <p>No expense records found</p>
+    <div *ngIf="!loading && filteredExpenses.length === 0" class="empty-state">
+      <p>No {{currentExpenseSource.toLowerCase()}} expense records found</p>
     </div>
 
-    <div *ngFor="let expense of expenses" class="expense-card">
+    <div *ngFor="let expense of filteredExpenses" class="expense-card">
       <div class="expense-header">
         <div class="expense-type" [style.color]="getExpenseTypeColor(expense.expenseType)">
           {{ getExpenseTypeIcon(expense.expenseType) }} {{ expense.expenseType }}
@@ -52,18 +81,6 @@
         <div class="detail-row">
           <span class="label">📅 Date:</span>
           <span class="value">{{ formatDate(expense.date) }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">🏪 Vendor:</span>
-          <span class="value">{{ expense.vendor }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">📝 Description:</span>
-          <span class="value">{{ expense.description }}</span>
-        </div>
-        <div *ngIf="expense.invoiceNumber" class="detail-row">
-          <span class="label">🧾 Invoice #:</span>
-          <span class="value">{{ expense.invoiceNumber }}</span>
         </div>
         <div class="detail-row">
           <span class="label">💳 Payment:</span>
@@ -104,7 +121,8 @@
           <div class="form-group">
             <label>Expense Type *</label>
             <select [(ngModel)]="formData.expenseType" required>
-              <option *ngFor="let type of expenseTypes" [value]="type">{{ type }}</option>
+              <option value="">-- Select Expense Type --</option>
+              <option *ngFor="let type of currentExpenseTypes" [value]="type.expenseType">{{ type.expenseType }}</option>
             </select>
           </div>
         </div>
@@ -124,23 +142,8 @@
         </div>
 
         <div class="form-group">
-          <label>Vendor *</label>
-          <input type="text" [(ngModel)]="formData.vendor" placeholder="Enter vendor name" required>
-        </div>
-
-        <div class="form-group">
-          <label>Description *</label>
-          <input type="text" [(ngModel)]="formData.description" placeholder="Enter description" required>
-        </div>
-
-        <div class="form-group">
-          <label>Invoice Number</label>
-          <input type="text" [(ngModel)]="formData.invoiceNumber" placeholder="Enter invoice number (optional)">
-        </div>
-
-        <div class="form-group">
           <label>Notes</label>
-          <textarea [(ngModel)]="formData.notes" rows="2" placeholder="Any additional notes..."></textarea>
+          <textarea [(ngModel)]="formData.notes" rows="3" placeholder="Any additional notes..."></textarea>
         </div>
       </div>
 
@@ -164,7 +167,7 @@
       <div class="modal-body">
         <div class="upload-instructions">
           <h3>Excel Format</h3>
-          <p>Columns: Date, ExpenseType, Amount, Vendor, Description, InvoiceNumber, PaymentMethod, Notes</p>
+          <p>Columns: Date, ExpenseType, Amount, PaymentMethod</p>
           <button class="btn-template" (click)="downloadTemplate()">📥 Download Template</button>
         </div>
 

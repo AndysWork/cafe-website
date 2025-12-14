@@ -157,11 +157,9 @@ public class ExpenseFunction
             {
                 Date = expenseRequest.Date,
                 ExpenseType = expenseRequest.ExpenseType,
-                Description = expenseRequest.Description,
+                ExpenseSource = expenseRequest.ExpenseSource,
                 Amount = expenseRequest.Amount,
-                Vendor = expenseRequest.Vendor,
                 PaymentMethod = expenseRequest.PaymentMethod,
-                InvoiceNumber = expenseRequest.InvoiceNumber,
                 Notes = expenseRequest.Notes,
                 RecordedBy = username,
                 CreatedAt = DateTime.UtcNow,
@@ -297,6 +295,10 @@ public class ExpenseFunction
             var user = await _mongo.GetUserByIdAsync(userId!);
             var username = user?.Username ?? "Admin";
 
+            // Get expense source from query parameter (default to Offline)
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var expenseSource = query["source"] ?? "Offline";
+
             // Set EPPlus license context
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
@@ -315,7 +317,7 @@ public class ExpenseFunction
                 return badRequest;
             }
 
-            var result = await ProcessExpensesExcel(fileBytes, username);
+            var result = await ProcessExpensesExcel(fileBytes, username, expenseSource);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(result);
@@ -330,7 +332,7 @@ public class ExpenseFunction
         }
     }
 
-    private async Task<object> ProcessExpensesExcel(byte[] fileBytes, string recordedBy)
+    private async Task<object> ProcessExpensesExcel(byte[] fileBytes, string recordedBy, string expenseSource = "Offline")
     {
         using var package = new ExcelPackage(new MemoryStream(fileBytes));
         var worksheet = package.Workbook.Worksheets.FirstOrDefault();
@@ -342,22 +344,35 @@ public class ExpenseFunction
         if (rowCount < 2)
             throw new Exception("Excel file is empty or has no data rows");
 
-        var expenses = new List<Expense>();
+        // Get valid expense types from database based on source
+        List<string> validTypeNames;
+        if (expenseSource == "Online")
+        {
+            var validExpenseTypes = await _mongo.GetActiveOnlineExpenseTypesAsync();
+            validTypeNames = validExpenseTypes.Select(t => t.ExpenseType).ToList();
+        }
+        else
+        {
+            var validExpenseTypes = await _mongo.GetActiveOfflineExpenseTypesAsync();
+            validTypeNames = validExpenseTypes.Select(t => t.ExpenseType).ToList();
+        }
+        
+        if (!validTypeNames.Any())
+            throw new Exception($"No {expenseSource.ToLower()} expense types found in database. Please initialize expense types first.");
 
-        // Expected columns: Date, ExpenseType, Description, Amount, Vendor, PaymentMethod, InvoiceNumber, Notes
+        var expenses = new List<Expense>();
+        var invalidTypes = new List<string>();
+
+        // Expected columns: Date, ExpenseType, Amount, PaymentMethod
         for (int row = 2; row <= rowCount; row++)
         {
             var dateValue = worksheet.Cells[row, 1].Value?.ToString();
             var expenseType = worksheet.Cells[row, 2].Value?.ToString();
-            var description = worksheet.Cells[row, 3].Value?.ToString();
-            var amountStr = worksheet.Cells[row, 4].Value?.ToString();
-            var vendor = worksheet.Cells[row, 5].Value?.ToString();
-            var paymentMethod = worksheet.Cells[row, 6].Value?.ToString() ?? "Cash";
-            var invoiceNumber = worksheet.Cells[row, 7].Value?.ToString();
-            var notes = worksheet.Cells[row, 8].Value?.ToString();
+            var amountStr = worksheet.Cells[row, 3].Value?.ToString();
+            var paymentMethod = worksheet.Cells[row, 4].Value?.ToString() ?? "Cash";
 
             if (string.IsNullOrEmpty(dateValue) || string.IsNullOrEmpty(expenseType) || 
-                string.IsNullOrEmpty(description) || string.IsNullOrEmpty(amountStr))
+                string.IsNullOrEmpty(amountStr))
                 continue;
 
             if (!DateTime.TryParse(dateValue, out var date))
@@ -366,16 +381,21 @@ public class ExpenseFunction
             if (!decimal.TryParse(amountStr, out var amount))
                 continue;
 
+            // Validate expense type
+            if (!validTypeNames.Contains(expenseType))
+            {
+                if (!invalidTypes.Contains(expenseType))
+                    invalidTypes.Add(expenseType);
+                continue; // Skip this expense
+            }
+
             expenses.Add(new Expense
             {
                 Date = date,
                 ExpenseType = expenseType,
-                Description = description,
+                ExpenseSource = expenseSource,
                 Amount = amount,
-                Vendor = vendor,
                 PaymentMethod = paymentMethod,
-                InvoiceNumber = invoiceNumber,
-                Notes = notes,
                 RecordedBy = recordedBy,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -388,11 +408,18 @@ public class ExpenseFunction
             await _mongo.CreateExpenseAsync(expense);
         }
 
+        var warningMessage = invalidTypes.Any() 
+            ? $" Warning: {invalidTypes.Count} records skipped due to invalid expense types: {string.Join(", ", invalidTypes)}" 
+            : "";
+
         return new
         {
-            message = $"Successfully uploaded {expenses.Count} expense records",
+            message = $"Successfully uploaded {expenses.Count} {expenseSource.ToLower()} expense records.{warningMessage}",
             processedRecords = expenses.Count,
-            totalAmount = expenses.Sum(e => e.Amount)
+            skippedRecords = invalidTypes.Count,
+            invalidExpenseTypes = invalidTypes,
+            totalAmount = expenses.Sum(e => e.Amount),
+            expenseSource = expenseSource
         };
     }
 }

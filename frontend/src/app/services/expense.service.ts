@@ -7,11 +7,8 @@ export interface Expense {
   id: string;
   date: string;
   expenseType: string;
-  description: string;
   amount: number;
-  vendor?: string;
   paymentMethod: string;
-  invoiceNumber?: string;
   notes?: string;
   recordedBy: string;
   createdAt: string;
@@ -21,11 +18,9 @@ export interface Expense {
 export interface CreateExpenseRequest {
   date: string;
   expenseType: string;
-  description: string;
+  expenseSource?: string;
   amount: number;
-  vendor?: string;
   paymentMethod: string;
-  invoiceNumber?: string;
   notes?: string;
 }
 
@@ -73,10 +68,10 @@ export class ExpenseService {
   }
 
   // Upload expenses Excel
-  uploadExpensesExcel(file: File): Observable<any> {
+  uploadExpensesExcel(file: File, expenseSource: string = 'Offline'): Observable<any> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post(`${this.apiUrl}/upload`, formData);
+    return this.http.post(`${this.apiUrl}/upload?source=${expenseSource}`, formData);
   }
 
   // Get expense type options

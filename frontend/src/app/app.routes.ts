@@ -12,6 +12,7 @@ import { AdminOffersComponent } from './components/admin-offers/admin-offers.com
 import { AdminLoyaltyComponent } from './components/admin-loyalty/admin-loyalty.component';
 import { AdminSalesComponent } from './components/admin-sales/admin-sales.component';
 import { AdminExpensesComponent } from './components/admin-expenses/admin-expenses.component';
+import { AdminAnalyticsComponent } from './components/admin-analytics/admin-analytics.component';
 import { MenuUploadComponent } from './components/menu-upload/menu-upload.component';
 import { MenuManagementComponent } from './components/menu-management/menu-management.component';
 import { MenuComponent } from './components/menu/menu.component';
@@ -39,5 +40,6 @@ export const routes: Routes = [
   { path: 'admin/loyalty', component: AdminLoyaltyComponent, canActivate: [adminGuard] },
   { path: 'admin/sales', component: AdminSalesComponent, canActivate: [adminGuard] },
   { path: 'admin/expenses', component: AdminExpensesComponent, canActivate: [adminGuard] },
+  { path: 'admin/analytics', component: AdminAnalyticsComponent, canActivate: [adminGuard] },
   { path: '**', redirectTo: '' }
 ];

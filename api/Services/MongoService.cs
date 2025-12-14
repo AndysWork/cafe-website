@@ -18,6 +18,8 @@ public class MongoService
     private readonly IMongoCollection<Sales> _sales;
     private readonly IMongoCollection<Expense> _expenses;
     private readonly IMongoCollection<SalesItemType> _salesItemTypes;
+    private readonly IMongoCollection<OfflineExpenseType> _offlineExpenseTypes;
+    private readonly IMongoCollection<OnlineExpenseType> _onlineExpenseTypes;
     
     public MongoService(IConfiguration config)
     {
@@ -49,6 +51,8 @@ public class MongoService
         _sales = db.GetCollection<Sales>("Sales");
         _expenses = db.GetCollection<Expense>("Expenses");
         _salesItemTypes = db.GetCollection<SalesItemType>("SalesItemTypes");
+        _offlineExpenseTypes = db.GetCollection<OfflineExpenseType>("OfflineExpenseTypes");
+        _onlineExpenseTypes = db.GetCollection<OnlineExpenseType>("OnlineExpenseTypes");
 
         // Ensure default admin user exists
         try
@@ -975,4 +979,177 @@ public class MongoService
     }
 
     #endregion
+
+    #region OfflineExpenseType Methods
+
+    public async Task<List<OfflineExpenseType>> GetAllOfflineExpenseTypesAsync()
+    {
+        return await _offlineExpenseTypes.Find(_ => true).ToListAsync();
+    }
+
+    public async Task<List<OfflineExpenseType>> GetActiveOfflineExpenseTypesAsync()
+    {
+        return await _offlineExpenseTypes.Find(e => e.IsActive).ToListAsync();
+    }
+
+    public async Task<OfflineExpenseType?> GetOfflineExpenseTypeByIdAsync(string id)
+    {
+        return await _offlineExpenseTypes.Find(e => e.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<OfflineExpenseType> CreateOfflineExpenseTypeAsync(CreateOfflineExpenseTypeRequest request)
+    {
+        var expenseType = new OfflineExpenseType
+        {
+            ExpenseType = request.ExpenseType,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await _offlineExpenseTypes.InsertOneAsync(expenseType);
+        return expenseType;
+    }
+
+    public async Task<bool> UpdateOfflineExpenseTypeAsync(string id, CreateOfflineExpenseTypeRequest request)
+    {
+        var update = Builders<OfflineExpenseType>.Update
+            .Set(e => e.ExpenseType, request.ExpenseType)
+            .Set(e => e.UpdatedAt, DateTime.UtcNow);
+
+        var result = await _offlineExpenseTypes.UpdateOneAsync(e => e.Id == id, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> DeleteOfflineExpenseTypeAsync(string id)
+    {
+        var result = await _offlineExpenseTypes.DeleteOneAsync(e => e.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    public async Task InitializeDefaultOfflineExpenseTypesAsync()
+    {
+        var count = await _offlineExpenseTypes.CountDocumentsAsync(_ => true);
+        if (count == 0)
+        {
+            var defaultExpenseTypes = new List<OfflineExpenseType>
+            {
+                new() { ExpenseType = "Milk", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Cup", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Cigarete", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Biscuit", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Rent", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Grocerry", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Misc", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Tea", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Water", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Chicken", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Cold Drinks", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Packaging", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Utensils", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Kitkat/Oreo", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Egg", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Veggie", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Sugar", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Paneer", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Bread", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Fund (Save)", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { ExpenseType = "Ice cream", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            };
+
+            await _offlineExpenseTypes.InsertManyAsync(defaultExpenseTypes);
+        }
+    }
+
+    #endregion
+
+    #region OnlineExpenseType Methods
+
+    public async Task<List<OnlineExpenseType>> GetAllOnlineExpenseTypesAsync()
+    {
+        return await _onlineExpenseTypes.Find(_ => true).ToListAsync();
+    }
+
+    public async Task<List<OnlineExpenseType>> GetActiveOnlineExpenseTypesAsync()
+    {
+        return await _onlineExpenseTypes.Find(t => t.IsActive).ToListAsync();
+    }
+
+    public async Task<OnlineExpenseType?> GetOnlineExpenseTypeByIdAsync(string id)
+    {
+        return await _onlineExpenseTypes.Find(t => t.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<OnlineExpenseType> CreateOnlineExpenseTypeAsync(CreateOnlineExpenseTypeRequest request)
+    {
+        var expenseType = new OnlineExpenseType
+        {
+            ExpenseType = request.ExpenseType,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await _onlineExpenseTypes.InsertOneAsync(expenseType);
+        return expenseType;
+    }
+
+    public async Task UpdateOnlineExpenseTypeAsync(string id, CreateOnlineExpenseTypeRequest request)
+    {
+        var update = Builders<OnlineExpenseType>.Update
+            .Set(t => t.ExpenseType, request.ExpenseType)
+            .Set(t => t.UpdatedAt, DateTime.UtcNow);
+
+        await _onlineExpenseTypes.UpdateOneAsync(t => t.Id == id, update);
+    }
+
+    public async Task DeleteOnlineExpenseTypeAsync(string id)
+    {
+        await _onlineExpenseTypes.DeleteOneAsync(t => t.Id == id);
+    }
+
+    public async Task InitializeDefaultOnlineExpenseTypesAsync()
+    {
+        var existingCount = await _onlineExpenseTypes.CountDocumentsAsync(_ => true);
+        if (existingCount > 0)
+        {
+            return; // Already initialized
+        }
+
+        var defaultExpenseTypes = new List<OnlineExpenseType>
+        {
+            new() { ExpenseType = "Grocerry", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Tea", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Buiscuit", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Snacks", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Sabji & Plate", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Print", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Cigarette", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Water & Cold Drinks", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Sabji", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Bread & Banner", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Vishal Megamart", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Bread", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Bread & Others", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Foils & Others", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Grocerry & Chicken", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Misc", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Campa", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Milk", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Chicken", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Hyperpure", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Coffee", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Piu Salary", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Packaging", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Sabji & Others", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Ice Cube", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Blinkit", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { ExpenseType = "Printing", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+        };
+
+        await _onlineExpenseTypes.InsertManyAsync(defaultExpenseTypes);
+    }
+
+    #endregion
+
 }

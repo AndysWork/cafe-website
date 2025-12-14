@@ -1,0 +1,452 @@
+.admin-analytics-container {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: #f5f7fa;
+  min-height: 100vh;
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+
+    h1 {
+      margin: 0;
+      font-size: 2rem;
+      color: #333;
+    }
+
+    .date-filter {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+      label {
+        font-weight: 500;
+        color: #666;
+      }
+
+      input[type="date"] {
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 1rem;
+
+        &:focus {
+          outline: none;
+          border-color: #10b981;
+          box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+      }
+    }
+  }
+
+  .loading, .empty-state {
+    text-align: center;
+    padding: 4rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    p {
+      font-size: 1.2rem;
+      color: #666;
+    }
+  }
+
+  .insights-container {
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+
+      .summary-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+
+        &:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-icon {
+          font-size: 3rem;
+        }
+
+        .card-content {
+          flex: 1;
+
+          h3 {
+            margin: 0 0 0.5rem 0;
+            font-size: 0.9rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          .card-value {
+            margin: 0 0 0.25rem 0;
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+
+            &.positive {
+              color: #10b981;
+            }
+
+            &.negative {
+              color: #ef4444;
+            }
+          }
+
+          .card-subtext {
+            font-size: 0.85rem;
+            color: #999;
+          }
+        }
+      }
+    }
+
+    .insight-section {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 2rem;
+
+      h2 {
+        margin: 0 0 1.5rem 0;
+        font-size: 1.5rem;
+        color: #333;
+      }
+
+      .top-items-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+
+        .top-item-card {
+          background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f0 100%);
+          padding: 1rem;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          transition: transform 0.2s;
+
+          &:hover {
+            transform: scale(1.05);
+          }
+
+          &.top-1 {
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+          }
+
+          &.top-2 {
+            background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+            box-shadow: 0 4px 12px rgba(192, 192, 192, 0.3);
+          }
+
+          &.top-3 {
+            background: linear-gradient(135deg, #cd7f32 0%, #e09a5f 100%);
+            box-shadow: 0 4px 12px rgba(205, 127, 50, 0.3);
+          }
+
+          .item-rank {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #666;
+            min-width: 40px;
+            text-align: center;
+          }
+
+          .item-details {
+            flex: 1;
+
+            h4 {
+              margin: 0 0 0.25rem 0;
+              font-size: 1rem;
+              color: #333;
+            }
+
+            p {
+              margin: 0.25rem 0;
+              font-size: 0.85rem;
+              color: #666;
+            }
+
+            .item-revenue {
+              font-weight: bold;
+              color: #10b981;
+              font-size: 1rem;
+            }
+          }
+        }
+      }
+
+      .payment-breakdown {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+
+        .payment-card {
+          background: #f9fafb;
+          padding: 1.5rem;
+          border-radius: 8px;
+          border-left: 4px solid #10b981;
+
+          .payment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+
+            h3 {
+              margin: 0;
+              font-size: 1.2rem;
+              color: #333;
+            }
+
+            .payment-count {
+              font-size: 0.85rem;
+              color: #666;
+            }
+          }
+
+          .payment-amount {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #10b981;
+            margin-bottom: 0.75rem;
+          }
+
+          .payment-bar {
+            background: #e5e7eb;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+
+            .payment-bar-fill {
+              background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+              height: 100%;
+              transition: width 0.3s ease;
+            }
+          }
+
+          .payment-percentage {
+            font-size: 0.85rem;
+            color: #666;
+          }
+        }
+      }
+
+      .category-breakdown {
+        display: grid;
+        gap: 1rem;
+
+        .category-card {
+          background: #f9fafb;
+          padding: 1.25rem;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          transition: transform 0.2s, box-shadow 0.2s;
+
+          &:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          }
+
+          .category-icon {
+            font-size: 2.5rem;
+          }
+
+          .category-details {
+            flex: 1;
+
+            h3 {
+              margin: 0 0 0.25rem 0;
+              font-size: 1.1rem;
+              color: #333;
+            }
+
+            p {
+              margin: 0.25rem 0;
+              font-size: 0.85rem;
+              color: #666;
+            }
+
+            .category-revenue {
+              font-weight: bold;
+              color: #10b981;
+              font-size: 1.1rem;
+            }
+          }
+
+          .category-percentage {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4f46e5;
+          }
+        }
+      }
+
+      .trend-chart {
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-end;
+        height: 300px;
+        gap: 1rem;
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 8px;
+
+        .trend-bar-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+
+          .trend-bar {
+            width: 100%;
+            background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+            border-radius: 8px 8px 0 0;
+            min-height: 40px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 0.5rem;
+            transition: all 0.3s ease;
+
+            &:hover {
+              transform: scaleY(1.05);
+            }
+
+            .trend-value {
+              color: white;
+              font-weight: bold;
+              font-size: 0.9rem;
+            }
+          }
+
+          .trend-label {
+            font-size: 0.85rem;
+            color: #666;
+            text-align: center;
+          }
+        }
+      }
+
+      .monthly-chart {
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-end;
+        height: 350px;
+        gap: 1rem;
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 8px;
+
+        .monthly-bar-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+
+          .monthly-bar {
+            width: 100%;
+            background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);
+            border-radius: 8px 8px 0 0;
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 0.5rem;
+            transition: all 0.3s ease;
+
+            &:hover {
+              transform: scaleY(1.05);
+            }
+
+            .monthly-value {
+              color: white;
+              font-weight: bold;
+              font-size: 0.9rem;
+            }
+
+            .monthly-transactions {
+              color: rgba(255, 255, 255, 0.8);
+              font-size: 0.75rem;
+            }
+          }
+
+          .monthly-label {
+            font-size: 0.85rem;
+            color: #666;
+            text-align: center;
+          }
+        }
+      }
+
+      .peak-days-list {
+        display: grid;
+        gap: 1rem;
+
+        .peak-day-card {
+          background: #f9fafb;
+          padding: 1rem 1.5rem;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          gap: 1.5rem;
+          transition: transform 0.2s;
+
+          &:hover {
+            transform: translateX(4px);
+            background: #eff6ff;
+          }
+
+          .peak-rank {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #10b981;
+            min-width: 40px;
+            text-align: center;
+          }
+
+          .peak-date {
+            flex: 1;
+            font-size: 1.1rem;
+            color: #333;
+          }
+
+          .peak-amount {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #4f46e5;
+          }
+        }
+      }
+    }
+  }
+}
