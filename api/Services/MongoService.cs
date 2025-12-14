@@ -6,6 +6,26 @@ namespace Cafe.Api.Services;
 
 public class MongoService
 {
+    private static readonly TimeZoneInfo IstTimeZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+    
+    // Helper method to get current IST time
+    public static DateTime GetIstNow()
+    {
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IstTimeZone);
+    }
+    
+    // Helper method to convert UTC to IST
+    public static DateTime ConvertToIst(DateTime utcDateTime)
+    {
+        return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, IstTimeZone);
+    }
+    
+    // Helper method to convert IST to UTC for storage
+    public static DateTime ConvertToUtc(DateTime istDateTime)
+    {
+        return TimeZoneInfo.ConvertTimeToUtc(istDateTime, IstTimeZone);
+    }
+
     private readonly IMongoCollection<CafeMenuItem> _menu;
     private readonly IMongoCollection<MenuCategory> _categories;
     private readonly IMongoCollection<MenuSubCategory> _subCategories;
@@ -110,8 +130,8 @@ public class MongoService
     // Create new menu item
     public async Task<CafeMenuItem> CreateMenuItemAsync(CafeMenuItem item)
     {
-        item.CreatedDate = DateTime.UtcNow;
-        item.LastUpdated = DateTime.UtcNow;
+        item.CreatedDate = GetIstNow();
+        item.LastUpdated = GetIstNow();
         await _menu.InsertOneAsync(item);
         return item;
     }
@@ -119,7 +139,7 @@ public class MongoService
     // Update existing menu item
     public async Task<bool> UpdateMenuItemAsync(string id, CafeMenuItem item)
     {
-        item.LastUpdated = DateTime.UtcNow;
+        item.LastUpdated = GetIstNow();
         var result = await _menu.ReplaceOneAsync(x => x.Id == id, item);
         return result.ModifiedCount > 0;
     }
@@ -255,7 +275,7 @@ public class MongoService
     // Update user last login time
     public async Task UpdateUserLastLoginAsync(string userId)
     {
-        var update = Builders<User>.Update.Set(x => x.LastLoginAt, DateTime.UtcNow);
+        var update = Builders<User>.Update.Set(x => x.LastLoginAt, GetIstNow());
         await _users.UpdateOneAsync(x => x.Id == userId, update);
     }
 
@@ -283,7 +303,7 @@ public class MongoService
                 FirstName = "System",
                 LastName = "Administrator",
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = GetIstNow()
             };
 
             await _users.InsertOneAsync(adminUser);
@@ -358,12 +378,12 @@ public class MongoService
     {
         var update = Builders<Order>.Update
             .Set(x => x.Status, status)
-            .Set(x => x.UpdatedAt, DateTime.UtcNow);
+            .Set(x => x.UpdatedAt, GetIstNow());
 
         // If status is delivered, set completedAt
         if (status == "delivered")
         {
-            update = update.Set(x => x.CompletedAt, DateTime.UtcNow);
+            update = update.Set(x => x.CompletedAt, GetIstNow());
         }
 
         var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
@@ -389,8 +409,8 @@ public class MongoService
                 TotalPointsEarned = 0,
                 TotalPointsRedeemed = 0,
                 Tier = "Bronze",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = GetIstNow(),
+                UpdatedAt = GetIstNow()
             };
             await _loyaltyAccounts.InsertOneAsync(account);
         }
@@ -422,7 +442,7 @@ public class MongoService
         // Update account
         account.CurrentPoints += points;
         account.TotalPointsEarned += points;
-        account.UpdatedAt = DateTime.UtcNow;
+        account.UpdatedAt = GetIstNow();
 
         // Update tier based on total points earned
         account.Tier = CalculateTier(account.TotalPointsEarned);
@@ -437,7 +457,7 @@ public class MongoService
             Type = "earned",
             Description = description,
             OrderId = orderId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = GetIstNow()
         };
         await _transactions.InsertOneAsync(transaction);
 
@@ -455,7 +475,7 @@ public class MongoService
         if (reward == null)
             return (false, "Reward not found or inactive", null);
 
-        if (reward.ExpiresAt.HasValue && reward.ExpiresAt.Value < DateTime.UtcNow)
+        if (reward.ExpiresAt.HasValue && reward.ExpiresAt.Value < GetIstNow())
             return (false, "Reward has expired", null);
 
         if (account.CurrentPoints < reward.PointsCost)
@@ -464,7 +484,7 @@ public class MongoService
         // Deduct points
         account.CurrentPoints -= reward.PointsCost;
         account.TotalPointsRedeemed += reward.PointsCost;
-        account.UpdatedAt = DateTime.UtcNow;
+        account.UpdatedAt = GetIstNow();
 
         await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
 
@@ -476,7 +496,7 @@ public class MongoService
             Type = "redeemed",
             Description = $"Redeemed: {reward.Name}",
             RewardId = rewardId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = GetIstNow()
         };
         await _transactions.InsertOneAsync(transaction);
 
@@ -504,7 +524,7 @@ public class MongoService
     // Get all available rewards
     public async Task<List<Reward>> GetActiveRewardsAsync()
     {
-        var now = DateTime.UtcNow;
+        var now = GetIstNow();
         return await _rewards
             .Find(x => x.IsActive && (!x.ExpiresAt.HasValue || x.ExpiresAt.Value > now))
             .SortBy(x => x.PointsCost)
@@ -523,7 +543,7 @@ public class MongoService
     // Create reward (admin)
     public async Task<Reward> CreateRewardAsync(Reward reward)
     {
-        reward.CreatedAt = DateTime.UtcNow;
+        reward.CreatedAt = GetIstNow();
         await _rewards.InsertOneAsync(reward);
         return reward;
     }
@@ -646,7 +666,7 @@ public class MongoService
     // Get all active offers
     public async Task<List<Offer>> GetActiveOffersAsync()
     {
-        var now = DateTime.UtcNow;
+        var now = GetIstNow();
         return await _offers.Find(o => 
             o.IsActive && 
             o.ValidFrom <= now && 
@@ -669,8 +689,8 @@ public class MongoService
     // Create new offer
     public async Task<Offer> CreateOfferAsync(Offer offer)
     {
-        offer.CreatedAt = DateTime.UtcNow;
-        offer.UpdatedAt = DateTime.UtcNow;
+        offer.CreatedAt = GetIstNow();
+        offer.UpdatedAt = GetIstNow();
         await _offers.InsertOneAsync(offer);
         return offer;
     }
@@ -678,7 +698,7 @@ public class MongoService
     // Update offer
     public async Task<bool> UpdateOfferAsync(string id, Offer offer)
     {
-        offer.UpdatedAt = DateTime.UtcNow;
+        offer.UpdatedAt = GetIstNow();
         var result = await _offers.ReplaceOneAsync(o => o.Id == id, offer);
         return result.ModifiedCount > 0;
     }
@@ -721,7 +741,7 @@ public class MongoService
             };
         }
 
-        var now = DateTime.UtcNow;
+        var now = GetIstNow();
         if (now < offer.ValidFrom)
         {
             return new OfferValidationResponse
@@ -815,8 +835,8 @@ public class MongoService
     // Create new sales record
     public async Task<Sales> CreateSalesAsync(Sales sales)
     {
-        sales.CreatedAt = DateTime.UtcNow;
-        sales.UpdatedAt = DateTime.UtcNow;
+        sales.CreatedAt = GetIstNow();
+        sales.UpdatedAt = GetIstNow();
         await _sales.InsertOneAsync(sales);
         return sales;
     }
@@ -824,7 +844,7 @@ public class MongoService
     // Update sales record
     public async Task<bool> UpdateSalesAsync(string id, Sales sales)
     {
-        sales.UpdatedAt = DateTime.UtcNow;
+        sales.UpdatedAt = GetIstNow();
         var result = await _sales.ReplaceOneAsync(x => x.Id == id, sales);
         return result.ModifiedCount > 0;
     }
@@ -878,8 +898,8 @@ public class MongoService
     // Create new expense
     public async Task<Expense> CreateExpenseAsync(Expense expense)
     {
-        expense.CreatedAt = DateTime.UtcNow;
-        expense.UpdatedAt = DateTime.UtcNow;
+        expense.CreatedAt = GetIstNow();
+        expense.UpdatedAt = GetIstNow();
         await _expenses.InsertOneAsync(expense);
         return expense;
     }
@@ -887,7 +907,7 @@ public class MongoService
     // Update expense
     public async Task<bool> UpdateExpenseAsync(string id, Expense expense)
     {
-        expense.UpdatedAt = DateTime.UtcNow;
+        expense.UpdatedAt = GetIstNow();
         var result = await _expenses.ReplaceOneAsync(x => x.Id == id, expense);
         return result.ModifiedCount > 0;
     }
@@ -935,15 +955,15 @@ public class MongoService
 
     public async Task<SalesItemType> CreateSalesItemTypeAsync(SalesItemType itemType)
     {
-        itemType.CreatedAt = DateTime.UtcNow;
-        itemType.UpdatedAt = DateTime.UtcNow;
+        itemType.CreatedAt = GetIstNow();
+        itemType.UpdatedAt = GetIstNow();
         await _salesItemTypes.InsertOneAsync(itemType);
         return itemType;
     }
 
     public async Task<SalesItemType?> UpdateSalesItemTypeAsync(string id, SalesItemType itemType)
     {
-        itemType.UpdatedAt = DateTime.UtcNow;
+        itemType.UpdatedAt = GetIstNow();
         var result = await _salesItemTypes.ReplaceOneAsync(s => s.Id == id, itemType);
         return result.ModifiedCount > 0 ? itemType : null;
     }
@@ -961,18 +981,18 @@ public class MongoService
         {
             var defaultItems = new List<SalesItemType>
             {
-                new() { ItemName = "Tea - 5", DefaultPrice = 5, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Tea - 10", DefaultPrice = 10, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Tea - 20", DefaultPrice = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Tea - 30", DefaultPrice = 30, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Black Tea", DefaultPrice = 10, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Tea Parcel", DefaultPrice = 50, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Coffee", DefaultPrice = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Biscuit", DefaultPrice = 10, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Cigarete", DefaultPrice = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Snacks", DefaultPrice = 15, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Water", DefaultPrice = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ItemName = "Campa", DefaultPrice = 30, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+                new() { ItemName = "Tea - 5", DefaultPrice = 5, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Tea - 10", DefaultPrice = 10, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Tea - 20", DefaultPrice = 20, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Tea - 30", DefaultPrice = 30, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Black Tea", DefaultPrice = 10, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Tea Parcel", DefaultPrice = 50, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Coffee", DefaultPrice = 20, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Biscuit", DefaultPrice = 10, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Cigarete", DefaultPrice = 20, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Snacks", DefaultPrice = 15, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Water", DefaultPrice = 20, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ItemName = "Campa", DefaultPrice = 30, IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() }
             };
 
             await _salesItemTypes.InsertManyAsync(defaultItems);
@@ -1004,8 +1024,8 @@ public class MongoService
         {
             ExpenseType = request.ExpenseType,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = GetIstNow(),
+            UpdatedAt = GetIstNow()
         };
 
         await _offlineExpenseTypes.InsertOneAsync(expenseType);
@@ -1016,7 +1036,7 @@ public class MongoService
     {
         var update = Builders<OfflineExpenseType>.Update
             .Set(e => e.ExpenseType, request.ExpenseType)
-            .Set(e => e.UpdatedAt, DateTime.UtcNow);
+            .Set(e => e.UpdatedAt, GetIstNow());
 
         var result = await _offlineExpenseTypes.UpdateOneAsync(e => e.Id == id, update);
         return result.ModifiedCount > 0;
@@ -1035,27 +1055,27 @@ public class MongoService
         {
             var defaultExpenseTypes = new List<OfflineExpenseType>
             {
-                new() { ExpenseType = "Milk", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Cup", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Cigarete", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Biscuit", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Rent", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Grocerry", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Misc", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Tea", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Water", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Chicken", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Cold Drinks", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Packaging", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Utensils", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Kitkat/Oreo", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Egg", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Veggie", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Sugar", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Paneer", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Bread", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Fund (Save)", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { ExpenseType = "Ice cream", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+                new() { ExpenseType = "Milk", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Cup", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Cigarete", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Biscuit", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Rent", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Grocerry", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Misc", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Tea", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Water", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Chicken", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Cold Drinks", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Packaging", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Utensils", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Kitkat/Oreo", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Egg", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Veggie", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Sugar", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Paneer", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Bread", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Fund (Save)", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+                new() { ExpenseType = "Ice cream", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() }
             };
 
             await _offlineExpenseTypes.InsertManyAsync(defaultExpenseTypes);
@@ -1087,8 +1107,8 @@ public class MongoService
         {
             ExpenseType = request.ExpenseType,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = GetIstNow(),
+            UpdatedAt = GetIstNow()
         };
 
         await _onlineExpenseTypes.InsertOneAsync(expenseType);
@@ -1099,7 +1119,7 @@ public class MongoService
     {
         var update = Builders<OnlineExpenseType>.Update
             .Set(t => t.ExpenseType, request.ExpenseType)
-            .Set(t => t.UpdatedAt, DateTime.UtcNow);
+            .Set(t => t.UpdatedAt, GetIstNow());
 
         await _onlineExpenseTypes.UpdateOneAsync(t => t.Id == id, update);
     }
@@ -1119,33 +1139,33 @@ public class MongoService
 
         var defaultExpenseTypes = new List<OnlineExpenseType>
         {
-            new() { ExpenseType = "Grocerry", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Tea", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Buiscuit", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Snacks", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Sabji & Plate", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Print", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Cigarette", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Water & Cold Drinks", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Sabji", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Bread & Banner", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Vishal Megamart", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Bread", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Bread & Others", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Foils & Others", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Grocerry & Chicken", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Misc", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Campa", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Milk", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Chicken", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Hyperpure", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Coffee", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Piu Salary", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Packaging", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Sabji & Others", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Ice Cube", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Blinkit", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { ExpenseType = "Printing", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            new() { ExpenseType = "Grocerry", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Tea", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Buiscuit", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Snacks", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Sabji & Plate", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Print", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Cigarette", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Water & Cold Drinks", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Sabji", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Bread & Banner", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Vishal Megamart", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Bread", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Bread & Others", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Foils & Others", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Grocerry & Chicken", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Misc", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Campa", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Milk", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Chicken", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Hyperpure", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Coffee", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Piu Salary", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Packaging", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Sabji & Others", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Ice Cube", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Blinkit", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() },
+            new() { ExpenseType = "Printing", IsActive = true, CreatedAt = GetIstNow(), UpdatedAt = GetIstNow() }
         };
 
         await _onlineExpenseTypes.InsertManyAsync(defaultExpenseTypes);

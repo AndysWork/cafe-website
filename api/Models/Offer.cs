@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -52,10 +53,10 @@ public class Offer
     public List<string>? ApplicableCategories { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 }
 
 public class OfferValidationRequest

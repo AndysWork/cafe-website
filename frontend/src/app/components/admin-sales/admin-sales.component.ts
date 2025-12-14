@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SalesService, Sales, CreateSalesRequest, SalesItem } from '../../services/sales.service';
 import { SalesItemTypeService, SalesItemType } from '../../services/sales-item-type.service';
+import { getIstDateString, getIstNow, convertToIst, formatIstDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-sales',
@@ -32,7 +33,7 @@ export class AdminSalesComponent implements OnInit {
 
   // Form data
   formData: CreateSalesRequest = {
-    date: new Date().toISOString().split('T')[0],
+    date: getIstDateString(),
     items: [],
     paymentMethod: 'Cash',
     notes: ''
@@ -53,7 +54,7 @@ export class AdminSalesComponent implements OnInit {
   uploading = false;
 
   // Summary filter
-  summaryDate: string = new Date().toISOString().split('T')[0];
+  summaryDate: string = getIstDateString();
   summary: any = null;
 
   paymentMethods = ['Cash', 'Card', 'UPI', 'Online'];
@@ -93,7 +94,7 @@ export class AdminSalesComponent implements OnInit {
     );
 
     sortedSales.forEach(sale => {
-      const date = new Date(sale.date);
+      const date = convertToIst(new Date(sale.date));
       const year = date.getFullYear().toString();
       const month = date.toLocaleString('default', { month: 'long' });
       const weekLabel = this.getWeekLabel(date);
@@ -111,7 +112,7 @@ export class AdminSalesComponent implements OnInit {
     });
 
     // Auto-expand current year, month, and week
-    const currentDate = new Date();
+    const currentDate = getIstNow();
     const currentYear = currentDate.getFullYear().toString();
     const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
     const currentWeek = this.getWeekLabel(currentDate);
@@ -286,7 +287,7 @@ export class AdminSalesComponent implements OnInit {
     console.log('Pre-filled items:', preFilledItems); // Debug log
 
     this.formData = {
-      date: new Date().toISOString().split('T')[0],
+      date: getIstDateString(),
       items: preFilledItems,
       paymentMethod: 'Cash',
       notes: ''
@@ -471,7 +472,7 @@ export class AdminSalesComponent implements OnInit {
   }
 
   formatDate(date: string): string {
-    return new Date(date).toLocaleDateString();
+    return formatIstDate(date);
   }
 
   formatCurrency(amount: number): string {

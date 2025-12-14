@@ -164,7 +164,7 @@ public class AuthFunction
                 LastName = registerRequest.LastName,
                 PhoneNumber = registerRequest.PhoneNumber,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = MongoService.GetIstNow()
             };
 
             await _mongo.CreateUserAsync(user);

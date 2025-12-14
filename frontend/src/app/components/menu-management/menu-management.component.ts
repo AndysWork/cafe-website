@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import { getIstNow } from '../../utils/date-utils';
 
 interface MenuItemVariant {
   variantName: string;
@@ -239,7 +240,7 @@ export class MenuManagementComponent implements OnInit {
         createdBy: this.selectedItem.createdBy,
         createdDate: this.selectedItem.createdDate,
         lastUpdatedBy: 'Admin',
-        lastUpdated: new Date().toISOString()
+        lastUpdated: getIstNow().toISOString()
       };
 
       this.http.put(`${environment.apiUrl}/menu/${this.selectedItem.id}`, updatePayload)
@@ -260,9 +261,9 @@ export class MenuManagementComponent implements OnInit {
       const createPayload = {
         ...payload,
         createdBy: 'Admin',
-        createdDate: new Date().toISOString(),
+        createdDate: getIstNow().toISOString(),
         lastUpdatedBy: 'Admin',
-        lastUpdated: new Date().toISOString()
+        lastUpdated: getIstNow().toISOString()
       };
 
       this.http.post(`${environment.apiUrl}/menu`, createPayload)

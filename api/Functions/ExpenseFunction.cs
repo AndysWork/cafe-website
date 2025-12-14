@@ -225,10 +225,10 @@ public class ExpenseFunction
             var source = query["source"] ?? "All"; // "Offline", "Online", or "All"
 
             DateTime startDate = string.IsNullOrEmpty(startDateStr) 
-                ? DateTime.UtcNow.AddMonths(-6) 
+                ? MongoService.GetIstNow().AddMonths(-6) 
                 : DateTime.Parse(startDateStr);
             DateTime endDate = string.IsNullOrEmpty(endDateStr) 
-                ? DateTime.UtcNow 
+                ? MongoService.GetIstNow() 
                 : DateTime.Parse(endDateStr);
 
             var allExpenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate);
@@ -448,8 +448,8 @@ public class ExpenseFunction
                 PaymentMethod = expenseRequest.PaymentMethod,
                 Notes = expenseRequest.Notes,
                 RecordedBy = username,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
             };
 
             var createdExpense = await _mongo.CreateExpenseAsync(expense);
@@ -680,8 +680,8 @@ public class ExpenseFunction
                 Amount = amount,
                 PaymentMethod = paymentMethod,
                 RecordedBy = recordedBy,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
             });
         }
 

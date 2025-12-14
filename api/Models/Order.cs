@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -46,10 +47,10 @@ public class Order
     public string? Notes { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("completedAt")]
     public DateTime? CompletedAt { get; set; }

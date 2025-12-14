@@ -135,8 +135,8 @@ public class OrderFunction
                 DeliveryAddress = orderRequest.DeliveryAddress,
                 PhoneNumber = orderRequest.PhoneNumber,
                 Notes = orderRequest.Notes,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
             };
 
             var createdOrder = await _mongo.CreateOrderAsync(order);

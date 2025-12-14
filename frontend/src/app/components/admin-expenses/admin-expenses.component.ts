@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary, HierarchicalExpense, MonthExpense, WeekExpense } from '../../services/expense.service';
 import { OfflineExpenseTypeService, OfflineExpenseType } from '../../services/offline-expense-type.service';
 import { OnlineExpenseTypeService, OnlineExpenseType } from '../../services/online-expense-type.service';
+import { getIstDateString, formatIstDate, convertToIst, getIstNow } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-expenses',
@@ -22,7 +23,7 @@ export class AdminExpensesComponent implements OnInit {
   showUploadModal = false;
   editingId: string | null = null;
   summary: ExpenseSummary | null = null;
-  summaryDate: string = new Date().toISOString().split('T')[0];
+  summaryDate: string = getIstDateString();
 
   // Grouping - matching sales management
   groupedExpenses: { [year: string]: { [month: string]: { [week: string]: Expense[] } } } = {};
@@ -31,7 +32,7 @@ export class AdminExpensesComponent implements OnInit {
   expandedWeeks: Set<string> = new Set();
 
   formData: CreateExpenseRequest = {
-    date: new Date().toISOString().split('T')[0],
+    date: getIstDateString(),
     expenseType: '',
     expenseSource: 'Offline',
     amount: 0,
@@ -81,7 +82,7 @@ export class AdminExpensesComponent implements OnInit {
     );
 
     sortedExpenses.forEach(expense => {
-      const date = new Date(expense.date);
+      const date = convertToIst(new Date(expense.date));
       const year = date.getFullYear().toString();
       const month = date.toLocaleString('default', { month: 'long' });
       const weekLabel = this.getWeekLabel(date);
@@ -99,7 +100,7 @@ export class AdminExpensesComponent implements OnInit {
     });
 
     // Auto-expand current year, month, and week
-    const currentDate = new Date();
+    const currentDate = getIstNow();
     const currentYear = currentDate.getFullYear().toString();
     const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
     const currentWeek = this.getWeekLabel(currentDate);
@@ -335,7 +336,7 @@ export class AdminExpensesComponent implements OnInit {
 
   resetForm() {
     this.formData = {
-      date: new Date().toISOString().split('T')[0],
+      date: getIstDateString(),
       expenseType: '',
       expenseSource: this.currentExpenseSource,
       amount: 0,
@@ -482,8 +483,7 @@ export class AdminExpensesComponent implements OnInit {
   }
 
   formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return formatIstDate(dateStr, { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   formatCurrency(amount: number): string {

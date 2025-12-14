@@ -873,8 +873,194 @@
     }
 
     .modal-content {
-      .form-row {
-        grid-template-columns: 1fr;
+      max-width: 95vw;
+      max-height: 95vh;
+      margin: 0.5rem;
+
+      .modal-header {
+        padding: 1rem;
+
+        h2 {
+          font-size: 1.25rem;
+        }
+
+        .btn-close {
+          font-size: 1.5rem;
+        }
+      }
+
+      .modal-body {
+        padding: 1rem;
+
+        .form-group {
+          margin-bottom: 1rem;
+
+          label {
+            font-size: 0.9rem;
+          }
+
+          input, select, textarea {
+            padding: 0.625rem;
+            font-size: 0.95rem;
+          }
+        }
+
+        .form-row {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+
+        .add-item-section {
+          padding: 1rem;
+
+          h3 {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+          }
+
+          .items-list {
+            .item-card {
+              padding: 0.75rem;
+              grid-template-columns: 1fr;
+              gap: 0.75rem;
+
+              &.editable {
+                grid-template-columns: 1fr;
+              }
+
+              .item-info {
+                strong {
+                  font-size: 0.95rem;
+                }
+              }
+
+              .item-controls {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                width: 100%;
+
+                .quantity-control,
+                .price-control {
+                  flex: 1 1 calc(50% - 0.25rem);
+                  min-width: 120px;
+
+                  label {
+                    font-size: 0.85rem;
+                  }
+
+                  input {
+                    padding: 0.5rem;
+                    font-size: 0.9rem;
+                  }
+                }
+
+                .item-total {
+                  flex: 1 1 100%;
+                  text-align: left;
+                  margin-top: 0.5rem;
+                  padding: 0.5rem;
+                  background: #f3f4f6;
+                  border-radius: 4px;
+
+                  strong {
+                    font-size: 1rem;
+                  }
+                }
+
+                .btn-remove {
+                  margin-left: 0;
+                  padding: 0.5rem 0.75rem;
+                }
+              }
+            }
+
+            .total-amount {
+              font-size: 1rem;
+              padding: 0.75rem;
+            }
+          }
+        }
+      }
+
+      .modal-footer {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 0.75rem;
+
+        button {
+          width: 100%;
+          padding: 0.875rem;
+          font-size: 1rem;
+        }
+      }
+    }
+
+    .modal-overlay {
+      padding: 0.5rem;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-sales-container {
+    padding: 0.75rem;
+
+    .page-header {
+      h1 {
+        font-size: 1.25rem;
+      }
+
+      .header-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+
+        button {
+          width: 100%;
+          font-size: 0.9rem;
+          padding: 0.75rem;
+        }
+      }
+    }
+
+    .modal-content {
+      .modal-header {
+        h2 {
+          font-size: 1.1rem;
+        }
+      }
+
+      .modal-body {
+        padding: 0.75rem;
+
+        .add-item-section {
+          padding: 0.75rem;
+
+          .items-list {
+            .item-card {
+              padding: 0.625rem;
+
+              .item-controls {
+                .quantity-control,
+                .price-control {
+                  flex: 1 1 100%;
+
+                  input {
+                    font-size: 0.85rem;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      .modal-footer {
+        padding: 0.75rem;
+
+        button {
+          padding: 0.75rem;
+          font-size: 0.95rem;
+        }
       }
     }
   }

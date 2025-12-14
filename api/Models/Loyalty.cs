@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -29,10 +30,10 @@ public class LoyaltyAccount
     public string Tier { get; set; } = "Bronze"; // Bronze, Silver, Gold, Platinum
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 }
 
 public class Reward
@@ -60,7 +61,7 @@ public class Reward
     public DateTime? ExpiresAt { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 }
 
 public class PointsTransaction
@@ -91,7 +92,7 @@ public class PointsTransaction
     public string? RewardId { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 }
 
 // DTOs for API responses

@@ -281,9 +281,9 @@ public class MenuUploadFunction
                         PackagingCharge = 0,
                         Variants = new List<MenuItemVariant>(),
                         CreatedBy = "Admin",
-                        CreatedDate = DateTime.UtcNow,
+                        CreatedDate = MongoService.GetIstNow(),
                         LastUpdatedBy = "Admin",
-                        LastUpdated = DateTime.UtcNow
+                        LastUpdated = MongoService.GetIstNow()
                     };
 
                     processedItems[catalogueName] = menuItem;

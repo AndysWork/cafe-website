@@ -181,8 +181,8 @@ public class SalesFunction
                 PaymentMethod = salesRequest.PaymentMethod,
                 Notes = salesRequest.Notes,
                 RecordedBy = username,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
             };
 
             var createdSales = await _mongo.CreateSalesAsync(sales);
@@ -402,8 +402,8 @@ public class SalesFunction
                         TotalAmount = currentItems.Sum(i => i.TotalPrice),
                         PaymentMethod = currentPaymentMethod,
                         RecordedBy = recordedBy,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
+                        CreatedAt = MongoService.GetIstNow(),
+                        UpdatedAt = MongoService.GetIstNow()
                     });
                 }
 
@@ -445,8 +445,8 @@ public class SalesFunction
                 TotalAmount = currentItems.Sum(i => i.TotalPrice),
                 PaymentMethod = currentPaymentMethod,
                 RecordedBy = recordedBy,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
             });
         }
 

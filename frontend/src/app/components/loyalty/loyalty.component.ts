@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { LoyaltyService, LoyaltyAccount, Reward, PointsTransaction } from '../../services/loyalty.service';
+import { formatIstDate } from '../../utils/date-utils';
 
 interface DisplayTransaction {
   date: string;
@@ -91,7 +92,7 @@ export class LoyaltyComponent implements OnInit {
   }
 
   private transformTransaction(transaction: PointsTransaction): DisplayTransaction {
-    const date = new Date(transaction.createdAt).toLocaleDateString('en-US', {
+    const date = formatIstDate(new Date(transaction.createdAt), {
       month: 'short',
       day: 'numeric',
       year: 'numeric'

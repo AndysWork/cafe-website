@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { OffersService, Offer } from '../../services/offers.service';
+import { getIstNow, formatIstDate, getIstDaysDifference } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-offers',
@@ -57,8 +58,8 @@ export class OffersComponent implements OnInit {
 
   getValidityDisplay(offer: Offer): string {
     const validTill = new Date(offer.validTill);
-    const now = new Date();
-    const daysLeft = Math.ceil((validTill.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const now = getIstNow();
+    const daysLeft = getIstDaysDifference(validTill, now);
 
     if (daysLeft < 0) {
       return 'Expired';
@@ -69,7 +70,7 @@ export class OffersComponent implements OnInit {
     } else if (daysLeft <= 7) {
       return `${daysLeft} days left`;
     } else {
-      return `Valid till ${validTill.toLocaleDateString()}`;
+      return `Valid till ${formatIstDate(validTill)}`;
     }
   }
 }

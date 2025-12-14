@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { OffersService, Offer } from '../../services/offers.service';
+import { getIstNow, formatIstDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-offers',
@@ -41,8 +42,8 @@ export class AdminOffersComponent implements OnInit {
   }
 
   getEmptyOffer(): Offer {
-    const now = new Date();
-    const later = new Date();
+    const now = getIstNow();
+    const later = getIstNow();
     later.setDate(later.getDate() + 30);
 
     return {
@@ -154,6 +155,6 @@ export class AdminOffersComponent implements OnInit {
   }
 
   formatDate(date: Date): string {
-    return new Date(date).toLocaleDateString();
+    return formatIstDate(date);
   }
 }

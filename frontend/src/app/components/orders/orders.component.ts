@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { OrderService, Order } from '../../services/order.service';
 import { AuthService } from '../../services/auth.service';
+import { formatIstDateTime } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-orders',
@@ -104,14 +105,7 @@ export class OrdersComponent implements OnInit {
   }
 
   formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return formatIstDateTime(new Date(dateString));
   }
 
   getOrderItemsSummary(order: Order): string {

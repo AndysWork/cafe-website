@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -28,9 +29,9 @@ public class CafeMenuItem
     public List<MenuItemVariant> Variants { get; set; } = new List<MenuItemVariant>();
     
     public string CreatedBy { get; set; } = "System";
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = MongoService.GetIstNow();
     public string LastUpdatedBy { get; set; } = "System";
-    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+    public DateTime LastUpdated { get; set; } = MongoService.GetIstNow();
 }
 
 public class MenuItemVariant

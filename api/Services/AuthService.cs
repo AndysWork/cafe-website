@@ -43,7 +43,7 @@ public class AuthService
                 new Claim(ClaimTypes.Name, username),
                 new Claim(ClaimTypes.Role, role)
             }),
-            Expires = DateTime.UtcNow.AddMinutes(_jwtExpiryMinutes),
+            Expires = MongoService.GetIstNow().AddMinutes(_jwtExpiryMinutes),
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(key), 
                 SecurityAlgorithms.HmacSha256Signature)

@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -34,7 +35,7 @@ public class User
     public bool IsActive { get; set; } = true;
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("lastLoginAt")]
     public DateTime? LastLoginAt { get; set; }

@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LoyaltyService, Reward, LoyaltyAccount, PointsTransaction } from '../../services/loyalty.service';
+import { formatIstDate, formatIstDateTime } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-loyalty',
@@ -196,11 +197,11 @@ export class AdminLoyaltyComponent implements OnInit {
   }
 
   formatDate(date: Date | string): string {
-    return new Date(date).toLocaleDateString();
+    return formatIstDate(date);
   }
 
   formatDateTime(date: Date | string): string {
-    return new Date(date).toLocaleString();
+    return formatIstDateTime(date);
   }
 
   getAccountStats() {

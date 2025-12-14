@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SalesService, Sales } from '../../services/sales.service';
 import { ExpenseService, ExpenseAnalytics } from '../../services/expense.service';
+import { getIstNow, getIstDateString, getIstDaysDifference, convertToIst, formatIstDate, getIstInputDate, getIstStartOfDay, getIstEndOfDay } from '../../utils/date-utils';
 
 interface SalesInsights {
   totalRevenue: number;
@@ -38,8 +39,12 @@ export class AdminAnalyticsComponent implements OnInit {
 
   // Date filters
   dateRange = {
-    startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: (() => {
+      const ist = getIstNow();
+      ist.setMonth(ist.getMonth() - 1);
+      return getIstInputDate(ist);
+    })(),
+    endDate: getIstDateString()
   };
 
   constructor(
@@ -98,8 +103,8 @@ export class AdminAnalyticsComponent implements OnInit {
   }
 
   filterByDateRange(sales: Sales[]): Sales[] {
-    const start = new Date(this.dateRange.startDate);
-    const end = new Date(this.dateRange.endDate);
+    const start = getIstStartOfDay(this.dateRange.startDate);
+    const end = getIstEndOfDay(this.dateRange.endDate);
     return sales.filter(sale => {
       const saleDate = new Date(sale.date);
       return saleDate >= start && saleDate <= end;
@@ -147,7 +152,7 @@ export class AdminAnalyticsComponent implements OnInit {
       .sort((a, b) => b.total - a.total);
 
     // Daily Average
-    const dateRange = (new Date(this.dateRange.endDate).getTime() - new Date(this.dateRange.startDate).getTime()) / (1000 * 60 * 60 * 24);
+    const dateRange = getIstDaysDifference(new Date(this.dateRange.endDate), new Date(this.dateRange.startDate));
     const dailyAverage = totalRevenue / Math.max(dateRange, 1);
 
     // Weekly Trend (last 4 weeks)
@@ -183,14 +188,14 @@ export class AdminAnalyticsComponent implements OnInit {
   calculateWeeklyTrend(): { week: string; total: number }[] {
     const weeks = new Map<string, number>();
     this.salesData.forEach(sale => {
-      const date = new Date(sale.date);
+      const date = convertToIst(new Date(sale.date));
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
-      const weekKey = weekStart.toISOString().split('T')[0];
+      const weekKey = getIstInputDate(weekStart);
       weeks.set(weekKey, (weeks.get(weekKey) || 0) + sale.totalAmount);
     });
     return Array.from(weeks.entries())
-      .map(([week, total]) => ({ week: this.formatDate(new Date(week)), total }))
+      .map(([week, total]) => ({ week: formatIstDate(new Date(week)), total }))
       .sort((a, b) => new Date(b.week).getTime() - new Date(a.week).getTime())
       .slice(0, 4);
   }
@@ -198,7 +203,7 @@ export class AdminAnalyticsComponent implements OnInit {
   calculateMonthlyComparison(): { month: string; total: number; transactions: number }[] {
     const months = new Map<string, { total: number; transactions: number }>();
     this.salesData.forEach(sale => {
-      const date = new Date(sale.date);
+      const date = convertToIst(new Date(sale.date));
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const existing = months.get(monthKey) || { total: 0, transactions: 0 };
       months.set(monthKey, {
@@ -208,7 +213,7 @@ export class AdminAnalyticsComponent implements OnInit {
     });
     return Array.from(months.entries())
       .map(([month, data]) => ({
-        month: new Date(month + '-01').toLocaleString('default', { month: 'short', year: 'numeric' }),
+        month: formatIstDate(new Date(month + '-01'), { month: 'short', year: 'numeric' }),
         ...data
       }))
       .sort((a, b) => b.month.localeCompare(a.month))
@@ -223,7 +228,7 @@ export class AdminAnalyticsComponent implements OnInit {
       days.set(day, (days.get(day) || 0) + sale.totalAmount);
     });
     return Array.from(days.entries())
-      .map(([day, total]) => ({ day: this.formatDate(new Date(day)), total }))
+      .map(([day, total]) => ({ day: formatIstDate(new Date(day)), total }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
   }
@@ -282,7 +287,7 @@ export class AdminAnalyticsComponent implements OnInit {
   }
 
   formatDate(date: Date): string {
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatIstDate(date, { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   formatPercentage(value: number): string {
