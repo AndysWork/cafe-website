@@ -4,6 +4,7 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace Cafe.Api.Models;
 
 // Daily Expense Record
+[BsonIgnoreExtraElements]
 public class Expense
 {
     [BsonId]
@@ -20,7 +21,7 @@ public class Expense
     public string ExpenseSource { get; set; } = "Offline"; // Offline or Online
 
     [BsonElement("amount")]
-    public decimal Amount { get; set; };
+    public decimal Amount { get; set; }
 
     [BsonElement("paymentMethod")]
     public string PaymentMethod { get; set; } = "Cash"; // Cash, Card, UPI, Bank Transfer
@@ -44,7 +45,7 @@ public class CreateExpenseRequest
     public DateTime Date { get; set; }
     public string ExpenseType { get; set; } = string.Empty;
     public string ExpenseSource { get; set; } = "Offline";
-    public decimal Amount { get; set; };
+    public decimal Amount { get; set; }
     public string PaymentMethod { get; set; } = "Cash";
     public string? Notes { get; set; }
 }
@@ -55,7 +56,7 @@ public class ExpenseResponse
     public DateTime Date { get; set; }
     public string ExpenseType { get; set; } = string.Empty;
     public string ExpenseSource { get; set; } = string.Empty;
-    public decimal Amount { get; set; };
+    public decimal Amount { get; set; }
     public string PaymentMethod { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public string RecordedBy { get; set; } = string.Empty;

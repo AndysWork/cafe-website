@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary } from '../../services/expense.service';
+import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary, HierarchicalExpense, MonthExpense, WeekExpense } from '../../services/expense.service';
 import { OfflineExpenseTypeService, OfflineExpenseType } from '../../services/offline-expense-type.service';
 import { OnlineExpenseTypeService, OnlineExpenseType } from '../../services/online-expense-type.service';
 
@@ -23,6 +23,12 @@ export class AdminExpensesComponent implements OnInit {
   editingId: string | null = null;
   summary: ExpenseSummary | null = null;
   summaryDate: string = new Date().toISOString().split('T')[0];
+
+  // Grouping - matching sales management
+  groupedExpenses: { [year: string]: { [month: string]: { [week: string]: Expense[] } } } = {};
+  expandedYears: Set<string> = new Set();
+  expandedMonths: Set<string> = new Set();
+  expandedWeeks: Set<string> = new Set();
 
   formData: CreateExpenseRequest = {
     date: new Date().toISOString().split('T')[0],
@@ -56,12 +62,79 @@ export class AdminExpensesComponent implements OnInit {
     this.expenseService.getAllExpenses().subscribe({
       next: (data) => {
         this.expenses = data;
+        this.groupExpensesByYearMonth();
         this.loading = false;
       },
       error: (error) => {
         console.error('Error loading expenses:', error);
         this.loading = false;
       }
+    });
+  }
+
+  groupExpensesByYearMonth() {
+    this.groupedExpenses = {};
+
+    // Sort expenses by date descending (newest first)
+    const sortedExpenses = [...this.filteredExpenses].sort((a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    sortedExpenses.forEach(expense => {
+      const date = new Date(expense.date);
+      const year = date.getFullYear().toString();
+      const month = date.toLocaleString('default', { month: 'long' });
+      const weekLabel = this.getWeekLabel(date);
+
+      if (!this.groupedExpenses[year]) {
+        this.groupedExpenses[year] = {};
+      }
+      if (!this.groupedExpenses[year][month]) {
+        this.groupedExpenses[year][month] = {};
+      }
+      if (!this.groupedExpenses[year][month][weekLabel]) {
+        this.groupedExpenses[year][month][weekLabel] = [];
+      }
+      this.groupedExpenses[year][month][weekLabel].push(expense);
+    });
+
+    // Auto-expand current year, month, and week
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear().toString();
+    const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
+    const currentWeek = this.getWeekLabel(currentDate);
+    this.expandedYears.add(currentYear);
+    this.expandedMonths.add(`${currentYear}-${currentMonth}`);
+    this.expandedWeeks.add(`${currentYear}-${currentMonth}-${currentWeek}`);
+  }
+
+  getWeekLabel(date: Date): string {
+    const day = date.getDate();
+    const weekNum = Math.ceil(day / 7);
+    const startDay = (weekNum - 1) * 7 + 1;
+    const endDay = Math.min(weekNum * 7, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate());
+    return `Week ${weekNum} (${startDay}-${endDay})`;
+  }
+
+  getYears(): string[] {
+    return Object.keys(this.groupedExpenses).sort((a, b) => parseInt(b) - parseInt(a));
+  }
+
+  getMonths(year: string): string[] {
+    if (!this.groupedExpenses[year]) return [];
+    const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    return Object.keys(this.groupedExpenses[year]).sort((a, b) =>
+      monthOrder.indexOf(b) - monthOrder.indexOf(a)
+    );
+  }
+
+  getWeeks(year: string, month: string): string[] {
+    if (!this.groupedExpenses[year]?.[month]) return [];
+    return Object.keys(this.groupedExpenses[year][month]).sort((a, b) => {
+      const weekNumA = parseInt(a.match(/Week (\d+)/)?.[1] || '0');
+      const weekNumB = parseInt(b.match(/Week (\d+)/)?.[1] || '0');
+      return weekNumB - weekNumA; // Descending order
     });
   }
 
@@ -107,6 +180,82 @@ export class AdminExpensesComponent implements OnInit {
 
   switchExpenseSource(source: 'Offline' | 'Online') {
     this.currentExpenseSource = source;
+    this.formData.expenseSource = source;
+    this.groupExpensesByYearMonth();
+  }
+
+  toggleYear(year: string) {
+    if (this.expandedYears.has(year)) {
+      this.expandedYears.delete(year);
+      // Collapse all months and weeks in this year
+      this.getMonths(year).forEach(month => {
+        this.expandedMonths.delete(`${year}-${month}`);
+        this.getWeeks(year, month).forEach(week => {
+          this.expandedWeeks.delete(`${year}-${month}-${week}`);
+        });
+      });
+    } else {
+      this.expandedYears.add(year);
+    }
+  }
+
+  toggleMonth(year: string, month: string) {
+    const key = `${year}-${month}`;
+    if (this.expandedMonths.has(key)) {
+      this.expandedMonths.delete(key);
+      // Collapse all weeks in this month
+      this.getWeeks(year, month).forEach(week => {
+        this.expandedWeeks.delete(`${year}-${month}-${week}`);
+      });
+    } else {
+      this.expandedMonths.add(key);
+    }
+  }
+
+  toggleWeek(year: string, month: string, week: string) {
+    const key = `${year}-${month}-${week}`;
+    if (this.expandedWeeks.has(key)) {
+      this.expandedWeeks.delete(key);
+    } else {
+      this.expandedWeeks.add(key);
+    }
+  }
+
+  isYearExpanded(year: string): boolean {
+    return this.expandedYears.has(year);
+  }
+
+  isMonthExpanded(year: string, month: string): boolean {
+    return this.expandedMonths.has(`${year}-${month}`);
+  }
+
+  isWeekExpanded(year: string, month: string, week: string): boolean {
+    return this.expandedWeeks.has(`${year}-${month}-${week}`);
+  }
+
+  getWeekTotal(year: string, month: string, week: string): number {
+    if (!this.groupedExpenses[year]?.[month]?.[week]) return 0;
+    return this.groupedExpenses[year][month][week].reduce((sum, expense) => sum + expense.amount, 0);
+  }
+
+  getMonthTotal(year: string, month: string): number {
+    if (!this.groupedExpenses[year]?.[month]) return 0;
+    let total = 0;
+    Object.values(this.groupedExpenses[year][month]).forEach(weekExpenses => {
+      weekExpenses.forEach(expense => total += expense.amount);
+    });
+    return total;
+  }
+
+  getYearTotal(year: string): number {
+    if (!this.groupedExpenses[year]) return 0;
+    let total = 0;
+    Object.values(this.groupedExpenses[year]).forEach(monthWeeks => {
+      Object.values(monthWeeks).forEach(weekExpenses => {
+        weekExpenses.forEach(expense => total += expense.amount);
+      });
+    });
+    return total;
   }
 
   initializeOfflineExpenseTypes() {

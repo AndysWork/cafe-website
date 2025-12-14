@@ -7,6 +7,7 @@ export interface Expense {
   id: string;
   date: string;
   expenseType: string;
+  expenseSource: string;
   amount: number;
   paymentMethod: string;
   notes?: string;
@@ -28,6 +29,85 @@ export interface ExpenseSummary {
   date: string;
   totalExpenses: number;
   expenseTypeBreakdown: { [key: string]: number };
+}
+
+export interface HierarchicalExpense {
+  year: number;
+  totalAmount: number;
+  expenseCount: number;
+  months: MonthExpense[];
+}
+
+export interface MonthExpense {
+  month: number;
+  monthName: string;
+  totalAmount: number;
+  expenseCount: number;
+  weeks: WeekExpense[];
+}
+
+export interface WeekExpense {
+  week: number;
+  weekLabel: string;
+  totalAmount: number;
+  expenseCount: number;
+  expenses: Expense[];
+}
+
+export interface ExpenseAnalytics {
+  summary: {
+    totalExpenses: number;
+    expenseCount: number;
+    averageExpense: number;
+    dailyAverage: number;
+    growthRate: number;
+    dateRange: { startDate: string; endDate: string };
+    source: string;
+  };
+  topExpenseTypes: {
+    expenseType: string;
+    totalAmount: number;
+    count: number;
+    averageAmount: number;
+    percentage: number;
+  }[];
+  paymentMethodBreakdown: {
+    paymentMethod: string;
+    totalAmount: number;
+    count: number;
+    percentage: number;
+  }[];
+  sourceBreakdown: {
+    source: string;
+    totalAmount: number;
+    count: number;
+    percentage: number;
+  }[];
+  weeklyTrend: {
+    weekStart: string;
+    totalAmount: number;
+    count: number;
+  }[];
+  monthlyComparison: {
+    year: number;
+    month: number;
+    monthName: string;
+    totalAmount: number;
+    count: number;
+    averageExpense: number;
+  }[];
+  peakExpenseDays: {
+    date: string;
+    totalAmount: number;
+    count: number;
+  }[];
+  expenseTypesTrend: {
+    expenseType: string;
+    monthlyTrend: {
+      monthName: string;
+      totalAmount: number;
+    }[];
+  }[];
 }
 
 @Injectable({
@@ -72,6 +152,19 @@ export class ExpenseService {
     const formData = new FormData();
     formData.append('file', file);
     return this.http.post(`${this.apiUrl}/upload?source=${expenseSource}`, formData);
+  }
+
+  // Get hierarchical expenses (Year -> Month -> Week)
+  getHierarchicalExpenses(source: string = 'Offline'): Observable<HierarchicalExpense[]> {
+    return this.http.get<HierarchicalExpense[]>(`${this.apiUrl}/hierarchical?source=${source}`);
+  }
+
+  // Get expense analytics
+  getExpenseAnalytics(startDate?: string, endDate?: string, source: string = 'All'): Observable<ExpenseAnalytics> {
+    let url = `${this.apiUrl}/analytics?source=${source}`;
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate) url += `&endDate=${endDate}`;
+    return this.http.get<ExpenseAnalytics>(url);
   }
 
   // Get expense type options

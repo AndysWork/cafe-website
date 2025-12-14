@@ -912,6 +912,7 @@ public class MongoService
             Date = date,
             TotalExpenses = expenses.Sum(e => e.Amount),
             ExpenseTypeBreakdown = expenses
+                .Where(e => !string.IsNullOrEmpty(e.ExpenseType))
                 .GroupBy(e => e.ExpenseType)
                 .ToDictionary(g => g.Key, g => g.Sum(e => e.Amount))
         };

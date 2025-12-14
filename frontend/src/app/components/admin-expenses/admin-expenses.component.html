@@ -67,38 +67,92 @@
       <p>No {{currentExpenseSource.toLowerCase()}} expense records found</p>
     </div>
 
-    <div *ngFor="let expense of filteredExpenses" class="expense-card">
-      <div class="expense-header">
-        <div class="expense-type" [style.color]="getExpenseTypeColor(expense.expenseType)">
-          {{ getExpenseTypeIcon(expense.expenseType) }} {{ expense.expenseType }}
+    <!-- Year-Month Grouped View -->
+    <div *ngIf="!loading && filteredExpenses.length > 0" class="grouped-expenses">
+      <div *ngFor="let year of getYears()" class="year-group">
+        <!-- Year Header -->
+        <div class="year-header" (click)="toggleYear(year)">
+          <div class="year-title">
+            <span class="expand-icon">{{ isYearExpanded(year) ? '▼' : '▶' }}</span>
+            <strong>📅 {{ year }}</strong>
+            <span class="year-stats">{{ getMonths(year).length }} months</span>
+          </div>
+          <div class="year-total">
+            {{ formatCurrency(getYearTotal(year)) }}
+          </div>
         </div>
-        <div class="expense-amount">
-          {{ formatCurrency(expense.amount) }}
-        </div>
-      </div>
 
-      <div class="expense-details">
-        <div class="detail-row">
-          <span class="label">📅 Date:</span>
-          <span class="value">{{ formatDate(expense.date) }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">💳 Payment:</span>
-          <span class="value payment-method">{{ expense.paymentMethod }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">👤 Recorded By:</span>
-          <span class="value">{{ expense.recordedBy }}</span>
-        </div>
-      </div>
+        <!-- Months Container -->
+        <div *ngIf="isYearExpanded(year)" class="months-container">
+          <div *ngFor="let month of getMonths(year)" class="month-group">
+            <!-- Month Header -->
+            <div class="month-header" (click)="toggleMonth(year, month)">
+              <div class="month-title">
+                <span class="expand-icon">{{ isMonthExpanded(year, month) ? '▼' : '▶' }}</span>
+                <strong>{{ month }}</strong>
+                <span class="month-stats">{{ getWeeks(year, month).length }} weeks</span>
+              </div>
+              <div class="month-total">
+                {{ formatCurrency(getMonthTotal(year, month)) }}
+              </div>
+            </div>
 
-      <div *ngIf="expense.notes" class="expense-notes">
-        <em>Note: {{ expense.notes }}</em>
-      </div>
+            <!-- Weeks Container -->
+            <div *ngIf="isMonthExpanded(year, month)" class="weeks-container">
+              <div *ngFor="let week of getWeeks(year, month)" class="week-group">
+                <!-- Week Header -->
+                <div class="week-header" (click)="toggleWeek(year, month, week)">
+                  <div class="week-title">
+                    <span class="expand-icon">{{ isWeekExpanded(year, month, week) ? '▼' : '▶' }}</span>
+                    <strong>{{ week }}</strong>
+                    <span class="week-stats">{{ groupedExpenses[year][month][week].length }} records</span>
+                  </div>
+                  <div class="week-total">
+                    {{ formatCurrency(getWeekTotal(year, month, week)) }}
+                  </div>
+                </div>
 
-      <div class="expense-actions">
-        <button class="btn-edit" (click)="openEditModal(expense)">✏️ Edit</button>
-        <button class="btn-delete" (click)="deleteExpense(expense.id)">🗑️ Delete</button>
+                <!-- Expense Cards -->
+                <div *ngIf="isWeekExpanded(year, month, week)" class="expense-cards">
+                  <div *ngFor="let expense of groupedExpenses[year][month][week]" class="expense-card">
+                    <div class="expense-header">
+                      <div class="expense-type" [style.color]="getExpenseTypeColor(expense.expenseType)">
+                        {{ getExpenseTypeIcon(expense.expenseType) }} {{ expense.expenseType }}
+                      </div>
+                      <div class="expense-amount">
+                        {{ formatCurrency(expense.amount) }}
+                      </div>
+                    </div>
+
+                    <div class="expense-details">
+                      <div class="detail-row">
+                        <span class="label">📅 Date:</span>
+                        <span class="value">{{ formatDate(expense.date) }}</span>
+                      </div>
+                      <div class="detail-row">
+                        <span class="label">💳 Payment:</span>
+                        <span class="value payment-method">{{ expense.paymentMethod }}</span>
+                      </div>
+                      <div class="detail-row">
+                        <span class="label">👤 Recorded By:</span>
+                        <span class="value">{{ expense.recordedBy }}</span>
+                      </div>
+                    </div>
+
+                    <div *ngIf="expense.notes" class="expense-notes">
+                      <em>Note: {{ expense.notes }}</em>
+                    </div>
+
+                    <div class="expense-actions">
+                      <button class="btn-edit" (click)="openEditModal(expense)">✏️ Edit</button>
+                      <button class="btn-delete" (click)="deleteExpense(expense.id)">🗑️ Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

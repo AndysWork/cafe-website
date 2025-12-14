@@ -1,6 +1,23 @@
 <div class="admin-analytics-container">
   <div class="page-header">
-    <h1>📈 Sales Analytics</h1>
+    <h1>📈 Analytics Dashboard</h1>
+
+    <!-- Analytics Tab Switcher -->
+    <div class="analytics-tabs">
+      <button
+        class="tab-btn"
+        [class.active]="selectedAnalyticsTab === 'sales'"
+        (click)="switchTab('sales')">
+        💰 Sales Analytics
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="selectedAnalyticsTab === 'expenses'"
+        (click)="switchTab('expenses')">
+        💸 Expense Analytics
+      </button>
+    </div>
+
     <div class="date-filter">
       <label>From:</label>
       <input type="date" [(ngModel)]="dateRange.startDate" (change)="onDateRangeChange()">
@@ -8,6 +25,10 @@
       <input type="date" [(ngModel)]="dateRange.endDate" (change)="onDateRangeChange()">
     </div>
   </div>
+
+  <!-- Sales Analytics Section -->
+  <div *ngIf="selectedAnalyticsTab === 'sales'">
+    <h2 class="section-title">💰 Sales Analytics</h2>
 
   <div *ngIf="loading" class="loading">
     <p>Loading insights...</p>
@@ -149,4 +170,182 @@
       </div>
     </div>
   </div>
+</div>
+
+  <!-- Expense Analytics Section -->
+  <div *ngIf="selectedAnalyticsTab === 'expenses'" class="expense-analytics-section">
+    <div class="section-header">
+      <h2 class="section-title">💸 Expense Analytics</h2>
+
+      <!-- Expense Source Filter -->
+      <div class="expense-source-filter">
+        <button
+          class="filter-btn"
+          [class.active]="expenseSource === 'All'"
+          (click)="switchExpenseSource('All')">
+          🌍 All Expenses
+        </button>
+        <button
+          class="filter-btn"
+          [class.active]="expenseSource === 'Offline'"
+          (click)="switchExpenseSource('Offline')">
+          🏪 Offline
+        </button>
+        <button
+          class="filter-btn"
+          [class.active]="expenseSource === 'Online'"
+          (click)="switchExpenseSource('Online')">
+          🌐 Online
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="expenseLoading" class="loading">
+      <p>Loading expense analytics...</p>
+    </div>
+
+    <div *ngIf="!expenseLoading && !expenseAnalytics" class="empty-state">
+      <p>No expense data available for the selected date range</p>
+    </div>
+
+    <div *ngIf="!expenseLoading && expenseAnalytics" class="insights-container">
+      <!-- Summary Cards -->
+      <div class="summary-cards">
+        <div class="summary-card expense-total">
+          <div class="card-icon">💸</div>
+          <div class="card-content">
+            <h3>Total Expenses</h3>
+            <p class="card-value">{{ formatCurrency(expenseAnalytics.summary.totalExpenses) }}</p>
+            <span class="card-subtext">{{ expenseAnalytics.summary.expenseCount }} transactions</span>
+          </div>
+        </div>
+
+        <div class="summary-card average-expense">
+          <div class="card-icon">📊</div>
+          <div class="card-content">
+            <h3>Avg Expense</h3>
+            <p class="card-value">{{ formatCurrency(expenseAnalytics.summary.averageExpense) }}</p>
+            <span class="card-subtext">Per transaction</span>
+          </div>
+        </div>
+
+        <div class="summary-card daily-expense">
+          <div class="card-icon">📅</div>
+          <div class="card-content">
+            <h3>Daily Average</h3>
+            <p class="card-value">{{ formatCurrency(expenseAnalytics.summary.dailyAverage) }}</p>
+            <span class="card-subtext">Per day</span>
+          </div>
+        </div>
+
+        <div class="summary-card growth-rate">
+          <div class="card-icon">{{ expenseAnalytics.summary.growthRate >= 0 ? '📈' : '📉' }}</div>
+          <div class="card-content">
+            <h3>Growth Rate</h3>
+            <p class="card-value" [class.positive]="expenseAnalytics.summary.growthRate >= 0" [class.negative]="expenseAnalytics.summary.growthRate < 0">
+              {{ formatPercentage(expenseAnalytics.summary.growthRate) }}
+            </p>
+            <span class="card-subtext">Period comparison</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Expense Types -->
+      <div class="insight-section">
+        <h2>🏆 Top Expense Categories</h2>
+        <div class="top-items-grid">
+          <div *ngFor="let item of expenseAnalytics.topExpenseTypes; let i = index"
+               class="top-item-card"
+               [class.top-1]="i === 0"
+               [class.top-2]="i === 1"
+               [class.top-3]="i === 2">
+            <div class="item-rank">{{ i + 1 }}</div>
+            <div class="item-details">
+              <h4>{{ getExpenseTypeIcon(item.expenseType) }} {{ item.expenseType }}</h4>
+              <p>Count: {{ item.count }} ({{ item.percentage.toFixed(1) }}%)</p>
+              <p>Avg: {{ formatCurrency(item.averageAmount) }}</p>
+              <p class="item-revenue">{{ formatCurrency(item.totalAmount) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Source Breakdown (if All) -->
+      <div *ngIf="expenseSource === 'All' && expenseAnalytics.sourceBreakdown.length > 0" class="insight-section">
+        <h2>📍 Expense Source Breakdown</h2>
+        <div class="payment-breakdown">
+          <div *ngFor="let source of expenseAnalytics.sourceBreakdown" class="payment-card">
+            <div class="payment-header">
+              <h3>{{ source.source === 'Offline' ? '🏪' : '🌐' }} {{ source.source }}</h3>
+              <span class="payment-count">{{ source.count }} expenses</span>
+            </div>
+            <div class="payment-amount">{{ formatCurrency(source.totalAmount) }}</div>
+            <div class="payment-bar">
+              <div class="payment-bar-fill" [style.width.%]="source.percentage"></div>
+            </div>
+            <span class="payment-percentage">{{ source.percentage.toFixed(1) }}% of total</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Method Breakdown -->
+      <div class="insight-section">
+        <h2>💳 Payment Method Breakdown</h2>
+        <div class="payment-breakdown">
+          <div *ngFor="let payment of expenseAnalytics.paymentMethodBreakdown" class="payment-card">
+            <div class="payment-header">
+              <h3>{{ payment.paymentMethod }}</h3>
+              <span class="payment-count">{{ payment.count }} transactions</span>
+            </div>
+            <div class="payment-amount">{{ formatCurrency(payment.totalAmount) }}</div>
+            <div class="payment-bar">
+              <div class="payment-bar-fill" [style.width.%]="payment.percentage"></div>
+            </div>
+            <span class="payment-percentage">{{ payment.percentage.toFixed(1) }}% of total</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weekly Trend -->
+      <div class="insight-section">
+        <h2>📊 Weekly Expense Trend</h2>
+        <div class="trend-chart">
+          <div *ngFor="let week of expenseAnalytics.weeklyTrend" class="trend-bar-container">
+            <div class="trend-bar" [style.height.%]="(week.totalAmount / getMaxExpenseWeekly()) * 100">
+              <span class="trend-value">{{ formatCurrency(week.totalAmount) }}</span>
+            </div>
+            <span class="trend-label">{{ week.weekStart }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Comparison -->
+      <div class="insight-section">
+        <h2>📈 Monthly Expense Comparison</h2>
+        <div class="monthly-chart">
+          <div *ngFor="let month of expenseAnalytics.monthlyComparison" class="monthly-bar-container">
+            <div class="monthly-bar" [style.height.%]="(month.totalAmount / getMaxExpenseMonthly()) * 100">
+              <span class="monthly-value">{{ formatCurrency(month.totalAmount) }}</span>
+              <span class="monthly-transactions">{{ month.count }} expenses</span>
+            </div>
+            <span class="monthly-label">{{ month.monthName }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Peak Expense Days -->
+      <div class="insight-section">
+        <h2>🔥 Top 10 Highest Expense Days</h2>
+        <div class="peak-days-list">
+          <div *ngFor="let day of expenseAnalytics.peakExpenseDays; let i = index" class="peak-day-card">
+            <div class="peak-rank">{{ i + 1 }}</div>
+            <div class="peak-date">{{ day.date }}</div>
+            <div class="peak-count">{{ day.count }} expenses</div>
+            <div class="peak-amount">{{ formatCurrency(day.totalAmount) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>

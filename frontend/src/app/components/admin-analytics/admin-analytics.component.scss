@@ -19,6 +19,37 @@
       color: #333;
     }
 
+    .analytics-tabs {
+      display: flex;
+      gap: 0.5rem;
+      background: #e5e7eb;
+      padding: 0.5rem;
+      border-radius: 12px;
+
+      .tab-btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 1rem;
+        color: #4b5563;
+        transition: all 0.3s ease;
+
+        &:hover {
+          background: rgba(99, 102, 241, 0.1);
+          color: #6366f1;
+        }
+
+        &.active {
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          color: white;
+          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+        }
+      }
+    }
+
     .date-filter {
       display: flex;
       align-items: center;
@@ -43,6 +74,53 @@
           outline: none;
           border-color: #10b981;
           box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+      }
+    }
+  }
+
+  .section-title {
+    font-size: 1.75rem;
+    color: #1f2937;
+    margin: 2rem 0 1.5rem 0;
+    font-weight: 700;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+
+    .expense-source-filter {
+      display: flex;
+      gap: 0.5rem;
+      background: #f3f4f6;
+      padding: 0.5rem;
+      border-radius: 10px;
+
+      .filter-btn {
+        padding: 0.6rem 1.2rem;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.95rem;
+        color: #6b7280;
+        transition: all 0.3s ease;
+
+        &:hover {
+          background: rgba(245, 158, 11, 0.1);
+          color: #f59e0b;
+        }
+
+        &.active {
+          background: linear-gradient(135deg, #f59e0b, #dc2626);
+          color: white;
+          box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
         }
       }
     }
@@ -438,6 +516,12 @@
             flex: 1;
             font-size: 1.1rem;
             color: #333;
+          }
+
+          .peak-count {
+            font-size: 0.9rem;
+            color: #6b7280;
+            min-width: 100px;
           }
 
           .peak-amount {

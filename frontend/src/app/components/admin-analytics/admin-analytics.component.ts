@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SalesService, Sales } from '../../services/sales.service';
+import { ExpenseService, ExpenseAnalytics } from '../../services/expense.service';
 
 interface SalesInsights {
   totalRevenue: number;
@@ -29,16 +30,56 @@ export class AdminAnalyticsComponent implements OnInit {
   salesData: Sales[] = [];
   insights: SalesInsights | null = null;
 
+  // Expense Analytics
+  expenseAnalytics: ExpenseAnalytics | null = null;
+  expenseLoading = false;
+  selectedAnalyticsTab: 'sales' | 'expenses' = 'sales';
+  expenseSource: 'All' | 'Offline' | 'Online' = 'All';
+
   // Date filters
   dateRange = {
     startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   };
 
-  constructor(private salesService: SalesService) {}
+  constructor(
+    private salesService: SalesService,
+    private expenseService: ExpenseService
+  ) {}
 
   ngOnInit() {
     this.loadSalesInsights();
+    this.loadExpenseAnalytics();
+  }
+
+  switchTab(tab: 'sales' | 'expenses') {
+    this.selectedAnalyticsTab = tab;
+    if (tab === 'expenses' && !this.expenseAnalytics) {
+      this.loadExpenseAnalytics();
+    }
+  }
+
+  switchExpenseSource(source: 'All' | 'Offline' | 'Online') {
+    this.expenseSource = source;
+    this.loadExpenseAnalytics();
+  }
+
+  loadExpenseAnalytics() {
+    this.expenseLoading = true;
+    this.expenseService.getExpenseAnalytics(
+      this.dateRange.startDate,
+      this.dateRange.endDate,
+      this.expenseSource
+    ).subscribe({
+      next: (data) => {
+        this.expenseAnalytics = data;
+        this.expenseLoading = false;
+      },
+      error: (err) => {
+        console.error('Error loading expense analytics:', err);
+        this.expenseLoading = false;
+      }
+    });
   }
 
   loadSalesInsights() {
@@ -233,6 +274,7 @@ export class AdminAnalyticsComponent implements OnInit {
 
   onDateRangeChange() {
     this.loadSalesInsights();
+    this.loadExpenseAnalytics();
   }
 
   formatCurrency(amount: number): string {
@@ -268,5 +310,28 @@ export class AdminAnalyticsComponent implements OnInit {
       'Others': '📦'
     };
     return icons[category] || '📦';
+  }
+
+  getExpenseTypeIcon(type: string): string {
+    const icons: { [key: string]: string } = {
+      'Milk': '🥛',
+      'Tea': '🍵',
+      'Rent': '🏠',
+      'Salary': '💰',
+      'Grocerry': '🛒',
+      'Electricity': '⚡',
+      'Water': '💧'
+    };
+    return icons[type] || '💸';
+  }
+
+  getMaxExpenseWeekly(): number {
+    if (!this.expenseAnalytics?.weeklyTrend.length) return 1;
+    return Math.max(...this.expenseAnalytics.weeklyTrend.map(w => w.totalAmount));
+  }
+
+  getMaxExpenseMonthly(): number {
+    if (!this.expenseAnalytics?.monthlyComparison.length) return 1;
+    return Math.max(...this.expenseAnalytics.monthlyComparison.map(m => m.totalAmount));
   }
 }

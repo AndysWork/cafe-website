@@ -19,7 +19,7 @@ public class AdminFunction
 
     [Function("ClearCategories")]
     public async Task<HttpResponseData> ClearCategories(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/clear/categories")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "api/admin/clear/categories")] HttpRequestData req)
     {
         // Validate admin authorization
         var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -33,7 +33,7 @@ public class AdminFunction
 
     [Function("ClearSubCategories")]
     public async Task<HttpResponseData> ClearSubCategories(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/clear/subcategories")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "api/admin/clear/subcategories")] HttpRequestData req)
     {
         // Validate admin authorization
         var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);

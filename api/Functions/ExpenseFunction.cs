@@ -35,7 +35,9 @@ public class ExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
+            _log.LogInformation("Fetching all expenses from database...");
             var expenses = await _mongo.GetAllExpensesAsync();
+            _log.LogInformation($"Successfully fetched {expenses.Count} expenses");
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(expenses);
@@ -44,8 +46,13 @@ public class ExpenseFunction
         catch (Exception ex)
         {
             _log.LogError($"Error getting expenses: {ex.Message}");
+            _log.LogError($"Stack trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                _log.LogError($"Inner exception: {ex.InnerException.Message}");
+            }
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to get expenses" });
+            await error.WriteAsJsonAsync(new { error = "Failed to get expenses", details = ex.Message });
             return error;
         }
     }
@@ -126,6 +133,278 @@ public class ExpenseFunction
             await error.WriteAsJsonAsync(new { error = "Failed to get expense summary" });
             return error;
         }
+    }
+
+    // GET: Get expenses grouped by year/month/week (Admin only)
+    [Function("GetExpensesHierarchical")]
+    public async Task<HttpResponseData> GetExpensesHierarchical(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "expenses/hierarchical")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            
+            if (!isAuthorized)
+                return errorResponse!;
+
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var source = query["source"] ?? "Offline"; // "Offline", "Online", or "All"
+
+            var allExpenses = await _mongo.GetAllExpensesAsync();
+
+            // Filter by source
+            var filteredExpenses = source == "All" 
+                ? allExpenses 
+                : allExpenses.Where(e => e.ExpenseSource == source).ToList();
+
+            // Group by Year -> Month -> Week
+            var hierarchical = filteredExpenses
+                .GroupBy(e => e.Date.Year)
+                .Select(yearGroup => new
+                {
+                    Year = yearGroup.Key,
+                    TotalAmount = yearGroup.Sum(e => e.Amount),
+                    ExpenseCount = yearGroup.Count(),
+                    Months = yearGroup
+                        .GroupBy(e => e.Date.Month)
+                        .Select(monthGroup => new
+                        {
+                            Month = monthGroup.Key,
+                            MonthName = new DateTime(yearGroup.Key, monthGroup.Key, 1).ToString("MMMM"),
+                            TotalAmount = monthGroup.Sum(e => e.Amount),
+                            ExpenseCount = monthGroup.Count(),
+                            Weeks = monthGroup
+                                .GroupBy(e => GetWeekOfMonth(e.Date))
+                                .Select(weekGroup => new
+                                {
+                                    Week = weekGroup.Key,
+                                    WeekLabel = $"Week {weekGroup.Key}",
+                                    TotalAmount = weekGroup.Sum(e => e.Amount),
+                                    ExpenseCount = weekGroup.Count(),
+                                    Expenses = weekGroup.OrderByDescending(e => e.Date).ToList()
+                                })
+                                .OrderBy(w => w.Week)
+                                .ToList()
+                        })
+                        .OrderByDescending(m => m.Month)
+                        .ToList()
+                })
+                .OrderByDescending(y => y.Year)
+                .ToList();
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(hierarchical);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error getting hierarchical expenses: {ex.Message}");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to get hierarchical expenses" });
+            return error;
+        }
+    }
+
+    // GET: Get expense analytics (Admin only)
+    [Function("GetExpenseAnalytics")]
+    public async Task<HttpResponseData> GetExpenseAnalytics(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "expenses/analytics")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            
+            if (!isAuthorized)
+                return errorResponse!;
+
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var startDateStr = query["startDate"];
+            var endDateStr = query["endDate"];
+            var source = query["source"] ?? "All"; // "Offline", "Online", or "All"
+
+            DateTime startDate = string.IsNullOrEmpty(startDateStr) 
+                ? DateTime.UtcNow.AddMonths(-6) 
+                : DateTime.Parse(startDateStr);
+            DateTime endDate = string.IsNullOrEmpty(endDateStr) 
+                ? DateTime.UtcNow 
+                : DateTime.Parse(endDateStr);
+
+            var allExpenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate);
+
+            // Filter by source
+            var expenses = source == "All" 
+                ? allExpenses 
+                : allExpenses.Where(e => e.ExpenseSource == source).ToList();
+
+            // Calculate analytics
+            var totalExpenses = expenses.Sum(e => e.Amount);
+            var expenseCount = expenses.Count;
+            var averageExpense = expenseCount > 0 ? totalExpenses / expenseCount : 0;
+
+            // Top expense types
+            var topExpenseTypes = expenses
+                .GroupBy(e => e.ExpenseType)
+                .Select(g => new
+                {
+                    ExpenseType = g.Key,
+                    TotalAmount = g.Sum(e => e.Amount),
+                    Count = g.Count(),
+                    AverageAmount = g.Average(e => e.Amount),
+                    Percentage = totalExpenses > 0 ? (g.Sum(e => e.Amount) / totalExpenses) * 100 : 0
+                })
+                .OrderByDescending(x => x.TotalAmount)
+                .Take(10)
+                .ToList();
+
+            // Payment method breakdown
+            var paymentMethodBreakdown = expenses
+                .GroupBy(e => e.PaymentMethod)
+                .Select(g => new
+                {
+                    PaymentMethod = g.Key,
+                    TotalAmount = g.Sum(e => e.Amount),
+                    Count = g.Count(),
+                    Percentage = totalExpenses > 0 ? (g.Sum(e => e.Amount) / totalExpenses) * 100 : 0
+                })
+                .OrderByDescending(x => x.TotalAmount)
+                .ToList();
+
+            // Source breakdown (if All)
+            var sourceBreakdown = expenses
+                .GroupBy(e => e.ExpenseSource)
+                .Select(g => new
+                {
+                    Source = g.Key,
+                    TotalAmount = g.Sum(e => e.Amount),
+                    Count = g.Count(),
+                    Percentage = totalExpenses > 0 ? (g.Sum(e => e.Amount) / totalExpenses) * 100 : 0
+                })
+                .OrderByDescending(x => x.TotalAmount)
+                .ToList();
+
+            // Daily average
+            var dateRange = (endDate - startDate).Days + 1;
+            var dailyAverage = totalExpenses / Math.Max(dateRange, 1);
+
+            // Weekly trend (last 8 weeks)
+            var weeklyTrend = expenses
+                .GroupBy(e => GetWeekStartDate(e.Date))
+                .Select(g => new
+                {
+                    WeekStart = g.Key,
+                    TotalAmount = g.Sum(e => e.Amount),
+                    Count = g.Count()
+                })
+                .OrderByDescending(x => x.WeekStart)
+                .Take(8)
+                .OrderBy(x => x.WeekStart)
+                .ToList();
+
+            // Monthly comparison (last 12 months)
+            var monthlyComparison = expenses
+                .GroupBy(e => new { Year = e.Date.Year, Month = e.Date.Month })
+                .Select(g => new
+                {
+                    Year = g.Key.Year,
+                    Month = g.Key.Month,
+                    MonthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                    TotalAmount = g.Sum(e => e.Amount),
+                    Count = g.Count(),
+                    AverageExpense = g.Average(e => e.Amount)
+                })
+                .OrderByDescending(x => x.Year)
+                .ThenByDescending(x => x.Month)
+                .Take(12)
+                .OrderBy(x => x.Year)
+                .ThenBy(x => x.Month)
+                .ToList();
+
+            // Peak expense days
+            var peakExpenseDays = expenses
+                .GroupBy(e => e.Date.Date)
+                .Select(g => new
+                {
+                    Date = g.Key,
+                    TotalAmount = g.Sum(e => e.Amount),
+                    Count = g.Count()
+                })
+                .OrderByDescending(x => x.TotalAmount)
+                .Take(10)
+                .ToList();
+
+            // Growth rate calculation (first half vs second half)
+            var sortedExpenses = expenses.OrderBy(e => e.Date).ToList();
+            var midPoint = sortedExpenses.Count / 2;
+            var firstHalf = sortedExpenses.Take(midPoint).Sum(e => e.Amount);
+            var secondHalf = sortedExpenses.Skip(midPoint).Sum(e => e.Amount);
+            var growthRate = firstHalf > 0 ? ((secondHalf - firstHalf) / firstHalf) * 100 : 0;
+
+            // Expense trends by type over time
+            var expenseTypesTrend = expenses
+                .GroupBy(e => e.ExpenseType)
+                .Select(typeGroup => new
+                {
+                    ExpenseType = typeGroup.Key,
+                    MonthlyTrend = typeGroup
+                        .GroupBy(e => new { Year = e.Date.Year, Month = e.Date.Month })
+                        .Select(g => new
+                        {
+                            MonthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                            TotalAmount = g.Sum(e => e.Amount)
+                        })
+                        .OrderBy(x => x.MonthName)
+                        .ToList()
+                })
+                .Where(x => x.MonthlyTrend.Count > 0)
+                .ToList();
+
+            var analytics = new
+            {
+                Summary = new
+                {
+                    TotalExpenses = totalExpenses,
+                    ExpenseCount = expenseCount,
+                    AverageExpense = averageExpense,
+                    DailyAverage = dailyAverage,
+                    GrowthRate = growthRate,
+                    DateRange = new { StartDate = startDate, EndDate = endDate },
+                    Source = source
+                },
+                TopExpenseTypes = topExpenseTypes,
+                PaymentMethodBreakdown = paymentMethodBreakdown,
+                SourceBreakdown = sourceBreakdown,
+                WeeklyTrend = weeklyTrend,
+                MonthlyComparison = monthlyComparison,
+                PeakExpenseDays = peakExpenseDays,
+                ExpenseTypesTrend = expenseTypesTrend
+            };
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(analytics);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error getting expense analytics: {ex.Message}");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to get expense analytics" });
+            return error;
+        }
+    }
+
+    private static int GetWeekOfMonth(DateTime date)
+    {
+        var firstDayOfMonth = new DateTime(date.Year, date.Month, 1);
+        return (date.Day - 1) / 7 + 1;
+    }
+
+    private static DateTime GetWeekStartDate(DateTime date)
+    {
+        var dayOfWeek = (int)date.DayOfWeek;
+        var diff = dayOfWeek == 0 ? -6 : 1 - dayOfWeek; // Monday as start of week
+        return date.AddDays(diff).Date;
     }
 
     // POST: Create new expense (Admin only)
@@ -213,11 +492,8 @@ public class ExpenseFunction
 
             existingExpense.Date = expenseRequest.Date;
             existingExpense.ExpenseType = expenseRequest.ExpenseType;
-            existingExpense.Description = expenseRequest.Description;
             existingExpense.Amount = expenseRequest.Amount;
-            existingExpense.Vendor = expenseRequest.Vendor;
             existingExpense.PaymentMethod = expenseRequest.PaymentMethod;
-            existingExpense.InvoiceNumber = expenseRequest.InvoiceNumber;
             existingExpense.Notes = expenseRequest.Notes;
 
             var success = await _mongo.UpdateExpenseAsync(id, existingExpense);

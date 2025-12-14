@@ -48,6 +48,37 @@
       }
     }
 
+    .view-mode-toggle {
+      display: flex;
+      gap: 0.5rem;
+      background: #e5e7eb;
+      padding: 0.5rem;
+      border-radius: 12px;
+
+      .toggle-btn {
+        padding: 0.75rem 1.25rem;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.95rem;
+        color: #4b5563;
+        transition: all 0.3s ease;
+
+        &:hover {
+          background: rgba(16, 185, 129, 0.1);
+          color: #10b981;
+        }
+
+        &.active {
+          background: linear-gradient(135deg, #10b981, #059669);
+          color: white;
+          box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+        }
+      }
+    }
+
     .header-actions {
       display: flex;
       gap: 1rem;
@@ -497,6 +528,251 @@
       gap: 1rem;
       padding: 1.5rem;
       border-top: 1px solid #e5e7eb;
+    }
+  }
+
+  // Grouped Expenses View (matching sales structure)
+  .grouped-expenses {
+    .year-group {
+      margin-bottom: 1.5rem;
+
+      .year-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .year-title {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          font-size: 1.3rem;
+
+          .expand-icon {
+            font-size: 1rem;
+            transition: transform 0.2s;
+          }
+
+          .year-stats {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+          }
+        }
+
+        .year-total {
+          font-size: 1.5rem;
+          font-weight: bold;
+        }
+      }
+
+      .months-container {
+        margin-left: 1.5rem;
+        margin-top: 1rem;
+
+        .month-group {
+          margin-bottom: 1rem;
+
+          .month-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+            &:hover {
+              transform: translateX(4px);
+              box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            }
+
+            .month-title {
+              display: flex;
+              align-items: center;
+              gap: 0.75rem;
+              font-size: 1.1rem;
+
+              .expand-icon {
+                font-size: 0.9rem;
+                transition: transform 0.2s;
+              }
+
+              .month-stats {
+                font-size: 0.85rem;
+                opacity: 0.9;
+                background: rgba(255, 255, 255, 0.2);
+                padding: 0.2rem 0.6rem;
+                border-radius: 10px;
+              }
+            }
+
+            .month-total {
+              font-size: 1.2rem;
+              font-weight: bold;
+            }
+          }
+
+          .weeks-container {
+            margin-left: 1.5rem;
+            margin-top: 0.75rem;
+
+            .week-group {
+              margin-bottom: 0.75rem;
+
+              .week-header {
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                padding: 0.6rem 1rem;
+                border-radius: 6px;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                transition: transform 0.2s, box-shadow 0.2s;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+                &:hover {
+                  transform: translateX(4px);
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+                }
+
+                .week-title {
+                  display: flex;
+                  align-items: center;
+                  gap: 0.6rem;
+                  font-size: 1rem;
+
+                  .expand-icon {
+                    font-size: 0.8rem;
+                    transition: transform 0.2s;
+                  }
+
+                  .week-stats {
+                    font-size: 0.8rem;
+                    opacity: 0.9;
+                    background: rgba(255, 255, 255, 0.2);
+                    padding: 0.15rem 0.5rem;
+                    border-radius: 8px;
+                  }
+                }
+
+                .week-total {
+                  font-size: 1.1rem;
+                  font-weight: bold;
+                }
+              }
+
+              .expense-cards {
+                margin-left: 1.5rem;
+                margin-top: 0.6rem;
+
+                .expense-card {
+                  background: white;
+                  border-radius: 12px;
+                  padding: 1.5rem;
+                  margin-bottom: 1rem;
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                  transition: transform 0.2s, box-shadow 0.2s;
+
+                  &:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+                  }
+
+                  .expense-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1.5rem;
+                    padding-bottom: 1rem;
+                    border-bottom: 2px solid #f0f0f0;
+
+                    .expense-type {
+                      font-size: 1.2rem;
+                      font-weight: 600;
+                      display: flex;
+                      align-items: center;
+                      gap: 0.5rem;
+                    }
+
+                    .expense-amount {
+                      font-size: 1.5rem;
+                      font-weight: bold;
+                      color: #ef4444;
+                    }
+                  }
+
+                  .expense-details {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 1rem;
+                    margin-bottom: 1rem;
+
+                    .detail-row {
+                      display: flex;
+                      gap: 0.5rem;
+                      align-items: center;
+
+                      .label {
+                        color: #6b7280;
+                        font-weight: 500;
+                        min-width: 100px;
+                      }
+
+                      .value {
+                        color: #111827;
+
+                        &.payment-method {
+                          background: #dbeafe;
+                          padding: 0.25rem 0.75rem;
+                          border-radius: 12px;
+                          color: #1e40af;
+                          font-weight: 500;
+                        }
+                      }
+                    }
+                  }
+
+                  .expense-notes {
+                    margin: 1rem 0;
+                    padding: 0.75rem;
+                    background: #fffbeb;
+                    border-left: 3px solid #f59e0b;
+                    border-radius: 4px;
+                    color: #92400e;
+                    font-size: 0.9rem;
+                  }
+
+                  .expense-actions {
+                    display: flex;
+                    gap: 0.75rem;
+                    justify-content: flex-end;
+                    padding-top: 1rem;
+                    border-top: 1px solid #f0f0f0;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
