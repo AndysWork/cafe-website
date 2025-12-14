@@ -293,13 +293,20 @@ public class ExpenseFunction
                 .GroupBy(e => GetWeekStartDate(e.Date))
                 .Select(g => new
                 {
-                    WeekStart = g.Key,
+                    WeekStartDate = g.Key,
+                    WeekStart = g.Key.ToString("MMM dd, yyyy"),
                     TotalAmount = g.Sum(e => e.Amount),
                     Count = g.Count()
                 })
-                .OrderByDescending(x => x.WeekStart)
+                .OrderByDescending(x => x.WeekStartDate)
                 .Take(8)
-                .OrderBy(x => x.WeekStart)
+                .OrderBy(x => x.WeekStartDate)
+                .Select(x => new
+                {
+                    x.WeekStart,
+                    x.TotalAmount,
+                    x.Count
+                })
                 .ToList();
 
             // Monthly comparison (last 12 months)
@@ -326,7 +333,7 @@ public class ExpenseFunction
                 .GroupBy(e => e.Date.Date)
                 .Select(g => new
                 {
-                    Date = g.Key,
+                    Date = g.Key.ToString("MMM dd, yyyy"),
                     TotalAmount = g.Sum(e => e.Amount),
                     Count = g.Count()
                 })
