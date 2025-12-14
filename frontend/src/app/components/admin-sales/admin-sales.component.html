@@ -5,6 +5,7 @@
       <button class="btn-primary" (click)="openAddModal()">➕ Add Sales</button>
       <button class="btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
       <button class="btn-info" (click)="loadSummary()">📈 View Summary</button>
+      <button class="btn-secondary" (click)="initializeSalesItemTypes()" *ngIf="salesItemTypes.length === 0">🔧 Initialize Items</button>
     </div>
   </div>
 
@@ -42,37 +43,91 @@
       <p>No sales records found</p>
     </div>
 
-    <div *ngFor="let sale of sales" class="sales-card">
-      <div class="sales-header">
-        <div class="sales-date">
-          <strong>📅 {{ formatDate(sale.date) }}</strong>
+    <!-- Year-Month Grouped View -->
+    <div *ngIf="!loading && sales.length > 0" class="grouped-sales">
+      <div *ngFor="let year of getYears()" class="year-group">
+        <!-- Year Header -->
+        <div class="year-header" (click)="toggleYear(year)">
+          <div class="year-title">
+            <span class="expand-icon">{{ isYearExpanded(year) ? '▼' : '▶' }}</span>
+            <strong>📅 {{ year }}</strong>
+            <span class="year-stats">{{ getMonths(year).length }} months</span>
+          </div>
+          <div class="year-total">
+            {{ formatCurrency(getYearTotal(year)) }}
+          </div>
         </div>
-        <div class="sales-amount">
-          {{ formatCurrency(sale.totalAmount) }}
-        </div>
-      </div>
 
-      <div class="sales-items">
-        <div *ngFor="let item of sale.items" class="item-row">
-          <span class="item-name">{{ item.itemName }}</span>
-          <span class="item-qty">× {{ item.quantity }}</span>
-          <span class="item-price">{{ formatCurrency(item.totalPrice) }}</span>
-        </div>
-      </div>
+        <!-- Months Container -->
+        <div *ngIf="isYearExpanded(year)" class="months-container">
+          <div *ngFor="let month of getMonths(year)" class="month-group">
+            <!-- Month Header -->
+            <div class="month-header" (click)="toggleMonth(year, month)">
+              <div class="month-title">
+                <span class="expand-icon">{{ isMonthExpanded(year, month) ? '▼' : '▶' }}</span>
+                <strong>{{ month }}</strong>
+                <span class="month-stats">{{ getWeeks(year, month).length }} weeks</span>
+              </div>
+              <div class="month-total">
+                {{ formatCurrency(getMonthTotal(year, month)) }}
+              </div>
+            </div>
 
-      <div class="sales-footer">
-        <div class="sales-meta">
-          <span class="payment-method">💳 {{ sale.paymentMethod }}</span>
-          <span class="recorded-by">👤 {{ sale.recordedBy }}</span>
-        </div>
-        <div class="sales-actions">
-          <button class="btn-edit" (click)="openEditModal(sale)">✏️ Edit</button>
-          <button class="btn-delete" (click)="deleteSales(sale.id)">🗑️ Delete</button>
-        </div>
-      </div>
+            <!-- Weeks Container -->
+            <div *ngIf="isMonthExpanded(year, month)" class="weeks-container">
+              <div *ngFor="let week of getWeeks(year, month)" class="week-group">
+                <!-- Week Header -->
+                <div class="week-header" (click)="toggleWeek(year, month, week)">
+                  <div class="week-title">
+                    <span class="expand-icon">{{ isWeekExpanded(year, month, week) ? '▼' : '▶' }}</span>
+                    <strong>{{ week }}</strong>
+                    <span class="week-stats">{{ groupedSales[year][month][week].length }} records</span>
+                  </div>
+                  <div class="week-total">
+                    {{ formatCurrency(getWeekTotal(year, month, week)) }}
+                  </div>
+                </div>
 
-      <div *ngIf="sale.notes" class="sales-notes">
-        <em>Note: {{ sale.notes }}</em>
+                <!-- Sales Cards -->
+                <div *ngIf="isWeekExpanded(year, month, week)" class="sales-cards">
+                  <div *ngFor="let sale of groupedSales[year][month][week]" class="sales-card">
+                    <div class="sales-header">
+                      <div class="sales-date">
+                        <strong>📅 {{ formatDate(sale.date) }}</strong>
+                      </div>
+                      <div class="sales-amount">
+                        {{ formatCurrency(sale.totalAmount) }}
+                      </div>
+                    </div>
+
+                    <div class="sales-items">
+                      <div *ngFor="let item of sale.items" class="item-row">
+                        <span class="item-name">{{ item.itemName }}</span>
+                        <span class="item-qty">× {{ item.quantity }}</span>
+                        <span class="item-price">{{ formatCurrency(item.totalPrice) }}</span>
+                      </div>
+                    </div>
+
+                    <div class="sales-footer">
+                      <div class="sales-meta">
+                        <span class="payment-method">💳 {{ sale.paymentMethod }}</span>
+                        <span class="recorded-by">👤 {{ sale.recordedBy }}</span>
+                      </div>
+                      <div class="sales-actions">
+                        <button class="btn-edit" (click)="openEditModal(sale)">✏️ Edit</button>
+                        <button class="btn-delete" (click)="deleteSales(sale.id)">🗑️ Delete</button>
+                      </div>
+                    </div>
+
+                    <div *ngIf="sale.notes" class="sales-notes">
+                      <em>Note: {{ sale.notes }}</em>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -98,47 +153,32 @@
           </select>
         </div>
 
-        <!-- Add Item Section -->
+        <!-- Sales Items Section -->
         <div class="add-item-section">
-          <h3>Add Items</h3>
-          <div class="item-form">
-            <div class="form-group">
-              <label>Sales Item</label>
-              <select [(ngModel)]="currentItem.menuItemId" (change)="onMenuItemChange()">
-                <option value="">-- Select Item --</option>
-                <option *ngFor="let item of salesItemTypes" [value]="item.id">{{ item.itemName }} - ₹{{ item.defaultPrice }}</option>
-              </select>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Item Name *</label>
-                <input type="text" [(ngModel)]="currentItem.itemName" placeholder="Enter item name">
-              </div>
-
-              <div class="form-group">
-                <label>Quantity *</label>
-                <input type="number" [(ngModel)]="currentItem.quantity" min="1">
-              </div>
-
-              <div class="form-group">
-                <label>Unit Price *</label>
-                <input type="number" [(ngModel)]="currentItem.unitPrice" min="0" step="0.01">
-              </div>
-            </div>
-
-            <button type="button" class="btn-add-item" (click)="addItem()">+ Add Item</button>
-          </div>
+          <h3>Sales Items (Edit quantities or delete unwanted items)</h3>
 
           <!-- Items List -->
           <div *ngIf="formData.items.length > 0" class="items-list">
-            <h4>Items ({{ formData.items.length }})</h4>
-            <div *ngFor="let item of formData.items; let i = index" class="item-card">
-              <div class="item-details">
+            <div *ngFor="let item of formData.items; let i = index" class="item-card editable">
+              <div class="item-info">
                 <strong>{{ item.itemName }}</strong>
-                <span>{{ item.quantity }} × ₹{{ item.unitPrice }} = ₹{{ item.quantity * item.unitPrice }}</span>
               </div>
-              <button type="button" class="btn-remove" (click)="removeItem(i)">🗑️</button>
+              <div class="item-controls">
+                <div class="quantity-control">
+                  <label>Qty:</label>
+                  <input type="number" [(ngModel)]="item.quantity" min="0" class="qty-input"
+                         [readonly]="!isTeaVariant(item.itemName)">
+                </div>
+                <div class="price-control">
+                  <label>Price:</label>
+                  <input type="number" [(ngModel)]="item.unitPrice" min="0" class="price-input"
+                         [readonly]="isTeaVariant(item.itemName)">
+                </div>
+                <div class="item-total">
+                  <strong>₹{{ item.quantity * item.unitPrice }}</strong>
+                </div>
+                <button type="button" class="btn-remove" (click)="removeItem(i)" title="Delete item">🗑️</button>
+              </div>
             </div>
             <div class="total-amount">
               <strong>Total: {{ formatCurrency(getTotalAmount()) }}</strong>

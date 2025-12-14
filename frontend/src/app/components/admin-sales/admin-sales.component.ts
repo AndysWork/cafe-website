@@ -19,6 +19,17 @@ export class AdminSalesComponent implements OnInit {
   showUploadModal = false;
   editingId: string | null = null;
 
+  // Pagination
+  currentPage = 1;
+  pageSize = 20;
+  totalSales = 0;
+
+  // Grouping
+  groupedSales: { [year: string]: { [month: string]: { [week: string]: Sales[] } } } = {};
+  expandedYears: Set<string> = new Set();
+  expandedMonths: Set<string> = new Set();
+  expandedWeeks: Set<string> = new Set();
+
   // Form data
   formData: CreateSalesRequest = {
     date: new Date().toISOString().split('T')[0],
@@ -62,6 +73,8 @@ export class AdminSalesComponent implements OnInit {
     this.salesService.getAllSales().subscribe({
       next: (data) => {
         this.sales = data;
+        this.totalSales = data.length;
+        this.groupSalesByYearMonth();
         this.loading = false;
       },
       error: (err) => {
@@ -71,13 +84,178 @@ export class AdminSalesComponent implements OnInit {
     });
   }
 
+  groupSalesByYearMonth() {
+    this.groupedSales = {};
+
+    // Sort sales by date descending (newest first)
+    const sortedSales = [...this.sales].sort((a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    sortedSales.forEach(sale => {
+      const date = new Date(sale.date);
+      const year = date.getFullYear().toString();
+      const month = date.toLocaleString('default', { month: 'long' });
+      const weekLabel = this.getWeekLabel(date);
+
+      if (!this.groupedSales[year]) {
+        this.groupedSales[year] = {};
+      }
+      if (!this.groupedSales[year][month]) {
+        this.groupedSales[year][month] = {};
+      }
+      if (!this.groupedSales[year][month][weekLabel]) {
+        this.groupedSales[year][month][weekLabel] = [];
+      }
+      this.groupedSales[year][month][weekLabel].push(sale);
+    });
+
+    // Auto-expand current year, month, and week
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear().toString();
+    const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
+    const currentWeek = this.getWeekLabel(currentDate);
+    this.expandedYears.add(currentYear);
+    this.expandedMonths.add(`${currentYear}-${currentMonth}`);
+    this.expandedWeeks.add(`${currentYear}-${currentMonth}-${currentWeek}`);
+  }
+
+  getWeekLabel(date: Date): string {
+    const day = date.getDate();
+    const weekNum = Math.ceil(day / 7);
+    const startDay = (weekNum - 1) * 7 + 1;
+    const endDay = Math.min(weekNum * 7, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate());
+    return `Week ${weekNum} (${startDay}-${endDay})`;
+  }
+
+  getYears(): string[] {
+    return Object.keys(this.groupedSales).sort((a, b) => parseInt(b) - parseInt(a));
+  }
+
+  getMonths(year: string): string[] {
+    if (!this.groupedSales[year]) return [];
+    const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    return Object.keys(this.groupedSales[year]).sort((a, b) =>
+      monthOrder.indexOf(b) - monthOrder.indexOf(a)
+    );
+  }
+
+  getWeeks(year: string, month: string): string[] {
+    if (!this.groupedSales[year]?.[month]) return [];
+    return Object.keys(this.groupedSales[year][month]).sort((a, b) => {
+      const weekNumA = parseInt(a.match(/Week (\d+)/)?.[1] || '0');
+      const weekNumB = parseInt(b.match(/Week (\d+)/)?.[1] || '0');
+      return weekNumB - weekNumA; // Descending order
+    });
+  }
+
+  toggleYear(year: string) {
+    if (this.expandedYears.has(year)) {
+      this.expandedYears.delete(year);
+      // Collapse all months and weeks in this year
+      this.getMonths(year).forEach(month => {
+        this.expandedMonths.delete(`${year}-${month}`);
+        this.getWeeks(year, month).forEach(week => {
+          this.expandedWeeks.delete(`${year}-${month}-${week}`);
+        });
+      });
+    } else {
+      this.expandedYears.add(year);
+    }
+  }
+
+  toggleMonth(year: string, month: string) {
+    const key = `${year}-${month}`;
+    if (this.expandedMonths.has(key)) {
+      this.expandedMonths.delete(key);
+      // Collapse all weeks in this month
+      this.getWeeks(year, month).forEach(week => {
+        this.expandedWeeks.delete(`${year}-${month}-${week}`);
+      });
+    } else {
+      this.expandedMonths.add(key);
+    }
+  }
+
+  toggleWeek(year: string, month: string, week: string) {
+    const key = `${year}-${month}-${week}`;
+    if (this.expandedWeeks.has(key)) {
+      this.expandedWeeks.delete(key);
+    } else {
+      this.expandedWeeks.add(key);
+    }
+  }
+
+  isYearExpanded(year: string): boolean {
+    return this.expandedYears.has(year);
+  }
+
+  isMonthExpanded(year: string, month: string): boolean {
+    return this.expandedMonths.has(`${year}-${month}`);
+  }
+
+  isWeekExpanded(year: string, month: string, week: string): boolean {
+    return this.expandedWeeks.has(`${year}-${month}-${week}`);
+  }
+
+  getWeekTotal(year: string, month: string, week: string): number {
+    if (!this.groupedSales[year]?.[month]?.[week]) return 0;
+    return this.groupedSales[year][month][week].reduce((sum, sale) => sum + sale.totalAmount, 0);
+  }
+
+  getMonthTotal(year: string, month: string): number {
+    if (!this.groupedSales[year]?.[month]) return 0;
+    let total = 0;
+    Object.values(this.groupedSales[year][month]).forEach(weekSales => {
+      weekSales.forEach(sale => total += sale.totalAmount);
+    });
+    return total;
+  }
+
+  getYearTotal(year: string): number {
+    if (!this.groupedSales[year]) return 0;
+    let total = 0;
+    Object.values(this.groupedSales[year]).forEach(monthWeeks => {
+      Object.values(monthWeeks).forEach(weekSales => {
+        weekSales.forEach(sale => total += sale.totalAmount);
+      });
+    });
+    return total;
+  }
+
   loadSalesItemTypes() {
     this.salesItemTypeService.getActiveSalesItemTypes().subscribe({
       next: (items) => {
         this.salesItemTypes = items;
+        console.log('Loaded sales item types:', items);
+        if (items.length === 0) {
+          console.warn('No sales item types found. You may need to initialize them.');
+        }
       },
-      error: (err) => console.error('Error loading sales item types:', err)
+      error: (err) => {
+        console.error('Error loading sales item types:', err);
+        alert('Error loading sales items. Please make sure you are logged in as admin.');
+      }
     });
+  }
+
+  initializeSalesItemTypes() {
+    if (confirm('Initialize default sales item types? This will add predefined items like Tea-5, Tea-10, Coffee, etc.')) {
+      this.loading = true;
+      this.salesItemTypeService.initializeDefaultItems().subscribe({
+        next: (response) => {
+          alert('Sales item types initialized successfully!');
+          this.loadSalesItemTypes();
+          this.loading = false;
+        },
+        error: (err) => {
+          console.error('Error initializing sales item types:', err);
+          alert('Error initializing sales item types. Please check console.');
+          this.loading = false;
+        }
+      });
+    }
   }
 
   loadSummary() {
@@ -89,9 +267,27 @@ export class AdminSalesComponent implements OnInit {
 
   openAddModal() {
     this.editingId = null;
+
+    // Check if sales item types are loaded
+    if (!this.salesItemTypes || this.salesItemTypes.length === 0) {
+      alert('Loading sales items... Please try again in a moment.');
+      this.loadSalesItemTypes();
+      return;
+    }
+
+    // Pre-fill all sales item types
+    const preFilledItems: any[] = this.salesItemTypes.map(itemType => ({
+      menuItemId: itemType.id,
+      itemName: itemType.itemName,
+      quantity: this.isTeaVariant(itemType.itemName) ? 0 : 1,
+      unitPrice: itemType.defaultPrice
+    }));
+
+    console.log('Pre-filled items:', preFilledItems); // Debug log
+
     this.formData = {
       date: new Date().toISOString().split('T')[0],
-      items: [],
+      items: preFilledItems,
       paymentMethod: 'Cash',
       notes: ''
     };
@@ -156,17 +352,32 @@ export class AdminSalesComponent implements OnInit {
     return this.formData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
   }
 
+  isTeaVariant(itemName: string): boolean {
+    const teaVariants = ['Tea - 5', 'Tea - 10', 'Tea - 20', 'Tea - 30'];
+    return teaVariants.includes(itemName);
+  }
+
   saveSales() {
-    if (this.formData.items.length === 0) {
-      alert('Please add at least one item');
+    // Filter out items with quantity 0 or less
+    const validItems = this.formData.items.filter(item => item.quantity > 0);
+
+    if (validItems.length === 0) {
+      alert('Please add at least one item with quantity greater than 0');
       return;
     }
 
     this.loading = true;
 
+    // Create sales data with only valid items
+    const salesDataToSave = {
+      ...this.formData,
+      items: validItems,
+      totalAmount: validItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)
+    };
+
     const request = this.editingId
-      ? this.salesService.updateSales(this.editingId, this.formData)
-      : this.salesService.createSales(this.formData);
+      ? this.salesService.updateSales(this.editingId, salesDataToSave)
+      : this.salesService.createSales(salesDataToSave);
 
     request.subscribe({
       next: () => {
