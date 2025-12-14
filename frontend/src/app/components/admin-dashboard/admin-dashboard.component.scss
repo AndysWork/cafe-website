@@ -1,231 +1,8 @@
-.admin-layout {
-  display: flex;
-  min-height: 100vh;
-  background: #f7fafc;
-}
-
-.admin-sidebar {
-  width: 280px;
-  background: white;
-  border-right: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  transition: width 0.3s ease;
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 1000;
-
-  &.collapsed {
-    width: 80px;
-
-    .logo-text {
-      display: none;
-    }
-
-    .nav-label {
-      display: none;
-    }
-  }
-}
-
-.sidebar-header {
-  padding: 20px;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo-img {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-}
-
-.logo-text {
-  font-size: 1.2rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  white-space: nowrap;
-}
-
-.toggle-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 8px;
-  color: #4a5568;
-  transition: all 0.3s ease;
-
-  &:hover {
-    color: #ff6b6b;
-    transform: scale(1.1);
-  }
-}
-
-.sidebar-nav {
-  flex: 1;
-  padding: 20px 0;
-  overflow-y: auto;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 15px 20px;
-  color: #4a5568;
-  text-decoration: none;
-  transition: all 0.3s ease;
-  position: relative;
-
-  &:hover {
-    background: #f7fafc;
-    color: #ff6b6b;
-
-    .nav-icon {
-      transform: scale(1.1);
-    }
-  }
-
-  &.active {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-    color: white;
-
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 4px;
-      background: white;
-    }
-  }
-}
-
-.nav-icon {
-  font-size: 1.5rem;
-  transition: transform 0.3s ease;
-  min-width: 30px;
-  text-align: center;
-}
-
-.nav-label {
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
-}
-
-.sidebar-footer {
-  padding: 20px;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.user-section {
+.dashboard-page {
   width: 100%;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.user-avatar,
-.user-avatar-only {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 1.2rem;
-}
-
-.user-details {
-  flex: 1;
-}
-
-.user-name {
-  font-weight: 600;
-  color: #2d3748;
-  font-size: 0.95rem;
-}
-
-.user-role {
-  font-size: 0.8rem;
-  color: #718096;
-}
-
-.btn-logout {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #f56565, #e53e3e);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: linear-gradient(135deg, #e53e3e, #c53030);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(229, 62, 62, 0.3);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-}
-
-.logout-icon {
-  font-size: 1.3rem;
-}
-
-.logout-text {
-  white-space: nowrap;
-}
-
-.admin-main {
-  flex: 1;
-  margin-left: 280px;
-  transition: margin-left 0.3s ease;
-  padding: 30px;
-
-  &.expanded {
-    margin-left: 80px;
-  }
 }
 
 .main-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 30px;
 
   h1 {
@@ -235,45 +12,7 @@
   }
 }
 
-.header-actions {
-  display: flex;
-  gap: 15px;
-}
-
-.btn-notification {
-  position: relative;
-  background: white;
-  border: 1px solid #e2e8f0;
-  width: 45px;
-  height: 45px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 1.3rem;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: #f7fafc;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.notification-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  background: #ff6b6b;
-  color: white;
-  font-size: 0.7rem;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-}
-
+// Dashboard Content Styles
 .dashboard-content {
   display: flex;
   flex-direction: column;
@@ -444,67 +183,41 @@
   font-size: 0.9rem;
 }
 
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-}
-
-.action-card {
-  background: linear-gradient(135deg, #f7fafc 0%, #e6f2ff 100%);
-  border-radius: 12px;
-  padding: 30px 20px;
-  text-align: center;
-  text-decoration: none;
-  border: 2px solid #e2e8f0;
-  transition: all 0.3s ease;
-
-  &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(255, 107, 107, 0.2);
-    border-color: #ff6b6b;
-
-    .action-icon {
-      transform: scale(1.2);
-    }
-  }
-}
-
-.action-icon {
-  font-size: 3rem;
-  margin-bottom: 15px;
-  transition: transform 0.3s ease;
-}
-
-.action-label {
-  font-weight: 600;
-  color: #2d3748;
-  font-size: 1.05rem;
-}
-
+// Responsive Design
 @media (max-width: 768px) {
-  .admin-sidebar {
-    transform: translateX(-100%);
-
-    &.collapsed {
-      transform: translateX(0);
-      width: 80px;
-    }
-  }
-
-  .admin-main {
-    margin-left: 0;
-
-    &.expanded {
-      margin-left: 80px;
-    }
+  .main-header h1 {
+    font-size: 1.5rem;
   }
 
   .stats-grid {
     grid-template-columns: 1fr;
+    gap: 15px;
   }
 
-  .quick-actions {
-    grid-template-columns: repeat(2, 1fr);
+  .stat-card {
+    padding: 20px;
+  }
+
+  .orders-table {
+    font-size: 0.85rem;
+    
+    table {
+      thead th,
+      tbody td {
+        padding: 10px;
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-value {
+    font-size: 1.5rem;
+  }
+
+  .stat-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 1.5rem;
   }
 }

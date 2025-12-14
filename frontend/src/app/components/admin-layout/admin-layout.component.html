@@ -1,0 +1,58 @@
+<div class="admin-layout">
+  <!-- Top Navbar -->
+  <header class="admin-navbar">
+    <div class="navbar-left">
+      <div class="logo">
+        <img src="/Logo.jpg" alt="Maa Tara Cafe" class="logo-img" />
+        <span class="logo-text">Admin Panel</span>
+      </div>
+    </div>
+
+    <nav class="navbar-menu" [class.active]="isMobileMenuOpen">
+      <a
+        *ngFor="let item of menuItems; let i = index"
+        [routerLink]="item.route"
+        routerLinkActive="active"
+        class="nav-item"
+        (click)="setActiveMenu(i); closeMobileMenu()"
+      >
+        <span class="nav-icon">{{ item.icon }}</span>
+        <span class="nav-label">{{ item.label }}</span>
+      </a>
+    </nav>
+
+    <div class="navbar-right">
+      <button class="btn-notification">
+        🔔
+        <span class="notification-badge">3</span>
+      </button>
+
+      <div class="user-section" *ngIf="currentUser$ | async as user">
+        <div class="user-info">
+          <div class="user-avatar">
+            {{ user.username.charAt(0).toUpperCase() }}
+          </div>
+          <div class="user-details">
+            <div class="user-name">{{ user.username }}</div>
+            <div class="user-role">Admin</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-logout" (click)="onLogout()" title="Logout">
+        <span class="logout-icon">🚪</span>
+        <span class="logout-text">Logout</span>
+      </button>
+
+      <button class="mobile-menu-toggle" (click)="toggleMobileMenu()">
+        <span *ngIf="!isMobileMenuOpen">☰</span>
+        <span *ngIf="isMobileMenuOpen">✕</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content (Router Outlet) -->
+  <main class="admin-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>

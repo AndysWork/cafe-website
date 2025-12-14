@@ -7,6 +7,7 @@ import { RegisterComponent } from './components/register/register.component';
 import { OrdersComponent } from './components/orders/orders.component';
 import { OffersComponent } from './components/offers/offers.component';
 import { LoyaltyComponent } from './components/loyalty/loyalty.component';
+import { AdminLayoutComponent } from './components/admin-layout/admin-layout.component';
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
 import { AdminOffersComponent } from './components/admin-offers/admin-offers.component';
 import { AdminLoyaltyComponent } from './components/admin-loyalty/admin-loyalty.component';
@@ -31,15 +32,23 @@ export const routes: Routes = [
   { path: 'orders', component: OrdersComponent, canActivate: [authGuard] },
   { path: 'offers', component: OffersComponent },
   { path: 'loyalty', component: LoyaltyComponent, canActivate: [authGuard] },
-  { path: 'admin/dashboard', component: AdminDashboardComponent, canActivate: [adminGuard] },
-  { path: 'admin/category/upload', component: CategoryUploadComponent, canActivate: [adminGuard] },
-  { path: 'admin/category/crud', component: CategoryCrudComponent, canActivate: [adminGuard] },
-  { path: 'admin/menu/upload', component: MenuUploadComponent, canActivate: [adminGuard] },
-  { path: 'admin/menu', component: MenuManagementComponent, canActivate: [adminGuard] },
-  { path: 'admin/offers', component: AdminOffersComponent, canActivate: [adminGuard] },
-  { path: 'admin/loyalty', component: AdminLoyaltyComponent, canActivate: [adminGuard] },
-  { path: 'admin/sales', component: AdminSalesComponent, canActivate: [adminGuard] },
-  { path: 'admin/expenses', component: AdminExpensesComponent, canActivate: [adminGuard] },
-  { path: 'admin/analytics', component: AdminAnalyticsComponent, canActivate: [adminGuard] },
+  {
+    path: 'admin',
+    component: AdminLayoutComponent,
+    canActivate: [adminGuard],
+    children: [
+      { path: 'dashboard', component: AdminDashboardComponent },
+      { path: 'category/upload', component: CategoryUploadComponent },
+      { path: 'category/crud', component: CategoryCrudComponent },
+      { path: 'menu/upload', component: MenuUploadComponent },
+      { path: 'menu', component: MenuManagementComponent },
+      { path: 'offers', component: AdminOffersComponent },
+      { path: 'loyalty', component: AdminLoyaltyComponent },
+      { path: 'sales', component: AdminSalesComponent },
+      { path: 'expenses', component: AdminExpensesComponent },
+      { path: 'analytics', component: AdminAnalyticsComponent },
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
+    ]
+  },
   { path: '**', redirectTo: '' }
 ];

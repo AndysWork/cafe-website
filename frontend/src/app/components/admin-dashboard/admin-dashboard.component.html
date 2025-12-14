@@ -1,110 +1,63 @@
-<div class="admin-layout">
-  <!-- Left Sidebar -->
-  <aside class="admin-sidebar" [class.collapsed]="isSidebarCollapsed">
-    <div class="sidebar-header">
-      <div class="logo">
-        <img src="/Logo.jpg" alt="Maa Tara Cafe" class="logo-img">
-        <span class="logo-text" *ngIf="!isSidebarCollapsed">Admin Panel</span>
-      </div>
-      <button class="toggle-btn" (click)="toggleSidebar()">
-        <span *ngIf="!isSidebarCollapsed">◀</span>
-        <span *ngIf="isSidebarCollapsed">▶</span>
-      </button>
-    </div>
+<div class="dashboard-page">
+  <div class="main-header">
+    <h1>Dashboard Overview</h1>
+  </div>
 
-    <nav class="sidebar-nav">
-      <a
-        *ngFor="let item of menuItems; let i = index"
-        [routerLink]="item.route"
-        routerLinkActive="active"
-        class="nav-item"
-        (click)="setActiveMenu(i)"
+  <div class="dashboard-content">
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div
+        class="stat-card"
+        *ngFor="let stat of stats"
+        [style.border-left-color]="stat.color"
       >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-label" *ngIf="!isSidebarCollapsed">{{ item.label }}</span>
-      </a>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="user-section" *ngIf="currentUser$ | async as user">
-        <div class="user-info" *ngIf="!isSidebarCollapsed">
-          <div class="user-avatar">{{ user.username.charAt(0).toUpperCase() }}</div>
-          <div class="user-details">
-            <div class="user-name">{{ user.username }}</div>
-            <div class="user-role">Administrator</div>
-          </div>
+        <div class="stat-icon" [style.background]="stat.color">
+          {{ stat.icon }}
         </div>
-        <div class="user-avatar-only" *ngIf="isSidebarCollapsed">
-          {{ user.username.charAt(0).toUpperCase() }}
-        </div>
-      </div>
-
-      <button class="btn-logout" (click)="onLogout()" [title]="isSidebarCollapsed ? 'Logout' : ''">
-        <span class="logout-icon">🚪</span>
-        <span class="logout-text" *ngIf="!isSidebarCollapsed">Logout</span>
-      </button>
-    </div>
-  </aside>
-
-  <!-- Main Content -->
-  <main class="admin-main" [class.expanded]="isSidebarCollapsed">
-    <div class="main-header">
-      <h1>Dashboard Overview</h1>
-      <div class="header-actions">
-        <button class="btn-notification">
-          🔔
-          <span class="notification-badge">3</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="dashboard-content">
-      <!-- Stats Cards -->
-      <div class="stats-grid">
-        <div class="stat-card" *ngFor="let stat of stats" [style.border-left-color]="stat.color">
-          <div class="stat-icon" [style.background]="stat.color">{{ stat.icon }}</div>
-          <div class="stat-info">
-            <div class="stat-label">{{ stat.label }}</div>
-            <div class="stat-value">{{ stat.value }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Orders -->
-      <div class="content-section">
-        <div class="section-header">
-          <h2>Recent Orders</h2>
-          <a routerLink="/admin/orders" class="btn-view-all">View All →</a>
-        </div>
-        <div class="orders-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Customer</th>
-                <th>Items</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let order of recentOrders">
-                <td class="order-id">{{ order.id }}</td>
-                <td>{{ order.customer }}</td>
-                <td>{{ order.items }}</td>
-                <td class="order-total">{{ order.total }}</td>
-                <td>
-                  <span class="order-status" [ngClass]="getStatusClass(order.status)">
-                    {{ order.status }}
-                  </span>
-                </td>
-                <td class="order-time">{{ order.time }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="stat-info">
+          <div class="stat-label">{{ stat.label }}</div>
+          <div class="stat-value">{{ stat.value }}</div>
         </div>
       </div>
     </div>
-  </main>
+
+    <!-- Recent Orders -->
+    <div class="content-section">
+      <div class="section-header">
+        <h2>Recent Orders</h2>
+        <a routerLink="/admin/orders" class="btn-view-all">View All →</a>
+      </div>
+      <div class="orders-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let order of recentOrders">
+              <td class="order-id">{{ order.id }}</td>
+              <td>{{ order.customer }}</td>
+              <td>{{ order.items }}</td>
+              <td class="order-total">{{ order.total }}</td>
+              <td>
+                <span
+                  class="order-status"
+                  [ngClass]="getStatusClass(order.status)"
+                >
+                  {{ order.status }}
+                </span>
+              </td>
+              <td class="order-time">{{ order.time }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
