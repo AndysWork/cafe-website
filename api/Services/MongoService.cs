@@ -40,6 +40,7 @@ public class MongoService
     private readonly IMongoCollection<SalesItemType> _salesItemTypes;
     private readonly IMongoCollection<OfflineExpenseType> _offlineExpenseTypes;
     private readonly IMongoCollection<OnlineExpenseType> _onlineExpenseTypes;
+    private readonly IMongoCollection<PasswordResetToken> _passwordResetTokens;
     
     public MongoService(IConfiguration config)
     {
@@ -73,6 +74,7 @@ public class MongoService
         _salesItemTypes = db.GetCollection<SalesItemType>("SalesItemTypes");
         _offlineExpenseTypes = db.GetCollection<OfflineExpenseType>("OfflineExpenseTypes");
         _onlineExpenseTypes = db.GetCollection<OnlineExpenseType>("OnlineExpenseTypes");
+        _passwordResetTokens = db.GetCollection<PasswordResetToken>("PasswordResetTokens");
 
         // Ensure default admin user exists
         try
@@ -297,6 +299,74 @@ public class MongoService
         var update = Builders<User>.Update.Set(x => x.IsActive, isActive);
         var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
         return result.ModifiedCount > 0;
+    }
+
+    // Update user profile
+    public async Task<bool> UpdateUserProfileAsync(string userId, UpdateProfileRequest profile)
+    {
+        var updateBuilder = Builders<User>.Update;
+        var updates = new List<UpdateDefinition<User>>();
+
+        if (!string.IsNullOrWhiteSpace(profile.FirstName))
+            updates.Add(updateBuilder.Set(x => x.FirstName, profile.FirstName));
+
+        if (!string.IsNullOrWhiteSpace(profile.LastName))
+            updates.Add(updateBuilder.Set(x => x.LastName, profile.LastName));
+
+        if (!string.IsNullOrWhiteSpace(profile.Email))
+            updates.Add(updateBuilder.Set(x => x.Email, profile.Email));
+
+        if (!string.IsNullOrWhiteSpace(profile.PhoneNumber))
+            updates.Add(updateBuilder.Set(x => x.PhoneNumber, profile.PhoneNumber));
+
+        if (updates.Count == 0) return false;
+
+        var combinedUpdate = updateBuilder.Combine(updates);
+        var result = await _users.UpdateOneAsync(x => x.Id == userId, combinedUpdate);
+        return result.ModifiedCount > 0;
+    }
+
+    // Update user password
+    public async Task<bool> UpdateUserPasswordAsync(string userId, string newPasswordHash)
+    {
+        var update = Builders<User>.Update.Set(x => x.PasswordHash, newPasswordHash);
+        var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Create password reset token
+    public async Task<PasswordResetToken> CreatePasswordResetTokenAsync(string userId)
+    {
+        var token = new PasswordResetToken
+        {
+            UserId = userId,
+            Token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"), // 64-character token
+            ExpiresAt = GetIstNow().AddHours(1), // Token expires in 1 hour
+            CreatedAt = GetIstNow(),
+            IsUsed = false
+        };
+
+        await _passwordResetTokens.InsertOneAsync(token);
+        return token;
+    }
+
+    // Get password reset token
+    public async Task<PasswordResetToken?> GetPasswordResetTokenAsync(string token) =>
+        await _passwordResetTokens.Find(x => x.Token == token && !x.IsUsed && x.ExpiresAt > GetIstNow())
+            .FirstOrDefaultAsync();
+
+    // Mark password reset token as used
+    public async Task<bool> MarkPasswordResetTokenAsUsedAsync(string tokenId)
+    {
+        var update = Builders<PasswordResetToken>.Update.Set(x => x.IsUsed, true);
+        var result = await _passwordResetTokens.UpdateOneAsync(x => x.Id == tokenId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete expired password reset tokens
+    public async Task DeleteExpiredPasswordResetTokensAsync()
+    {
+        await _passwordResetTokens.DeleteManyAsync(x => x.ExpiresAt < GetIstNow() || x.IsUsed);
     }
 
     // Ensure default admin user exists
@@ -883,7 +953,38 @@ public class MongoService
             Console.WriteLine($"  ⚠ Rewards indexes warning: {ex.Message}");
         }
 
-        Console.WriteLine($"✓ Database indexing completed! Created {indexCount} indexes across 8 collections");
+        // ========== PasswordResetTokens Collection ==========
+        try
+        {
+            // Token (unique)
+            await _passwordResetTokens.Indexes.CreateOneAsync(new CreateIndexModel<PasswordResetToken>(
+                Builders<PasswordResetToken>.IndexKeys.Ascending(x => x.Token),
+                new CreateIndexOptions { Name = "token_1", Unique = true, Background = true }
+            ));
+            indexCount++;
+
+            // UserId
+            await _passwordResetTokens.Indexes.CreateOneAsync(new CreateIndexModel<PasswordResetToken>(
+                Builders<PasswordResetToken>.IndexKeys.Ascending(x => x.UserId),
+                new CreateIndexOptions { Name = "userId_1", Background = true }
+            ));
+            indexCount++;
+
+            // ExpiresAt (for cleanup of expired tokens)
+            await _passwordResetTokens.Indexes.CreateOneAsync(new CreateIndexModel<PasswordResetToken>(
+                Builders<PasswordResetToken>.IndexKeys.Ascending(x => x.ExpiresAt),
+                new CreateIndexOptions { Name = "expiresAt_1", Background = true }
+            ));
+            indexCount++;
+
+            Console.WriteLine("  ✓ PasswordResetTokens indexes: token (unique), userId, expiresAt");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠ PasswordResetTokens indexes warning: {ex.Message}");
+        }
+
+        Console.WriteLine($"✓ Database indexing completed! Created {indexCount} indexes across 9 collections");
         Console.WriteLine("  Expected performance improvement: 50-70% for most queries");
     }
 

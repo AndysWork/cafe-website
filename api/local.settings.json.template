@@ -11,7 +11,15 @@
         "Jwt__ExpiryMinutes": "1440",
         "DefaultAdmin__Username": "admin",
         "DefaultAdmin__Password": "Admin@123",
-        "DefaultAdmin__Email": "admin@cafemaatara.com"
+        "DefaultAdmin__Email": "admin@cafemaatara.com",
+        "EmailService__SmtpHost": "smtp.gmail.com",
+        "EmailService__SmtpPort": "587",
+        "EmailService__SmtpUsername": "cafemanager327@gmail.com",
+        "EmailService__SmtpPassword": "lico ptsp nvny eqob",
+        "EmailService__FromEmail": "Maa Tara Cafe <cafemanager327@gmail.com>",
+        "EmailService__FromName": "Maa Tara Cafe",
+        "EmailService__BaseUrl": "http://localhost:4200",
+        "EmailService__UseSsl": "true"
     },
     "Host": {
         "LocalHttpPort": 7071,

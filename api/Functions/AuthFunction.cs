@@ -12,12 +12,14 @@ public class AuthFunction
 {
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
+    private readonly IEmailService _emailService;
     private readonly ILogger _log;
 
-    public AuthFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public AuthFunction(MongoService mongo, AuthService auth, IEmailService emailService, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
+        _emailService = emailService;
         _log = loggerFactory.CreateLogger<AuthFunction>();
     }
 
@@ -232,6 +234,10 @@ public class AuthFunction
             // Log successful registration
             auditLogger.LogAuthentication(user.Id!, "Registration Success", true, ipAddress, userAgent);
 
+            // Send welcome email
+            var userName = user.FirstName ?? user.Username;
+            await _emailService.SendWelcomeEmailAsync(user.Email!, userName);
+
             _log.LogInformation($"New user registered: {user.Username}");
 
             var response = req.CreateResponse(HttpStatusCode.Created);
@@ -324,6 +330,340 @@ public class AuthFunction
             _log.LogError(ex, "Error verifying admin user");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred while verifying admin user" });
+            return res;
+        }
+    }
+
+    [Function("UpdateProfile")]
+    public async Task<HttpResponseData> UpdateProfile(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "auth/profile")] HttpRequestData req)
+    {
+        var auditLogger = new AuditLogger(_log);
+        var ipAddress = GetClientIp(req);
+
+        try
+        {
+            // Verify authorization
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized || errorResponse != null)
+            {
+                return errorResponse!;
+            }
+
+            var updateRequest = await req.ReadFromJsonAsync<UpdateProfileRequest>();
+            if (updateRequest == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                return badRequest;
+            }
+
+            // Sanitize inputs
+            if (updateRequest.FirstName != null)
+                updateRequest.FirstName = InputSanitizer.Sanitize(updateRequest.FirstName);
+            if (updateRequest.LastName != null)
+                updateRequest.LastName = InputSanitizer.Sanitize(updateRequest.LastName);
+            if (updateRequest.Email != null)
+                updateRequest.Email = InputSanitizer.SanitizeEmail(updateRequest.Email);
+            if (updateRequest.PhoneNumber != null)
+                updateRequest.PhoneNumber = InputSanitizer.SanitizePhoneNumber(updateRequest.PhoneNumber);
+
+            // Validate request
+            if (!ValidationHelper.TryValidate(updateRequest, out var validationError))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
+                return badRequest;
+            }
+
+            // Check if email is already taken by another user
+            if (!string.IsNullOrWhiteSpace(updateRequest.Email))
+            {
+                var existingUser = await _mongo.GetUserByEmailAsync(updateRequest.Email);
+                if (existingUser != null && existingUser.Id != userId)
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { success = false, error = "Email is already in use" });
+                    return conflict;
+                }
+            }
+
+            // Update profile
+            var updated = await _mongo.UpdateUserProfileAsync(userId!, updateRequest);
+            if (!updated)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "No changes made to profile" });
+                return badRequest;
+            }
+
+            auditLogger.LogDataAccess(userId!, "Users", userId!, "Profile Updated", true);
+
+            // Get updated user data
+            var user = await _mongo.GetUserByIdAsync(userId!);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                message = "Profile updated successfully",
+                data = new
+                {
+                    user.FirstName,
+                    user.LastName,
+                    user.Email,
+                    user.PhoneNumber
+                }
+            });
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating profile");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while updating profile" });
+            return res;
+        }
+    }
+
+    [Function("ChangePassword")]
+    public async Task<HttpResponseData> ChangePassword(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/password/change")] HttpRequestData req)
+    {
+        var auditLogger = new AuditLogger(_log);
+        var ipAddress = GetClientIp(req);
+
+        try
+        {
+            // Verify authorization
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized || errorResponse != null)
+            {
+                return errorResponse!;
+            }
+
+            var changePasswordRequest = await req.ReadFromJsonAsync<ChangePasswordRequest>();
+            if (changePasswordRequest == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                return badRequest;
+            }
+
+            // Validate request
+            if (!ValidationHelper.TryValidate(changePasswordRequest, out var validationError))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
+                return badRequest;
+            }
+
+            // Check if new password matches confirm password
+            if (changePasswordRequest.NewPassword != changePasswordRequest.ConfirmPassword)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "New password and confirm password do not match" });
+                return badRequest;
+            }
+
+            // Get user
+            var user = await _mongo.GetUserByIdAsync(userId!);
+            if (user == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                return notFound;
+            }
+
+            // Verify current password
+            if (!_auth.VerifyPassword(changePasswordRequest.CurrentPassword, user.PasswordHash))
+            {
+                auditLogger.LogSecurityEvent("Failed Password Change", userId!, ipAddress, "Invalid current password", SecuritySeverity.Medium);
+                
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { success = false, error = "Current password is incorrect" });
+                return unauthorized;
+            }
+
+            // Hash new password
+            var newPasswordHash = _auth.HashPassword(changePasswordRequest.NewPassword);
+
+            // Update password
+            await _mongo.UpdateUserPasswordAsync(userId!, newPasswordHash);
+
+            auditLogger.LogSecurityEvent("Password Changed", userId!, ipAddress, "Password changed successfully", SecuritySeverity.Low);
+
+            // Send password changed notification email
+            var userName = user.FirstName ?? user.Username;
+            await _emailService.SendPasswordChangedNotificationAsync(user.Email!, userName);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                message = "Password changed successfully"
+            });
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error changing password");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while changing password" });
+            return res;
+        }
+    }
+
+    [Function("ForgotPassword")]
+    public async Task<HttpResponseData> ForgotPassword(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/password/forgot")] HttpRequestData req)
+    {
+        var auditLogger = new AuditLogger(_log);
+        var ipAddress = GetClientIp(req);
+
+        try
+        {
+            var forgotPasswordRequest = await req.ReadFromJsonAsync<ForgotPasswordRequest>();
+            if (forgotPasswordRequest == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                return badRequest;
+            }
+
+            // Sanitize email
+            forgotPasswordRequest.Email = InputSanitizer.SanitizeEmail(forgotPasswordRequest.Email);
+
+            // Validate request
+            if (!ValidationHelper.TryValidate(forgotPasswordRequest, out var validationError))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
+                return badRequest;
+            }
+
+            // Get user by email
+            var user = await _mongo.GetUserByEmailAsync(forgotPasswordRequest.Email);
+            
+            // Always return success to prevent email enumeration
+            // But only create token if user exists
+            if (user != null && user.IsActive)
+            {
+                // Create password reset token
+                var resetToken = await _mongo.CreatePasswordResetTokenAsync(user.Id!);
+
+                auditLogger.LogSecurityEvent("Password Reset Requested", user.Id!, ipAddress, $"Reset token generated", SecuritySeverity.Low);
+
+                // Send password reset email
+                var userName = user.FirstName ?? user.Username;
+                await _emailService.SendPasswordResetEmailAsync(user.Email!, userName, resetToken.Token);
+            }
+            else
+            {
+                auditLogger.LogSecurityEvent("Password Reset Attempt", "unknown", ipAddress, $"Email: {forgotPasswordRequest.Email} (not found)", SecuritySeverity.Low);
+            }
+
+            // Always return success message
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                message = "If an account with that email exists, a password reset link has been sent."
+            });
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error processing forgot password request");
+            auditLogger.LogSecurityEvent("Password Reset Error", "unknown", ipAddress, ex.Message, SecuritySeverity.Medium);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while processing the request" });
+            return res;
+        }
+    }
+
+    [Function("ResetPassword")]
+    public async Task<HttpResponseData> ResetPassword(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/password/reset")] HttpRequestData req)
+    {
+        var auditLogger = new AuditLogger(_log);
+        var ipAddress = GetClientIp(req);
+
+        try
+        {
+            var resetPasswordRequest = await req.ReadFromJsonAsync<ResetPasswordRequest>();
+            if (resetPasswordRequest == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                return badRequest;
+            }
+
+            // Validate request
+            if (!ValidationHelper.TryValidate(resetPasswordRequest, out var validationError))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
+                return badRequest;
+            }
+
+            // Check if new password matches confirm password
+            if (resetPasswordRequest.NewPassword != resetPasswordRequest.ConfirmPassword)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "New password and confirm password do not match" });
+                return badRequest;
+            }
+
+            // Get password reset token
+            var token = await _mongo.GetPasswordResetTokenAsync(resetPasswordRequest.ResetToken);
+            if (token == null)
+            {
+                auditLogger.LogSecurityEvent("Invalid Reset Token", "unknown", ipAddress, $"Token: {resetPasswordRequest.ResetToken}", SecuritySeverity.Medium);
+                
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid or expired reset token" });
+                return badRequest;
+            }
+
+            // Get user
+            var user = await _mongo.GetUserByIdAsync(token.UserId);
+            if (user == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                return notFound;
+            }
+
+            // Hash new password
+            var newPasswordHash = _auth.HashPassword(resetPasswordRequest.NewPassword);
+
+            // Update password
+            await _mongo.UpdateUserPasswordAsync(user.Id!, newPasswordHash);
+
+            // Mark token as used
+            await _mongo.MarkPasswordResetTokenAsUsedAsync(token.Id!);
+
+            auditLogger.LogSecurityEvent("Password Reset Successful", user.Id!, ipAddress, "Password reset using token", SecuritySeverity.Low);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                message = "Password has been reset successfully"
+            });
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error resetting password");
+            auditLogger.LogSecurityEvent("Password Reset Error", "unknown", ipAddress, ex.Message, SecuritySeverity.High);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while resetting password" });
             return res;
         }
     }

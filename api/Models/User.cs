@@ -89,3 +89,76 @@ public class RegisterRequest
     [IndianPhoneNumber]
     public string? PhoneNumber { get; set; }
 }
+
+public class UpdateProfileRequest
+{
+    [StringLength(50, ErrorMessage = "First name cannot exceed 50 characters")]
+    public string? FirstName { get; set; }
+    
+    [StringLength(50, ErrorMessage = "Last name cannot exceed 50 characters")]
+    public string? LastName { get; set; }
+    
+    [EmailAddress(ErrorMessage = "Invalid email format")]
+    [StringLength(100, ErrorMessage = "Email cannot exceed 100 characters")]
+    public string? Email { get; set; }
+    
+    [IndianPhoneNumber]
+    public string? PhoneNumber { get; set; }
+}
+
+public class ChangePasswordRequest
+{
+    [Required(ErrorMessage = "Current password is required")]
+    [StringLength(100, MinimumLength = 6, ErrorMessage = "Current password must be at least 6 characters")]
+    public string CurrentPassword { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "New password is required")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "New password must be between 8 and 100 characters")]
+    public string NewPassword { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "Confirm password is required")]
+    public string ConfirmPassword { get; set; } = string.Empty;
+}
+
+public class ForgotPasswordRequest
+{
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Invalid email format")]
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ResetPasswordRequest
+{
+    [Required(ErrorMessage = "Reset token is required")]
+    public string ResetToken { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "New password is required")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "New password must be between 8 and 100 characters")]
+    public string NewPassword { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "Confirm password is required")]
+    public string ConfirmPassword { get; set; } = string.Empty;
+}
+
+public class PasswordResetToken
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? Id { get; set; }
+
+    [BsonElement("userId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string UserId { get; set; } = string.Empty;
+
+    [BsonElement("token")]
+    public string Token { get; set; } = string.Empty;
+
+    [BsonElement("expiresAt")]
+    public DateTime ExpiresAt { get; set; }
+
+    [BsonElement("createdAt")]
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+
+    [BsonElement("isUsed")]
+    public bool IsUsed { get; set; } = false;
+}
