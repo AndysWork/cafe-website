@@ -122,7 +122,15 @@ public class MenuFunction
             if (item == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid menu item data" });
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid menu item data" });
+                return badRequest;
+            }
+
+            // Validate request
+            if (!ValidationHelper.TryValidate(item, out var validationError))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
                 return badRequest;
             }
 
@@ -133,7 +141,7 @@ public class MenuFunction
                 if (category == null)
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = $"Category with ID {item.CategoryId} not found" });
+                    await badRequest.WriteAsJsonAsync(new { success = false, error = $"Category with ID {item.CategoryId} not found" });
                     return badRequest;
                 }
             }
@@ -145,7 +153,7 @@ public class MenuFunction
                 if (subCategory == null)
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = $"SubCategory with ID {item.SubCategoryId} not found" });
+                    await badRequest.WriteAsJsonAsync(new { success = false, error = $"SubCategory with ID {item.SubCategoryId} not found" });
                     return badRequest;
                 }
 
@@ -153,14 +161,14 @@ public class MenuFunction
                 if (!string.IsNullOrEmpty(item.CategoryId) && subCategory.CategoryId != item.CategoryId)
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = $"SubCategory {item.SubCategoryId} does not belong to Category {item.CategoryId}" });
+                    await badRequest.WriteAsJsonAsync(new { success = false, error = $"SubCategory {item.SubCategoryId} does not belong to Category {item.CategoryId}" });
                     return badRequest;
                 }
             }
 
             var created = await _mongo.CreateMenuItemAsync(item);
             var res = req.CreateResponse(HttpStatusCode.Created);
-            await res.WriteAsJsonAsync(created);
+            await res.WriteAsJsonAsync(new { success = true, data = created });
             return res;
         }
         catch (Exception ex)

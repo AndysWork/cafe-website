@@ -146,7 +146,15 @@ public class SalesFunction
             if (salesRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid sales data" });
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid sales data" });
+                return badRequest;
+            }
+
+            // Validate request
+            if (!ValidationHelper.TryValidate(salesRequest, out var validationError))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
                 return badRequest;
             }
 
@@ -188,7 +196,7 @@ public class SalesFunction
             var createdSales = await _mongo.CreateSalesAsync(sales);
 
             var response = req.CreateResponse(HttpStatusCode.Created);
-            await response.WriteAsJsonAsync(createdSales);
+            await response.WriteAsJsonAsync(new { success = true, data = createdSales });
             return response;
         }
         catch (Exception ex)

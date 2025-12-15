@@ -1,5 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using System.ComponentModel.DataAnnotations;
+using Cafe.Api.Helpers;
 
 namespace Cafe.Api.Models;
 
@@ -57,17 +59,33 @@ public class SalesItem
 // Request/Response DTOs
 public class CreateSalesRequest
 {
+    [Required(ErrorMessage = "Date is required")]
     public DateTime Date { get; set; }
+    
+    [Required(ErrorMessage = "Sales must contain at least one item")]
+    [MinLength(1, ErrorMessage = "Sales must contain at least one item")]
     public List<SalesItemRequest> Items { get; set; } = new();
+    
+    [Required(ErrorMessage = "Payment method is required")]
+    [AllowedValues("Cash", "Card", "UPI", "Online")]
     public string PaymentMethod { get; set; } = "Cash";
+    
+    [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
     public string? Notes { get; set; }
 }
 
 public class SalesItemRequest
 {
     public string? MenuItemId { get; set; }
+    
+    [Required(ErrorMessage = "Item name is required")]
+    [StringLength(100, MinimumLength = 2, ErrorMessage = "Item name must be between 2 and 100 characters")]
     public string ItemName { get; set; } = string.Empty;
+    
+    [Range(1, 1000, ErrorMessage = "Quantity must be between 1 and 1000")]
     public int Quantity { get; set; }
+    
+    [Range(0.01, 100000, ErrorMessage = "Unit price must be between 0.01 and 100,000")]
     public decimal UnitPrice { get; set; }
 }
 

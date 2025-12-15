@@ -1,6 +1,7 @@
 using System.Net;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
+using Cafe.Api.Helpers;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
@@ -27,10 +28,18 @@ public class AuthFunction
         try
         {
             var loginRequest = await req.ReadFromJsonAsync<LoginRequest>();
-            if (loginRequest == null || string.IsNullOrWhiteSpace(loginRequest.Username) || string.IsNullOrWhiteSpace(loginRequest.Password))
+            if (loginRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Username and password are required" });
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                return badRequest;
+            }
+
+            // Validate request
+            if (!ValidationHelper.TryValidate(loginRequest, out var validationError))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
                 return badRequest;
             }
 
@@ -39,7 +48,7 @@ public class AuthFunction
             if (user == null)
             {
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await unauthorized.WriteAsJsonAsync(new { error = "Invalid username or password" });
+                await unauthorized.WriteAsJsonAsync(new { success = false, error = "Invalid username or password" });
                 return unauthorized;
             }
 
@@ -47,7 +56,7 @@ public class AuthFunction
             if (!_auth.VerifyPassword(loginRequest.Password, user.PasswordHash))
             {
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await unauthorized.WriteAsJsonAsync(new { error = "Invalid username or password" });
+                await unauthorized.WriteAsJsonAsync(new { success = false, error = "Invalid username or password" });
                 return unauthorized;
             }
 
@@ -55,7 +64,7 @@ public class AuthFunction
             if (!user.IsActive)
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbidden.WriteAsJsonAsync(new { error = "Account is deactivated" });
+                await forbidden.WriteAsJsonAsync(new { success = false, error = "Account is deactivated" });
                 return forbidden;
             }
 
@@ -66,14 +75,18 @@ public class AuthFunction
             var token = _auth.GenerateJwtToken(user.Id!, user.Username, user.Role);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new LoginResponse
+            await response.WriteAsJsonAsync(new
             {
-                Token = token,
-                Username = user.Username,
-                Email = user.Email,
-                Role = user.Role,
-                FirstName = user.FirstName,
-                LastName = user.LastName
+                success = true,
+                data = new LoginResponse
+                {
+                    Token = token,
+                    Username = user.Username,
+                    Email = user.Email,
+                    Role = user.Role,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName
+                }
             });
 
             return response;
@@ -97,41 +110,15 @@ public class AuthFunction
             if (registerRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
                 return badRequest;
             }
 
-            // Validate required fields
-            if (string.IsNullOrWhiteSpace(registerRequest.Username) || 
-                string.IsNullOrWhiteSpace(registerRequest.Email) || 
-                string.IsNullOrWhiteSpace(registerRequest.Password))
+            // Validate request
+            if (!ValidationHelper.TryValidate(registerRequest, out var validationError))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Username, email, and password are required" });
-                return badRequest;
-            }
-
-            // Validate username format (alphanumeric, 3-20 chars)
-            if (registerRequest.Username.Length < 3 || registerRequest.Username.Length > 20)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Username must be between 3 and 20 characters" });
-                return badRequest;
-            }
-
-            // Validate email format
-            if (!registerRequest.Email.Contains("@"))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid email format" });
-                return badRequest;
-            }
-
-            // Validate password strength (min 6 chars)
-            if (registerRequest.Password.Length < 6)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Password must be at least 6 characters" });
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
                 return badRequest;
             }
 
@@ -140,7 +127,7 @@ public class AuthFunction
             if (existingUser != null)
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflict.WriteAsJsonAsync(new { error = "Username already exists" });
+                await conflict.WriteAsJsonAsync(new { success = false, error = "Username already exists" });
                 return conflict;
             }
 
@@ -149,7 +136,7 @@ public class AuthFunction
             if (existingEmail != null)
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflict.WriteAsJsonAsync(new { error = "Email already registered" });
+                await conflict.WriteAsJsonAsync(new { success = false, error = "Email already registered" });
                 return conflict;
             }
 

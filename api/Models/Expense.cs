@@ -1,5 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using System.ComponentModel.DataAnnotations;
+using Cafe.Api.Helpers;
 
 namespace Cafe.Api.Models;
 
@@ -42,11 +44,25 @@ public class Expense
 // Request/Response DTOs
 public class CreateExpenseRequest
 {
+    [Required(ErrorMessage = "Date is required")]
     public DateTime Date { get; set; }
+    
+    [Required(ErrorMessage = "Expense type is required")]
+    [AllowedValues("Inventory", "Salary", "Rent", "Utilities", "Maintenance", "Marketing", "Other")]
     public string ExpenseType { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "Expense source is required")]
+    [AllowedValues("Offline", "Online")]
     public string ExpenseSource { get; set; } = "Offline";
+    
+    [Range(0.01, 10000000, ErrorMessage = "Amount must be between 0.01 and 10,000,000")]
     public decimal Amount { get; set; }
+    
+    [Required(ErrorMessage = "Payment method is required")]
+    [AllowedValues("Cash", "Card", "UPI", "Bank Transfer")]
     public string PaymentMethod { get; set; } = "Cash";
+    
+    [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
     public string? Notes { get; set; }
 }
 

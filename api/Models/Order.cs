@@ -1,6 +1,8 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using Cafe.Api.Services;
+using System.ComponentModel.DataAnnotations;
+using Cafe.Api.Helpers;
 
 namespace Cafe.Api.Models;
 
@@ -86,20 +88,33 @@ public class OrderItem
 // Request/Response DTOs
 public class CreateOrderRequest
 {
+    [Required(ErrorMessage = "Order must contain at least one item")]
+    [MinLength(1, ErrorMessage = "Order must contain at least one item")]
     public List<OrderItemRequest> Items { get; set; } = new();
+    
+    [StringLength(500, ErrorMessage = "Delivery address cannot exceed 500 characters")]
     public string? DeliveryAddress { get; set; }
+    
+    [IndianPhoneNumber]
     public string? PhoneNumber { get; set; }
+    
+    [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
     public string? Notes { get; set; }
 }
 
 public class OrderItemRequest
 {
+    [Required(ErrorMessage = "Menu item ID is required")]
     public string MenuItemId { get; set; } = string.Empty;
+    
+    [Range(1, 1000, ErrorMessage = "Quantity must be between 1 and 1000")]
     public int Quantity { get; set; }
 }
 
 public class UpdateOrderStatusRequest
 {
+    [Required(ErrorMessage = "Status is required")]
+    [AllowedValues("pending", "confirmed", "preparing", "ready", "delivered", "cancelled")]
     public string Status { get; set; } = string.Empty;
 }
 

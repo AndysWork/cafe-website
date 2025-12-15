@@ -60,10 +60,18 @@ public class OrderFunction
 
             // Parse request
             var orderRequest = await req.ReadFromJsonAsync<CreateOrderRequest>();
-            if (orderRequest == null || !orderRequest.Items.Any())
+            if (orderRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Order must contain at least one item" });
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                return badRequest;
+            }
+
+            // Validate request
+            if (!ValidationHelper.TryValidate(orderRequest, out var validationError))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(validationError!.Value);
                 return badRequest;
             }
 
@@ -73,19 +81,12 @@ public class OrderFunction
 
             foreach (var item in orderRequest.Items)
             {
-                if (item.Quantity <= 0)
-                {
-                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = "Quantity must be greater than 0" });
-                    return badRequest;
-                }
-
                 // Get menu item details
                 var menuItem = await _mongo.GetMenuItemAsync(item.MenuItemId);
                 if (menuItem == null)
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = $"Menu item {item.MenuItemId} not found" });
+                    await badRequest.WriteAsJsonAsync(new { success = false, error = $"Menu item {item.MenuItemId} not found" });
                     return badRequest;
                 }
 
