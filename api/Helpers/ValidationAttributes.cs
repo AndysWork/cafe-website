@@ -95,11 +95,11 @@ public class AlphanumericAttribute : ValidationAttribute
 /// <summary>
 /// Validates that a value is one of the allowed values
 /// </summary>
-public class AllowedValuesAttribute : ValidationAttribute
+public class AllowedValuesListAttribute : ValidationAttribute
 {
     private readonly string[] _allowedValues;
     
-    public AllowedValuesAttribute(params string[] allowedValues)
+    public AllowedValuesListAttribute(params string[] allowedValues)
     {
         _allowedValues = allowedValues;
         ErrorMessage = $"Value must be one of: {string.Join(", ", allowedValues)}";

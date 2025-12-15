@@ -1,4 +1,5 @@
 using Cafe.Api.Services;
+using Cafe.Api.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Azure.Functions.Worker;
@@ -6,7 +7,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var host = new HostBuilder()
-    .ConfigureFunctionsWebApplication()
+    .ConfigureFunctionsWebApplication(builder =>
+    {
+        // Add security middleware
+        builder.UseMiddleware<SecurityHeadersMiddleware>();
+        builder.UseMiddleware<RateLimitingMiddleware>();
+    })
     .ConfigureServices(s =>
     {
         s.AddSingleton<MongoService>();

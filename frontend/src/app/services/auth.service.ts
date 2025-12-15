@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap, catchError, of } from 'rxjs';
+import { BehaviorSubject, Observable, tap, catchError, of, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export type UserRole = 'admin' | 'user';
@@ -38,6 +38,12 @@ export interface LoginResponse {
   lastName?: string;
 }
 
+export interface ApiLoginResponse {
+  success: boolean;
+  data: LoginResponse;
+  csrfToken?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -65,12 +71,18 @@ export class AuthService {
   }
 
   login(username: string, password: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, { username, password })
+    return this.http.post<ApiLoginResponse>(`${this.apiUrl}/auth/login`, { username, password })
       .pipe(
-        tap(response => {
+        tap(apiResponse => {
+          const response = apiResponse.data;
           if (response.token) {
             // Store token
             localStorage.setItem('authToken', response.token);
+
+            // Store CSRF token if provided
+            if (apiResponse.csrfToken) {
+              localStorage.setItem('csrfToken', apiResponse.csrfToken);
+            }
 
             // Store user info
             const user: User = {
@@ -85,7 +97,8 @@ export class AuthService {
             localStorage.setItem('currentUser', JSON.stringify(user));
             this.currentUserSubject.next(user);
           }
-        })
+        }),
+        map(apiResponse => apiResponse.data)
       );
   }
 

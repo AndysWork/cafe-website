@@ -25,6 +25,10 @@ public class AuthFunction
     public async Task<HttpResponseData> Login(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/login")] HttpRequestData req)
     {
+        var auditLogger = new AuditLogger(_log);
+        var ipAddress = GetClientIp(req);
+        var userAgent = req.Headers.TryGetValues("User-Agent", out var ua) ? ua.First() : null;
+
         try
         {
             var loginRequest = await req.ReadFromJsonAsync<LoginRequest>();
@@ -32,6 +36,21 @@ public class AuthFunction
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                return badRequest;
+            }
+
+            // Sanitize inputs
+            loginRequest.Username = InputSanitizer.SanitizeUsername(loginRequest.Username);
+
+            // Check for dangerous content
+            if (InputSanitizer.IsPotentiallyDangerous(loginRequest.Username) ||
+                InputSanitizer.IsPotentiallyDangerous(loginRequest.Password))
+            {
+                auditLogger.LogSecurityEvent("XSS Attempt in Login", null, ipAddress, 
+                    $"Username: {loginRequest.Username}", SecuritySeverity.High);
+                
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid input detected" });
                 return badRequest;
             }
 
@@ -43,10 +62,24 @@ public class AuthFunction
                 return badRequest;
             }
 
+            // Check for brute force attempts
+            var failedAttempts = auditLogger.GetFailedLoginAttempts(loginRequest.Username, 1);
+            if (failedAttempts >= 5)
+            {
+                auditLogger.LogSecurityEvent("Brute Force Attempt", loginRequest.Username, ipAddress,
+                    $"Failed attempts: {failedAttempts}", SecuritySeverity.High);
+                
+                var tooMany = req.CreateResponse(HttpStatusCode.TooManyRequests);
+                await tooMany.WriteAsJsonAsync(new { success = false, error = "Too many failed attempts. Please try again later." });
+                return tooMany;
+            }
+
             // Get user from database
             var user = await _mongo.GetUserByUsernameAsync(loginRequest.Username);
             if (user == null)
             {
+                auditLogger.LogAuthentication(loginRequest.Username, "Login Failed", false, ipAddress, userAgent, "User not found");
+                
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
                 await unauthorized.WriteAsJsonAsync(new { success = false, error = "Invalid username or password" });
                 return unauthorized;
@@ -55,6 +88,8 @@ public class AuthFunction
             // Verify password
             if (!_auth.VerifyPassword(loginRequest.Password, user.PasswordHash))
             {
+                auditLogger.LogAuthentication(user.Id!, "Login Failed", false, ipAddress, userAgent, "Invalid password");
+                
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
                 await unauthorized.WriteAsJsonAsync(new { success = false, error = "Invalid username or password" });
                 return unauthorized;
@@ -63,6 +98,8 @@ public class AuthFunction
             // Check if user is active
             if (!user.IsActive)
             {
+                auditLogger.LogAuthentication(user.Id!, "Login Failed", false, ipAddress, userAgent, "Account deactivated");
+                
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { success = false, error = "Account is deactivated" });
                 return forbidden;
@@ -73,6 +110,12 @@ public class AuthFunction
 
             // Generate JWT token
             var token = _auth.GenerateJwtToken(user.Id!, user.Username, user.Role);
+
+            // Generate CSRF token
+            var csrfToken = CsrfTokenManager.GenerateToken(user.Id!);
+
+            // Log successful login
+            auditLogger.LogAuthentication(user.Id!, "Login Success", true, ipAddress, userAgent);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
@@ -86,7 +129,8 @@ public class AuthFunction
                     Role = user.Role,
                     FirstName = user.FirstName,
                     LastName = user.LastName
-                }
+                },
+                csrfToken = csrfToken
             });
 
             return response;
@@ -104,6 +148,10 @@ public class AuthFunction
     public async Task<HttpResponseData> Register(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/register")] HttpRequestData req)
     {
+        var auditLogger = new AuditLogger(_log);
+        var ipAddress = GetClientIp(req);
+        var userAgent = req.Headers.TryGetValues("User-Agent", out var ua) ? ua.First() : null;
+
         try
         {
             var registerRequest = await req.ReadFromJsonAsync<RegisterRequest>();
@@ -111,6 +159,27 @@ public class AuthFunction
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                return badRequest;
+            }
+
+            // Sanitize inputs
+            registerRequest.Username = InputSanitizer.SanitizeUsername(registerRequest.Username);
+            registerRequest.Email = InputSanitizer.SanitizeEmail(registerRequest.Email);
+            registerRequest.FirstName = InputSanitizer.Sanitize(registerRequest.FirstName);
+            registerRequest.LastName = InputSanitizer.Sanitize(registerRequest.LastName);
+            registerRequest.PhoneNumber = InputSanitizer.SanitizePhoneNumber(registerRequest.PhoneNumber);
+
+            // Check for dangerous content
+            if (InputSanitizer.IsPotentiallyDangerous(registerRequest.Username) ||
+                InputSanitizer.IsPotentiallyDangerous(registerRequest.Email) ||
+                InputSanitizer.IsPotentiallyDangerous(registerRequest.FirstName) ||
+                InputSanitizer.IsPotentiallyDangerous(registerRequest.LastName))
+            {
+                auditLogger.LogSecurityEvent("XSS Attempt in Registration", null, ipAddress,
+                    $"Username: {registerRequest.Username}, Email: {registerRequest.Email}", SecuritySeverity.High);
+                
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid input detected" });
                 return badRequest;
             }
 
@@ -126,6 +195,8 @@ public class AuthFunction
             var existingUser = await _mongo.GetUserByUsernameAsync(registerRequest.Username);
             if (existingUser != null)
             {
+                auditLogger.LogAuthentication(registerRequest.Username, "Registration Failed", false, ipAddress, userAgent, "Username already exists");
+                
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
                 await conflict.WriteAsJsonAsync(new { success = false, error = "Username already exists" });
                 return conflict;
@@ -135,6 +206,8 @@ public class AuthFunction
             var existingEmail = await _mongo.GetUserByEmailAsync(registerRequest.Email);
             if (existingEmail != null)
             {
+                auditLogger.LogAuthentication(registerRequest.Email, "Registration Failed", false, ipAddress, userAgent, "Email already registered");
+                
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
                 await conflict.WriteAsJsonAsync(new { success = false, error = "Email already registered" });
                 return conflict;
@@ -156,10 +229,14 @@ public class AuthFunction
 
             await _mongo.CreateUserAsync(user);
 
+            // Log successful registration
+            auditLogger.LogAuthentication(user.Id!, "Registration Success", true, ipAddress, userAgent);
+
             _log.LogInformation($"New user registered: {user.Username}");
 
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(new { 
+                success = true,
                 message = "Registration successful",
                 username = user.Username,
                 email = user.Email
@@ -249,5 +326,22 @@ public class AuthFunction
             await res.WriteAsJsonAsync(new { error = "An error occurred while verifying admin user" });
             return res;
         }
+    }
+
+    private string GetClientIp(HttpRequestData request)
+    {
+        // Try to get IP from X-Forwarded-For header (for proxy/load balancer)
+        if (request.Headers.TryGetValues("X-Forwarded-For", out var forwardedFor))
+        {
+            return forwardedFor.First().Split(',')[0].Trim();
+        }
+
+        // Try to get IP from X-Real-IP header
+        if (request.Headers.TryGetValues("X-Real-IP", out var realIp))
+        {
+            return realIp.First();
+        }
+
+        return "unknown";
     }
 }

@@ -24,7 +24,7 @@ public class Offer
 
     [BsonElement("discountType")]
     [Required(ErrorMessage = "Discount type is required")]
-    [AllowedValues("percentage", "flat", "bogo")]
+    [AllowedValuesList("percentage", "flat", "bogo")]
     public required string DiscountType { get; set; } // "percentage", "flat", "bogo"
 
     [BsonElement("discountValue")]

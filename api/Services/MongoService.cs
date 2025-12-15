@@ -279,6 +279,26 @@ public class MongoService
         await _users.UpdateOneAsync(x => x.Id == userId, update);
     }
 
+    // Update user role
+    public async Task<bool> UpdateUserRoleAsync(string userId, string role)
+    {
+        var update = Builders<User>.Update.Set(x => x.Role, role);
+        var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Get all users
+    public async Task<List<User>> GetAllUsersAsync() =>
+        await _users.Find(_ => true).ToListAsync();
+
+    // Update user active status
+    public async Task<bool> UpdateUserActiveStatusAsync(string userId, bool isActive)
+    {
+        var update = Builders<User>.Update.Set(x => x.IsActive, isActive);
+        var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
+        return result.ModifiedCount > 0;
+    }
+
     // Ensure default admin user exists
     private async Task EnsureDefaultAdminAsync()
     {

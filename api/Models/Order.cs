@@ -114,7 +114,7 @@ public class OrderItemRequest
 public class UpdateOrderStatusRequest
 {
     [Required(ErrorMessage = "Status is required")]
-    [AllowedValues("pending", "confirmed", "preparing", "ready", "delivered", "cancelled")]
+    [AllowedValuesList("pending", "confirmed", "preparing", "ready", "delivered", "cancelled")]
     public string Status { get; set; } = string.Empty;
 }
 

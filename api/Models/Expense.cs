@@ -48,18 +48,18 @@ public class CreateExpenseRequest
     public DateTime Date { get; set; }
     
     [Required(ErrorMessage = "Expense type is required")]
-    [AllowedValues("Inventory", "Salary", "Rent", "Utilities", "Maintenance", "Marketing", "Other")]
+    [AllowedValuesList("Inventory", "Salary", "Rent", "Utilities", "Maintenance", "Marketing", "Other")]
     public string ExpenseType { get; set; } = string.Empty;
     
     [Required(ErrorMessage = "Expense source is required")]
-    [AllowedValues("Offline", "Online")]
+    [AllowedValuesList("Offline", "Online")]
     public string ExpenseSource { get; set; } = "Offline";
     
     [Range(0.01, 10000000, ErrorMessage = "Amount must be between 0.01 and 10,000,000")]
     public decimal Amount { get; set; }
     
     [Required(ErrorMessage = "Payment method is required")]
-    [AllowedValues("Cash", "Card", "UPI", "Bank Transfer")]
+    [AllowedValuesList("Cash", "Card", "UPI", "Bank Transfer")]
     public string PaymentMethod { get; set; } = "Cash";
     
     [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]

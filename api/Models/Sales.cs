@@ -67,7 +67,7 @@ public class CreateSalesRequest
     public List<SalesItemRequest> Items { get; set; } = new();
     
     [Required(ErrorMessage = "Payment method is required")]
-    [AllowedValues("Cash", "Card", "UPI", "Online")]
+    [AllowedValuesList("Cash", "Card", "UPI", "Online")]
     public string PaymentMethod { get; set; } = "Cash";
     
     [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
