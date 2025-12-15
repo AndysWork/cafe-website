@@ -46,7 +46,7 @@ Update `api/local.settings.json`:
     "EmailService__SmtpUsername": "your-email@gmail.com",
     "EmailService__SmtpPassword": "abcdefghijklmnop",
     "EmailService__FromEmail": "your-email@gmail.com",
-    "EmailService__FromName": "Cafe Maatara",
+    "EmailService__FromName": "Maa Tara Cafe",
     "EmailService__BaseUrl": "http://localhost:4200",
     "EmailService__UseSsl": "true"
   }
@@ -78,7 +78,7 @@ curl -X POST http://localhost:7071/api/auth/password/forgot \
 ### Check Your Gmail Inbox
 - Check inbox (might take 5-10 seconds)
 - Check spam folder if not in inbox
-- Look for "Password Reset Request - Cafe Maatara"
+- Look for "Password Reset Request - Maa Tara Cafe"
 
 ---
 
@@ -91,7 +91,7 @@ curl -X POST http://localhost:7071/api/auth/password/forgot \
 | `SmtpUsername` | Your Gmail address | - | `john@gmail.com` |
 | `SmtpPassword` | App password | - | `abcdefghijklmnop` |
 | `FromEmail` | Sender email | Same as username | `john@gmail.com` |
-| `FromName` | Display name | `Cafe Maatara` | `Cafe Maatara` |
+| `FromName` | Display name | `Maa Tara Cafe` | `Maa Tara Cafe` |
 | `BaseUrl` | Frontend URL | `http://localhost:4200` | - |
 | `UseSsl` | Use SSL/TLS | `true` | `true` |
 
@@ -281,7 +281,7 @@ curl -X POST http://localhost:7071/api/auth/password/change \
   "EmailService__SmtpUsername": "your-email@gmail.com",
   "EmailService__SmtpPassword": "your-app-password",
   "EmailService__FromEmail": "your-email@gmail.com",
-  "EmailService__FromName": "Cafe Maatara",
+  "EmailService__FromName": "Maa Tara Cafe",
   "EmailService__BaseUrl": "http://localhost:4200",
   "EmailService__UseSsl": "true"
 }

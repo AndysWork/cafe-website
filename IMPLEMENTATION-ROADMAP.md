@@ -179,7 +179,7 @@ Add to `local.settings.json`:
 {
   "EmailService__SendGridApiKey": "SG.your-api-key-here",
   "EmailService__FromEmail": "noreply@cafemaatara.com",
-  "EmailService__FromName": "Cafe Maatara",
+  "EmailService__FromName": "Maa Tara Cafe",
   "EmailService__BaseUrl": "http://localhost:4200"
 }
 ```
@@ -199,7 +199,7 @@ Add to `local.settings.json`:
 #### Features
 - Automatic fallback to console logging if API key not configured
 - Responsive design (mobile & desktop)
-- Branded Cafe Maatara theme (#8B4513 brown)
+- Branded Maa Tara Cafe theme (#8B4513 brown)
 - Error logging and monitoring
 - HTML + Plain text versions
 - IST timezone support

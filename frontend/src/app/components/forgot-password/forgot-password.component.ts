@@ -5,43 +5,40 @@ import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
-  selector: 'app-login',
-  standalone: true,
+  selector: 'app-forgot-password',
   imports: [CommonModule, FormsModule, RouterModule],
-  templateUrl: './login.component.html',
-  styleUrls: ['./login.component.scss']
+  templateUrl: './forgot-password.component.html',
+  styleUrl: './forgot-password.component.scss'
 })
-export class LoginComponent {
-  username = '';
-  password = '';
+export class ForgotPasswordComponent {
+  email = '';
+  message = '';
   errorMessage = '';
   isLoading = false;
+  emailSent = false;
 
   constructor(
     private authService: AuthService,
     private router: Router
   ) {}
 
-  onLogin(): void {
+  onSubmit(): void {
+    this.message = '';
     this.errorMessage = '';
     this.isLoading = true;
 
-    this.authService.login(this.username, this.password).subscribe({
-      next: (response) => {
+    this.authService.forgotPassword(this.email).subscribe({
+      next: () => {
         this.isLoading = false;
-        const user = this.authService.getCurrentUser();
-        if (user?.role === 'admin') {
-          this.router.navigate(['/admin/dashboard']);
-        } else {
-          this.router.navigate(['/menu']);
-        }
+        this.emailSent = true;
+        this.message = 'Password reset instructions have been sent to your email.';
       },
       error: (error) => {
         this.isLoading = false;
-        this.errorMessage = error.error?.error || 'Invalid username or password';
+        this.errorMessage = error.error?.error || 'Failed to send reset email. Please try again.';
         setTimeout(() => {
           this.errorMessage = '';
-        }, 3000);
+        }, 5000);
       }
     });
   }

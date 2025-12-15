@@ -41,7 +41,7 @@ Update `api/local.settings.json`:
   "Values": {
     "EmailService__SendGridApiKey": "SG.paste-your-key-here",
     "EmailService__FromEmail": "noreply@cafemaatara.com",
-    "EmailService__FromName": "Cafe Maatara",
+    "EmailService__FromName": "Maa Tara Cafe",
     "EmailService__BaseUrl": "http://localhost:4200"
   }
 }
@@ -103,7 +103,7 @@ Reset link: http://localhost:4200/reset-password?token=abc123...
 ### Welcome Email
 ```
 ┌─────────────────────────────────┐
-│   ☕ Welcome to Cafe Maatara!   │
+│   ☕ Welcome to Maa Tara Cafe!   │
 └─────────────────────────────────┘
 │ Hi John,                        │
 │                                 │

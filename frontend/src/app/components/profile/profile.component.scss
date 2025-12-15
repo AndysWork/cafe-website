@@ -1,0 +1,251 @@
+.profile-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  min-height: calc(100vh - 80px);
+}
+
+.profile-box {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 40px;
+  animation: slideUp 0.5s ease-out;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 40px;
+
+  .logo {
+    font-size: 4rem;
+    margin-bottom: 15px;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    color: #2d3748;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  p {
+    color: #718096;
+    font-size: 1.05rem;
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #e2e8f0;
+
+  .tab-button {
+    flex: 1;
+    padding: 15px 20px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #718096;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    top: 2px;
+
+    &:hover {
+      color: #667eea;
+      background: #f7fafc;
+    }
+
+    &.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+      background: #f7fafc;
+    }
+  }
+}
+
+.tab-content {
+  animation: fadeIn 0.3s ease;
+}
+
+.profile-form,
+.password-form {
+  .form-group {
+    margin-bottom: 25px;
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #2d3748;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      box-sizing: border-box;
+
+      &:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      &.disabled-input {
+        background: #f7fafc;
+        color: #a0aec0;
+        cursor: not-allowed;
+      }
+
+      &::placeholder {
+        color: #a0aec0;
+      }
+    }
+
+    small {
+      display: block;
+      margin-top: 5px;
+      color: #718096;
+      font-size: 0.85rem;
+    }
+  }
+
+  .success-message {
+    background: #c6f6d5;
+    color: #276749;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .error-message {
+    background: #fed7d7;
+    color: #c53030;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+    text-align: center;
+    animation: shake 0.4s ease;
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0);
+    }
+  }
+}
+
+.back-link {
+  text-align: center;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+
+  a {
+    color: #667eea;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: #764ba2;
+      text-decoration: underline;
+    }
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-10px);
+  }
+
+  75% {
+    transform: translateX(10px);
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-box {
+    padding: 30px 20px;
+  }
+
+  .header {
+    h1 {
+      font-size: 2rem;
+    }
+
+    .logo {
+      font-size: 3rem;
+    }
+  }
+
+  .tabs {
+    .tab-button {
+      padding: 12px 15px;
+      font-size: 0.9rem;
+    }
+  }
+}

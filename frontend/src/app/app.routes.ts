@@ -4,6 +4,9 @@ import { CategoryUploadComponent } from './components/category-upload/category-u
 import { CategoryCrudComponent } from './components/category-crud/category-crud.component';
 import { LoginComponent } from './components/login/login.component';
 import { RegisterComponent } from './components/register/register.component';
+import { ForgotPasswordComponent } from './components/forgot-password/forgot-password.component';
+import { ResetPasswordComponent } from './components/reset-password/reset-password.component';
+import { ProfileComponent } from './components/profile/profile.component';
 import { OrdersComponent } from './components/orders/orders.component';
 import { OffersComponent } from './components/offers/offers.component';
 import { LoyaltyComponent } from './components/loyalty/loyalty.component';
@@ -26,6 +29,9 @@ export const routes: Routes = [
   { path: 'home', component: HomeComponent },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
+  { path: 'forgot-password', component: ForgotPasswordComponent },
+  { path: 'reset-password', component: ResetPasswordComponent },
+  { path: 'profile', component: ProfileComponent, canActivate: [authGuard] },
   { path: 'menu', component: MenuComponent },
   { path: 'cart', component: CartComponent },
   { path: 'checkout', component: CheckoutComponent, canActivate: [authGuard] },

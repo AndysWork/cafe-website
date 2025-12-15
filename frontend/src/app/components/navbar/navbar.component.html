@@ -97,6 +97,14 @@
           </a>
         </li>
 
+        <!-- Profile (Users Only) -->
+        <li class="nav-item" *ngIf="isUser">
+          <a routerLink="/profile" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+            <span class="nav-icon">👤</span>
+            Profile
+          </a>
+        </li>
+
         <!-- Cart (Users Only) -->
         <li class="nav-item cart-item" *ngIf="isUser">
           <a routerLink="/cart" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">

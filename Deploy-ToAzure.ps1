@@ -44,6 +44,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Suppress Azure CLI warnings (including Python 32-bit warning)
+$env:AZURE_CORE_ONLY_SHOW_ERRORS = "True"
+$env:PYTHONWARNINGS = "ignore"
+
 # Colors for output
 function Write-ColorOutput($ForegroundColor) {
     $fc = $host.UI.RawUI.ForegroundColor
@@ -61,17 +65,17 @@ function Write-Step {
 
 function Write-Success {
     param([string]$Message)
-    Write-ColorOutput Green "✓ $Message"
+    Write-ColorOutput Green "[OK] $Message"
 }
 
 function Write-Warning {
     param([string]$Message)
-    Write-ColorOutput Yellow "⚠ $Message"
+    Write-ColorOutput Yellow "[WARNING] $Message"
 }
 
 function Write-Error {
     param([string]$Message)
-    Write-ColorOutput Red "✗ $Message"
+    Write-ColorOutput Red "[ERROR] $Message"
 }
 
 # Validate Azure CLI is installed
@@ -106,7 +110,7 @@ $rgExists = az group exists --name $ResourceGroupName
 if ($rgExists -eq "true") {
     Write-Warning "Resource group already exists"
 } else {
-    az group create --name $ResourceGroupName --location $Location --output none
+    az group create --name $ResourceGroupName --location $Location --only-show-errors --output none
     Write-Success "Resource group created"
 }
 
@@ -126,13 +130,16 @@ if ($storageExists.nameAvailable -eq $false) {
         --resource-group $ResourceGroupName `
         --location $Location `
         --sku Standard_LRS `
+        --only-show-errors `
         --output none
     Write-Success "Storage account created"
 }
 
 # Create Function App
 Write-Step "Creating Function App: $FunctionAppName"
-$functionAppExists = az functionapp show --name $FunctionAppName --resource-group $ResourceGroupName 2>$null
+$ErrorActionPreference = "SilentlyContinue"
+$functionAppExists = az functionapp show --name $FunctionAppName --resource-group $ResourceGroupName --only-show-errors 2>$null
+$ErrorActionPreference = "Stop"
 if ($functionAppExists) {
     Write-Warning "Function App already exists"
 } else {
@@ -145,17 +152,21 @@ if ($functionAppExists) {
         --runtime-version 9.0 `
         --functions-version 4 `
         --os-type Windows `
+        --only-show-errors `
         --output none
     Write-Success "Function App created"
 }
 
 # Configure CORS
 Write-Step "Configuring CORS..."
+$ErrorActionPreference = "SilentlyContinue"
 az functionapp cors add `
     --name $FunctionAppName `
     --resource-group $ResourceGroupName `
     --allowed-origins "https://your-frontend-url.azurestaticapps.net" `
+    --only-show-errors `
     --output none 2>$null
+$ErrorActionPreference = "Stop"
 Write-Success "CORS configured"
 
 # Build the project
@@ -182,11 +193,14 @@ try {
     Compress-Archive -Path * -DestinationPath ../deploy.zip -Force
     Write-Success "Created deployment package"
     
+    $ErrorActionPreference = "SilentlyContinue"
     az functionapp deployment source config-zip `
         --name $FunctionAppName `
         --resource-group $ResourceGroupName `
         --src ../deploy.zip `
+        --only-show-errors `
         --output none
+    $ErrorActionPreference = "Stop"
     
     Remove-Item ../deploy.zip -Force
     Write-Success "Deployment completed"
@@ -212,11 +226,14 @@ if (Test-Path $settingsFile) {
     }
     
     foreach ($setting in $settings) {
+        $ErrorActionPreference = "SilentlyContinue"
         az functionapp config appsettings set `
             --name $FunctionAppName `
             --resource-group $ResourceGroupName `
             --settings "$($setting.name)=$($setting.value)" `
+            --only-show-errors `
             --output none
+        $ErrorActionPreference = "Stop"
     }
     Write-Success "App settings configured"
 } else {
@@ -225,11 +242,13 @@ if (Test-Path $settingsFile) {
 }
 
 # Get Function App URL
+$ErrorActionPreference = "SilentlyContinue"
 $functionAppUrl = az functionapp show `
     --name $FunctionAppName `
     --resource-group $ResourceGroupName `
     --query "defaultHostName" `
-    --output tsv
+    --output tsv 2>$null
+$ErrorActionPreference = "Stop"
 
 Write-Step "Deployment Summary"
 Write-Success "Resource Group: $ResourceGroupName"
@@ -244,4 +263,4 @@ Write-Output "3. Test the API endpoints: https://$functionAppUrl/api/auth/admin/
 Write-Output "4. Monitor logs: az functionapp log tail -n $FunctionAppName -g $ResourceGroupName"
 Write-Output "5. View in Azure Portal: https://portal.azure.com/#resource/subscriptions/$($accountInfo.id)/resourceGroups/$ResourceGroupName/providers/Microsoft.Web/sites/$FunctionAppName"
 
-Write-ColorOutput Green "`n✓ Deployment completed successfully!"
+Write-ColorOutput Green "`n[SUCCESS] Deployment completed successfully!"

@@ -280,3 +280,4 @@ api/local.settings.json
 # OS
 .DS_Store
 Thumbs.db
+azure-app-settings.json

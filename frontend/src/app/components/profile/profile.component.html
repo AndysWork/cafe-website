@@ -1,0 +1,163 @@
+<div class="profile-container">
+  <div class="profile-box">
+    <div class="header">
+      <div class="logo">👤</div>
+      <h1>My Profile</h1>
+      <p>Manage your account settings</p>
+    </div>
+
+    <div class="tabs">
+      <button
+        [class.active]="activeTab === 'profile'"
+        (click)="switchTab('profile')"
+        class="tab-button">
+        Profile Info
+      </button>
+      <button
+        [class.active]="activeTab === 'password'"
+        (click)="switchTab('password')"
+        class="tab-button">
+        Change Password
+      </button>
+    </div>
+
+    <!-- Profile Update Tab -->
+    <div *ngIf="activeTab === 'profile'" class="tab-content">
+      <form (ngSubmit)="updateProfile()" class="profile-form">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input
+            type="text"
+            id="username"
+            [value]="user?.username"
+            disabled
+            class="disabled-input"
+          />
+          <small>Username cannot be changed</small>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input
+            type="email"
+            id="email"
+            [value]="user?.email"
+            disabled
+            class="disabled-input"
+          />
+          <small>Email cannot be changed</small>
+        </div>
+
+        <div class="form-group">
+          <label for="firstName">First Name</label>
+          <input
+            type="text"
+            id="firstName"
+            [(ngModel)]="firstName"
+            name="firstName"
+            placeholder="Enter your first name"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="lastName">Last Name</label>
+          <input
+            type="text"
+            id="lastName"
+            [(ngModel)]="lastName"
+            name="lastName"
+            placeholder="Enter your last name"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="phoneNumber">Phone Number</label>
+          <input
+            type="tel"
+            id="phoneNumber"
+            [(ngModel)]="phoneNumber"
+            name="phoneNumber"
+            placeholder="Enter your phone number"
+          />
+        </div>
+
+        <div *ngIf="profileMessage" class="success-message">
+          {{ profileMessage }}
+        </div>
+
+        <div *ngIf="profileError" class="error-message">
+          {{ profileError }}
+        </div>
+
+        <button type="submit" class="btn-primary" [disabled]="isUpdatingProfile">
+          <span *ngIf="!isUpdatingProfile">Update Profile</span>
+          <span *ngIf="isUpdatingProfile">Updating...</span>
+        </button>
+      </form>
+    </div>
+
+    <!-- Change Password Tab -->
+    <div *ngIf="activeTab === 'password'" class="tab-content">
+      <form (ngSubmit)="changePassword()" class="password-form">
+        <div class="form-group">
+          <label for="currentPassword">Current Password</label>
+          <input
+            type="password"
+            id="currentPassword"
+            [(ngModel)]="currentPassword"
+            name="currentPassword"
+            placeholder="Enter current password"
+            required
+            autocomplete="current-password"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="newPassword">New Password</label>
+          <input
+            type="password"
+            id="newPassword"
+            [(ngModel)]="newPassword"
+            name="newPassword"
+            placeholder="Enter new password"
+            required
+            minlength="6"
+            autocomplete="new-password"
+          />
+          <small>Minimum 6 characters</small>
+        </div>
+
+        <div class="form-group">
+          <label for="confirmPassword">Confirm New Password</label>
+          <input
+            type="password"
+            id="confirmPassword"
+            [(ngModel)]="confirmPassword"
+            name="confirmPassword"
+            placeholder="Confirm new password"
+            required
+            autocomplete="new-password"
+          />
+        </div>
+
+        <div *ngIf="passwordMessage" class="success-message">
+          {{ passwordMessage }}
+        </div>
+
+        <div *ngIf="passwordError" class="error-message">
+          {{ passwordError }}
+        </div>
+
+        <button type="submit" class="btn-primary" [disabled]="isChangingPassword || !currentPassword || !newPassword || !confirmPassword">
+          <span *ngIf="!isChangingPassword">Change Password</span>
+          <span *ngIf="isChangingPassword">Changing...</span>
+        </button>
+      </form>
+    </div>
+
+    <div class="back-link">
+      <a routerLink="/menu">← Back to Menu</a>
+    </div>
+  </div>
+</div>
+

@@ -121,7 +121,7 @@ s.AddSingleton<IEmailService, EmailService>();
 {
   "EmailService__SendGridApiKey": "SG.your-key-here",
   "EmailService__FromEmail": "noreply@cafemaatara.com",
-  "EmailService__FromName": "Cafe Maatara",
+  "EmailService__FromName": "Maa Tara Cafe",
   "EmailService__BaseUrl": "http://localhost:4200"
 }
 ```
@@ -356,7 +356,7 @@ _logger.LogError($"Failed to send email. Status: {response.StatusCode}");
 ```
 EmailService__SendGridApiKey=SG.production-key
 EmailService__FromEmail=noreply@yourdomain.com
-EmailService__FromName=Cafe Maatara
+EmailService__FromName=Maa Tara Cafe
 EmailService__BaseUrl=https://yourdomain.com
 ```
 

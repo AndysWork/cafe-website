@@ -509,7 +509,7 @@ public interface IEmailService
 </head>
 <body>
     <h2>Password Reset Request</h2>
-    <p>You requested to reset your password for Cafe Maatara.</p>
+    <p>You requested to reset your password for Maa Tara Cafe.</p>
     <p>Click the link below to reset your password (valid for 1 hour):</p>
     <a href="https://cafe.example.com/reset-password?token={resetToken}">
         Reset Password
@@ -541,7 +541,7 @@ public interface IEmailService
     "EmailService__Provider": "SendGrid",
     "EmailService__ApiKey": "your-api-key",
     "EmailService__FromEmail": "noreply@cafemaatara.com",
-    "EmailService__FromName": "Cafe Maatara"
+    "EmailService__FromName": "Maa Tara Cafe"
   }
 }
 ```

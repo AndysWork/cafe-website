@@ -80,7 +80,7 @@ Update `api/local.settings.json`:
   "Values": {
     "EmailService__SendGridApiKey": "SG.your-actual-api-key-here",
     "EmailService__FromEmail": "noreply@cafemaatara.com",
-    "EmailService__FromName": "Cafe Maatara",
+    "EmailService__FromName": "Maa Tara Cafe",
     "EmailService__BaseUrl": "http://localhost:4200"
   }
 }
@@ -92,7 +92,7 @@ Update `api/local.settings.json`:
 |-----|-------------|---------|----------|
 | `SendGridApiKey` | SendGrid API key | - | Yes* |
 | `FromEmail` | Sender email address | `noreply@cafemaatara.com` | No |
-| `FromName` | Sender display name | `Cafe Maatara` | No |
+| `FromName` | Sender display name | `Maa Tara Cafe` | No |
 | `BaseUrl` | Frontend URL for links | `http://localhost:4200` | No |
 
 *If not configured, service falls back to console logging
@@ -292,7 +292,7 @@ All methods include comprehensive error handling:
 
 All templates include:
 - **Responsive Design** - Works on mobile and desktop
-- **Branded Header** - Cafe Maatara logo and colors
+- **Branded Header** - Maa Tara Cafe logo and colors
 - **Content Area** - Main message body
 - **Footer** - Copyright and contact info
 - **Plain Text Fallback** - For email clients without HTML support
@@ -438,7 +438,7 @@ Configure in Azure Function App Settings:
 ```
 EmailService__SendGridApiKey=SG.production-key-here
 EmailService__FromEmail=noreply@yourdomain.com
-EmailService__FromName=Cafe Maatara
+EmailService__FromName=Maa Tara Cafe
 EmailService__BaseUrl=https://yourdomain.com
 ```
 

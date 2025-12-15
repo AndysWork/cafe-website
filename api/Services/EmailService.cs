@@ -34,7 +34,7 @@ public class EmailService : IEmailService
         var fromEmailConfig = _config["EmailService:FromEmail"] ?? "noreply@cafemaatara.com";
         _fromEmail = ExtractEmailAddress(fromEmailConfig);
         
-        _fromName = _config["EmailService:FromName"] ?? "Cafe Maatara";
+        _fromName = _config["EmailService:FromName"] ?? "Maa Tara Cafe";
         _baseUrl = _config["EmailService:BaseUrl"] ?? "http://localhost:4200";
         _useSsl = bool.TryParse(_config["EmailService:UseSsl"], out var useSsl) ? useSsl : true;
         
@@ -70,14 +70,14 @@ public class EmailService : IEmailService
             return false;
         }
 
-        var subject = "Password Reset Request - Cafe Maatara";
+        var subject = "Password Reset Request - Maa Tara Cafe";
         var resetLink = $"{_baseUrl}/reset-password?token={resetToken}";
         
         var htmlContent = GetPasswordResetTemplate(userName, resetLink);
         var plainTextContent = $@"
 Hi {userName},
 
-You requested to reset your password for Cafe Maatara.
+You requested to reset your password for Maa Tara Cafe.
 
 Click the link below to reset your password (valid for 1 hour):
 {resetLink}
@@ -85,7 +85,7 @@ Click the link below to reset your password (valid for 1 hour):
 If you didn't request this, please ignore this email and your password will remain unchanged.
 
 Best regards,
-Cafe Maatara Team
+Maa Tara Cafe Team
 ";
 
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
@@ -99,7 +99,7 @@ Cafe Maatara Team
             return false;
         }
 
-        var subject = "Password Changed Successfully - Cafe Maatara";
+        var subject = "Password Changed Successfully - Maa Tara Cafe";
         
         var htmlContent = GetPasswordChangedTemplate(userName);
         var plainTextContent = $@"
@@ -110,7 +110,7 @@ Your password has been changed successfully.
 If you didn't make this change, please contact us immediately.
 
 Best regards,
-Cafe Maatara Team
+Maa Tara Cafe Team
 ";
 
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
@@ -124,7 +124,7 @@ Cafe Maatara Team
             return false;
         }
 
-        var subject = "Profile Updated Successfully - Cafe Maatara";
+        var subject = "Profile Updated Successfully - Maa Tara Cafe";
         
         var htmlContent = GetProfileUpdatedTemplate(userName);
         var plainTextContent = $@"
@@ -135,7 +135,7 @@ Your profile has been updated successfully.
 If you didn't make this change, please contact us immediately.
 
 Best regards,
-Cafe Maatara Team
+Maa Tara Cafe Team
 ";
 
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
@@ -149,7 +149,7 @@ Cafe Maatara Team
             return false;
         }
 
-        var subject = $"Order Confirmed #{orderId} - Cafe Maatara";
+        var subject = $"Order Confirmed #{orderId} - Maa Tara Cafe";
         
         var htmlContent = GetOrderConfirmationTemplate(userName, orderId, total);
         var plainTextContent = $@"
@@ -162,7 +162,7 @@ Total: ₹{total:N2}
 We'll notify you when your order is ready.
 
 Best regards,
-Cafe Maatara Team
+Maa Tara Cafe Team
 ";
 
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
@@ -176,7 +176,7 @@ Cafe Maatara Team
             return false;
         }
 
-        var subject = $"Order #{orderId} - {status} - Cafe Maatara";
+        var subject = $"Order #{orderId} - {status} - Maa Tara Cafe";
         
         var htmlContent = GetOrderStatusUpdateTemplate(userName, orderId, status);
         var plainTextContent = $@"
@@ -185,7 +185,7 @@ Hi {userName},
 Your order #{orderId} is now: {status}
 
 Best regards,
-Cafe Maatara Team
+Maa Tara Cafe Team
 ";
 
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
@@ -199,18 +199,18 @@ Cafe Maatara Team
             return false;
         }
 
-        var subject = "Welcome to Cafe Maatara! 🎉";
+        var subject = "Welcome to Maa Tara Cafe! 🎉";
         
         var htmlContent = GetWelcomeTemplate(userName);
         var plainTextContent = $@"
 Hi {userName},
 
-Welcome to Cafe Maatara!
+Welcome to Maa Tara Cafe!
 
 We're excited to have you join our community. Enjoy our delicious menu and earn rewards with every order!
 
 Best regards,
-Cafe Maatara Team
+Maa Tara Cafe Team
 ";
 
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
@@ -231,7 +231,7 @@ Hi {userName},
 {content}
 
 Best regards,
-Cafe Maatara Team
+Maa Tara Cafe Team
 ";
 
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
@@ -306,7 +306,7 @@ Cafe Maatara Team
         <div class='content'>
             <p>Hi <strong>{userName}</strong>,</p>
             
-            <p>You requested to reset your password for your Cafe Maatara account.</p>
+            <p>You requested to reset your password for your Maa Tara Cafe account.</p>
             
             <p>Click the button below to reset your password:</p>
             
@@ -323,10 +323,10 @@ Cafe Maatara Team
             
             <p style='margin-top: 30px;'>If you didn't request this password reset, please ignore this email. Your password will remain unchanged.</p>
             
-            <p>Best regards,<br><strong>Cafe Maatara Team</strong></p>
+            <p>Best regards,<br><strong>Maa Tara Cafe Team</strong></p>
         </div>
         <div class='footer'>
-            <p>© 2024 Cafe Maatara. All rights reserved.</p>
+            <p>© 2024 Maa Tara Cafe. All rights reserved.</p>
             <p>This is an automated message, please do not reply to this email.</p>
         </div>
     </div>
@@ -372,10 +372,10 @@ Cafe Maatara Team
             <p><strong>If you didn't make this change:</strong><br>
             Please contact us immediately at support@cafemaatara.com or call us to secure your account.</p>
             
-            <p>Best regards,<br><strong>Cafe Maatara Team</strong></p>
+            <p>Best regards,<br><strong>Maa Tara Cafe Team</strong></p>
         </div>
         <div class='footer'>
-            <p>© 2024 Cafe Maatara. All rights reserved.</p>
+            <p>© 2024 Maa Tara Cafe. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -411,10 +411,10 @@ Cafe Maatara Team
             
             <p>If you didn't make this change, please contact us immediately.</p>
             
-            <p>Best regards,<br><strong>Cafe Maatara Team</strong></p>
+            <p>Best regards,<br><strong>Maa Tara Cafe Team</strong></p>
         </div>
         <div class='footer'>
-            <p>© 2024 Cafe Maatara. All rights reserved.</p>
+            <p>© 2024 Maa Tara Cafe. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -457,12 +457,12 @@ Cafe Maatara Team
             
             <p>We'll notify you when your order status changes.</p>
             
-            <p>Thank you for choosing Cafe Maatara!</p>
+            <p>Thank you for choosing Maa Tara Cafe!</p>
             
-            <p>Best regards,<br><strong>Cafe Maatara Team</strong></p>
+            <p>Best regards,<br><strong>Maa Tara Cafe Team</strong></p>
         </div>
         <div class='footer'>
-            <p>© 2024 Cafe Maatara. All rights reserved.</p>
+            <p>© 2024 Maa Tara Cafe. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -514,10 +514,10 @@ Cafe Maatara Team
             
             <p>Thank you for your patience!</p>
             
-            <p>Best regards,<br><strong>Cafe Maatara Team</strong></p>
+            <p>Best regards,<br><strong>Maa Tara Cafe Team</strong></p>
         </div>
         <div class='footer'>
-            <p>© 2024 Cafe Maatara. All rights reserved.</p>
+            <p>© 2024 Maa Tara Cafe. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -532,7 +532,7 @@ Cafe Maatara Team
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>Welcome to Cafe Maatara</title>
+    <title>Welcome to Maa Tara Cafe</title>
     <style>
         body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }}
         .container {{ background-color: #f9f9f9; border-radius: 10px; padding: 30px; }}
@@ -546,12 +546,12 @@ Cafe Maatara Team
 <body>
     <div class='container'>
         <div class='header'>
-            <h1>☕ Welcome to Cafe Maatara!</h1>
+            <h1>☕ Welcome to Maa Tara Cafe!</h1>
         </div>
         <div class='content'>
             <p>Hi <strong>{userName}</strong>,</p>
             
-            <p>Welcome to the Cafe Maatara family! 🎉</p>
+            <p>Welcome to the Maa Tara Cafe family! 🎉</p>
             
             <p>We're thrilled to have you join us. Get ready to enjoy:</p>
             
@@ -574,10 +574,10 @@ Cafe Maatara Team
             
             <p>If you have any questions, feel free to reach out to us.</p>
             
-            <p>Happy ordering!<br><strong>Cafe Maatara Team</strong></p>
+            <p>Happy ordering!<br><strong>Maa Tara Cafe Team</strong></p>
         </div>
         <div class='footer'>
-            <p>© 2024 Cafe Maatara. All rights reserved.</p>
+            <p>© 2024 Maa Tara Cafe. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -611,10 +611,10 @@ Cafe Maatara Team
             
             {content}
             
-            <p>Best regards,<br><strong>Cafe Maatara Team</strong></p>
+            <p>Best regards,<br><strong>Maa Tara Cafe Team</strong></p>
         </div>
         <div class='footer'>
-            <p>© 2024 Cafe Maatara. All rights reserved.</p>
+            <p>© 2024 Maa Tara Cafe. All rights reserved.</p>
             <p>To unsubscribe from promotional emails, please contact us.</p>
         </div>
     </div>
