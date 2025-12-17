@@ -1,9 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { SalesService, Sales } from '../../services/sales.service';
 import { ExpenseService, ExpenseAnalytics } from '../../services/expense.service';
 import { getIstNow, getIstDateString, getIstDaysDifference, convertToIst, formatIstDate, getIstInputDate, getIstStartOfDay, getIstEndOfDay } from '../../utils/date-utils';
+import { environment } from '../../../environments/environment';
 
 interface SalesInsights {
   totalRevenue: number;
@@ -34,8 +36,12 @@ export class AdminAnalyticsComponent implements OnInit {
   // Expense Analytics
   expenseAnalytics: ExpenseAnalytics | null = null;
   expenseLoading = false;
-  selectedAnalyticsTab: 'sales' | 'expenses' = 'sales';
+  selectedAnalyticsTab: 'sales' | 'expenses' | 'earnings' = 'sales';
   expenseSource: 'All' | 'Offline' | 'Online' = 'All';
+
+  // Earnings Analytics
+  earningsData: any = null;
+  earningsLoading = false;
 
   // Date filters
   dateRange = {
@@ -49,18 +55,22 @@ export class AdminAnalyticsComponent implements OnInit {
 
   constructor(
     private salesService: SalesService,
-    private expenseService: ExpenseService
+    private expenseService: ExpenseService,
+    private http: HttpClient
   ) {}
 
   ngOnInit() {
     this.loadSalesInsights();
     this.loadExpenseAnalytics();
+    this.loadEarningsAnalytics();
   }
 
-  switchTab(tab: 'sales' | 'expenses') {
+  switchTab(tab: 'sales' | 'expenses' | 'earnings') {
     this.selectedAnalyticsTab = tab;
     if (tab === 'expenses' && !this.expenseAnalytics) {
       this.loadExpenseAnalytics();
+    } else if (tab === 'earnings' && !this.earningsData) {
+      this.loadEarningsAnalytics();
     }
   }
 
@@ -280,6 +290,7 @@ export class AdminAnalyticsComponent implements OnInit {
   onDateRangeChange() {
     this.loadSalesInsights();
     this.loadExpenseAnalytics();
+    this.loadEarningsAnalytics();
   }
 
   formatCurrency(amount: number): string {
@@ -339,4 +350,107 @@ export class AdminAnalyticsComponent implements OnInit {
     if (!this.expenseAnalytics?.monthlyComparison.length) return 1;
     return Math.max(...this.expenseAnalytics.monthlyComparison.map(m => m.totalAmount));
   }
+
+  loadEarningsAnalytics() {
+    this.earningsLoading = true;
+
+    // Fetch sales, expenses, and cash reconciliations for the date range
+    Promise.all([
+      this.salesService.getAllSales().toPromise(),
+      this.http.get(`${environment.apiUrl}/expenses/range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise(),
+      this.http.get(`${environment.apiUrl}/cash-reconciliation?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise()
+    ]).then(([sales, expenses, reconciliationResponse]: [any, any, any]) => {
+      const filteredSales = this.filterByDateRange(sales);
+      const reconciliations = reconciliationResponse?.data || [];
+      this.calculateEarningsInsights(filteredSales, expenses || [], reconciliations);
+      this.earningsLoading = false;
+    }).catch(err => {
+      console.error('Error loading earnings analytics:', err);
+      this.earningsLoading = false;
+    });
+  }
+
+  calculateEarningsInsights(sales: any[], expenses: any[], reconciliations: any[]) {
+    // Calculate total sales
+    const totalSales = sales.reduce((sum, s) => sum + s.totalAmount, 0);
+
+    // Calculate online sales (card, online, upi, etc.)
+    const onlineSales = sales
+      .filter(s => {
+        const method = s.paymentMethod?.toLowerCase() || '';
+        return method === 'card' || method === 'online' || method === 'upi' ||
+               method === 'paytm' || method === 'gpay' || method === 'phonepe';
+      })
+      .reduce((sum, s) => sum + s.totalAmount, 0);
+
+    // Calculate cash sales
+    const cashSales = sales
+      .filter(s => s.paymentMethod?.toLowerCase() === 'cash')
+      .reduce((sum, s) => sum + s.totalAmount, 0);
+
+    // Calculate total expenses
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+    // Calculate offline expenses (cash payment method)
+    const offlineExpenses = expenses
+      .filter(e => e.paymentMethod?.toLowerCase() === 'cash')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    // Calculate online expenses (card, online, upi, bank transfer)
+    const onlineExpenses = expenses
+      .filter(e => {
+        const method = e.paymentMethod?.toLowerCase() || '';
+        return method === 'online' || method === 'card' || method === 'upi' ||
+               method === 'bank transfer';
+      })
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    // Calculate Total Cash Collection from reconciliations
+    // Sort by date
+    const sortedRecs = reconciliations.sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    let totalCashCollection = 0;
+
+    sortedRecs.forEach((rec, index) => {
+      // Get offline expenses for this day
+      const recDate = new Date(rec.date);
+      const offlineExpensesForDay = expenses.filter(e => {
+        const expDate = new Date(e.date);
+        return expDate.toDateString() === recDate.toDateString() &&
+               e.paymentMethod?.toLowerCase() === 'cash';
+      }).reduce((sum, e) => sum + e.amount, 0);
+
+      if (index === 0) {
+        // First day: (CashCounted - OpeningCash) + (CoinCounted - OpeningCoin) + OfflineExpenses
+        const cashDifference = (rec.countedCash || 0) - (rec.openingCashBalance || 0);
+        const coinDifference = (rec.countedCoins || 0) - (rec.openingCoinBalance || 0);
+        totalCashCollection += cashDifference + coinDifference + offlineExpensesForDay;
+      } else {
+        // Subsequent days: (CashCounted - OpeningCash) + (CoinCounted - OpeningCoin) + OfflineExpenses
+        const cashDifference = (rec.countedCash || 0) - (rec.openingCashBalance || 0);
+        const coinDifference = (rec.countedCoins || 0) - (rec.openingCoinBalance || 0);
+        totalCashCollection += cashDifference + coinDifference + offlineExpensesForDay;
+      }
+    });
+
+    // Total online collection = sum of actualOnline from reconciliations
+    const totalOnlineCollection = reconciliations.reduce((sum, rec) =>
+      sum + (rec.actualOnline || 0), 0
+    );
+
+    this.earningsData = {
+      totalSales,
+      totalOnlineSales: onlineSales,
+      totalCashSales: cashSales,
+      totalExpenses,
+      offlineExpenses,
+      onlineExpenses,
+      totalCashCollection,
+      totalOnlineCollection,
+      totalCollection: totalCashCollection + totalOnlineCollection
+    };
+  }
 }
+

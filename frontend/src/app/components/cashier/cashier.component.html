@@ -1,0 +1,375 @@
+<div class="cashier-container">
+  <div class="cashier-header">
+    <h1>🧾 Daily Cash Reconciliation</h1>
+    <p>Track and reconcile daily cash, coins, and online payments</p>
+  </div>
+
+  <!-- View Tabs -->
+  <div class="view-tabs">
+    <button
+      [class.active]="viewMode === 'daily'"
+      (click)="viewMode = 'daily'"
+      class="tab-button"
+    >
+      📅 Daily Reconciliation
+    </button>
+    <button
+      [class.active]="viewMode === 'history'"
+      (click)="viewMode = 'history'"
+      class="tab-button"
+    >
+      📋 History
+    </button>
+  </div>
+
+  <!-- Messages -->
+  <div class="messages" *ngIf="successMessage || errorMessage">
+    <div class="alert alert-success" *ngIf="successMessage">
+      ✓ {{ successMessage }}
+    </div>
+    <div class="alert alert-error" *ngIf="errorMessage">
+      ✗ {{ errorMessage }}
+    </div>
+  </div>
+
+  <!-- Daily Reconciliation View -->
+  <div class="view-content" *ngIf="viewMode === 'daily'">
+    <!-- Date Selection and Actions -->
+    <div class="controls-bar">
+      <div class="date-selector">
+        <label for="selectedDate">Select Date:</label>
+        <input
+          type="date"
+          id="selectedDate"
+          [(ngModel)]="selectedDate"
+          (change)="loadData()"
+          class="date-input"
+        />
+      </div>
+
+      <div class="action-buttons">
+        <button class="btn btn-secondary" (click)="exportTemplate()">
+          📥 Download CSV Template
+        </button>
+        <button class="btn btn-primary" (click)="showBulkUpload = !showBulkUpload">
+          📤 {{ showBulkUpload ? 'Hide' : 'Bulk Upload' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Bulk Upload Section -->
+    <div class="card bulk-upload-section" *ngIf="showBulkUpload">
+      <h3>📤 Bulk Upload Reconciliation Data</h3>
+      <p class="help-text">
+        Upload Excel file (.xlsx, .xls) or paste CSV data<br>
+        <strong>Format:</strong> Date, Collected Cash, Collected Coins, Collected Online, Notes<br>
+        <strong>Note:</strong> Expected values are auto-calculated from sales data. Only enter collected amounts.
+      </p>
+
+      <!-- File Upload -->
+      <div class="file-upload-section">
+        <label for="excelFile" class="file-upload-label">
+          📄 Choose Excel/CSV File
+        </label>
+        <input
+          type="file"
+          id="excelFile"
+          accept=".xlsx,.xls,.csv"
+          (change)="onFileSelected($event)"
+          class="file-input"
+        />
+        <span class="file-name" *ngIf="selectedFileName">{{ selectedFileName }}</span>
+      </div>
+
+      <div class="separator">
+        <span>OR</span>
+      </div>
+
+      <!-- CSV Paste -->
+      <textarea
+        [(ngModel)]="bulkData"
+        placeholder="Date,Collected Cash,Collected Coins,Collected Online,Notes&#10;2025-12-16,950,190,5000,Daily reconciliation&#10;2025-12-17,1200,250,6500,All good"
+        rows="8"
+        class="bulk-textarea"
+      ></textarea>
+      <div class="bulk-actions">
+        <button class="btn btn-success" (click)="uploadBulkData()" [disabled]="isSaving || (!bulkData.trim() && !selectedFile)">
+          {{ isSaving ? 'Uploading...' : 'Upload Data' }}
+        </button>
+        <button class="btn btn-secondary" (click)="cancelBulkUpload()">
+          Cancel
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading" *ngIf="isLoading">
+      <div class="spinner"></div>
+      <p>Loading data...</p>
+    </div>
+
+    <!-- Main Reconciliation Content -->
+    <div class="reconciliation-content" *ngIf="!isLoading">
+      <!-- Sales Summary Card -->
+      <div class="card sales-summary-card" *ngIf="salesSummary">
+        <h3>📊 Sales & Expenses Summary for {{ formatDate(selectedDate) }}</h3>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span class="label">Cash Sales:</span>
+            <span class="value">₹{{ salesSummary.cashSales.toFixed(2) || '0.00' }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Cash Expenses:</span>
+            <span class="value expense">-₹{{ (salesSummary.cashExpenses || 0).toFixed(2) }}</span>
+          </div>
+          <div class="summary-item highlight">
+            <span class="label">Net Cash:</span>
+            <span class="value">₹{{ (salesSummary.netCash || 0).toFixed(2) }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Card/UPI Sales:</span>
+            <span class="value">₹{{ salesSummary.cardSales.toFixed(2) || '0.00' }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Online Orders:</span>
+            <span class="value">₹{{ salesSummary.onlineOrderTotal.toFixed(2) || '0.00' }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Online Expenses:</span>
+            <span class="value expense">-₹{{ (salesSummary.onlineExpenses || 0).toFixed(2) }}</span>
+          </div>
+          <div class="summary-item highlight">
+            <span class="label">Net Online:</span>
+            <span class="value">₹{{ (salesSummary.netOnline || 0).toFixed(2) }}</span>
+          </div>
+          <div class="summary-item total">
+            <span class="label">Total Sales:</span>
+            <span class="value">₹{{ salesSummary.totalWithOrders.toFixed(2) || '0.00' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reconciliation Form -->
+      <div class="reconciliation-grid">
+        <!-- Expected Collections -->
+        <div class="card">
+          <h3>💰 Expected Collections (from Sales)</h3>
+          <div class="form-group">
+            <label for="expectedCash">Expected Cash</label>
+            <input
+              type="number"
+              id="expectedCash"
+              [(ngModel)]="reconciliation.expectedCash"
+              min="0"
+              step="0.01"
+              class="form-control"
+              readonly
+              title="Auto-calculated from cash sales"
+            />
+          </div>
+          <div class="form-group">
+            <label for="expectedCoins">Expected Coins</label>
+            <input
+              type="number"
+              id="expectedCoins"
+              [(ngModel)]="reconciliation.expectedCoins"
+              min="0"
+              step="0.01"
+              class="form-control"
+              readonly
+              title="Part of cash sales - split during counting"
+            />
+          </div>
+          <!-- Expected Online removed - users manually track actual online instead -->
+          <div class="total-display">
+            <span class="label">Expected Total:</span>
+            <span class="value">₹{{ reconciliation.expectedTotal.toFixed(2) }}</span>
+          </div>
+        </div>
+
+        <!-- Actual Counted -->
+        <div class="card">
+          <h3>🔢 Enter Collected Amounts</h3>
+          <div class="form-group">
+            <label for="countedCash">Collected Cash</label>
+            <input
+              type="number"
+              id="countedCash"
+              [(ngModel)]="reconciliation.countedCash"
+              (ngModelChange)="calculateTotals()"
+              min="0"
+              step="0.01"
+              class="form-control"
+              placeholder="Enter collected cash amount"
+            />
+          </div>
+          <div class="form-group">
+            <label for="countedCoins">Collected Coins</label>
+            <input
+              type="number"
+              id="countedCoins"
+              [(ngModel)]="reconciliation.countedCoins"
+              (ngModelChange)="calculateTotals()"
+              min="0"
+              step="0.01"
+              class="form-control"
+              placeholder="Enter collected coins amount"
+            />
+          </div>
+          <div class="form-group">
+            <label for="actualOnline">Collected Online Payments</label>
+            <input
+              type="number"
+              id="actualOnline"
+              [(ngModel)]="reconciliation.actualOnline"
+              (ngModelChange)="calculateTotals()"
+              min="0"
+              step="0.01"
+              class="form-control"
+              placeholder="Enter collected online payments"
+            />
+          </div>
+          <div class="total-display">
+            <span class="label">Collected Total:</span>
+            <span class="value">₹{{ reconciliation.countedTotal.toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shop Balance Tracking -->
+      <div class="card balance-card">
+        <h3>💼 Shop Balance Tracking</h3>
+        <div class="balance-grid">
+          <div class="balance-section">
+            <h4>Opening Balances</h4>
+            <div class="balance-item">
+              <span class="label">Cash:</span>
+              <span class="value">₹{{ reconciliation.openingCashBalance.toFixed(2) }}</span>
+            </div>
+            <div class="balance-item">
+              <span class="label">Coins:</span>
+              <span class="value">₹{{ reconciliation.openingCoinBalance.toFixed(2) }}</span>
+            </div>
+            <div class="balance-item">
+              <span class="label">Online:</span>
+              <span class="value">₹{{ reconciliation.openingOnlineBalance.toFixed(2) }}</span>
+            </div>
+          </div>
+
+          <div class="balance-section">
+            <h4>Closing Balances</h4>
+            <div class="balance-item highlight">
+              <span class="label">Cash:</span>
+              <span class="value">₹{{ reconciliation.closingCashBalance.toFixed(2) }}</span>
+            </div>
+            <div class="balance-item highlight">
+              <span class="label">Coins:</span>
+              <span class="value">₹{{ reconciliation.closingCoinBalance.toFixed(2) }}</span>
+            </div>
+            <div class="balance-item highlight">
+              <span class="label">Online:</span>
+              <span class="value">₹{{ reconciliation.closingOnlineBalance.toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
+        <p class="info-text">
+          <em>💡 Opening balances are auto-calculated from previous day's closing balances. Closing balances = Opening + Collected amounts.</em>
+        </p>
+      </div>
+
+      <!-- Deficit/Surplus Analysis -->
+      <div class="card deficit-card">
+        <h3>📈 Deficit / Surplus Analysis</h3>
+        <div class="deficit-grid">
+          <div class="deficit-item" [ngClass]="getDeficitClass(reconciliation.cashDeficit)">
+            <span class="label">Cash Deficit/Surplus:</span>
+            <span class="value">
+              {{ reconciliation.cashDeficit > 0 ? '-' : '+' }}{{ formatCurrency(reconciliation.cashDeficit) }}
+              <span class="indicator">{{ reconciliation.cashDeficit > 0 ? '⬇️ Deficit' : reconciliation.cashDeficit < 0 ? '⬆️ Surplus' : '✓ Balanced' }}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes and Actions -->
+      <div class="card">
+        <div class="form-group">
+          <label for="notes">Notes</label>
+          <textarea
+            id="notes"
+            [(ngModel)]="reconciliation.notes"
+            placeholder="Add any notes about the reconciliation..."
+            rows="3"
+            class="form-control"
+          ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [(ngModel)]="reconciliation.isReconciled"
+            />
+            <span>Mark as Reconciled</span>
+          </label>
+        </div>
+
+        <div class="save-actions">
+          <button
+            class="btn btn-success btn-lg"
+            (click)="saveReconciliation()"
+            [disabled]="isSaving"
+          >
+            {{ isSaving ? 'Saving...' : reconciliation.id ? '💾 Update Reconciliation' : '💾 Save Reconciliation' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History View -->
+  <div class="view-content" *ngIf="viewMode === 'history'">
+    <div class="card">
+      <h3>📋 Reconciliation History (Last 30 Days)</h3>
+
+      <div class="history-table-container" *ngIf="recentReconciliations.length > 0">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Expected Total</th>
+              <th>Counted Total</th>
+              <th>Deficit/Surplus</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let rec of recentReconciliations">
+              <td>{{ formatDate(rec.date) }}</td>
+              <td>₹{{ rec.expectedTotal.toFixed(2) }}</td>
+              <td>₹{{ rec.countedTotal.toFixed(2) }}</td>
+              <td [ngClass]="getDeficitClass(rec.totalDeficit)">
+                {{ rec.totalDeficit > 0 ? '-' : '+' }}{{ formatCurrency(rec.totalDeficit) }}
+              </td>
+              <td>
+                <span class="status-badge" [class.reconciled]="rec.isReconciled">
+                  {{ rec.isReconciled ? '✓ Reconciled' : '⏳ Pending' }}
+                </span>
+              </td>
+              <td>
+                <button class="btn-view" (click)="selectReconciliation(rec)">
+                  View
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="empty-state" *ngIf="recentReconciliations.length === 0">
+        <p>No reconciliation records found</p>
+      </div>
+    </div>
+  </div>
+</div>

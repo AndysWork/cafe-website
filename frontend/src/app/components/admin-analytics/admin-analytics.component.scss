@@ -533,4 +533,82 @@
       }
     }
   }
+
+  // Earnings Analytics Styles
+  .online-collection {
+    .card-icon {
+      background: linear-gradient(135deg, #10b981, #34d399);
+    }
+  }
+
+  .cash-collection {
+    .card-icon {
+      background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    }
+  }
+
+  .total-collection {
+    .card-icon {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    }
+  }
+
+  .daily-table {
+    overflow-x: auto;
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+
+      thead {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+
+        tr th {
+          padding: 1rem;
+          text-align: left;
+          color: white;
+          font-weight: 600;
+          font-size: 1rem;
+        }
+      }
+
+      tbody {
+        tr {
+          border-bottom: 1px solid #e5e7eb;
+          transition: background 0.2s;
+
+          &:hover {
+            background: #f9fafb;
+          }
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          td {
+            padding: 1rem;
+            color: #4b5563;
+
+            &.amount {
+              font-weight: 600;
+              text-align: right;
+
+              &.online {
+                color: #10b981;
+              }
+
+              &.total {
+                color: #6366f1;
+                font-size: 1.1rem;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }

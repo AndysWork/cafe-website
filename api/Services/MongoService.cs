@@ -41,6 +41,7 @@ public class MongoService
     private readonly IMongoCollection<OfflineExpenseType> _offlineExpenseTypes;
     private readonly IMongoCollection<OnlineExpenseType> _onlineExpenseTypes;
     private readonly IMongoCollection<PasswordResetToken> _passwordResetTokens;
+    private readonly IMongoCollection<DailyCashReconciliation> _cashReconciliations;
     
     public MongoService(IConfiguration config)
     {
@@ -75,6 +76,7 @@ public class MongoService
         _offlineExpenseTypes = db.GetCollection<OfflineExpenseType>("OfflineExpenseTypes");
         _onlineExpenseTypes = db.GetCollection<OnlineExpenseType>("OnlineExpenseTypes");
         _passwordResetTokens = db.GetCollection<PasswordResetToken>("PasswordResetTokens");
+        _cashReconciliations = db.GetCollection<DailyCashReconciliation>("CashReconciliations");
 
         // Ensure default admin user exists
         try
@@ -1556,4 +1558,322 @@ public class MongoService
 
     #endregion
 
+    #region Daily Cash Reconciliation Methods
+
+    // Create a new cash reconciliation record
+    public async Task<DailyCashReconciliation> CreateCashReconciliationAsync(DailyCashReconciliation reconciliation, string userId)
+    {
+        reconciliation.ReconciledBy = userId;
+        reconciliation.CreatedAt = GetIstNow();
+        reconciliation.UpdatedAt = GetIstNow();
+        
+        // Get previous day's closing balance as today's opening balance
+        var previousDay = reconciliation.Date.AddDays(-1);
+        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay);
+        
+        if (previousReconciliation != null)
+        {
+            reconciliation.OpeningCashBalance = previousReconciliation.ClosingCashBalance;
+            reconciliation.OpeningCoinBalance = previousReconciliation.ClosingCoinBalance;
+            reconciliation.OpeningOnlineBalance = previousReconciliation.ClosingOnlineBalance;
+        }
+        else
+        {
+            // First reconciliation - use provided opening balances or zero
+            // Opening balances should be set by the caller if this is the first entry
+        }
+        
+        // Get today's expenses to calculate closing online balance
+        var startOfDay = reconciliation.Date.Date;
+        var endOfDay = startOfDay.AddDays(1);
+        var expenses = await _expenses
+            .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
+            .ToListAsync();
+        var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("Bank Transfer", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+        
+        // Calculate totals and deficits
+        reconciliation.ExpectedTotal = reconciliation.ExpectedCash + reconciliation.ExpectedCoins + reconciliation.ExpectedOnline;
+        reconciliation.CountedTotal = reconciliation.CountedCash + reconciliation.CountedCoins + reconciliation.ActualOnline;
+        reconciliation.CashDeficit = reconciliation.ExpectedCash - reconciliation.CountedCash;
+        reconciliation.CoinDeficit = reconciliation.ExpectedCoins - reconciliation.CountedCoins;
+        reconciliation.OnlineDeficit = reconciliation.ExpectedOnline - reconciliation.ActualOnline;
+        reconciliation.TotalDeficit = reconciliation.ExpectedTotal - reconciliation.CountedTotal;
+        
+        // Closing balances
+        // Cash & Coins = Today's collected amounts
+        reconciliation.ClosingCashBalance = reconciliation.CountedCash;
+        reconciliation.ClosingCoinBalance = reconciliation.CountedCoins;
+        // Online = Previous online balance + today's online collection - online expenses
+        reconciliation.ClosingOnlineBalance = reconciliation.OpeningOnlineBalance + reconciliation.ActualOnline - onlineExpenses;
+        
+        await _cashReconciliations.InsertOneAsync(reconciliation);
+        return reconciliation;
+    }
+
+    // Get reconciliation for a specific date
+    public async Task<DailyCashReconciliation?> GetCashReconciliationByDateAsync(DateTime date)
+    {
+        var startOfDay = date.Date;
+        var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+        
+        return await _cashReconciliations
+            .Find(r => r.Date >= startOfDay && r.Date <= endOfDay)
+            .FirstOrDefaultAsync();
+    }
+
+    // Get all reconciliations within date range
+    public async Task<List<DailyCashReconciliation>> GetCashReconciliationsAsync(DateTime? startDate = null, DateTime? endDate = null)
+    {
+        var filter = Builders<DailyCashReconciliation>.Filter.Empty;
+        
+        if (startDate.HasValue)
+        {
+            var start = startDate.Value.Date;
+            filter &= Builders<DailyCashReconciliation>.Filter.Gte(r => r.Date, start);
+        }
+        
+        if (endDate.HasValue)
+        {
+            var end = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            filter &= Builders<DailyCashReconciliation>.Filter.Lte(r => r.Date, end);
+        }
+        
+        return await _cashReconciliations
+            .Find(filter)
+            .SortByDescending(r => r.Date)
+            .ToListAsync();
+    }
+
+    // Update a cash reconciliation record
+    public async Task<DailyCashReconciliation?> UpdateCashReconciliationAsync(string id, DailyCashReconciliation reconciliation)
+    {
+        reconciliation.UpdatedAt = GetIstNow();
+        
+        // Get previous day's closing balance for opening balance
+        var previousDay = reconciliation.Date.AddDays(-1);
+        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay);
+        
+        if (previousReconciliation != null)
+        {
+            reconciliation.OpeningCashBalance = previousReconciliation.ClosingCashBalance;
+            reconciliation.OpeningCoinBalance = previousReconciliation.ClosingCoinBalance;
+            reconciliation.OpeningOnlineBalance = previousReconciliation.ClosingOnlineBalance;
+        }
+        
+        // Get today's expenses to calculate closing online balance
+        var startOfDay = reconciliation.Date.Date;
+        var endOfDay = startOfDay.AddDays(1);
+        var expenses = await _expenses
+            .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
+            .ToListAsync();
+        var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("Bank Transfer", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+        
+        // Recalculate totals and deficits
+        reconciliation.ExpectedTotal = reconciliation.ExpectedCash + reconciliation.ExpectedCoins + reconciliation.ExpectedOnline;
+        reconciliation.CountedTotal = reconciliation.CountedCash + reconciliation.CountedCoins + reconciliation.ActualOnline;
+        reconciliation.CashDeficit = reconciliation.ExpectedCash - reconciliation.CountedCash;
+        reconciliation.CoinDeficit = reconciliation.ExpectedCoins - reconciliation.CountedCoins;
+        reconciliation.OnlineDeficit = reconciliation.ExpectedOnline - reconciliation.ActualOnline;
+        reconciliation.TotalDeficit = reconciliation.ExpectedTotal - reconciliation.CountedTotal;
+        
+        // Closing balances
+        // Cash & Coins = Today's collected amounts
+        reconciliation.ClosingCashBalance = reconciliation.CountedCash;
+        reconciliation.ClosingCoinBalance = reconciliation.CountedCoins;
+        // Online = Previous online balance + today's online collection - online expenses
+        reconciliation.ClosingOnlineBalance = reconciliation.OpeningOnlineBalance + reconciliation.ActualOnline - onlineExpenses;
+        
+        var result = await _cashReconciliations.ReplaceOneAsync(r => r.Id == id, reconciliation);
+        return result.ModifiedCount > 0 ? reconciliation : null;
+    }
+
+    // Bulk create cash reconciliations
+    public async Task<List<DailyCashReconciliation>> BulkCreateCashReconciliationsAsync(List<DailyCashReconciliation> reconciliations, string userId)
+    {
+        // Sort by date to process in chronological order
+        reconciliations = reconciliations.OrderBy(r => r.Date).ToList();
+        
+        // Get the first date's previous day closing balance from database
+        decimal openingCashBalance = 0;
+        decimal openingCoinBalance = 0;
+        decimal openingOnlineBalance = 0;
+        
+        if (reconciliations.Any())
+        {
+            var firstDate = reconciliations.First().Date;
+            var previousDay = firstDate.AddDays(-1);
+            var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay);
+            
+            if (previousReconciliation != null)
+            {
+                openingCashBalance = previousReconciliation.ClosingCashBalance;
+                openingCoinBalance = previousReconciliation.ClosingCoinBalance;
+                openingOnlineBalance = previousReconciliation.ClosingOnlineBalance;
+            }
+        }
+        
+        foreach (var reconciliation in reconciliations)
+        {
+            reconciliation.ReconciledBy = userId;
+            reconciliation.CreatedAt = GetIstNow();
+            reconciliation.UpdatedAt = GetIstNow();
+            
+            // Get sales summary to auto-calculate expected values
+            var salesSummary = await GetDailySalesSummaryForReconciliationAsync(reconciliation.Date) as dynamic;
+            if (salesSummary != null)
+            {
+                reconciliation.ExpectedCash = salesSummary.ExpectedCash ?? 0;
+                reconciliation.ExpectedCoins = 0; // Part of cash, user splits during counting
+                reconciliation.ExpectedOnline = salesSummary.ExpectedOnline ?? 0;
+            }
+            
+            // Use the running balance (from previous reconciliation in the batch)
+            reconciliation.OpeningCashBalance = openingCashBalance;
+            reconciliation.OpeningCoinBalance = openingCoinBalance;
+            reconciliation.OpeningOnlineBalance = openingOnlineBalance;
+            
+            // Get expenses for this date to calculate closing online balance
+            var startOfDay = reconciliation.Date.Date;
+            var endOfDay = startOfDay.AddDays(1);
+            var expenses = await _expenses
+                .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
+                .ToListAsync();
+            var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
+                                                      e.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
+                                                      e.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase) ||
+                                                      e.PaymentMethod.Equals("Bank Transfer", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+            
+            // Calculate totals and deficits
+            reconciliation.ExpectedTotal = reconciliation.ExpectedCash + reconciliation.ExpectedCoins + reconciliation.ExpectedOnline;
+            reconciliation.CountedTotal = reconciliation.CountedCash + reconciliation.CountedCoins + reconciliation.ActualOnline;
+            reconciliation.CashDeficit = reconciliation.ExpectedCash - reconciliation.CountedCash;
+            reconciliation.CoinDeficit = reconciliation.ExpectedCoins - reconciliation.CountedCoins;
+            reconciliation.OnlineDeficit = reconciliation.ExpectedOnline - reconciliation.ActualOnline;
+            reconciliation.TotalDeficit = reconciliation.ExpectedTotal - reconciliation.CountedTotal;
+            
+            // Closing balances
+            // Cash & Coins = Today's collected amounts
+            reconciliation.ClosingCashBalance = reconciliation.CountedCash;
+            reconciliation.ClosingCoinBalance = reconciliation.CountedCoins;
+            // Online = Previous online balance + today's online collection - online expenses
+            reconciliation.ClosingOnlineBalance = reconciliation.OpeningOnlineBalance + reconciliation.ActualOnline - onlineExpenses;
+            
+            // Update running balance for next iteration
+            openingCashBalance = reconciliation.ClosingCashBalance;
+            openingCoinBalance = reconciliation.ClosingCoinBalance;
+            openingOnlineBalance = reconciliation.ClosingOnlineBalance;
+        }
+        
+        await _cashReconciliations.InsertManyAsync(reconciliations);
+        return reconciliations;
+    }
+
+    // Delete a cash reconciliation record
+    public async Task<bool> DeleteCashReconciliationAsync(string id)
+    {
+        var result = await _cashReconciliations.DeleteOneAsync(r => r.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    // Get reconciliation summary for a date range
+    public async Task<object> GetCashReconciliationSummaryAsync(DateTime startDate, DateTime endDate)
+    {
+        var reconciliations = await GetCashReconciliationsAsync(startDate, endDate);
+        
+        return new
+        {
+            TotalDays = reconciliations.Count,
+            TotalExpectedCash = reconciliations.Sum(r => r.ExpectedCash),
+            TotalExpectedCoins = reconciliations.Sum(r => r.ExpectedCoins),
+            TotalExpectedOnline = reconciliations.Sum(r => r.ExpectedOnline),
+            TotalExpected = reconciliations.Sum(r => r.ExpectedTotal),
+            TotalCountedCash = reconciliations.Sum(r => r.CountedCash),
+            TotalCountedCoins = reconciliations.Sum(r => r.CountedCoins),
+            TotalActualOnline = reconciliations.Sum(r => r.ActualOnline),
+            TotalCounted = reconciliations.Sum(r => r.CountedTotal),
+            TotalCashDeficit = reconciliations.Sum(r => r.CashDeficit),
+            TotalCoinDeficit = reconciliations.Sum(r => r.CoinDeficit),
+            TotalOnlineDeficit = reconciliations.Sum(r => r.OnlineDeficit),
+            TotalDeficit = reconciliations.Sum(r => r.TotalDeficit),
+            ReconciledDays = reconciliations.Count(r => r.IsReconciled),
+            UnreconciledDays = reconciliations.Count(r => !r.IsReconciled)
+        };
+    }
+
+    // Get sales summary for expected values calculation
+    public async Task<object> GetDailySalesSummaryForReconciliationAsync(DateTime date)
+    {
+        var startOfDay = date.Date;
+        var endOfDay = startOfDay.AddDays(1);
+        
+        var sales = await _sales
+            .Find(s => s.Date >= startOfDay && s.Date < endOfDay)
+            .ToListAsync();
+        
+        var cashSales = sales.Where(s => s.PaymentMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase)).Sum(s => s.TotalAmount);
+        var cardSales = sales.Where(s => s.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) || 
+                                         s.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase)).Sum(s => s.TotalAmount);
+        var onlineSales = sales.Where(s => s.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase)).Sum(s => s.TotalAmount);
+        
+        // Get online orders for the date
+        var orders = await _orders
+            .Find(o => o.CreatedAt >= startOfDay && o.CreatedAt < endOfDay && 
+                      o.Status != "cancelled" && o.Status != "rejected")
+            .ToListAsync();
+        
+        var onlineOrderTotal = orders.Sum(o => o.Total);
+        
+        // Get expenses for the date
+        var expenses = await _expenses
+            .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
+            .ToListAsync();
+        
+        var cashExpenses = expenses.Where(e => e.PaymentMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+        var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase) ||
+                                                  e.PaymentMethod.Equals("Bank Transfer", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+        
+        // Get previous day's closing balance to calculate expected cash
+        var previousDay = date.AddDays(-1);
+        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay);
+        
+        var openingCashBalance = previousReconciliation?.ClosingCashBalance ?? 0;
+        var openingCoinBalance = previousReconciliation?.ClosingCoinBalance ?? 0;
+        var openingOnlineBalance = previousReconciliation?.ClosingOnlineBalance ?? 0;
+        
+        // Expected cash = Opening balance + Today's cash sales - Today's cash expenses
+        var expectedCash = openingCashBalance + openingCoinBalance + cashSales - cashExpenses;
+        
+        // Expected online = Opening online balance + Today's online collection - Today's online expenses
+        var expectedOnline = openingOnlineBalance + cardSales + onlineSales + onlineOrderTotal - onlineExpenses;
+        
+        return new
+        {
+            Date = date,
+            CashSales = cashSales,
+            CardSales = cardSales,
+            OnlineSales = onlineSales,
+            OnlineOrderTotal = onlineOrderTotal,
+            TotalSales = cashSales + cardSales + onlineSales,
+            TotalWithOrders = cashSales + cardSales + onlineSales + onlineOrderTotal,
+            CashExpenses = cashExpenses,
+            OnlineExpenses = onlineExpenses,
+            OpeningCashBalance = openingCashBalance,
+            OpeningCoinBalance = openingCoinBalance,
+            OpeningOnlineBalance = openingOnlineBalance,
+            NetCash = cashSales - cashExpenses,
+            NetOnline = cardSales + onlineSales + onlineOrderTotal - onlineExpenses,
+            ExpectedCash = expectedCash,
+            ExpectedOnline = expectedOnline
+        };
+    }
+
+    #endregion
 }

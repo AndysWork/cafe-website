@@ -1,0 +1,224 @@
+<div class="profit-tracker-container">
+  <div class="tracker-header">
+    <h1>💹 Online Profit Tracker</h1>
+    <p>Analyze your online business profitability and margins</p>
+  </div>
+
+  <!-- Date Range Filter -->
+  <div class="filters-section">
+    <div class="date-filters">
+      <select [(ngModel)]="dateRange" (ngModelChange)="onDateRangeChange()" class="filter-select">
+        <option value="today">Today</option>
+        <option value="week">Last 7 Days</option>
+        <option value="month">Last 30 Days</option>
+        <option value="year">Last Year</option>
+        <option value="custom">Custom Range</option>
+      </select>
+
+      <div class="custom-dates" *ngIf="dateRange === 'custom'">
+        <input
+          type="date"
+          [(ngModel)]="startDate"
+          class="date-input"
+        />
+        <span>to</span>
+        <input
+          type="date"
+          [(ngModel)]="endDate"
+          class="date-input"
+        />
+        <button class="btn-apply" (click)="loadProfitData()">Apply</button>
+      </div>
+
+      <button class="btn-export" (click)="exportReport()">
+        📥 Export Report
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading" *ngIf="isLoading">
+    <div class="spinner"></div>
+    <p>Calculating profit data...</p>
+  </div>
+
+  <!-- Error Message -->
+  <div class="alert alert-error" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Main Content -->
+  <div class="content" *ngIf="!isLoading">
+    <!-- Summary Cards -->
+    <div class="summary-grid">
+      <div class="summary-card revenue-card">
+        <div class="card-icon">💰</div>
+        <div class="card-content">
+          <div class="card-label">Total Revenue</div>
+          <div class="card-value">₹{{ profitData.totalRevenue.toFixed(2) }}</div>
+        </div>
+      </div>
+
+      <div class="summary-card expenses-card">
+        <div class="card-icon">💸</div>
+        <div class="card-content">
+          <div class="card-label">Total Expenses</div>
+          <div class="card-value">₹{{ profitData.totalExpenses.toFixed(2) }}</div>
+        </div>
+      </div>
+
+      <div class="summary-card" [ngClass]="getProfitClass()">
+        <div class="card-icon">📈</div>
+        <div class="card-content">
+          <div class="card-label">Gross Profit</div>
+          <div class="card-value">₹{{ profitData.grossProfit.toFixed(2) }}</div>
+        </div>
+      </div>
+
+      <div class="summary-card" [ngClass]="getMarginClass()">
+        <div class="card-icon">📊</div>
+        <div class="card-content">
+          <div class="card-label">Profit Margin</div>
+          <div class="card-value">{{ profitData.profitMargin.toFixed(2) }}%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Mode Tabs -->
+    <div class="view-tabs">
+      <button
+        [class.active]="viewMode === 'summary'"
+        (click)="viewMode = 'summary'"
+        class="tab-button"
+      >
+        📋 Summary
+      </button>
+      <button
+        [class.active]="viewMode === 'items'"
+        (click)="viewMode = 'items'"
+        class="tab-button"
+      >
+        🍽️ Item Profitability
+      </button>
+      <button
+        [class.active]="viewMode === 'expenses'"
+        (click)="viewMode = 'expenses'"
+        class="tab-button"
+      >
+        💸 Expense Breakdown
+      </button>
+    </div>
+
+    <!-- Summary View -->
+    <div class="view-content" *ngIf="viewMode === 'summary'">
+      <div class="card">
+        <h2>Profit Overview</h2>
+        <div class="profit-chart">
+          <div class="chart-bar">
+            <div class="bar-segment revenue-bar"
+                 [style.width.%]="100">
+              <span class="bar-label">Revenue: ₹{{ profitData.totalRevenue.toFixed(2) }}</span>
+            </div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-segment expenses-bar"
+                 [style.width.%]="profitData.totalRevenue > 0 ? (profitData.totalExpenses / profitData.totalRevenue) * 100 : 0">
+              <span class="bar-label">Expenses: ₹{{ profitData.totalExpenses.toFixed(2) }}</span>
+            </div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-segment profit-bar"
+                 [ngClass]="getProfitClass()"
+                 [style.width.%]="profitData.totalRevenue > 0 ? Math.abs(profitData.grossProfit / profitData.totalRevenue) * 100 : 0">
+              <span class="bar-label">Profit: ₹{{ profitData.grossProfit.toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="metric-label">Break-even Point</div>
+            <div class="metric-value">₹{{ profitData.totalExpenses.toFixed(2) }}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Profit per Sale</div>
+            <div class="metric-value">
+              ₹{{ getProfitPerSale() }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Item Profitability View -->
+    <div class="view-content" *ngIf="viewMode === 'items'">
+      <div class="card">
+        <h2>Item Profitability Analysis</h2>
+
+        <div class="items-table-container" *ngIf="profitData.itemsProfitability.length > 0">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>Qty Sold</th>
+                <th>Revenue</th>
+                <th>Cost</th>
+                <th>Profit</th>
+                <th>Margin %</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of profitData.itemsProfitability">
+                <td class="item-name">{{ item.itemName }}</td>
+                <td>{{ item.quantity }}</td>
+                <td class="revenue">₹{{ item.revenue.toFixed(2) }}</td>
+                <td class="cost">₹{{ item.cost.toFixed(2) }}</td>
+                <td [class]="item.profit >= 0 ? 'profit-positive' : 'profit-negative'">
+                  ₹{{ item.profit.toFixed(2) }}
+                </td>
+                <td>
+                  <div class="margin-indicator" [ngClass]="{
+                    'excellent': item.margin >= 40,
+                    'good': item.margin >= 30 && item.margin < 40,
+                    'fair': item.margin >= 20 && item.margin < 30,
+                    'poor': item.margin < 20
+                  }">
+                    {{ item.margin.toFixed(2) }}%
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="empty-state" *ngIf="profitData.itemsProfitability.length === 0">
+          <p>No item data available for the selected period</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Expense Breakdown View -->
+    <div class="view-content" *ngIf="viewMode === 'expenses'">
+      <div class="card">
+        <h2>Expense Category Breakdown</h2>
+
+        <div class="expenses-grid" *ngIf="expenseCategories.length > 0">
+          <div class="expense-card" *ngFor="let category of expenseCategories">
+            <div class="expense-header">
+              <span class="category-name">{{ category.category }}</span>
+              <span class="category-amount">₹{{ category.amount.toFixed(2) }}</span>
+            </div>
+            <div class="expense-bar">
+              <div class="bar-fill" [style.width.%]="category.percentage"></div>
+            </div>
+            <div class="expense-percentage">{{ category.percentage.toFixed(2) }}% of total expenses</div>
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="expenseCategories.length === 0">
+          <p>No expense data available for the selected period</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

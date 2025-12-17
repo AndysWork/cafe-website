@@ -22,6 +22,9 @@ import { MenuManagementComponent } from './components/menu-management/menu-manag
 import { MenuComponent } from './components/menu/menu.component';
 import { CartComponent } from './components/cart/cart.component';
 import { CheckoutComponent } from './components/checkout/checkout.component';
+import { CashierComponent } from './components/cashier/cashier.component';
+import { OnlineSaleTrackerComponent } from './components/online-sale-tracker/online-sale-tracker.component';
+import { OnlineProfitTrackerComponent } from './components/online-profit-tracker/online-profit-tracker.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -53,6 +56,9 @@ export const routes: Routes = [
       { path: 'sales', component: AdminSalesComponent },
       { path: 'expenses', component: AdminExpensesComponent },
       { path: 'analytics', component: AdminAnalyticsComponent },
+      { path: 'cashier', component: CashierComponent },
+      { path: 'online-sale-tracker', component: OnlineSaleTrackerComponent },
+      { path: 'online-profit-tracker', component: OnlineProfitTrackerComponent },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

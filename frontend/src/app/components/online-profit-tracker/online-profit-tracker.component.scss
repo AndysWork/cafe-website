@@ -1,0 +1,473 @@
+.profit-tracker-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 2rem;
+
+  .tracker-header {
+    text-align: center;
+    margin-bottom: 2rem;
+
+    h1 {
+      font-size: 2.5rem;
+      color: #333;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      color: #666;
+      font-size: 1.1rem;
+    }
+  }
+
+  .filters-section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+
+    .date-filters {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+
+      .filter-select {
+        padding: 0.75rem 1rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        background: white;
+        cursor: pointer;
+
+        &:focus {
+          outline: none;
+          border-color: #4a90e2;
+        }
+      }
+
+      .custom-dates {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+
+        .date-input {
+          padding: 0.75rem;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          font-size: 1rem;
+
+          &:focus {
+            outline: none;
+            border-color: #4a90e2;
+          }
+        }
+
+        .btn-apply {
+          padding: 0.75rem 1.5rem;
+          background: #4a90e2;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.3s;
+
+          &:hover {
+            background: #357abd;
+          }
+        }
+      }
+
+      .btn-export {
+        padding: 0.75rem 1.5rem;
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.3s;
+        margin-left: auto;
+
+        &:hover {
+          background: #218838;
+        }
+      }
+    }
+  }
+
+  .loading {
+    text-align: center;
+    padding: 3rem;
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #4a90e2;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .alert {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+
+    &.alert-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .summary-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    .card-icon {
+      font-size: 3rem;
+      opacity: 0.8;
+    }
+
+    .card-content {
+      flex: 1;
+
+      .card-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 0.25rem;
+      }
+
+      .card-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #333;
+      }
+    }
+
+    &.revenue-card {
+      border-left: 4px solid #4a90e2;
+    }
+
+    &.expenses-card {
+      border-left: 4px solid #ff6b6b;
+    }
+
+    &.profit-positive {
+      border-left: 4px solid #28a745;
+
+      .card-value {
+        color: #28a745;
+      }
+    }
+
+    &.profit-negative {
+      border-left: 4px solid #dc3545;
+
+      .card-value {
+        color: #dc3545;
+      }
+    }
+
+    &.margin-excellent {
+      border-left: 4px solid #28a745;
+      background: linear-gradient(135deg, #d4edda 0%, white 100%);
+    }
+
+    &.margin-good {
+      border-left: 4px solid #20c997;
+      background: linear-gradient(135deg, #d1ecf1 0%, white 100%);
+    }
+
+    &.margin-fair {
+      border-left: 4px solid #ffc107;
+      background: linear-gradient(135deg, #fff3cd 0%, white 100%);
+    }
+
+    &.margin-poor {
+      border-left: 4px solid #dc3545;
+      background: linear-gradient(135deg, #f8d7da 0%, white 100%);
+    }
+  }
+
+  .view-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    background: white;
+    padding: 0.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    .tab-button {
+      flex: 1;
+      padding: 1rem;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      color: #666;
+
+      &:hover {
+        background: #f8f9fa;
+      }
+
+      &.active {
+        background: #4a90e2;
+        color: white;
+      }
+    }
+  }
+
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    h2 {
+      font-size: 1.5rem;
+      color: #333;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid #f0f0f0;
+    }
+  }
+
+  .profit-chart {
+    margin: 2rem 0;
+
+    .chart-bar {
+      margin-bottom: 1.5rem;
+
+      .bar-segment {
+        height: 50px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        padding: 0 1rem;
+        position: relative;
+
+        &.revenue-bar {
+          background: linear-gradient(90deg, #4a90e2, #357abd);
+        }
+
+        &.expenses-bar {
+          background: linear-gradient(90deg, #ff6b6b, #dc3545);
+        }
+
+        &.profit-bar {
+          &.profit-positive {
+            background: linear-gradient(90deg, #28a745, #218838);
+          }
+
+          &.profit-negative {
+            background: linear-gradient(90deg, #dc3545, #c82333);
+          }
+        }
+
+        .bar-label {
+          color: white;
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+      }
+    }
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+
+    .metric {
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      text-align: center;
+
+      .metric-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+      }
+
+      .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #333;
+      }
+    }
+  }
+
+  .items-table-container {
+    overflow-x: auto;
+  }
+
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    thead {
+      background: #f8f9fa;
+
+      th {
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #555;
+        font-size: 0.9rem;
+        border-bottom: 2px solid #dee2e6;
+      }
+    }
+
+    tbody {
+      tr {
+        border-bottom: 1px solid #f0f0f0;
+        transition: background 0.2s;
+
+        &:hover {
+          background: #f8f9fa;
+        }
+
+        td {
+          padding: 1rem;
+          color: #333;
+
+          &.item-name {
+            font-weight: 600;
+          }
+
+          &.revenue {
+            color: #4a90e2;
+            font-weight: 600;
+          }
+
+          &.cost {
+            color: #ff6b6b;
+          }
+
+          &.profit-positive {
+            color: #28a745;
+            font-weight: 700;
+          }
+
+          &.profit-negative {
+            color: #dc3545;
+            font-weight: 700;
+          }
+        }
+      }
+    }
+
+    .margin-indicator {
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-weight: 600;
+      display: inline-block;
+
+      &.excellent {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      &.good {
+        background: #d1ecf1;
+        color: #0c5460;
+      }
+
+      &.fair {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      &.poor {
+        background: #f8d7da;
+        color: #721c24;
+      }
+    }
+  }
+
+  .expenses-grid {
+    display: grid;
+    gap: 1.5rem;
+
+    .expense-card {
+      padding: 1.5rem;
+      background: #f8f9fa;
+      border-radius: 12px;
+
+      .expense-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+
+        .category-name {
+          font-weight: 700;
+          color: #333;
+          font-size: 1.1rem;
+        }
+
+        .category-amount {
+          font-weight: 700;
+          color: #ff6b6b;
+          font-size: 1.2rem;
+        }
+      }
+
+      .expense-bar {
+        height: 12px;
+        background: #e9ecef;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+
+        .bar-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #ff6b6b, #dc3545);
+          transition: width 0.5s ease;
+        }
+      }
+
+      .expense-percentage {
+        font-size: 0.9rem;
+        color: #666;
+      }
+    }
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+
+    p {
+      font-size: 1.1rem;
+    }
+  }
+}

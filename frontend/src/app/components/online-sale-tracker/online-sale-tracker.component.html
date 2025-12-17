@@ -1,0 +1,220 @@
+<div class="tracker-container">
+  <div class="tracker-header">
+    <h1>📊 Online Sale Tracker</h1>
+    <p>Monitor and analyze your online sales performance</p>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">💰</div>
+      <div class="stat-content">
+        <div class="stat-label">Total Revenue</div>
+        <div class="stat-value">₹{{ stats.totalRevenue.toFixed(2) }}</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">📦</div>
+      <div class="stat-content">
+        <div class="stat-label">Total Sales</div>
+        <div class="stat-value">{{ stats.totalSales }}</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">📈</div>
+      <div class="stat-content">
+        <div class="stat-label">Avg Order Value</div>
+        <div class="stat-value">₹{{ stats.averageOrderValue.toFixed(2) }}</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">🕐</div>
+      <div class="stat-content">
+        <div class="stat-label">Today's Sales</div>
+        <div class="stat-value">₹{{ stats.todaysSales.toFixed(2) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters and Search -->
+  <div class="filters-section">
+    <div class="search-box">
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="onSearchChange()"
+        placeholder="Search by order ID, customer name, or email..."
+        class="search-input"
+      />
+    </div>
+
+    <div class="filters">
+      <select [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()" class="filter-select">
+        <option value="all">All Statuses</option>
+        <option value="pending">Pending</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="preparing">Preparing</option>
+        <option value="ready">Ready</option>
+        <option value="delivered">Delivered</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+
+      <select [(ngModel)]="dateFilter" (ngModelChange)="onFilterChange()" class="filter-select">
+        <option value="all">All Time</option>
+        <option value="today">Today</option>
+        <option value="week">This Week</option>
+        <option value="month">This Month</option>
+      </select>
+
+      <select [(ngModel)]="sortBy" (ngModelChange)="onFilterChange()" class="filter-select">
+        <option value="date-desc">Newest First</option>
+        <option value="date-asc">Oldest First</option>
+        <option value="amount-desc">Highest Amount</option>
+        <option value="amount-asc">Lowest Amount</option>
+      </select>
+
+      <button class="btn-export" (click)="exportToCSV()">
+        📥 Export CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading" *ngIf="isLoading">
+    <div class="spinner"></div>
+    <p>Loading sales data...</p>
+  </div>
+
+  <!-- Error Message -->
+  <div class="alert alert-error" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Sales Table -->
+  <div class="sales-table-container" *ngIf="!isLoading && filteredSales.length > 0">
+    <table class="sales-table">
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Customer</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Payment</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let sale of filteredSales" class="sale-row">
+          <td class="order-id">{{ sale.orderId }}</td>
+          <td>
+            <div class="customer-info">
+              <div class="customer-name">{{ sale.customerName }}</div>
+              <div class="customer-email">{{ sale.customerEmail }}</div>
+            </div>
+          </td>
+          <td>{{ sale.items.length }} item(s)</td>
+          <td class="amount">₹{{ sale.total.toFixed(2) }}</td>
+          <td>
+            <span [class]="'status-badge ' + getStatusClass(sale.status)">
+              {{ sale.status }}
+            </span>
+          </td>
+          <td>{{ sale.date | date: 'short' }}</td>
+          <td>{{ sale.paymentMethod }}</td>
+          <td>
+            <button class="btn-view" (click)="viewSaleDetails(sale)">
+              👁️ View
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" *ngIf="!isLoading && filteredSales.length === 0">
+    <div class="empty-icon">📭</div>
+    <h3>No sales found</h3>
+    <p>{{ searchQuery || statusFilter !== 'all' ? 'Try adjusting your filters' : 'No online sales recorded yet' }}</p>
+  </div>
+</div>
+
+<!-- Sale Details Modal -->
+<div class="modal-overlay" *ngIf="selectedSale" (click)="closeDetails()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Order Details</h2>
+      <button class="btn-close" (click)="closeDetails()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="detail-section">
+        <h3>Order Information</h3>
+        <div class="detail-row">
+          <span class="label">Order ID:</span>
+          <span class="value">{{ selectedSale.orderId }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Status:</span>
+          <span [class]="'status-badge ' + getStatusClass(selectedSale.status)">
+            {{ selectedSale.status }}
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Date:</span>
+          <span class="value">{{ selectedSale.date | date: 'medium' }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Payment Method:</span>
+          <span class="value">{{ selectedSale.paymentMethod }}</span>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Customer Information</h3>
+        <div class="detail-row">
+          <span class="label">Name:</span>
+          <span class="value">{{ selectedSale.customerName }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Email:</span>
+          <span class="value">{{ selectedSale.customerEmail }}</span>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Items</h3>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of selectedSale.items">
+              <td>{{ item.name }}</td>
+              <td>{{ item.quantity }}</td>
+              <td>₹{{ item.price.toFixed(2) }}</td>
+              <td>₹{{ (item.quantity * item.price).toFixed(2) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="detail-section total-section">
+        <div class="detail-row total-row">
+          <span class="label">Total Amount:</span>
+          <span class="value total-amount">₹{{ selectedSale.total.toFixed(2) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

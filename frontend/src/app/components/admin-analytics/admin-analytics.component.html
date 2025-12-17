@@ -16,6 +16,12 @@
         (click)="switchTab('expenses')">
         💸 Expense Analytics
       </button>
+      <button
+        class="tab-btn"
+        [class.active]="selectedAnalyticsTab === 'earnings'"
+        (click)="switchTab('earnings')">
+        💵 Earnings Analytics
+      </button>
     </div>
 
     <div class="date-filter">
@@ -345,6 +351,70 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Earnings Analytics Section -->
+  <div *ngIf="selectedAnalyticsTab === 'earnings'">
+    <h2 class="section-title">💵 Earnings Analytics</h2>
+
+    <div *ngIf="earningsLoading" class="loading">
+      <p>Loading earnings data...</p>
+    </div>
+
+    <div *ngIf="!earningsLoading && !earningsData" class="empty-state">
+      <p>No earnings data available for the selected date range</p>
+    </div>
+
+    <div *ngIf="!earningsLoading && earningsData" class="insights-container">
+      <!-- Summary Cards -->
+      <div class="summary-cards">
+        <div class="summary-card revenue">
+          <div class="card-icon">💰</div>
+          <div class="card-content">
+            <h3>Total Offline Sales</h3>
+            <p class="card-value">{{ formatCurrency(earningsData.totalSales) }}</p>
+            <span class="card-subtext">All sales</span>
+          </div>
+        </div>
+
+        <div class="summary-card expense-total">
+          <div class="card-icon">💸</div>
+          <div class="card-content">
+            <h3>Total Offline Expenses</h3>
+            <p class="card-value">{{ formatCurrency(earningsData.offlineExpenses) }}</p>
+            <span class="card-subtext">Cash expenses</span>
+          </div>
+        </div>
+
+        <div class="summary-card expense-total">
+          <div class="card-icon">💳</div>
+          <div class="card-content">
+            <h3>Total Online Expenses</h3>
+            <p class="card-value">{{ formatCurrency(earningsData.onlineExpenses) }}</p>
+            <span class="card-subtext">Card/Online expenses</span>
+          </div>
+        </div>
+
+        <div class="summary-card cash-collection">
+          <div class="card-icon">💵</div>
+          <div class="card-content">
+            <h3>Total Cash Collection</h3>
+            <p class="card-value">{{ formatCurrency(earningsData.totalCashCollection) }}</p>
+            <span class="card-subtext">Cash sales</span>
+          </div>
+        </div>
+
+        <div class="summary-card online-collection">
+          <div class="card-icon">🌐</div>
+          <div class="card-content">
+            <h3>Total Online Collection</h3>
+            <p class="card-value">{{ formatCurrency(earningsData.totalOnlineCollection) }}</p>
+            <span class="card-subtext">Online sales</span>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 

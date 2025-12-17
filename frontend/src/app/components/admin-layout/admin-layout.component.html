@@ -9,16 +9,42 @@
     </div>
 
     <nav class="navbar-menu" [class.active]="isMobileMenuOpen">
-      <a
-        *ngFor="let item of menuItems; let i = index"
-        [routerLink]="item.route"
-        routerLinkActive="active"
-        class="nav-item"
-        (click)="setActiveMenu(i); closeMobileMenu()"
-      >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-label">{{ item.label }}</span>
-      </a>
+      <ng-container *ngFor="let item of menuItems; let i = index">
+        <!-- Menu item with dropdown -->
+        <div *ngIf="item.children" class="nav-item-dropdown" [class.active]="activeDropdown === item.label">
+          <a
+            class="nav-item"
+            (click)="toggleDropdown(item.label, $event)"
+          >
+            <span class="nav-icon">{{ item.icon }}</span>
+            <span class="nav-label">{{ item.label }}</span>
+            <span class="dropdown-arrow">▼</span>
+          </a>
+          <div class="dropdown-menu" *ngIf="activeDropdown === item.label">
+            <a
+              *ngFor="let child of item.children"
+              [routerLink]="child.route"
+              routerLinkActive="active"
+              class="dropdown-item"
+              (click)="closeDropdown(); closeMobileMenu()"
+            >
+              <span class="nav-icon">{{ child.icon }}</span>
+              <span class="nav-label">{{ child.label }}</span>
+            </a>
+          </div>
+        </div>
+        <!-- Regular menu item -->
+        <a
+          *ngIf="!item.children"
+          [routerLink]="item.route"
+          routerLinkActive="active"
+          class="nav-item"
+          (click)="setActiveMenu(i); closeMobileMenu()"
+        >
+          <span class="nav-icon">{{ item.icon }}</span>
+          <span class="nav-label">{{ item.label }}</span>
+        </a>
+      </ng-container>
     </nav>
 
     <div class="navbar-right">

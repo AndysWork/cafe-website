@@ -13,6 +13,7 @@ import { AuthService } from '../../services/auth.service';
 export class AdminLayoutComponent {
   currentUser$;
   isMobileMenuOpen = false;
+  activeDropdown: string | null = null;
 
   menuItems = [
     {
@@ -56,6 +57,28 @@ export class AdminLayoutComponent {
       label: 'Analytics',
       route: '/admin/analytics',
       active: false
+    },
+    {
+      icon: '🛠️',
+      label: 'Tools',
+      active: false,
+      children: [
+        {
+          icon: '🧾',
+          label: 'Cashier',
+          route: '/admin/cashier'
+        },
+        {
+          icon: '📊',
+          label: 'Online Sales',
+          route: '/admin/online-sale-tracker'
+        },
+        {
+          icon: '💹',
+          label: 'Profit Tracker',
+          route: '/admin/online-profit-tracker'
+        }
+      ]
     }
   ];
 
@@ -83,5 +106,17 @@ export class AdminLayoutComponent {
     this.menuItems.forEach((item, i) => {
       item.active = i === index;
     });
+  }
+
+  toggleDropdown(label: string, event?: Event): void {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    this.activeDropdown = this.activeDropdown === label ? null : label;
+  }
+
+  closeDropdown(): void {
+    this.activeDropdown = null;
   }
 }

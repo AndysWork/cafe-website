@@ -73,6 +73,61 @@
           </ul>
         </li>
 
+        <!-- Admin Only: Tools Dropdown -->
+        <li class="nav-item dropdown" *ngIf="isAdmin"
+            [class.active]="activeDropdown === 'tools'"
+            (mouseenter)="openDropdown('tools')"
+            (mouseleave)="scheduleCloseDropdown()">
+          <button class="nav-link dropdown-toggle"
+                  (click)="toggleDropdown('tools')">
+            <span class="nav-icon">🛠️</span>
+            Tools
+            <span class="arrow" [class.open]="activeDropdown === 'tools'">▼</span>
+          </button>
+
+          <ul class="dropdown-menu"
+              [class.show]="activeDropdown === 'tools'"
+              (mouseenter)="cancelCloseDropdown()"
+              (mouseleave)="scheduleCloseDropdown()">
+            <li>
+              <a routerLink="/admin/cashier"
+                 routerLinkActive="active"
+                 class="dropdown-item"
+                 (click)="closeMobileMenu()">
+                <span class="dropdown-icon">🧾</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Cashier</span>
+                  <span class="dropdown-desc">Process in-person sales</span>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a routerLink="/admin/online-sale-tracker"
+                 routerLinkActive="active"
+                 class="dropdown-item"
+                 (click)="closeMobileMenu()">
+                <span class="dropdown-icon">📊</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Online Sale Tracker</span>
+                  <span class="dropdown-desc">Monitor online sales</span>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a routerLink="/admin/online-profit-tracker"
+                 routerLinkActive="active"
+                 class="dropdown-item"
+                 (click)="closeMobileMenu()">
+                <span class="dropdown-icon">💹</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Online Profit Tracker</span>
+                  <span class="dropdown-desc">Track profitability</span>
+                </div>
+              </a>
+            </li>
+          </ul>
+        </li>
+
         <!-- Regular User: Orders -->
         <li class="nav-item" *ngIf="isUser">
           <a routerLink="/orders" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
