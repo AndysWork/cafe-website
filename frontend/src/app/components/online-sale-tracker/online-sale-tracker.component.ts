@@ -141,8 +141,8 @@ export class OnlineSaleTrackerComponent implements OnInit {
 
     this.stats.totalSales = this.sales.length;
     this.stats.totalRevenue = this.sales.reduce((sum, sale) => sum + sale.total, 0);
-    this.stats.averageOrderValue = this.stats.totalSales > 0 
-      ? this.stats.totalRevenue / this.stats.totalSales 
+    this.stats.averageOrderValue = this.stats.totalSales > 0
+      ? this.stats.totalRevenue / this.stats.totalSales
       : 0;
 
     this.stats.todaysSales = this.sales
