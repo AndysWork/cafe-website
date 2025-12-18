@@ -42,6 +42,7 @@ public class MongoService
     private readonly IMongoCollection<OnlineExpenseType> _onlineExpenseTypes;
     private readonly IMongoCollection<PasswordResetToken> _passwordResetTokens;
     private readonly IMongoCollection<DailyCashReconciliation> _cashReconciliations;
+    private readonly IMongoCollection<OnlineSale> _onlineSales;
     
     public MongoService(IConfiguration config)
     {
@@ -77,6 +78,7 @@ public class MongoService
         _onlineExpenseTypes = db.GetCollection<OnlineExpenseType>("OnlineExpenseTypes");
         _passwordResetTokens = db.GetCollection<PasswordResetToken>("PasswordResetTokens");
         _cashReconciliations = db.GetCollection<DailyCashReconciliation>("CashReconciliations");
+        _onlineSales = db.GetCollection<OnlineSale>("OnlineSales");
 
         // Ensure default admin user exists
         try
@@ -986,7 +988,45 @@ public class MongoService
             Console.WriteLine($"  ⚠ PasswordResetTokens indexes warning: {ex.Message}");
         }
 
-        Console.WriteLine($"✓ Database indexing completed! Created {indexCount} indexes across 9 collections");
+        // ========== OnlineSales Collection ==========
+        try
+        {
+            // Platform index - for filtering Zomato vs Swiggy
+            await _onlineSales.Indexes.CreateOneAsync(new CreateIndexModel<OnlineSale>(
+                Builders<OnlineSale>.IndexKeys.Ascending(x => x.Platform),
+                new CreateIndexOptions { Name = "platform_1", Background = true }
+            ));
+            indexCount++;
+
+            // OrderAt (descending) - for date-based queries
+            await _onlineSales.Indexes.CreateOneAsync(new CreateIndexModel<OnlineSale>(
+                Builders<OnlineSale>.IndexKeys.Descending(x => x.OrderAt),
+                new CreateIndexOptions { Name = "orderAt_-1", Background = true }
+            ));
+            indexCount++;
+
+            // Compound index: Platform + OrderAt - for filtered date queries
+            await _onlineSales.Indexes.CreateOneAsync(new CreateIndexModel<OnlineSale>(
+                Builders<OnlineSale>.IndexKeys.Ascending(x => x.Platform).Descending(x => x.OrderAt),
+                new CreateIndexOptions { Name = "platform_1_orderAt_-1", Background = true }
+            ));
+            indexCount++;
+
+            // OrderId - for quick order lookups
+            await _onlineSales.Indexes.CreateOneAsync(new CreateIndexModel<OnlineSale>(
+                Builders<OnlineSale>.IndexKeys.Ascending(x => x.OrderId),
+                new CreateIndexOptions { Name = "orderId_1", Background = true }
+            ));
+            indexCount++;
+
+            Console.WriteLine("  ✓ OnlineSales indexes: platform, orderAt, platform+orderAt compound, orderId");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠ OnlineSales indexes warning: {ex.Message}");
+        }
+
+        Console.WriteLine($"✓ Database indexing completed! Created {indexCount} indexes across 10 collections");
         Console.WriteLine("  Expected performance improvement: 50-70% for most queries");
     }
 
@@ -1876,4 +1916,256 @@ public class MongoService
     }
 
     #endregion
+
+    #region Online Sales Management
+
+    public async Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null)
+    {
+        var filter = string.IsNullOrEmpty(platform)
+            ? Builders<OnlineSale>.Filter.Empty
+            : Builders<OnlineSale>.Filter.Eq(s => s.Platform, platform);
+
+        return await _onlineSales.Find(filter)
+            .SortByDescending(s => s.OrderAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate)
+    {
+        var startOfDay = startDate.Date;
+        var endOfDay = endDate.Date.AddDays(1).AddTicks(-1);
+
+        var filterBuilder = Builders<OnlineSale>.Filter;
+        var filter = filterBuilder.Gte(s => s.OrderAt, startOfDay) & filterBuilder.Lte(s => s.OrderAt, endOfDay);
+
+        if (!string.IsNullOrEmpty(platform))
+        {
+            filter &= filterBuilder.Eq(s => s.Platform, platform);
+        }
+
+        return await _onlineSales.Find(filter)
+            .SortByDescending(s => s.OrderAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate)
+    {
+        var startOfDay = startDate.Date;
+        var endOfDay = endDate.Date.AddDays(1).AddTicks(-1);
+
+        var filter = Builders<OnlineSale>.Filter.Gte(s => s.OrderAt, startOfDay) &
+                     Builders<OnlineSale>.Filter.Lte(s => s.OrderAt, endOfDay);
+
+        var sales = await _onlineSales.Find(filter).ToListAsync();
+
+        // Group by date and platform
+        var grouped = sales.GroupBy(s => new { Date = s.OrderAt.Date, Platform = s.Platform })
+            .Select(g => new DailyOnlineIncomeResponse
+            {
+                Date = g.Key.Date,
+                Platform = g.Key.Platform,
+                TotalPayout = g.Sum(s => s.Payout),
+                TotalOrders = g.Count(),
+                TotalDeduction = g.Sum(s => s.PlatformDeduction),
+                TotalDiscount = g.Sum(s => s.DiscountAmount),
+                TotalPackaging = g.Sum(s => s.PackagingCharges),
+                AverageRating = g.Where(s => s.Rating.HasValue).Any()
+                    ? g.Where(s => s.Rating.HasValue).Average(s => s.Rating!.Value)
+                    : 0
+            })
+            .OrderBy(r => r.Date)
+            .ThenBy(r => r.Platform)
+            .ToList();
+
+        return grouped;
+    }
+
+    public async Task<OnlineSale?> GetOnlineSaleByIdAsync(string id)
+    {
+        return await _onlineSales.Find(s => s.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<OnlineSale> CreateOnlineSaleAsync(OnlineSale sale, string userId)
+    {
+        sale.CreatedAt = GetIstNow();
+        sale.UpdatedAt = GetIstNow();
+        sale.UploadedBy = userId;
+
+        await _onlineSales.InsertOneAsync(sale);
+        return sale;
+    }
+
+    public async Task<BulkInsertResult> BulkCreateOnlineSalesAsync(List<OnlineSale> sales)
+    {
+        var result = new BulkInsertResult();
+        
+        if (!sales.Any())
+            return result;
+
+        // Get all existing order IDs for the same platform to check for duplicates
+        var platforms = sales.Select(s => s.Platform).Distinct();
+        var existingOrderIds = new HashSet<string>();
+        
+        foreach (var platform in platforms)
+        {
+            var filter = Builders<OnlineSale>.Filter.Eq(s => s.Platform, platform);
+            var existingOrders = await _onlineSales.Find(filter)
+                .Project(s => s.OrderId)
+                .ToListAsync();
+            
+            foreach (var orderId in existingOrders)
+            {
+                existingOrderIds.Add($"{platform}:{orderId}");
+            }
+        }
+
+        // Separate new sales from duplicates
+        var newSales = new List<OnlineSale>();
+        var duplicates = new List<string>();
+        var seenInCurrentBatch = new HashSet<string>();
+
+        foreach (var sale in sales)
+        {
+            var key = $"{sale.Platform}:{sale.OrderId}";
+            
+            // Check if already exists in database
+            if (existingOrderIds.Contains(key))
+            {
+                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) - already exists in database");
+                result.SkippedCount++;
+                continue;
+            }
+            
+            // Check if duplicate within current batch
+            if (seenInCurrentBatch.Contains(key))
+            {
+                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) - duplicate in upload file");
+                result.SkippedCount++;
+                continue;
+            }
+            
+            seenInCurrentBatch.Add(key);
+            newSales.Add(sale);
+        }
+
+        // Insert only new sales
+        if (newSales.Any())
+        {
+            try
+            {
+                await _onlineSales.InsertManyAsync(newSales);
+                result.InsertedCount = newSales.Count;
+                result.Success = true;
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.ErrorMessage = ex.Message;
+            }
+        }
+        else
+        {
+            result.Success = true; // No error, just nothing to insert
+        }
+
+        result.Duplicates = duplicates;
+        return result;
+    }
+
+    public async Task<OnlineSale?> UpdateOnlineSaleAsync(string id, UpdateOnlineSaleRequest request)
+    {
+        var updateBuilder = Builders<OnlineSale>.Update;
+        var updates = new List<UpdateDefinition<OnlineSale>>
+        {
+            updateBuilder.Set(s => s.UpdatedAt, GetIstNow())
+        };
+
+        if (request.CustomerName != null)
+            updates.Add(updateBuilder.Set(s => s.CustomerName, request.CustomerName));
+
+        if (request.OrderedItems != null)
+        {
+            var items = request.OrderedItems.Select(i => new OrderedItem
+            {
+                Quantity = i.Quantity,
+                ItemName = i.ItemName,
+                MenuItemId = i.MenuItemId
+            }).ToList();
+            updates.Add(updateBuilder.Set(s => s.OrderedItems, items));
+        }
+
+        if (request.Instructions != null)
+            updates.Add(updateBuilder.Set(s => s.Instructions, request.Instructions));
+
+        if (request.Review != null)
+            updates.Add(updateBuilder.Set(s => s.Review, request.Review));
+
+        if (request.OrderMarking != null)
+            updates.Add(updateBuilder.Set(s => s.OrderMarking, request.OrderMarking));
+
+        if (request.Complain != null)
+            updates.Add(updateBuilder.Set(s => s.Complain, request.Complain));
+
+        var update = updateBuilder.Combine(updates);
+
+        return await _onlineSales.FindOneAndUpdateAsync(
+            s => s.Id == id,
+            update,
+            new FindOneAndUpdateOptions<OnlineSale> { ReturnDocument = ReturnDocument.After }
+        );
+    }
+
+    public async Task<bool> DeleteOnlineSaleAsync(string id)
+    {
+        var result = await _onlineSales.DeleteOneAsync(s => s.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    public async Task<long> BulkDeleteOnlineSalesAsync(string? platform, DateTime? startDate, DateTime? endDate)
+    {
+        var filterBuilder = Builders<OnlineSale>.Filter;
+        var filters = new List<FilterDefinition<OnlineSale>>();
+
+        if (!string.IsNullOrEmpty(platform))
+        {
+            filters.Add(filterBuilder.Eq(s => s.Platform, platform));
+        }
+
+        if (startDate.HasValue)
+        {
+            var startOfDay = startDate.Value.Date;
+            filters.Add(filterBuilder.Gte(s => s.OrderAt, startOfDay));
+        }
+
+        if (endDate.HasValue)
+        {
+            var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            filters.Add(filterBuilder.Lte(s => s.OrderAt, endOfDay));
+        }
+
+        var filter = filters.Any() ? filterBuilder.And(filters) : filterBuilder.Empty;
+        var result = await _onlineSales.DeleteManyAsync(filter);
+        return result.DeletedCount;
+    }
+
+    // Match menu items by name (fuzzy matching)
+    public async Task<string?> FindMenuItemIdByNameAsync(string itemName)
+    {
+        var cleanName = itemName.Trim().ToLower();
+
+        // Try exact match first
+        var exactMatch = await _menu.Find(m => m.Name.ToLower() == cleanName).FirstOrDefaultAsync();
+        if (exactMatch != null)
+            return exactMatch.Id;
+
+        // Try contains match
+        var containsMatch = await _menu.Find(m => m.Name.ToLower().Contains(cleanName)).FirstOrDefaultAsync();
+        if (containsMatch != null)
+            return containsMatch.Id;
+
+        return null;
+    }
+
+    #endregion
 }
+

@@ -1,220 +1,274 @@
-<div class="tracker-container">
-  <div class="tracker-header">
-    <h1>📊 Online Sale Tracker</h1>
-    <p>Monitor and analyze your online sales performance</p>
+<div class="online-sale-tracker">
+  <div class="header">
+    <h1>📱 Online Sales Tracker</h1>
+    <p class="subtitle">Track Zomato & Swiggy Orders</p>
   </div>
 
-  <!-- Statistics Cards -->
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-icon">💰</div>
-      <div class="stat-content">
-        <div class="stat-label">Total Revenue</div>
-        <div class="stat-value">₹{{ stats.totalRevenue.toFixed(2) }}</div>
-      </div>
+  <!-- Platform Selection & Upload -->
+  <div class="upload-section card">
+    <div class="platform-selector">
+      <label>
+        <input
+          type="radio"
+          name="platform"
+          value="Zomato"
+          [(ngModel)]="selectedPlatform"
+          (change)="onPlatformChange()"
+        />
+        <span class="platform-label zomato">🍔 Zomato</span>
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="platform"
+          value="Swiggy"
+          [(ngModel)]="selectedPlatform"
+          (change)="onPlatformChange()"
+        />
+        <span class="platform-label swiggy">🍕 Swiggy</span>
+      </label>
     </div>
 
-    <div class="stat-card">
-      <div class="stat-icon">📦</div>
-      <div class="stat-content">
-        <div class="stat-label">Total Sales</div>
-        <div class="stat-value">{{ stats.totalSales }}</div>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-icon">📈</div>
-      <div class="stat-content">
-        <div class="stat-label">Avg Order Value</div>
-        <div class="stat-value">₹{{ stats.averageOrderValue.toFixed(2) }}</div>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-icon">🕐</div>
-      <div class="stat-content">
-        <div class="stat-label">Today's Sales</div>
-        <div class="stat-value">₹{{ stats.todaysSales.toFixed(2) }}</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Filters and Search -->
-  <div class="filters-section">
-    <div class="search-box">
+    <div class="upload-controls">
       <input
-        type="text"
-        [(ngModel)]="searchQuery"
-        (ngModelChange)="onSearchChange()"
-        placeholder="Search by order ID, customer name, or email..."
-        class="search-input"
+        type="file"
+        id="fileInput"
+        accept=".xlsx,.xls"
+        (change)="onFileSelected($event)"
+        class="file-input"
       />
-    </div>
-
-    <div class="filters">
-      <select [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()" class="filter-select">
-        <option value="all">All Statuses</option>
-        <option value="pending">Pending</option>
-        <option value="confirmed">Confirmed</option>
-        <option value="preparing">Preparing</option>
-        <option value="ready">Ready</option>
-        <option value="delivered">Delivered</option>
-        <option value="cancelled">Cancelled</option>
-      </select>
-
-      <select [(ngModel)]="dateFilter" (ngModelChange)="onFilterChange()" class="filter-select">
-        <option value="all">All Time</option>
-        <option value="today">Today</option>
-        <option value="week">This Week</option>
-        <option value="month">This Month</option>
-      </select>
-
-      <select [(ngModel)]="sortBy" (ngModelChange)="onFilterChange()" class="filter-select">
-        <option value="date-desc">Newest First</option>
-        <option value="date-asc">Oldest First</option>
-        <option value="amount-desc">Highest Amount</option>
-        <option value="amount-asc">Lowest Amount</option>
-      </select>
-
-      <button class="btn-export" (click)="exportToCSV()">
-        📥 Export CSV
+      <button
+        (click)="uploadFile()"
+        [disabled]="!selectedFile || isUploading || isDeleting"
+        class="btn btn-primary upload-btn"
+      >
+        <span *ngIf="!isUploading">📤 Upload {{ selectedPlatform }} Excel</span>
+        <span *ngIf="isUploading">⏳ Uploading...</span>
+      </button>
+      <button
+        (click)="deleteSalesData()"
+        [disabled]="isUploading || isDeleting || sales.length === 0"
+        class="btn btn-danger delete-btn"
+        title="Delete all {{ selectedPlatform }} sales in the selected date range"
+      >
+        <span *ngIf="!isDeleting">🗑️ Clear Data</span>
+        <span *ngIf="isDeleting">⏳ Deleting...</span>
       </button>
     </div>
+
+    <div *ngIf="uploadMessage" [class]="uploadSuccess ? 'message success' : 'message error'">
+      <pre class="upload-details">{{ uploadMessage }}</pre>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="stats-section">
+    <div class="stat-card">
+      <div class="stat-label">💰 Total Income (Payout)</div>
+      <div class="stat-value">{{ formatCurrency(totalPayout) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">📦 Total Orders</div>
+      <div class="stat-value">{{ totalOrders }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">📊 Deduction (Track Only)</div>
+      <div class="stat-value">{{ formatCurrency(totalDeduction) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">⭐ Average Rating</div>
+      <div class="stat-value">{{ averageRating.toFixed(1) }} ⭐</div>
+    </div>
+  </div>
+
+  <!-- Date Range Filter -->
+  <div class="filters-section card">
+    <div class="filter-group">
+      <label for="startDate">Start Date:</label>
+      <input
+        type="date"
+        id="startDate"
+        [(ngModel)]="startDate"
+        (change)="onDateRangeChange()"
+        class="date-input"
+      />
+    </div>
+    <div class="filter-group">
+      <label for="endDate">End Date:</label>
+      <input
+        type="date"
+        id="endDate"
+        [(ngModel)]="endDate"
+        (change)="onDateRangeChange()"
+        class="date-input"
+      />
+    </div>
+    <button (click)="exportToCSV()" class="btn btn-secondary export-btn">
+      📊 Export to CSV
+    </button>
   </div>
 
   <!-- Loading State -->
-  <div class="loading" *ngIf="isLoading">
+  <div *ngIf="isLoading" class="loading">
     <div class="spinner"></div>
     <p>Loading sales data...</p>
   </div>
 
   <!-- Error Message -->
-  <div class="alert alert-error" *ngIf="errorMessage">
+  <div *ngIf="errorMessage" class="error-banner">
     {{ errorMessage }}
   </div>
 
-  <!-- Sales Table -->
-  <div class="sales-table-container" *ngIf="!isLoading && filteredSales.length > 0">
-    <table class="sales-table">
-      <thead>
-        <tr>
-          <th>Order ID</th>
-          <th>Customer</th>
-          <th>Items</th>
-          <th>Total</th>
-          <th>Status</th>
-          <th>Date</th>
-          <th>Payment</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let sale of filteredSales" class="sale-row">
-          <td class="order-id">{{ sale.orderId }}</td>
-          <td>
-            <div class="customer-info">
-              <div class="customer-name">{{ sale.customerName }}</div>
-              <div class="customer-email">{{ sale.customerEmail }}</div>
-            </div>
-          </td>
-          <td>{{ sale.items.length }} item(s)</td>
-          <td class="amount">₹{{ sale.total.toFixed(2) }}</td>
-          <td>
-            <span [class]="'status-badge ' + getStatusClass(sale.status)">
-              {{ sale.status }}
+  <!-- Daily Income Table -->
+  <div class="daily-income-section card" *ngIf="!isLoading && dailyIncome.length > 0">
+    <div class="section-header" (click)="toggleDailyIncome()">
+      <h2>📅 Daily Income Summary</h2>
+      <span class="toggle-icon">{{ showDailyIncome ? '▼' : '▶' }}</span>
+    </div>
+    <div class="cascading-container" *ngIf="showDailyIncome">
+      <div *ngFor="let monthGroup of getGroupedDailyIncome() | keyvalue" class="month-group">
+        <div class="month-header" (click)="toggleMonth(monthGroup.key)">
+          <div class="month-title">
+            <span class="toggle-icon-small">{{ isMonthCollapsed(monthGroup.key) ? '▶' : '▼' }}</span>
+            <h3>{{ monthGroup.key }}</h3>
+          </div>
+          <div class="month-summary">
+            <span class="summary-item">
+              <strong>Orders:</strong> {{ getMonthTotal(monthGroup.value, 'totalOrders') }}
             </span>
-          </td>
-          <td>{{ sale.date | date: 'short' }}</td>
-          <td>{{ sale.paymentMethod }}</td>
-          <td>
-            <button class="btn-view" (click)="viewSaleDetails(sale)">
-              👁️ View
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            <span class="summary-item">
+              <strong>Income (Payout):</strong> {{ formatCurrency(getMonthTotal(monthGroup.value, 'totalPayout')) }}
+            </span>
+            <span class="summary-item">
+              <strong>Deduction (Track):</strong> {{ formatCurrency(getMonthTotal(monthGroup.value, 'totalDeduction')) }}
+            </span>
+            <span class="summary-item">
+              <strong>Discount:</strong> {{ formatCurrency(getMonthTotal(monthGroup.value, 'totalDiscount')) }}
+            </span>
+            <span class="summary-item">
+              <strong>Packaging:</strong> {{ formatCurrency(getMonthTotal(monthGroup.value, 'totalPackaging')) }}
+            </span>
+          </div>
+        </div>
+        <div class="month-content" *ngIf="!isMonthCollapsed(monthGroup.key)">
+          <table class="income-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Platform</th>
+                <th>Orders</th>
+                <th>Income (Payout)</th>
+                <th>Deduction (Track)</th>
+                <th>Discount</th>
+                <th>Packaging</th>
+                <th>Avg Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let income of monthGroup.value" [class.zomato-row]="income.platform === 'Zomato'" [class.swiggy-row]="income.platform === 'Swiggy'">
+                <td class="date-cell">{{ formatDate(income.date) }}</td>
+                <td>
+                  <span [class]="'platform-badge ' + income.platform.toLowerCase()">
+                    {{ income.platform }}
+                  </span>
+                </td>
+                <td class="text-center"><strong>{{ income.totalOrders }}</strong></td>
+                <td class="amount positive"><strong>{{ formatCurrency(income.totalPayout) }}</strong></td>
+                <td class="amount track-only">{{ formatCurrency(income.totalDeduction) }}</td>
+                <td class="amount discount-amount">{{ formatCurrency(income.totalDiscount || 0) }}</td>
+                <td class="amount packaging-amount">{{ formatCurrency(income.totalPackaging || 0) }}</td>
+                <td class="text-center">{{ income.averageRating > 0 ? income.averageRating.toFixed(1) + ' ⭐' : 'N/A' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sales Details Table -->
+  <div class="sales-section card" *ngIf="!isLoading && sales.length > 0">
+    <div class="section-header" (click)="toggleOrderDetails()">
+      <h2>🧾 Order Details ({{ sales.length }} orders)</h2>
+      <span class="toggle-icon">{{ showOrderDetails ? '▼' : '▶' }}</span>
+    </div>
+    <div class="table-container" *ngIf="showOrderDetails">
+      <div class="pagination-info">
+        Showing {{ (currentPage - 1) * ordersPerPage + 1 }} - {{ Math.min(currentPage * ordersPerPage, sales.length) }} of {{ sales.length }} orders
+      </div>
+      <table class="sales-table">
+        <thead>
+          <tr>
+            <th>Date & Time</th>
+            <th>Platform</th>
+            <th>Order ID</th>
+            <th>Customer</th>
+            <th>Items</th>
+            <th>Distance</th>
+            <th>Bill Total</th>
+            <th>Discount</th>
+            <th>Packaging</th>
+            <th>Income (Payout)</th>
+            <th>Deduction (Track)</th>
+            <th>Rating</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let sale of paginatedSales" [class.zomato-row]="sale.platform === 'Zomato'" [class.swiggy-row]="sale.platform === 'Swiggy'">
+            <td class="date-cell">{{ formatDate(sale.orderAt) }}</td>
+            <td>
+              <span [class]="'platform-badge ' + sale.platform.toLowerCase()">
+                {{ sale.platform }}
+              </span>
+            </td>
+            <td class="order-id">{{ sale.orderId }}</td>
+            <td>{{ sale.customerName || 'N/A' }}</td>
+            <td>
+              <span class="items-preview" [title]="formatOrderedItems(sale.orderedItems)">
+                {{ getTotalItemsCount(sale.orderedItems) }} items
+              </span>
+            </td>
+            <td class="text-center">{{ sale.distance }} km</td>
+            <td class="amount">{{ formatCurrency(sale.billSubTotal) }}</td>
+            <td class="amount discount-amount">{{ formatCurrency(sale.discountAmount || 0) }}</td>
+            <td class="amount packaging-amount">{{ formatCurrency(sale.packagingCharges || 0) }}</td>
+            <td class="amount income-highlight"><strong>{{ formatCurrency(sale.payout) }}</strong></td>
+            <td class="amount track-only">{{ formatCurrency(sale.platformDeduction) }}</td>
+            <td class="text-center">
+              <span *ngIf="sale.rating" class="rating">{{ sale.rating }} ⭐</span>
+              <span *ngIf="!sale.rating" class="no-rating">N/A</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Pagination Controls -->
+      <div class="pagination-controls" *ngIf="totalPages > 1">
+        <button class="btn btn-pagination" (click)="previousPage()" [disabled]="currentPage === 1">
+          ← Previous
+        </button>
+        <div class="page-numbers">
+          <button
+            *ngFor="let page of [].constructor(totalPages); let i = index"
+            class="btn btn-page"
+            [class.active]="currentPage === i + 1"
+            (click)="goToPage(i + 1)"
+            [style.display]="Math.abs(currentPage - (i + 1)) <= 2 || i === 0 || i === totalPages - 1 ? 'inline-block' : 'none'"
+          >
+            {{ i + 1 }}
+          </button>
+        </div>
+        <button class="btn btn-pagination" (click)="nextPage()" [disabled]="currentPage === totalPages">
+          Next →
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Empty State -->
-  <div class="empty-state" *ngIf="!isLoading && filteredSales.length === 0">
-    <div class="empty-icon">📭</div>
-    <h3>No sales found</h3>
-    <p>{{ searchQuery || statusFilter !== 'all' ? 'Try adjusting your filters' : 'No online sales recorded yet' }}</p>
-  </div>
-</div>
-
-<!-- Sale Details Modal -->
-<div class="modal-overlay" *ngIf="selectedSale" (click)="closeDetails()">
-  <div class="modal-content" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h2>Order Details</h2>
-      <button class="btn-close" (click)="closeDetails()">✕</button>
-    </div>
-
-    <div class="modal-body">
-      <div class="detail-section">
-        <h3>Order Information</h3>
-        <div class="detail-row">
-          <span class="label">Order ID:</span>
-          <span class="value">{{ selectedSale.orderId }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">Status:</span>
-          <span [class]="'status-badge ' + getStatusClass(selectedSale.status)">
-            {{ selectedSale.status }}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span class="label">Date:</span>
-          <span class="value">{{ selectedSale.date | date: 'medium' }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">Payment Method:</span>
-          <span class="value">{{ selectedSale.paymentMethod }}</span>
-        </div>
-      </div>
-
-      <div class="detail-section">
-        <h3>Customer Information</h3>
-        <div class="detail-row">
-          <span class="label">Name:</span>
-          <span class="value">{{ selectedSale.customerName }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">Email:</span>
-          <span class="value">{{ selectedSale.customerEmail }}</span>
-        </div>
-      </div>
-
-      <div class="detail-section">
-        <h3>Items</h3>
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let item of selectedSale.items">
-              <td>{{ item.name }}</td>
-              <td>{{ item.quantity }}</td>
-              <td>₹{{ item.price.toFixed(2) }}</td>
-              <td>₹{{ (item.quantity * item.price).toFixed(2) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="detail-section total-section">
-        <div class="detail-row total-row">
-          <span class="label">Total Amount:</span>
-          <span class="value total-amount">₹{{ selectedSale.total.toFixed(2) }}</span>
-        </div>
-      </div>
-    </div>
+  <div *ngIf="!isLoading && sales.length === 0" class="empty-state card">
+    <div class="empty-icon">📦</div>
+    <h3>No Sales Data Available</h3>
+    <p>Upload an Excel file for {{ selectedPlatform }} to get started</p>
   </div>
 </div>

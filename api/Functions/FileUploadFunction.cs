@@ -273,4 +273,81 @@ public class FileUploadFunction
             return res;
         }
     }
+
+    // POST /api/upload/online-sales - Upload Zomato/Swiggy Excel
+    [Function("UploadOnlineSales")]
+    public async Task<HttpResponseData> UploadOnlineSales(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "upload/online-sales")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var contentType = req.Headers.GetValues("Content-Type").FirstOrDefault() ?? "";
+            
+            if (!contentType.Contains("multipart/form-data") || !contentType.Contains("boundary="))
+            {
+                var res = req.CreateResponse(HttpStatusCode.BadRequest);
+                await res.WriteAsJsonAsync(new { error = "Invalid content type. Expected multipart/form-data" });
+                return res;
+            }
+
+            var boundary = contentType.Split("boundary=")[1];
+            
+            using var bodyStream = new MemoryStream();
+            await req.Body.CopyToAsync(bodyStream);
+            bodyStream.Position = 0;
+
+            var parts = ParseMultipartFormData(bodyStream, boundary);
+
+            if (!parts.ContainsKey("file") || parts["file"].Data == null)
+            {
+                var res = req.CreateResponse(HttpStatusCode.BadRequest);
+                await res.WriteAsJsonAsync(new { error = "No file uploaded" });
+                return res;
+            }
+
+            if (!parts.ContainsKey("platform") || string.IsNullOrEmpty(parts["platform"].Text))
+            {
+                var res = req.CreateResponse(HttpStatusCode.BadRequest);
+                await res.WriteAsJsonAsync(new { error = "Platform (Zomato/Swiggy) is required" });
+                return res;
+            }
+
+            var platform = parts["platform"].Text!.Trim();
+            if (platform != "Zomato" && platform != "Swiggy")
+            {
+                var res = req.CreateResponse(HttpStatusCode.BadRequest);
+                await res.WriteAsJsonAsync(new { error = "Platform must be either 'Zomato' or 'Swiggy'" });
+                return res;
+            }
+
+            var fileData = parts["file"].Data!;
+            using var ms = new MemoryStream(fileData);
+
+            var fileUploadService = new FileUploadService();
+            var onlineResult = await fileUploadService.ProcessOnlineSaleExcel(ms, platform, _mongo, userId!);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = onlineResult.Success,
+                message = onlineResult.Message,
+                salesProcessed = onlineResult.SalesProcessed,
+                totalRowsInFile = onlineResult.SalesProcessed + onlineResult.Errors.Count,
+                errors = onlineResult.Errors,
+                hasErrors = onlineResult.Errors.Any()
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error uploading online sales file");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
 }
+

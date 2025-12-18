@@ -247,4 +247,445 @@ public class FileUploadService
 
         return result;
     }
+
+    // Parse Zomato/Swiggy Excel and create OnlineSale records
+    public async Task<OnlineSaleUploadResult> ProcessOnlineSaleExcel(
+        Stream fileStream,
+        string platform,
+        MongoService mongoService,
+        string uploadedBy)
+    {
+        // Route to appropriate parser based on platform
+        if (platform == "Zomato")
+        {
+            return await ProcessZomatoExcel(fileStream, mongoService, uploadedBy);
+        }
+        else if (platform == "Swiggy")
+        {
+            return await ProcessSwiggyExcel(fileStream, mongoService, uploadedBy);
+        }
+        else
+        {
+            var result = new OnlineSaleUploadResult();
+            result.Errors.Add($"Unsupported platform: {platform}. Must be 'Zomato' or 'Swiggy'");
+            return result;
+        }
+    }
+
+    // Parse Zomato Excel format
+    // Columns: ZomatoOrderId, CustomerName, OrderAt, Distance, OrderedItems, Instructions, 
+    // DiscountCoupon, BillSubTotal, PackagingCharges, DiscountAmount, TotalCommissionable, 
+    // Payout, ZomatoDeduction, Investment, MiscCharges, Rating, Review, KPT, RWT, OrderMarking, Complain
+    private async Task<OnlineSaleUploadResult> ProcessZomatoExcel(
+        Stream fileStream,
+        MongoService mongoService,
+        string uploadedBy)
+    {
+        var result = new OnlineSaleUploadResult();
+        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+        try
+        {
+            using var package = new ExcelPackage(fileStream);
+            var worksheet = package.Workbook.Worksheets[0];
+            var rowCount = worksheet.Dimension?.Rows ?? 0;
+
+            if (rowCount < 2)
+            {
+                result.Errors.Add("File is empty or missing headers");
+                return result;
+            }
+
+            var sales = new List<OnlineSale>();
+
+            for (int row = 2; row <= rowCount; row++)
+            {
+                try
+                {
+                    var orderId = worksheet.Cells[row, 1].Text.Trim();
+                    if (string.IsNullOrEmpty(orderId))
+                        continue;
+
+                    var customerName = worksheet.Cells[row, 2].Text.Trim();
+                    var orderAtStr = worksheet.Cells[row, 3].Text.Trim();
+                    var distanceStr = worksheet.Cells[row, 4].Text.Trim();
+                    var orderedItemsStr = worksheet.Cells[row, 5].Text.Trim();
+                    var instructions = worksheet.Cells[row, 6].Text.Trim();
+                    var discountCoupon = worksheet.Cells[row, 7].Text.Trim();
+                    var billSubTotalStr = worksheet.Cells[row, 8].Text.Trim();
+                    var packagingChargesStr = worksheet.Cells[row, 9].Text.Trim();
+                    var discountAmountStr = worksheet.Cells[row, 10].Text.Trim();
+                    var totalCommissionableStr = worksheet.Cells[row, 11].Text.Trim();
+                    var payoutStr = worksheet.Cells[row, 12].Text.Trim();
+                    var deductionStr = worksheet.Cells[row, 13].Text.Trim();
+                    var investmentStr = worksheet.Cells[row, 14].Text.Trim();
+                    var miscChargesStr = worksheet.Cells[row, 15].Text.Trim();
+                    var ratingStr = worksheet.Cells[row, 16].Text.Trim();
+                    var review = worksheet.Cells[row, 17].Text.Trim();
+                    var kptStr = worksheet.Cells[row, 18].Text.Trim();
+                    var rwtStr = worksheet.Cells[row, 19].Text.Trim();
+                    var orderMarking = worksheet.Cells[row, 20].Text.Trim();
+                    var complain = worksheet.Cells[row, 21].Text.Trim();
+
+                    // Parse date (format: 01-Nov-25 or 1-Nov-25)
+                    DateTime orderAt;
+                    if (!DateTime.TryParseExact(orderAtStr, new[] { "d-MMM-yy", "dd-MMM-yy", "d-MMM-yyyy", "dd-MMM-yyyy", "dd-MM-yyyy", "d/M/yyyy", "dd/MM/yyyy", "d-M-yyyy" },
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out orderAt))
+                    {
+                        result.Errors.Add($"Row {row}: Invalid date format '{orderAtStr}'");
+                        continue;
+                    }
+
+                    // Assume the date in Excel is in IST, set the time to noon IST to avoid date boundary issues
+                    var istOrderAt = new DateTime(orderAt.Year, orderAt.Month, orderAt.Day, 12, 0, 0, DateTimeKind.Unspecified);
+
+                    // Parse ordered items (e.g., "1 x Chicken Red Sauce Pasta, 1 x Bread Egg Toast")
+                    var orderedItems = await ParseOrderedItems(orderedItemsStr, mongoService);
+
+                    var sale = new OnlineSale
+                    {
+                        Platform = "Zomato", // Clearly mark as Zomato
+                        OrderId = orderId,
+                        CustomerName = string.IsNullOrEmpty(customerName) ? null : customerName,
+                        OrderAt = istOrderAt,
+                        Distance = ParseDecimal(distanceStr),
+                        OrderedItems = orderedItems,
+                        Instructions = string.IsNullOrEmpty(instructions) ? null : instructions,
+                        DiscountCoupon = string.IsNullOrEmpty(discountCoupon) ? null : discountCoupon,
+                        BillSubTotal = ParseDecimal(billSubTotalStr),
+                        PackagingCharges = ParseDecimal(packagingChargesStr),
+                        DiscountAmount = ParseDecimal(discountAmountStr),
+                        GST = 0, // Zomato doesn't provide GST separately
+                        TotalCommissionable = ParseDecimal(totalCommissionableStr),
+                        Payout = ParseDecimal(payoutStr),
+                        PlatformDeduction = ParseDecimal(deductionStr),
+                        Investment = ParseDecimal(investmentStr),
+                        MiscCharges = ParseDecimal(miscChargesStr),
+                        Rating = ParseNullableDecimal(ratingStr),
+                        Review = string.IsNullOrEmpty(review) ? null : review,
+                        KPT = ParseNullableDecimal(kptStr),
+                        RWT = ParseNullableDecimal(rwtStr),
+                        OrderMarking = string.IsNullOrEmpty(orderMarking) ? null : orderMarking,
+                        Complain = string.IsNullOrEmpty(complain) ? null : complain,
+                        UploadedBy = uploadedBy,
+                        CreatedAt = MongoService.GetIstNow(),
+                        UpdatedAt = MongoService.GetIstNow()
+                    };
+
+                    sales.Add(sale);
+                }
+                catch (Exception ex)
+                {
+                    result.Errors.Add($"Row {row}: {ex.Message}");
+                }
+            }
+
+            // Bulk insert
+            if (sales.Any())
+            {
+                var bulkResult = await mongoService.BulkCreateOnlineSalesAsync(sales);
+                result.SalesProcessed = bulkResult.InsertedCount;
+                result.Success = bulkResult.Success;
+                
+                if (bulkResult.SkippedCount > 0)
+                {
+                    result.Message = $"Successfully imported {bulkResult.InsertedCount} Zomato sales. Skipped {bulkResult.SkippedCount} duplicates.";
+                    result.Errors.AddRange(bulkResult.Duplicates);
+                }
+                else
+                {
+                    result.Message = $"Successfully imported {bulkResult.InsertedCount} Zomato sales";
+                }
+                
+                if (!string.IsNullOrEmpty(bulkResult.ErrorMessage))
+                {
+                    result.Errors.Add($"Database error: {bulkResult.ErrorMessage}");
+                }
+            }
+            else
+            {
+                result.Success = false;
+                result.Message = "No valid Zomato sales data found in file";
+            }
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Errors.Add($"Excel processing error: {ex.Message}");
+            result.Message = "Upload failed due to an error.";
+        }
+
+        return result;
+    }
+
+    // Parse Swiggy Excel format
+    // Swiggy may have different column structure - adjust based on actual Swiggy report format
+    // Placeholder columns: SwiggyOrderId, OrderDate, CustomerName, Items, Total, Payout, etc.
+    private async Task<OnlineSaleUploadResult> ProcessSwiggyExcel(
+        Stream fileStream,
+        MongoService mongoService,
+        string uploadedBy)
+    {
+        var result = new OnlineSaleUploadResult();
+        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+        try
+        {
+            using var package = new ExcelPackage(fileStream);
+            var worksheet = package.Workbook.Worksheets[0];
+            var rowCount = worksheet.Dimension?.Rows ?? 0;
+
+            if (rowCount < 2)
+            {
+                result.Errors.Add("File is empty or missing headers");
+                return result;
+            }
+
+            var sales = new List<OnlineSale>();
+
+            // Swiggy Excel Column Mapping (22 columns):
+            // A: SwiggyOrderId, B: CustomerName, C: OrderAt, D: Distance, E: OrderedItems, F: Instructions
+            // G: DiscountCoupon, H: BillSubTotal, I: PackagingCharges, J: DiscountAmount, K: GST
+            // L: TotalCommisonable, M: Payout, N: SwiggyDeduction, O: Investment, P: MiscCharges
+            // Q: Rating, R: Review, S: KPT, T: RWT, U: OrderMarking, V: Complain
+            for (int row = 2; row <= rowCount; row++)
+            {
+                try
+                {
+                    // A: Swiggy Order ID
+                    var orderId = worksheet.Cells[row, 1].Text.Trim();
+                    if (string.IsNullOrEmpty(orderId))
+                        continue;
+
+                    // B: Customer Name
+                    var customerName = worksheet.Cells[row, 2].Text.Trim();
+                    
+                    // C: Order Date
+                    var orderAtStr = worksheet.Cells[row, 3].Text.Trim();
+                    
+                    // D: Distance
+                    var distanceStr = worksheet.Cells[row, 4].Text.Trim();
+                    
+                    // E: Ordered Items
+                    var orderedItemsStr = worksheet.Cells[row, 5].Text.Trim();
+                    
+                    // F: Instructions
+                    var instructions = worksheet.Cells[row, 6].Text.Trim();
+                    
+                    // G: Discount Coupon
+                    var discountCoupon = worksheet.Cells[row, 7].Text.Trim();
+                    
+                    // H: Bill SubTotal
+                    var billSubTotalStr = worksheet.Cells[row, 8].Text.Trim();
+                    
+                    // I: Packaging Charges
+                    var packagingChargesStr = worksheet.Cells[row, 9].Text.Trim();
+                    
+                    // J: Discount Amount
+                    var discountAmountStr = worksheet.Cells[row, 10].Text.Trim();
+                    
+                    // K: GST
+                    var gstStr = worksheet.Cells[row, 11].Text.Trim();
+                    
+                    // L: Total Commissionable
+                    var totalCommissionableStr = worksheet.Cells[row, 12].Text.Trim();
+                    
+                    // M: Payout
+                    var payoutStr = worksheet.Cells[row, 13].Text.Trim();
+                    
+                    // N: Swiggy Deduction
+                    var deductionStr = worksheet.Cells[row, 14].Text.Trim();
+                    
+                    // O: Investment
+                    var investmentStr = worksheet.Cells[row, 15].Text.Trim();
+                    
+                    // P: Misc Charges
+                    var miscChargesStr = worksheet.Cells[row, 16].Text.Trim();
+                    
+                    // Q: Rating
+                    var ratingStr = worksheet.Cells[row, 17].Text.Trim();
+                    
+                    // R: Review
+                    var review = worksheet.Cells[row, 18].Text.Trim();
+                    
+                    // S: KPT
+                    var kptStr = worksheet.Cells[row, 19].Text.Trim();
+                    
+                    // T: RWT
+                    var rwtStr = worksheet.Cells[row, 20].Text.Trim();
+                    
+                    // U: Order Marking
+                    var orderMarking = worksheet.Cells[row, 21].Text.Trim();
+                    
+                    // V: Complain
+                    var complain = worksheet.Cells[row, 22].Text.Trim();
+
+                    // Parse date
+                    DateTime orderAt;
+                    if (!DateTime.TryParseExact(orderAtStr, new[] { "d-MMM-yy", "dd-MMM-yy", "d-MMM-yyyy", "dd-MMM-yyyy", "dd-MM-yyyy", "d/M/yyyy", "dd/MM/yyyy", "d-M-yyyy", "yyyy-MM-dd" },
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out orderAt))
+                    {
+                        result.Errors.Add($"Row {row}: Invalid date format '{orderAtStr}'");
+                        continue;
+                    }
+
+                    // Assume the date in Excel is in IST, set the time to noon IST to avoid date boundary issues
+                    var istOrderAt = new DateTime(orderAt.Year, orderAt.Month, orderAt.Day, 12, 0, 0, DateTimeKind.Unspecified);
+
+                    // Parse ordered items
+                    var orderedItems = await ParseOrderedItems(orderedItemsStr, mongoService);
+
+                    var sale = new OnlineSale
+                    {
+                        Platform = "Swiggy",
+                        OrderId = orderId,
+                        CustomerName = string.IsNullOrEmpty(customerName) ? null : customerName,
+                        OrderAt = istOrderAt,
+                        Distance = ParseDecimal(distanceStr),
+                        OrderedItems = orderedItems,
+                        Instructions = string.IsNullOrEmpty(instructions) ? null : instructions,
+                        DiscountCoupon = string.IsNullOrEmpty(discountCoupon) ? null : discountCoupon,
+                        BillSubTotal = ParseDecimal(billSubTotalStr),
+                        PackagingCharges = ParseDecimal(packagingChargesStr),
+                        DiscountAmount = ParseDecimal(discountAmountStr),
+                        GST = ParseDecimal(gstStr),
+                        TotalCommissionable = ParseDecimal(totalCommissionableStr),
+                        Payout = ParseDecimal(payoutStr),
+                        PlatformDeduction = ParseDecimal(deductionStr),
+                        Investment = ParseDecimal(investmentStr),
+                        MiscCharges = ParseDecimal(miscChargesStr),
+                        Rating = null, // Swiggy orders don't have ratings
+                        Review = string.IsNullOrEmpty(review) ? null : review,
+                        KPT = ParseNullableDecimal(kptStr),
+                        RWT = ParseNullableDecimal(rwtStr),
+                        OrderMarking = string.IsNullOrEmpty(orderMarking) ? null : orderMarking,
+                        Complain = string.IsNullOrEmpty(complain) ? null : complain,
+                        UploadedBy = uploadedBy,
+                        CreatedAt = MongoService.GetIstNow(),
+                        UpdatedAt = MongoService.GetIstNow()
+                    };
+
+                    sales.Add(sale);
+                }
+                catch (Exception ex)
+                {
+                    result.Errors.Add($"Row {row}: {ex.Message}");
+                }
+            }
+
+            // Bulk insert
+            if (sales.Any())
+            {
+                var bulkResult = await mongoService.BulkCreateOnlineSalesAsync(sales);
+                result.SalesProcessed = bulkResult.InsertedCount;
+                result.Success = bulkResult.Success;
+                
+                if (bulkResult.SkippedCount > 0)
+                {
+                    result.Message = $"Successfully imported {bulkResult.InsertedCount} Swiggy sales. Skipped {bulkResult.SkippedCount} duplicates.";
+                    result.Errors.AddRange(bulkResult.Duplicates);
+                }
+                else
+                {
+                    result.Message = $"Successfully imported {bulkResult.InsertedCount} Swiggy sales";
+                }
+                
+                if (!string.IsNullOrEmpty(bulkResult.ErrorMessage))
+                {
+                    result.Errors.Add($"Database error: {bulkResult.ErrorMessage}");
+                }
+            }
+            else
+            {
+                result.Success = false;
+                result.Message = "No valid Swiggy sales data found in file";
+            }
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Errors.Add($"Excel processing error: {ex.Message}");
+            result.Message = "Upload failed due to an error.";
+        }
+
+        return result;
+    }
+
+    // Parse ordered items string like "1 x Chicken Red Sauce Pasta, 1 x Bread Egg Toast"
+    private async Task<List<OrderedItem>> ParseOrderedItems(string orderedItemsStr, MongoService mongoService)
+    {
+        var items = new List<OrderedItem>();
+
+        if (string.IsNullOrWhiteSpace(orderedItemsStr))
+            return items;
+
+        // Split by comma
+        var itemParts = orderedItemsStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var itemPart in itemParts)
+        {
+            try
+            {
+                // Parse "1 x Chicken Red Sauce Pasta"
+                var parts = itemPart.Trim().Split(" x ", StringSplitOptions.RemoveEmptyEntries);
+
+                if (parts.Length >= 2)
+                {
+                    var quantityStr = parts[0].Trim();
+                    var itemName = parts[1].Trim();
+
+                    if (int.TryParse(quantityStr, out int quantity))
+                    {
+                        // Try to match with menu item
+                        var menuItemId = await mongoService.FindMenuItemIdByNameAsync(itemName);
+
+                        items.Add(new OrderedItem
+                        {
+                            Quantity = quantity,
+                            ItemName = itemName,
+                            MenuItemId = menuItemId
+                        });
+                    }
+                }
+            }
+            catch
+            {
+                // Skip invalid items
+                continue;
+            }
+        }
+
+        return items;
+    }
+
+    private decimal ParseDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return 0;
+
+        if (decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal result))
+            return result;
+
+        return 0;
+    }
+
+    private decimal? ParseNullableDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal result))
+            return result;
+
+        return null;
+    }
 }
+
+public class OnlineSaleUploadResult
+{
+    public bool Success { get; set; }
+    public int SalesProcessed { get; set; }
+    public List<string> Errors { get; set; } = new();
+    public string Message { get; set; } = string.Empty;
+}
+

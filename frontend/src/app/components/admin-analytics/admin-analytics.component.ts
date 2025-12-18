@@ -36,12 +36,20 @@ export class AdminAnalyticsComponent implements OnInit {
   // Expense Analytics
   expenseAnalytics: ExpenseAnalytics | null = null;
   expenseLoading = false;
-  selectedAnalyticsTab: 'sales' | 'expenses' | 'earnings' = 'sales';
+  selectedAnalyticsTab: 'sales' | 'expenses' | 'earnings' | 'online' = 'sales';
   expenseSource: 'All' | 'Offline' | 'Online' = 'All';
 
   // Earnings Analytics
   earningsData: any = null;
   earningsLoading = false;
+
+  // Online Sales Analytics
+  onlineAnalytics: any = null;
+  onlineLoading = false;
+  selectedPlatform: 'All' | 'Zomato' | 'Swiggy' = 'All';
+
+  // Math for template
+  Math = Math;
 
   // Date filters
   dateRange = {
@@ -63,14 +71,17 @@ export class AdminAnalyticsComponent implements OnInit {
     this.loadSalesInsights();
     this.loadExpenseAnalytics();
     this.loadEarningsAnalytics();
+    this.loadOnlineSalesAnalytics();
   }
 
-  switchTab(tab: 'sales' | 'expenses' | 'earnings') {
+  switchTab(tab: 'sales' | 'expenses' | 'earnings' | 'online') {
     this.selectedAnalyticsTab = tab;
     if (tab === 'expenses' && !this.expenseAnalytics) {
       this.loadExpenseAnalytics();
     } else if (tab === 'earnings' && !this.earningsData) {
       this.loadEarningsAnalytics();
+    } else if (tab === 'online' && !this.onlineAnalytics) {
+      this.loadOnlineSalesAnalytics();
     }
   }
 
@@ -287,10 +298,307 @@ export class AdminAnalyticsComponent implements OnInit {
     return 'Others';
   }
 
+  // Online Sales Analytics Methods
+  loadOnlineSalesAnalytics() {
+    this.onlineLoading = true;
+    this.http.get<any>(`${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`)
+      .subscribe({
+        next: (response) => {
+          const sales = response?.data || [];
+          this.calculateOnlineSalesAnalytics(sales);
+          this.onlineLoading = false;
+        },
+        error: (err) => {
+          console.error('Error loading online sales analytics:', err);
+          this.onlineLoading = false;
+        }
+      });
+  }
+
+  switchPlatform(platform: 'All' | 'Zomato' | 'Swiggy') {
+    this.selectedPlatform = platform;
+  }
+
+  calculateOnlineSalesAnalytics(sales: any[]) {
+    if (!sales || sales.length === 0) {
+      this.onlineAnalytics = null;
+      return;
+    }
+
+    // Calculate for each platform
+    const zomatoSales = sales.filter(s => s.platform === 'Zomato');
+    const swiggySales = sales.filter(s => s.platform === 'Swiggy');
+
+    this.onlineAnalytics = {
+      all: this.calculatePlatformMetrics(sales, 'All'),
+      zomato: this.calculatePlatformMetrics(zomatoSales, 'Zomato'),
+      swiggy: this.calculatePlatformMetrics(swiggySales, 'Swiggy')
+    };
+  }
+
+  calculatePlatformMetrics(sales: any[], platform: string) {
+    if (sales.length === 0) {
+      return {
+        totalIncome: 0,
+        totalOrders: 0,
+        avgIncomePerOrder: 0,
+        dailyAverage: 0,
+        avgOrdersPerDay: 0,
+        avgRating: 0,
+        totalDeduction: 0,
+        avgDeductionPercent: 0,
+        totalDiscount: 0,
+        avgDiscountPerOrder: 0,
+        ordersWithDiscount: 0,
+        discountUsagePercent: 0,
+        totalPackaging: 0,
+        avgPackagingPerOrder: 0,
+        ordersWithPackaging: 0,
+        packagingUsagePercent: 0,
+        avgDistance: 0,
+        minDistance: 0,
+        maxDistance: 0,
+        commonDistanceRange: 'N/A',
+        topItems: [],
+        dailyTrend: [],
+        maxDailyIncome: 1,
+        peakDays: [],
+        ratingDistribution: [],
+        monthlyData: []
+      };
+    }
+
+    const totalIncome = sales.reduce((sum, s) => sum + (s.payout || 0), 0);
+    const totalOrders = sales.length;
+    const avgIncomePerOrder = totalIncome / totalOrders;
+    const totalDeduction = sales.reduce((sum, s) => sum + (s.platformDeduction || 0), 0);
+    const avgDeductionPercent = totalDeduction > 0 && totalIncome > 0
+      ? (totalDeduction / (totalIncome + totalDeduction)) * 100
+      : 0;
+
+    // Discount metrics
+    const totalDiscount = sales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
+    const ordersWithDiscount = sales.filter(s => (s.discountAmount || 0) > 0).length;
+    const avgDiscountPerOrder = totalDiscount / totalOrders;
+    const discountUsagePercent = totalOrders > 0 ? (ordersWithDiscount / totalOrders) * 100 : 0;
+
+    // Calculate days in range
+    const dates = [...new Set(sales.map(s => new Date(s.orderAt).toDateString()))];
+    const daysInRange = dates.length;
+    const dailyAverage = totalIncome / Math.max(daysInRange, 1);
+    const avgOrdersPerDay = totalOrders / Math.max(daysInRange, 1);
+
+    // Average rating
+    const ratingsWithValues = sales.filter(s => s.rating && s.rating > 0);
+    const avgRating = ratingsWithValues.length > 0
+      ? ratingsWithValues.reduce((sum, s) => sum + s.rating, 0) / ratingsWithValues.length
+      : 0;
+
+    // Distance metrics
+    const salesWithDistance = sales.filter(s => s.distance && s.distance > 0);
+    const avgDistance = salesWithDistance.length > 0
+      ? salesWithDistance.reduce((sum, s) => sum + s.distance, 0) / salesWithDistance.length
+      : 0;
+    const minDistance = salesWithDistance.length > 0
+      ? Math.min(...salesWithDistance.map(s => s.distance))
+      : 0;
+    const maxDistance = salesWithDistance.length > 0
+      ? Math.max(...salesWithDistance.map(s => s.distance))
+      : 0;
+
+    // Packaging metrics
+    const totalPackaging = sales.reduce((sum, s) => sum + (s.packagingCharges || 0), 0);
+    const avgPackagingPerOrder = totalPackaging / totalOrders;
+    const ordersWithPackaging = sales.filter(s => (s.packagingCharges || 0) > 0).length;
+    const packagingUsagePercent = totalOrders > 0 ? (ordersWithPackaging / totalOrders) * 100 : 0;
+
+    // Common distance range
+    const distanceRanges = salesWithDistance.map(s => {
+      const km = s.distance;
+      if (km < 2) return '0-2 km';
+      if (km < 5) return '2-5 km';
+      if (km < 10) return '5-10 km';
+      return '10+ km';
+    });
+    const rangeCounts = distanceRanges.reduce((acc, range) => {
+      acc[range] = (acc[range] || 0) + 1;
+      return acc;
+    }, {} as any);
+    const commonDistanceRange = Object.entries(rangeCounts)
+      .sort(([,a]:any, [,b]:any) => b - a)[0]?.[0] || 'N/A';
+
+    // Top Items
+    const itemMap = new Map<string, { count: number; quantity: number }>();
+    sales.forEach(sale => {
+      if (sale.orderedItems) {
+        try {
+          const items = typeof sale.orderedItems === 'string'
+            ? JSON.parse(sale.orderedItems)
+            : sale.orderedItems;
+
+          if (Array.isArray(items)) {
+            items.forEach((item: any) => {
+              const name = item.name || item.itemName || 'Unknown Item';
+              const qty = parseInt(item.quantity || '1');
+              const existing = itemMap.get(name) || { count: 0, quantity: 0 };
+              itemMap.set(name, {
+                count: existing.count + 1,
+                quantity: existing.quantity + qty
+              });
+            });
+          }
+        } catch (e) {
+          // Skip if parsing fails
+        }
+      }
+    });
+    const topItems = Array.from(itemMap.entries())
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // Daily Trend
+    const dailyMap = new Map<string, { income: number; orders: number }>();
+    sales.forEach(sale => {
+      const dateKey = new Date(sale.orderAt).toISOString().split('T')[0];
+      const existing = dailyMap.get(dateKey) || { income: 0, orders: 0 };
+      dailyMap.set(dateKey, {
+        income: existing.income + (sale.payout || 0),
+        orders: existing.orders + 1
+      });
+    });
+    const dailyTrend = Array.from(dailyMap.entries())
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const maxDailyIncome = Math.max(...dailyTrend.map(d => d.income), 1);
+
+    // Peak Days
+    const dayMap = new Map<number, { income: number; orders: number }>();
+    sales.forEach(sale => {
+      const dayOfWeek = new Date(sale.orderAt).getDay();
+      const existing = dayMap.get(dayOfWeek) || { income: 0, orders: 0 };
+      dayMap.set(dayOfWeek, {
+        income: existing.income + (sale.payout || 0),
+        orders: existing.orders + 1
+      });
+    });
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const peakDays = Array.from(dayMap.entries())
+      .map(([day, data]) => ({ dayName: dayNames[day], ...data }))
+      .sort((a, b) => b.income - a.income);
+
+    // Rating Distribution
+    const ratingCounts = [5, 4, 3, 2, 1].map(stars => {
+      const count = sales.filter(s => s.rating === stars).length;
+      const percentage = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
+      return { stars, count, percentage };
+    });
+
+    // Monthly Data
+    const monthlyMap = new Map<string, { income: number; orders: number; ratings: number[] }>();
+    sales.forEach(sale => {
+      const date = new Date(sale.orderAt);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const existing = monthlyMap.get(monthKey) || { income: 0, orders: 0, ratings: [] };
+      monthlyMap.set(monthKey, {
+        income: existing.income + (sale.payout || 0),
+        orders: existing.orders + 1,
+        ratings: sale.rating > 0 ? [...existing.ratings, sale.rating] : existing.ratings
+      });
+    });
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyData = Array.from(monthlyMap.entries())
+      .map(([key, data]) => {
+        const [year, month] = key.split('-');
+        const avgRating = data.ratings.length > 0
+          ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length
+          : 0;
+        return {
+          month: `${monthNames[parseInt(month) - 1]} ${year}`,
+          income: data.income,
+          orders: data.orders,
+          avgRating
+        };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    return {
+      totalIncome,
+      totalOrders,
+      avgIncomePerOrder,
+      dailyAverage,
+      avgOrdersPerDay,
+      avgRating,
+      totalDeduction,
+      avgDeductionPercent,
+      totalDiscount,
+      avgDiscountPerOrder,
+      ordersWithDiscount,
+      discountUsagePercent,
+      totalPackaging,
+      avgPackagingPerOrder,
+      ordersWithPackaging,
+      packagingUsagePercent,
+      avgDistance,
+      minDistance,
+      maxDistance,
+      commonDistanceRange,
+      topItems,
+      dailyTrend,
+      maxDailyIncome,
+      peakDays,
+      ratingDistribution: ratingCounts,
+      monthlyData
+    };
+  }
+
+  getActivePlatformData() {
+    if (!this.onlineAnalytics) {
+      return {
+        totalIncome: 0,
+        totalOrders: 0,
+        avgIncomePerOrder: 0,
+        dailyAverage: 0,
+        avgOrdersPerDay: 0,
+        avgRating: 0,
+        totalDeduction: 0,
+        avgDeductionPercent: 0,
+        totalDiscount: 0,
+        avgDiscountPerOrder: 0,
+        ordersWithDiscount: 0,
+        discountUsagePercent: 0,
+        totalPackaging: 0,
+        avgPackagingPerOrder: 0,
+        ordersWithPackaging: 0,
+        packagingUsagePercent: 0,
+        avgDistance: 0,
+        minDistance: 0,
+        maxDistance: 0,
+        commonDistanceRange: 'N/A',
+        topItems: [],
+        dailyTrend: [],
+        maxDailyIncome: 1,
+        peakDays: [],
+        ratingDistribution: [],
+        monthlyData: []
+      };
+    }
+
+    if (this.selectedPlatform === 'All') return this.onlineAnalytics.all;
+    if (this.selectedPlatform === 'Zomato') return this.onlineAnalytics.zomato;
+    return this.onlineAnalytics.swiggy;
+  }
+
+  formatShortDate(date: string): string {
+    const d = new Date(date);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  }
+
   onDateRangeChange() {
     this.loadSalesInsights();
     this.loadExpenseAnalytics();
     this.loadEarningsAnalytics();
+    this.loadOnlineSalesAnalytics();
   }
 
   formatCurrency(amount: number): string {
@@ -354,15 +662,29 @@ export class AdminAnalyticsComponent implements OnInit {
   loadEarningsAnalytics() {
     this.earningsLoading = true;
 
-    // Fetch sales, expenses, and cash reconciliations for the date range
+    // Fetch sales, expenses, cash reconciliations, and online sales for the date range
     Promise.all([
       this.salesService.getAllSales().toPromise(),
       this.http.get(`${environment.apiUrl}/expenses/range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise(),
-      this.http.get(`${environment.apiUrl}/cash-reconciliation?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise()
-    ]).then(([sales, expenses, reconciliationResponse]: [any, any, any]) => {
+      this.http.get(`${environment.apiUrl}/cash-reconciliation?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise(),
+      this.http.get(`${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise()
+    ]).then(([sales, expenses, reconciliationResponse, onlineSalesResponse]: [any, any, any, any]) => {
       const filteredSales = this.filterByDateRange(sales);
       const reconciliations = reconciliationResponse?.data || [];
-      this.calculateEarningsInsights(filteredSales, expenses || [], reconciliations);
+      const onlineSales = onlineSalesResponse?.data || [];
+      // Handle expenses response - it might be wrapped in {data: []} or direct array
+      const expensesData = expenses?.data || expenses || [];
+      console.log('Earnings Analytics Data:', {
+        salesCount: filteredSales?.length || 0,
+        expensesCount: expensesData?.length || 0,
+        reconciliationsCount: reconciliations?.length || 0,
+        onlineSalesCount: onlineSales?.length || 0,
+        filteredSales: filteredSales,
+        expenses: expensesData,
+        reconciliations: reconciliations,
+        onlineSales: onlineSales
+      });
+      this.calculateEarningsInsights(filteredSales, expensesData, reconciliations, onlineSales);
       this.earningsLoading = false;
     }).catch(err => {
       console.error('Error loading earnings analytics:', err);
@@ -370,12 +692,19 @@ export class AdminAnalyticsComponent implements OnInit {
     });
   }
 
-  calculateEarningsInsights(sales: any[], expenses: any[], reconciliations: any[]) {
-    // Calculate total sales
-    const totalSales = sales.reduce((sum, s) => sum + s.totalAmount, 0);
+  calculateEarningsInsights(sales: any[], expenses: any[], reconciliations: any[], onlineSales: any[]) {
+    console.log('calculateEarningsInsights called with:', {
+      salesLength: sales?.length,
+      expensesLength: expenses?.length,
+      reconciliationsLength: reconciliations?.length,
+      onlineSalesLength: onlineSales?.length
+    });
 
-    // Calculate online sales (card, online, upi, etc.)
-    const onlineSales = sales
+    // Calculate total offline sales
+    const totalOfflineSales = sales.reduce((sum, s) => sum + s.totalAmount, 0);
+
+    // Calculate online sales from payment methods (card, online, upi, etc.)
+    const onlineSalesPayment = sales
       .filter(s => {
         const method = s.paymentMethod?.toLowerCase() || '';
         return method === 'card' || method === 'online' || method === 'upi' ||
@@ -387,6 +716,19 @@ export class AdminAnalyticsComponent implements OnInit {
     const cashSales = sales
       .filter(s => s.paymentMethod?.toLowerCase() === 'cash')
       .reduce((sum, s) => sum + s.totalAmount, 0);
+
+    // Calculate Zomato/Swiggy online sales (Payout is the actual income)
+    const zomatoSwiggyIncome = onlineSales.reduce((sum, s) => sum + (s.payout || 0), 0);
+    const zomatoSwiggyOrders = onlineSales.length;
+    const zomatoSwiggyDeductions = onlineSales.reduce((sum, s) => sum + (s.platformDeduction || 0), 0);
+    const zomatoSwiggyDiscount = onlineSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
+    const zomatoSwiggyPackaging = onlineSales.reduce((sum, s) => sum + (s.packagingCharges || 0), 0);
+
+    // Breakdown by platform
+    const zomatoSales = onlineSales.filter(s => s.platform === 'Zomato');
+    const swiggySales = onlineSales.filter(s => s.platform === 'Swiggy');
+    const zomatoIncome = zomatoSales.reduce((sum, s) => sum + (s.payout || 0), 0);
+    const swiggyIncome = swiggySales.reduce((sum, s) => sum + (s.payout || 0), 0);
 
     // Calculate total expenses
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -440,17 +782,49 @@ export class AdminAnalyticsComponent implements OnInit {
       sum + (rec.actualOnline || 0), 0
     );
 
+    // Online platform collection = Zomato/Swiggy income
+    const onlinePlatformCollection = zomatoSwiggyIncome;
+
+    // Calculate total revenue based on actual collections
+    const totalRevenue = totalCashCollection + totalOnlineCollection + onlinePlatformCollection;
+
+    // Calculate net profit/loss
+    const netProfitLoss = totalRevenue - totalExpenses;
+    const profitMargin = totalRevenue > 0 ? (netProfitLoss / totalRevenue) * 100 : 0;
+
     this.earningsData = {
-      totalSales,
-      totalOnlineSales: onlineSales,
+      // Offline sales
+      totalOfflineSales,
+      totalOnlineSalesPayment: onlineSalesPayment,
       totalCashSales: cashSales,
+
+      // Online platform sales (Zomato/Swiggy)
+      zomatoSwiggyIncome,
+      zomatoSwiggyOrders,
+      zomatoSwiggyDeductions,
+      zomatoSwiggyDiscount,
+      zomatoSwiggyPackaging,
+      zomatoIncome,
+      swiggyIncome,
+
+      // Expenses
       totalExpenses,
       offlineExpenses,
       onlineExpenses,
+
+      // Collections
       totalCashCollection,
       totalOnlineCollection,
-      totalCollection: totalCashCollection + totalOnlineCollection
+      onlinePlatformCollection,
+      totalCollection: totalCashCollection + totalOnlineCollection + onlinePlatformCollection,
+
+      // PnL
+      totalRevenue,
+      netProfitLoss,
+      profitMargin
     };
+
+    console.log('Earnings Data Calculated:', this.earningsData);
   }
 }
 

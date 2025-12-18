@@ -8,7 +8,13 @@
         class="tab-btn"
         [class.active]="selectedAnalyticsTab === 'sales'"
         (click)="switchTab('sales')">
-        💰 Sales Analytics
+        💰 Offline Sales Analytics
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="selectedAnalyticsTab === 'online'"
+        (click)="switchTab('online')">
+        📱 Online Sales Analytics
       </button>
       <button
         class="tab-btn"
@@ -356,61 +362,455 @@
 
   <!-- Earnings Analytics Section -->
   <div *ngIf="selectedAnalyticsTab === 'earnings'">
-    <h2 class="section-title">💵 Earnings Analytics</h2>
+    <h2 class="section-title">💵 Earnings & PnL Analytics</h2>
 
     <div *ngIf="earningsLoading" class="loading">
       <p>Loading earnings data...</p>
     </div>
 
-    <div *ngIf="!earningsLoading && !earningsData" class="empty-state">
-      <p>No earnings data available for the selected date range</p>
+    <ng-container *ngIf="!earningsLoading && earningsData">
+
+      <div class="insights-container">
+
+      <!-- PnL Summary Cards -->
+      <div class="summary-cards">
+        <div class="summary-card total-revenue">
+          <div class="card-icon">📊</div>
+          <div class="card-content">
+            <h3 style="color: #666 !important;">Total Revenue</h3>
+            <p class="card-value" style="color: #333 !important;">{{ formatCurrency(earningsData?.totalRevenue || 0) }}</p>
+            <span class="card-subtext" style="color: #999 !important;">Offline + Online Sales</span>
+          </div>
+        </div>
+
+        <div class="summary-card total-expenses">
+          <div class="card-icon">💸</div>
+          <div class="card-content">
+            <h3 style="color: #666 !important;">Total Expenses</h3>
+            <p class="card-value" style="color: #333 !important;">{{ formatCurrency(earningsData?.totalExpenses || 0) }}</p>
+            <span class="card-subtext" style="color: #999 !important;">All expenses</span>
+          </div>
+        </div>
+
+        <div class="summary-card" [class.net-profit]="(earningsData?.netProfitLoss || 0) >= 0" [class.net-loss]="(earningsData?.netProfitLoss || 0) < 0">
+          <div class="card-icon">{{ (earningsData?.netProfitLoss || 0) >= 0 ? '✅' : '⚠️' }}</div>
+          <div class="card-content">
+            <h3 style="color: #666 !important;">{{ (earningsData?.netProfitLoss || 0) >= 0 ? 'Net Profit' : 'Net Loss' }}</h3>
+            <p class="card-value" style="color: #333 !important;">{{ formatCurrency(Math.abs(earningsData?.netProfitLoss || 0)) }}</p>
+            <span class="card-subtext" style="color: #999 !important;">Revenue - Expenses</span>
+          </div>
+        </div>
+
+        <div class="summary-card profit-margin">
+          <div class="card-icon">📈</div>
+          <div class="card-content">
+            <h3 style="color: #666 !important;">Profit Margin</h3>
+            <p class="card-value" style="color: #333 !important;">{{ (earningsData?.profitMargin || 0).toFixed(2) }}%</p>
+            <span class="card-subtext" style="color: #999 !important;">{{ (earningsData?.profitMargin || 0) >= 0 ? 'Positive' : 'Negative' }} margin</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Revenue Breakdown -->
+      <div class="insight-section">
+        <h3>💰 Revenue Breakdown</h3>
+        <div class="revenue-breakdown">
+          <div class="breakdown-card">
+            <h4>🏪 Offline Store Sales</h4>
+            <p class="amount">{{ formatCurrency(earningsData?.totalOfflineSales || 0) }}</p>
+            <div class="breakdown-details">
+              <span>💵 Cash: {{ formatCurrency(earningsData?.totalCashSales || 0) }}</span>
+              <span>💳 Online: {{ formatCurrency(earningsData?.totalOnlineSalesPayment || 0) }}</span>
+            </div>
+          </div>
+
+          <div class="breakdown-card online-platform">
+            <h4>📱 Online Platforms</h4>
+            <p class="amount">{{ formatCurrency(earningsData?.zomatoSwiggyIncome || 0) }}</p>
+            <div class="breakdown-details">
+              <span>🍔 Zomato: {{ formatCurrency(earningsData?.zomatoIncome || 0) }}</span>
+              <span>🍕 Swiggy: {{ formatCurrency(earningsData?.swiggyIncome || 0) }}</span>
+              <span class="orders-count">{{ earningsData?.zomatoSwiggyOrders || 0 }} orders</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Online Platform Details -->
+      <div class="insight-section" *ngIf="(earningsData?.zomatoSwiggyOrders || 0) > 0">
+        <h3>📱 Online Platform Analysis</h3>
+        <div class="platform-details">
+          <div class="detail-card">
+            <span class="label">Platform Income (Payout)</span>
+            <span class="value income-amount">{{ formatCurrency(earningsData?.zomatoSwiggyIncome || 0) }}</span>
+          </div>
+          <div class="detail-card">
+            <span class="label">Platform Deductions</span>
+            <span class="value deduction-amount">{{ formatCurrency(earningsData?.zomatoSwiggyDeductions || 0) }}</span>
+          </div>
+          <div class="detail-card">
+            <span class="label">Customer Discounts</span>
+            <span class="value discount-amount">{{ formatCurrency(earningsData?.zomatoSwiggyDiscount || 0) }}</span>
+          </div>
+          <div class="detail-card">
+            <span class="label">Packaging Charges</span>
+            <span class="value packaging-amount">{{ formatCurrency(earningsData?.zomatoSwiggyPackaging || 0) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expense Breakdown -->
+      <div class="insight-section">
+        <h3>💸 Expense Breakdown</h3>
+        <div class="expense-breakdown">
+          <div class="breakdown-card">
+            <h4>💵 Cash Expenses</h4>
+            <p class="amount expense">{{ formatCurrency(earningsData?.offlineExpenses || 0) }}</p>
+          </div>
+
+          <div class="breakdown-card">
+            <h4>💳 Online Expenses</h4>
+            <p class="amount expense">{{ formatCurrency(earningsData?.onlineExpenses || 0) }}</p>
+          </div>
+
+          <div class="breakdown-card">
+            <h4>📊 Total Expenses</h4>
+            <p class="amount expense-total">{{ formatCurrency(earningsData?.totalExpenses || 0) }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collections Summary -->
+      <div class="insight-section">
+        <h3>💰 Collections Summary</h3>
+        <div class="collections-summary">
+          <div class="collection-card">
+            <h4>💵 Cash Collection</h4>
+            <p class="amount">{{ formatCurrency(earningsData?.totalCashCollection || 0) }}</p>
+            <span class="subtext">From cash sales</span>
+          </div>
+
+          <div class="collection-card">
+            <h4>💳 Online Collection</h4>
+            <p class="amount">{{ formatCurrency(earningsData?.totalOnlineCollection || 0) }}</p>
+            <span class="subtext">From card/UPI/online</span>
+          </div>
+
+          <div class="collection-card">
+            <h4>📱 Online Platform</h4>
+            <p class="amount">{{ formatCurrency(earningsData?.onlinePlatformCollection || 0) }}</p>
+            <span class="subtext">Zomato/Swiggy</span>
+          </div>
+
+          <div class="collection-card total">
+            <h4>📊 Total Collection</h4>
+            <p class="amount total">{{ formatCurrency(earningsData?.totalCollection || 0) }}</p>
+            <span class="subtext">All collections</span>
+          </div>
+        </div>
+      </div>
+
+      </div>
+
+    </ng-container>
+  </div>
+  <!-- End Earnings Analytics Section -->
+
+  <!-- Online Sales Analytics Section -->
+  <div *ngIf="selectedAnalyticsTab === 'online'">
+    <h2 class="section-title">📱 Online Sales Analytics</h2>
+
+    <div *ngIf="onlineLoading" class="loading">
+      <p>Loading online sales insights...</p>
     </div>
 
-    <div *ngIf="!earningsLoading && earningsData" class="insights-container">
-      <!-- Summary Cards -->
+    <div *ngIf="!onlineLoading && !onlineAnalytics" class="empty-state">
+      <p>No online sales data available for the selected date range</p>
+    </div>
+
+    <div *ngIf="!onlineLoading && onlineAnalytics" class="insights-container">
+
+      <!-- Platform Tabs -->
+      <div class="platform-tabs">
+        <button class="platform-btn" [class.active]="selectedPlatform === 'All'" (click)="switchPlatform('All')">
+          📊 Combined Analytics
+        </button>
+        <button class="platform-btn zomato" [class.active]="selectedPlatform === 'Zomato'" (click)="switchPlatform('Zomato')">
+          🍔 Zomato
+        </button>
+        <button class="platform-btn swiggy" [class.active]="selectedPlatform === 'Swiggy'" (click)="switchPlatform('Swiggy')">
+          🍕 Swiggy
+        </button>
+      </div>
+
+      <!-- Overall Summary Cards -->
       <div class="summary-cards">
         <div class="summary-card revenue">
           <div class="card-icon">💰</div>
           <div class="card-content">
-            <h3>Total Offline Sales</h3>
-            <p class="card-value">{{ formatCurrency(earningsData.totalSales) }}</p>
-            <span class="card-subtext">All sales</span>
+            <h3>Total Income (Payout)</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalIncome) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().totalOrders }} orders</span>
           </div>
         </div>
 
-        <div class="summary-card expense-total">
-          <div class="card-icon">💸</div>
+        <div class="summary-card average">
+          <div class="card-icon">📊</div>
           <div class="card-content">
-            <h3>Total Offline Expenses</h3>
-            <p class="card-value">{{ formatCurrency(earningsData.offlineExpenses) }}</p>
-            <span class="card-subtext">Cash expenses</span>
+            <h3>Avg Income/Order</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().avgIncomePerOrder) }}</p>
+            <span class="card-subtext">Per order</span>
           </div>
         </div>
 
-        <div class="summary-card expense-total">
+        <div class="summary-card daily">
+          <div class="card-icon">📅</div>
+          <div class="card-content">
+            <h3>Daily Average</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().dailyAverage) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().avgOrdersPerDay }} orders/day</span>
+          </div>
+        </div>
+
+        <div class="summary-card rating">
+          <div class="card-icon">⭐</div>
+          <div class="card-content">
+            <h3>Avg Rating</h3>
+            <p class="card-value">{{ getActivePlatformData().avgRating.toFixed(1) }} ⭐</p>
+            <span class="card-subtext">Customer satisfaction</span>
+          </div>
+        </div>
+
+        <div class="summary-card deduction">
+          <div class="card-icon">📊</div>
+          <div class="card-content">
+            <h3>Platform Deduction</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalDeduction) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().avgDeductionPercent.toFixed(1) }}% avg</span>
+          </div>
+        </div>
+
+        <div class="summary-card distance">
+          <div class="card-icon">🚗</div>
+          <div class="card-content">
+            <h3>Avg Distance</h3>
+            <p class="card-value">{{ getActivePlatformData().avgDistance.toFixed(1) }} km</p>
+            <span class="card-subtext">Per delivery</span>
+          </div>
+        </div>
+
+        <div class="summary-card discount">
+          <div class="card-icon">🎫</div>
+          <div class="card-content">
+            <h3>Total Discounts</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalDiscount) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().ordersWithDiscount }} orders with discount</span>
+          </div>
+        </div>
+
+        <div class="summary-card discount-avg">
           <div class="card-icon">💳</div>
           <div class="card-content">
-            <h3>Total Online Expenses</h3>
-            <p class="card-value">{{ formatCurrency(earningsData.onlineExpenses) }}</p>
-            <span class="card-subtext">Card/Online expenses</span>
+            <h3>Avg Discount/Order</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().avgDiscountPerOrder) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().discountUsagePercent.toFixed(1) }}% usage rate</span>
           </div>
         </div>
 
-        <div class="summary-card cash-collection">
-          <div class="card-icon">💵</div>
+        <div class="summary-card packaging">
+          <div class="card-icon">📦</div>
           <div class="card-content">
-            <h3>Total Cash Collection</h3>
-            <p class="card-value">{{ formatCurrency(earningsData.totalCashCollection) }}</p>
-            <span class="card-subtext">Cash sales</span>
+            <h3>Total Packaging</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalPackaging) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().ordersWithPackaging }} orders</span>
           </div>
         </div>
 
-        <div class="summary-card online-collection">
-          <div class="card-icon">🌐</div>
+        <div class="summary-card packaging-avg">
+          <div class="card-icon">📋</div>
           <div class="card-content">
-            <h3>Total Online Collection</h3>
-            <p class="card-value">{{ formatCurrency(earningsData.totalOnlineCollection) }}</p>
-            <span class="card-subtext">Online sales</span>
+            <h3>Avg Packaging/Order</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().avgPackagingPerOrder) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().packagingUsagePercent.toFixed(1) }}% charged</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Platform Comparison (Only for 'All') -->
+      <div *ngIf="selectedPlatform === 'All'" class="insight-section">
+        <h2>⚖️ Platform Comparison</h2>
+        <div class="comparison-grid">
+          <div class="comparison-card zomato-card">
+            <h3>🍔 Zomato</h3>
+            <div class="comparison-stats">
+              <div class="stat-row">
+                <span>Orders:</span>
+                <strong>{{ onlineAnalytics.zomato.totalOrders }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Income:</span>
+                <strong>{{ formatCurrency(onlineAnalytics.zomato.totalIncome) }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Avg/Order:</span>
+                <strong>{{ formatCurrency(onlineAnalytics.zomato.avgIncomePerOrder) }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Rating:</span>
+                <strong>{{ onlineAnalytics.zomato.avgRating.toFixed(1) }} ⭐</strong>
+              </div>
+              <div class="stat-row">
+                <span>Deduction %:</span>
+                <strong>{{ onlineAnalytics.zomato.avgDeductionPercent.toFixed(1) }}%</strong>
+              </div>
+              <div class="stat-row">
+                <span>Total Discount:</span>
+                <strong>{{ formatCurrency(onlineAnalytics.zomato.totalDiscount) }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Packaging:</span>
+                <strong>{{ formatCurrency(onlineAnalytics.zomato.totalPackaging) }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="comparison-card swiggy-card">
+            <h3>🍕 Swiggy</h3>
+            <div class="comparison-stats">
+              <div class="stat-row">
+                <span>Orders:</span>
+                <strong>{{ onlineAnalytics.swiggy.totalOrders }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Income:</span>
+                <strong>{{ formatCurrency(onlineAnalytics.swiggy.totalIncome) }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Avg/Order:</span>
+                <strong>{{ formatCurrency(onlineAnalytics.swiggy.avgIncomePerOrder) }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Rating:</span>
+                <strong>{{ onlineAnalytics.swiggy.avgRating.toFixed(1) }} ⭐</strong>
+              </div>
+              <div class="stat-row">
+                <span>Deduction %:</span>
+                <strong>{{ onlineAnalytics.swiggy.avgDeductionPercent.toFixed(1) }}%</strong>
+              </div>
+              <div class="stat-row">
+                <span>Total Discount:</span>
+                <strong>{{ formatCurrency(onlineAnalytics.swiggy.totalDiscount) }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Packaging:</span>
+                <strong>{{ formatCurrency(onlineAnalytics.swiggy.totalPackaging) }}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Items -->
+      <div class="insight-section">
+        <h2>🏆 Top Ordered Items</h2>
+        <div class="top-items-grid">
+          <div *ngFor="let item of getActivePlatformData().topItems; let i = index" class="top-item-card" [class.top-1]="i === 0" [class.top-2]="i === 1" [class.top-3]="i === 2">
+            <div class="item-rank">{{ i + 1 }}</div>
+            <div class="item-details">
+              <h4>{{ item.name }}</h4>
+              <p>Orders: {{ item.count }}</p>
+              <p class="item-revenue">Quantity: {{ item.quantity }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Trend -->
+      <div class="insight-section">
+        <h2>📈 Daily Income Trend</h2>
+        <div class="trend-chart">
+          <div *ngFor="let day of getActivePlatformData().dailyTrend" class="trend-bar">
+            <div class="bar-container">
+              <div class="bar" [style.height.%]="(day.income / getActivePlatformData().maxDailyIncome) * 100"></div>
+            </div>
+            <div class="bar-label">{{ formatShortDate(day.date) }}</div>
+            <div class="bar-value">{{ formatCurrency(day.income) }}</div>
+            <div class="bar-orders">{{ day.orders }} orders</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Peak Days Analysis -->
+      <div class="insight-section">
+        <h2>⏰ Peak Days Analysis</h2>
+        <div class="peak-hours-grid">
+          <div *ngFor="let peak of getActivePlatformData().peakDays" class="peak-card">
+            <div class="peak-day">{{ peak.dayName }}</div>
+            <div class="peak-stats">
+              <div>{{ peak.orders }} orders</div>
+              <div class="peak-income">{{ formatCurrency(peak.income) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Distance Analysis -->
+      <div class="insight-section">
+        <h2>🚗 Delivery Distance Analysis</h2>
+        <div class="distance-stats">
+          <div class="distance-card">
+            <h4>Min Distance</h4>
+            <p class="distance-value">{{ getActivePlatformData().minDistance.toFixed(1) }} km</p>
+          </div>
+          <div class="distance-card">
+            <h4>Max Distance</h4>
+            <p class="distance-value">{{ getActivePlatformData().maxDistance.toFixed(1) }} km</p>
+          </div>
+          <div class="distance-card">
+            <h4>Avg Distance</h4>
+            <p class="distance-value">{{ getActivePlatformData().avgDistance.toFixed(1) }} km</p>
+          </div>
+          <div class="distance-card">
+            <h4>Most Common Range</h4>
+            <p class="distance-value">{{ getActivePlatformData().commonDistanceRange }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rating Distribution -->
+      <div class="insight-section">
+        <h2>⭐ Rating Distribution</h2>
+        <div class="rating-distribution">
+          <div *ngFor="let rating of getActivePlatformData().ratingDistribution" class="rating-bar">
+            <div class="rating-label">{{ rating.stars }} ⭐</div>
+            <div class="rating-bar-container">
+              <div class="rating-fill" [style.width.%]="rating.percentage"></div>
+            </div>
+            <div class="rating-count">{{ rating.count }} orders ({{ rating.percentage.toFixed(1) }}%)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Comparison -->
+      <div class="insight-section">
+        <h2>📊 Monthly Performance</h2>
+        <div class="monthly-comparison">
+          <div *ngFor="let month of getActivePlatformData().monthlyData" class="month-card">
+            <h4>{{ month.month }}</h4>
+            <div class="month-stats">
+              <div class="stat">
+                <span>Orders:</span>
+                <strong>{{ month.orders }}</strong>
+              </div>
+              <div class="stat">
+                <span>Income:</span>
+                <strong>{{ formatCurrency(month.income) }}</strong>
+              </div>
+              <div class="stat">
+                <span>Avg Rating:</span>
+                <strong>{{ month.avgRating.toFixed(1) }} ⭐</strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>
