@@ -288,7 +288,30 @@
               </span>
             </td>
             <td class="order-id">{{ sale.orderId }}</td>
-            <td>{{ sale.customerName || 'N/A' }}</td>
+            <td class="customer-cell">
+              <div class="customer-name-wrapper" *ngIf="editingCustomerNameId !== (sale._id || sale.id)">
+                <span class="customer-name">{{ sale.customerName || 'N/A' }}</span>
+                <button class="btn-icon edit-icon" (click)="startEditingCustomerName(sale)" title="Edit customer name">
+                  ✏️
+                </button>
+              </div>
+              <div class="customer-edit-wrapper" *ngIf="editingCustomerNameId === (sale._id || sale.id)">
+                <input
+                  type="text"
+                  class="customer-input"
+                  [(ngModel)]="editingCustomerNameValue"
+                  (keyup.enter)="saveCustomerName(sale)"
+                  (keyup.escape)="cancelEditingCustomerName()"
+                  placeholder="Enter customer name"
+                />
+                <button class="btn-icon save-icon" (click)="saveCustomerName(sale)" title="Save">
+                  ✅
+                </button>
+                <button class="btn-icon cancel-icon" (click)="cancelEditingCustomerName()" title="Cancel">
+                  ❌
+                </button>
+              </div>
+            </td>
             <td>
               <span class="items-preview" [title]="formatOrderedItems(sale.orderedItems)">
                 {{ getTotalItemsCount(sale.orderedItems) }} items

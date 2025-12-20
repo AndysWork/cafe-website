@@ -1,0 +1,72 @@
+<div class="customer-reviews-section">
+  <div class="section-header">
+    <h2>⭐ What Our Customers Say</h2>
+    <p class="section-subtitle">Real reviews from our valued customers</p>
+  </div>
+
+  <div *ngIf="isLoading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading reviews...</p>
+  </div>
+
+  <div *ngIf="errorMessage && !isLoading" class="error-state">
+    <p>{{ errorMessage }}</p>
+  </div>
+
+  <div *ngIf="!isLoading && reviews.length === 0" class="no-reviews">
+    <p>No reviews available at the moment.</p>
+  </div>
+
+  <div *ngIf="!isLoading && reviews.length > 0" class="reviews-container">
+    <button
+      class="nav-btn prev-btn"
+      (click)="previousReviews()"
+      [disabled]="!canGoPrevious"
+      *ngIf="reviews.length > itemsPerPage">
+      ←
+    </button>
+
+    <div class="reviews-grid">
+      <div *ngFor="let review of visibleReviews" class="review-card">
+        <div class="review-header">
+          <div class="customer-info">
+            <div class="avatar">{{ (review.customerName || 'Anonymous')[0].toUpperCase() }}</div>
+            <div class="customer-details">
+              <h3 class="customer-name">{{ review.customerName || 'Anonymous' }}</h3>
+              <p class="order-date">{{ formatDate(review.orderAt) }}</p>
+            </div>
+          </div>
+          <div class="rating">
+            <span class="stars">⭐⭐⭐⭐⭐</span>
+            <span [class]="'platform-badge ' + review.platform.toLowerCase()">{{ review.platform }}</span>
+          </div>
+        </div>
+
+        <div class="review-content">
+          <p class="review-text" *ngIf="review.review">{{ review.review }}</p>
+          <p class="review-text no-text" *ngIf="!review.review">Great experience!</p>
+        </div>
+
+        <div class="review-footer">
+          <p class="ordered-items">
+            <strong>Ordered:</strong> {{ getItemsList(review.orderedItems) }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <button
+      class="nav-btn next-btn"
+      (click)="nextReviews()"
+      [disabled]="!canGoNext"
+      *ngIf="reviews.length > itemsPerPage">
+      →
+    </button>
+  </div>
+
+  <div class="reviews-indicator" *ngIf="reviews.length > itemsPerPage">
+    <span class="indicator-text">
+      {{ currentIndex + 1 }} - {{ Math.min(currentIndex + itemsPerPage, reviews.length) }} of {{ reviews.length }}
+    </span>
+  </div>
+</div>

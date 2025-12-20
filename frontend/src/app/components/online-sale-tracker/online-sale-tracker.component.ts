@@ -113,6 +113,10 @@ export class OnlineSaleTrackerComponent implements OnInit {
   // Expose Math to template
   Math = Math;
 
+  // Customer name editing
+  editingCustomerNameId: string | null = null;
+  editingCustomerNameValue: string = '';
+
   // Platform Charges
   platformCharges: PlatformCharge[] = [];
   showPlatformCharges = true;
@@ -501,6 +505,48 @@ export class OnlineSaleTrackerComponent implements OnInit {
 
   formatCurrency(amount: number): string {
     return '₹' + amount.toFixed(2);
+  }
+
+  startEditingCustomerName(sale: OnlineSale): void {
+    const saleId = sale._id || sale.id;
+    console.log('Starting edit for sale:', saleId, sale);
+    this.editingCustomerNameId = saleId || null;
+    this.editingCustomerNameValue = sale.customerName || '';
+    console.log('Editing state:', this.editingCustomerNameId, this.editingCustomerNameValue);
+  }
+
+  cancelEditingCustomerName(): void {
+    this.editingCustomerNameId = null;
+    this.editingCustomerNameValue = '';
+  }
+
+  async saveCustomerName(sale: OnlineSale): Promise<void> {
+    const saleId = sale._id || sale.id;
+    if (!saleId) {
+      console.error('No sale ID found:', sale);
+      return;
+    }
+
+    try {
+      const response: any = await this.http
+        .put(`${environment.apiUrl}/online-sales/id/${saleId}`, {
+          customerName: this.editingCustomerNameValue
+        })
+        .toPromise();
+
+      if (response.success) {
+        // Update local data
+        sale.customerName = this.editingCustomerNameValue;
+        this.editingCustomerNameId = null;
+        this.editingCustomerNameValue = '';
+        console.log('Customer name updated successfully');
+      } else {
+        alert('Failed to update customer name: ' + response.message);
+      }
+    } catch (error: any) {
+      alert('Error updating customer name: ' + (error.error?.message || 'Unknown error'));
+      console.error('Update error:', error);
+    }
   }
 
   async deleteSalesData(): Promise<void> {

@@ -395,6 +395,34 @@ public class OnlineSaleFunction
             return errorResponse;
         }
     }
+
+    // GET /api/online-sales/reviews/five-star - Get 5-star reviews for landing page
+    [Function("GetFiveStarReviews")]
+    public async Task<HttpResponseData> GetFiveStarReviews(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales/reviews/five-star")] HttpRequestData req)
+    {
+        try
+        {
+            // No authorization required - public endpoint for landing page
+            
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var limitStr = query["limit"] ?? "10";
+            var limit = int.TryParse(limitStr, out var l) ? l : 10;
+
+            var reviews = await _mongo.GetFiveStarReviewsAsync(limit);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, data = reviews });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting five star reviews");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            return errorResponse;
+        }
+    }
 }
 
 

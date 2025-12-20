@@ -28,6 +28,12 @@
         (click)="switchTab('earnings')">
         💵 Earnings Analytics
       </button>
+      <button
+        class="tab-btn"
+        [class.active]="selectedAnalyticsTab === 'customers'"
+        (click)="switchTab('customers')">
+        👥 Customer Analytics
+      </button>
     </div>
 
     <div class="date-filter">
@@ -809,6 +815,291 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Customer Analytics Tab -->
+  <div class="analytics-content" *ngIf="selectedAnalyticsTab === 'customers'">
+    <div *ngIf="customerLoading" class="loading">Loading customer analytics...</div>
+
+    <div *ngIf="!customerLoading && !customerAnalytics" class="no-data">
+      No customer data available for this date range. Add customer names to online orders to see analytics.
+    </div>
+
+    <div *ngIf="!customerLoading && customerAnalytics" class="customer-analytics-section">
+      <!-- Summary Cards -->
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="card-icon">👥</div>
+          <div class="card-content">
+            <h3>Total Customers</h3>
+            <p class="card-value">{{ customerAnalytics.totalCustomers }}</p>
+            <span class="card-subtext">Unique customers</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">📦</div>
+          <div class="card-content">
+            <h3>Total Orders</h3>
+            <p class="card-value">{{ customerAnalytics.totalOrders }}</p>
+            <span class="card-subtext">{{ customerAnalytics.avgOrdersPerCustomer.toFixed(1) }} avg/customer</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">🔄</div>
+          <div class="card-content">
+            <h3>Repeat Customers</h3>
+            <p class="card-value">{{ customerAnalytics.repeatCustomers }}</p>
+            <span class="card-subtext">{{ customerAnalytics.repeatRate.toFixed(1) }}% repeat rate</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">⏱️</div>
+          <div class="card-content">
+            <h3>Recent Customers</h3>
+            <p class="card-value">{{ customerAnalytics.recentCustomers }}</p>
+            <span class="card-subtext">Ordered in last 30 days</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">😴</div>
+          <div class="card-content">
+            <h3>Inactive Customers</h3>
+            <p class="card-value">{{ customerAnalytics.inactiveCustomers }}</p>
+            <span class="card-subtext">No orders in 60+ days</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Platform Preference -->
+      <div class="insight-section">
+        <h3>📱 Platform Preference</h3>
+        <div class="platform-preference-cards">
+          <div class="preference-card zomato-card">
+            <h4>🍔 Zomato Only</h4>
+            <p class="preference-value">{{ customerAnalytics.platformCounts.Zomato }}</p>
+            <span class="preference-subtext">Customers</span>
+          </div>
+          <div class="preference-card swiggy-card">
+            <h4>🍕 Swiggy Only</h4>
+            <p class="preference-value">{{ customerAnalytics.platformCounts.Swiggy }}</p>
+            <span class="preference-subtext">Customers</span>
+          </div>
+          <div class="preference-card both-card">
+            <h4>🤝 Both Platforms</h4>
+            <p class="preference-value">{{ customerAnalytics.platformCounts.Both }}</p>
+            <span class="preference-subtext">Customers</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Customers by Spending -->
+      <div class="insight-section">
+        <h3>💰 Top Customers by Spending</h3>
+        <div class="customer-table-wrapper">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Customer Name</th>
+                <th>Orders</th>
+                <th>Total Spent</th>
+                <th>Avg Order</th>
+                <th>Rating</th>
+                <th>Platforms</th>
+                <th>Last Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let customer of customerAnalytics.topCustomersBySpending; let i = index">
+                <td class="rank">{{ i + 1 }}</td>
+                <td class="customer-name">{{ customer.name }}</td>
+                <td class="text-center">{{ customer.orders }}</td>
+                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
+                <td class="amount">{{ formatCurrency(customer.avgOrderValue) }}</td>
+                <td class="text-center">
+                  <span *ngIf="customer.avgRating > 0" class="rating">{{ customer.avgRating.toFixed(1) }} ⭐</span>
+                  <span *ngIf="customer.avgRating === 0" class="no-rating">N/A</span>
+                </td>
+                <td>
+                  <span *ngFor="let platform of customer.platforms" [class]="'platform-badge ' + platform.toLowerCase()">
+                    {{ platform }}
+                  </span>
+                </td>
+                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Top Customers by Orders -->
+      <div class="insight-section">
+        <h3>🔄 Most Frequent Customers</h3>
+        <div class="customer-table-wrapper">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Customer Name</th>
+                <th>Orders</th>
+                <th>Total Spent</th>
+                <th>Favorite Items</th>
+                <th>Last Order</th>
+                <th>Days Since</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let customer of customerAnalytics.topCustomersByOrders; let i = index">
+                <td class="rank">{{ i + 1 }}</td>
+                <td class="customer-name">{{ customer.name }}</td>
+                <td class="text-center highlight">{{ customer.orders }}</td>
+                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
+                <td class="favorite-items">{{ customer.favoriteItems.join(', ') || 'N/A' }}</td>
+                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+                <td class="text-center">{{ customer.daysSinceLastOrder }}d</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Top Rated Customers -->
+      <div class="insight-section" *ngIf="customerAnalytics.topRatedCustomers.length > 0">
+        <h3>⭐ Top Rated Customers (4.5+ Stars)</h3>
+        <div class="customer-table-wrapper">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Customer Name</th>
+                <th>Orders</th>
+                <th>Avg Rating</th>
+                <th>Total Spent</th>
+                <th>Platforms</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let customer of customerAnalytics.topRatedCustomers; let i = index">
+                <td class="rank">{{ i + 1 }}</td>
+                <td class="customer-name">{{ customer.name }}</td>
+                <td class="text-center">{{ customer.orders }}</td>
+                <td class="text-center rating-highlight">{{ customer.avgRating.toFixed(1) }} ⭐</td>
+                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
+                <td>
+                  <span *ngFor="let platform of customer.platforms" [class]="'platform-badge ' + platform.toLowerCase()">
+                    {{ platform }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Repeat Customers Only -->
+      <div class="insight-section" *ngIf="getRepeatCustomers().length > 0">
+        <h3>🔄 All Repeat Customers ({{ getRepeatCustomers().length }})</h3>
+        <div class="customer-table-wrapper">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Customer Name</th>
+                <th>Orders</th>
+                <th>Total Spent</th>
+                <th>Avg Order</th>
+                <th>Rating</th>
+                <th>Platforms</th>
+                <th>Last Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let customer of getRepeatCustomers(); let i = index">
+                <td class="rank">{{ i + 1 }}</td>
+                <td class="customer-name">{{ customer.name }}</td>
+                <td class="text-center highlight">{{ customer.orders }}</td>
+                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
+                <td class="amount">{{ formatCurrency(customer.avgOrderValue) }}</td>
+                <td class="text-center">
+                  <span *ngIf="customer.avgRating > 0" class="rating">{{ customer.avgRating.toFixed(1) }} ⭐</span>
+                  <span *ngIf="customer.avgRating === 0" class="no-rating">N/A</span>
+                </td>
+                <td>
+                  <span *ngFor="let platform of customer.platforms" [class]="'platform-badge ' + platform.toLowerCase()">
+                    {{ platform }}
+                  </span>
+                </td>
+                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- All Customers with Search -->
+      <div class="insight-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+          <h3 style="margin: 0;">👤 All Customers ({{ getFilteredCustomers().length }})</h3>
+          <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <input
+              type="text"
+              [(ngModel)]="customerSearchTerm"
+              placeholder="Search customers..."
+              class="customer-search-input"
+              (input)="filterCustomers()"
+            />
+            <select [(ngModel)]="customerFilterType" (change)="filterCustomers()" class="customer-filter-select">
+              <option value="all">All Customers</option>
+              <option value="repeat">Repeat Only (2+)</option>
+              <option value="single">Single Order</option>
+              <option value="active">Active (30d)</option>
+              <option value="inactive">Inactive (60d+)</option>
+            </select>
+          </div>
+        </div>
+        <div class="customer-table-wrapper">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Customer Name</th>
+                <th>Orders</th>
+                <th>Total Spent</th>
+                <th>Avg Order</th>
+                <th>Rating</th>
+                <th>Platforms</th>
+                <th>Last Order</th>
+                <th>Days Ago</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let customer of getFilteredCustomers(); let i = index">
+                <td class="rank">{{ i + 1 }}</td>
+                <td class="customer-name">{{ customer.name }}</td>
+                <td class="text-center" [class.highlight]="customer.orders > 1">{{ customer.orders }}</td>
+                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
+                <td class="amount">{{ formatCurrency(customer.avgOrderValue) }}</td>
+                <td class="text-center">
+                  <span *ngIf="customer.avgRating > 0" class="rating">{{ customer.avgRating.toFixed(1) }} ⭐</span>
+                  <span *ngIf="customer.avgRating === 0" class="no-rating">N/A</span>
+                </td>
+                <td>
+                  <span *ngFor="let platform of customer.platforms" [class]="'platform-badge ' + platform.toLowerCase()">
+                    {{ platform }}
+                  </span>
+                </td>
+                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+                <td class="text-center">{{ customer.daysSinceLastOrder }}d</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 

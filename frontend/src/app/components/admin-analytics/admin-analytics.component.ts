@@ -38,7 +38,7 @@ export class AdminAnalyticsComponent implements OnInit {
   // Expense Analytics
   expenseAnalytics: ExpenseAnalytics | null = null;
   expenseLoading = false;
-  selectedAnalyticsTab: 'sales' | 'expenses' | 'earnings' | 'online' = 'sales';
+  selectedAnalyticsTab: 'sales' | 'expenses' | 'earnings' | 'online' | 'customers' = 'sales';
   expenseSource: 'All' | 'Offline' | 'Online' = 'All';
 
   // Earnings Analytics
@@ -49,6 +49,13 @@ export class AdminAnalyticsComponent implements OnInit {
   onlineAnalytics: any = null;
   onlineLoading = false;
   selectedPlatform: 'All' | 'Zomato' | 'Swiggy' = 'All';
+
+  // Customer Analytics
+  customerAnalytics: any = null;
+  customerLoading = false;
+  customerSearchTerm: string = '';
+  customerFilterType: string = 'all';
+  filteredCustomersList: any[] = [];
 
   // Math for template
   Math = Math;
@@ -76,9 +83,10 @@ export class AdminAnalyticsComponent implements OnInit {
     this.loadExpenseAnalytics();
     this.loadEarningsAnalytics();
     this.loadOnlineSalesAnalytics();
+    this.loadCustomerAnalytics();
   }
 
-  switchTab(tab: 'sales' | 'expenses' | 'earnings' | 'online') {
+  switchTab(tab: 'sales' | 'expenses' | 'earnings' | 'online' | 'customers') {
     this.selectedAnalyticsTab = tab;
     if (tab === 'expenses' && !this.expenseAnalytics) {
       this.loadExpenseAnalytics();
@@ -86,6 +94,8 @@ export class AdminAnalyticsComponent implements OnInit {
       this.loadEarningsAnalytics();
     } else if (tab === 'online' && !this.onlineAnalytics) {
       this.loadOnlineSalesAnalytics();
+    } else if (tab === 'customers' && !this.customerAnalytics) {
+      this.loadCustomerAnalytics();
     }
   }
 
@@ -730,6 +740,7 @@ export class AdminAnalyticsComponent implements OnInit {
     this.loadExpenseAnalytics();
     this.loadEarningsAnalytics();
     this.loadOnlineSalesAnalytics();
+    this.loadCustomerAnalytics();
   }
 
   formatCurrency(amount: number): string {
@@ -1140,6 +1151,251 @@ export class AdminAnalyticsComponent implements OnInit {
     });
 
     return proportionalAmount;
+  }
+
+  // Customer Analytics Methods
+  loadCustomerAnalytics() {
+    this.customerLoading = true;
+
+    // Load online sales for the date range
+    this.http.get(`${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`)
+      .toPromise()
+      .then((response: any) => {
+        const sales = response?.data || [];
+        this.calculateCustomerAnalytics(sales);
+        this.customerLoading = false;
+      })
+      .catch(err => {
+        console.error('Error loading customer analytics:', err);
+        this.customerLoading = false;
+      });
+  }
+
+  calculateCustomerAnalytics(sales: any[]) {
+    // Filter sales with customer names
+    const salesWithCustomers = sales.filter(s => s.customerName && s.customerName.trim() !== '');
+
+    if (salesWithCustomers.length === 0) {
+      this.customerAnalytics = null;
+      return;
+    }
+
+    // Group by customer name
+    const customerMap = new Map<string, {
+      displayName: string; // Keep original casing for display
+      orders: number;
+      totalSpent: number;
+      totalDiscount: number;
+      totalDeduction: number;
+      ratings: number[];
+      platforms: Set<string>;
+      lastOrderDate: Date;
+      items: string[];
+    }>();
+
+    salesWithCustomers.forEach(sale => {
+      // Normalize customer name: lowercase and remove extra spaces
+      const normalizedName = sale.customerName.trim().toLowerCase().replace(/\s+/g, ' ');
+      const displayName = sale.customerName.trim().replace(/\s+/g, ' '); // Keep original case but normalize spaces
+
+      const existing = customerMap.get(normalizedName) || {
+        displayName: displayName,
+        orders: 0,
+        totalSpent: 0,
+        totalDiscount: 0,
+        totalDeduction: 0,
+        ratings: [] as number[],
+        platforms: new Set<string>(),
+        lastOrderDate: new Date(sale.orderAt),
+        items: [] as string[]
+      };
+
+      const netPayout = (sale.billSubTotal || 0) + (sale.packagingCharges || 0) - (sale.discountAmount || 0) - (sale.platformDeduction || 0);
+
+      existing.orders += 1;
+      existing.totalSpent += netPayout;
+      existing.totalDiscount += sale.discountAmount || 0;
+      existing.totalDeduction += sale.platformDeduction || 0;
+      if (sale.rating && sale.rating > 0) {
+        existing.ratings.push(sale.rating);
+      }
+      existing.platforms.add(sale.platform);
+
+      // Track last order date
+      const orderDate = new Date(sale.orderAt);
+      if (orderDate > existing.lastOrderDate) {
+        existing.lastOrderDate = orderDate;
+      }
+
+      // Track items
+      if (sale.orderedItems && Array.isArray(sale.orderedItems)) {
+        sale.orderedItems.forEach((item: any) => {
+          existing.items.push(item.itemName || item.name);
+        });
+      }
+
+      customerMap.set(normalizedName, existing);
+    });
+
+    console.log('Customer Map Keys:', Array.from(customerMap.keys()));
+
+    // Use the end date from the selected range for calculating days since last order
+    const referenceDate = new Date(this.dateRange.endDate);
+    console.log('Reference Date (End of Range):', referenceDate.toISOString().split('T')[0]);
+
+    // Convert to array and calculate metrics
+    const customers = Array.from(customerMap.entries()).map(([normalizedName, data]) => ({
+      name: data.displayName, // Use the display name (original casing)
+      orders: data.orders,
+      totalSpent: data.totalSpent,
+      avgOrderValue: data.totalSpent / data.orders,
+      totalDiscount: data.totalDiscount,
+      totalDeduction: data.totalDeduction,
+      avgRating: data.ratings.length > 0 ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length : 0,
+      platforms: Array.from(data.platforms),
+      lastOrderDate: data.lastOrderDate,
+      daysSinceLastOrder: Math.floor((referenceDate.getTime() - data.lastOrderDate.getTime()) / (1000 * 60 * 60 * 24)),
+      favoriteItems: this.getTopItems(data.items, 3)
+    }));
+
+    console.log('Sample Customer Data:', customers.slice(0, 3).map(c => ({
+      name: c.name,
+      lastOrderDate: c.lastOrderDate.toISOString().split('T')[0],
+      daysSinceLastOrder: c.daysSinceLastOrder
+    })));
+
+    // Sort by total spent
+    customers.sort((a, b) => b.totalSpent - a.totalSpent);
+
+    // Calculate summary stats
+    const totalCustomers = customers.length;
+    const totalOrders = salesWithCustomers.length;
+    const avgOrdersPerCustomer = totalOrders / totalCustomers;
+    const repeatCustomers = customers.filter(c => c.orders > 1).length;
+    const repeatRate = (repeatCustomers / totalCustomers) * 100;
+
+    // Top customers
+    const topCustomersBySpending = customers.slice(0, 10);
+    const topCustomersByOrders = [...customers].sort((a, b) => b.orders - a.orders).slice(0, 10);
+    const topRatedCustomers = customers.filter(c => c.avgRating >= 4.5).slice(0, 10);
+
+    // Platform preference
+    const platformCounts = {
+      Zomato: customers.filter(c => c.platforms.length === 1 && c.platforms.includes('Zomato')).length,
+      Swiggy: customers.filter(c => c.platforms.length === 1 && c.platforms.includes('Swiggy')).length,
+      Both: customers.filter(c => c.platforms.length > 1).length
+    };
+
+    // Recent vs inactive customers
+    const recentCustomers = customers.filter(c => c.daysSinceLastOrder <= 30).length;
+    const inactiveCustomers = customers.filter(c => c.daysSinceLastOrder > 60).length;
+
+    console.log('Customer Classification:', {
+      dateRange: `${this.dateRange.startDate} to ${this.dateRange.endDate}`,
+      totalCustomers: customers.length,
+      recentCustomers: recentCustomers,
+      inactiveCustomers: inactiveCustomers,
+      recentSample: customers.filter(c => c.daysSinceLastOrder <= 30).slice(0, 3).map(c => ({
+        name: c.name,
+        lastOrder: c.lastOrderDate.toISOString().split('T')[0],
+        daysAgo: c.daysSinceLastOrder
+      })),
+      inactiveSample: customers.filter(c => c.daysSinceLastOrder > 60).slice(0, 3).map(c => ({
+        name: c.name,
+        lastOrder: c.lastOrderDate.toISOString().split('T')[0],
+        daysAgo: c.daysSinceLastOrder
+      }))
+    });
+
+    this.customerAnalytics = {
+      totalCustomers,
+      totalOrders,
+      avgOrdersPerCustomer,
+      repeatCustomers,
+      repeatRate,
+      topCustomersBySpending,
+      topCustomersByOrders,
+      topRatedCustomers,
+      platformCounts,
+      recentCustomers,
+      inactiveCustomers,
+      customers
+    };
+
+    // Initialize filtered list with all customers
+    this.filteredCustomersList = [...customers];
+
+    console.log('Customer Analytics:', this.customerAnalytics);
+  }
+
+  getTopItems(items: string[], limit: number): string[] {
+    const itemCounts = items.reduce((acc, item) => {
+      acc[item] = (acc[item] || 0) + 1;
+      return acc;
+    }, {} as any);
+
+    return Object.entries(itemCounts)
+      .sort(([,a]:any, [,b]:any) => b - a)
+      .slice(0, limit)
+      .map(([item]) => item);
+  }
+
+  // Get all repeat customers (more than 1 order)
+  getRepeatCustomers(): any[] {
+    if (!this.customerAnalytics || !this.customerAnalytics.customers) {
+      return [];
+    }
+    return this.customerAnalytics.customers
+      .filter((c: any) => c.orders > 1)
+      .sort((a: any, b: any) => b.orders - a.orders);
+  }
+
+  // Filter customers based on search and filter type
+  filterCustomers() {
+    if (!this.customerAnalytics || !this.customerAnalytics.customers) {
+      this.filteredCustomersList = [];
+      return;
+    }
+
+    let filtered = [...this.customerAnalytics.customers];
+
+    // Apply search filter
+    if (this.customerSearchTerm && this.customerSearchTerm.trim() !== '') {
+      const searchLower = this.customerSearchTerm.toLowerCase().trim();
+      filtered = filtered.filter((c: any) =>
+        c.name.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply type filter
+    switch (this.customerFilterType) {
+      case 'repeat':
+        filtered = filtered.filter((c: any) => c.orders > 1);
+        break;
+      case 'single':
+        filtered = filtered.filter((c: any) => c.orders === 1);
+        break;
+      case 'active':
+        filtered = filtered.filter((c: any) => c.daysSinceLastOrder <= 30);
+        break;
+      case 'inactive':
+        filtered = filtered.filter((c: any) => c.daysSinceLastOrder > 60);
+        break;
+      default:
+        // 'all' - no additional filter
+        break;
+    }
+
+    this.filteredCustomersList = filtered;
+  }
+
+  // Get filtered customers list
+  getFilteredCustomers(): any[] {
+    if (this.filteredCustomersList.length === 0 && this.customerAnalytics && this.customerAnalytics.customers) {
+      // Initialize with all customers if not filtered yet
+      this.filteredCustomersList = [...this.customerAnalytics.customers];
+    }
+    return this.filteredCustomersList;
   }
 }
 

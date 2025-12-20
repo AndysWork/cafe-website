@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import { CustomerReviewsComponent } from '../customer-reviews/customer-reviews.component';
 
 interface Category {
   id: string;
@@ -25,7 +26,7 @@ interface MenuItem {
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, CustomerReviewsComponent],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.scss']
 })

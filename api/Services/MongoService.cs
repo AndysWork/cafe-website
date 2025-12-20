@@ -2068,6 +2068,51 @@ public class MongoService
         return grouped;
     }
 
+    public async Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10)
+    {
+        var filter = Builders<OnlineSale>.Filter.Eq(s => s.Rating, 5) &
+                     Builders<OnlineSale>.Filter.Ne(s => s.Review, null) &
+                     Builders<OnlineSale>.Filter.Ne(s => s.Review, "");
+
+        var sales = await _onlineSales
+            .Find(filter)
+            .SortByDescending(s => s.OrderAt)
+            .Limit(limit)
+            .ToListAsync();
+
+        return sales.Select(s => new OnlineSaleResponse
+        {
+            Id = s.Id.ToString(),
+            Platform = s.Platform,
+            OrderId = s.OrderId,
+            CustomerName = s.CustomerName,
+            OrderAt = s.OrderAt,
+            Distance = s.Distance,
+            OrderedItems = s.OrderedItems.Select(item => new OrderedItem
+            {
+                Quantity = item.Quantity,
+                ItemName = item.ItemName,
+                MenuItemId = item.MenuItemId
+            }).ToList(),
+            Instructions = s.Instructions,
+            DiscountCoupon = s.DiscountCoupon,
+            BillSubTotal = s.BillSubTotal,
+            PackagingCharges = s.PackagingCharges,
+            DiscountAmount = s.DiscountAmount,
+            TotalCommissionable = s.TotalCommissionable,
+            Payout = s.Payout,
+            PlatformDeduction = s.PlatformDeduction,
+            Rating = s.Rating,
+            Review = s.Review,
+            Investment = s.Investment,
+            MiscCharges = s.MiscCharges,
+            KPT = s.KPT,
+            RWT = s.RWT,
+            OrderMarking = s.OrderMarking,
+            Complain = s.Complain
+        }).ToList();
+    }
+
     public async Task<OnlineSale?> GetOnlineSaleByIdAsync(string id)
     {
         return await _onlineSales.Find(s => s.Id == id).FirstOrDefaultAsync();
