@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary, HierarchicalExpense, MonthExpense, WeekExpense } from '../../services/expense.service';
 import { OfflineExpenseTypeService, OfflineExpenseType } from '../../services/offline-expense-type.service';
 import { OnlineExpenseTypeService, OnlineExpenseType } from '../../services/online-expense-type.service';
+import { OperationalExpenseService, OperationalExpense, CreateOperationalExpenseRequest, UpdateOperationalExpenseRequest } from '../../services/operational-expense.service';
 import { getIstDateString, formatIstDate, convertToIst, getIstNow } from '../../utils/date-utils';
 
 @Component({
@@ -17,7 +18,8 @@ export class AdminExpensesComponent implements OnInit {
   expenses: Expense[] = [];
   offlineExpenseTypes: OfflineExpenseType[] = [];
   onlineExpenseTypes: OnlineExpenseType[] = [];
-  currentExpenseSource: 'Offline' | 'Online' = 'Offline'; // Tab selection
+  operationalExpenses: OperationalExpense[] = [];
+  currentExpenseSource: 'Offline' | 'Online' | 'Operational' = 'Offline'; // Tab selection
   loading = false;
   showModal = false;
   showUploadModal = false;
@@ -46,16 +48,53 @@ export class AdminExpensesComponent implements OnInit {
   uploadError = '';
   uploadResult: any = null;
 
+  // Operational Expenses
+  showOperationalModal = false;
+  isOperationalEditMode = false;
+  editingOperationalId: string | null = null;
+  calculatedRent: number = 0;
+  calculatingRent = false;
+  groupedOperationalExpenses: { [year: number]: OperationalExpense[] } = {};
+  expandedOperationalYears: Set<number> = new Set();
+
+  operationalFormData: CreateOperationalExpenseRequest = {
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    cookSalary: 0,
+    helperSalary: 0,
+    electricity: 0,
+    machineMaintenance: 0,
+    misc: 0,
+    notes: ''
+  };
+
+  months = [
+    { value: 1, name: 'January' },
+    { value: 2, name: 'February' },
+    { value: 3, name: 'March' },
+    { value: 4, name: 'April' },
+    { value: 5, name: 'May' },
+    { value: 6, name: 'June' },
+    { value: 7, name: 'July' },
+    { value: 8, name: 'August' },
+    { value: 9, name: 'September' },
+    { value: 10, name: 'October' },
+    { value: 11, name: 'November' },
+    { value: 12, name: 'December' }
+  ];
+
   constructor(
     private expenseService: ExpenseService,
     private offlineExpenseTypeService: OfflineExpenseTypeService,
-    private onlineExpenseTypeService: OnlineExpenseTypeService
+    private onlineExpenseTypeService: OnlineExpenseTypeService,
+    private operationalExpenseService: OperationalExpenseService
   ) {}
 
   ngOnInit() {
     this.loadExpenses();
     this.loadOfflineExpenseTypes();
     this.loadOnlineExpenseTypes();
+    this.loadOperationalExpenses();
   }
 
   loadExpenses() {
@@ -179,10 +218,14 @@ export class AdminExpensesComponent implements OnInit {
     return this.expenses.filter(e => (e as any).expenseSource === this.currentExpenseSource);
   }
 
-  switchExpenseSource(source: 'Offline' | 'Online') {
+  switchExpenseSource(source: 'Offline' | 'Online' | 'Operational') {
     this.currentExpenseSource = source;
-    this.formData.expenseSource = source;
-    this.groupExpensesByYearMonth();
+    if (source !== 'Operational') {
+      this.formData.expenseSource = source;
+      this.groupExpensesByYearMonth();
+    } else {
+      this.groupOperationalExpensesByYear();
+    }
   }
 
   toggleYear(year: string) {
@@ -514,5 +557,203 @@ export class AdminExpensesComponent implements OnInit {
       'Other': '#6b7280'
     };
     return colors[type] || '#6b7280';
+  }
+
+  // Operational Expenses Methods
+  loadOperationalExpenses() {
+    this.operationalExpenseService.getAllOperationalExpenses().subscribe({
+      next: (data) => {
+        this.operationalExpenses = data;
+        this.groupOperationalExpensesByYear();
+      },
+      error: (error) => {
+        console.error('Error loading operational expenses:', error);
+      }
+    });
+  }
+
+  groupOperationalExpensesByYear() {
+    this.groupedOperationalExpenses = {};
+    this.operationalExpenses.forEach(expense => {
+      if (!this.groupedOperationalExpenses[expense.year]) {
+        this.groupedOperationalExpenses[expense.year] = [];
+      }
+      this.groupedOperationalExpenses[expense.year].push(expense);
+    });
+
+    const currentYear = new Date().getFullYear();
+    this.expandedOperationalYears.add(currentYear);
+  }
+
+  getOperationalYears(): number[] {
+    return Object.keys(this.groupedOperationalExpenses)
+      .map(y => parseInt(y))
+      .sort((a, b) => b - a);
+  }
+
+  toggleOperationalYear(year: number) {
+    if (this.expandedOperationalYears.has(year)) {
+      this.expandedOperationalYears.delete(year);
+    } else {
+      this.expandedOperationalYears.add(year);
+    }
+  }
+
+  isOperationalYearExpanded(year: number): boolean {
+    return this.expandedOperationalYears.has(year);
+  }
+
+  getOperationalYearTotal(year: number): number {
+    if (!this.groupedOperationalExpenses[year]) return 0;
+    return this.groupedOperationalExpenses[year].reduce((sum, e) => sum + e.totalOperationalCost, 0);
+  }
+
+  calculateRent() {
+    if (!this.operationalFormData.month || !this.operationalFormData.year) {
+      alert('Please select month and year first');
+      return;
+    }
+
+    this.calculatingRent = true;
+    this.operationalExpenseService.calculateRentForMonth(this.operationalFormData.year, this.operationalFormData.month).subscribe({
+      next: (data) => {
+        this.calculatedRent = data.rent;
+        this.calculatingRent = false;
+      },
+      error: (error) => {
+        console.error('Error calculating rent:', error);
+        alert('Failed to calculate rent');
+        this.calculatingRent = false;
+      }
+    });
+  }
+
+  openOperationalAddModal() {
+    this.isOperationalEditMode = false;
+    this.editingOperationalId = null;
+    this.resetOperationalForm();
+    this.showOperationalModal = true;
+    this.calculateRent();
+  }
+
+  openOperationalEditModal(expense: OperationalExpense) {
+    this.isOperationalEditMode = true;
+    this.editingOperationalId = expense.id;
+    this.operationalFormData = {
+      month: expense.month,
+      year: expense.year,
+      cookSalary: expense.cookSalary,
+      helperSalary: expense.helperSalary,
+      electricity: expense.electricity,
+      machineMaintenance: expense.machineMaintenance,
+      misc: expense.misc,
+      notes: expense.notes || ''
+    };
+    this.calculatedRent = expense.rent;
+    this.showOperationalModal = true;
+  }
+
+  closeOperationalModal() {
+    this.showOperationalModal = false;
+    this.editingOperationalId = null;
+    this.resetOperationalForm();
+  }
+
+  resetOperationalForm() {
+    const currentDate = new Date();
+    this.operationalFormData = {
+      month: currentDate.getMonth() + 1,
+      year: currentDate.getFullYear(),
+      cookSalary: 0,
+      helperSalary: 0,
+      electricity: 0,
+      machineMaintenance: 0,
+      misc: 0,
+      notes: ''
+    };
+    this.calculatedRent = 0;
+  }
+
+  saveOperationalExpense() {
+    if (!this.operationalFormData.month || !this.operationalFormData.year) {
+      alert('Please select month and year');
+      return;
+    }
+
+    this.loading = true;
+
+    if (this.isOperationalEditMode && this.editingOperationalId) {
+      const updateRequest: UpdateOperationalExpenseRequest = {
+        cookSalary: Number(this.operationalFormData.cookSalary),
+        helperSalary: Number(this.operationalFormData.helperSalary),
+        electricity: Number(this.operationalFormData.electricity),
+        machineMaintenance: Number(this.operationalFormData.machineMaintenance),
+        misc: Number(this.operationalFormData.misc),
+        notes: this.operationalFormData.notes
+      };
+
+      this.operationalExpenseService.updateOperationalExpense(this.editingOperationalId, updateRequest).subscribe({
+        next: () => {
+          this.loadOperationalExpenses();
+          this.closeOperationalModal();
+          this.loading = false;
+        },
+        error: (error) => {
+          console.error('Error updating operational expense:', error);
+          alert('Failed to update operational expense');
+          this.loading = false;
+        }
+      });
+    } else {
+      // Ensure month and year are numbers
+      const createRequest: CreateOperationalExpenseRequest = {
+        month: Number(this.operationalFormData.month),
+        year: Number(this.operationalFormData.year),
+        cookSalary: Number(this.operationalFormData.cookSalary),
+        helperSalary: Number(this.operationalFormData.helperSalary),
+        electricity: Number(this.operationalFormData.electricity),
+        machineMaintenance: Number(this.operationalFormData.machineMaintenance),
+        misc: Number(this.operationalFormData.misc),
+        notes: this.operationalFormData.notes
+      };
+
+      this.operationalExpenseService.createOperationalExpense(createRequest).subscribe({
+        next: () => {
+          this.loadOperationalExpenses();
+          this.closeOperationalModal();
+          this.loading = false;
+        },
+        error: (error) => {
+          console.error('Error creating operational expense:', error);
+          const errorMsg = error.error?.error || 'Failed to create operational expense';
+          alert(errorMsg);
+          this.loading = false;
+        }
+      });
+    }
+  }
+
+  deleteOperationalExpense(id: string) {
+    if (!confirm('Are you sure you want to delete this operational expense record?')) return;
+
+    this.operationalExpenseService.deleteOperationalExpense(id).subscribe({
+      next: () => {
+        this.loadOperationalExpenses();
+      },
+      error: (error) => {
+        console.error('Error deleting operational expense:', error);
+        alert('Failed to delete operational expense');
+      }
+    });
+  }
+
+  getMonthName(month: number): string {
+    const monthObj = this.months.find(m => m.value === month);
+    return monthObj ? monthObj.name : '';
+  }
+
+  getTotalOperationalCost(): number {
+    return this.calculatedRent + this.operationalFormData.cookSalary + this.operationalFormData.helperSalary +
+           this.operationalFormData.electricity + this.operationalFormData.machineMaintenance + this.operationalFormData.misc;
   }
 }

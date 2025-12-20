@@ -138,11 +138,15 @@ export class MenuManagementComponent implements OnInit {
       });
   }
 
-  onCategoryChange(categoryId: string): void {
+  onCategoryChange(categoryId: string, preserveSubCategory: boolean = false): void {
     this.filteredSubCategories = this.subCategories.filter(
       sc => sc.categoryId === categoryId
     );
-    this.formData.subCategoryId = undefined;
+
+    // Only reset subCategoryId if we're not preserving it (i.e., during actual category change, not during edit load)
+    if (!preserveSubCategory) {
+      this.formData.subCategoryId = undefined;
+    }
 
     const category = this.categories.find(c => c.id === categoryId);
     if (category) {
@@ -190,7 +194,8 @@ export class MenuManagementComponent implements OnInit {
       ...item,
       variants: item.variants ? item.variants.map(v => ({ ...v })) : []
     };
-    this.onCategoryChange(item.categoryId);
+    // Pass true to preserve the existing subCategoryId when filtering
+    this.onCategoryChange(item.categoryId, true);
     this.showModal = true;
   }
 

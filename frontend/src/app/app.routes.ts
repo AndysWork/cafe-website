@@ -25,6 +25,7 @@ import { CheckoutComponent } from './components/checkout/checkout.component';
 import { CashierComponent } from './components/cashier/cashier.component';
 import { OnlineSaleTrackerComponent } from './components/online-sale-tracker/online-sale-tracker.component';
 import { OnlineProfitTrackerComponent } from './components/online-profit-tracker/online-profit-tracker.component';
+import { OperationalExpensesComponent } from './components/operational-expenses/operational-expenses.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -55,6 +56,7 @@ export const routes: Routes = [
       { path: 'loyalty', component: AdminLoyaltyComponent },
       { path: 'sales', component: AdminSalesComponent },
       { path: 'expenses', component: AdminExpensesComponent },
+      { path: 'operational-expenses', component: OperationalExpensesComponent },
       { path: 'analytics', component: AdminAnalyticsComponent },
       { path: 'cashier', component: CashierComponent },
       { path: 'online-sale-tracker', component: OnlineSaleTrackerComponent },

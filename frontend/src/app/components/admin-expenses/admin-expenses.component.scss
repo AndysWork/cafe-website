@@ -994,4 +994,884 @@
       }
     }
   }
+
+  // Operational Expenses Styles
+  .info-banner {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+    .info-icon {
+      font-size: 2rem;
+      flex-shrink: 0;
+    }
+
+    .info-content {
+      strong {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
+      }
+    }
+  }
+
+  // Enhanced Operational Year Group Styling
+  .operational-grouped {
+    .operational-year-group {
+      margin-bottom: 2rem;
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: linear-gradient(to bottom, #8b5cf6, #ec4899);
+        border-radius: 2px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      &:hover::before {
+        opacity: 1;
+      }
+
+      .operational-year-header {
+        background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 50%, #f97316 100%);
+        padding: 1.75rem 2rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.3), 0 2px 4px -1px rgba(139, 92, 246, 0.2);
+        position: relative;
+        overflow: hidden;
+
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+          pointer-events: none;
+        }
+
+        &:hover {
+          transform: translateY(-4px) scale(1.01);
+          box-shadow: 0 20px 25px -5px rgba(139, 92, 246, 0.4), 0 10px 10px -5px rgba(139, 92, 246, 0.3);
+        }
+
+        .year-info {
+          display: flex;
+          align-items: center;
+          gap: 1.5rem;
+          flex: 1;
+          position: relative;
+          z-index: 1;
+
+          .expand-icon-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+            .expand-icon {
+              font-size: 1.2rem;
+              transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+              display: block;
+
+              &.expanded {
+                transform: rotate(90deg);
+              }
+            }
+          }
+
+          &:hover .expand-icon-wrapper {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+          }
+
+          .year-title-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+
+            .year-title {
+              margin: 0;
+              font-size: 1.75rem;
+              font-weight: 800;
+              letter-spacing: 0.5px;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+
+            .year-meta {
+              display: flex;
+              gap: 1rem;
+              flex-wrap: wrap;
+
+              .year-badge {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                background: rgba(255, 255, 255, 0.25);
+                backdrop-filter: blur(10px);
+                padding: 0.5rem 1rem;
+                border-radius: 20px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                transition: all 0.3s ease;
+
+                .badge-icon {
+                  font-size: 1.1rem;
+                }
+
+                &:hover {
+                  background: rgba(255, 255, 255, 0.35);
+                  transform: translateY(-2px);
+                }
+
+                &.transactions {
+                  background: rgba(251, 191, 36, 0.3);
+                  border-color: rgba(251, 191, 36, 0.5);
+
+                  &:hover {
+                    background: rgba(251, 191, 36, 0.4);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        .year-total-section {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.5rem;
+          position: relative;
+          z-index: 1;
+
+          .total-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+
+          .year-total {
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1.25rem;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+          }
+        }
+      }
+
+      .year-content {
+        animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    }
+  }
+
+  // Enhanced Operational Year Group Styling
+  .operational-grouped {
+    .operational-year-group {
+      margin-bottom: 2rem;
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: linear-gradient(to bottom, #8b5cf6, #ec4899);
+        border-radius: 2px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      &:hover::before {
+        opacity: 1;
+      }
+
+      .operational-year-header {
+        background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 50%, #f97316 100%);
+        padding: 1.75rem 2rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.3), 0 2px 4px -1px rgba(139, 92, 246, 0.2);
+        position: relative;
+        overflow: hidden;
+
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+          pointer-events: none;
+        }
+
+        &:hover {
+          transform: translateY(-4px) scale(1.01);
+          box-shadow: 0 20px 25px -5px rgba(139, 92, 246, 0.4), 0 10px 10px -5px rgba(139, 92, 246, 0.3);
+        }
+
+        .year-info {
+          display: flex;
+          align-items: center;
+          gap: 1.5rem;
+          flex: 1;
+          position: relative;
+          z-index: 1;
+
+          .expand-icon-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+            .expand-icon {
+              font-size: 1.2rem;
+              transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+              display: block;
+
+              &.expanded {
+                transform: rotate(90deg);
+              }
+            }
+          }
+
+          &:hover .expand-icon-wrapper {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+          }
+
+          .year-title-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+
+            .year-title {
+              margin: 0;
+              font-size: 1.75rem;
+              font-weight: 800;
+              letter-spacing: 0.5px;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+
+            .year-meta {
+              display: flex;
+              gap: 1rem;
+              flex-wrap: wrap;
+
+              .year-badge {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                background: rgba(255, 255, 255, 0.25);
+                backdrop-filter: blur(10px);
+                padding: 0.5rem 1rem;
+                border-radius: 20px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                transition: all 0.3s ease;
+
+                .badge-icon {
+                  font-size: 1.1rem;
+                }
+
+                &:hover {
+                  background: rgba(255, 255, 255, 0.35);
+                  transform: translateY(-2px);
+                }
+
+                &.transactions {
+                  background: rgba(251, 191, 36, 0.3);
+                  border-color: rgba(251, 191, 36, 0.5);
+
+                  &:hover {
+                    background: rgba(251, 191, 36, 0.4);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        .year-total-section {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.5rem;
+          position: relative;
+          z-index: 1;
+
+          .total-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+
+          .year-total {
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1.25rem;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+          }
+        }
+      }
+
+      .year-content {
+        animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    }
+  }
+
+  .operational-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+    gap: 2.5rem;
+    padding: 2rem;
+
+    .operational-card {
+      position: relative;
+      background: white;
+      border-radius: 20px;
+      padding: 0;
+      overflow: visible;
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
+
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 8px;
+        background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 20%, #ec4899 40%, #f59e0b 60%, #10b981 80%, #06b6d4 100%);
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+      }
+
+      &::after {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 20px;
+        padding: 3px;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b);
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+        z-index: -1;
+      }
+
+      &:hover {
+        box-shadow: 0 30px 60px -15px rgba(139, 92, 246, 0.4), 0 0 0 1px rgba(139, 92, 246, 0.2);
+        transform: translateY(-12px) scale(1.03);
+
+        &::after {
+          opacity: 1;
+        }
+
+        .operational-header {
+          background: linear-gradient(135deg, #f0f9ff, #f5f3ff, #fdf4ff);
+        }
+      }
+
+      .operational-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0;
+        padding: 2rem 2rem 1.5rem 2rem;
+        background: linear-gradient(135deg, #f8fafc, #f0fdf4);
+        border-bottom: 2px solid rgba(139, 92, 246, 0.15);
+        transition: all 0.4s ease;
+
+        .operational-month {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+
+          .month-icon {
+            font-size: 2rem;
+            animation: float 3s ease-in-out infinite;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+          }
+
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+          }
+
+          .month-text {
+            font-size: 1.6rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.5px;
+          }
+        }
+
+        .operational-total-badge {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.25rem;
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white;
+          padding: 0.75rem 1.5rem;
+          border-radius: 16px;
+          box-shadow: 0 8px 16px -4px rgba(16, 185, 129, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+          animation: pulse-glow 3s ease-in-out infinite;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+
+          .badge-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.9;
+          }
+
+          .badge-amount {
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+          }
+        }
+      }
+
+      @keyframes pulse-glow {
+        0%, 100% {
+          box-shadow: 0 8px 16px -4px rgba(16, 185, 129, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+          transform: scale(1);
+        }
+        50% {
+          box-shadow: 0 12px 24px -4px rgba(16, 185, 129, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+          transform: scale(1.05);
+        }
+      }
+
+      .operational-breakdown {
+        padding: 2rem;
+        margin-bottom: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+
+        .breakdown-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1.25rem 1.5rem;
+          margin-bottom: 0;
+          border-radius: 16px;
+          transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+          position: relative;
+          overflow: hidden;
+          border: 2px solid transparent;
+
+          &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            transition: all 0.4s ease;
+            border-radius: 0 16px 16px 0;
+          }
+
+          &:hover {
+            transform: translateX(12px) scale(1.03);
+            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.25);
+            border-color: currentColor;
+
+            &::before {
+              width: 100%;
+              opacity: 0.1;
+            }
+
+            .breakdown-icon {
+              transform: scale(1.3) rotate(10deg);
+            }
+
+            .breakdown-label {
+              transform: scale(1.05);
+            }
+
+            .breakdown-value {
+              transform: scale(1.1);
+            }
+          }
+
+          .breakdown-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+
+            .breakdown-icon {
+              font-size: 2rem;
+              transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+              filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+            }
+
+            .breakdown-label {
+              font-weight: 800;
+              font-size: 1.1rem;
+              letter-spacing: 0.3px;
+              transition: transform 0.3s ease;
+            }
+          }
+
+          .breakdown-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+          }
+
+          .breakdown-value {
+            font-weight: 900;
+            font-size: 1.4rem;
+            letter-spacing: 0.5px;
+            transition: transform 0.3s ease;
+          }
+
+          .breakdown-note {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.3rem 0.7rem;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            animation: shimmer 2s infinite;
+          }
+
+          @keyframes shimmer {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+          }
+
+          // Unique color themes for each expense type
+          &:nth-child(1) { // Rent - Blue
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+            &::before { background: linear-gradient(to bottom, #3b82f6, #2563eb); }
+            .breakdown-note {
+              background: linear-gradient(135deg, #3b82f6, #2563eb);
+              color: white;
+            }
+          }
+
+          &:nth-child(2) { // Cook Salary - Purple
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+            color: #6b21a8;
+            &::before { background: linear-gradient(to bottom, #8b5cf6, #7c3aed); }
+          }
+
+          &:nth-child(3) { // Helper Salary - Violet
+            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+            color: #5b21b6;
+            &::before { background: linear-gradient(to bottom, #7c3aed, #6d28d9); }
+          }
+
+          &:nth-child(4) { // Electricity - Yellow
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+            &::before { background: linear-gradient(to bottom, #f59e0b, #d97706); }
+          }
+
+          &:nth-child(5) { // Maintenance - Teal
+            background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%);
+            color: #115e59;
+            &::before { background: linear-gradient(to bottom, #14b8a6, #0d9488); }
+          }
+
+          &:nth-child(6) { // Misc - Pink
+            background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
+            color: #9f1239;
+            &::before { background: linear-gradient(to bottom, #ec4899, #db2777); }
+          }
+        }
+      }
+
+      .operational-notes {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        border-left: 4px solid #f59e0b;
+        padding: 1rem 1.25rem;
+        margin: 0 1.5rem 1.5rem 1.5rem;
+        border-radius: 10px;
+        color: #78350f;
+        font-style: italic;
+        box-shadow: 0 2px 4px rgba(245, 158, 11, 0.1);
+      }
+
+      .operational-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem 1.5rem;
+        background: linear-gradient(to right, #f8fafc, #f1f5f9);
+        border-top: 1px solid rgba(102, 126, 234, 0.1);
+
+        .operational-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1.25rem;
+          font-size: 0.875rem;
+          color: #64748b;
+
+          span {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: white;
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            font-weight: 500;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+          }
+        }
+
+        .operational-actions {
+          display: flex;
+          gap: 0.75rem;
+
+          .btn-edit, .btn-delete {
+            transition: all 0.3s ease;
+
+            &:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Operational Modal Styles
+  .operational-modal {
+    max-width: 850px;
+
+    .operational-form {
+      .form-section {
+        margin: 1.5rem 0;
+        padding: 1.75rem;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 12px;
+        border: 1px solid rgba(102, 126, 234, 0.1);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+        h3 {
+          margin: 0 0 1.25rem 0;
+          color: #1e293b;
+          font-size: 1.3rem;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+
+          &::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(to bottom, #667eea, #764ba2);
+            border-radius: 2px;
+          }
+        }
+      }
+
+      .rent-display {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 1.75rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3), 0 4px 6px -2px rgba(16, 185, 129, 0.2);
+        position: relative;
+        overflow: hidden;
+
+        &::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          right: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+        }
+
+        .rent-label {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.75rem;
+          font-weight: 600;
+          font-size: 1.05rem;
+          position: relative;
+          z-index: 1;
+
+          .btn-refresh {
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+
+            &:hover:not(:disabled) {
+              background: rgba(255, 255, 255, 0.35);
+              transform: translateY(-2px);
+              box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }
+
+            &:disabled {
+              opacity: 0.5;
+              cursor: not-allowed;
+            }
+          }
+        }
+
+        .rent-value {
+          font-size: 2.5rem;
+          font-weight: 900;
+          position: relative;
+          z-index: 1;
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          letter-spacing: 1px;
+        }
+      }
+
+      .total-display {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+        color: white;
+        padding: 1.75rem 2rem;
+        border-radius: 16px;
+        margin: 1.5rem 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.4), 0 4px 6px -2px rgba(139, 92, 246, 0.3);
+        position: relative;
+        overflow: hidden;
+
+        &::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
+          animation: rotate 10s linear infinite;
+        }
+
+        @keyframes rotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        .total-label {
+          font-weight: 700;
+          font-size: 1.3rem;
+          position: relative;
+          z-index: 1;
+        }
+
+        .total-value {
+          font-size: 2.5rem;
+          font-weight: 900;
+          position: relative;
+          z-index: 1;
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          letter-spacing: 1px;
+        }
+      }
+
+      .info-note {
+        background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%);
+        border-left: 4px solid #0ea5e9;
+        padding: 1.25rem;
+        border-radius: 10px;
+        color: #075985;
+        margin-top: 1rem;
+        box-shadow: 0 2px 4px rgba(14, 165, 233, 0.1);
+        font-weight: 500;
+
+        strong {
+          color: #0c4a6e;
+          font-weight: 700;
+        }
+      }
+    }
+  }
 }

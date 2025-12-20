@@ -7,38 +7,82 @@
       <button
         class="tab-btn"
         [class.active]="currentExpenseSource === 'Offline'"
-        (click)="switchExpenseSource('Offline')">
+        (click)="switchExpenseSource('Offline')"
+      >
         🏪 Offline Expenses
       </button>
       <button
         class="tab-btn"
         [class.active]="currentExpenseSource === 'Online'"
-        (click)="switchExpenseSource('Online')">
+        (click)="switchExpenseSource('Online')"
+      >
         🌐 Online Expenses
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="currentExpenseSource === 'Operational'"
+        (click)="switchExpenseSource('Operational')"
+      >
+        💼 Operational Costs
       </button>
     </div>
 
     <div class="header-actions">
-      <button class="btn-primary" (click)="openAddModal()">➕ Add Expense</button>
-      <button class="btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
-      <button class="btn-info" (click)="loadSummary()">📊 View Summary</button>
+      <button
+        class="btn-primary"
+        (click)="
+          currentExpenseSource === 'Operational'
+            ? openOperationalAddModal()
+            : openAddModal()
+        "
+      >
+        ➕
+        {{
+          currentExpenseSource === "Operational"
+            ? "Add Monthly Expense"
+            : "Add Expense"
+        }}
+      </button>
+      <button
+        class="btn-secondary"
+        (click)="openUploadModal()"
+        *ngIf="currentExpenseSource !== 'Operational'"
+      >
+        📤 Upload Excel
+      </button>
+      <button
+        class="btn-info"
+        (click)="loadSummary()"
+        *ngIf="currentExpenseSource !== 'Operational'"
+      >
+        📊 View Summary
+      </button>
       <button
         class="btn-secondary"
         (click)="initializeOfflineExpenseTypes()"
-        *ngIf="currentExpenseSource === 'Offline' && offlineExpenseTypes.length === 0">
+        *ngIf="
+          currentExpenseSource === 'Offline' && offlineExpenseTypes.length === 0
+        "
+      >
         🔧 Initialize Offline Types
       </button>
       <button
         class="btn-secondary"
         (click)="initializeOnlineExpenseTypes()"
-        *ngIf="currentExpenseSource === 'Online' && onlineExpenseTypes.length === 0">
+        *ngIf="
+          currentExpenseSource === 'Online' && onlineExpenseTypes.length === 0
+        "
+      >
         🔧 Initialize Online Types
       </button>
     </div>
   </div>
 
   <!-- Summary Section -->
-  <div *ngIf="summary" class="summary-card">
+  <div
+    *ngIf="summary && currentExpenseSource !== 'Operational'"
+    class="summary-card"
+  >
     <h2>Expense Summary - {{ formatDate(summary.date) }}</h2>
     <div class="summary-grid">
       <div class="summary-item">
@@ -48,32 +92,40 @@
     </div>
     <div class="expense-breakdown">
       <h3>Expense Type Breakdown</h3>
-      <div *ngFor="let type of summary.expenseTypeBreakdown | keyvalue" class="breakdown-item">
+      <div
+        *ngFor="let type of summary.expenseTypeBreakdown | keyvalue"
+        class="breakdown-item"
+      >
         <span>{{ getExpenseTypeIcon(type.key) }} {{ type.key }}:</span>
         <span>{{ formatCurrency(+(type.value || 0)) }}</span>
       </div>
     </div>
     <div class="summary-date-picker">
       <label>Summary Date:</label>
-      <input type="date" [(ngModel)]="summaryDate" (change)="loadSummary()">
+      <input type="date" [(ngModel)]="summaryDate" (change)="loadSummary()" />
     </div>
   </div>
 
   <!-- Expenses List -->
-  <div class="expenses-list">
+  <div class="expenses-list" *ngIf="currentExpenseSource !== 'Operational'">
     <div *ngIf="loading" class="loading">Loading...</div>
 
     <div *ngIf="!loading && filteredExpenses.length === 0" class="empty-state">
-      <p>No {{currentExpenseSource.toLowerCase()}} expense records found</p>
+      <p>No {{ currentExpenseSource.toLowerCase() }} expense records found</p>
     </div>
 
     <!-- Year-Month Grouped View -->
-    <div *ngIf="!loading && filteredExpenses.length > 0" class="grouped-expenses">
+    <div
+      *ngIf="!loading && filteredExpenses.length > 0"
+      class="grouped-expenses"
+    >
       <div *ngFor="let year of getYears()" class="year-group">
         <!-- Year Header -->
         <div class="year-header" (click)="toggleYear(year)">
           <div class="year-title">
-            <span class="expand-icon">{{ isYearExpanded(year) ? '▼' : '▶' }}</span>
+            <span class="expand-icon">{{
+              isYearExpanded(year) ? "▼" : "▶"
+            }}</span>
             <strong>📅 {{ year }}</strong>
             <span class="year-stats">{{ getMonths(year).length }} months</span>
           </div>
@@ -88,9 +140,13 @@
             <!-- Month Header -->
             <div class="month-header" (click)="toggleMonth(year, month)">
               <div class="month-title">
-                <span class="expand-icon">{{ isMonthExpanded(year, month) ? '▼' : '▶' }}</span>
+                <span class="expand-icon">{{
+                  isMonthExpanded(year, month) ? "▼" : "▶"
+                }}</span>
                 <strong>{{ month }}</strong>
-                <span class="month-stats">{{ getWeeks(year, month).length }} weeks</span>
+                <span class="month-stats"
+                  >{{ getWeeks(year, month).length }} weeks</span
+                >
               </div>
               <div class="month-total">
                 {{ formatCurrency(getMonthTotal(year, month)) }}
@@ -99,13 +155,26 @@
 
             <!-- Weeks Container -->
             <div *ngIf="isMonthExpanded(year, month)" class="weeks-container">
-              <div *ngFor="let week of getWeeks(year, month)" class="week-group">
+              <div
+                *ngFor="let week of getWeeks(year, month)"
+                class="week-group"
+              >
                 <!-- Week Header -->
-                <div class="week-header" (click)="toggleWeek(year, month, week)">
+                <div
+                  class="week-header"
+                  (click)="toggleWeek(year, month, week)"
+                >
                   <div class="week-title">
-                    <span class="expand-icon">{{ isWeekExpanded(year, month, week) ? '▼' : '▶' }}</span>
+                    <span class="expand-icon">{{
+                      isWeekExpanded(year, month, week) ? "▼" : "▶"
+                    }}</span>
                     <strong>{{ week }}</strong>
-                    <span class="week-stats">{{ groupedExpenses[year][month][week].length }} records</span>
+                    <span class="week-stats"
+                      >{{
+                        groupedExpenses[year][month][week].length
+                      }}
+                      records</span
+                    >
                   </div>
                   <div class="week-total">
                     {{ formatCurrency(getWeekTotal(year, month, week)) }}
@@ -113,11 +182,21 @@
                 </div>
 
                 <!-- Expense Cards -->
-                <div *ngIf="isWeekExpanded(year, month, week)" class="expense-cards">
-                  <div *ngFor="let expense of groupedExpenses[year][month][week]" class="expense-card">
+                <div
+                  *ngIf="isWeekExpanded(year, month, week)"
+                  class="expense-cards"
+                >
+                  <div
+                    *ngFor="let expense of groupedExpenses[year][month][week]"
+                    class="expense-card"
+                  >
                     <div class="expense-header">
-                      <div class="expense-type" [style.color]="getExpenseTypeColor(expense.expenseType)">
-                        {{ getExpenseTypeIcon(expense.expenseType) }} {{ expense.expenseType }}
+                      <div
+                        class="expense-type"
+                        [style.color]="getExpenseTypeColor(expense.expenseType)"
+                      >
+                        {{ getExpenseTypeIcon(expense.expenseType) }}
+                        {{ expense.expenseType }}
                       </div>
                       <div class="expense-amount">
                         {{ formatCurrency(expense.amount) }}
@@ -127,11 +206,15 @@
                     <div class="expense-details">
                       <div class="detail-row">
                         <span class="label">📅 Date:</span>
-                        <span class="value">{{ formatDate(expense.date) }}</span>
+                        <span class="value">{{
+                          formatDate(expense.date)
+                        }}</span>
                       </div>
                       <div class="detail-row">
                         <span class="label">💳 Payment:</span>
-                        <span class="value payment-method">{{ expense.paymentMethod }}</span>
+                        <span class="value payment-method">{{
+                          expense.paymentMethod
+                        }}</span>
                       </div>
                       <div class="detail-row">
                         <span class="label">👤 Recorded By:</span>
@@ -144,10 +227,174 @@
                     </div>
 
                     <div class="expense-actions">
-                      <button class="btn-edit" (click)="openEditModal(expense)">✏️ Edit</button>
-                      <button class="btn-delete" (click)="deleteExpense(expense.id)">🗑️ Delete</button>
+                      <button class="btn-edit" (click)="openEditModal(expense)">
+                        ✏️ Edit
+                      </button>
+                      <button
+                        class="btn-delete"
+                        (click)="deleteExpense(expense.id)"
+                      >
+                        🗑️ Delete
+                      </button>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Expenses Section -->
+  <div
+    class="operational-expenses-section"
+    *ngIf="currentExpenseSource === 'Operational'"
+  >
+    <div class="info-banner">
+      <div class="info-content">
+        <strong>Monthly Operational Costs:</strong> Track cafe operational
+        expenses on a monthly basis. Rent is auto-calculated from offline
+        expenses. All transactions are recorded as Cash.
+      </div>
+    </div>
+
+    <div *ngIf="loading" class="loading">Loading operational expenses...</div>
+
+    <div
+      *ngIf="!loading && operationalExpenses.length === 0"
+      class="empty-state"
+    >
+      <p>📋 No operational expense records found</p>
+      <p>Click "Add Monthly Expense" to create your first record</p>
+    </div>
+
+    <!-- Year Grouped View for Operational -->
+    <div
+      *ngIf="!loading && operationalExpenses.length > 0"
+      class="grouped-expenses operational-grouped"
+    >
+      <div *ngFor="let year of getOperationalYears()" class="year-group operational-year-group">
+        <div class="year-header operational-year-header" (click)="toggleOperationalYear(year)">
+          <div class="year-info">
+            <div class="expand-icon-wrapper">
+              <span
+                class="expand-icon"
+                [class.expanded]="isOperationalYearExpanded(year)"
+                >➤</span
+              >
+            </div>
+            <div class="year-title-section">
+              <h2 class="year-title">💼 {{ year }}</h2>
+              <div class="year-meta">
+                <span class="year-badge">
+                  <span class="badge-icon">📊</span>
+                  {{ groupedOperationalExpenses[year].length }} months
+                </span>
+                <span class="year-badge transactions">
+                  <span class="badge-icon">💰</span>
+                  Total Expenses
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="year-total-section">
+            <span class="total-label">Annual Total</span>
+            <span class="year-total">
+              {{ formatCurrency(getOperationalYearTotal(year)) }}
+            </span>
+          </div>
+        </div>
+
+        <div *ngIf="isOperationalYearExpanded(year)" class="year-content">
+          <div class="operational-cards">
+            <div
+              *ngFor="let expense of groupedOperationalExpenses[year]"
+              class="operational-card"
+            >
+              <div class="operational-header">
+                <div class="operational-month">
+                  <span class="month-icon">📆</span>
+                  <span class="month-text">{{ getMonthName(expense.month) }} {{ expense.year }}</span>
+                </div>
+                <div class="operational-total-badge">
+                  <span class="badge-label">Total</span>
+                  <span class="badge-amount">{{ formatCurrency(expense.totalOperationalCost) }}</span>
+                </div>
+              </div>
+
+              <div class="operational-breakdown">
+                <div class="breakdown-row">
+                  <div class="breakdown-left">
+                    <span class="breakdown-icon">🏠</span>
+                    <span class="breakdown-label">Rent</span>
+                  </div>
+                  <div class="breakdown-right">
+                    <span class="breakdown-value">{{ formatCurrency(expense.rent) }}</span>
+                    <span class="breakdown-note">Auto-calc</span>
+                  </div>
+                </div>
+                <div class="breakdown-row">
+                  <div class="breakdown-left">
+                    <span class="breakdown-icon">👨‍🍳</span>
+                    <span class="breakdown-label">Cook Salary</span>
+                  </div>
+                  <span class="breakdown-value">{{ formatCurrency(expense.cookSalary) }}</span>
+                </div>
+                <div class="breakdown-row">
+                  <div class="breakdown-left">
+                    <span class="breakdown-icon">👷</span>
+                    <span class="breakdown-label">Helper Salary</span>
+                  </div>
+                  <span class="breakdown-value">{{ formatCurrency(expense.helperSalary) }}</span>
+                </div>
+                <div class="breakdown-row">
+                  <div class="breakdown-left">
+                    <span class="breakdown-icon">⚡</span>
+                    <span class="breakdown-label">Electricity</span>
+                  </div>
+                  <span class="breakdown-value">{{ formatCurrency(expense.electricity) }}</span>
+                </div>
+                <div class="breakdown-row">
+                  <div class="breakdown-left">
+                    <span class="breakdown-icon">🔧</span>
+                    <span class="breakdown-label">Machine Maintenance</span>
+                  </div>
+                  <span class="breakdown-value">{{ formatCurrency(expense.machineMaintenance) }}</span>
+                </div>
+                <div class="breakdown-row">
+                  <div class="breakdown-left">
+                    <span class="breakdown-icon">📝</span>
+                    <span class="breakdown-label">Miscellaneous</span>
+                  </div>
+                  <span class="breakdown-value">{{ formatCurrency(expense.misc) }}</span>
+                </div>
+              </div>
+
+              <div *ngIf="expense.notes" class="operational-notes">
+                <em>Note: {{ expense.notes }}</em>
+              </div>
+
+              <div class="operational-footer">
+                <div class="operational-meta">
+                  <span>💳 {{ expense.transactionType }}</span>
+                  <span>👤 {{ expense.recordedBy }}</span>
+                  <span>🕐 {{ formatDate(expense.updatedAt) }}</span>
+                </div>
+                <div class="operational-actions">
+                  <button
+                    class="btn-edit"
+                    (click)="openOperationalEditModal(expense)"
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button
+                    class="btn-delete"
+                    (click)="deleteOperationalExpense(expense.id)"
+                  >
+                    🗑️ Delete
+                  </button>
                 </div>
               </div>
             </div>
@@ -161,7 +408,7 @@
   <div *ngIf="showModal" class="modal-overlay" (click)="closeModal()">
     <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h2>{{ editingId ? 'Edit' : 'Add' }} Expense</h2>
+        <h2>{{ editingId ? "Edit" : "Add" }} Expense</h2>
         <button class="btn-close" (click)="closeModal()">×</button>
       </div>
 
@@ -169,14 +416,19 @@
         <div class="form-row">
           <div class="form-group">
             <label>Date *</label>
-            <input type="date" [(ngModel)]="formData.date" required>
+            <input type="date" [(ngModel)]="formData.date" required />
           </div>
 
           <div class="form-group">
             <label>Expense Type *</label>
             <select [(ngModel)]="formData.expenseType" required>
               <option value="">-- Select Expense Type --</option>
-              <option *ngFor="let type of currentExpenseTypes" [value]="type.expenseType">{{ type.expenseType }}</option>
+              <option
+                *ngFor="let type of currentExpenseTypes"
+                [value]="type.expenseType"
+              >
+                {{ type.expenseType }}
+              </option>
             </select>
           </div>
         </div>
@@ -184,34 +436,54 @@
         <div class="form-row">
           <div class="form-group">
             <label>Amount *</label>
-            <input type="number" [(ngModel)]="formData.amount" min="0" step="0.01" required>
+            <input
+              type="number"
+              [(ngModel)]="formData.amount"
+              min="0"
+              step="0.01"
+              required
+            />
           </div>
 
           <div class="form-group">
             <label>Payment Method *</label>
             <select [(ngModel)]="formData.paymentMethod" required>
-              <option *ngFor="let method of paymentMethods" [value]="method">{{ method }}</option>
+              <option *ngFor="let method of paymentMethods" [value]="method">
+                {{ method }}
+              </option>
             </select>
           </div>
         </div>
 
         <div class="form-group">
           <label>Notes</label>
-          <textarea [(ngModel)]="formData.notes" rows="3" placeholder="Any additional notes..."></textarea>
+          <textarea
+            [(ngModel)]="formData.notes"
+            rows="3"
+            placeholder="Any additional notes..."
+          ></textarea>
         </div>
       </div>
 
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeModal()">Cancel</button>
-        <button class="btn-primary" (click)="saveExpense()" [disabled]="loading">
-          {{ loading ? 'Saving...' : 'Save Expense' }}
+        <button
+          class="btn-primary"
+          (click)="saveExpense()"
+          [disabled]="loading"
+        >
+          {{ loading ? "Saving..." : "Save Expense" }}
         </button>
       </div>
     </div>
   </div>
 
   <!-- Upload Modal -->
-  <div *ngIf="showUploadModal" class="modal-overlay" (click)="closeUploadModal()">
+  <div
+    *ngIf="showUploadModal"
+    class="modal-overlay"
+    (click)="closeUploadModal()"
+  >
     <div class="modal-content upload-modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h2>📤 Upload Expenses from Excel</h2>
@@ -222,11 +494,19 @@
         <div class="upload-instructions">
           <h3>Excel Format</h3>
           <p>Columns: Date, ExpenseType, Amount, PaymentMethod</p>
-          <button class="btn-template" (click)="downloadTemplate()">📥 Download Template</button>
+          <button class="btn-template" (click)="downloadTemplate()">
+            📥 Download Template
+          </button>
         </div>
 
         <div class="file-upload-area">
-          <input type="file" id="fileInput" accept=".xlsx,.xls" (change)="onFileSelected($event)" style="display: none;">
+          <input
+            type="file"
+            id="fileInput"
+            accept=".xlsx,.xls"
+            (change)="onFileSelected($event)"
+            style="display: none"
+          />
           <label for="fileInput" class="upload-label">
             <span *ngIf="!selectedFile">📂 Choose Excel File</span>
             <span *ngIf="selectedFile">{{ selectedFile.name }}</span>
@@ -240,15 +520,199 @@
           <p>{{ uploadResult.message }}</p>
           <ul>
             <li>Processed Records: {{ uploadResult.processedRecords }}</li>
-            <li>Total Amount: {{ formatCurrency(uploadResult.totalAmount) }}</li>
+            <li>
+              Total Amount: {{ formatCurrency(uploadResult.totalAmount) }}
+            </li>
           </ul>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button class="btn-secondary" (click)="closeUploadModal()">Close</button>
-        <button class="btn-primary" (click)="uploadFile()" [disabled]="!selectedFile || uploading">
-          {{ uploading ? 'Uploading...' : 'Upload' }}
+        <button class="btn-secondary" (click)="closeUploadModal()">
+          Close
+        </button>
+        <button
+          class="btn-primary"
+          (click)="uploadFile()"
+          [disabled]="!selectedFile || uploading"
+        >
+          {{ uploading ? "Uploading..." : "Upload" }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Expense Modal -->
+  <div
+    *ngIf="showOperationalModal"
+    class="modal-overlay"
+    (click)="closeOperationalModal()"
+  >
+    <div
+      class="modal-content operational-modal"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-header">
+        <h2>
+          {{ isOperationalEditMode ? "Edit" : "Add" }} Monthly Operational
+          Expense
+        </h2>
+        <button class="btn-close" (click)="closeOperationalModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <form class="operational-form">
+          <!-- Month and Year Selection -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Month *</label>
+              <select
+                [(ngModel)]="operationalFormData.month"
+                name="month"
+                [disabled]="isOperationalEditMode"
+                (change)="calculateRent()"
+                required
+              >
+                <option *ngFor="let month of months" [value]="month.value">
+                  {{ month.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Year *</label>
+              <input
+                type="number"
+                [(ngModel)]="operationalFormData.year"
+                name="year"
+                [disabled]="isOperationalEditMode"
+                (change)="calculateRent()"
+                min="2020"
+                max="2100"
+                required
+              />
+            </div>
+          </div>
+
+          <!-- Calculated Rent -->
+          <div class="rent-display">
+            <div class="rent-label">
+              🏠 Rent (Auto-calculated from Offline Expenses):
+              <button
+                type="button"
+                class="btn-refresh"
+                (click)="calculateRent()"
+                [disabled]="calculatingRent"
+              >
+                {{ calculatingRent ? "⏳" : "🔄" }} Refresh
+              </button>
+            </div>
+            <div class="rent-value">{{ formatCurrency(calculatedRent) }}</div>
+          </div>
+
+          <!-- Salary Fields -->
+          <div class="form-section">
+            <h3>💰 Salaries</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label>👨‍🍳 Cook Salary</label>
+                <input
+                  type="number"
+                  [(ngModel)]="operationalFormData.cookSalary"
+                  name="cookSalary"
+                  min="0"
+                  step="100"
+                />
+              </div>
+              <div class="form-group">
+                <label>👷 Helper Salary</label>
+                <input
+                  type="number"
+                  [(ngModel)]="operationalFormData.helperSalary"
+                  name="helperSalary"
+                  min="0"
+                  step="100"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Utility and Maintenance Fields -->
+          <div class="form-section">
+            <h3>🔧 Utilities & Maintenance</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label>⚡ Electricity</label>
+                <input
+                  type="number"
+                  [(ngModel)]="operationalFormData.electricity"
+                  name="electricity"
+                  min="0"
+                  step="50"
+                />
+              </div>
+              <div class="form-group">
+                <label>🔧 Machine Maintenance</label>
+                <input
+                  type="number"
+                  [(ngModel)]="operationalFormData.machineMaintenance"
+                  name="machineMaintenance"
+                  min="0"
+                  step="50"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Miscellaneous -->
+          <div class="form-group">
+            <label>📝 Miscellaneous</label>
+            <input
+              type="number"
+              [(ngModel)]="operationalFormData.misc"
+              name="misc"
+              min="0"
+              step="50"
+            />
+          </div>
+
+          <!-- Notes -->
+          <div class="form-group">
+            <label>📋 Notes</label>
+            <textarea
+              [(ngModel)]="operationalFormData.notes"
+              name="notes"
+              rows="3"
+              placeholder="Additional notes about this month's operational expenses..."
+            ></textarea>
+          </div>
+
+          <!-- Total Display -->
+          <div class="total-display">
+            <div class="total-label">💼 Total Operational Cost:</div>
+            <div class="total-value">
+              {{ formatCurrency(getTotalOperationalCost()) }}
+            </div>
+          </div>
+
+          <div class="info-note">
+            <strong>Note:</strong> Transaction type is automatically set to
+            <strong>Cash</strong> for all operational expenses.
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeOperationalModal()">
+          Cancel
+        </button>
+        <button
+          class="btn-primary"
+          (click)="saveOperationalExpense()"
+          [disabled]="loading"
+        >
+          {{
+            loading ? "Saving..." : isOperationalEditMode ? "Update" : "Create"
+          }}
         </button>
       </div>
     </div>

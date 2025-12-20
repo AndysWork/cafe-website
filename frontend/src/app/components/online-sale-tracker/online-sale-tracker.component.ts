@@ -3,6 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import {
+  PlatformChargeService,
+  PlatformCharge,
+  CreatePlatformChargeRequest,
+  UpdatePlatformChargeRequest,
+} from '../../services/platform-charge.service';
 
 interface OrderedItem {
   quantity: number;
@@ -56,7 +62,7 @@ interface DailyIncome {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './online-sale-tracker.component.html',
-  styleUrls: ['./online-sale-tracker.component.scss']
+  styleUrls: ['./online-sale-tracker.component.scss'],
 })
 export class OnlineSaleTrackerComponent implements OnInit {
   selectedPlatform: 'Zomato' | 'Swiggy' = 'Zomato';
@@ -72,7 +78,9 @@ export class OnlineSaleTrackerComponent implements OnInit {
   errorMessage = '';
 
   // Date range for filtering - Start from November 1st
-  startDate = new Date(new Date().getFullYear(), 10, 1).toISOString().split('T')[0]; // Month is 0-indexed, 10 = November
+  startDate = new Date(new Date().getFullYear(), 10, 1)
+    .toISOString()
+    .split('T')[0]; // Month is 0-indexed, 10 = November
   endDate = new Date().toISOString().split('T')[0];
 
   // View options
@@ -93,24 +101,66 @@ export class OnlineSaleTrackerComponent implements OnInit {
   }
 
   // Summary stats
-  totalPayout = 0;
   totalOrders = 0;
+  itemSubtotal = 0;
+  packagingCharge = 0;
+  totalDiscount = 0;
   totalDeduction = 0;
+  totalMonthlyCharges = 0;
+  totalPayout = 0;
   averageRating = 0;
 
   // Expose Math to template
   Math = Math;
 
-  constructor(private http: HttpClient) {}
+  // Platform Charges
+  platformCharges: PlatformCharge[] = [];
+  showPlatformCharges = true;
+  showChargeModal = false;
+  isEditingCharge = false;
+  currentChargeId: string | null = null;
+  chargeFormData: CreatePlatformChargeRequest = {
+    platform: 'Zomato',
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    charges: 0,
+    chargeType: '',
+    notes: '',
+  };
+
+  months = [
+    { value: 1, name: 'January' },
+    { value: 2, name: 'February' },
+    { value: 3, name: 'March' },
+    { value: 4, name: 'April' },
+    { value: 5, name: 'May' },
+    { value: 6, name: 'June' },
+    { value: 7, name: 'July' },
+    { value: 8, name: 'August' },
+    { value: 9, name: 'September' },
+    { value: 10, name: 'October' },
+    { value: 11, name: 'November' },
+    { value: 12, name: 'December' },
+  ];
+
+  constructor(
+    private http: HttpClient,
+    private platformChargeService: PlatformChargeService
+  ) {}
 
   ngOnInit(): void {
-    this.loadDailyIncome();
-    this.loadSales();
+    this.loadData();
+    this.loadPlatformCharges();
+  }
+
+  async loadData(): Promise<void> {
+    // Load both sales and daily income, then calculate summary
+    await Promise.all([this.loadSales(), this.loadDailyIncome()]);
+    this.calculateSummary();
   }
 
   onPlatformChange(): void {
-    this.loadSales();
-    this.loadDailyIncome();
+    this.loadData();
   }
 
   onFileSelected(event: any): void {
@@ -119,7 +169,7 @@ export class OnlineSaleTrackerComponent implements OnInit {
       // Validate file type
       const validExtensions = ['.xlsx', '.xls'];
       const fileName = file.name.toLowerCase();
-      const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+      const isValid = validExtensions.some((ext) => fileName.endsWith(ext));
 
       if (!isValid) {
         this.uploadMessage = 'Please select an Excel file (.xlsx or .xls)';
@@ -149,10 +199,9 @@ export class OnlineSaleTrackerComponent implements OnInit {
       formData.append('file', this.selectedFile);
       formData.append('platform', this.selectedPlatform);
 
-      const response: any = await this.http.post(
-        `${environment.apiUrl}/upload/online-sales`,
-        formData
-      ).toPromise();
+      const response: any = await this.http
+        .post(`${environment.apiUrl}/upload/online-sales`, formData)
+        .toPromise();
 
       if (response.success) {
         this.uploadSuccess = true;
@@ -163,7 +212,11 @@ export class OnlineSaleTrackerComponent implements OnInit {
           message += `\nProcessed: ${response.salesProcessed} of ${response.totalRowsInFile} rows`;
         }
 
-        if (response.hasErrors && response.errors && response.errors.length > 0) {
+        if (
+          response.hasErrors &&
+          response.errors &&
+          response.errors.length > 0
+        ) {
           const errorCount = response.errors.length;
           message += `\n\nWarnings/Issues (${errorCount}):`;
           // Show first 10 errors to avoid overwhelming UI
@@ -179,14 +232,15 @@ export class OnlineSaleTrackerComponent implements OnInit {
         this.selectedFile = null;
 
         // Clear file input
-        const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+        const fileInput = document.getElementById(
+          'fileInput'
+        ) as HTMLInputElement;
         if (fileInput) {
           fileInput.value = '';
         }
 
         // Reload data
-        await this.loadSales();
-        await this.loadDailyIncome();
+        await this.loadData();
       } else {
         this.uploadSuccess = false;
         this.uploadMessage = response.message || 'Upload failed';
@@ -196,7 +250,8 @@ export class OnlineSaleTrackerComponent implements OnInit {
       }
     } catch (error: any) {
       this.uploadSuccess = false;
-      this.uploadMessage = error.error?.error || error.error?.message || 'Upload failed';
+      this.uploadMessage =
+        error.error?.error || error.error?.message || 'Upload failed';
       console.error('Upload error:', error);
     } finally {
       this.isUploading = false;
@@ -211,18 +266,20 @@ export class OnlineSaleTrackerComponent implements OnInit {
       const params = new URLSearchParams({
         platform: this.selectedPlatform,
         startDate: this.startDate,
-        endDate: this.endDate
+        endDate: this.endDate,
       });
 
       console.log('Loading sales with params:', {
         platform: this.selectedPlatform,
         startDate: this.startDate,
-        endDate: this.endDate
+        endDate: this.endDate,
       });
 
-      const response: any = await this.http.get(
-        `${environment.apiUrl}/online-sales/date-range?${params.toString()}`
-      ).toPromise();
+      const response: any = await this.http
+        .get(
+          `${environment.apiUrl}/online-sales/date-range?${params.toString()}`
+        )
+        .toPromise();
 
       if (response.success) {
         this.sales = response.data || [];
@@ -246,16 +303,18 @@ export class OnlineSaleTrackerComponent implements OnInit {
     try {
       const params = new URLSearchParams({
         startDate: this.startDate,
-        endDate: this.endDate
+        endDate: this.endDate,
       });
 
-      const response: any = await this.http.get(
-        `${environment.apiUrl}/online-sales/daily-income?${params.toString()}`
-      ).toPromise();
+      const response: any = await this.http
+        .get(
+          `${environment.apiUrl}/online-sales/daily-income?${params.toString()}`
+        )
+        .toPromise();
 
       if (response.success) {
         this.dailyIncome = response.data || [];
-        this.calculateSummary();
+        // Summary is calculated in loadSales() after sales data is loaded
       } else {
         this.errorMessage = response.message || 'Failed to load daily income';
       }
@@ -268,20 +327,65 @@ export class OnlineSaleTrackerComponent implements OnInit {
   }
 
   calculateSummary(): void {
-    const platformData = this.dailyIncome.filter(d => d.platform === this.selectedPlatform);
+    const platformData = this.dailyIncome.filter(
+      (d) => d.platform?.toLowerCase() === this.selectedPlatform.toLowerCase()
+    );
 
-    this.totalPayout = platformData.reduce((sum, d) => sum + d.totalPayout, 0);
     this.totalOrders = platformData.reduce((sum, d) => sum + d.totalOrders, 0);
-    this.totalDeduction = platformData.reduce((sum, d) => sum + d.totalDeduction, 0);
+    this.totalDeduction = platformData.reduce(
+      (sum, d) => sum + d.totalDeduction,
+      0
+    );
+    this.totalDiscount = platformData.reduce(
+      (sum, d) => sum + (d.totalDiscount || 0),
+      0
+    );
+    this.packagingCharge = platformData.reduce(
+      (sum, d) => sum + (d.totalPackaging || 0),
+      0
+    );
 
-    const ratingsSum = platformData.reduce((sum, d) => sum + (d.averageRating || 0), 0);
-    const ratingsCount = platformData.filter(d => d.averageRating > 0).length;
+    // Calculate Item Subtotal directly from sales data (same as Analytics page)
+    const platformSales = this.sales.filter(s => s.platform?.toLowerCase() === this.selectedPlatform.toLowerCase());
+    this.itemSubtotal = platformSales.reduce((sum, s) => sum + (s.billSubTotal || 0), 0);
+
+    // Calculate monthly charges from platform charges
+    const currentMonth = new Date(this.startDate).getMonth() + 1;
+    const currentYear = new Date(this.startDate).getFullYear();
+    const endMonth = new Date(this.endDate).getMonth() + 1;
+    const endYear = new Date(this.endDate).getFullYear();
+
+    this.totalMonthlyCharges = this.platformCharges
+      .filter((pc) => {
+        if (pc.platform !== this.selectedPlatform) return false;
+        // Include charges that fall within the date range
+        if (pc.year < currentYear || pc.year > endYear) return false;
+        if (pc.year === currentYear && pc.year === endYear) {
+          return pc.month >= currentMonth && pc.month <= endMonth;
+        }
+        if (pc.year === currentYear) {
+          return pc.month >= currentMonth;
+        }
+        if (pc.year === endYear) {
+          return pc.month <= endMonth;
+        }
+        return true;
+      })
+      .reduce((sum, pc) => sum + pc.charges, 0);
+
+    // Calculate Total Net Payout = Item Subtotal + Packaging - Discount - Deduction - Monthly Charges
+    this.totalPayout = this.itemSubtotal + this.packagingCharge - this.totalDiscount - this.totalDeduction - this.totalMonthlyCharges;
+
+    const ratingsSum = platformData.reduce(
+      (sum, d) => sum + (d.averageRating || 0),
+      0
+    );
+    const ratingsCount = platformData.filter((d) => d.averageRating > 0).length;
     this.averageRating = ratingsCount > 0 ? ratingsSum / ratingsCount : 0;
   }
 
   onDateRangeChange(): void {
-    this.loadSales();
-    this.loadDailyIncome();
+    this.loadData();
   }
 
   toggleDailyIncome(): void {
@@ -325,8 +429,11 @@ export class OnlineSaleTrackerComponent implements OnInit {
 
   getGroupedDailyIncome(): { [key: string]: DailyIncome[] } {
     const grouped: { [key: string]: DailyIncome[] } = {};
-    this.dailyIncome.forEach(income => {
-      const dateKey = new Date(income.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+    this.dailyIncome.forEach((income) => {
+      const dateKey = new Date(income.date).toLocaleDateString('en-IN', {
+        month: 'short',
+        year: 'numeric',
+      });
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
       }
@@ -335,7 +442,15 @@ export class OnlineSaleTrackerComponent implements OnInit {
     return grouped;
   }
 
-  getMonthTotal(monthData: DailyIncome[], field: 'totalPayout' | 'totalOrders' | 'totalDeduction' | 'totalDiscount' | 'totalPackaging'): number {
+  getMonthTotal(
+    monthData: DailyIncome[],
+    field:
+      | 'totalPayout'
+      | 'totalOrders'
+      | 'totalDeduction'
+      | 'totalDiscount'
+      | 'totalPackaging'
+  ): number {
     return monthData.reduce((sum, item) => sum + item[field], 0);
   }
 
@@ -343,34 +458,44 @@ export class OnlineSaleTrackerComponent implements OnInit {
     return items.reduce((sum, item) => sum + item.quantity, 0);
   }
 
-formatOrderedItems(items: any): string {
-  if (!items) return 'N/A';
+  formatOrderedItems(items: any): string {
+    if (!items) return 'N/A';
 
-  if (typeof items === 'string') {
-    return items;
+    if (typeof items === 'string') {
+      return items;
+    }
+
+    if (Array.isArray(items)) {
+      return items
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          return `${item.name || item.itemName || 'Item'} (${
+            item.quantity || 1
+          }x)`;
+        })
+        .join(', ');
+    }
+
+    if (typeof items === 'object') {
+      return Object.entries(items)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(', ');
+    }
+
+    return String(items);
   }
 
-  if (Array.isArray(items)) {
-    return items.map(item => {
-      if (typeof item === 'string') return item;
-      return `${item.name || item.itemName || 'Item'} (${item.quantity || 1}x)`;
-    }).join(', ');
+  // Calculate Net Payout for individual order
+  // Net Payout = Item Subtotal + Packaging - Discount - Deduction
+  calculateOrderNetPayout(sale: OnlineSale): number {
+    return sale.billSubTotal + sale.packagingCharges - (sale.discountAmount || 0) - sale.platformDeduction;
   }
-
-  if (typeof items === 'object') {
-    return Object.entries(items)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join(', ');
-  }
-
-  return String(items);
-}
 
   formatDate(date: Date | string): string {
     return new Date(date).toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
     });
   }
 
@@ -393,27 +518,28 @@ formatOrderedItems(items: any): string {
       const params = new URLSearchParams({
         platform: this.selectedPlatform,
         startDate: this.startDate,
-        endDate: this.endDate
+        endDate: this.endDate,
       });
 
-      const response: any = await this.http.delete(
-        `${environment.apiUrl}/online-sales/bulk?${params.toString()}`
-      ).toPromise();
+      const response: any = await this.http
+        .delete(`${environment.apiUrl}/online-sales/bulk?${params.toString()}`)
+        .toPromise();
 
       if (response.success) {
         this.uploadSuccess = true;
         this.uploadMessage = `✅ ${response.message}\n\nYou can now upload your Excel file.`;
 
         // Reload data to show empty state
-        await this.loadSales();
-        await this.loadDailyIncome();
+        await this.loadData();
       } else {
         this.uploadSuccess = false;
         this.uploadMessage = `❌ Delete failed: ${response.message}`;
       }
     } catch (error: any) {
       this.uploadSuccess = false;
-      this.uploadMessage = `❌ Error deleting sales: ${error.error?.message || 'Unknown error'}`;
+      this.uploadMessage = `❌ Error deleting sales: ${
+        error.error?.message || 'Unknown error'
+      }`;
       console.error('Delete error:', error);
     } finally {
       this.isDeleting = false;
@@ -430,10 +556,10 @@ formatOrderedItems(items: any): string {
       'Bill Total',
       'Payout',
       'Deduction',
-      'Rating'
+      'Rating',
     ];
 
-    const rows = this.sales.map(sale => [
+    const rows = this.sales.map((sale) => [
       this.formatDate(sale.orderAt),
       sale.platform,
       sale.orderId,
@@ -442,12 +568,12 @@ formatOrderedItems(items: any): string {
       sale.billSubTotal.toFixed(2),
       sale.payout.toFixed(2),
       sale.platformDeduction.toFixed(2),
-      sale.rating || 'N/A'
+      sale.rating || 'N/A',
     ]);
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.join(','))
+      ...rows.map((row) => row.join(',')),
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -458,5 +584,129 @@ formatOrderedItems(items: any): string {
     a.click();
     window.URL.revokeObjectURL(url);
   }
-}
 
+  // Platform Charges Methods
+  loadPlatformCharges(): void {
+    this.platformChargeService.getAllPlatformCharges().subscribe({
+      next: (charges) => {
+        this.platformCharges = charges;
+      },
+      error: (err) => {
+        console.error('Error loading platform charges:', err);
+      },
+    });
+  }
+
+  getMonthName(month: number): string {
+    const monthObj = this.months.find((m) => m.value === month);
+    return monthObj ? monthObj.name : '';
+  }
+
+  getChargesByPlatform(): PlatformCharge[] {
+    return this.platformCharges.filter(
+      (c) => c.platform === this.selectedPlatform
+    );
+  }
+
+  togglePlatformCharges(): void {
+    this.showPlatformCharges = !this.showPlatformCharges;
+  }
+
+  openAddChargeModal(): void {
+    this.isEditingCharge = false;
+    this.currentChargeId = null;
+    this.chargeFormData = {
+      platform: this.selectedPlatform,
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      charges: 0,
+      chargeType: 'Commission',
+      notes: '',
+    };
+    this.showChargeModal = true;
+  }
+
+  openEditChargeModal(charge: PlatformCharge): void {
+    this.isEditingCharge = true;
+    this.currentChargeId = charge.id!;
+    this.chargeFormData = {
+      platform: charge.platform,
+      month: charge.month,
+      year: charge.year,
+      charges: charge.charges,
+      chargeType: charge.chargeType,
+      notes: charge.notes,
+    };
+    this.showChargeModal = true;
+  }
+
+  closeChargeModal(): void {
+    this.showChargeModal = false;
+    this.isEditingCharge = false;
+    this.currentChargeId = null;
+  }
+
+  savePlatformCharge(): void {
+    if (this.isEditingCharge && this.currentChargeId) {
+      const updateRequest: UpdatePlatformChargeRequest = {
+        charges: Number(this.chargeFormData.charges),
+        chargeType: this.chargeFormData.chargeType,
+        notes: this.chargeFormData.notes,
+      };
+
+      this.platformChargeService
+        .updatePlatformCharge(this.currentChargeId, updateRequest)
+        .subscribe({
+          next: () => {
+            alert('Platform charge updated successfully!');
+            this.loadPlatformCharges();
+            this.closeChargeModal();
+          },
+          error: (err) => {
+            console.error('Error updating platform charge:', err);
+            alert('Failed to update platform charge');
+          },
+        });
+    } else {
+      // Convert month and year to numbers (form binding makes them strings)
+      const createRequest: CreatePlatformChargeRequest = {
+        platform: this.chargeFormData.platform,
+        month: Number(this.chargeFormData.month),
+        year: Number(this.chargeFormData.year),
+        charges: Number(this.chargeFormData.charges),
+        chargeType: this.chargeFormData.chargeType,
+        notes: this.chargeFormData.notes,
+      };
+
+      this.platformChargeService
+        .createPlatformCharge(createRequest)
+        .subscribe({
+          next: () => {
+            alert('Platform charge created successfully!');
+            this.loadPlatformCharges();
+            this.closeChargeModal();
+          },
+          error: (err) => {
+            console.error('Error creating platform charge:', err);
+            alert(err.error?.message || 'Failed to create platform charge');
+          },
+        });
+    }
+  }
+
+  deletePlatformCharge(id: string): void {
+    if (!confirm('Are you sure you want to delete this platform charge?'))
+      return;
+
+    this.platformChargeService.deletePlatformCharge(id).subscribe({
+      next: () => {
+        alert('Platform charge deleted successfully!');
+        this.loadPlatformCharges();
+      },
+      error: (err) => {
+        console.error('Error deleting platform charge:', err);
+        alert('Failed to delete platform charge');
+      },
+    });
+  }
+}

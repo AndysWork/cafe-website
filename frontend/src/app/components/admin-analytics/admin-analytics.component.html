@@ -473,6 +473,18 @@
             <p class="amount expense">{{ formatCurrency(earningsData?.onlineExpenses || 0) }}</p>
           </div>
 
+          <div class="breakdown-card" *ngIf="earningsData?.operationalExpenses">
+            <h4>💼 Operational Costs (Proportional)</h4>
+            <p class="amount expense">{{ formatCurrency(earningsData?.operationalExpenses || 0) }}</p>
+            <span class="subtext">Calculated for date range</span>
+          </div>
+
+          <div class="breakdown-card" *ngIf="earningsData?.platformCharges">
+            <h4>🏦 Platform Charges (Proportional)</h4>
+            <p class="amount expense">{{ formatCurrency(earningsData?.platformCharges || 0) }}</p>
+            <span class="subtext">Zomato/Swiggy for date range</span>
+          </div>
+
           <div class="breakdown-card">
             <h4>📊 Total Expenses</h4>
             <p class="amount expense-total">{{ formatCurrency(earningsData?.totalExpenses || 0) }}</p>
@@ -545,93 +557,75 @@
 
       <!-- Overall Summary Cards -->
       <div class="summary-cards">
+        <div class="summary-card">
+          <div class="card-icon">📦</div>
+          <div class="card-content">
+            <h3>Total Orders</h3>
+            <p class="card-value">{{ getActivePlatformData().totalOrders }}</p>
+            <span class="card-subtext">Orders placed</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">🛒</div>
+          <div class="card-content">
+            <h3>Item Subtotal</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().itemSubtotal) }}</p>
+            <span class="card-subtext">Before charges</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">📦</div>
+          <div class="card-content">
+            <h3>Packaging Charge</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalPackaging) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().packagingUsagePercent.toFixed(1) }}% usage</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">🎫</div>
+          <div class="card-content">
+            <h3>Total Discount</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalDiscount) }}</p>
+            <span class="card-subtext">{{ getActivePlatformData().ordersWithDiscount }} orders</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">📊</div>
+          <div class="card-content">
+            <h3>Total Deduction</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalDeduction) }}</p>
+            <span class="card-subtext">Platform commission</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">🏦</div>
+          <div class="card-content">
+            <h3>Total Monthly Charges</h3>
+            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalMonthlyCharges) }}</p>
+            <span class="card-subtext">Platform fees</span>
+          </div>
+        </div>
+
         <div class="summary-card revenue">
           <div class="card-icon">💰</div>
           <div class="card-content">
-            <h3>Total Income (Payout)</h3>
+            <h3>Net Payout</h3>
             <p class="card-value">{{ formatCurrency(getActivePlatformData().totalIncome) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().totalOrders }} orders</span>
-          </div>
-        </div>
-
-        <div class="summary-card average">
-          <div class="card-icon">📊</div>
-          <div class="card-content">
-            <h3>Avg Income/Order</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().avgIncomePerOrder) }}</p>
-            <span class="card-subtext">Per order</span>
-          </div>
-        </div>
-
-        <div class="summary-card daily">
-          <div class="card-icon">📅</div>
-          <div class="card-content">
-            <h3>Daily Average</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().dailyAverage) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().avgOrdersPerDay }} orders/day</span>
+            <span class="card-subtext">Actual earnings</span>
           </div>
         </div>
 
         <div class="summary-card rating">
           <div class="card-icon">⭐</div>
           <div class="card-content">
-            <h3>Avg Rating</h3>
+            <h3>Average Rating</h3>
             <p class="card-value">{{ getActivePlatformData().avgRating.toFixed(1) }} ⭐</p>
             <span class="card-subtext">Customer satisfaction</span>
-          </div>
-        </div>
-
-        <div class="summary-card deduction">
-          <div class="card-icon">📊</div>
-          <div class="card-content">
-            <h3>Platform Deduction</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalDeduction) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().avgDeductionPercent.toFixed(1) }}% avg</span>
-          </div>
-        </div>
-
-        <div class="summary-card distance">
-          <div class="card-icon">🚗</div>
-          <div class="card-content">
-            <h3>Avg Distance</h3>
-            <p class="card-value">{{ getActivePlatformData().avgDistance.toFixed(1) }} km</p>
-            <span class="card-subtext">Per delivery</span>
-          </div>
-        </div>
-
-        <div class="summary-card discount">
-          <div class="card-icon">🎫</div>
-          <div class="card-content">
-            <h3>Total Discounts</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalDiscount) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().ordersWithDiscount }} orders with discount</span>
-          </div>
-        </div>
-
-        <div class="summary-card discount-avg">
-          <div class="card-icon">💳</div>
-          <div class="card-content">
-            <h3>Avg Discount/Order</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().avgDiscountPerOrder) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().discountUsagePercent.toFixed(1) }}% usage rate</span>
-          </div>
-        </div>
-
-        <div class="summary-card packaging">
-          <div class="card-icon">📦</div>
-          <div class="card-content">
-            <h3>Total Packaging</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalPackaging) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().ordersWithPackaging }} orders</span>
-          </div>
-        </div>
-
-        <div class="summary-card packaging-avg">
-          <div class="card-icon">📋</div>
-          <div class="card-content">
-            <h3>Avg Packaging/Order</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().avgPackagingPerOrder) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().packagingUsagePercent.toFixed(1) }}% charged</span>
           </div>
         </div>
       </div>

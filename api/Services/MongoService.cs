@@ -43,6 +43,8 @@ public class MongoService
     private readonly IMongoCollection<PasswordResetToken> _passwordResetTokens;
     private readonly IMongoCollection<DailyCashReconciliation> _cashReconciliations;
     private readonly IMongoCollection<OnlineSale> _onlineSales;
+    private readonly IMongoCollection<OperationalExpense> _operationalExpenses;
+    private readonly IMongoCollection<PlatformCharge> _platformCharges;
     
     public MongoService(IConfiguration config)
     {
@@ -79,6 +81,8 @@ public class MongoService
         _passwordResetTokens = db.GetCollection<PasswordResetToken>("PasswordResetTokens");
         _cashReconciliations = db.GetCollection<DailyCashReconciliation>("CashReconciliations");
         _onlineSales = db.GetCollection<OnlineSale>("OnlineSales");
+        _operationalExpenses = db.GetCollection<OperationalExpense>("OperationalExpenses");
+        _platformCharges = db.GetCollection<PlatformCharge>("PlatformCharges");
 
         // Ensure default admin user exists
         try
@@ -1367,6 +1371,90 @@ public class MongoService
 
     #endregion
 
+    #region OperationalExpense Operations
+
+    // Get all operational expenses
+    public async Task<List<OperationalExpense>> GetAllOperationalExpensesAsync() =>
+        await _operationalExpenses.Find(_ => true)
+            .SortByDescending(e => e.Year)
+            .ThenByDescending(e => e.Month)
+            .ToListAsync();
+
+    // Get operational expense by month and year
+    public async Task<OperationalExpense?> GetOperationalExpenseByMonthYearAsync(int month, int year) =>
+        await _operationalExpenses.Find(e => e.Month == month && e.Year == year)
+            .FirstOrDefaultAsync();
+
+    // Get operational expense by ID
+    public async Task<OperationalExpense?> GetOperationalExpenseByIdAsync(string id) =>
+        await _operationalExpenses.Find(x => x.Id == id).FirstOrDefaultAsync();
+
+    // Calculate rent from offline expenses for a specific month
+    public async Task<decimal> CalculateRentForMonthAsync(int month, int year)
+    {
+        var startDate = new DateTime(year, month, 1);
+        var endDate = startDate.AddMonths(1);
+        
+        var rentExpenses = await _expenses.Find(e => 
+            e.Date >= startDate && 
+            e.Date < endDate && 
+            e.ExpenseType.ToLower() == "rent" &&
+            e.ExpenseSource == "Offline")
+            .ToListAsync();
+        
+        return rentExpenses.Sum(e => e.Amount);
+    }
+
+    // Create new operational expense
+    public async Task<OperationalExpense> CreateOperationalExpenseAsync(OperationalExpense expense)
+    {
+        expense.CreatedAt = GetIstNow();
+        expense.UpdatedAt = GetIstNow();
+        
+        // Calculate rent automatically
+        expense.Rent = await CalculateRentForMonthAsync(expense.Month, expense.Year);
+        
+        // Calculate total operational cost
+        expense.TotalOperationalCost = expense.Rent + expense.CookSalary + 
+            expense.HelperSalary + expense.Electricity + 
+            expense.MachineMaintenance + expense.Misc;
+        
+        await _operationalExpenses.InsertOneAsync(expense);
+        return expense;
+    }
+
+    // Update operational expense
+    public async Task<bool> UpdateOperationalExpenseAsync(string id, OperationalExpense expense)
+    {
+        expense.UpdatedAt = GetIstNow();
+        
+        // Recalculate rent
+        expense.Rent = await CalculateRentForMonthAsync(expense.Month, expense.Year);
+        
+        // Recalculate total operational cost
+        expense.TotalOperationalCost = expense.Rent + expense.CookSalary + 
+            expense.HelperSalary + expense.Electricity + 
+            expense.MachineMaintenance + expense.Misc;
+        
+        var result = await _operationalExpenses.ReplaceOneAsync(x => x.Id == id, expense);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete operational expense
+    public async Task<bool> DeleteOperationalExpenseAsync(string id)
+    {
+        var result = await _operationalExpenses.DeleteOneAsync(x => x.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    // Get operational expenses by year
+    public async Task<List<OperationalExpense>> GetOperationalExpensesByYearAsync(int year) =>
+        await _operationalExpenses.Find(e => e.Year == year)
+            .SortByDescending(e => e.Month)
+            .ToListAsync();
+
+    #endregion
+
     #region SalesItemType Methods
 
     public async Task<List<SalesItemType>> GetAllSalesItemTypesAsync() =>
@@ -2164,6 +2252,72 @@ public class MongoService
             return containsMatch.Id;
 
         return null;
+    }
+
+    #endregion
+
+    #region Platform Charges Methods
+
+    public async Task<List<PlatformCharge>> GetAllPlatformChargesAsync()
+    {
+        return await _platformCharges.Find(_ => true)
+            .SortByDescending(c => c.Year)
+            .ThenByDescending(c => c.Month)
+            .ToListAsync();
+    }
+
+    public async Task<PlatformCharge?> GetPlatformChargeByKeyAsync(string platform, int year, int month)
+    {
+        return await _platformCharges.Find(c => 
+            c.Platform == platform && 
+            c.Year == year && 
+            c.Month == month
+        ).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<PlatformCharge>> GetPlatformChargesByPlatformAsync(string platform)
+    {
+        return await _platformCharges.Find(c => c.Platform == platform)
+            .SortByDescending(c => c.Year)
+            .ThenByDescending(c => c.Month)
+            .ToListAsync();
+    }
+
+    public async Task CreatePlatformChargeAsync(PlatformCharge charge)
+    {
+        await _platformCharges.InsertOneAsync(charge);
+    }
+
+    public async Task<bool> UpdatePlatformChargeAsync(string id, UpdatePlatformChargeRequest request)
+    {
+        var updates = new List<UpdateDefinition<PlatformCharge>>();
+
+        if (request.Charges.HasValue)
+            updates.Add(Builders<PlatformCharge>.Update.Set(c => c.Charges, request.Charges.Value));
+
+        if (request.ChargeType != null)
+            updates.Add(Builders<PlatformCharge>.Update.Set(c => c.ChargeType, request.ChargeType));
+
+        if (request.Notes != null)
+            updates.Add(Builders<PlatformCharge>.Update.Set(c => c.Notes, request.Notes));
+
+        updates.Add(Builders<PlatformCharge>.Update.Set(c => c.UpdatedAt, DateTime.UtcNow));
+
+        if (!updates.Any())
+            return false;
+
+        var result = await _platformCharges.UpdateOneAsync(
+            c => c.Id == id,
+            Builders<PlatformCharge>.Update.Combine(updates)
+        );
+
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> DeletePlatformChargeAsync(string id)
+    {
+        var result = await _platformCharges.DeleteOneAsync(c => c.Id == id);
+        return result.DeletedCount > 0;
     }
 
     #endregion

@@ -64,16 +64,32 @@
   <!-- Summary Stats -->
   <div class="stats-section">
     <div class="stat-card">
-      <div class="stat-label">💰 Total Income (Payout)</div>
-      <div class="stat-value">{{ formatCurrency(totalPayout) }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">📦 Total Orders</div>
+      <div class="stat-label">� Total Orders</div>
       <div class="stat-value">{{ totalOrders }}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">📊 Deduction (Track Only)</div>
+      <div class="stat-label">🛒 Item Subtotal</div>
+      <div class="stat-value">{{ formatCurrency(itemSubtotal) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">📦 Packaging Charge</div>
+      <div class="stat-value">{{ formatCurrency(packagingCharge) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🎫 Total Discount</div>
+      <div class="stat-value">{{ formatCurrency(totalDiscount) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">📊 Total Deduction</div>
       <div class="stat-value">{{ formatCurrency(totalDeduction) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🏦 Total Monthly Charges</div>
+      <div class="stat-value">{{ formatCurrency(totalMonthlyCharges) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">💰 Net Payout</div>
+      <div class="stat-value">{{ formatCurrency(totalPayout) }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">⭐ Average Rating</div>
@@ -106,6 +122,56 @@
     <button (click)="exportToCSV()" class="btn btn-secondary export-btn">
       📊 Export to CSV
     </button>
+  </div>
+
+  <!-- Platform Charges Section -->
+  <div class="platform-charges-section card">
+    <div class="section-header" (click)="togglePlatformCharges()">
+      <h2>💳 Monthly Platform Charges - {{ selectedPlatform }}</h2>
+      <div class="header-actions">
+        <button (click)="openAddChargeModal(); $event.stopPropagation()" class="btn btn-primary">
+          ➕ Add Charge
+        </button>
+        <span class="toggle-icon">{{ showPlatformCharges ? '▼' : '▶' }}</span>
+      </div>
+    </div>
+    <div *ngIf="showPlatformCharges" class="charges-container">
+      <div *ngIf="getChargesByPlatform().length === 0" class="empty-state-small">
+        <p>No charges recorded for {{ selectedPlatform }}</p>
+      </div>
+      <div class="charges-grid">
+        <div *ngFor="let charge of getChargesByPlatform()" class="charge-card">
+          <div class="charge-header">
+            <div class="charge-month">
+              <span class="month-icon">📅</span>
+              <span class="month-text">{{ getMonthName(charge.month) }} {{ charge.year }}</span>
+            </div>
+            <div class="charge-amount">
+              {{ formatCurrency(charge.charges) }}
+            </div>
+          </div>
+          <div class="charge-details">
+            <div *ngIf="charge.chargeType" class="charge-type">
+              <strong>Type:</strong> {{ charge.chargeType }}
+            </div>
+            <div *ngIf="charge.notes" class="charge-notes">
+              <strong>Notes:</strong> {{ charge.notes }}
+            </div>
+            <div class="charge-meta">
+              <span>👤 {{ charge.recordedBy }}</span>
+            </div>
+          </div>
+          <div class="charge-actions">
+            <button class="btn-edit" (click)="openEditChargeModal(charge)">
+              ✏️ Edit
+            </button>
+            <button class="btn-delete" (click)="deletePlatformCharge(charge.id!)">
+              🗑️ Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Loading State -->
@@ -208,7 +274,7 @@
             <th>Bill Total</th>
             <th>Discount</th>
             <th>Packaging</th>
-            <th>Income (Payout)</th>
+            <th>Net Payout</th>
             <th>Deduction (Track)</th>
             <th>Rating</th>
           </tr>
@@ -232,7 +298,7 @@
             <td class="amount">{{ formatCurrency(sale.billSubTotal) }}</td>
             <td class="amount discount-amount">{{ formatCurrency(sale.discountAmount || 0) }}</td>
             <td class="amount packaging-amount">{{ formatCurrency(sale.packagingCharges || 0) }}</td>
-            <td class="amount income-highlight"><strong>{{ formatCurrency(sale.payout) }}</strong></td>
+            <td class="amount income-highlight"><strong>{{ formatCurrency(calculateOrderNetPayout(sale)) }}</strong></td>
             <td class="amount track-only">{{ formatCurrency(sale.platformDeduction) }}</td>
             <td class="text-center">
               <span *ngIf="sale.rating" class="rating">{{ sale.rating }} ⭐</span>
@@ -270,5 +336,103 @@
     <div class="empty-icon">📦</div>
     <h3>No Sales Data Available</h3>
     <p>Upload an Excel file for {{ selectedPlatform }} to get started</p>
+  </div>
+
+  <!-- Platform Charge Modal -->
+  <div *ngIf="showChargeModal" class="modal-overlay" (click)="closeChargeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ isEditingCharge ? 'Edit' : 'Add' }} Platform Charge</h2>
+        <button class="btn-close" (click)="closeChargeModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <form class="charge-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Platform *</label>
+              <select
+                [(ngModel)]="chargeFormData.platform"
+                name="platform"
+                [disabled]="isEditingCharge"
+                required
+              >
+                <option value="Zomato">Zomato</option>
+                <option value="Swiggy">Swiggy</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Month *</label>
+              <select
+                [(ngModel)]="chargeFormData.month"
+                name="month"
+                [disabled]="isEditingCharge"
+                required
+              >
+                <option *ngFor="let month of months" [value]="month.value">
+                  {{ month.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Year *</label>
+              <input
+                type="number"
+                [(ngModel)]="chargeFormData.year"
+                name="year"
+                [disabled]="isEditingCharge"
+                min="2020"
+                max="2100"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Charges Amount (₹) *</label>
+            <input
+              type="number"
+              [(ngModel)]="chargeFormData.charges"
+              name="charges"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Charge Type</label>
+            <input
+              type="text"
+              [(ngModel)]="chargeFormData.chargeType"
+              name="chargeType"
+              placeholder="e.g., Commission, Subscription, Penalty"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea
+              [(ngModel)]="chargeFormData.notes"
+              name="notes"
+              rows="3"
+              placeholder="Additional notes about this charge..."
+            ></textarea>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeChargeModal()">
+          Cancel
+        </button>
+        <button class="btn btn-primary" (click)="savePlatformCharge()">
+          {{ isEditingCharge ? 'Update' : 'Create' }}
+        </button>
+      </div>
+    </div>
   </div>
 </div>

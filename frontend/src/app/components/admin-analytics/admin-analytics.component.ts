@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { SalesService, Sales } from '../../services/sales.service';
 import { ExpenseService, ExpenseAnalytics } from '../../services/expense.service';
+import { OperationalExpenseService } from '../../services/operational-expense.service';
+import { PlatformChargeService } from '../../services/platform-charge.service';
 import { getIstNow, getIstDateString, getIstDaysDifference, convertToIst, formatIstDate, getIstInputDate, getIstStartOfDay, getIstEndOfDay } from '../../utils/date-utils';
 import { environment } from '../../../environments/environment';
 
@@ -64,6 +66,8 @@ export class AdminAnalyticsComponent implements OnInit {
   constructor(
     private salesService: SalesService,
     private expenseService: ExpenseService,
+    private operationalExpenseService: OperationalExpenseService,
+    private platformChargeService: PlatformChargeService,
     private http: HttpClient
   ) {}
 
@@ -99,7 +103,44 @@ export class AdminAnalyticsComponent implements OnInit {
     ).subscribe({
       next: (data) => {
         this.expenseAnalytics = data;
-        this.expenseLoading = false;
+
+        // Add operational expenses to the total
+        if (this.expenseSource === 'All') {
+          this.operationalExpenseService.getAllOperationalExpenses().subscribe({
+            next: (opExpenses) => {
+              const startDate = new Date(this.dateRange.startDate);
+              const endDate = new Date(this.dateRange.endDate);
+
+              let operationalTotal = 0;
+              opExpenses.forEach(opExp => {
+                const expDate = new Date(opExp.year, opExp.month - 1, 1);
+                if (expDate >= startDate && expDate <= endDate) {
+                  operationalTotal += opExp.totalOperationalCost;
+                }
+              });
+
+              // Update the expense analytics with operational expenses included
+              if (this.expenseAnalytics) {
+                this.expenseAnalytics.summary.totalExpenses += operationalTotal;
+
+                // Add operational expenses as a category in the breakdown
+                const summary = this.expenseAnalytics.summary as any;
+                if (!summary.expensesByType) {
+                  summary.expensesByType = {};
+                }
+                summary.expensesByType['Operational Costs'] = operationalTotal;
+              }
+
+              this.expenseLoading = false;
+            },
+            error: (err) => {
+              console.error('Error loading operational expenses:', err);
+              this.expenseLoading = false;
+            }
+          });
+        } else {
+          this.expenseLoading = false;
+        }
       },
       error: (err) => {
         console.error('Error loading expense analytics:', err);
@@ -301,45 +342,64 @@ export class AdminAnalyticsComponent implements OnInit {
   // Online Sales Analytics Methods
   loadOnlineSalesAnalytics() {
     this.onlineLoading = true;
-    this.http.get<any>(`${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`)
-      .subscribe({
-        next: (response) => {
-          const sales = response?.data || [];
-          this.calculateOnlineSalesAnalytics(sales);
-          this.onlineLoading = false;
-        },
-        error: (err) => {
-          console.error('Error loading online sales analytics:', err);
-          this.onlineLoading = false;
-        }
-      });
+
+    // Fetch both online sales and platform charges
+    Promise.all([
+      this.http.get<any>(`${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise(),
+      this.platformChargeService.getAllPlatformCharges().toPromise()
+    ]).then(([salesResponse, platformCharges]) => {
+      console.log('Online Sales Analytics Response:', salesResponse);
+      const sales = salesResponse?.data || [];
+      console.log('Online Sales Data:', sales);
+      console.log('Platform Charges:', platformCharges);
+      console.log('Zomato Sales:', sales.filter((s: any) => s.platform === 'Zomato'));
+      console.log('Swiggy Sales:', sales.filter((s: any) => s.platform === 'Swiggy'));
+      this.calculateOnlineSalesAnalytics(sales, platformCharges || []);
+      this.onlineLoading = false;
+    }).catch(err => {
+      console.error('Error loading online sales analytics:', err);
+      this.onlineLoading = false;
+    });
   }
 
   switchPlatform(platform: 'All' | 'Zomato' | 'Swiggy') {
     this.selectedPlatform = platform;
   }
 
-  calculateOnlineSalesAnalytics(sales: any[]) {
+  calculateOnlineSalesAnalytics(sales: any[], platformCharges: any[]) {
     if (!sales || sales.length === 0) {
       this.onlineAnalytics = null;
       return;
     }
 
-    // Calculate for each platform
-    const zomatoSales = sales.filter(s => s.platform === 'Zomato');
-    const swiggySales = sales.filter(s => s.platform === 'Swiggy');
+    // Calculate for each platform (case-insensitive filtering)
+    const zomatoSales = sales.filter(s => s.platform?.toLowerCase() === 'zomato');
+    const swiggySales = sales.filter(s => s.platform?.toLowerCase() === 'swiggy');
+
+    console.log('Online Sales Analytics Platform Filtering:', {
+      totalSales: sales.length,
+      zomatoCount: zomatoSales.length,
+      swiggyCount: swiggySales.length
+    });
 
     this.onlineAnalytics = {
-      all: this.calculatePlatformMetrics(sales, 'All'),
-      zomato: this.calculatePlatformMetrics(zomatoSales, 'Zomato'),
-      swiggy: this.calculatePlatformMetrics(swiggySales, 'Swiggy')
+      all: this.calculatePlatformMetrics(sales, 'All', platformCharges),
+      zomato: this.calculatePlatformMetrics(zomatoSales, 'Zomato', platformCharges),
+      swiggy: this.calculatePlatformMetrics(swiggySales, 'Swiggy', platformCharges)
     };
   }
 
-  calculatePlatformMetrics(sales: any[], platform: string) {
+  calculatePlatformMetrics(sales: any[], platform: string, platformCharges: any[]) {
+    console.log(`Calculating metrics for ${platform}:`, {
+      salesCount: sales.length,
+      sampleSale: sales[0],
+      platformCharges
+    });
+
     if (sales.length === 0) {
       return {
         totalIncome: 0,
+        itemSubtotal: 0,
         totalOrders: 0,
         avgIncomePerOrder: 0,
         dailyAverage: 0,
@@ -355,6 +415,7 @@ export class AdminAnalyticsComponent implements OnInit {
         avgPackagingPerOrder: 0,
         ordersWithPackaging: 0,
         packagingUsagePercent: 0,
+        totalMonthlyCharges: 0,
         avgDistance: 0,
         minDistance: 0,
         maxDistance: 0,
@@ -368,13 +429,15 @@ export class AdminAnalyticsComponent implements OnInit {
       };
     }
 
-    const totalIncome = sales.reduce((sum, s) => sum + (s.payout || 0), 0);
     const totalOrders = sales.length;
-    const avgIncomePerOrder = totalIncome / totalOrders;
     const totalDeduction = sales.reduce((sum, s) => sum + (s.platformDeduction || 0), 0);
-    const avgDeductionPercent = totalDeduction > 0 && totalIncome > 0
-      ? (totalDeduction / (totalIncome + totalDeduction)) * 100
-      : 0;
+
+    // Calculate Item Subtotal and Packaging
+    const itemSubtotal = sales.reduce((sum, s) => sum + (s.billSubTotal || 0), 0);
+    const totalPackaging = sales.reduce((sum, s) => sum + (s.packagingCharges || 0), 0);
+    const avgPackagingPerOrder = totalPackaging / totalOrders;
+    const ordersWithPackaging = sales.filter(s => (s.packagingCharges || 0) > 0).length;
+    const packagingUsagePercent = totalOrders > 0 ? (ordersWithPackaging / totalOrders) * 100 : 0;
 
     // Discount metrics
     const totalDiscount = sales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
@@ -382,11 +445,59 @@ export class AdminAnalyticsComponent implements OnInit {
     const avgDiscountPerOrder = totalDiscount / totalOrders;
     const discountUsagePercent = totalOrders > 0 ? (ordersWithDiscount / totalOrders) * 100 : 0;
 
+    // Calculate monthly charges from platform charges for this platform and date range
+    const startDate = new Date(this.dateRange.startDate);
+    const endDate = new Date(this.dateRange.endDate);
+    const startMonth = startDate.getMonth() + 1;
+    const startYear = startDate.getFullYear();
+    const endMonth = endDate.getMonth() + 1;
+    const endYear = endDate.getFullYear();
+
+    const totalMonthlyCharges = platformCharges
+      .filter((pc: any) => {
+        // For 'All' platform, include both Zomato and Swiggy
+        if (platform === 'All') {
+          if (pc.platform !== 'Zomato' && pc.platform !== 'Swiggy') return false;
+        } else {
+          if (pc.platform !== platform) return false;
+        }
+        // Include charges that fall within the date range
+        if (pc.year < startYear || pc.year > endYear) return false;
+        if (pc.year === startYear && pc.year === endYear) {
+          return pc.month >= startMonth && pc.month <= endMonth;
+        }
+        if (pc.year === startYear) {
+          return pc.month >= startMonth;
+        }
+        if (pc.year === endYear) {
+          return pc.month <= endMonth;
+        }
+        return true;
+      })
+      .reduce((sum: number, pc: any) => sum + (pc.charges || 0), 0);
+
+    console.log(`${platform} Monthly Charges:`, totalMonthlyCharges);
+
+    // Recalculate Total Net Payout = Item Subtotal + Packaging - Discount - Deduction - Monthly Charges
+    const totalIncome = itemSubtotal + totalPackaging - totalDiscount - totalDeduction - totalMonthlyCharges;
+    console.log(`${platform} Net Payout Calculation:`, {
+      itemSubtotal,
+      totalPackaging,
+      totalDiscount,
+      totalDeduction,
+      totalMonthlyCharges,
+      totalIncome
+    });
+
     // Calculate days in range
     const dates = [...new Set(sales.map(s => new Date(s.orderAt).toDateString()))];
     const daysInRange = dates.length;
     const dailyAverage = totalIncome / Math.max(daysInRange, 1);
     const avgOrdersPerDay = totalOrders / Math.max(daysInRange, 1);
+    const avgIncomePerOrder = totalIncome / totalOrders;
+    const avgDeductionPercent = totalDeduction > 0 && (totalIncome + totalMonthlyCharges) > 0
+      ? (totalDeduction / (totalIncome + totalMonthlyCharges + totalDeduction)) * 100
+      : 0;
 
     // Average rating
     const ratingsWithValues = sales.filter(s => s.rating && s.rating > 0);
@@ -405,12 +516,6 @@ export class AdminAnalyticsComponent implements OnInit {
     const maxDistance = salesWithDistance.length > 0
       ? Math.max(...salesWithDistance.map(s => s.distance))
       : 0;
-
-    // Packaging metrics
-    const totalPackaging = sales.reduce((sum, s) => sum + (s.packagingCharges || 0), 0);
-    const avgPackagingPerOrder = totalPackaging / totalOrders;
-    const ordersWithPackaging = sales.filter(s => (s.packagingCharges || 0) > 0).length;
-    const packagingUsagePercent = totalOrders > 0 ? (ordersWithPackaging / totalOrders) * 100 : 0;
 
     // Common distance range
     const distanceRanges = salesWithDistance.map(s => {
@@ -462,8 +567,10 @@ export class AdminAnalyticsComponent implements OnInit {
     sales.forEach(sale => {
       const dateKey = new Date(sale.orderAt).toISOString().split('T')[0];
       const existing = dailyMap.get(dateKey) || { income: 0, orders: 0 };
+      // Net Payout = Item Subtotal + Packaging - Discount - Deduction
+      const netPayout = (sale.billSubTotal || 0) + (sale.packagingCharges || 0) - (sale.discountAmount || 0) - (sale.platformDeduction || 0);
       dailyMap.set(dateKey, {
-        income: existing.income + (sale.payout || 0),
+        income: existing.income + netPayout,
         orders: existing.orders + 1
       });
     });
@@ -477,8 +584,10 @@ export class AdminAnalyticsComponent implements OnInit {
     sales.forEach(sale => {
       const dayOfWeek = new Date(sale.orderAt).getDay();
       const existing = dayMap.get(dayOfWeek) || { income: 0, orders: 0 };
+      // Peak Days based on Item Subtotal + Packaging Charges
+      const grossRevenue = (sale.billSubTotal || 0) + (sale.packagingCharges || 0);
       dayMap.set(dayOfWeek, {
-        income: existing.income + (sale.payout || 0),
+        income: existing.income + grossRevenue,
         orders: existing.orders + 1
       });
     });
@@ -500,8 +609,10 @@ export class AdminAnalyticsComponent implements OnInit {
       const date = new Date(sale.orderAt);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const existing = monthlyMap.get(monthKey) || { income: 0, orders: 0, ratings: [] };
+      // Net Payout = Item Subtotal + Packaging - Discount - Deduction
+      const netPayout = (sale.billSubTotal || 0) + (sale.packagingCharges || 0) - (sale.discountAmount || 0) - (sale.platformDeduction || 0);
       monthlyMap.set(monthKey, {
-        income: existing.income + (sale.payout || 0),
+        income: existing.income + netPayout,
         orders: existing.orders + 1,
         ratings: sale.rating > 0 ? [...existing.ratings, sale.rating] : existing.ratings
       });
@@ -513,9 +624,25 @@ export class AdminAnalyticsComponent implements OnInit {
         const avgRating = data.ratings.length > 0
           ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length
           : 0;
+
+        // Deduct monthly platform charges for this specific month and platform
+        const monthCharges = platformCharges
+          .filter((pc: any) => {
+            if (platform === 'All') {
+              return (pc.platform === 'Zomato' || pc.platform === 'Swiggy') &&
+                     pc.year === parseInt(year) &&
+                     pc.month === parseInt(month);
+            } else {
+              return pc.platform === platform &&
+                     pc.year === parseInt(year) &&
+                     pc.month === parseInt(month);
+            }
+          })
+          .reduce((sum: number, pc: any) => sum + (pc.charges || 0), 0);
+
         return {
           month: `${monthNames[parseInt(month) - 1]} ${year}`,
-          income: data.income,
+          income: data.income - monthCharges,
           orders: data.orders,
           avgRating
         };
@@ -524,6 +651,7 @@ export class AdminAnalyticsComponent implements OnInit {
 
     return {
       totalIncome,
+      itemSubtotal,
       totalOrders,
       avgIncomePerOrder,
       dailyAverage,
@@ -539,6 +667,7 @@ export class AdminAnalyticsComponent implements OnInit {
       avgPackagingPerOrder,
       ordersWithPackaging,
       packagingUsagePercent,
+      totalMonthlyCharges,
       avgDistance,
       minDistance,
       maxDistance,
@@ -556,6 +685,7 @@ export class AdminAnalyticsComponent implements OnInit {
     if (!this.onlineAnalytics) {
       return {
         totalIncome: 0,
+        itemSubtotal: 0,
         totalOrders: 0,
         avgIncomePerOrder: 0,
         dailyAverage: 0,
@@ -571,6 +701,7 @@ export class AdminAnalyticsComponent implements OnInit {
         avgPackagingPerOrder: 0,
         ordersWithPackaging: 0,
         packagingUsagePercent: 0,
+        totalMonthlyCharges: 0,
         avgDistance: 0,
         minDistance: 0,
         maxDistance: 0,
@@ -717,21 +848,150 @@ export class AdminAnalyticsComponent implements OnInit {
       .filter(s => s.paymentMethod?.toLowerCase() === 'cash')
       .reduce((sum, s) => sum + s.totalAmount, 0);
 
-    // Calculate Zomato/Swiggy online sales (Payout is the actual income)
-    const zomatoSwiggyIncome = onlineSales.reduce((sum, s) => sum + (s.payout || 0), 0);
+    // Calculate Zomato/Swiggy online sales (Net Payout = Subtotal + Packaging - Discount - Deduction)
+    const zomatoSwiggyIncome = onlineSales.reduce((sum, s) => {
+      const netPayout = (s.billSubTotal || 0) + (s.packagingCharges || 0) - (s.discountAmount || 0) - (s.platformDeduction || 0);
+      return sum + netPayout;
+    }, 0);
     const zomatoSwiggyOrders = onlineSales.length;
     const zomatoSwiggyDeductions = onlineSales.reduce((sum, s) => sum + (s.platformDeduction || 0), 0);
     const zomatoSwiggyDiscount = onlineSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
     const zomatoSwiggyPackaging = onlineSales.reduce((sum, s) => sum + (s.packagingCharges || 0), 0);
 
+    console.log('Zomato/Swiggy Income Calculation:', {
+      totalOnlineSales: onlineSales.length,
+      zomatoSwiggyIncome,
+      zomatoSwiggyOrders,
+      zomatoSwiggyDeductions,
+      zomatoSwiggyDiscount,
+      zomatoSwiggyPackaging,
+      sampleSale: onlineSales[0]
+    });
+
     // Breakdown by platform
-    const zomatoSales = onlineSales.filter(s => s.platform === 'Zomato');
-    const swiggySales = onlineSales.filter(s => s.platform === 'Swiggy');
-    const zomatoIncome = zomatoSales.reduce((sum, s) => sum + (s.payout || 0), 0);
-    const swiggyIncome = swiggySales.reduce((sum, s) => sum + (s.payout || 0), 0);
+    const zomatoSales = onlineSales.filter(s => s.platform?.toLowerCase() === 'zomato');
+    const swiggySales = onlineSales.filter(s => s.platform?.toLowerCase() === 'swiggy');
+
+    console.log('Platform Filtering:', {
+      totalOnlineSales: onlineSales.length,
+      zomatoCount: zomatoSales.length,
+      swiggyCount: swiggySales.length,
+      samplePlatforms: onlineSales.slice(0, 5).map(s => ({id: s.orderId, platform: s.platform}))
+    });
+
+    const zomatoIncome = zomatoSales.reduce((sum, s) => {
+      const netPayout = (s.billSubTotal || 0) + (s.packagingCharges || 0) - (s.discountAmount || 0) - (s.platformDeduction || 0);
+      return sum + netPayout;
+    }, 0);
+    const swiggyIncome = swiggySales.reduce((sum, s) => {
+      const netPayout = (s.billSubTotal || 0) + (s.packagingCharges || 0) - (s.discountAmount || 0) - (s.platformDeduction || 0);
+      return sum + netPayout;
+    }, 0);
+
+    console.log('Platform Breakdown:', {
+      zomatoSalesCount: zomatoSales.length,
+      zomatoIncome,
+      swiggySalesCount: swiggySales.length,
+      swiggyIncome
+    });
 
     // Calculate total expenses
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+    // Get operational expenses for the date range with proportional calculation
+    let operationalExpensesTotal = 0;
+    let platformChargesTotal = 0;
+    let zomatoMonthlyCharges = 0;
+    let swiggyMonthlyCharges = 0;
+    const startDate = new Date(this.dateRange.startDate);
+    const endDate = new Date(this.dateRange.endDate);
+
+    // Fetch operational expenses and platform charges, then calculate proportionally
+    Promise.all([
+      this.operationalExpenseService.getAllOperationalExpenses().toPromise(),
+      this.platformChargeService.getAllPlatformCharges().toPromise()
+    ]).then(([opExpenses, platformCharges]) => {
+      // Calculate proportional operational expenses
+      opExpenses = opExpenses || [];
+      opExpenses.forEach(opExp => {
+        const proportionalAmount = this.calculateProportionalMonthlyExpense(
+          opExp.month,
+          opExp.year,
+          opExp.totalOperationalCost,
+          startDate,
+          endDate
+        );
+        operationalExpensesTotal += proportionalAmount;
+      });
+
+      // Calculate proportional platform charges (separate by platform)
+      platformCharges = platformCharges || [];
+      platformCharges.forEach(charge => {
+        const proportionalAmount = this.calculateProportionalMonthlyExpense(
+          charge.month,
+          charge.year,
+          charge.charges,
+          startDate,
+          endDate
+        );
+        platformChargesTotal += proportionalAmount;
+
+        // Track platform-specific charges
+        if (charge.platform?.toLowerCase() === 'zomato') {
+          zomatoMonthlyCharges += proportionalAmount;
+        } else if (charge.platform?.toLowerCase() === 'swiggy') {
+          swiggyMonthlyCharges += proportionalAmount;
+        }
+      });
+
+      // Deduct monthly charges from platform income
+      const zomatoIncomeAfterCharges = zomatoIncome - zomatoMonthlyCharges;
+      const swiggyIncomeAfterCharges = swiggyIncome - swiggyMonthlyCharges;
+      const zomatoSwiggyIncomeAfterCharges = zomatoIncomeAfterCharges + swiggyIncomeAfterCharges;
+
+      console.log('Platform Charges Breakdown:', {
+        zomatoMonthlyCharges,
+        swiggyMonthlyCharges,
+        totalPlatformCharges: platformChargesTotal,
+        zomatoIncomeBeforeCharges: zomatoIncome,
+        zomatoIncomeAfterCharges,
+        swiggyIncomeBeforeCharges: swiggyIncome,
+        swiggyIncomeAfterCharges
+      });
+
+      // Recalculate revenue after deducting monthly charges from platform income
+      const totalRevenueAfterCharges = totalCashCollection + totalOnlineCollection + zomatoSwiggyIncomeAfterCharges;
+
+      // Recalculate totals with proportional monthly expenses
+      const totalExpensesWithMonthly = totalExpenses + operationalExpensesTotal + platformChargesTotal;
+      const netProfitLoss = totalRevenueAfterCharges - totalExpensesWithMonthly;
+      const profitMargin = totalRevenueAfterCharges > 0 ? (netProfitLoss / totalRevenueAfterCharges) * 100 : 0;
+
+      this.earningsData = {
+        ...this.earningsData,
+        // Update with charges-deducted values
+        zomatoIncome: zomatoIncomeAfterCharges,
+        swiggyIncome: swiggyIncomeAfterCharges,
+        zomatoSwiggyIncome: zomatoSwiggyIncomeAfterCharges,
+        onlinePlatformCollection: zomatoSwiggyIncomeAfterCharges,
+        totalCollection: totalCashCollection + totalOnlineCollection + zomatoSwiggyIncomeAfterCharges,
+        totalRevenue: totalRevenueAfterCharges,
+        totalExpenses: totalExpensesWithMonthly,
+        regularExpenses: totalExpenses,
+        operationalExpenses: operationalExpensesTotal,
+        platformCharges: platformChargesTotal,
+        netProfitLoss,
+        profitMargin
+      };
+
+      console.log('Earnings Data Updated with Proportional Monthly Expenses:', {
+        operationalExpenses: operationalExpensesTotal,
+        platformCharges: platformChargesTotal,
+        total: this.earningsData
+      });
+    }).catch(err => {
+      console.error('Error loading monthly expenses for analytics:', err);
+    });
 
     // Calculate offline expenses (cash payment method)
     const offlineExpenses = expenses
@@ -807,8 +1067,11 @@ export class AdminAnalyticsComponent implements OnInit {
       zomatoIncome,
       swiggyIncome,
 
-      // Expenses
+      // Expenses (will be updated with operational expenses and platform charges)
       totalExpenses,
+      regularExpenses: totalExpenses,
+      operationalExpenses: 0,
+      platformCharges: 0,
       offlineExpenses,
       onlineExpenses,
 
@@ -818,13 +1081,65 @@ export class AdminAnalyticsComponent implements OnInit {
       onlinePlatformCollection,
       totalCollection: totalCashCollection + totalOnlineCollection + onlinePlatformCollection,
 
-      // PnL
+      // PnL (will be updated with operational expenses)
       totalRevenue,
       netProfitLoss,
       profitMargin
     };
 
     console.log('Earnings Data Calculated:', this.earningsData);
+  }
+
+  /**
+   * Calculate proportional amount for monthly expenses based on date range overlap
+   * @param month - Month number (1-12)
+   * @param year - Year
+   * @param monthlyAmount - Total monthly expense amount
+   * @param rangeStart - Start date of analytics range
+   * @param rangeEnd - End date of analytics range
+   * @returns Proportional amount for the date range
+   */
+  calculateProportionalMonthlyExpense(
+    month: number,
+    year: number,
+    monthlyAmount: number,
+    rangeStart: Date,
+    rangeEnd: Date
+  ): number {
+    // Get the first and last day of the expense month
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0); // Last day of the month
+
+    // Check if there's any overlap between the month and the date range
+    const overlapStart = new Date(Math.max(monthStart.getTime(), rangeStart.getTime()));
+    const overlapEnd = new Date(Math.min(monthEnd.getTime(), rangeEnd.getTime()));
+
+    // No overlap
+    if (overlapStart > overlapEnd) {
+      return 0;
+    }
+
+    // Calculate days in overlap
+    const daysInOverlap = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Calculate total days in the month
+    const daysInMonth = monthEnd.getDate();
+
+    // Calculate proportional amount
+    const proportionalAmount = (monthlyAmount / daysInMonth) * daysInOverlap;
+
+    console.log('Proportional Calculation:', {
+      month,
+      year,
+      monthlyAmount,
+      daysInMonth,
+      daysInOverlap,
+      proportionalAmount,
+      rangeStart: rangeStart.toISOString().split('T')[0],
+      rangeEnd: rangeEnd.toISOString().split('T')[0]
+    });
+
+    return proportionalAmount;
   }
 }
 
