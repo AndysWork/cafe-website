@@ -96,7 +96,6 @@ public class CreateDailyCashReconciliationRequest
     [Required(ErrorMessage = "Date is required")]
     public DateTime Date { get; set; }
 
-    [Range(0, 10000000, ErrorMessage = "Expected cash must be between 0 and 10,000,000")]
     public decimal ExpectedCash { get; set; }
 
     [Range(0, 100000, ErrorMessage = "Expected coins must be between 0 and 100,000")]

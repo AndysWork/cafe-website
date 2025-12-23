@@ -57,20 +57,48 @@ export class AuthService {
   constructor() {
     // Check if user is already logged in from localStorage
     const token = this.getToken();
-    if (token) {
-      const userJson = localStorage.getItem('currentUser');
-      if (userJson) {
-        try {
-          const user = JSON.parse(userJson);
-          this.currentUserSubject.next(user);
-        } catch (e) {
-          this.logout();
+    const userJson = localStorage.getItem('currentUser');
+
+    if (token && userJson) {
+      try {
+        const user = JSON.parse(userJson);
+        // Validate that the user object has required fields
+        if (user && user.username && user.email && user.role) {
+          // Additional validation: check if token in user matches stored token
+          if (user.token && user.token === token) {
+            this.currentUserSubject.next(user);
+          } else {
+            // Token mismatch, clear stale data
+            console.warn('Token mismatch detected, clearing auth data');
+            this.clearAuthData();
+          }
+        } else {
+          // Invalid user data, clear it
+          this.clearAuthData();
         }
+      } catch (e) {
+        // Failed to parse user data, clear it
+        console.error('Failed to parse user data:', e);
+        this.clearAuthData();
       }
+    } else if (token || userJson) {
+      // Partial data exists (token without user or vice versa), clear everything
+      console.warn('Incomplete auth data detected, clearing all');
+      this.clearAuthData();
     }
   }
 
+  private clearAuthData(): void {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('csrfToken');
+    this.currentUserSubject.next(null);
+  }
+
   login(username: string, password: string): Observable<LoginResponse> {
+    // Clear any existing auth data before login
+    this.clearAuthData();
+
     return this.http.post<ApiLoginResponse>(`${this.apiUrl}/auth/login`, { username, password })
       .pipe(
         tap(apiResponse => {
@@ -107,9 +135,7 @@ export class AuthService {
   }
 
   logout(): void {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('currentUser');
-    this.currentUserSubject.next(null);
+    this.clearAuthData();
   }
 
   getToken(): string | null {

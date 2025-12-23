@@ -31,14 +31,7 @@ interface MenuItem {
   styleUrls: ['./home.component.scss']
 })
 export class HomeComponent implements OnInit {
-  latestMenuItems = [
-    { name: 'Spicy Paneer Burger', category: 'Burgers', price: '₹149', image: '🍔', tag: 'NEW' },
-    { name: 'Chocolate Milkshake', category: 'Beverages', price: '₹129', image: '🥤', tag: 'POPULAR' },
-    { name: 'Veg Momos (8 pcs)', category: 'Momos', price: '₹99', image: '🥟', tag: 'BESTSELLER' },
-    { name: 'English Breakfast', category: 'MTC Classic', price: '₹199', image: '🍳', tag: 'NEW' },
-    { name: 'Herbal Green Tea', category: 'Tea', price: '₹79', image: '🍵', tag: 'HEALTHY' },
-    { name: 'Cheesy Pasta', category: 'Pasta', price: '₹179', image: '🍝', tag: 'CHEF SPECIAL' }
-  ];
+  latestMenuItems: any[] = [];
 
   testimonials = [
     {
@@ -106,9 +99,9 @@ export class HomeComponent implements OnInit {
   categoryColors: string[] = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#D4A574', '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B195'];
 
   stats = [
-    { value: '500+', label: 'Happy Customers', icon: '😊' },
-    { value: '50+', label: 'Menu Items', icon: '🍽️' },
-    { value: '5⭐', label: 'Average Rating', icon: '⭐' },
+    { value: '...', label: 'Happy Customers', icon: '😊' },
+    { value: '...', label: 'Menu Items', icon: '🍽️' },
+    { value: '...', label: 'Average Rating', icon: '⭐' },
     { value: '3+', label: 'Years Serving', icon: '🎉' }
   ];
 
@@ -124,30 +117,114 @@ export class HomeComponent implements OnInit {
 
   ngOnInit() {
     this.startTestimonialRotation();
+    // Load categories first, which will trigger menu items, then stats
     this.loadCategories();
-    this.loadMenuItems();
   }
 
   loadCategories() {
+    console.log('Loading categories from:', `${environment.apiUrl}/categories`);
     this.http.get<Category[]>(`${environment.apiUrl}/categories`).subscribe({
       next: (data) => {
-        this.categories = data;
-        console.log('Categories loaded for home page:', this.categories);
+        console.log('Categories API response:', data);
+        this.categories = data || [];
+        console.log('Categories loaded for home page:', this.categories.length, 'categories');
+        // Load menu items after categories are loaded
+        this.loadMenuItems();
       },
       error: (error) => {
         console.error('Error loading categories:', error);
+        console.error('Error details:', error.message, error.status);
+        // Continue to load menu items even if categories fail
+        this.loadMenuItems();
       }
     });
   }
 
   loadMenuItems() {
-    this.http.get<MenuItem[]>(`${environment.apiUrl}/menu`).subscribe({
+    console.log('Loading menu items from:', `${environment.apiUrl}/menu`);
+    this.http.get<any>(`${environment.apiUrl}/menu`).subscribe({
       next: (data) => {
-        this.menuItems = data;
-        console.log('Menu items loaded for home page:', this.menuItems.length);
+        console.log('Menu items API response:', data);
+        this.menuItems = data || [];
+        console.log('Menu items loaded for home page:', this.menuItems.length, 'items');
+
+        // Update stats after menu items are loaded
+        this.loadStats();
+
+        // Get latest 6 menu items with real data
+        if (this.menuItems && this.menuItems.length > 0) {
+          const latestItems = this.menuItems.slice(0, 6);
+          console.log('Processing latest items:', latestItems);
+          this.latestMenuItems = latestItems.map((item: any, index: number) => {
+            const categoryName = this.getCategoryNameById(item.categoryId);
+            const tags = ['NEW', 'POPULAR', 'BESTSELLER', 'CHEF SPECIAL', 'TRENDING', 'HOT'];
+            const processedItem = {
+              name: item.name || item.catalogueName || item.description || 'Menu Item',
+              category: categoryName || 'Special',
+              price: `₹${item.onlinePrice || item.shopSellingPrice || 99}`,
+              image: this.getCategoryIcon(categoryName),
+              tag: tags[index % tags.length]
+            };
+            console.log('Processed item:', processedItem);
+            return processedItem;
+          });
+          console.log('Latest menu items ready:', this.latestMenuItems);
+        } else {
+          console.warn('No menu items available');
+        }
       },
       error: (error) => {
         console.error('Error loading menu items:', error);
+        console.error('Error details:', error.message, error.status);
+        // Still try to load stats
+        this.loadStats();
+      }
+    });
+  }
+
+  loadStats() {
+    console.log('Loading stats from:', `${environment.apiUrl}/online-sales/all`);
+    // Load online sales to calculate customer count and ratings
+    this.http.get<any>(`${environment.apiUrl}/online-sales/all`).subscribe({
+      next: (response) => {
+        console.log('Stats API response:', response);
+        const sales = response?.data || [];
+        console.log('Sales data:', sales.length, 'sales');
+
+        // Calculate unique customers
+        const uniqueCustomers = new Set(
+          sales
+            .filter((s: any) => s.customerName && s.customerName.trim() !== '')
+            .map((s: any) => s.customerName.trim().toLowerCase())
+        ).size;
+
+        // Calculate average rating from sales with ratings
+        const salesWithRatings = sales.filter((s: any) => s.rating && s.rating > 0);
+        const avgRating = salesWithRatings.length > 0
+          ? (salesWithRatings.reduce((sum: number, s: any) => sum + s.rating, 0) / salesWithRatings.length).toFixed(1)
+          : '5.0';
+
+        console.log('Calculated stats - Customers:', uniqueCustomers, 'Menu items:', this.menuItems.length, 'Rating:', avgRating);
+
+        // Update stats
+        this.stats = [
+          { value: `${uniqueCustomers}+`, label: 'Happy Customers', icon: '😊' },
+          { value: `${this.menuItems.length}+`, label: 'Menu Items', icon: '🍽️' },
+          { value: `${avgRating}⭐`, label: 'Average Rating', icon: '⭐' },
+          { value: '3+', label: 'Years Serving', icon: '🎉' }
+        ];
+        console.log('Stats updated:', this.stats);
+      },
+      error: (error) => {
+        console.error('Error loading stats:', error);
+        console.error('Error details:', error.message, error.status);
+        // Set default stats if error
+        this.stats = [
+          { value: '500+', label: 'Happy Customers', icon: '😊' },
+          { value: `${this.menuItems.length || 100}+`, label: 'Menu Items', icon: '🍽️' },
+          { value: '5.0⭐', label: 'Average Rating', icon: '⭐' },
+          { value: '3+', label: 'Years Serving', icon: '🎉' }
+        ];
       }
     });
   }
