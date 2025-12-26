@@ -57,6 +57,14 @@ export class AdminSalesComponent implements OnInit {
   summaryDate: string = getIstDateString();
   summary: any = null;
 
+  // Item Type Management
+  showItemTypeModal = false;
+  editingItemType: SalesItemType | null = null;
+  itemTypeForm = {
+    itemName: '',
+    defaultPrice: 0
+  };
+
   paymentMethods = ['Cash', 'Card', 'UPI', 'Online'];
 
   constructor(
@@ -477,5 +485,88 @@ export class AdminSalesComponent implements OnInit {
 
   formatCurrency(amount: number): string {
     return `₹${amount.toFixed(2)}`;
+  }
+
+  // Item Type Management Methods
+  openItemTypeModal() {
+    this.showItemTypeModal = true;
+  }
+
+  closeItemTypeModal() {
+    this.showItemTypeModal = false;
+    this.editingItemType = null;
+    this.itemTypeForm = { itemName: '', defaultPrice: 0 };
+  }
+
+  openEditItemType(itemType: SalesItemType) {
+    this.editingItemType = itemType;
+    this.itemTypeForm = {
+      itemName: itemType.itemName,
+      defaultPrice: itemType.defaultPrice
+    };
+  }
+
+  saveItemType() {
+    if (!this.itemTypeForm.itemName || this.itemTypeForm.defaultPrice < 0) {
+      alert('Please provide item name and valid price (0 or greater)');
+      return;
+    }
+
+    this.loading = true;
+
+    if (this.editingItemType) {
+      // Update existing
+      const updated: SalesItemType = {
+        ...this.editingItemType,
+        itemName: this.itemTypeForm.itemName,
+        defaultPrice: this.itemTypeForm.defaultPrice
+      };
+
+      this.salesItemTypeService.updateSalesItemType(this.editingItemType.id, updated).subscribe({
+        next: () => {
+          this.loadSalesItemTypes();
+          this.closeEditItemType();
+          this.loading = false;
+        },
+        error: (err) => {
+          console.error('Error updating item type:', err);
+          alert('Failed to update item type');
+          this.loading = false;
+        }
+      });
+    } else {
+      // Create new
+      this.salesItemTypeService.createSalesItemType(this.itemTypeForm).subscribe({
+        next: () => {
+          this.loadSalesItemTypes();
+          this.closeEditItemType();
+          this.loading = false;
+        },
+        error: (err) => {
+          console.error('Error creating item type:', err);
+          alert('Failed to create item type');
+          this.loading = false;
+        }
+      });
+    }
+  }
+
+  closeEditItemType() {
+    this.editingItemType = null;
+    this.itemTypeForm = { itemName: '', defaultPrice: 0 };
+  }
+
+  deleteItemType(itemType: SalesItemType) {
+    if (!confirm(`Are you sure you want to delete "${itemType.itemName}"?`)) return;
+
+    this.salesItemTypeService.deleteSalesItemType(itemType.id).subscribe({
+      next: () => {
+        this.loadSalesItemTypes();
+      },
+      error: (err) => {
+        console.error('Error deleting item type:', err);
+        alert('Failed to delete item type. It may be in use.');
+      }
+    });
   }
 }

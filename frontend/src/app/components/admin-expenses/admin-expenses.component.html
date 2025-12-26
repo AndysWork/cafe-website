@@ -44,6 +44,13 @@
         }}
       </button>
       <button
+        class="btn-warning"
+        (click)="openExpenseTypeModal()"
+        *ngIf="currentExpenseSource !== 'Operational'"
+      >
+        🛠️ Manage Types
+      </button>
+      <button
         class="btn-secondary"
         (click)="openUploadModal()"
         *ngIf="currentExpenseSource !== 'Operational'"
@@ -252,148 +259,129 @@
     class="operational-expenses-section"
     *ngIf="currentExpenseSource === 'Operational'"
   >
-    <div class="info-banner">
-      <div class="info-content">
-        <strong>Monthly Operational Costs:</strong> Track cafe operational
-        expenses on a monthly basis. Rent is auto-calculated from offline
-        expenses. All transactions are recorded as Cash.
+    <div class="operational-info-banner">
+      <div class="info-icon">💼</div>
+      <div class="info-text">
+        <h3>Monthly Operational Costs</h3>
+        <p>Track fixed monthly expenses. Rent is auto-calculated from daily expenses. All transactions recorded as Cash.</p>
       </div>
     </div>
 
-    <div *ngIf="loading" class="loading">Loading operational expenses...</div>
+    <div *ngIf="loading" class="loading-spinner">
+      <div class="spinner"></div>
+      <p>Loading operational expenses...</p>
+    </div>
 
     <div
       *ngIf="!loading && operationalExpenses.length === 0"
-      class="empty-state"
+      class="empty-state-operational"
     >
-      <p>📋 No operational expense records found</p>
-      <p>Click "Add Monthly Expense" to create your first record</p>
+      <div class="empty-icon">📊</div>
+      <h3>No Operational Records Yet</h3>
+      <p>Start tracking your monthly operational costs</p>
+      <button class="btn-primary" (click)="openOperationalAddModal()">
+        ➕ Add First Record
+      </button>
     </div>
 
     <!-- Year Grouped View for Operational -->
     <div
       *ngIf="!loading && operationalExpenses.length > 0"
-      class="grouped-expenses operational-grouped"
+      class="operational-timeline"
     >
-      <div *ngFor="let year of getOperationalYears()" class="year-group operational-year-group">
-        <div class="year-header operational-year-header" (click)="toggleOperationalYear(year)">
-          <div class="year-info">
-            <div class="expand-icon-wrapper">
-              <span
-                class="expand-icon"
-                [class.expanded]="isOperationalYearExpanded(year)"
-                >➤</span
-              >
-            </div>
-            <div class="year-title-section">
-              <h2 class="year-title">💼 {{ year }}</h2>
-              <div class="year-meta">
-                <span class="year-badge">
-                  <span class="badge-icon">📊</span>
-                  {{ groupedOperationalExpenses[year].length }} months
-                </span>
-                <span class="year-badge transactions">
-                  <span class="badge-icon">💰</span>
-                  Total Expenses
-                </span>
-              </div>
-            </div>
+      <div *ngFor="let year of getOperationalYears()" class="year-section">
+        <div class="year-header-bar" (click)="toggleOperationalYear(year)">
+          <div class="year-left">
+            <span class="expand-icon" [class.expanded]="isOperationalYearExpanded(year)">▶</span>
+            <h2 class="year-title">{{ year }}</h2>
+            <span class="year-badge">{{ groupedOperationalExpenses[year].length }} months</span>
           </div>
-          <div class="year-total-section">
-            <span class="total-label">Annual Total</span>
-            <span class="year-total">
-              {{ formatCurrency(getOperationalYearTotal(year)) }}
-            </span>
+          <div class="year-right">
+            <span class="year-total-label">Annual Total</span>
+            <span class="year-total-amount">{{ formatCurrency(getOperationalYearTotal(year)) }}</span>
           </div>
         </div>
 
-        <div *ngIf="isOperationalYearExpanded(year)" class="year-content">
-          <div class="operational-cards">
+        <div *ngIf="isOperationalYearExpanded(year)" class="year-expenses">
+          <div class="expense-cards-grid">
             <div
               *ngFor="let expense of groupedOperationalExpenses[year]"
-              class="operational-card"
+              class="expense-card-modern"
             >
-              <div class="operational-header">
-                <div class="operational-month">
-                  <span class="month-icon">📆</span>
-                  <span class="month-text">{{ getMonthName(expense.month) }} {{ expense.year }}</span>
+              <div class="card-header-modern">
+                <div class="month-info">
+                  <span class="month-label">{{ getMonthName(expense.month) }}</span>
+                  <span class="year-label">{{ expense.year }}</span>
                 </div>
-                <div class="operational-total-badge">
-                  <span class="badge-label">Total</span>
-                  <span class="badge-amount">{{ formatCurrency(expense.totalOperationalCost) }}</span>
-                </div>
-              </div>
-
-              <div class="operational-breakdown">
-                <div class="breakdown-row">
-                  <div class="breakdown-left">
-                    <span class="breakdown-icon">🏠</span>
-                    <span class="breakdown-label">Rent</span>
-                  </div>
-                  <div class="breakdown-right">
-                    <span class="breakdown-value">{{ formatCurrency(expense.rent) }}</span>
-                    <span class="breakdown-note">Auto-calc</span>
-                  </div>
-                </div>
-                <div class="breakdown-row">
-                  <div class="breakdown-left">
-                    <span class="breakdown-icon">👨‍🍳</span>
-                    <span class="breakdown-label">Cook Salary</span>
-                  </div>
-                  <span class="breakdown-value">{{ formatCurrency(expense.cookSalary) }}</span>
-                </div>
-                <div class="breakdown-row">
-                  <div class="breakdown-left">
-                    <span class="breakdown-icon">👷</span>
-                    <span class="breakdown-label">Helper Salary</span>
-                  </div>
-                  <span class="breakdown-value">{{ formatCurrency(expense.helperSalary) }}</span>
-                </div>
-                <div class="breakdown-row">
-                  <div class="breakdown-left">
-                    <span class="breakdown-icon">⚡</span>
-                    <span class="breakdown-label">Electricity</span>
-                  </div>
-                  <span class="breakdown-value">{{ formatCurrency(expense.electricity) }}</span>
-                </div>
-                <div class="breakdown-row">
-                  <div class="breakdown-left">
-                    <span class="breakdown-icon">🔧</span>
-                    <span class="breakdown-label">Machine Maintenance</span>
-                  </div>
-                  <span class="breakdown-value">{{ formatCurrency(expense.machineMaintenance) }}</span>
-                </div>
-                <div class="breakdown-row">
-                  <div class="breakdown-left">
-                    <span class="breakdown-icon">📝</span>
-                    <span class="breakdown-label">Miscellaneous</span>
-                  </div>
-                  <span class="breakdown-value">{{ formatCurrency(expense.misc) }}</span>
+                <div class="total-badge-modern">
+                  {{ formatCurrency(expense.totalOperationalCost) }}
                 </div>
               </div>
 
-              <div *ngIf="expense.notes" class="operational-notes">
-                <em>Note: {{ expense.notes }}</em>
+              <div class="card-body-modern">
+                <div class="expense-grid">
+                  <div class="expense-item">
+                    <div class="item-label">
+                      <span class="item-icon">🏠</span>
+                      <span>Rent</span>
+                      <span class="auto-badge">AUTO</span>
+                    </div>
+                    <div class="item-value">{{ formatCurrency(expense.rent) }}</div>
+                  </div>
+                  <div class="expense-item">
+                    <div class="item-label">
+                      <span class="item-icon">👨‍🍳</span>
+                      <span>Cook Salary</span>
+                    </div>
+                    <div class="item-value">{{ formatCurrency(expense.cookSalary) }}</div>
+                  </div>
+                  <div class="expense-item">
+                    <div class="item-label">
+                      <span class="item-icon">👷</span>
+                      <span>Helper Salary</span>
+                    </div>
+                    <div class="item-value">{{ formatCurrency(expense.helperSalary) }}</div>
+                  </div>
+                  <div class="expense-item">
+                    <div class="item-label">
+                      <span class="item-icon">⚡</span>
+                      <span>Electricity</span>
+                    </div>
+                    <div class="item-value">{{ formatCurrency(expense.electricity) }}</div>
+                  </div>
+                  <div class="expense-item">
+                    <div class="item-label">
+                      <span class="item-icon">🔧</span>
+                      <span>Maintenance</span>
+                    </div>
+                    <div class="item-value">{{ formatCurrency(expense.machineMaintenance) }}</div>
+                  </div>
+                  <div class="expense-item">
+                    <div class="item-label">
+                      <span class="item-icon">📝</span>
+                      <span>Miscellaneous</span>
+                    </div>
+                    <div class="item-value">{{ formatCurrency(expense.misc) }}</div>
+                  </div>
+                </div>
+
+                <div *ngIf="expense.notes" class="expense-notes-modern">
+                  💭 {{ expense.notes }}
+                </div>
               </div>
 
-              <div class="operational-footer">
-                <div class="operational-meta">
-                  <span>💳 {{ expense.transactionType }}</span>
-                  <span>👤 {{ expense.recordedBy }}</span>
-                  <span>🕐 {{ formatDate(expense.updatedAt) }}</span>
+              <div class="card-footer-modern">
+                <div class="footer-meta">
+                  <span class="meta-item">💳 {{ expense.transactionType }}</span>
+                  <span class="meta-item">👤 {{ expense.recordedBy }}</span>
+                  <span class="meta-item">🕐 {{ formatDate(expense.updatedAt) }}</span>
                 </div>
-                <div class="operational-actions">
-                  <button
-                    class="btn-edit"
-                    (click)="openOperationalEditModal(expense)"
-                  >
-                    ✏️ Edit
+                <div class="footer-actions">
+                  <button class="btn-action-edit" (click)="openOperationalEditModal(expense)">
+                    ✏️
                   </button>
-                  <button
-                    class="btn-delete"
-                    (click)="deleteOperationalExpense(expense.id)"
-                  >
-                    🗑️ Delete
+                  <button class="btn-action-delete" (click)="deleteOperationalExpense(expense.id)">
+                    🗑️
                   </button>
                 </div>
               </div>
@@ -714,6 +702,61 @@
             loading ? "Saving..." : isOperationalEditMode ? "Update" : "Create"
           }}
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expense Type Management Modal -->
+  <div *ngIf="showExpenseTypeModal" class="modal-overlay" (click)="closeExpenseTypeModal()">
+    <div class="modal-content large-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>🛠️ Manage {{ currentExpenseSource }} Expense Types</h2>
+        <button class="btn-close" (click)="closeExpenseTypeModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Add/Edit Form -->
+        <div class="expense-type-form">
+          <h3>{{ editingExpenseType ? 'Edit' : 'Add New' }} Expense Type</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Expense Type Name *</label>
+              <input type="text" [(ngModel)]="expenseTypeForm.expenseType" placeholder="e.g., Milk, Sugar" required>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary" (click)="saveExpenseType()" [disabled]="loading">
+                {{ editingExpenseType ? '💾 Update' : '➕ Add' }}
+              </button>
+              <button *ngIf="editingExpenseType" class="btn-secondary" (click)="closeEditExpenseType()">Cancel Edit</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Types List -->
+        <div class="expense-types-list">
+          <h3>Existing {{ currentExpenseSource }} Expense Types ({{ currentExpenseTypes.length }})</h3>
+          <div class="types-grid">
+            <div *ngFor="let type of currentExpenseTypes" class="expense-type-card">
+              <div class="type-info">
+                <strong>{{ type.expenseType }}</strong>
+                <span class="status-badge" [class.inactive]="!type.isActive">
+                  {{ type.isActive ? '✅ Active' : '❌ Inactive' }}
+                </span>
+              </div>
+              <div class="type-actions">
+                <button class="btn-edit-small" (click)="openEditExpenseType(type)" title="Edit">✏️</button>
+                <button class="btn-delete-small" (click)="deleteExpenseType(type)" title="Delete">🗑️</button>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="currentExpenseTypes.length === 0" class="empty-state">
+            <p>No expense types found. Add your first expense type above or use the Initialize button.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeExpenseTypeModal()">Close</button>
       </div>
     </div>
   </div>

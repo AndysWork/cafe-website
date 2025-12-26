@@ -1,0 +1,662 @@
+<div class="price-calculator-container">
+  <!-- Header -->
+  <div class="calculator-header">
+    <div class="header-left">
+      <span class="header-icon">🧮</span>
+      <div class="header-text">
+        <h1>Menu Item Price Calculator</h1>
+        <p>Calculate accurate pricing for menu items based on ingredient costs and overheads</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div class="tab-navigation">
+    <button
+      class="tab-btn"
+      [class.active]="activeTab === 'calculator'"
+      (click)="activeTab = 'calculator'">
+      <span class="tab-icon">🧮</span>
+      Calculator
+    </button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab === 'ingredients'"
+      (click)="activeTab = 'ingredients'">
+      <span class="tab-icon">🥕</span>
+      Ingredients ({{ingredients.length}})
+    </button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab === 'recipes'"
+      (click)="activeTab = 'recipes'">
+      <span class="tab-icon">📋</span>
+      Saved Recipes ({{recipes.length}})
+    </button>
+  </div>
+
+  <!-- CALCULATOR TAB -->
+  <div class="tab-content" *ngIf="activeTab === 'calculator'">
+    <div class="calculator-grid">
+      <!-- Left Panel: Recipe Builder -->
+      <div class="recipe-builder-panel">
+        <div class="panel-header">
+          <h2>📝 Recipe Builder</h2>
+          <div class="header-actions">
+            <button class="btn-action" (click)="newRecipe()" title="New Recipe">
+              <span>➕</span> New
+            </button>
+            <button class="btn-action btn-save" (click)="saveCurrentRecipe()" title="Save Recipe">
+              <span>💾</span> Save
+            </button>
+          </div>
+        </div>
+
+        <!-- Menu Item Name -->
+        <div class="form-section">
+          <label>Menu Item Name <span class="required">*</span></label>
+          <input
+            type="text"
+            list="menuItemsList"
+            [(ngModel)]="currentRecipe.menuItemName"
+            (change)="onMenuItemNameChange()"
+            placeholder="e.g., Chicken Biryani, Paneer Butter Masala"
+            class="form-input">
+          <datalist id="menuItemsList">
+            <option *ngFor="let item of menuItems" [value]="item.name"></option>
+          </datalist>
+          <small class="form-hint">💡 Start typing to select from existing menu items or enter a new name</small>
+        </div>
+
+        <!-- Add Ingredients Section -->
+        <div class="form-section">
+          <h3>🥘 Add Ingredients</h3>
+          <div class="add-ingredient-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Select Ingredient</label>
+                <select
+                  class="form-select"
+                  (change)="onIngredientSelect($event)">
+                  <option value="">-- Choose Ingredient --</option>
+                  <option *ngFor="let ing of filteredIngredients" [value]="ing.id">
+                    {{ing.name}} (₹{{ing.marketPrice}}/{{ing.unit}})
+                  </option>
+                </select>
+              </div>
+              <div class="form-group form-group-small">
+                <label>Quantity</label>
+                <input
+                  type="number"
+                  [(ngModel)]="ingredientQuantity"
+                  min="0"
+                  step="0.01"
+                  class="form-input">
+              </div>
+              <div class="form-group form-group-small">
+                <label>Unit</label>
+                <select class="form-select" [(ngModel)]="ingredientUnit">
+                  <option *ngFor="let unit of units" [value]="unit.value">
+                    {{unit.label}}
+                  </option>
+                </select>
+              </div>
+              <div class="form-group form-group-btn">
+                <button class="btn-add" (click)="addIngredientToRecipe()">
+                  <span>➕</span> Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ingredients List -->
+        <div class="ingredients-list" *ngIf="currentRecipe.ingredients.length > 0">
+          <h4>📦 Ingredients ({{currentRecipe.ingredients.length}})</h4>
+          <div class="ingredient-items">
+            <div class="ingredient-item" *ngFor="let ing of currentRecipe.ingredients; let i = index">
+              <div class="ingredient-info">
+                <span class="ingredient-name">{{ing.ingredientName}}</span>
+                <span class="ingredient-qty">{{ing.quantity}} {{ing.unit}}</span>
+              </div>
+              <div class="ingredient-actions">
+                <span class="ingredient-cost">₹{{ing.totalCost.toFixed(2)}}</span>
+                <button class="btn-remove" (click)="removeIngredientFromRecipe(i)" title="Remove">
+                  ❌
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="ingredients-total">
+            <strong>Ingredients Subtotal:</strong>
+            <strong>₹{{currentRecipe.totalIngredientCost.toFixed(2)}}</strong>
+          </div>
+        </div>
+
+        <!-- Overhead Costs -->
+        <div class="form-section">
+          <h3>💰 Overhead Costs (Per Item)</h3>
+          <div class="overhead-grid">
+            <div class="form-group">
+              <label>Labour Charge (₹)</label>
+              <input
+                type="number"
+                [(ngModel)]="currentRecipe.overheadCosts.labourCharge"
+                (ngModelChange)="calculatePrice()"
+                min="0"
+                step="0.5"
+                class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Rent Allocation (₹)</label>
+              <input
+                type="number"
+                [(ngModel)]="currentRecipe.overheadCosts.rentAllocation"
+                (ngModelChange)="calculatePrice()"
+                min="0"
+                step="0.5"
+                class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Electricity (₹)</label>
+              <input
+                type="number"
+                [(ngModel)]="currentRecipe.overheadCosts.electricityCharge"
+                (ngModelChange)="calculatePrice()"
+                min="0"
+                step="0.5"
+                class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Wastage (%)</label>
+              <input
+                type="number"
+                [(ngModel)]="currentRecipe.overheadCosts.wastagePercentage"
+                (ngModelChange)="calculatePrice()"
+                min="0"
+                max="100"
+                step="1"
+                class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Miscellaneous (₹)</label>
+              <input
+                type="number"
+                [(ngModel)]="currentRecipe.overheadCosts.miscellaneous"
+                (ngModelChange)="calculatePrice()"
+                min="0"
+                step="0.5"
+                class="form-input">
+            </div>
+          </div>
+        </div>
+
+        <!-- Profit Margin -->
+        <div class="form-section">
+          <h3>📈 Profit Margin</h3>
+          <div class="form-group">
+            <label>Profit Margin (%)</label>
+            <input
+              type="number"
+              [(ngModel)]="currentRecipe.profitMargin"
+              (ngModelChange)="calculatePrice()"
+              min="0"
+              max="200"
+              step="5"
+              class="form-input">
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-section">
+          <label>Notes (Optional)</label>
+          <textarea
+            [(ngModel)]="currentRecipe.notes"
+            placeholder="Add any notes about this recipe..."
+            class="form-textarea"
+            rows="3"></textarea>
+        </div>
+      </div>
+
+      <!-- Right Panel: Cost Breakdown -->
+      <div class="cost-breakdown-panel">
+        <div class="panel-header">
+          <h2>💵 Cost Breakdown</h2>
+        </div>
+
+        <div class="breakdown-content" *ngIf="calculation; else noCalculation">
+          <!-- Summary Cards -->
+          <div class="summary-cards">
+            <div class="summary-card card-making">
+              <div class="card-label">Total Making Cost</div>
+              <div class="card-value">₹{{calculation.breakdown.makingCost.toFixed(2)}}</div>
+            </div>
+            <div class="summary-card card-selling">
+              <div class="card-label">Suggested Selling Price</div>
+              <div class="card-value">₹{{calculation.breakdown.sellingPrice.toFixed(2)}}</div>
+            </div>
+          </div>
+
+          <!-- Detailed Breakdown -->
+          <div class="breakdown-section">
+            <h4>🧾 Detailed Cost Analysis</h4>
+
+            <!-- Ingredient Costs -->
+            <div class="breakdown-group">
+              <div class="breakdown-header">
+                <span>📦 Ingredient Costs</span>
+                <span class="breakdown-amount">₹{{calculation.breakdown.ingredientSubtotal.toFixed(2)}}</span>
+              </div>
+              <div class="breakdown-items">
+                <div class="breakdown-item" *ngFor="let ing of calculation.breakdown.ingredients">
+                  <span class="item-name">{{ing.ingredientName}} ({{ing.quantity}} {{ing.unit}})</span>
+                  <span class="item-value">₹{{ing.totalCost.toFixed(2)}}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Overhead Costs -->
+            <div class="breakdown-group">
+              <div class="breakdown-header">
+                <span>🏢 Overhead Costs</span>
+                <span class="breakdown-amount">₹{{calculation.breakdown.overheadSubtotal.toFixed(2)}}</span>
+              </div>
+              <div class="breakdown-items">
+                <div class="breakdown-item">
+                  <span class="item-name">👷 Labour Charge</span>
+                  <span class="item-value">₹{{calculation.breakdown.labour.toFixed(2)}}</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="item-name">🏠 Rent Allocation</span>
+                  <span class="item-value">₹{{calculation.breakdown.rent.toFixed(2)}}</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="item-name">⚡ Electricity</span>
+                  <span class="item-value">₹{{calculation.breakdown.electricity.toFixed(2)}}</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="item-name">🗑️ Wastage ({{currentRecipe.overheadCosts.wastagePercentage}}%)</span>
+                  <span class="item-value">₹{{calculation.breakdown.wastage.toFixed(2)}}</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="item-name">📌 Miscellaneous</span>
+                  <span class="item-value">₹{{calculation.breakdown.miscellaneous.toFixed(2)}}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Profit -->
+            <div class="breakdown-group">
+              <div class="breakdown-header">
+                <span>📈 Profit ({{calculation.breakdown.profitPercentage}}%)</span>
+                <span class="breakdown-amount profit">₹{{calculation.breakdown.profitAmount.toFixed(2)}}</span>
+              </div>
+            </div>
+
+            <!-- Final Price -->
+            <div class="final-price-box">
+              <div class="price-row">
+                <span class="price-label">Making Cost:</span>
+                <span class="price-value">₹{{calculation.breakdown.makingCost.toFixed(2)}}</span>
+              </div>
+              <div class="price-row">
+                <span class="price-label">Profit:</span>
+                <span class="price-value">₹{{calculation.breakdown.profitAmount.toFixed(2)}}</span>
+              </div>
+              <div class="price-row price-total">
+                <span class="price-label">Final Selling Price:</span>
+                <span class="price-value">₹{{calculation.breakdown.sellingPrice.toFixed(2)}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ng-template #noCalculation>
+          <div class="no-data-state">
+            <span class="no-data-icon">📊</span>
+            <p>Add ingredients to see cost breakdown</p>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <!-- INGREDIENTS TAB -->
+  <div class="tab-content" *ngIf="activeTab === 'ingredients'">
+    <div class="ingredients-management">
+      <div class="management-header">
+        <div class="search-filter">
+          <input
+            type="text"
+            [(ngModel)]="ingredientSearchTerm"
+            placeholder="🔍 Search ingredients..."
+            class="search-input">
+          <select class="filter-select" [(ngModel)]="selectedCategory">
+            <option value="">All Categories</option>
+            <option *ngFor="let cat of categories" [value]="cat.value">
+              {{cat.label}}
+            </option>
+          </select>
+        </div>
+        <div class="management-actions">
+          <button class="btn-primary" (click)="openIngredientModal()">
+            <span>➕</span> Add Ingredient
+          </button>
+          <button class="btn-secondary" (click)="bulkRefreshPrices()" [disabled]="isRefreshingPrice">
+            <span>{{ isRefreshingPrice ? '⏳' : '🔄' }}</span> Bulk Refresh Prices
+          </button>
+          <button class="btn-secondary" (click)="resetIngredients()">
+            <span>🔄</span> Reset to Defaults
+          </button>
+        </div>
+      </div>
+
+      <div class="ingredients-grid">
+        <div class="ingredient-card" *ngFor="let ing of filteredIngredients">
+          <div class="card-header">
+            <h4>{{ing.name}}</h4>
+            <div class="card-badges">
+              <span class="category-badge">{{getCategoryLabel(ing.category)}}</span>
+              <span class="source-badge" [ngClass]="getPriceSourceBadge(ing.priceSource).class">
+                {{getPriceSourceBadge(ing.priceSource).label}}
+              </span>
+            </div>
+          </div>
+          <div class="card-body">
+            <!-- Inline Edit Mode -->
+            <div class="inline-edit-mode" *ngIf="isEditingInline(ing)">
+              <div class="inline-edit-form">
+                <div class="form-group">
+                  <label>Price (₹)</label>
+                  <input type="number"
+                         [(ngModel)]="inlineEditForm.price"
+                         min="0"
+                         step="0.5"
+                         class="form-input"
+                         (keyup.enter)="saveInlineEdit(ing)"
+                         (keyup.escape)="cancelInlineEdit()">
+                </div>
+                <div class="form-group">
+                  <label>Unit</label>
+                  <select [(ngModel)]="inlineEditForm.unit" class="form-input">
+                    <option *ngFor="let unit of measurementUnits" [value]="unit.value">
+                      {{unit.label}}
+                    </option>
+                  </select>
+                </div>
+                <div class="inline-edit-actions">
+                  <button class="btn-save" (click)="saveInlineEdit(ing)">
+                    ✓ Save
+                  </button>
+                  <button class="btn-cancel" (click)="cancelInlineEdit()">
+                    ✕ Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Display Mode -->
+            <div class="price-display" *ngIf="!isEditingInline(ing)">
+              <span class="price-label">Market Price:</span>
+              <span class="price-amount">₹{{ing.marketPrice}}/{{ing.unit}}</span>
+              <span *ngIf="ing.priceChangePercentage"
+                    class="price-change"
+                    [ngClass]="getPriceChangeClass(ing.priceChangePercentage)">
+                {{ing.priceChangePercentage > 0 ? '+' : ''}}{{ing.priceChangePercentage.toFixed(2)}}%
+              </span>
+              <button class="btn-inline-edit" (click)="startInlineEdit(ing)" title="Quick Edit Price">
+                ✏️
+              </button>
+            </div>
+            <div class="meta-info" *ngIf="!isEditingInline(ing)">
+              <span class="meta-item">📏 Unit: {{getUnitLabel(ing.unit)}}</span>
+              <span class="meta-item" *ngIf="ing.lastPriceFetch">
+                🕐 Updated: {{ing.lastPriceFetch | date:'short'}}
+              </span>
+            </div>
+            <div class="auto-update-toggle" *ngIf="ing.id && !isEditingInline(ing)">
+              <label class="toggle-label">
+                <input type="checkbox"
+                       [checked]="ing.autoUpdateEnabled"
+                       (change)="toggleAutoUpdate(ing)">
+                <span class="toggle-text">Auto-update enabled</span>
+              </label>
+            </div>
+          </div>
+          <div class="card-footer" *ngIf="!isEditingInline(ing)">
+            <button class="btn-icon" (click)="openIngredientModal(ing)" title="Full Edit">
+              ⚙️
+            </button>
+            <button class="btn-icon"
+                    (click)="refreshIngredientPrice(ing)"
+                    [disabled]="refreshingIngredientId === ing.id"
+                    title="Refresh Price">
+              {{ refreshingIngredientId === ing.id ? '⏳' : '🔄' }}
+            </button>
+            <button class="btn-icon"
+                    (click)="openPriceHistory(ing)"
+                    title="Price History">
+              📊
+            </button>
+            <button class="btn-icon btn-delete" (click)="deleteIngredient(ing.id)" title="Delete">
+              🗑️
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="no-data-state" *ngIf="filteredIngredients.length === 0">
+        <span class="no-data-icon">🥕</span>
+        <p>No ingredients found</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECIPES TAB -->
+  <div class="tab-content" *ngIf="activeTab === 'recipes'">
+    <div class="recipes-management">
+      <div class="recipes-grid">
+        <div class="recipe-card" *ngFor="let recipe of recipes">
+          <div class="card-header">
+            <h4>{{recipe.menuItemName}}</h4>
+          </div>
+          <div class="card-body">
+            <div class="recipe-stats">
+              <div class="stat-item">
+                <span class="stat-label">Ingredients:</span>
+                <span class="stat-value">{{recipe.ingredients.length}}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Making Cost:</span>
+                <span class="stat-value">₹{{recipe.totalMakingCost.toFixed(2)}}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Selling Price:</span>
+                <span class="stat-value selling">₹{{recipe.suggestedSellingPrice.toFixed(2)}}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Profit:</span>
+                <span class="stat-value profit">{{recipe.profitMargin}}%</span>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <button class="btn-edit" (click)="loadRecipe(recipe)">
+              <span>📝</span> Edit
+            </button>
+            <button class="btn-delete" (click)="deleteRecipe(recipe.id)">
+              <span>🗑️</span> Delete
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="no-data-state" *ngIf="recipes.length === 0">
+        <span class="no-data-icon">📋</span>
+        <p>No saved recipes yet</p>
+        <button class="btn-primary" (click)="activeTab = 'calculator'">
+          Create Your First Recipe
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INGREDIENT MODAL -->
+  <div class="modal-overlay" *ngIf="showIngredientModal" (click)="closeIngredientModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{editingIngredient ? 'Edit' : 'Add'}} Ingredient</h3>
+        <button class="btn-close" (click)="closeIngredientModal()">✖</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Ingredient Name <span class="required">*</span></label>
+          <input
+            type="text"
+            [(ngModel)]="ingredientForm.name"
+            placeholder="e.g., Onion, Tomato"
+            class="form-input">
+        </div>
+        <div class="form-group">
+          <label>Category <span class="required">*</span></label>
+          <select class="form-select" [(ngModel)]="ingredientForm.category">
+            <option *ngFor="let cat of categories" [value]="cat.value">
+              {{cat.label}}
+            </option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Market Price (₹) <span class="required">*</span></label>
+            <input
+              type="number"
+              [(ngModel)]="ingredientForm.marketPrice"
+              min="0"
+              step="0.01"
+              class="form-input">
+          </div>
+          <div class="form-group">
+            <label>Unit <span class="required">*</span></label>
+            <select class="form-select" [(ngModel)]="ingredientForm.unit">
+              <option *ngFor="let unit of units" [value]="unit.value">
+                {{unit.label}}
+              </option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeIngredientModal()">Cancel</button>
+        <button class="btn-primary" (click)="saveIngredient()">
+          {{editingIngredient ? 'Update' : 'Add'}} Ingredient
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Price History Modal -->
+  <div class="modal-overlay" *ngIf="showPriceHistoryModal" (click)="closePriceHistory()">
+    <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>📊 Price History: {{selectedIngredientForHistory?.name}}</h3>
+        <button class="btn-close" (click)="closePriceHistory()">✖</button>
+      </div>
+      <div class="modal-body">
+        <!-- Price Chart -->
+        <div class="price-chart-section" *ngIf="getChartData().labels.length > 0">
+          <h4>Price Trend (Last 30 Days)</h4>
+          <div class="simple-chart">
+            <div class="chart-container">
+              <div class="chart-y-axis">
+                <div class="y-label">₹{{getChartData().values[getChartData().values.length - 1].toFixed(0)}}</div>
+                <div class="y-label">₹{{getChartAverage().toFixed(0)}}</div>
+                <div class="y-label">₹{{getChartData().values[0].toFixed(0)}}</div>
+              </div>
+              <div class="chart-area">
+                <svg viewBox="0 0 800 300" class="line-chart">
+                  <polyline
+                    [attr.points]="getChartPoints()"
+                    fill="none"
+                    stroke="#4caf50"
+                    stroke-width="3"
+                    stroke-linejoin="round"
+                  />
+                  <g *ngFor="let val of getChartData().values; let idx = index">
+                    <circle
+                      [attr.cx]="getChartPointX(idx)"
+                      [attr.cy]="getChartPointY(val)"
+                      r="5"
+                      fill="#4caf50"
+                    />
+                  </g>
+                </svg>
+              </div>
+            </div>
+            <div class="chart-x-axis">
+              <div class="x-label">{{getChartData().labels[0]}}</div>
+              <div class="x-label">{{getChartMidLabel()}}</div>
+              <div class="x-label">{{getChartData().labels[getChartData().labels.length - 1]}}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Price History Table -->
+        <div class="price-history-section">
+          <h4>Recent Price Changes</h4>
+          <div class="history-table" *ngIf="priceHistory.length > 0">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Price</th>
+                  <th>Change</th>
+                  <th>Source</th>
+                  <th>Market</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let record of priceHistory">
+                  <td>{{record.recordedAt | date:'medium'}}</td>
+                  <td>₹{{record.price}}/{{record.unit}}</td>
+                  <td>
+                    <span *ngIf="record.changePercentage"
+                          [ngClass]="getPriceChangeClass(record.changePercentage)">
+                      {{record.changePercentage > 0 ? '+' : ''}}{{record.changePercentage?.toFixed(2)}}%
+                    </span>
+                    <span *ngIf="!record.changePercentage">-</span>
+                  </td>
+                  <td>
+                    <span class="source-badge" [ngClass]="getPriceSourceBadge(record.source).class">
+                      {{getPriceSourceBadge(record.source).label}}
+                    </span>
+                  </td>
+                  <td>{{record.marketName || '-'}}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="no-data-state" *ngIf="priceHistory.length === 0">
+            <span class="no-data-icon">📈</span>
+            <p>No price history available</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closePriceHistory()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert Notifications -->
+  <div class="alert-container">
+    <div class="alert"
+         *ngFor="let alert of priceAlerts"
+         [ngClass]="'alert-' + alert.type"
+         [@slideIn]>
+      <div class="alert-content">
+        <span class="alert-message">{{alert.message}}</span>
+        <button class="alert-close" (click)="dismissAlert(alert)">✖</button>
+      </div>
+    </div>
+  </div>
+</div>

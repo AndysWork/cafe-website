@@ -19,6 +19,8 @@ var host = new HostBuilder()
         s.AddSingleton<FileUploadService>();
         s.AddSingleton<AuthService>();
         s.AddSingleton<IEmailService, EmailService>();
+        s.AddHttpClient();
+        s.AddSingleton<MarketPriceService>();
         
         // Configure JSON serialization to use camelCase for Azure Functions Worker
         s.Configure<WorkerOptions>(options =>

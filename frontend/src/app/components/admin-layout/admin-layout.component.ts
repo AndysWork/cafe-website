@@ -84,6 +84,11 @@ export class AdminLayoutComponent {
           label: 'Price Forecasting',
           route: '/admin/price-forecasting'
         },
+        {
+          icon: '🧮',
+          label: 'Price Calculator',
+          route: '/admin/price-calculator'
+        },
          {
           icon: '🏷️',
           label: 'Discount Mapping',

@@ -47,6 +47,10 @@ public class MongoService
     private readonly IMongoCollection<PlatformCharge> _platformCharges;
     private readonly IMongoCollection<PriceForecast> _priceForecasts;
     private readonly IMongoCollection<DiscountCoupon> _discountCoupons;
+    private readonly IMongoCollection<Ingredient> _ingredients;
+    private readonly IMongoCollection<MenuItemRecipe> _recipes;
+    private readonly IMongoCollection<IngredientPriceHistory> _priceHistory;
+    private readonly IMongoCollection<PriceUpdateSettings> _priceSettings;
     
     public MongoService(IConfiguration config)
     {
@@ -87,6 +91,10 @@ public class MongoService
         _platformCharges = db.GetCollection<PlatformCharge>("PlatformCharges");
         _priceForecasts = db.GetCollection<PriceForecast>("PriceForecasts");
         _discountCoupons = db.GetCollection<DiscountCoupon>("DiscountCoupons");
+        _ingredients = db.GetCollection<Ingredient>("Ingredients");
+        _recipes = db.GetCollection<MenuItemRecipe>("Recipes");
+        _priceHistory = db.GetCollection<IngredientPriceHistory>("IngredientPriceHistory");
+        _priceSettings = db.GetCollection<PriceUpdateSettings>("PriceUpdateSettings");
 
         // Ensure default admin user exists
         try
@@ -2593,4 +2601,216 @@ public class MongoService
     }
 
     #endregion
+
+    #region Ingredient Methods
+
+    public async Task<List<Ingredient>> GetIngredientsAsync()
+    {
+        return await _ingredients.Find(_ => true).ToListAsync();
+    }
+
+    public async Task<Ingredient?> GetIngredientByIdAsync(string id)
+    {
+        return await _ingredients.Find(i => i.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<Ingredient>> GetIngredientsByCategoryAsync(string category)
+    {
+        return await _ingredients.Find(i => i.Category == category && i.IsActive).ToListAsync();
+    }
+
+    public async Task<List<Ingredient>> SearchIngredientsAsync(string searchTerm)
+    {
+        var filter = Builders<Ingredient>.Filter.And(
+            Builders<Ingredient>.Filter.Regex(i => i.Name, new MongoDB.Bson.BsonRegularExpression(searchTerm, "i")),
+            Builders<Ingredient>.Filter.Eq(i => i.IsActive, true)
+        );
+        return await _ingredients.Find(filter).ToListAsync();
+    }
+
+    public async Task<Ingredient> CreateIngredientAsync(Ingredient ingredient)
+    {
+        await _ingredients.InsertOneAsync(ingredient);
+        return ingredient;
+    }
+
+    public async Task<bool> UpdateIngredientAsync(string id, Ingredient ingredient)
+    {
+        var result = await _ingredients.ReplaceOneAsync(i => i.Id == id, ingredient);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> DeleteIngredientAsync(string id)
+    {
+        var result = await _ingredients.DeleteOneAsync(i => i.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    #endregion
+
+    #region Recipe Methods
+
+    public async Task<List<MenuItemRecipe>> GetRecipesAsync()
+    {
+        return await _recipes.Find(_ => true).ToListAsync();
+    }
+
+    public async Task<MenuItemRecipe?> GetRecipeByIdAsync(string id)
+    {
+        return await _recipes.Find(r => r.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAsync(string menuItemName)
+    {
+        var filter = Builders<MenuItemRecipe>.Filter.Regex(
+            r => r.MenuItemName, 
+            new MongoDB.Bson.BsonRegularExpression($"^{menuItemName}$", "i")
+        );
+        return await _recipes.Find(filter).FirstOrDefaultAsync();
+    }
+
+    public async Task<MenuItemRecipe> CreateRecipeAsync(MenuItemRecipe recipe)
+    {
+        await _recipes.InsertOneAsync(recipe);
+        return recipe;
+    }
+
+    public async Task<bool> UpdateRecipeAsync(string id, MenuItemRecipe recipe)
+    {
+        var result = await _recipes.ReplaceOneAsync(r => r.Id == id, recipe);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> DeleteRecipeAsync(string id)
+    {
+        var result = await _recipes.DeleteOneAsync(r => r.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    #endregion
+
+    #region Price History Methods
+
+    public async Task<List<IngredientPriceHistory>> GetPriceHistoryAsync(string ingredientId, int days = 30)
+    {
+        var startDate = DateTime.UtcNow.AddDays(-days);
+        return await _priceHistory
+            .Find(h => h.IngredientId == ingredientId && h.RecordedAt >= startDate)
+            .SortByDescending(h => h.RecordedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<IngredientPriceHistory>> GetAllPriceHistoryAsync()
+    {
+        return await _priceHistory
+            .Find(_ => true)
+            .SortByDescending(h => h.RecordedAt)
+            .Limit(1000)
+            .ToListAsync();
+    }
+
+    public async Task<IngredientPriceHistory?> GetLatestPriceHistoryAsync(string ingredientId)
+    {
+        return await _priceHistory
+            .Find(h => h.IngredientId == ingredientId)
+            .SortByDescending(h => h.RecordedAt)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<IngredientPriceHistory> SavePriceHistoryAsync(IngredientPriceHistory history)
+    {
+        await _priceHistory.InsertOneAsync(history);
+        return history;
+    }
+
+    public async Task<bool> UpdateIngredientPriceAsync(string ingredientId, decimal newPrice, string source, string? marketName = null)
+    {
+        var ingredient = await GetIngredientByIdAsync(ingredientId);
+        if (ingredient == null) return false;
+
+        // Calculate price change
+        decimal? changePercentage = null;
+        if (ingredient.MarketPrice > 0)
+        {
+            changePercentage = ((newPrice - ingredient.MarketPrice) / ingredient.MarketPrice) * 100;
+        }
+
+        // Save to price history
+        var history = new IngredientPriceHistory
+        {
+            IngredientId = ingredientId,
+            IngredientName = ingredient.Name,
+            Price = newPrice,
+            Unit = ingredient.Unit,
+            Source = source,
+            MarketName = marketName,
+            RecordedAt = DateTime.UtcNow,
+            ChangePercentage = changePercentage
+        };
+        await SavePriceHistoryAsync(history);
+
+        // Update ingredient
+        ingredient.PreviousPrice = ingredient.MarketPrice;
+        ingredient.MarketPrice = newPrice;
+        ingredient.PriceChangePercentage = changePercentage;
+        ingredient.PriceSource = source;
+        ingredient.LastPriceFetch = DateTime.UtcNow;
+        ingredient.LastUpdated = DateTime.UtcNow;
+        ingredient.UpdatedAt = DateTime.UtcNow;
+
+        return await UpdateIngredientAsync(ingredientId, ingredient);
+    }
+
+    public async Task<Dictionary<string, decimal>> GetPriceTrendsAsync(string ingredientId, int days = 30)
+    {
+        var history = await GetPriceHistoryAsync(ingredientId, days);
+        return history
+            .OrderBy(h => h.RecordedAt)
+            .ToDictionary(h => h.RecordedAt.ToString("yyyy-MM-dd"), h => h.Price);
+    }
+
+    #endregion
+
+    #region Price Update Settings Methods
+
+    public async Task<PriceUpdateSettings?> GetPriceUpdateSettingsAsync()
+    {
+        return await _priceSettings.Find(_ => true).FirstOrDefaultAsync();
+    }
+
+    public async Task<PriceUpdateSettings> SavePriceUpdateSettingsAsync(PriceUpdateSettings settings)
+    {
+        var existing = await GetPriceUpdateSettingsAsync();
+        if (existing != null)
+        {
+            settings.Id = existing.Id;
+            settings.UpdatedAt = DateTime.UtcNow;
+            await _priceSettings.ReplaceOneAsync(s => s.Id == existing.Id, settings);
+        }
+        else
+        {
+            settings.CreatedAt = DateTime.UtcNow;
+            settings.UpdatedAt = DateTime.UtcNow;
+            await _priceSettings.InsertOneAsync(settings);
+        }
+        return settings;
+    }
+
+    public async Task<List<Ingredient>> GetIngredientsForAutoUpdateAsync()
+    {
+        var settings = await GetPriceUpdateSettingsAsync();
+        if (settings == null || !settings.AutoUpdateEnabled || settings.EnabledCategories.Count == 0)
+        {
+            return new List<Ingredient>();
+        }
+
+        return await _ingredients
+            .Find(i => i.AutoUpdateEnabled && 
+                      i.IsActive && 
+                      settings.EnabledCategories.Contains(i.Category))
+            .ToListAsync();
+    }
+
+    #endregion
 }
+

@@ -622,5 +622,17 @@ Maa Tara Cafe Team
 </html>";
     }
 
+    public async Task<bool> SendPriceAlertEmailAsync(string toEmail, string subject, string htmlContent)
+    {
+        if (!_isEnabled)
+        {
+            _logger.LogWarning($"Email service disabled. Price alert would be sent to {toEmail}");
+            return false;
+        }
+
+        var plainTextContent = "Please view this email in HTML format to see the price alert details.";
+        return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
+    }
+
     #endregion
 }

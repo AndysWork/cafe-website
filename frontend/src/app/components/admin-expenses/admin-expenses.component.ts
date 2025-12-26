@@ -57,6 +57,13 @@ export class AdminExpensesComponent implements OnInit {
   groupedOperationalExpenses: { [year: number]: OperationalExpense[] } = {};
   expandedOperationalYears: Set<number> = new Set();
 
+  // Expense Type Management
+  showExpenseTypeModal = false;
+  editingExpenseType: OfflineExpenseType | OnlineExpenseType | null = null;
+  expenseTypeForm = {
+    expenseType: ''
+  };
+
   operationalFormData: CreateOperationalExpenseRequest = {
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
@@ -210,7 +217,7 @@ export class AdminExpensesComponent implements OnInit {
     });
   }
 
-  get currentExpenseTypes(): Array<{expenseType: string}> {
+  get currentExpenseTypes(): (OfflineExpenseType | OnlineExpenseType)[] {
     return this.currentExpenseSource === 'Offline' ? this.offlineExpenseTypes : this.onlineExpenseTypes;
   }
 
@@ -750,6 +757,149 @@ export class AdminExpensesComponent implements OnInit {
   getMonthName(month: number): string {
     const monthObj = this.months.find(m => m.value === month);
     return monthObj ? monthObj.name : '';
+  }
+
+  // Expense Type Management Methods
+  openExpenseTypeModal() {
+    this.showExpenseTypeModal = true;
+  }
+
+  closeExpenseTypeModal() {
+    this.showExpenseTypeModal = false;
+    this.editingExpenseType = null;
+    this.expenseTypeForm = { expenseType: '' };
+  }
+
+  openEditExpenseType(expenseType: OfflineExpenseType | OnlineExpenseType) {
+    this.editingExpenseType = expenseType;
+    this.expenseTypeForm = {
+      expenseType: expenseType.expenseType
+    };
+  }
+
+  saveExpenseType() {
+    if (!this.expenseTypeForm.expenseType) {
+      alert('Please provide expense type name');
+      return;
+    }
+
+    this.loading = true;
+
+    if (this.editingExpenseType) {
+      // Update existing
+      if (!this.editingExpenseType.id) {
+        alert('Invalid expense type ID');
+        this.loading = false;
+        return;
+      }
+
+      const updated = {
+        expenseType: this.expenseTypeForm.expenseType
+      };
+
+      if (this.currentExpenseSource === 'Offline') {
+        this.offlineExpenseTypeService.updateOfflineExpenseType(this.editingExpenseType.id, updated).subscribe({
+          next: () => {
+            this.reloadExpenseTypes();
+            this.closeEditExpenseType();
+            this.loading = false;
+          },
+          error: (err: any) => {
+            console.error('Error updating expense type:', err);
+            alert('Failed to update expense type');
+            this.loading = false;
+          }
+        });
+      } else {
+        this.onlineExpenseTypeService.updateOnlineExpenseType(this.editingExpenseType.id, updated).subscribe({
+          next: () => {
+            this.reloadExpenseTypes();
+            this.closeEditExpenseType();
+            this.loading = false;
+          },
+          error: (err: any) => {
+            console.error('Error updating expense type:', err);
+            alert('Failed to update expense type');
+            this.loading = false;
+          }
+        });
+      }
+    } else {
+      // Create new
+      const createData = { expenseType: this.expenseTypeForm.expenseType };
+
+      if (this.currentExpenseSource === 'Offline') {
+        this.offlineExpenseTypeService.createOfflineExpenseType(createData).subscribe({
+          next: () => {
+            this.reloadExpenseTypes();
+            this.closeEditExpenseType();
+            this.loading = false;
+          },
+          error: (err: any) => {
+            console.error('Error creating expense type:', err);
+            alert('Failed to create expense type');
+            this.loading = false;
+          }
+        });
+      } else {
+        this.onlineExpenseTypeService.createOnlineExpenseType(createData).subscribe({
+          next: () => {
+            this.reloadExpenseTypes();
+            this.closeEditExpenseType();
+            this.loading = false;
+          },
+          error: (err: any) => {
+            console.error('Error creating expense type:', err);
+            alert('Failed to create expense type');
+            this.loading = false;
+          }
+        });
+      }
+    }
+  }
+
+  closeEditExpenseType() {
+    this.editingExpenseType = null;
+    this.expenseTypeForm = { expenseType: '' };
+  }
+
+  deleteExpenseType(expenseType: OfflineExpenseType | OnlineExpenseType) {
+    if (!confirm(`Are you sure you want to delete "${expenseType.expenseType}"?`)) return;
+
+    if (!expenseType.id) {
+      alert('Invalid expense type ID');
+      return;
+    }
+
+    if (this.currentExpenseSource === 'Offline') {
+      this.offlineExpenseTypeService.deleteOfflineExpenseType(expenseType.id).subscribe({
+        next: () => {
+          this.reloadExpenseTypes();
+        },
+        error: (err: any) => {
+          console.error('Error deleting expense type:', err);
+          alert('Failed to delete expense type. It may be in use.');
+        }
+      });
+    } else {
+      this.onlineExpenseTypeService.deleteOnlineExpenseType(expenseType.id).subscribe({
+        next: () => {
+          this.reloadExpenseTypes();
+        },
+        error: (err: any) => {
+          console.error('Error deleting expense type:', err);
+          alert('Failed to delete expense type. It may be in use.');
+        }
+      });
+    }
+  }
+
+  reloadExpenseTypes() {
+    if (this.currentExpenseSource === 'Offline') {
+      this.loadOfflineExpenseTypes();
+    } else {
+      this.loadOnlineExpenseTypes();
+    }
   }
 
   getTotalOperationalCost(): number {

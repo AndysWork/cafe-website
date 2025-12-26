@@ -28,6 +28,11 @@ public interface IEmailService
     Task<bool> SendOrderStatusUpdateEmailAsync(string toEmail, string userName, string orderId, string status);
 
     /// <summary>
+    /// Sends a price alert notification email
+    /// </summary>
+    Task<bool> SendPriceAlertEmailAsync(string toEmail, string subject, string htmlContent);
+
+    /// <summary>
     /// Sends a welcome email to new users
     /// </summary>
     Task<bool> SendWelcomeEmailAsync(string toEmail, string userName);

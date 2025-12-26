@@ -5,6 +5,7 @@
       <button class="btn-primary" (click)="openAddModal()">➕ Add Sales</button>
       <button class="btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
       <button class="btn-info" (click)="loadSummary()">📈 View Summary</button>
+      <button class="btn-warning" (click)="openItemTypeModal()">🛠️ Manage Items</button>
       <button class="btn-secondary" (click)="initializeSalesItemTypes()" *ngIf="salesItemTypes.length === 0">🔧 Initialize Items</button>
     </div>
   </div>
@@ -241,6 +242,66 @@
         <button class="btn-primary" (click)="uploadFile()" [disabled]="!selectedFile || uploading">
           {{ uploading ? 'Uploading...' : 'Upload' }}
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Item Type Management Modal -->
+  <div *ngIf="showItemTypeModal" class="modal-overlay" (click)="closeItemTypeModal()">
+    <div class="modal-content large-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>🛠️ Manage Sales Item Types</h2>
+        <button class="btn-close" (click)="closeItemTypeModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Add/Edit Form -->
+        <div class="item-type-form">
+          <h3>{{ editingItemType ? 'Edit' : 'Add New' }} Item Type</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Item Name *</label>
+              <input type="text" [(ngModel)]="itemTypeForm.itemName" placeholder="e.g., Cappuccino" required>
+            </div>
+            <div class="form-group">
+              <label>Default Price *</label>
+              <input type="number" [(ngModel)]="itemTypeForm.defaultPrice" min="0" step="0.01" placeholder="0.00" required>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary" (click)="saveItemType()" [disabled]="loading">
+                {{ editingItemType ? '💾 Update' : '➕ Add' }}
+              </button>
+              <button *ngIf="editingItemType" class="btn-secondary" (click)="closeEditItemType()">Cancel Edit</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Items List -->
+        <div class="item-types-list">
+          <h3>Existing Item Types ({{ salesItemTypes.length }})</h3>
+          <div class="items-grid">
+            <div *ngFor="let itemType of salesItemTypes" class="item-type-card">
+              <div class="item-info">
+                <strong>{{ itemType.itemName }}</strong>
+                <span class="price-badge">₹{{ itemType.defaultPrice }}</span>
+                <span class="status-badge" [class.inactive]="!itemType.isActive">
+                  {{ itemType.isActive ? '✅ Active' : '❌ Inactive' }}
+                </span>
+              </div>
+              <div class="item-actions">
+                <button class="btn-edit-small" (click)="openEditItemType(itemType)" title="Edit">✏️</button>
+                <button class="btn-delete-small" (click)="deleteItemType(itemType)" title="Delete">🗑️</button>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="salesItemTypes.length === 0" class="empty-state">
+            <p>No item types found. Add your first item type above or use the Initialize button.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeItemTypeModal()">Close</button>
       </div>
     </div>
   </div>
