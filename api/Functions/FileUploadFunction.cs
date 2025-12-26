@@ -69,11 +69,11 @@ public class FileUploadFunction
             {
                 if (fileName.EndsWith(".xlsx") || fileName.EndsWith(".xls"))
                 {
-                    result = await _fileUploadService.ProcessExcelFile(stream, _mongo, uploadedBy);
+                    result = await _fileUploadService.ProcessExcelFile(stream, _mongo, uploadedBy ?? "System");
                 }
                 else if (fileName.EndsWith(".csv"))
                 {
-                    result = await _fileUploadService.ProcessCsvFile(stream, _mongo, uploadedBy);
+                    result = await _fileUploadService.ProcessCsvFile(stream, _mongo, uploadedBy ?? "System");
                 }
                 else
                 {
@@ -119,7 +119,9 @@ public class FileUploadFunction
         
         stream.Position = 0;
         var buffer = new byte[stream.Length];
-        stream.Read(buffer, 0, buffer.Length);
+        var bytesRead = stream.Read(buffer, 0, buffer.Length);
+        if (bytesRead != buffer.Length)
+            throw new InvalidOperationException("Failed to read complete stream");
         
         // Find all boundary positions
         var boundaryPositions = new List<int>();

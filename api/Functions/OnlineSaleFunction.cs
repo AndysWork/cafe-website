@@ -423,8 +423,187 @@ public class OnlineSaleFunction
             return errorResponse;
         }
     }
+
+    // GET /api/online-sales/discount-coupons - Get unique discount coupons by platform
+    [Function("GetDiscountCoupons")]
+    public async Task<HttpResponseData> GetDiscountCoupons(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales/discount-coupons")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var coupons = await _mongo.GetUniqueDiscountCouponsAsync();
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, data = coupons });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting discount coupons");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            return errorResponse;
+        }
+    }
+
+    // PUT /api/online-sales/discount-coupons/{couponCode}/{platform}/status - Toggle coupon active status
+    [Function("UpdateDiscountCouponStatus")]
+    public async Task<HttpResponseData> UpdateDiscountCouponStatus(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "online-sales/discount-coupons/{couponCode}/{platform}/status")] HttpRequestData req,
+        string couponCode,
+        string platform)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var requestBody = await req.ReadFromJsonAsync<UpdateCouponStatusRequest>();
+            if (requestBody == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request body" });
+                return badRequest;
+            }
+
+            // Create or update the coupon status
+            var updatedCoupon = await _mongo.CreateOrUpdateDiscountCouponAsync(
+                couponCode, 
+                platform, 
+                requestBody.IsActive, 
+                userId!
+            );
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { 
+                success = true, 
+                message = $"Coupon '{couponCode}' for {platform} is now {(requestBody.IsActive ? "active" : "inactive")}",
+                data = updatedCoupon
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating discount coupon status");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            return errorResponse;
+        }
+    }
+
+    // GET /api/online-sales/discount-coupons/active - Get only active coupons
+    [Function("GetActiveDiscountCoupons")]
+    public async Task<HttpResponseData> GetActiveDiscountCoupons(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales/discount-coupons/active")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var coupons = await _mongo.GetActiveDiscountCouponsAsync();
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, data = coupons });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting active discount coupons");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            return errorResponse;
+        }
+    }
+
+    // PUT /api/online-sales/discount-coupons/{id}/max-value - Update coupon max value
+    [Function("UpdateDiscountCouponMaxValue")]
+    public async Task<HttpResponseData> UpdateDiscountCouponMaxValue(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "online-sales/discount-coupons/{id}/max-value")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var requestBody = await req.ReadFromJsonAsync<UpdateCouponMaxValueRequest>();
+            if (requestBody == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request body" });
+                return badRequest;
+            }
+
+            var updated = await _mongo.UpdateDiscountCouponMaxValueAsync(id, requestBody.MaxValue);
+            
+            if (!updated)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { success = false, error = "Coupon not found" });
+                return notFound;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { 
+                success = true, 
+                message = $"Coupon max value updated to {requestBody.MaxValue?.ToString() ?? "unlimited"}"
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating discount coupon max value");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            return errorResponse;
+        }
+    }
+
+    // PUT /api/online-sales/discount-coupons/{id}/discount-percentage - Update coupon discount percentage
+    [Function("UpdateDiscountCouponPercentage")]
+    public async Task<HttpResponseData> UpdateDiscountCouponPercentage(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "online-sales/discount-coupons/{id}/discount-percentage")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var requestBody = await req.ReadFromJsonAsync<UpdateCouponDiscountPercentageRequest>();
+            if (requestBody == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request body" });
+                return badRequest;
+            }
+
+            var updated = await _mongo.UpdateDiscountCouponPercentageAsync(id, requestBody.DiscountPercentage);
+            
+            if (!updated)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { success = false, error = "Coupon not found" });
+                return notFound;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { 
+                success = true, 
+                message = $"Coupon discount percentage updated to {requestBody.DiscountPercentage?.ToString() ?? "unset"}%"
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating discount coupon percentage");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            return errorResponse;
+        }
+    }
 }
-
-
-
-

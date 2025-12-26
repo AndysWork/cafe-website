@@ -27,6 +27,8 @@ import { OnlineSaleTrackerComponent } from './components/online-sale-tracker/onl
 import { OnlineProfitTrackerComponent } from './components/online-profit-tracker/online-profit-tracker.component';
 import { OperationalExpensesComponent } from './components/operational-expenses/operational-expenses.component';
 import { CustomerReviewsComponent } from './components/customer-reviews/customer-reviews.component';
+import { PriceForecastingComponent } from './components/price-forecasting/price-forecasting.component';
+import { DiscountMappingComponent } from './components/discount-mapping/discount-mapping.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -63,6 +65,8 @@ export const routes: Routes = [
       { path: 'cashier', component: CashierComponent },
       { path: 'online-sale-tracker', component: OnlineSaleTrackerComponent },
       { path: 'online-profit-tracker', component: OnlineProfitTrackerComponent },
+      { path: 'discount-mapping', component: DiscountMappingComponent },
+      { path: 'price-forecasting', component: PriceForecastingComponent },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

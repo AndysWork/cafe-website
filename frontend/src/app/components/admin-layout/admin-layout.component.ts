@@ -78,6 +78,16 @@ export class AdminLayoutComponent {
           icon: '💹',
           label: 'Profit Tracker',
           route: '/admin/online-profit-tracker'
+        },
+        {
+          icon: '💲',
+          label: 'Price Forecasting',
+          route: '/admin/price-forecasting'
+        },
+         {
+          icon: '🏷️',
+          label: 'Discount Mapping',
+          route: '/admin/discount-mapping'
         }
       ]
     }

@@ -105,8 +105,8 @@ public class PlatformChargeFunction
                     Month = charge.Month,
                     Year = charge.Year,
                     Charges = charge.Charges,
-                    ChargeType = charge.ChargeType,
-                    Notes = charge.Notes,
+                    ChargeType = charge.ChargeType ?? string.Empty,
+                    Notes = charge.Notes ?? string.Empty,
                     RecordedBy = charge.RecordedBy,
                     CreatedAt = charge.CreatedAt,
                     UpdatedAt = charge.UpdatedAt
@@ -210,11 +210,11 @@ public class PlatformChargeFunction
                 Month = request.Month,
                 Year = request.Year,
                 Charges = request.Charges,
-                ChargeType = request.ChargeType,
-                Notes = request.Notes,
+                ChargeType = request.ChargeType ?? string.Empty,
+                Notes = request.Notes ?? string.Empty,
                 RecordedBy = username,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
             };
 
             await _mongoService.CreatePlatformChargeAsync(charge);
@@ -231,8 +231,8 @@ public class PlatformChargeFunction
                     Month = charge.Month,
                     Year = charge.Year,
                     Charges = charge.Charges,
-                    ChargeType = charge.ChargeType,
-                    Notes = charge.Notes,
+                    ChargeType = charge.ChargeType ?? string.Empty,
+                    Notes = charge.Notes ?? string.Empty,
                     RecordedBy = charge.RecordedBy,
                     CreatedAt = charge.CreatedAt,
                     UpdatedAt = charge.UpdatedAt

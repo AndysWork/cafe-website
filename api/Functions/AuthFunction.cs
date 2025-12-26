@@ -401,6 +401,12 @@ public class AuthFunction
 
             // Get updated user data
             var user = await _mongo.GetUserByIdAsync(userId!);
+            if (user == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                return notFound;
+            }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
@@ -412,7 +418,7 @@ public class AuthFunction
                     user.FirstName,
                     user.LastName,
                     user.Email,
-                    user.PhoneNumber
+                    PhoneNumber = user.PhoneNumber ?? string.Empty
                 }
             });
 

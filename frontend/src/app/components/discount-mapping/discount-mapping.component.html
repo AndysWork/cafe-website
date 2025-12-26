@@ -1,0 +1,171 @@
+<div class="discount-mapping-container">
+  <div class="header">
+    <h2>💳 Discount Coupon Mapping</h2>
+    <p class="subtitle">Unique discount coupons grouped by platform</p>
+  </div>
+
+  <div class="content">
+    <div *ngIf="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Loading discount coupons...</p>
+    </div>
+
+    <div *ngIf="error" class="error-message">
+      <i class="fas fa-exclamation-circle"></i>
+      {{ error }}
+    </div>
+
+    <div *ngIf="!loading && !error" class="platforms-container">
+      <!-- Zomato Coupons -->
+      <div class="platform-section">
+        <div class="platform-header zomato">
+          <h3>🍔 Zomato Coupons</h3>
+          <span class="count-badge">{{ zomatoCoupons.length }} unique coupons</span>
+        </div>
+
+        <div *ngIf="zomatoCoupons.length === 0" class="empty-state">
+          <p>No Zomato coupons found</p>
+        </div>
+
+        <div *ngIf="zomatoCoupons.length > 0" class="table-container">
+          <table class="coupon-table">
+            <thead>
+              <tr>
+                <th>Coupon Code</th>
+                <th class="text-center">Usage Count</th>
+                <th class="text-right">Total Discount</th>
+                <th class="text-right">Avg Discount</th>
+                <th class="text-right">Max Value</th>
+                <th class="text-center">Discount %</th>
+                <th>First Used</th>
+                <th>Last Used</th>
+                <th class="text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let coupon of zomatoCoupons">
+                <td class="coupon-code">{{ coupon.couponCode }}</td>
+                <td class="text-center">{{ coupon.usageCount }}</td>
+                <td class="text-right amount">{{ formatCurrency(coupon.totalDiscountAmount) }}</td>
+                <td class="text-right amount">{{ formatCurrency(coupon.averageDiscountAmount) }}</td>
+                <td class="text-right max-value-cell">
+                  <span>{{ coupon.maxValue ? formatCurrency(coupon.maxValue) : 'Unlimited' }}</span>
+                  <button class="edit-btn" (click)="updateMaxValue(coupon)" title="Edit max value">✏️</button>
+                </td>
+                <td class="text-center discount-percentage-cell">
+                  <span>{{ coupon.discountPercentage ? coupon.discountPercentage + '%' : 'Not Set' }}</span>
+                  <button class="edit-btn" (click)="updateDiscountPercentage(coupon)" title="Edit discount %">✏️</button>
+                </td>
+                <td>{{ formatDate(coupon.firstUsed) }}</td>
+                <td>{{ formatDate(coupon.lastUsed) }}</td>
+                <td class="text-center">
+                  <button
+                    class="status-toggle"
+                    [class.active]="coupon.isActive"
+                    [class.inactive]="!coupon.isActive"
+                    (click)="toggleCouponStatus(coupon)"
+                    [title]="coupon.isActive ? 'Click to deactivate' : 'Click to activate'">
+                    {{ coupon.isActive ? '✓ Active' : '✗ Inactive' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="totals-row">
+                <td><strong>Total</strong></td>
+                <td class="text-center"><strong>{{ getTotalUsageCount(zomatoCoupons) }}</strong></td>
+                <td class="text-right amount"><strong>{{ formatCurrency(getTotalDiscountAmount(zomatoCoupons)) }}</strong></td>
+                <td colspan="6"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Swiggy Coupons -->
+      <div class="platform-section">
+        <div class="platform-header swiggy">
+          <h3>🍕 Swiggy Coupons</h3>
+          <span class="count-badge">{{ swiggyCoupons.length }} unique coupons</span>
+        </div>
+
+        <div *ngIf="swiggyCoupons.length === 0" class="empty-state">
+          <p>No Swiggy coupons found</p>
+        </div>
+
+        <div *ngIf="swiggyCoupons.length > 0" class="table-container">
+          <table class="coupon-table">
+            <thead>
+              <tr>
+                <th>Coupon Code</th>
+                <th class="text-center">Usage Count</th>
+                <th class="text-right">Total Discount</th>
+                <th class="text-right">Avg Discount</th>
+                <th class="text-right">Max Value</th>
+                <th class="text-center">Discount %</th>
+                <th>First Used</th>
+                <th>Last Used</th>
+                <th class="text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let coupon of swiggyCoupons">
+                <td class="coupon-code">{{ coupon.couponCode }}</td>
+                <td class="text-center">{{ coupon.usageCount }}</td>
+                <td class="text-right amount">{{ formatCurrency(coupon.totalDiscountAmount) }}</td>
+                <td class="text-right amount">{{ formatCurrency(coupon.averageDiscountAmount) }}</td>
+                <td class="text-right max-value-cell">
+                  <span>{{ coupon.maxValue ? formatCurrency(coupon.maxValue) : 'Unlimited' }}</span>
+                  <button class="edit-btn" (click)="updateMaxValue(coupon)" title="Edit max value">✏️</button>
+                </td>
+                <td class="text-center discount-percentage-cell">
+                  <span>{{ coupon.discountPercentage ? coupon.discountPercentage + '%' : 'Not Set' }}</span>
+                  <button class="edit-btn" (click)="updateDiscountPercentage(coupon)" title="Edit discount %">✏️</button>
+                </td>
+                <td>{{ formatDate(coupon.firstUsed) }}</td>
+                <td>{{ formatDate(coupon.lastUsed) }}</td>
+                <td class="text-center">
+                  <button
+                    class="status-toggle"
+                    [class.active]="coupon.isActive"
+                    [class.inactive]="!coupon.isActive"
+                    (click)="toggleCouponStatus(coupon)"
+                    [title]="coupon.isActive ? 'Click to deactivate' : 'Click to activate'">
+                    {{ coupon.isActive ? '✓ Active' : '✗ Inactive' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="totals-row">
+                <td><strong>Total</strong></td>
+                <td class="text-center"><strong>{{ getTotalUsageCount(swiggyCoupons) }}</strong></td>
+                <td class="text-right amount"><strong>{{ formatCurrency(getTotalDiscountAmount(swiggyCoupons)) }}</strong></td>
+                <td colspan="6"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Summary Section -->
+      <div class="summary-section" *ngIf="coupons.length > 0">
+        <h3>📊 Overall Summary</h3>
+        <div class="summary-cards">
+          <div class="summary-card">
+            <span class="label">Total Unique Coupons</span>
+            <span class="value">{{ coupons.length }}</span>
+          </div>
+          <div class="summary-card">
+            <span class="label">Total Usage</span>
+            <span class="value">{{ getTotalUsageCount(coupons) }}</span>
+          </div>
+          <div class="summary-card">
+            <span class="label">Total Discounts Given</span>
+            <span class="value">{{ formatCurrency(getTotalDiscountAmount(coupons)) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

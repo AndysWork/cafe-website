@@ -45,6 +45,8 @@ public class MongoService
     private readonly IMongoCollection<OnlineSale> _onlineSales;
     private readonly IMongoCollection<OperationalExpense> _operationalExpenses;
     private readonly IMongoCollection<PlatformCharge> _platformCharges;
+    private readonly IMongoCollection<PriceForecast> _priceForecasts;
+    private readonly IMongoCollection<DiscountCoupon> _discountCoupons;
     
     public MongoService(IConfiguration config)
     {
@@ -83,6 +85,8 @@ public class MongoService
         _onlineSales = db.GetCollection<OnlineSale>("OnlineSales");
         _operationalExpenses = db.GetCollection<OperationalExpense>("OperationalExpenses");
         _platformCharges = db.GetCollection<PlatformCharge>("PlatformCharges");
+        _priceForecasts = db.GetCollection<PriceForecast>("PriceForecasts");
+        _discountCoupons = db.GetCollection<DiscountCoupon>("DiscountCoupons");
 
         // Ensure default admin user exists
         try
@@ -2082,7 +2086,7 @@ public class MongoService
 
         return sales.Select(s => new OnlineSaleResponse
         {
-            Id = s.Id.ToString(),
+            Id = s.Id?.ToString() ?? string.Empty,
             Platform = s.Platform,
             OrderId = s.OrderId,
             CustomerName = s.CustomerName,
@@ -2111,6 +2115,81 @@ public class MongoService
             OrderMarking = s.OrderMarking,
             Complain = s.Complain
         }).ToList();
+    }
+
+    public async Task<List<DiscountCouponResponse>> GetUniqueDiscountCouponsAsync()
+    {
+        // Get all discount coupon management records
+        var couponManagement = await _discountCoupons.Find(_ => true).ToListAsync();
+        var couponStatusMap = couponManagement.ToDictionary(
+            c => $"{c.CouponCode}|{c.Platform}",
+            c => new { c.IsActive, c.Id, c.MaxValue, c.DiscountPercentage }
+        );
+
+        // Filter for sales that have discount coupons
+        var filter = Builders<OnlineSale>.Filter.And(
+            Builders<OnlineSale>.Filter.Ne(s => s.DiscountCoupon, null),
+            Builders<OnlineSale>.Filter.Ne(s => s.DiscountCoupon, "")
+        );
+
+        var sales = await _onlineSales.Find(filter).ToListAsync();
+
+        // Group by coupon code and platform
+        var grouped = sales
+            .GroupBy(s => new { Coupon = s.DiscountCoupon!, Platform = s.Platform })
+            .Select(g =>
+            {
+                var key = $"{g.Key.Coupon}|{g.Key.Platform}";
+                var isActive = couponStatusMap.ContainsKey(key) ? couponStatusMap[key].IsActive : true;
+                var id = couponStatusMap.ContainsKey(key) ? couponStatusMap[key].Id : null;
+                var maxValue = couponStatusMap.ContainsKey(key) ? couponStatusMap[key].MaxValue : null;
+                var discountPercentage = couponStatusMap.ContainsKey(key) ? couponStatusMap[key].DiscountPercentage : null;
+
+                return new DiscountCouponResponse
+                {
+                    Id = id,
+                    CouponCode = g.Key.Coupon,
+                    Platform = g.Key.Platform,
+                    UsageCount = g.Count(),
+                    TotalDiscountAmount = g.Sum(s => s.DiscountAmount),
+                    AverageDiscountAmount = g.Average(s => s.DiscountAmount),
+                    FirstUsed = g.Min(s => s.OrderAt),
+                    LastUsed = g.Max(s => s.OrderAt),
+                    IsActive = isActive,
+                    MaxValue = maxValue,
+                    DiscountPercentage = discountPercentage
+                };
+            })
+            .OrderBy(c => c.Platform)
+            .ThenByDescending(c => c.UsageCount)
+            .ToList();
+
+        return grouped;
+    }
+
+    public async Task<List<DiscountCouponResponse>> GetActiveDiscountCouponsAsync()
+    {
+        // Get only active discount coupons
+        var filter = Builders<DiscountCoupon>.Filter.Eq(c => c.IsActive, true);
+        var activeCoupons = await _discountCoupons.Find(filter).ToListAsync();
+
+        return activeCoupons.Select(c => new DiscountCouponResponse
+        {
+            Id = c.Id,
+            CouponCode = c.CouponCode,
+            Platform = c.Platform,
+            IsActive = c.IsActive,
+            MaxValue = c.MaxValue,
+            DiscountPercentage = c.DiscountPercentage,
+            UsageCount = 0,
+            TotalDiscountAmount = 0,
+            AverageDiscountAmount = 0,
+            FirstUsed = DateTime.MinValue,
+            LastUsed = DateTime.MinValue
+        })
+        .OrderBy(c => c.Platform)
+        .ThenBy(c => c.CouponCode)
+        .ToList();
     }
 
     public async Task<OnlineSale?> GetOnlineSaleByIdAsync(string id)
@@ -2346,7 +2425,7 @@ public class MongoService
         if (request.Notes != null)
             updates.Add(Builders<PlatformCharge>.Update.Set(c => c.Notes, request.Notes));
 
-        updates.Add(Builders<PlatformCharge>.Update.Set(c => c.UpdatedAt, DateTime.UtcNow));
+        updates.Add(Builders<PlatformCharge>.Update.Set(c => c.UpdatedAt, GetIstNow()));
 
         if (!updates.Any())
             return false;
@@ -2366,5 +2445,152 @@ public class MongoService
     }
 
     #endregion
-}
 
+    #region PriceForecast Operations
+
+    // Get all price forecasts
+    public async Task<List<PriceForecast>> GetPriceForecastsAsync() =>
+        await _priceForecasts.Find(_ => true).SortByDescending(p => p.CreatedDate).ToListAsync();
+
+    // Get price forecasts by menu item ID
+    public async Task<List<PriceForecast>> GetPriceForecastsByMenuItemAsync(string menuItemId) =>
+        await _priceForecasts.Find(p => p.MenuItemId == menuItemId).SortByDescending(p => p.CreatedDate).ToListAsync();
+
+    // Get single price forecast by ID
+    public async Task<PriceForecast?> GetPriceForecastAsync(string id) =>
+        await _priceForecasts.Find(x => x.Id == id).FirstOrDefaultAsync();
+
+    // Create new price forecast
+    public async Task<PriceForecast> CreatePriceForecastAsync(PriceForecast forecast)
+    {
+        forecast.CreatedDate = GetIstNow();
+        forecast.LastUpdated = GetIstNow();
+        await _priceForecasts.InsertOneAsync(forecast);
+        return forecast;
+    }
+
+    // Update existing price forecast
+    public async Task<bool> UpdatePriceForecastAsync(string id, PriceForecast forecast)
+    {
+        forecast.LastUpdated = GetIstNow();
+        var result = await _priceForecasts.ReplaceOneAsync(x => x.Id == id, forecast);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete price forecast
+    public async Task<bool> DeletePriceForecastAsync(string id)
+    {
+        var result = await _priceForecasts.DeleteOneAsync(x => x.Id == id);
+        return result.DeletedCount > 0;
+    }
+
+    // Finalize price forecast and update menu item
+    public async Task<bool> FinalizePriceForecastAsync(string forecastId, string userId)
+    {
+        var forecast = await GetPriceForecastAsync(forecastId);
+        if (forecast == null || forecast.IsFinalized)
+            return false;
+
+        // Get the menu item
+        var menuItem = await GetMenuItemAsync(forecast.MenuItemId);
+        if (menuItem == null)
+            return false;
+
+        // Update menu item with forecast prices
+        menuItem.MakingPrice = forecast.MakePrice;
+        menuItem.PackagingCharge = forecast.PackagingCost;
+        menuItem.ShopSellingPrice = forecast.ShopPrice;
+        menuItem.OnlinePrice = forecast.OnlinePrice;
+        menuItem.LastUpdatedBy = userId;
+        menuItem.LastUpdated = GetIstNow();
+
+        var updateMenuItem = await UpdateMenuItemAsync(menuItem.Id, menuItem);
+        if (!updateMenuItem)
+            return false;
+
+        // Mark forecast as finalized
+        forecast.IsFinalized = true;
+        forecast.FinalizedDate = GetIstNow();
+        forecast.FinalizedBy = userId;
+        forecast.LastUpdatedBy = userId;
+        forecast.LastUpdated = GetIstNow();
+
+        return await UpdatePriceForecastAsync(forecastId, forecast);
+    }
+
+    #endregion
+
+    #region Discount Coupon Management
+
+    public async Task<DiscountCoupon?> GetDiscountCouponAsync(string couponCode, string platform)
+    {
+        var filter = Builders<DiscountCoupon>.Filter.And(
+            Builders<DiscountCoupon>.Filter.Eq(c => c.CouponCode, couponCode),
+            Builders<DiscountCoupon>.Filter.Eq(c => c.Platform, platform)
+        );
+        return await _discountCoupons.Find(filter).FirstOrDefaultAsync();
+    }
+
+    public async Task<DiscountCoupon> CreateOrUpdateDiscountCouponAsync(string couponCode, string platform, bool isActive, string userId)
+    {
+        var existing = await GetDiscountCouponAsync(couponCode, platform);
+        
+        if (existing != null)
+        {
+            existing.IsActive = isActive;
+            existing.UpdatedAt = GetIstNow();
+            
+            var filter = Builders<DiscountCoupon>.Filter.Eq(c => c.Id, existing.Id);
+            await _discountCoupons.ReplaceOneAsync(filter, existing);
+            return existing;
+        }
+
+        var newCoupon = new DiscountCoupon
+        {
+            CouponCode = couponCode,
+            Platform = platform,
+            IsActive = isActive,
+            CreatedBy = userId,
+            CreatedAt = GetIstNow(),
+            UpdatedAt = GetIstNow()
+        };
+
+        await _discountCoupons.InsertOneAsync(newCoupon);
+        return newCoupon;
+    }
+
+    public async Task<bool> UpdateDiscountCouponStatusAsync(string id, bool isActive)
+    {
+        var filter = Builders<DiscountCoupon>.Filter.Eq(c => c.Id, id);
+        var update = Builders<DiscountCoupon>.Update
+            .Set(c => c.IsActive, isActive)
+            .Set(c => c.UpdatedAt, GetIstNow());
+
+        var result = await _discountCoupons.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> UpdateDiscountCouponMaxValueAsync(string id, decimal? maxValue)
+    {
+        var filter = Builders<DiscountCoupon>.Filter.Eq(c => c.Id, id);
+        var update = Builders<DiscountCoupon>.Update
+            .Set(c => c.MaxValue, maxValue)
+            .Set(c => c.UpdatedAt, GetIstNow());
+
+        var result = await _discountCoupons.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> UpdateDiscountCouponPercentageAsync(string id, decimal? discountPercentage)
+    {
+        var filter = Builders<DiscountCoupon>.Filter.Eq(c => c.Id, id);
+        var update = Builders<DiscountCoupon>.Update
+            .Set(c => c.DiscountPercentage, discountPercentage)
+            .Set(c => c.UpdatedAt, GetIstNow());
+
+        var result = await _discountCoupons.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
+    #endregion
+}

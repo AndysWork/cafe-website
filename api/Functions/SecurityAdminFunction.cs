@@ -404,7 +404,7 @@ public class SecurityAdminFunction
             response.Headers.Add("Content-Type", 
                 requestBody.Format?.ToLower() == "csv" ? "text/csv" : "application/json");
             response.Headers.Add("Content-Disposition", 
-                $"attachment; filename=audit-logs-{DateTime.UtcNow:yyyyMMdd-HHmmss}.{requestBody.Format ?? "json"}");
+                $"attachment; filename=audit-logs-{MongoService.GetIstNow():yyyyMMdd-HHmmss}.{requestBody.Format ?? "json"}");
             
             await response.WriteStringAsync(exportData);
 

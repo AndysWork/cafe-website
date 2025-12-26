@@ -393,7 +393,7 @@ public class CashReconciliationFunction
             }
 
             // Process the file (CSV or Excel)
-            var reconciliations = await ParseReconciliationFile(fileData);
+            var reconciliations = ParseReconciliationFile(fileData);
 
             if (reconciliations == null || reconciliations.Count == 0)
             {
@@ -447,7 +447,7 @@ public class CashReconciliationFunction
         }
     }
 
-    private async Task<List<DailyCashReconciliation>> ParseReconciliationFile(byte[] fileData)
+    private List<DailyCashReconciliation> ParseReconciliationFile(byte[] fileData)
     {
         var reconciliations = new List<DailyCashReconciliation>();
 

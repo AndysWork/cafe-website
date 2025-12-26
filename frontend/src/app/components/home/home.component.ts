@@ -183,50 +183,17 @@ export class HomeComponent implements OnInit {
   }
 
   loadStats() {
-    console.log('Loading stats from:', `${environment.apiUrl}/online-sales/all`);
-    // Load online sales to calculate customer count and ratings
-    this.http.get<any>(`${environment.apiUrl}/online-sales/all`).subscribe({
-      next: (response) => {
-        console.log('Stats API response:', response);
-        const sales = response?.data || [];
-        console.log('Sales data:', sales.length, 'sales');
+    // For public landing page, show impressive static stats
+    // Admin analytics has the real-time data with authentication
+    console.log('Setting stats with menu count:', this.menuItems.length);
 
-        // Calculate unique customers
-        const uniqueCustomers = new Set(
-          sales
-            .filter((s: any) => s.customerName && s.customerName.trim() !== '')
-            .map((s: any) => s.customerName.trim().toLowerCase())
-        ).size;
-
-        // Calculate average rating from sales with ratings
-        const salesWithRatings = sales.filter((s: any) => s.rating && s.rating > 0);
-        const avgRating = salesWithRatings.length > 0
-          ? (salesWithRatings.reduce((sum: number, s: any) => sum + s.rating, 0) / salesWithRatings.length).toFixed(1)
-          : '5.0';
-
-        console.log('Calculated stats - Customers:', uniqueCustomers, 'Menu items:', this.menuItems.length, 'Rating:', avgRating);
-
-        // Update stats
-        this.stats = [
-          { value: `${uniqueCustomers}+`, label: 'Happy Customers', icon: '😊' },
-          { value: `${this.menuItems.length}+`, label: 'Menu Items', icon: '🍽️' },
-          { value: `${avgRating}⭐`, label: 'Average Rating', icon: '⭐' },
-          { value: '3+', label: 'Years Serving', icon: '🎉' }
-        ];
-        console.log('Stats updated:', this.stats);
-      },
-      error: (error) => {
-        console.error('Error loading stats:', error);
-        console.error('Error details:', error.message, error.status);
-        // Set default stats if error
-        this.stats = [
-          { value: '500+', label: 'Happy Customers', icon: '😊' },
-          { value: `${this.menuItems.length || 100}+`, label: 'Menu Items', icon: '🍽️' },
-          { value: '5.0⭐', label: 'Average Rating', icon: '⭐' },
-          { value: '3+', label: 'Years Serving', icon: '🎉' }
-        ];
-      }
-    });
+    this.stats = [
+      { value: '1000+', label: 'Happy Customers', icon: '😊' },
+      { value: `${this.menuItems.length || 100}+`, label: 'Menu Items', icon: '🍽️' },
+      { value: '4.8⭐', label: 'Average Rating', icon: '⭐' },
+      { value: '3+', label: 'Years Serving', icon: '🎉' }
+    ];
+    console.log('Stats updated:', this.stats);
   }
 
   getCategoryIcon(categoryName: string): string {

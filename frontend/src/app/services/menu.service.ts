@@ -29,6 +29,9 @@ export interface MenuItem {
   dineInPrice?: number;
   imageUrl?: string;
   isAvailable?: boolean;
+  makingPrice?: number;
+  packagingCharge?: number;
+  shopSellingPrice?: number;
 }
 
 @Injectable({

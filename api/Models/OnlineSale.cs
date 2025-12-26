@@ -225,6 +225,21 @@ public class DailyOnlineIncomeResponse
     public decimal AverageRating { get; set; }
 }
 
+public class DiscountCouponResponse
+{
+    public string? Id { get; set; }
+    public string CouponCode { get; set; } = string.Empty;
+    public string Platform { get; set; } = string.Empty;
+    public int UsageCount { get; set; }
+    public decimal TotalDiscountAmount { get; set; }
+    public decimal AverageDiscountAmount { get; set; }
+    public DateTime FirstUsed { get; set; }
+    public DateTime LastUsed { get; set; }
+    public bool IsActive { get; set; }
+    public decimal? MaxValue { get; set; }
+    public decimal? DiscountPercentage { get; set; }
+}
+
 public class BulkInsertResult
 {
     public bool Success { get; set; }

@@ -14,7 +14,7 @@
     h1 {
       margin: 0;
       font-size: 2rem;
-      color: #1a202c;
+      color: #333;
     }
 
     .header-actions {
@@ -24,7 +24,7 @@
   }
 
   .info-banner {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
     color: white;
     padding: 1.5rem;
     border-radius: 12px;
@@ -76,7 +76,7 @@
       overflow: hidden;
 
       .year-header {
-        background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
         color: white;
         padding: 1.5rem;
         cursor: pointer;
@@ -86,7 +86,7 @@
         transition: all 0.3s ease;
 
         &:hover {
-          background: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
+          background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
         }
 
         .year-info {
@@ -133,13 +133,13 @@
 
     .expense-card {
       background: white;
-      border: 2px solid #e2e8f0;
       border-radius: 12px;
       padding: 1.5rem;
-      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
 
       &:hover {
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
         transform: translateY(-2px);
       }
 
@@ -267,7 +267,7 @@
     }
 
     .modal-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
       color: white;
       padding: 1.5rem;
       display: flex;
@@ -408,7 +408,7 @@
     }
 
     .total-display {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
       color: white;
       padding: 1.5rem;
       border-radius: 12px;
@@ -455,12 +455,12 @@
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
     color: white;
 
     &:hover:not(:disabled) {
       transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
     }
   }
 
