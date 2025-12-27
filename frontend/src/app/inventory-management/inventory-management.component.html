@@ -1,0 +1,442 @@
+<div class="inventory-container">
+  <!-- Header -->
+  <div class="header">
+    <h1>📦 Inventory Management</h1>
+
+    <!-- Navigation -->
+    <div class="nav-tabs">
+      <button [class.active]="activeView === 'dashboard'" (click)="loadDashboard()">
+        📊 Dashboard
+      </button>
+      <button [class.active]="activeView === 'inventory'" (click)="loadInventory()">
+        📦 Inventory
+      </button>
+      <button [class.active]="activeView === 'transactions'" (click)="loadTransactions()">
+        📝 Transactions
+      </button>
+      <button [class.active]="activeView === 'alerts'" (click)="loadAlerts()">
+        🔔 Alerts
+        <span *ngIf="alerts.length > 0" class="badge">{{ alerts.length }}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div *ngIf="loading" class="loading">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+  </div>
+
+  <!-- Alert Notification -->
+  <div *ngIf="showAlertNotification" [ngClass]="alertClass" class="alert-notification">
+    {{ alertNotificationMessage }}
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div *ngIf="activeView === 'dashboard' && !loading">
+    <!-- Dashboard with data -->
+    <div *ngIf="report" class="dashboard-view">
+    <!-- Summary Cards -->
+    <div class="summary-cards">
+      <div class="card">
+        <h3>Total Items</h3>
+        <p class="big-number">{{ report.totalItems }}</p>
+      </div>
+      <div class="card">
+        <h3>Total Value</h3>
+        <p class="big-number">{{ formatCurrency(report.totalInventoryValue) }}</p>
+      </div>
+      <div class="card status-card">
+        <h3>In Stock</h3>
+        <p class="big-number" style="color: green;">{{ report.inStockItems }}</p>
+      </div>
+      <div class="card status-card">
+        <h3>Low Stock</h3>
+        <p class="big-number" style="color: orange;">{{ report.lowStockItems }}</p>
+      </div>
+      <div class="card status-card">
+        <h3>Out of Stock</h3>
+        <p class="big-number" style="color: red;">{{ report.outOfStockItems }}</p>
+      </div>
+      <div class="card status-card">
+        <h3>Expiring Soon</h3>
+        <p class="big-number" style="color: purple;">{{ report.expiringItems }}</p>
+      </div>
+    </div>
+
+    <!-- Critical Items -->
+    <div *ngIf="report.criticalItems.length > 0" class="section">
+      <h2>🚨 Critical Items</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Category</th>
+              <th>Current Stock</th>
+              <th>Status</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of report.criticalItems">
+              <td>{{ item.name }}</td>
+              <td>{{ item.category }}</td>
+              <td>{{ item.currentStock }} {{ item.unit }}</td>
+              <td>
+                <span class="status-badge" [style.background-color]="getStatusColor(item.status)">
+                  {{ item.status }}
+                </span>
+              </td>
+              <td>{{ formatCurrency(item.value) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Top Value Items -->
+    <div class="section">
+      <h2>💎 Top Value Items</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Category</th>
+              <th>Stock</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of report.topValueItems">
+              <td>{{ item.name }}</td>
+              <td>{{ item.category }}</td>
+              <td>{{ item.currentStock }} {{ item.unit }}</td>
+              <td><strong>{{ formatCurrency(item.value) }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div *ngIf="report.recentTransactions.length > 0" class="section">
+      <h2>📝 Recent Transactions</h2>
+      <div class="transactions-list">
+        <div *ngFor="let transaction of report.recentTransactions" class="transaction-item">
+          <div class="transaction-icon">{{ getTransactionIcon(transaction.type) }}</div>
+          <div class="transaction-details">
+            <strong>{{ transaction.ingredientName }}</strong>
+            <span class="transaction-type">{{ transaction.type }}</span>
+          </div>
+          <div class="transaction-quantity">
+            {{ transaction.quantity }} {{ transaction.unit }}
+          </div>
+          <div class="transaction-date">
+            {{ formatDate(transaction.transactionDate) }}
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- Empty state -->
+    <div *ngIf="!report" class="empty-state">
+      <h2>📦 No Inventory Data</h2>
+      <p>Unable to load dashboard data. Please check your connection and try again.</p>
+      <button (click)="loadDashboard()" class="btn-primary">Reload Dashboard</button>
+    </div>
+  </div>
+
+  <!-- INVENTORY VIEW -->
+  <div *ngIf="activeView === 'inventory' && !loading" class="inventory-view">
+    <!-- Filters and Search -->
+    <div class="filters-section">
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        (ngModelChange)="onSearchChange()"
+        placeholder="🔍 Search items..."
+        class="search-input"
+      />
+
+      <select [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()" class="filter-select">
+        <option value="all">All Status</option>
+        <option value="InStock">In Stock</option>
+        <option value="LowStock">Low Stock</option>
+        <option value="OutOfStock">Out of Stock</option>
+        <option value="Expiring">Expiring</option>
+      </select>
+
+      <select [(ngModel)]="categoryFilter" (ngModelChange)="onFilterChange()" class="filter-select">
+        <option value="all">All Categories</option>
+        <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
+      </select>
+
+      <button (click)="createNewItem()" class="btn btn-primary">
+        ➕ Add New Item
+      </button>
+    </div>
+
+    <!-- Inventory Form (Create/Edit) -->
+    <div *ngIf="inventoryForm.ingredientName !== undefined" class="form-section">
+      <h3>{{ selectedItem ? 'Edit' : 'New' }} Inventory Item</h3>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Item Name *</label>
+          <input type="text" [(ngModel)]="inventoryForm.ingredientName" />
+        </div>
+
+        <div class="form-group">
+          <label>Category *</label>
+          <select [(ngModel)]="inventoryForm.category">
+            <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Unit *</label>
+          <select [(ngModel)]="inventoryForm.unit">
+            <option *ngFor="let unit of measurementUnits" [value]="unit">{{ unit }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Current Stock</label>
+          <input type="number" [(ngModel)]="inventoryForm.currentStock" min="0" step="0.01" />
+        </div>
+
+        <div class="form-group">
+          <label>Minimum Stock</label>
+          <input type="number" [(ngModel)]="inventoryForm.minimumStock" min="0" step="0.01" />
+        </div>
+
+        <div class="form-group">
+          <label>Maximum Stock</label>
+          <input type="number" [(ngModel)]="inventoryForm.maximumStock" min="0" step="0.01" />
+        </div>
+
+        <div class="form-group">
+          <label>Reorder Quantity</label>
+          <input type="number" [(ngModel)]="inventoryForm.reorderQuantity" min="0" step="0.01" />
+        </div>
+
+        <div class="form-group">
+          <label>Cost Per Unit</label>
+          <input type="number" [(ngModel)]="inventoryForm.costPerUnit" min="0" step="0.01" />
+        </div>
+
+        <div class="form-group">
+          <label>Supplier Name</label>
+          <input type="text" [(ngModel)]="inventoryForm.supplierName" />
+        </div>
+
+        <div class="form-group">
+          <label>Supplier Contact</label>
+          <input type="text" [(ngModel)]="inventoryForm.supplierContact" />
+        </div>
+
+        <div class="form-group">
+          <label>Storage Location</label>
+          <input type="text" [(ngModel)]="inventoryForm.storageLocation" />
+        </div>
+
+        <div class="form-group">
+          <label>Expiry Date</label>
+          <input type="date" [(ngModel)]="inventoryForm.expiryDate" />
+        </div>
+
+        <div class="form-group full-width">
+          <label>Notes</label>
+          <textarea [(ngModel)]="inventoryForm.notes" rows="2"></textarea>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button (click)="saveInventory()" class="btn btn-success">
+          💾 {{ selectedItem ? 'Update' : 'Create' }}
+        </button>
+        <button (click)="inventoryForm = getEmptyInventoryForm(); selectedItem = null;" class="btn btn-secondary">
+          ❌ Cancel
+        </button>
+      </div>
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="section">
+      <h2>Inventory Items ({{ filteredItems.length }})</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Category</th>
+              <th>Current Stock</th>
+              <th>Min/Max</th>
+              <th>Cost/Unit</th>
+              <th>Total Value</th>
+              <th>Status</th>
+              <th>Supplier</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of filteredItems">
+              <td><strong>{{ item.ingredientName }}</strong></td>
+              <td>{{ item.category }}</td>
+              <td>{{ item.currentStock }} {{ item.unit }}</td>
+              <td>{{ item.minimumStock }} / {{ item.maximumStock }}</td>
+              <td>{{ formatCurrency(item.costPerUnit) }}</td>
+              <td>{{ formatCurrency(item.totalValue) }}</td>
+              <td>
+                <span class="status-badge" [style.background-color]="getStatusColor(item.status)">
+                  {{ item.status }}
+                </span>
+              </td>
+              <td>{{ item.supplierName || 'N/A' }}</td>
+              <td class="action-buttons">
+                <button (click)="openStockModal(item, 'in')" class="btn-icon" title="Stock In">📥</button>
+                <button (click)="openStockModal(item, 'out')" class="btn-icon" title="Stock Out">📤</button>
+                <button (click)="editItem(item)" class="btn-icon" title="Edit">✏️</button>
+                <button (click)="loadTransactions(item)" class="btn-icon" title="History">📝</button>
+                <button (click)="deleteItem(item)" class="btn-icon btn-danger" title="Delete">🗑️</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS VIEW -->
+  <div *ngIf="activeView === 'transactions' && !loading" class="transactions-view">
+    <div class="section-header">
+      <h2>📝 Transaction History</h2>
+      <p *ngIf="selectedItem">Showing transactions for: <strong>{{ selectedItem.ingredientName }}</strong></p>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Item</th>
+            <th>Type</th>
+            <th>Quantity</th>
+            <th>Stock Before</th>
+            <th>Stock After</th>
+            <th>Cost</th>
+            <th>Supplier/Reason</th>
+            <th>By</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let transaction of transactions">
+            <td>{{ formatDate(transaction.transactionDate) }}</td>
+            <td>{{ transaction.ingredientName }}</td>
+            <td>
+              <span class="transaction-badge">
+                {{ getTransactionIcon(transaction.type) }} {{ transaction.type }}
+              </span>
+            </td>
+            <td>{{ transaction.quantity }} {{ transaction.unit }}</td>
+            <td>{{ transaction.stockBefore }}</td>
+            <td>{{ transaction.stockAfter }}</td>
+            <td>{{ transaction.totalCost ? formatCurrency(transaction.totalCost) : 'N/A' }}</td>
+            <td>{{ transaction.supplierName || transaction.reason || 'N/A' }}</td>
+            <td>{{ transaction.performedBy }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ALERTS VIEW -->
+  <div *ngIf="activeView === 'alerts' && !loading" class="alerts-view">
+    <h2>🔔 Stock Alerts ({{ alerts.length }})</h2>
+
+    <div *ngIf="alerts.length === 0" class="empty-state">
+      <p>✅ No active alerts. All inventory levels are good!</p>
+    </div>
+
+    <div *ngIf="alerts.length > 0" class="alerts-list">
+      <div *ngFor="let alert of alerts" class="alert-card" [class.critical]="alert.severity === 'Critical'">
+        <div class="alert-header">
+          <span class="alert-icon">{{ alertStyles[alert.type].icon || '⚠️' }}</span>
+          <strong>{{ alert.ingredientName }}</strong>
+          <span class="severity-badge" [class]="alert.severity.toLowerCase()">
+            {{ alert.severity }}
+          </span>
+        </div>
+        <p class="alert-message">{{ alert.message }}</p>
+        <div class="alert-footer">
+          <small>Created: {{ formatDate(alert.createdAt) }}</small>
+          <button (click)="resolveAlert(alert)" class="btn btn-sm btn-success">
+            ✔️ Resolve
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STOCK MODAL (Stock In/Out) -->
+  <div *ngIf="showStockModal" class="modal-backdrop" (click)="closeStockModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ stockModalType === 'in' ? '📥 Stock In' : '📤 Stock Out' }}</h3>
+        <button (click)="closeStockModal()" class="btn-close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p><strong>Item:</strong> {{ selectedItem?.ingredientName }}</p>
+        <p><strong>Current Stock:</strong> {{ selectedItem?.currentStock }} {{ selectedItem?.unit }}</p>
+
+        <!-- Stock In Form -->
+        <div *ngIf="stockModalType === 'in'" class="form">
+          <div class="form-group">
+            <label>Quantity *</label>
+            <input type="number" [(ngModel)]="stockInForm.quantity" min="0" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Cost Per Unit</label>
+            <input type="number" [(ngModel)]="stockInForm.costPerUnit" min="0" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Supplier Name</label>
+            <input type="text" [(ngModel)]="stockInForm.supplierName" />
+          </div>
+          <div class="form-group">
+            <label>Reference Number</label>
+            <input type="text" [(ngModel)]="stockInForm.referenceNumber" />
+          </div>
+        </div>
+
+        <!-- Stock Out Form -->
+        <div *ngIf="stockModalType === 'out'" class="form">
+          <div class="form-group">
+            <label>Quantity *</label>
+            <input type="number" [(ngModel)]="stockOutForm.quantity" min="0" [max]="selectedItem?.currentStock || 0" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Reason</label>
+            <input type="text" [(ngModel)]="stockOutForm.reason" placeholder="e.g., Used for recipe" />
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button *ngIf="stockModalType === 'in'" (click)="submitStockIn()" class="btn btn-success">
+          ✔️ Add Stock
+        </button>
+        <button *ngIf="stockModalType === 'out'" (click)="submitStockOut()" class="btn btn-warning">
+          ✔️ Remove Stock
+        </button>
+        <button (click)="closeStockModal()" class="btn btn-secondary">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

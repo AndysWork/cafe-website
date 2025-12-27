@@ -53,10 +53,15 @@ export class AdminLayoutComponent {
       active: false
     },
     {
-
       icon: '📈',
       label: 'Analytics',
       route: '/admin/analytics',
+      active: false
+    },
+    {
+      icon: '📦',
+      label: 'Inventory',
+      route: '/admin/inventory',
       active: false
     },
     {

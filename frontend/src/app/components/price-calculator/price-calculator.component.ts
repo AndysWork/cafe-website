@@ -4,11 +4,14 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { PriceCalculatorService } from '../../services/price-calculator.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
+import { OverheadCostService, OverheadCost, OverheadAllocation } from '../../services/overhead-cost.service';
+import { FrozenItemService } from '../../services/frozen-item.service';
 import {
   Ingredient,
   MenuItemRecipe,
   IngredientUsage,
   PriceCalculation,
+  FrozenItem,
   INGREDIENT_CATEGORIES,
   MEASUREMENT_UNITS
 } from '../../models/ingredient.model';
@@ -27,9 +30,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   ingredients: Ingredient[] = [];
   recipes: MenuItemRecipe[] = [];
   menuItems: MenuItem[] = [];
+  frozenItems: FrozenItem[] = [];
 
   // UI State
-  activeTab: 'calculator' | 'ingredients' | 'recipes' = 'calculator';
+  activeTab: 'calculator' | 'ingredients' | 'recipes' | 'overhead' | 'frozen' = 'calculator';
 
   // Ingredient Management
   showIngredientModal = false;
@@ -37,6 +41,21 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   ingredientForm: Ingredient = this.getEmptyIngredient();
   ingredientSearchTerm = '';
   selectedCategory = '';
+
+  // Overhead Cost Management
+  showOverheadModal = false;
+  editingOverheadCost: OverheadCost | null = null;
+  overheadCosts: OverheadCost[] = [];
+  overheadForm: OverheadCost = this.getEmptyOverheadCost();
+  overheadAllocation: OverheadAllocation | null = null;
+
+  // Frozen Items Management
+  showFrozenModal = false;
+  editingFrozenItem: FrozenItem | null = null;
+  frozenForm: FrozenItem = this.getEmptyFrozenItem();
+  selectedFile: File | null = null;
+  uploadProgress = false;
+  uploadResult: { success: number; failed: number; errors: string[] } | null = null;
 
   // Inline editing
   editingInlineId: string | null = null;
@@ -57,6 +76,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   ingredientQuantity = 0;
   ingredientUnit: 'kg' | 'gm' | 'ml' | 'pc' | 'ltr' = 'gm';
   calculation: PriceCalculation | null = null;
+  preparationTimeMinutes = 0; // Preparation time for overhead calculation
 
   // Constants for templates
   categories = INGREDIENT_CATEGORIES;
@@ -65,13 +85,17 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   constructor(
     private priceCalculatorService: PriceCalculatorService,
-    private menuService: MenuService
+    private menuService: MenuService,
+    private overheadCostService: OverheadCostService,
+    private frozenItemService: FrozenItemService
   ) {}
 
   ngOnInit(): void {
     this.loadIngredients();
     this.loadRecipes();
     this.loadMenuItems();
+    this.loadOverheadCosts();
+    this.loadFrozenItems();
   }
 
   ngOnDestroy(): void {
@@ -103,6 +127,148 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       .subscribe(items => {
         this.menuItems = items;
       });
+  }
+
+  loadOverheadCosts(): void {
+    this.overheadCostService.getAllOverheadCosts()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(costs => {
+        this.overheadCosts = costs;
+      });
+  }
+
+  // ===== OVERHEAD COST MANAGEMENT =====
+
+  getEmptyOverheadCost(): OverheadCost {
+    return {
+      costType: '',
+      monthlyCost: 0,
+      operationalHoursPerDay: 11,
+      workingDaysPerMonth: 30,
+      isActive: true,
+      description: ''
+    };
+  }
+
+  openOverheadModal(overheadCost?: OverheadCost): void {
+    if (overheadCost) {
+      this.editingOverheadCost = overheadCost;
+      this.overheadForm = { ...overheadCost };
+    } else {
+      this.editingOverheadCost = null;
+      this.overheadForm = this.getEmptyOverheadCost();
+    }
+    this.showOverheadModal = true;
+  }
+
+  closeOverheadModal(): void {
+    this.showOverheadModal = false;
+    this.editingOverheadCost = null;
+    this.overheadForm = this.getEmptyOverheadCost();
+  }
+
+  saveOverheadCost(): void {
+    if (!this.overheadForm.costType || this.overheadForm.monthlyCost <= 0) {
+      alert('Please fill in all required fields with valid values.');
+      return;
+    }
+
+    if (this.editingOverheadCost?.id) {
+      this.overheadCostService.updateOverheadCost(this.editingOverheadCost.id, this.overheadForm)
+        .subscribe({
+          next: () => {
+            this.closeOverheadModal();
+            this.loadOverheadCosts();
+            this.showAlert('Overhead cost updated successfully', 'success');
+            // Recalculate if preparation time is set
+            if (this.preparationTimeMinutes > 0) {
+              this.calculateOverheadCosts();
+            }
+          },
+          error: (err) => {
+            console.error('Error updating overhead cost:', err);
+            this.showAlert('Failed to update overhead cost', 'error');
+          }
+        });
+    } else {
+      this.overheadCostService.createOverheadCost(this.overheadForm)
+        .subscribe({
+          next: () => {
+            this.closeOverheadModal();
+            this.loadOverheadCosts();
+            this.showAlert('Overhead cost added successfully', 'success');
+          },
+          error: (err) => {
+            console.error('Error adding overhead cost:', err);
+            this.showAlert('Failed to add overhead cost', 'error');
+          }
+        });
+    }
+  }
+
+  deleteOverheadCost(id?: string): void {
+    if (!id) return;
+    if (confirm('Are you sure you want to delete this overhead cost?')) {
+      this.overheadCostService.deleteOverheadCost(id).subscribe({
+        next: () => {
+          this.loadOverheadCosts();
+          this.showAlert('Overhead cost deleted successfully', 'success');
+          // Recalculate if preparation time is set
+          if (this.preparationTimeMinutes > 0) {
+            this.calculateOverheadCosts();
+          }
+        },
+        error: (err) => {
+          console.error('Error deleting overhead cost:', err);
+          this.showAlert('Failed to delete overhead cost', 'error');
+        }
+      });
+    }
+  }
+
+  calculateOverheadCosts(): void {
+    if (this.preparationTimeMinutes <= 0) {
+      this.overheadAllocation = null;
+      return;
+    }
+
+    this.overheadCostService.calculateOverheadAllocation(this.preparationTimeMinutes)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (allocation) => {
+          this.overheadAllocation = allocation;
+          // Update recipe overhead costs
+          if (allocation && allocation.costs) {
+            this.currentRecipe.overheadCosts.labourCharge =
+              allocation.costs.find(c => c.costType.toLowerCase() === 'labour')?.allocatedCost || 10;
+            this.currentRecipe.overheadCosts.rentAllocation =
+              allocation.costs.find(c => c.costType.toLowerCase() === 'rent')?.allocatedCost || 5;
+            this.currentRecipe.overheadCosts.electricityCharge =
+              allocation.costs.find(c => c.costType.toLowerCase() === 'electricity')?.allocatedCost || 3;
+            this.calculatePrice();
+          }
+        },
+        error: (err) => {
+          console.error('Error calculating overhead costs:', err);
+          this.showAlert('Failed to calculate overhead costs', 'error');
+        }
+      });
+  }
+
+  initializeDefaultOverheadCosts(): void {
+    if (confirm('This will create default overhead costs (Rent, Labour, Electricity). Continue?')) {
+      this.overheadCostService.initializeDefaultOverheadCosts()
+        .subscribe({
+          next: () => {
+            this.loadOverheadCosts();
+            this.showAlert('Default overhead costs initialized successfully', 'success');
+          },
+          error: (err) => {
+            console.error('Error initializing default overhead costs:', err);
+            this.showAlert('Failed to initialize default overhead costs', 'error');
+          }
+        });
+    }
   }
 
   // ===== INGREDIENT MANAGEMENT =====
@@ -270,7 +436,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
             const alertType = Math.abs(changePercent) > 15 ? 'warning' : 'success';
 
             this.showAlert(
-              `✅ ${ingredient.name}: Price updated to ₹${result.data?.ingredient?.marketPrice || 0} (${changePercent > 0 ? '+' : ''}${changePercent?.toFixed(2)}%)`,
+              `✅ ${ingredient.name}: Price updated to ₹${result.data?.ingredient?.marketPrice || 0} (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%)`,
               alertType
             );
             this.loadIngredients(); // Reload to get updated data
@@ -497,6 +663,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   calculatePrice(): void {
+    // Calculate overhead costs first if preparation time is set
+    if (this.preparationTimeMinutes > 0) {
+      this.calculateOverheadCosts();
+    }
+
     // Update totals in recipe
     this.currentRecipe.totalIngredientCost = this.currentRecipe.ingredients
       .reduce((sum, ing) => sum + ing.totalCost, 0);
@@ -632,5 +803,159 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     if (data.labels.length === 0) return '';
     return data.labels[Math.floor(data.labels.length / 2)];
   }
-}
 
+  // ===== FROZEN ITEMS MANAGEMENT =====
+
+  loadFrozenItems(): void {
+    this.frozenItemService.getAllFrozenItems()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(items => {
+        this.frozenItems = items;
+      });
+  }
+
+  getEmptyFrozenItem(): FrozenItem {
+    return {
+      itemName: '',
+      quantity: 0,
+      packetWeight: 0,
+      buyPrice: 0,
+      perPiecePrice: 0,
+      perPieceWeight: 0,
+      vendor: '',
+      category: 'frozen',
+      isActive: true
+    };
+  }
+
+  openFrozenModal(item?: FrozenItem): void {
+    if (item) {
+      this.editingFrozenItem = item;
+      this.frozenForm = { ...item };
+    } else {
+      this.editingFrozenItem = null;
+      this.frozenForm = this.getEmptyFrozenItem();
+    }
+    this.showFrozenModal = true;
+  }
+
+  closeFrozenModal(): void {
+    this.showFrozenModal = false;
+    this.editingFrozenItem = null;
+    this.frozenForm = this.getEmptyFrozenItem();
+  }
+
+  saveFrozenItem(): void {
+    if (!this.frozenForm.itemName || this.frozenForm.buyPrice <= 0) {
+      alert('Please fill in all required fields with valid values.');
+      return;
+    }
+
+    if (this.editingFrozenItem?.id) {
+      this.frozenItemService.updateFrozenItem(this.editingFrozenItem.id, this.frozenForm)
+        .subscribe({
+          next: () => {
+            this.closeFrozenModal();
+            this.loadFrozenItems();
+            this.showAlert('Frozen item updated successfully', 'success');
+          },
+          error: (err) => {
+            console.error('Error updating frozen item:', err);
+            this.showAlert('Failed to update frozen item', 'error');
+          }
+        });
+    } else {
+      this.frozenItemService.createFrozenItem(this.frozenForm)
+        .subscribe({
+          next: () => {
+            this.closeFrozenModal();
+            this.loadFrozenItems();
+            this.showAlert('Frozen item added successfully', 'success');
+          },
+          error: (err) => {
+            console.error('Error adding frozen item:', err);
+            this.showAlert('Failed to add frozen item', 'error');
+          }
+        });
+    }
+  }
+
+  deleteFrozenItem(id?: string): void {
+    if (!id) return;
+    if (confirm('Are you sure you want to delete this frozen item?')) {
+      this.frozenItemService.deleteFrozenItem(id).subscribe({
+        next: () => {
+          this.loadFrozenItems();
+          this.showAlert('Frozen item deleted successfully', 'success');
+        },
+        error: (err) => {
+          console.error('Error deleting frozen item:', err);
+          this.showAlert('Failed to delete frozen item', 'error');
+        }
+      });
+    }
+  }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.selectedFile = input.files[0];
+    }
+  }
+
+  uploadExcelFile(): void {
+    if (!this.selectedFile) {
+      alert('Please select an Excel file first.');
+      return;
+    }
+
+    // Validate file extension
+    const fileName = this.selectedFile.name.toLowerCase();
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+      alert('Please select a valid Excel file (.xlsx or .xls)');
+      return;
+    }
+
+    this.uploadProgress = true;
+    this.uploadResult = null;
+
+    this.frozenItemService.uploadExcel(this.selectedFile)
+      .subscribe({
+        next: (result) => {
+          this.uploadProgress = false;
+          this.uploadResult = result;
+          this.loadFrozenItems();
+
+          if (result.failed === 0) {
+            this.showAlert(`✅ Successfully uploaded ${result.success} frozen items`, 'success');
+          } else {
+            this.showAlert(`⚠️ Uploaded ${result.success} items, ${result.failed} failed. Check details below.`, 'warning', 10000);
+          }
+
+          // Reset file input
+          this.selectedFile = null;
+          const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+          if (fileInput) fileInput.value = '';
+        },
+        error: (err) => {
+          this.uploadProgress = false;
+          console.error('Error uploading Excel:', err);
+          this.showAlert('Failed to upload Excel file', 'error');
+        }
+      });
+  }
+
+  downloadExcelTemplate(): void {
+    // Create a simple CSV template
+    const headers = 'ItemName,Quantity,PacketWeight,BuyPrice,PerPiecePrice,PerPieceWeight,Vendor\n';
+    const example = 'Frozen Chicken Wings,10,1000,500,50,100,ABC Suppliers\n';
+    const csvContent = headers + example;
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'frozen_items_template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }}

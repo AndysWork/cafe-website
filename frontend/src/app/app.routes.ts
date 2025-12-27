@@ -30,6 +30,7 @@ import { CustomerReviewsComponent } from './components/customer-reviews/customer
 import { PriceForecastingComponent } from './components/price-forecasting/price-forecasting.component';
 import { PriceCalculatorComponent } from './components/price-calculator/price-calculator.component';
 import { DiscountMappingComponent } from './components/discount-mapping/discount-mapping.component';
+import { InventoryManagementComponent } from './inventory-management/inventory-management.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -69,6 +70,7 @@ export const routes: Routes = [
       { path: 'discount-mapping', component: DiscountMappingComponent },
       { path: 'price-forecasting', component: PriceForecastingComponent },
       { path: 'price-calculator', component: PriceCalculatorComponent },
+      { path: 'inventory', component: InventoryManagementComponent },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

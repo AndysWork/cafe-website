@@ -33,6 +33,20 @@
       <span class="tab-icon">📋</span>
       Saved Recipes ({{recipes.length}})
     </button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab === 'overhead'"
+      (click)="activeTab = 'overhead'">
+      <span class="tab-icon">💰</span>
+      Overhead Costs
+    </button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab === 'frozen'"
+      (click)="activeTab = 'frozen'">
+      <span class="tab-icon">🧊</span>
+      Frozen Items ({{frozenItems.length}})
+    </button>
   </div>
 
   <!-- CALCULATOR TAB -->
@@ -136,6 +150,46 @@
         <!-- Overhead Costs -->
         <div class="form-section">
           <h3>💰 Overhead Costs (Per Item)</h3>
+
+          <!-- Preparation Time Input -->
+          <div class="form-group" style="margin-bottom: 1rem; background: #fff3cd; padding: 1rem; border-radius: 8px;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <span>⏱️ Preparation Time (minutes)</span>
+              <span style="font-size: 0.8rem; color: #666;">(for auto-calculation)</span>
+            </label>
+            <input
+              type="number"
+              [(ngModel)]="preparationTimeMinutes"
+              (ngModelChange)="calculateOverheadCosts()"
+              min="0"
+              step="1"
+              placeholder="e.g., 6 minutes"
+              class="form-input">
+            <small class="form-hint" *ngIf="overheadAllocation">
+              ✅ Overhead costs auto-calculated for {{preparationTimeMinutes}} minute(s) preparation time
+            </small>
+          </div>
+
+          <!-- Overhead Cost Breakdown (if auto-calculated) -->
+          <div class="overhead-breakdown" *ngIf="overheadAllocation && overheadAllocation.costs.length > 0"
+               style="margin-bottom: 1rem; padding: 1rem; background: #e7f3ff; border-radius: 8px; border-left: 4px solid #0066cc;">
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: #0066cc;">
+              🤖 Auto-Calculated Overhead Costs
+            </h4>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <div *ngFor="let cost of overheadAllocation.costs"
+                   style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                <span>{{cost.costType}}: (₹{{cost.monthlyCost}}/month &#64; ₹{{cost.costPerMinute.toFixed(4)}}/min)</span>
+                <strong>₹{{cost.allocatedCost.toFixed(2)}}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: bold;
+                          padding-top: 0.5rem; border-top: 2px solid #0066cc; margin-top: 0.25rem;">
+                <span>Total Overhead:</span>
+                <strong style="color: #0066cc;">₹{{overheadAllocation.totalOverheadCost.toFixed(2)}}</strong>
+              </div>
+            </div>
+          </div>
+
           <div class="overhead-grid">
             <div class="form-group">
               <label>Labour Charge (₹)</label>
@@ -145,7 +199,9 @@
                 (ngModelChange)="calculatePrice()"
                 min="0"
                 step="0.5"
-                class="form-input">
+                class="form-input"
+                [disabled]="overheadAllocation !== null"
+                [title]="overheadAllocation ? 'Auto-calculated based on preparation time' : 'Manual entry'">
             </div>
             <div class="form-group">
               <label>Rent Allocation (₹)</label>
@@ -155,7 +211,9 @@
                 (ngModelChange)="calculatePrice()"
                 min="0"
                 step="0.5"
-                class="form-input">
+                class="form-input"
+                [disabled]="overheadAllocation !== null"
+                [title]="overheadAllocation ? 'Auto-calculated based on preparation time' : 'Manual entry'">
             </div>
             <div class="form-group">
               <label>Electricity (₹)</label>
@@ -165,7 +223,9 @@
                 (ngModelChange)="calculatePrice()"
                 min="0"
                 step="0.5"
-                class="form-input">
+                class="form-input"
+                [disabled]="overheadAllocation !== null"
+                [title]="overheadAllocation ? 'Auto-calculated based on preparation time' : 'Manual entry'">
             </div>
             <div class="form-group">
               <label>Wastage (%)</label>
@@ -643,6 +703,474 @@
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closePriceHistory()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERHEAD COSTS TAB -->
+  <div class="tab-content" *ngIf="activeTab === 'overhead'">
+    <div class="overhead-costs-container">
+      <div class="panel-header">
+        <div class="header-left">
+          <h2>💰 Overhead Cost Management</h2>
+          <p class="subtitle">Configure monthly overhead costs with auto-calculation based on preparation time</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-action" (click)="openOverheadModal()" title="Add New Overhead Cost">
+            <span>➕</span> Add Overhead Cost
+          </button>
+          <button class="btn-action btn-secondary" (click)="initializeDefaultOverheadCosts()"
+                  title="Initialize Default Costs" *ngIf="overheadCosts.length === 0">
+            <span>🔄</span> Initialize Defaults
+          </button>
+        </div>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="info-banner">
+        <div class="info-icon">ℹ️</div>
+        <div class="info-content">
+          <strong>How Auto-Calculation Works:</strong>
+          <p>Monthly Cost → Daily (÷{{overheadCosts[0].workingDaysPerMonth || 30}} days) →
+             Hourly (÷{{overheadCosts[0].operationalHoursPerDay || 11}} hrs) →
+             Per Minute (÷60) → Allocated (×prep_time)</p>
+          <p><strong>Example:</strong> Rent ₹6000/month → ₹200/day → ₹18.18/hr → ₹0.303/min → ₹1.82 for 6-min dish</p>
+        </div>
+      </div>
+
+      <!-- Overhead Costs List -->
+      <div class="overhead-costs-grid">
+        <div class="overhead-cost-card" *ngFor="let cost of overheadCosts">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="cost-type-icon">💼</span>
+              <h3>{{cost.costType}}</h3>
+              <span class="status-badge" [class.active]="cost.isActive" [class.inactive]="!cost.isActive">
+                {{cost.isActive ? '✅ Active' : '❌ Inactive'}}
+              </span>
+            </div>
+            <div class="card-actions">
+              <button class="btn-icon" (click)="openOverheadModal(cost)" title="Edit">
+                ✏️
+              </button>
+              <button class="btn-icon btn-danger" (click)="deleteOverheadCost(cost.id)" title="Delete">
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="cost-details">
+              <div class="detail-row">
+                <span class="detail-label">Monthly Cost:</span>
+                <span class="detail-value primary">₹{{cost.monthlyCost.toFixed(2)}}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Operational Hours/Day:</span>
+                <span class="detail-value">{{cost.operationalHoursPerDay}} hrs</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Working Days/Month:</span>
+                <span class="detail-value">{{cost.workingDaysPerMonth}} days</span>
+              </div>
+            </div>
+
+            <div class="cost-breakdown">
+              <h4>Auto-Calculated Rates:</h4>
+              <div class="breakdown-item">
+                <span>Cost per Day:</span>
+                <strong>₹{{cost.costPerDay?.toFixed(2)}}</strong>
+              </div>
+              <div class="breakdown-item">
+                <span>Cost per Hour:</span>
+                <strong>₹{{cost.costPerHour?.toFixed(2)}}</strong>
+              </div>
+              <div class="breakdown-item highlight">
+                <span>Cost per Minute:</span>
+                <strong>₹{{cost.costPerMinute?.toFixed(4)}}</strong>
+              </div>
+            </div>
+
+            <div class="cost-description" *ngIf="cost.description">
+              <small>📝 {{cost.description}}</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" *ngIf="overheadCosts.length === 0">
+          <span class="empty-icon">💰</span>
+          <h3>No Overhead Costs Configured</h3>
+          <p>Add overhead costs to enable auto-calculation based on preparation time</p>
+          <button class="btn-primary" (click)="initializeDefaultOverheadCosts()">
+            <span>🔄</span> Initialize Default Costs
+          </button>
+        </div>
+      </div>
+
+      <!-- Calculation Example -->
+      <div class="calculation-example-section" *ngIf="overheadCosts.length > 0">
+        <h3>🧮 Test Auto-Calculation</h3>
+        <div class="example-form">
+          <div class="form-group">
+            <label>Preparation Time (minutes):</label>
+            <input
+              type="number"
+              [(ngModel)]="preparationTimeMinutes"
+              (ngModelChange)="calculateOverheadCosts()"
+              min="1"
+              step="1"
+              placeholder="e.g., 6"
+              class="form-input">
+          </div>
+          <button class="btn-primary" (click)="calculateOverheadCosts()"
+                  [disabled]="preparationTimeMinutes <= 0">
+            Calculate
+          </button>
+        </div>
+
+        <!-- Calculation Result -->
+        <div class="calculation-result" *ngIf="overheadAllocation">
+          <h4>Allocation for {{overheadAllocation.preparationTimeMinutes}} minute(s):</h4>
+          <div class="result-breakdown">
+            <div class="result-item" *ngFor="let calc of overheadAllocation.costs">
+              <div class="result-label">
+                <span>{{calc.costType}}</span>
+                <small>(₹{{calc.monthlyCost}}/month &#64; ₹{{calc.costPerMinute.toFixed(4)}}/min)</small>
+              </div>
+              <div class="result-value">₹{{calc.allocatedCost.toFixed(2)}}</div>
+            </div>
+            <div class="result-item total">
+              <div class="result-label"><strong>Total Overhead Cost:</strong></div>
+              <div class="result-value"><strong>₹{{overheadAllocation.totalOverheadCost.toFixed(2)}}</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FROZEN ITEMS TAB -->
+  <div class="tab-content" *ngIf="activeTab === 'frozen'">
+    <div class="frozen-items-container">
+      <div class="panel-header">
+        <div class="header-left">
+          <h2>🧊 Frozen Items Management</h2>
+          <p class="subtitle">Upload frozen items via Excel or add them manually</p>
+        </div>
+        <!-- <div class="header-actions">
+          <button class="btn-action" (click)="downloadExcelTemplate()" title="Download Template">
+            <span>📥</span> Download Template
+          </button>
+          <button class="btn-action btn-primary" (click)="openFrozenModal()" title="Add Frozen Item">
+            <span>➕</span> Add Item
+          </button>
+        </div> -->
+      </div>
+
+      <!-- Excel Upload Section -->
+      <div class="upload-section">
+        <div class="upload-card">
+          <div class="upload-icon">📤</div>
+          <h3>Upload Excel File</h3>
+          <p>Upload an Excel file with frozen items data. Required columns: ItemName, Quantity, PacketWeight, BuyPrice, PerPiecePrice, PerPieceWeight, Vendor</p>
+
+          <div class="upload-form">
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              (change)="onFileSelected($event)"
+              class="file-input"
+              id="excelFile">
+            <label for="excelFile" class="file-label">
+              <span *ngIf="!selectedFile">📎 Choose Excel File</span>
+              <span *ngIf="selectedFile">✅ {{selectedFile.name}}</span>
+            </label>
+            <button
+              class="btn-upload"
+              (click)="uploadExcelFile()"
+              [disabled]="!selectedFile || uploadProgress">
+              <span *ngIf="!uploadProgress">⬆️ Upload</span>
+              <span *ngIf="uploadProgress">⏳ Uploading...</span>
+            </button>
+          </div>
+
+          <!-- Upload Result -->
+          <div class="upload-result" *ngIf="uploadResult">
+            <div class="result-summary" [ngClass]="uploadResult.failed === 0 ? 'success' : 'warning'">
+              <strong>Upload Complete:</strong> {{uploadResult.success}} successful, {{uploadResult.failed}} failed
+            </div>
+            <div class="result-errors" *ngIf="uploadResult.errors.length > 0">
+              <h4>Errors:</h4>
+              <ul>
+                <li *ngFor="let error of uploadResult.errors">{{error}}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Frozen Items Grid -->
+      <div class="frozen-items-grid">
+        <div class="frozen-item-card" *ngFor="let item of frozenItems">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="item-icon">🧊</span>
+              <h3>{{item.itemName}}</h3>
+              <span class="status-badge" [class.active]="item.isActive" [class.inactive]="!item.isActive">
+                {{item.isActive ? '✅ Active' : '❌ Inactive'}}
+              </span>
+            </div>
+            <div class="card-actions">
+              <button class="btn-icon" (click)="openFrozenModal(item)" title="Edit">
+                ✏️
+              </button>
+              <button class="btn-icon btn-danger" (click)="deleteFrozenItem(item.id)" title="Delete">
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="item-details">
+              <div class="detail-row">
+                <span class="detail-label">Vendor:</span>
+                <span class="detail-value">{{item.vendor}}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Quantity:</span>
+                <span class="detail-value">{{item.quantity}} packets</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Packet Weight:</span>
+                <span class="detail-value">{{item.packetWeight}} gm</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Buy Price:</span>
+                <span class="detail-value primary">₹{{item.buyPrice.toFixed(2)}}</span>
+              </div>
+            </div>
+
+            <div class="per-piece-info">
+              <h4>Per Piece Details:</h4>
+              <div class="piece-grid">
+                <div class="piece-item">
+                  <span class="piece-label">Price/Piece:</span>
+                  <strong>₹{{item.perPiecePrice.toFixed(2)}}</strong>
+                </div>
+                <div class="piece-item">
+                  <span class="piece-label">Weight/Piece:</span>
+                  <strong>{{item.perPieceWeight}} gm</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="item-notes" *ngIf="item.notes">
+              <small>📝 {{item.notes}}</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" *ngIf="frozenItems.length === 0">
+          <span class="empty-icon">🧊</span>
+          <h3>No Frozen Items</h3>
+          <p>Upload an Excel file or add items manually to get started</p>
+          <div class="empty-actions">
+            <button class="btn-primary" (click)="downloadExcelTemplate()">
+              <span>📥</span> Download Template
+            </button>
+            <button class="btn-secondary" (click)="openFrozenModal()">
+              <span>➕</span> Add Item
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Frozen Item Modal -->
+  <div class="modal-overlay" *ngIf="showFrozenModal" (click)="closeFrozenModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{editingFrozenItem ? '✏️ Edit' : '➕ Add'}} Frozen Item</h3>
+        <button class="btn-close" (click)="closeFrozenModal()">✖</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Item Name <span class="required">*</span></label>
+          <input
+            type="text"
+            [(ngModel)]="frozenForm.itemName"
+            placeholder="e.g., Frozen Chicken Wings"
+            class="form-input">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Quantity (Packets) <span class="required">*</span></label>
+            <input
+              type="number"
+              [(ngModel)]="frozenForm.quantity"
+              min="0"
+              step="1"
+              class="form-input">
+          </div>
+
+          <div class="form-group">
+            <label>Packet Weight (gm) <span class="required">*</span></label>
+            <input
+              type="number"
+              [(ngModel)]="frozenForm.packetWeight"
+              min="0"
+              step="0.01"
+              class="form-input">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Buy Price (₹) <span class="required">*</span></label>
+          <input
+            type="number"
+            [(ngModel)]="frozenForm.buyPrice"
+            min="0"
+            step="0.01"
+            class="form-input">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Per Piece Price (₹)</label>
+            <input
+              type="number"
+              [(ngModel)]="frozenForm.perPiecePrice"
+              min="0"
+              step="0.01"
+              class="form-input">
+          </div>
+
+          <div class="form-group">
+            <label>Per Piece Weight (gm)</label>
+            <input
+              type="number"
+              [(ngModel)]="frozenForm.perPieceWeight"
+              min="0"
+              step="0.01"
+              class="form-input">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Vendor <span class="required">*</span></label>
+          <input
+            type="text"
+            [(ngModel)]="frozenForm.vendor"
+            placeholder="e.g., ABC Suppliers"
+            class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label>Notes (Optional)</label>
+          <textarea
+            [(ngModel)]="frozenForm.notes"
+            placeholder="Additional notes..."
+            class="form-textarea"
+            rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [(ngModel)]="frozenForm.isActive">
+            <span>Active (Available for use)</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeFrozenModal()">Cancel</button>
+        <button class="btn-primary" (click)="saveFrozenItem()">
+          {{editingFrozenItem ? 'Update' : 'Add'}} Item
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overhead Cost Modal -->
+  <div class="modal-overlay" *ngIf="showOverheadModal" (click)="closeOverheadModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{editingOverheadCost ? '✏️ Edit' : '➕ Add'}} Overhead Cost</h3>
+        <button class="btn-close" (click)="closeOverheadModal()">✖</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Cost Type <span class="required">*</span></label>
+          <input
+            type="text"
+            [(ngModel)]="overheadForm.costType"
+            placeholder="e.g., Rent, Labour, Electricity"
+            class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label>Monthly Cost (₹) <span class="required">*</span></label>
+          <input
+            type="number"
+            [(ngModel)]="overheadForm.monthlyCost"
+            min="0"
+            step="100"
+            placeholder="e.g., 6000"
+            class="form-input">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Operational Hours/Day <span class="required">*</span></label>
+            <input
+              type="number"
+              [(ngModel)]="overheadForm.operationalHoursPerDay"
+              min="1"
+              max="24"
+              step="1"
+              class="form-input">
+          </div>
+
+          <div class="form-group">
+            <label>Working Days/Month <span class="required">*</span></label>
+            <input
+              type="number"
+              [(ngModel)]="overheadForm.workingDaysPerMonth"
+              min="1"
+              max="31"
+              step="1"
+              class="form-input">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Description (Optional)</label>
+          <textarea
+            [(ngModel)]="overheadForm.description"
+            placeholder="Brief description of this overhead cost..."
+            class="form-textarea"
+            rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [(ngModel)]="overheadForm.isActive">
+            <span>Active (Include in calculations)</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeOverheadModal()">Cancel</button>
+        <button class="btn-primary" (click)="saveOverheadCost()">
+          {{editingOverheadCost ? 'Update' : 'Add'}} Overhead Cost
+        </button>
       </div>
     </div>
   </div>

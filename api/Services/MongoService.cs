@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace Cafe.Api.Services;
 
-public class MongoService
+public partial class MongoService
 {
     private static readonly TimeZoneInfo IstTimeZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
     
@@ -51,6 +51,13 @@ public class MongoService
     private readonly IMongoCollection<MenuItemRecipe> _recipes;
     private readonly IMongoCollection<IngredientPriceHistory> _priceHistory;
     private readonly IMongoCollection<PriceUpdateSettings> _priceSettings;
+    private readonly IMongoCollection<Inventory> _inventory;
+    private readonly IMongoCollection<InventoryTransaction> _inventoryTransactions;
+    private readonly IMongoCollection<StockAlert> _stockAlerts;
+    private readonly IMongoCollection<OverheadCost> _overheadCosts;
+    private readonly IMongoCollection<FrozenItem> _frozenItems;
+    
+    private readonly IMongoDatabase _database; // Store database reference for partial classes
     
     public MongoService(IConfiguration config)
     {
@@ -69,7 +76,8 @@ public class MongoService
         }
         
         var client = new MongoClient(cs);
-        var db = client.GetDatabase(dbName);
+        _database = client.GetDatabase(dbName); // Store database reference
+        var db = _database;
         _menu = db.GetCollection<CafeMenuItem>("CafeMenu");
         _categories = db.GetCollection<MenuCategory>("MenuCategory");
         _subCategories = db.GetCollection<MenuSubCategory>("MenuSubCategory");
@@ -95,6 +103,11 @@ public class MongoService
         _recipes = db.GetCollection<MenuItemRecipe>("Recipes");
         _priceHistory = db.GetCollection<IngredientPriceHistory>("IngredientPriceHistory");
         _priceSettings = db.GetCollection<PriceUpdateSettings>("PriceUpdateSettings");
+        _inventory = db.GetCollection<Inventory>("Inventory");
+        _inventoryTransactions = db.GetCollection<InventoryTransaction>("InventoryTransactions");
+        _stockAlerts = db.GetCollection<StockAlert>("StockAlerts");
+        _overheadCosts = db.GetCollection<OverheadCost>("OverheadCosts");
+        _frozenItems = db.GetCollection<FrozenItem>("FrozenItems");
 
         // Ensure default admin user exists
         try
@@ -128,6 +141,17 @@ public class MongoService
         catch (Exception ex)
         {
             Console.WriteLine($"✗ Error ensuring default rewards: {ex.Message}");
+        }
+
+        // Ensure default overhead costs exist
+        try
+        {
+            InitializeDefaultOverheadCostsAsync().Wait();
+            Console.WriteLine("✓ Default overhead costs check completed");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Error ensuring default overhead costs: {ex.Message}");
         }
     }
 

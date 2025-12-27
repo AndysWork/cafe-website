@@ -101,6 +101,7 @@ export const INGREDIENT_CATEGORIES = [
   { value: 'grains', label: 'Grains & Pulses' },
   { value: 'oils', label: 'Oils & Fats' },
   { value: 'beverages', label: 'Beverages' },
+  { value: 'frozen', label: 'Frozen Items' },
   { value: 'others', label: 'Others' }
 ];
 
@@ -169,3 +170,30 @@ export const COMMON_INGREDIENTS: Ingredient[] = [
   { name: 'Soy Sauce', category: 'others', marketPrice: 120, unit: 'ltr', isActive: true },
   { name: 'Tomato Ketchup', category: 'others', marketPrice: 150, unit: 'kg', isActive: true }
 ];
+
+// Frozen Items Interface
+export interface FrozenItem {
+  id?: string;
+  itemName: string;
+  quantity: number; // Number of packets/units
+  packetWeight: number; // Weight of each packet in grams/kg
+  buyPrice: number; // Total purchase price
+  perPiecePrice: number; // Price per individual piece
+  perPieceWeight: number; // Weight per individual piece
+  vendor: string; // Vendor/supplier name
+  category: 'frozen'; // Always frozen category
+  isActive?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+  notes?: string;
+}
+
+export interface FrozenItemUpload {
+  itemName: string;
+  quantity: number;
+  packetWeight: number;
+  buyPrice: number;
+  perPiecePrice: number;
+  perPieceWeight: number;
+  vendor: string;
+}
