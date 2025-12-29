@@ -118,3 +118,19 @@ export function getIstDaysDifference(date1: Date | string, date2: Date | string)
   const diffTime = Math.abs(istDate2.getTime() - istDate1.getTime());
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
+
+/**
+ * Extract YYYY-MM-DD date string from ISO date without timezone conversion
+ * This is useful for populating input[type="date"] fields from backend dates
+ */
+export function extractIstDateString(dateString: string): string {
+  // If the date string contains 'T', it's an ISO format
+  if (dateString.includes('T')) {
+    // Parse the date and convert to IST to get the correct date
+    const date = new Date(dateString);
+    const istDate = convertToIst(date);
+    return getIstInputDate(istDate);
+  }
+  // If it's already in YYYY-MM-DD format, return as is
+  return dateString.split('T')[0];
+}

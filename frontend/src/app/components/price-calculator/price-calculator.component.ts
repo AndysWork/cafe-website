@@ -73,6 +73,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   // Recipe/Calculator
   currentRecipe: MenuItemRecipe = this.getEmptyRecipe();
   selectedIngredient: Ingredient | null = null;
+  isCalculatingOverhead = false;
+  selectedIngredientId: string = '';
   ingredientQuantity = 0;
   ingredientUnit: 'kg' | 'gm' | 'ml' | 'pc' | 'ltr' = 'gm';
   calculation: PriceCalculation | null = null;
@@ -232,6 +234,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.isCalculatingOverhead) {
+      return; // Already calculating, prevent duplicate calls
+    }
+
+    this.isCalculatingOverhead = true;
     this.overheadCostService.calculateOverheadAllocation(this.preparationTimeMinutes)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -245,12 +252,14 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
               allocation.costs.find(c => c.costType.toLowerCase() === 'rent')?.allocatedCost || 5;
             this.currentRecipe.overheadCosts.electricityCharge =
               allocation.costs.find(c => c.costType.toLowerCase() === 'electricity')?.allocatedCost || 3;
-            this.calculatePrice();
           }
+          this.isCalculatingOverhead = false;
+          this.calculatePrice(); // Now recalculate with updated overhead costs
         },
         error: (err) => {
           console.error('Error calculating overhead costs:', err);
           this.showAlert('Failed to calculate overhead costs', 'error');
+          this.isCalculatingOverhead = false;
         }
       });
   }
@@ -408,7 +417,23 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   get filteredIngredients(): Ingredient[] {
-    return this.ingredients.filter(ing => {
+    // Convert frozen items to ingredient format
+    const frozenAsIngredients: Ingredient[] = this.frozenItems
+      .filter(item => item.isActive)
+      .map(item => ({
+        id: item.id,
+        name: item.itemName,
+        category: 'frozen',
+        marketPrice: item.perPiecePrice,
+        unit: 'pc' as const,
+        isActive: item.isActive,
+        lastUpdated: item.updatedAt
+      }));
+
+    // Combine regular ingredients and frozen items
+    const allIngredients = [...this.ingredients, ...frozenAsIngredients];
+
+    return allIngredients.filter(ing => {
       const matchesSearch = !this.ingredientSearchTerm ||
         ing.name.toLowerCase().includes(this.ingredientSearchTerm.toLowerCase());
       const matchesCategory = !this.selectedCategory || ing.category === this.selectedCategory;
@@ -651,6 +676,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     // Reset form
     this.selectedIngredient = null;
+    this.selectedIngredientId = '';
     this.ingredientQuantity = 0;
     this.ingredientUnit = 'gm';
 
@@ -664,8 +690,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   calculatePrice(): void {
     // Calculate overhead costs first if preparation time is set
-    if (this.preparationTimeMinutes > 0) {
+    if (this.preparationTimeMinutes > 0 && !this.isCalculatingOverhead) {
       this.calculateOverheadCosts();
+      return; // Wait for overhead calculation to complete
     }
 
     // Update totals in recipe
@@ -755,7 +782,16 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   onIngredientSelect(event: Event): void {
     const selectElement = event.target as HTMLSelectElement;
     const ingredientId = selectElement.value;
-    this.selectedIngredient = this.ingredients.find(ing => ing.id === ingredientId) || null;
+    console.log('Ingredient selected:', ingredientId);
+    console.log('Filtered ingredients:', this.filteredIngredients.map(i => ({ id: i.id, name: i.name })));
+    // Search in both regular ingredients and frozen items (converted to ingredients)
+    this.selectedIngredient = this.filteredIngredients.find(ing => ing.id === ingredientId) || null;
+    console.log('Selected ingredient object:', this.selectedIngredient);
+
+    // Auto-set unit based on ingredient
+    if (this.selectedIngredient) {
+      this.ingredientUnit = this.selectedIngredient.unit;
+    }
   }
 
   // Helper methods for chart calculations

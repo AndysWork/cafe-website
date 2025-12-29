@@ -45,7 +45,7 @@ public class Expense
 public class CreateExpenseRequest
 {
     [Required(ErrorMessage = "Date is required")]
-    public DateTime Date { get; set; }
+    public string Date { get; set; } = string.Empty;
     
     [Required(ErrorMessage = "Expense type is required")]
     [AllowedValuesList("Inventory", "Salary", "Rent", "Utilities", "Maintenance", "Marketing", "Other")]

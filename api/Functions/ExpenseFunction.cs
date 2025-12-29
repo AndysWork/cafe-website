@@ -57,6 +57,42 @@ public class ExpenseFunction
         }
     }
 
+    // GET: Get expense by ID (Admin only)
+    [Function("GetExpenseById")]
+    public async Task<HttpResponseData> GetExpenseById(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "expenses/detail/{id}")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = 
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            
+            if (!isAuthorized)
+                return errorResponse!;
+
+            var expense = await _mongo.GetExpenseByIdAsync(id);
+            
+            if (expense == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Expense not found" });
+                return notFound;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(expense);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error getting expense by ID: {ex.Message}");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to get expense" });
+            return error;
+        }
+    }
+
     // GET: Get expenses by date range (Admin only)
     [Function("GetExpensesByDateRange")]
     public async Task<HttpResponseData> GetExpensesByDateRange(
@@ -81,6 +117,10 @@ public class ExpenseFunction
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
+
+            // Convert to IST date (date-only, no time component)
+            startDate = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
+            endDate = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, 999, DateTimeKind.Unspecified);
 
             var expenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate);
 
@@ -119,6 +159,9 @@ public class ExpenseFunction
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
+
+            // Convert to IST date (date-only, no time component)
+            date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
 
             var summary = await _mongo.GetExpenseSummaryByDateAsync(date);
 
@@ -439,9 +482,18 @@ public class ExpenseFunction
             var user = await _mongo.GetUserByIdAsync(userId!);
             var username = user?.Username ?? "Admin";
 
+            // Parse date as IST date (date-only, no time component)
+            if (!DateTime.TryParse(expenseRequest.Date, out var expenseDate))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
+                return badRequest;
+            }
+            var istDate = new DateTime(expenseDate.Year, expenseDate.Month, expenseDate.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
+
             var expense = new Expense
             {
-                Date = expenseRequest.Date,
+                Date = istDate,
                 ExpenseType = expenseRequest.ExpenseType,
                 ExpenseSource = expenseRequest.ExpenseSource,
                 Amount = expenseRequest.Amount,
@@ -497,7 +549,16 @@ public class ExpenseFunction
                 return notFound;
             }
 
-            existingExpense.Date = expenseRequest.Date;
+            // Parse date as IST date (date-only, no time component)
+            if (!DateTime.TryParse(expenseRequest.Date, out var expenseDate))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
+                return badRequest;
+            }
+            var istDate = new DateTime(expenseDate.Year, expenseDate.Month, expenseDate.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
+
+            existingExpense.Date = istDate;
             existingExpense.ExpenseType = expenseRequest.ExpenseType;
             existingExpense.Amount = expenseRequest.Amount;
             existingExpense.PaymentMethod = expenseRequest.PaymentMethod;
@@ -661,6 +722,9 @@ public class ExpenseFunction
             if (!DateTime.TryParse(dateValue, out var date))
                 continue;
 
+            // Convert to IST date (date-only, no time component)
+            var istDate = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, DateTimeKind.Unspecified);
+
             if (!decimal.TryParse(amountStr, out var amount))
                 continue;
 
@@ -674,7 +738,7 @@ public class ExpenseFunction
 
             expenses.Add(new Expense
             {
-                Date = date,
+                Date = istDate,
                 ExpenseType = expenseType,
                 ExpenseSource = expenseSource,
                 Amount = amount,

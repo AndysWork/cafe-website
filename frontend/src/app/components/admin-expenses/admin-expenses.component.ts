@@ -5,7 +5,7 @@ import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary, Hierarch
 import { OfflineExpenseTypeService, OfflineExpenseType } from '../../services/offline-expense-type.service';
 import { OnlineExpenseTypeService, OnlineExpenseType } from '../../services/online-expense-type.service';
 import { OperationalExpenseService, OperationalExpense, CreateOperationalExpenseRequest, UpdateOperationalExpenseRequest } from '../../services/operational-expense.service';
-import { getIstDateString, formatIstDate, convertToIst, getIstNow } from '../../utils/date-utils';
+import { getIstDateString, formatIstDate, convertToIst, getIstNow, extractIstDateString } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-expenses',
@@ -368,7 +368,7 @@ export class AdminExpensesComponent implements OnInit {
   openEditModal(expense: Expense) {
     this.editingId = expense.id;
     this.formData = {
-      date: expense.date.split('T')[0],
+      date: extractIstDateString(expense.date),
       expenseType: expense.expenseType,
       expenseSource: (expense as any).expenseSource || 'Offline',
       amount: expense.amount,

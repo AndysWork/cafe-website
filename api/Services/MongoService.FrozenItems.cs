@@ -174,7 +174,7 @@ public partial class MongoService
 
                 if (existingItem != null)
                 {
-                    // Update existing item
+                    // Update existing item - replace values with new data
                     existingItem.Quantity = item.Quantity;
                     existingItem.PacketWeight = item.PacketWeight;
                     existingItem.BuyPrice = item.BuyPrice;

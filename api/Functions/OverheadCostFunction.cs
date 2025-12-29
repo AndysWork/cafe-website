@@ -204,14 +204,19 @@ public class OverheadCostFunction
     {
         try
         {
+            _logger.LogInformation("CalculateOverheadAllocation called");
+            
             if (!int.TryParse(req.Query["preparationTimeMinutes"], out var preparationTimeMinutes) || preparationTimeMinutes <= 0)
             {
+                _logger.LogWarning("Invalid preparationTimeMinutes parameter");
                 var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequestResponse.WriteStringAsync("Valid preparation time in minutes is required");
                 return badRequestResponse;
             }
 
+            _logger.LogInformation("Calculating allocation for {Minutes} minutes", preparationTimeMinutes);
             var allocation = await _mongoService.CalculateOverheadAllocationAsync(preparationTimeMinutes);
+            _logger.LogInformation("Allocation calculated successfully");
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(allocation);

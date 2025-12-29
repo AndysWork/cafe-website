@@ -197,14 +197,62 @@ public partial class MongoService
         return result.DeletedCount > 0;
     }
 
-    // Bulk insert menu items (for Excel upload)
+    // Bulk insert menu items (for Excel upload) - appends new items, updates existing by name
     public async Task<int> BulkInsertMenuItemsAsync(List<CafeMenuItem> items)
     {
         if (items == null || items.Count == 0)
             return 0;
 
-        await _menu.InsertManyAsync(items);
-        return items.Count;
+        int count = 0;
+        foreach (var item in items)
+        {
+            // Check if item with same name already exists
+            var existingItem = await _menu.Find(x => x.Name.ToLower() == item.Name.ToLower()).FirstOrDefaultAsync();
+            
+            if (existingItem != null)
+            {
+                // Update existing item - merge variants and update other fields
+                existingItem.Description = item.Description;
+                existingItem.Category = item.Category;
+                existingItem.CategoryId = item.CategoryId;
+                existingItem.SubCategoryId = item.SubCategoryId;
+                existingItem.Quantity = item.Quantity;
+                existingItem.OnlinePrice = item.OnlinePrice;
+                existingItem.ShopSellingPrice = item.ShopSellingPrice;
+                existingItem.LastUpdatedBy = item.LastUpdatedBy ?? "Admin";
+                existingItem.LastUpdated = MongoService.GetIstNow();
+                
+                // Merge variants - add new ones, update existing by name
+                foreach (var newVariant in item.Variants)
+                {
+                    var existingVariant = existingItem.Variants.FirstOrDefault(v => 
+                        v.VariantName.Equals(newVariant.VariantName, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (existingVariant != null)
+                    {
+                        // Update existing variant
+                        existingVariant.Price = newVariant.Price;
+                        existingVariant.Quantity = newVariant.Quantity;
+                    }
+                    else
+                    {
+                        // Add new variant
+                        existingItem.Variants.Add(newVariant);
+                    }
+                }
+                
+                await _menu.ReplaceOneAsync(x => x.Id == existingItem.Id, existingItem);
+            }
+            else
+            {
+                // Insert new item
+                await _menu.InsertOneAsync(item);
+            }
+            
+            count++;
+        }
+        
+        return count;
     }
     
     // Clear all menu items (useful before bulk upload)

@@ -122,6 +122,11 @@ export class ExpenseService {
     return this.http.get<Expense[]>(this.apiUrl);
   }
 
+  // Get expense by ID
+  getExpenseById(id: string): Observable<Expense> {
+    return this.http.get<Expense>(`${this.apiUrl}/detail/${id}`);
+  }
+
   // Get expenses by date range
   getExpensesByDateRange(startDate: string, endDate: string): Observable<Expense[]> {
     return this.http.get<Expense[]>(`${this.apiUrl}/range?startDate=${startDate}&endDate=${endDate}`);

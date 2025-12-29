@@ -91,6 +91,7 @@
                 <label>Select Ingredient</label>
                 <select
                   class="form-select"
+                  [(ngModel)]="selectedIngredientId"
                   (change)="onIngredientSelect($event)">
                   <option value="">-- Choose Ingredient --</option>
                   <option *ngFor="let ing of filteredIngredients" [value]="ing.id">
@@ -160,7 +161,6 @@
             <input
               type="number"
               [(ngModel)]="preparationTimeMinutes"
-              (ngModelChange)="calculateOverheadCosts()"
               min="0"
               step="1"
               placeholder="e.g., 6 minutes"
@@ -731,8 +731,8 @@
         <div class="info-icon">ℹ️</div>
         <div class="info-content">
           <strong>How Auto-Calculation Works:</strong>
-          <p>Monthly Cost → Daily (÷{{overheadCosts[0].workingDaysPerMonth || 30}} days) →
-             Hourly (÷{{overheadCosts[0].operationalHoursPerDay || 11}} hrs) →
+          <p>Monthly Cost → Daily (÷{{overheadCosts?.[0]?.workingDaysPerMonth || 30}} days) →
+             Hourly (÷{{overheadCosts?.[0]?.operationalHoursPerDay || 11}} hrs) →
              Per Minute (÷60) → Allocated (×prep_time)</p>
           <p><strong>Example:</strong> Rent ₹6000/month → ₹200/day → ₹18.18/hr → ₹0.303/min → ₹1.82 for 6-min dish</p>
         </div>
@@ -817,7 +817,6 @@
             <input
               type="number"
               [(ngModel)]="preparationTimeMinutes"
-              (ngModelChange)="calculateOverheadCosts()"
               min="1"
               step="1"
               placeholder="e.g., 6"
@@ -939,11 +938,11 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">Quantity:</span>
-                <span class="detail-value">{{item.quantity}} packets</span>
+                <span class="detail-value">{{item.quantity}} pieces</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Packet Weight:</span>
-                <span class="detail-value">{{item.packetWeight}} gm</span>
+                <span class="detail-value">{{item.packetWeight}} kg</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Buy Price:</span>
@@ -1008,7 +1007,7 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label>Quantity (Packets) <span class="required">*</span></label>
+            <label>Quantity (Pieces) <span class="required">*</span></label>
             <input
               type="number"
               [(ngModel)]="frozenForm.quantity"
@@ -1018,7 +1017,7 @@
           </div>
 
           <div class="form-group">
-            <label>Packet Weight (gm) <span class="required">*</span></label>
+            <label>Packet Weight (kg) <span class="required">*</span></label>
             <input
               type="number"
               [(ngModel)]="frozenForm.packetWeight"
@@ -1179,8 +1178,7 @@
   <div class="alert-container">
     <div class="alert"
          *ngFor="let alert of priceAlerts"
-         [ngClass]="'alert-' + alert.type"
-         [@slideIn]>
+         [ngClass]="'alert-' + alert.type">
       <div class="alert-content">
         <span class="alert-message">{{alert.message}}</span>
         <button class="alert-close" (click)="dismissAlert(alert)">✖</button>
