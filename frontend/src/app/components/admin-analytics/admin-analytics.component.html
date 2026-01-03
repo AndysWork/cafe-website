@@ -7,40 +7,53 @@
       <button
         class="tab-btn"
         [class.active]="selectedAnalyticsTab === 'sales'"
-        (click)="switchTab('sales')">
-        💰 Offline Sales Analytics
+        (click)="switchTab('sales')"
+      >
+        💰 Offline Sales
       </button>
       <button
         class="tab-btn"
         [class.active]="selectedAnalyticsTab === 'online'"
-        (click)="switchTab('online')">
-        📱 Online Sales Analytics
+        (click)="switchTab('online')"
+      >
+        📱 Online Sales
       </button>
       <button
         class="tab-btn"
         [class.active]="selectedAnalyticsTab === 'expenses'"
-        (click)="switchTab('expenses')">
-        💸 Expense Analytics
-      </button>
-      <button
-        class="tab-btn"
-        [class.active]="selectedAnalyticsTab === 'earnings'"
-        (click)="switchTab('earnings')">
-        💵 Earnings Analytics
+        (click)="switchTab('expenses')"
+      >
+        💸 Expense
       </button>
       <button
         class="tab-btn"
         [class.active]="selectedAnalyticsTab === 'customers'"
-        (click)="switchTab('customers')">
-        👥 Customer Analytics
+        (click)="switchTab('customers')"
+      >
+        👥 Customer
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="selectedAnalyticsTab === 'earnings'"
+        (click)="switchTab('earnings')"
+      >
+        💵 Earnings
       </button>
     </div>
 
     <div class="date-filter">
       <label>From:</label>
-      <input type="date" [(ngModel)]="dateRange.startDate" (change)="onDateRangeChange()">
+      <input
+        type="date"
+        [(ngModel)]="dateRange.startDate"
+        (change)="onDateRangeChange()"
+      />
       <label>To:</label>
-      <input type="date" [(ngModel)]="dateRange.endDate" (change)="onDateRangeChange()">
+      <input
+        type="date"
+        [(ngModel)]="dateRange.endDate"
+        (change)="onDateRangeChange()"
+      />
     </div>
   </div>
 
@@ -48,150 +61,214 @@
   <div *ngIf="selectedAnalyticsTab === 'sales'">
     <h2 class="section-title">💰 Sales Analytics</h2>
 
-  <div *ngIf="loading" class="loading">
-    <p>Loading insights...</p>
+    <div *ngIf="loading" class="loading">
+      <p>Loading insights...</p>
+    </div>
+
+    <div *ngIf="!loading && !insights" class="empty-state">
+      <p>No sales data available for the selected date range</p>
+    </div>
+
+    <div *ngIf="!loading && insights" class="insights-container">
+      <!-- Summary Cards -->
+      <div class="summary-cards">
+        <div class="summary-card revenue">
+          <div class="card-icon">💰</div>
+          <div class="card-content">
+            <h3>Total Revenue</h3>
+            <p class="card-value">
+              {{ formatCurrency(insights.totalRevenue) }}
+            </p>
+            <span class="card-subtext"
+              >{{ insights.totalTransactions }} transactions</span
+            >
+          </div>
+        </div>
+
+        <div class="summary-card average">
+          <div class="card-icon">📊</div>
+          <div class="card-content">
+            <h3>Avg Transaction</h3>
+            <p class="card-value">
+              {{ formatCurrency(insights.averageTransaction) }}
+            </p>
+            <span class="card-subtext">Per order</span>
+          </div>
+        </div>
+
+        <div class="summary-card daily">
+          <div class="card-icon">📅</div>
+          <div class="card-content">
+            <h3>Daily Average</h3>
+            <p class="card-value">
+              {{ formatCurrency(insights.dailyAverage) }}
+            </p>
+            <span class="card-subtext">Per day</span>
+          </div>
+        </div>
+
+        <div class="summary-card growth">
+          <div class="card-icon">
+            {{ insights.growthRate >= 0 ? "📈" : "📉" }}
+          </div>
+          <div class="card-content">
+            <h3>Growth Rate</h3>
+            <p
+              class="card-value"
+              [class.positive]="insights.growthRate >= 0"
+              [class.negative]="insights.growthRate < 0"
+            >
+              {{ formatPercentage(insights.growthRate) }}
+            </p>
+            <span class="card-subtext">vs. last month</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Selling Items -->
+      <div class="insight-section">
+        <h2>🏆 Top Selling Items</h2>
+        <div class="top-items-grid">
+          <div
+            *ngFor="let item of insights.topSellingItems; let i = index"
+            class="top-item-card"
+            [class.top-1]="i === 0"
+            [class.top-2]="i === 1"
+            [class.top-3]="i === 2"
+          >
+            <div class="item-rank">{{ i + 1 }}</div>
+            <div class="item-details">
+              <h4>{{ item.name }}</h4>
+              <p>Quantity: {{ item.quantity }}</p>
+              <p class="item-revenue">{{ formatCurrency(item.revenue) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Method Breakdown -->
+      <div class="insight-section">
+        <h2>💳 Payment Method Breakdown</h2>
+        <div class="payment-breakdown">
+          <div
+            *ngFor="let payment of insights.paymentMethodBreakdown"
+            class="payment-card"
+          >
+            <div class="payment-header">
+              <h3>{{ payment.method }}</h3>
+              <span class="payment-count"
+                >{{ payment.count }} transactions</span
+              >
+            </div>
+            <div class="payment-amount">
+              {{ formatCurrency(payment.total) }}
+            </div>
+            <div class="payment-bar">
+              <div
+                class="payment-bar-fill"
+                [style.width.%]="(payment.total / insights.totalRevenue) * 100"
+              ></div>
+            </div>
+            <span class="payment-percentage"
+              >{{ ((payment.total / insights.totalRevenue) * 100).toFixed(1) }}%
+              of total</span
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- Category Breakdown -->
+      <div class="insight-section">
+        <h2>🍽️ Sales by Category</h2>
+        <div class="category-breakdown">
+          <div
+            *ngFor="let category of insights.itemCategoryBreakdown"
+            class="category-card"
+          >
+            <div class="category-icon">
+              {{ getCategoryIcon(category.category) }}
+            </div>
+            <div class="category-details">
+              <h3>{{ category.category }}</h3>
+              <p>{{ category.count }} items sold</p>
+              <p class="category-revenue">
+                {{ formatCurrency(category.revenue) }}
+              </p>
+            </div>
+            <div class="category-percentage">
+              {{
+                ((category.revenue / insights.totalRevenue) * 100).toFixed(1)
+              }}%
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weekly Trend -->
+      <div class="insight-section">
+        <h2>📊 Weekly Trend (Last 4 Weeks)</h2>
+        <div class="trend-chart">
+          <div
+            *ngFor="let week of insights.weeklyTrend"
+            class="trend-bar-container"
+          >
+            <div
+              class="trend-bar"
+              [style.height.%]="(week.total / getMaxWeeklyTotal()) * 100"
+            >
+              <span class="trend-value">{{ formatCurrency(week.total) }}</span>
+            </div>
+            <span class="trend-label">{{ week.week }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Comparison -->
+      <div class="insight-section">
+        <h2>📈 Monthly Comparison (Last 6 Months)</h2>
+        <div class="monthly-chart">
+          <div
+            *ngFor="let month of insights.monthlyComparison"
+            class="monthly-bar-container"
+          >
+            <div
+              class="monthly-bar"
+              [style.height.%]="(month.total / getMaxMonthlyTotal()) * 100"
+            >
+              <span class="monthly-value">{{
+                formatCurrency(month.total)
+              }}</span>
+              <span class="monthly-transactions"
+                >{{ month.transactions }} orders</span
+              >
+            </div>
+            <span class="monthly-label">{{ month.month }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Peak Sales Days -->
+      <div class="insight-section">
+        <h2>🔥 Top 5 Peak Sales Days</h2>
+        <div class="peak-days-list">
+          <div
+            *ngFor="let day of insights.peakSalesDays; let i = index"
+            class="peak-day-card"
+          >
+            <div class="peak-rank">{{ i + 1 }}</div>
+            <div class="peak-date">{{ day.day }}</div>
+            <div class="peak-amount">{{ formatCurrency(day.total) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-
-  <div *ngIf="!loading && !insights" class="empty-state">
-    <p>No sales data available for the selected date range</p>
-  </div>
-
-  <div *ngIf="!loading && insights" class="insights-container">
-    <!-- Summary Cards -->
-    <div class="summary-cards">
-      <div class="summary-card revenue">
-        <div class="card-icon">💰</div>
-        <div class="card-content">
-          <h3>Total Revenue</h3>
-          <p class="card-value">{{ formatCurrency(insights.totalRevenue) }}</p>
-          <span class="card-subtext">{{ insights.totalTransactions }} transactions</span>
-        </div>
-      </div>
-
-      <div class="summary-card average">
-        <div class="card-icon">📊</div>
-        <div class="card-content">
-          <h3>Avg Transaction</h3>
-          <p class="card-value">{{ formatCurrency(insights.averageTransaction) }}</p>
-          <span class="card-subtext">Per order</span>
-        </div>
-      </div>
-
-      <div class="summary-card daily">
-        <div class="card-icon">📅</div>
-        <div class="card-content">
-          <h3>Daily Average</h3>
-          <p class="card-value">{{ formatCurrency(insights.dailyAverage) }}</p>
-          <span class="card-subtext">Per day</span>
-        </div>
-      </div>
-
-      <div class="summary-card growth">
-        <div class="card-icon">{{ insights.growthRate >= 0 ? '📈' : '📉' }}</div>
-        <div class="card-content">
-          <h3>Growth Rate</h3>
-          <p class="card-value" [class.positive]="insights.growthRate >= 0" [class.negative]="insights.growthRate < 0">
-            {{ formatPercentage(insights.growthRate) }}
-          </p>
-          <span class="card-subtext">Period comparison</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Top Selling Items -->
-    <div class="insight-section">
-      <h2>🏆 Top Selling Items</h2>
-      <div class="top-items-grid">
-        <div *ngFor="let item of insights.topSellingItems; let i = index" class="top-item-card" [class.top-1]="i === 0" [class.top-2]="i === 1" [class.top-3]="i === 2">
-          <div class="item-rank">{{ i + 1 }}</div>
-          <div class="item-details">
-            <h4>{{ item.name }}</h4>
-            <p>Quantity: {{ item.quantity }}</p>
-            <p class="item-revenue">{{ formatCurrency(item.revenue) }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Payment Method Breakdown -->
-    <div class="insight-section">
-      <h2>💳 Payment Method Breakdown</h2>
-      <div class="payment-breakdown">
-        <div *ngFor="let payment of insights.paymentMethodBreakdown" class="payment-card">
-          <div class="payment-header">
-            <h3>{{ payment.method }}</h3>
-            <span class="payment-count">{{ payment.count }} transactions</span>
-          </div>
-          <div class="payment-amount">{{ formatCurrency(payment.total) }}</div>
-          <div class="payment-bar">
-            <div class="payment-bar-fill" [style.width.%]="(payment.total / insights.totalRevenue) * 100"></div>
-          </div>
-          <span class="payment-percentage">{{ ((payment.total / insights.totalRevenue) * 100).toFixed(1) }}% of total</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Category Breakdown -->
-    <div class="insight-section">
-      <h2>🍽️ Sales by Category</h2>
-      <div class="category-breakdown">
-        <div *ngFor="let category of insights.itemCategoryBreakdown" class="category-card">
-          <div class="category-icon">{{ getCategoryIcon(category.category) }}</div>
-          <div class="category-details">
-            <h3>{{ category.category }}</h3>
-            <p>{{ category.count }} items sold</p>
-            <p class="category-revenue">{{ formatCurrency(category.revenue) }}</p>
-          </div>
-          <div class="category-percentage">
-            {{ ((category.revenue / insights.totalRevenue) * 100).toFixed(1) }}%
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Weekly Trend -->
-    <div class="insight-section">
-      <h2>📊 Weekly Trend (Last 4 Weeks)</h2>
-      <div class="trend-chart">
-        <div *ngFor="let week of insights.weeklyTrend" class="trend-bar-container">
-          <div class="trend-bar" [style.height.%]="(week.total / getMaxWeeklyTotal()) * 100">
-            <span class="trend-value">{{ formatCurrency(week.total) }}</span>
-          </div>
-          <span class="trend-label">{{ week.week }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Monthly Comparison -->
-    <div class="insight-section">
-      <h2>📈 Monthly Comparison (Last 6 Months)</h2>
-      <div class="monthly-chart">
-        <div *ngFor="let month of insights.monthlyComparison" class="monthly-bar-container">
-          <div class="monthly-bar" [style.height.%]="(month.total / getMaxMonthlyTotal()) * 100">
-            <span class="monthly-value">{{ formatCurrency(month.total) }}</span>
-            <span class="monthly-transactions">{{ month.transactions }} orders</span>
-          </div>
-          <span class="monthly-label">{{ month.month }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Peak Sales Days -->
-    <div class="insight-section">
-      <h2>🔥 Top 5 Peak Sales Days</h2>
-      <div class="peak-days-list">
-        <div *ngFor="let day of insights.peakSalesDays; let i = index" class="peak-day-card">
-          <div class="peak-rank">{{ i + 1 }}</div>
-          <div class="peak-date">{{ day.day }}</div>
-          <div class="peak-amount">{{ formatCurrency(day.total) }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
   <!-- Expense Analytics Section -->
-  <div *ngIf="selectedAnalyticsTab === 'expenses'" class="expense-analytics-section">
+  <div
+    *ngIf="selectedAnalyticsTab === 'expenses'"
+    class="expense-analytics-section"
+  >
     <div class="section-header">
       <h2 class="section-title">💸 Expense Analytics</h2>
 
@@ -200,19 +277,22 @@
         <button
           class="filter-btn"
           [class.active]="expenseSource === 'All'"
-          (click)="switchExpenseSource('All')">
+          (click)="switchExpenseSource('All')"
+        >
           🌍 All Expenses
         </button>
         <button
           class="filter-btn"
           [class.active]="expenseSource === 'Offline'"
-          (click)="switchExpenseSource('Offline')">
+          (click)="switchExpenseSource('Offline')"
+        >
           🏪 Offline
         </button>
         <button
           class="filter-btn"
           [class.active]="expenseSource === 'Online'"
-          (click)="switchExpenseSource('Online')">
+          (click)="switchExpenseSource('Online')"
+        >
           🌐 Online
         </button>
       </div>
@@ -233,8 +313,12 @@
           <div class="card-icon">💸</div>
           <div class="card-content">
             <h3>Total Expenses</h3>
-            <p class="card-value">{{ formatCurrency(expenseAnalytics.summary.totalExpenses) }}</p>
-            <span class="card-subtext">{{ expenseAnalytics.summary.expenseCount }} transactions</span>
+            <p class="card-value">
+              {{ formatCurrency(expenseAnalytics.summary.totalExpenses) }}
+            </p>
+            <span class="card-subtext"
+              >{{ expenseAnalytics.summary.expenseCount }} transactions</span
+            >
           </div>
         </div>
 
@@ -242,7 +326,9 @@
           <div class="card-icon">📊</div>
           <div class="card-content">
             <h3>Avg Expense</h3>
-            <p class="card-value">{{ formatCurrency(expenseAnalytics.summary.averageExpense) }}</p>
+            <p class="card-value">
+              {{ formatCurrency(expenseAnalytics.summary.averageExpense) }}
+            </p>
             <span class="card-subtext">Per transaction</span>
           </div>
         </div>
@@ -251,19 +337,27 @@
           <div class="card-icon">📅</div>
           <div class="card-content">
             <h3>Daily Average</h3>
-            <p class="card-value">{{ formatCurrency(expenseAnalytics.summary.dailyAverage) }}</p>
+            <p class="card-value">
+              {{ formatCurrency(expenseAnalytics.summary.dailyAverage) }}
+            </p>
             <span class="card-subtext">Per day</span>
           </div>
         </div>
 
         <div class="summary-card growth-rate">
-          <div class="card-icon">{{ expenseAnalytics.summary.growthRate >= 0 ? '📈' : '📉' }}</div>
+          <div class="card-icon">
+            {{ expenseAnalytics.summary.growthRate >= 0 ? "📈" : "📉" }}
+          </div>
           <div class="card-content">
             <h3>Growth Rate</h3>
-            <p class="card-value" [class.positive]="expenseAnalytics.summary.growthRate >= 0" [class.negative]="expenseAnalytics.summary.growthRate < 0">
+            <p
+              class="card-value"
+              [class.positive]="expenseAnalytics.summary.growthRate < 0"
+              [class.negative]="expenseAnalytics.summary.growthRate >= 0"
+            >
               {{ formatPercentage(expenseAnalytics.summary.growthRate) }}
             </p>
-            <span class="card-subtext">Period comparison</span>
+            <span class="card-subtext">vs. last month</span>
           </div>
         </div>
       </div>
@@ -272,14 +366,19 @@
       <div class="insight-section">
         <h2>🏆 Top Expense Categories</h2>
         <div class="top-items-grid">
-          <div *ngFor="let item of expenseAnalytics.topExpenseTypes; let i = index"
-               class="top-item-card"
-               [class.top-1]="i === 0"
-               [class.top-2]="i === 1"
-               [class.top-3]="i === 2">
+          <div
+            *ngFor="let item of expenseAnalytics.topExpenseTypes; let i = index"
+            class="top-item-card"
+            [class.top-1]="i === 0"
+            [class.top-2]="i === 1"
+            [class.top-3]="i === 2"
+          >
             <div class="item-rank">{{ i + 1 }}</div>
             <div class="item-details">
-              <h4>{{ getExpenseTypeIcon(item.expenseType) }} {{ item.expenseType }}</h4>
+              <h4>
+                {{ getExpenseTypeIcon(item.expenseType) }}
+                {{ item.expenseType }}
+              </h4>
               <p>Count: {{ item.count }} ({{ item.percentage.toFixed(1) }}%)</p>
               <p>Avg: {{ formatCurrency(item.averageAmount) }}</p>
               <p class="item-revenue">{{ formatCurrency(item.totalAmount) }}</p>
@@ -289,19 +388,37 @@
       </div>
 
       <!-- Source Breakdown (if All) -->
-      <div *ngIf="expenseSource === 'All' && expenseAnalytics.sourceBreakdown.length > 0" class="insight-section">
+      <div
+        *ngIf="
+          expenseSource === 'All' && expenseAnalytics.sourceBreakdown.length > 0
+        "
+        class="insight-section"
+      >
         <h2>📍 Expense Source Breakdown</h2>
         <div class="payment-breakdown">
-          <div *ngFor="let source of expenseAnalytics.sourceBreakdown" class="payment-card">
+          <div
+            *ngFor="let source of expenseAnalytics.sourceBreakdown"
+            class="payment-card"
+          >
             <div class="payment-header">
-              <h3>{{ source.source === 'Offline' ? '🏪' : '🌐' }} {{ source.source }}</h3>
+              <h3>
+                {{ source.source === "Offline" ? "🏪" : "🌐" }}
+                {{ source.source }}
+              </h3>
               <span class="payment-count">{{ source.count }} expenses</span>
             </div>
-            <div class="payment-amount">{{ formatCurrency(source.totalAmount) }}</div>
-            <div class="payment-bar">
-              <div class="payment-bar-fill" [style.width.%]="source.percentage"></div>
+            <div class="payment-amount">
+              {{ formatCurrency(source.totalAmount) }}
             </div>
-            <span class="payment-percentage">{{ source.percentage.toFixed(1) }}% of total</span>
+            <div class="payment-bar">
+              <div
+                class="payment-bar-fill"
+                [style.width.%]="source.percentage"
+              ></div>
+            </div>
+            <span class="payment-percentage"
+              >{{ source.percentage.toFixed(1) }}% of total</span
+            >
           </div>
         </div>
       </div>
@@ -310,16 +427,28 @@
       <div class="insight-section">
         <h2>💳 Payment Method Breakdown</h2>
         <div class="payment-breakdown">
-          <div *ngFor="let payment of expenseAnalytics.paymentMethodBreakdown" class="payment-card">
+          <div
+            *ngFor="let payment of expenseAnalytics.paymentMethodBreakdown"
+            class="payment-card"
+          >
             <div class="payment-header">
               <h3>{{ payment.paymentMethod }}</h3>
-              <span class="payment-count">{{ payment.count }} transactions</span>
+              <span class="payment-count"
+                >{{ payment.count }} transactions</span
+              >
             </div>
-            <div class="payment-amount">{{ formatCurrency(payment.totalAmount) }}</div>
+            <div class="payment-amount">
+              {{ formatCurrency(payment.totalAmount) }}
+            </div>
             <div class="payment-bar">
-              <div class="payment-bar-fill" [style.width.%]="payment.percentage"></div>
+              <div
+                class="payment-bar-fill"
+                [style.width.%]="payment.percentage"
+              ></div>
             </div>
-            <span class="payment-percentage">{{ payment.percentage.toFixed(1) }}% of total</span>
+            <span class="payment-percentage"
+              >{{ payment.percentage.toFixed(1) }}% of total</span
+            >
           </div>
         </div>
       </div>
@@ -328,9 +457,19 @@
       <div class="insight-section">
         <h2>📊 Weekly Expense Trend</h2>
         <div class="trend-chart">
-          <div *ngFor="let week of expenseAnalytics.weeklyTrend" class="trend-bar-container">
-            <div class="trend-bar" [style.height.%]="(week.totalAmount / getMaxExpenseWeekly()) * 100">
-              <span class="trend-value">{{ formatCurrency(week.totalAmount) }}</span>
+          <div
+            *ngFor="let week of expenseAnalytics.weeklyTrend"
+            class="trend-bar-container"
+          >
+            <div
+              class="trend-bar"
+              [style.height.%]="
+                (week.totalAmount / getMaxExpenseWeekly()) * 100
+              "
+            >
+              <span class="trend-value">{{
+                formatCurrency(week.totalAmount)
+              }}</span>
             </div>
             <span class="trend-label">{{ week.weekStart }}</span>
           </div>
@@ -341,10 +480,22 @@
       <div class="insight-section">
         <h2>📈 Monthly Expense Comparison</h2>
         <div class="monthly-chart">
-          <div *ngFor="let month of expenseAnalytics.monthlyComparison" class="monthly-bar-container">
-            <div class="monthly-bar" [style.height.%]="(month.totalAmount / getMaxExpenseMonthly()) * 100">
-              <span class="monthly-value">{{ formatCurrency(month.totalAmount) }}</span>
-              <span class="monthly-transactions">{{ month.count }} expenses</span>
+          <div
+            *ngFor="let month of expenseAnalytics.monthlyComparison"
+            class="monthly-bar-container"
+          >
+            <div
+              class="monthly-bar"
+              [style.height.%]="
+                (month.totalAmount / getMaxExpenseMonthly()) * 100
+              "
+            >
+              <span class="monthly-value">{{
+                formatCurrency(month.totalAmount)
+              }}</span>
+              <span class="monthly-transactions"
+                >{{ month.count }} expenses</span
+              >
             </div>
             <span class="monthly-label">{{ month.monthName }}</span>
           </div>
@@ -355,7 +506,10 @@
       <div class="insight-section">
         <h2>🔥 Top 10 Highest Expense Days</h2>
         <div class="peak-days-list">
-          <div *ngFor="let day of expenseAnalytics.peakExpenseDays; let i = index" class="peak-day-card">
+          <div
+            *ngFor="let day of expenseAnalytics.peakExpenseDays; let i = index"
+            class="peak-day-card"
+          >
             <div class="peak-rank">{{ i + 1 }}</div>
             <div class="peak-date">{{ day.date }}</div>
             <div class="peak-count">{{ day.count }} expenses</div>
@@ -375,161 +529,260 @@
     </div>
 
     <ng-container *ngIf="!earningsLoading && earningsData">
-
       <div class="insights-container">
-
-      <!-- PnL Summary Cards -->
-      <div class="summary-cards">
-        <div class="summary-card total-revenue">
-          <div class="card-icon">📊</div>
-          <div class="card-content">
-            <h3 style="color: #666 !important;">Total Revenue</h3>
-            <p class="card-value" style="color: #333 !important;">{{ formatCurrency(earningsData?.totalRevenue || 0) }}</p>
-            <span class="card-subtext" style="color: #999 !important;">Offline + Online Sales</span>
-          </div>
-        </div>
-
-        <div class="summary-card total-expenses">
-          <div class="card-icon">💸</div>
-          <div class="card-content">
-            <h3 style="color: #666 !important;">Total Expenses</h3>
-            <p class="card-value" style="color: #333 !important;">{{ formatCurrency(earningsData?.totalExpenses || 0) }}</p>
-            <span class="card-subtext" style="color: #999 !important;">All expenses</span>
-          </div>
-        </div>
-
-        <div class="summary-card" [class.net-profit]="(earningsData?.netProfitLoss || 0) >= 0" [class.net-loss]="(earningsData?.netProfitLoss || 0) < 0">
-          <div class="card-icon">{{ (earningsData?.netProfitLoss || 0) >= 0 ? '✅' : '⚠️' }}</div>
-          <div class="card-content">
-            <h3 style="color: #666 !important;">{{ (earningsData?.netProfitLoss || 0) >= 0 ? 'Net Profit' : 'Net Loss' }}</h3>
-            <p class="card-value" style="color: #333 !important;">{{ formatCurrency(Math.abs(earningsData?.netProfitLoss || 0)) }}</p>
-            <span class="card-subtext" style="color: #999 !important;">Revenue - Expenses</span>
-          </div>
-        </div>
-
-        <div class="summary-card profit-margin">
-          <div class="card-icon">📈</div>
-          <div class="card-content">
-            <h3 style="color: #666 !important;">Profit Margin</h3>
-            <p class="card-value" style="color: #333 !important;">{{ (earningsData?.profitMargin || 0).toFixed(2) }}%</p>
-            <span class="card-subtext" style="color: #999 !important;">{{ (earningsData?.profitMargin || 0) >= 0 ? 'Positive' : 'Negative' }} margin</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Revenue Breakdown -->
-      <div class="insight-section">
-        <h3>💰 Revenue Breakdown</h3>
-        <div class="revenue-breakdown">
-          <div class="breakdown-card">
-            <h4>🏪 Offline Store Sales</h4>
-            <p class="amount">{{ formatCurrency(earningsData?.totalOfflineSales || 0) }}</p>
-            <div class="breakdown-details">
-              <span>💵 Cash: {{ formatCurrency(earningsData?.totalCashSales || 0) }}</span>
-              <span>💳 Online: {{ formatCurrency(earningsData?.totalOnlineSalesPayment || 0) }}</span>
+        <!-- PnL Summary Cards -->
+        <div class="summary-cards">
+          <div class="summary-card total-revenue">
+            <div class="card-icon">📊</div>
+            <div class="card-content">
+              <h3 style="color: #666 !important">Total Revenue</h3>
+              <p class="card-value" style="color: #333 !important">
+                {{ formatCurrency(earningsData?.totalRevenue || 0) }}
+              </p>
+              <span class="card-subtext" style="color: #999 !important"
+                >Offline + Online Sales</span
+              >
             </div>
           </div>
 
-          <div class="breakdown-card online-platform">
-            <h4>📱 Online Platforms</h4>
-            <p class="amount">{{ formatCurrency(earningsData?.zomatoSwiggyIncome || 0) }}</p>
-            <div class="breakdown-details">
-              <span>🍔 Zomato: {{ formatCurrency(earningsData?.zomatoIncome || 0) }}</span>
-              <span>🍕 Swiggy: {{ formatCurrency(earningsData?.swiggyIncome || 0) }}</span>
-              <span class="orders-count">{{ earningsData?.zomatoSwiggyOrders || 0 }} orders</span>
+          <div class="summary-card total-expenses">
+            <div class="card-icon">💸</div>
+            <div class="card-content">
+              <h3 style="color: #666 !important">Total Expenses</h3>
+              <p class="card-value" style="color: #333 !important">
+                {{ formatCurrency(earningsData?.totalExpenses || 0) }}
+              </p>
+              <span class="card-subtext" style="color: #999 !important"
+                >All expenses</span
+              >
+            </div>
+          </div>
+
+          <div
+            class="summary-card"
+            [class.net-profit]="(earningsData?.netProfitLoss || 0) >= 0"
+            [class.net-loss]="(earningsData?.netProfitLoss || 0) < 0"
+          >
+            <div class="card-icon">
+              {{ (earningsData?.netProfitLoss || 0) >= 0 ? "✅" : "⚠️" }}
+            </div>
+            <div class="card-content">
+              <h3 style="color: #666 !important">
+                {{
+                  (earningsData?.netProfitLoss || 0) >= 0
+                    ? "Net Profit"
+                    : "Net Loss"
+                }}
+              </h3>
+              <p class="card-value" style="color: #333 !important">
+                {{ formatCurrency(Math.abs(earningsData?.netProfitLoss || 0)) }}
+              </p>
+              <span class="card-subtext" style="color: #999 !important"
+                >Revenue - Expenses</span
+              >
+            </div>
+          </div>
+
+          <div class="summary-card profit-margin">
+            <div class="card-icon">📈</div>
+            <div class="card-content">
+              <h3 style="color: #666 !important">Profit Margin</h3>
+              <p class="card-value" style="color: #333 !important">
+                {{ (earningsData?.profitMargin || 0).toFixed(2) }}%
+              </p>
+              <span
+                class="card-subtext"
+                [class.positive]="(earningsData?.profitMarginGrowth || 0) >= 0"
+                [class.negative]="(earningsData?.profitMarginGrowth || 0) < 0"
+                *ngIf="earningsData?.profitMarginGrowth !== undefined"
+                style="color: inherit !important"
+              >
+                {{ (earningsData?.profitMarginGrowth || 0) >= 0 ? "+" : ""
+                }}{{ (earningsData?.profitMarginGrowth || 0).toFixed(1) }}% vs.
+                last month
+              </span>
+              <span
+                class="card-subtext"
+                *ngIf="earningsData?.profitMarginGrowth === undefined"
+                style="color: #999 !important"
+              >
+                Profit/Revenue ratio
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Revenue Breakdown -->
+        <div class="insight-section">
+          <h3>💰 Revenue Breakdown</h3>
+          <div class="revenue-breakdown">
+            <div class="breakdown-card">
+              <h4>🏪 Offline Store Sales</h4>
+              <p class="amount">
+                {{ formatCurrency(earningsData?.totalOfflineSales || 0) }}
+              </p>
+              <div class="breakdown-details">
+                <span
+                  >💵 Cash:
+                  {{ formatCurrency(earningsData?.totalCashSales || 0) }}</span
+                >
+                <span
+                  >💳 Online:
+                  {{
+                    formatCurrency(earningsData?.totalOnlineSalesPayment || 0)
+                  }}</span
+                >
+              </div>
+            </div>
+
+            <div class="breakdown-card online-platform">
+              <h4>📱 Online Platforms</h4>
+              <p class="amount">
+                {{ formatCurrency(earningsData?.zomatoSwiggyIncome || 0) }}
+              </p>
+              <div class="breakdown-details">
+                <span
+                  >🍔 Zomato:
+                  {{ formatCurrency(earningsData?.zomatoIncome || 0) }}</span
+                >
+                <span
+                  >🍕 Swiggy:
+                  {{ formatCurrency(earningsData?.swiggyIncome || 0) }}</span
+                >
+                <span class="orders-count"
+                  >{{ earningsData?.zomatoSwiggyOrders || 0 }} orders</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Online Platform Details -->
+        <div
+          class="insight-section"
+          *ngIf="(earningsData?.zomatoSwiggyOrders || 0) > 0"
+        >
+          <h3>📱 Online Platform Analysis</h3>
+          <div class="platform-details">
+            <div class="detail-card">
+              <span class="label">Platform Income (Payout)</span>
+              <span class="value income-amount">{{
+                formatCurrency(earningsData?.zomatoSwiggyIncome || 0)
+              }}</span>
+            </div>
+            <div class="detail-card">
+              <span class="label">Platform Deductions</span>
+              <span class="value deduction-amount">{{
+                formatCurrency(earningsData?.zomatoSwiggyDeductions || 0)
+              }}</span>
+            </div>
+            <div class="detail-card">
+              <span class="label">Customer Discounts</span>
+              <span class="value discount-amount">{{
+                formatCurrency(earningsData?.zomatoSwiggyDiscount || 0)
+              }}</span>
+            </div>
+            <div class="detail-card">
+              <span class="label">Packaging Charges</span>
+              <span class="value packaging-amount">{{
+                formatCurrency(earningsData?.zomatoSwiggyPackaging || 0)
+              }}</span>
+            </div>
+            <div class="detail-card">
+              <span class="label">Freebies Given</span>
+              <span class="value freebies-amount">{{
+                formatCurrency(earningsData?.zomatoSwiggyFreebies || 0)
+              }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expense Breakdown -->
+        <div class="insight-section">
+          <h3>💸 Expense Breakdown</h3>
+          <div class="expense-breakdown">
+            <div class="breakdown-card">
+              <h4>💵 Cash Expenses</h4>
+              <p class="amount expense">
+                {{ formatCurrency(earningsData?.offlineExpenses || 0) }}
+              </p>
+            </div>
+
+            <div class="breakdown-card">
+              <h4>💳 Online Expenses</h4>
+              <p class="amount expense">
+                {{ formatCurrency(earningsData?.onlineExpenses || 0) }}
+              </p>
+            </div>
+
+            <div
+              class="breakdown-card"
+              *ngIf="earningsData?.operationalExpenses"
+            >
+              <h4>💼 Operational Costs (Proportional)</h4>
+              <p class="amount expense">
+                {{ formatCurrency(earningsData?.operationalExpenses || 0) }}
+              </p>
+              <span class="subtext">Calculated for date range</span>
+            </div>
+
+            <div class="breakdown-card" *ngIf="earningsData?.platformCharges">
+              <h4>🏦 Platform Charges (Proportional)</h4>
+              <p class="amount expense">
+                {{ formatCurrency(earningsData?.platformCharges || 0) }}
+              </p>
+              <span class="subtext">Zomato/Swiggy for date range</span>
+            </div>
+
+            <div class="breakdown-card">
+              <h4>📊 Total Expenses</h4>
+              <p class="amount expense-total">
+                {{ formatCurrency(earningsData?.totalExpenses || 0) }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Collections Summary -->
+        <div class="insight-section">
+          <h3>💰 Collections Summary</h3>
+          <div class="collections-summary">
+            <div class="collection-card">
+              <h4>💵 Cash Collection</h4>
+              <p class="amount">
+                {{ formatCurrency(earningsData?.totalCashCollection || 0) }}
+              </p>
+              <span class="subtext">From cash sales</span>
+            </div>
+
+            <div class="collection-card">
+              <h4>💳 Online Collection</h4>
+              <p class="amount">
+                {{ formatCurrency(earningsData?.totalOnlineCollection || 0) }}
+              </p>
+              <span class="subtext">From card/UPI/online</span>
+            </div>
+
+            <div class="collection-card">
+              <h4>📱 Online Platform</h4>
+              <p class="amount">
+                {{
+                  formatCurrency(earningsData?.onlinePlatformCollection || 0)
+                }}
+              </p>
+              <span class="subtext">Zomato/Swiggy</span>
+            </div>
+
+            <div class="collection-card total">
+              <h4>📊 Total Collection</h4>
+              <p class="amount total">
+                {{ formatCurrency(earningsData?.totalCollection || 0) }}
+              </p>
+              <span class="subtext">All collections</span>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- Online Platform Details -->
-      <div class="insight-section" *ngIf="(earningsData?.zomatoSwiggyOrders || 0) > 0">
-        <h3>📱 Online Platform Analysis</h3>
-        <div class="platform-details">
-          <div class="detail-card">
-            <span class="label">Platform Income (Payout)</span>
-            <span class="value income-amount">{{ formatCurrency(earningsData?.zomatoSwiggyIncome || 0) }}</span>
-          </div>
-          <div class="detail-card">
-            <span class="label">Platform Deductions</span>
-            <span class="value deduction-amount">{{ formatCurrency(earningsData?.zomatoSwiggyDeductions || 0) }}</span>
-          </div>
-          <div class="detail-card">
-            <span class="label">Customer Discounts</span>
-            <span class="value discount-amount">{{ formatCurrency(earningsData?.zomatoSwiggyDiscount || 0) }}</span>
-          </div>
-          <div class="detail-card">
-            <span class="label">Packaging Charges</span>
-            <span class="value packaging-amount">{{ formatCurrency(earningsData?.zomatoSwiggyPackaging || 0) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Expense Breakdown -->
-      <div class="insight-section">
-        <h3>💸 Expense Breakdown</h3>
-        <div class="expense-breakdown">
-          <div class="breakdown-card">
-            <h4>💵 Cash Expenses</h4>
-            <p class="amount expense">{{ formatCurrency(earningsData?.offlineExpenses || 0) }}</p>
-          </div>
-
-          <div class="breakdown-card">
-            <h4>💳 Online Expenses</h4>
-            <p class="amount expense">{{ formatCurrency(earningsData?.onlineExpenses || 0) }}</p>
-          </div>
-
-          <div class="breakdown-card" *ngIf="earningsData?.operationalExpenses">
-            <h4>💼 Operational Costs (Proportional)</h4>
-            <p class="amount expense">{{ formatCurrency(earningsData?.operationalExpenses || 0) }}</p>
-            <span class="subtext">Calculated for date range</span>
-          </div>
-
-          <div class="breakdown-card" *ngIf="earningsData?.platformCharges">
-            <h4>🏦 Platform Charges (Proportional)</h4>
-            <p class="amount expense">{{ formatCurrency(earningsData?.platformCharges || 0) }}</p>
-            <span class="subtext">Zomato/Swiggy for date range</span>
-          </div>
-
-          <div class="breakdown-card">
-            <h4>📊 Total Expenses</h4>
-            <p class="amount expense-total">{{ formatCurrency(earningsData?.totalExpenses || 0) }}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Collections Summary -->
-      <div class="insight-section">
-        <h3>💰 Collections Summary</h3>
-        <div class="collections-summary">
-          <div class="collection-card">
-            <h4>💵 Cash Collection</h4>
-            <p class="amount">{{ formatCurrency(earningsData?.totalCashCollection || 0) }}</p>
-            <span class="subtext">From cash sales</span>
-          </div>
-
-          <div class="collection-card">
-            <h4>💳 Online Collection</h4>
-            <p class="amount">{{ formatCurrency(earningsData?.totalOnlineCollection || 0) }}</p>
-            <span class="subtext">From card/UPI/online</span>
-          </div>
-
-          <div class="collection-card">
-            <h4>📱 Online Platform</h4>
-            <p class="amount">{{ formatCurrency(earningsData?.onlinePlatformCollection || 0) }}</p>
-            <span class="subtext">Zomato/Swiggy</span>
-          </div>
-
-          <div class="collection-card total">
-            <h4>📊 Total Collection</h4>
-            <p class="amount total">{{ formatCurrency(earningsData?.totalCollection || 0) }}</p>
-            <span class="subtext">All collections</span>
-          </div>
-        </div>
-      </div>
-
-      </div>
-
     </ng-container>
   </div>
   <!-- End Earnings Analytics Section -->
@@ -547,16 +800,27 @@
     </div>
 
     <div *ngIf="!onlineLoading && onlineAnalytics" class="insights-container">
-
       <!-- Platform Tabs -->
       <div class="platform-tabs">
-        <button class="platform-btn" [class.active]="selectedPlatform === 'All'" (click)="switchPlatform('All')">
+        <button
+          class="platform-btn"
+          [class.active]="selectedPlatform === 'All'"
+          (click)="switchPlatform('All')"
+        >
           📊 Combined Analytics
         </button>
-        <button class="platform-btn zomato" [class.active]="selectedPlatform === 'Zomato'" (click)="switchPlatform('Zomato')">
+        <button
+          class="platform-btn zomato"
+          [class.active]="selectedPlatform === 'Zomato'"
+          (click)="switchPlatform('Zomato')"
+        >
           🍔 Zomato
         </button>
-        <button class="platform-btn swiggy" [class.active]="selectedPlatform === 'Swiggy'" (click)="switchPlatform('Swiggy')">
+        <button
+          class="platform-btn swiggy"
+          [class.active]="selectedPlatform === 'Swiggy'"
+          (click)="switchPlatform('Swiggy')"
+        >
           🍕 Swiggy
         </button>
       </div>
@@ -576,7 +840,9 @@
           <div class="card-icon">🛒</div>
           <div class="card-content">
             <h3>Item Subtotal</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().itemSubtotal) }}</p>
+            <p class="card-value">
+              {{ formatCurrency(getActivePlatformData().itemSubtotal) }}
+            </p>
             <span class="card-subtext">Before charges</span>
           </div>
         </div>
@@ -585,8 +851,13 @@
           <div class="card-icon">📦</div>
           <div class="card-content">
             <h3>Packaging Charge</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalPackaging) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().packagingUsagePercent.toFixed(1) }}% usage</span>
+            <p class="card-value">
+              {{ formatCurrency(getActivePlatformData().totalPackaging) }}
+            </p>
+            <span class="card-subtext"
+              >{{ getActivePlatformData().packagingUsagePercent.toFixed(1) }}%
+              usage</span
+            >
           </div>
         </div>
 
@@ -594,8 +865,25 @@
           <div class="card-icon">🎫</div>
           <div class="card-content">
             <h3>Total Discount</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalDiscount) }}</p>
-            <span class="card-subtext">{{ getActivePlatformData().ordersWithDiscount }} orders</span>
+            <p class="card-value">
+              {{ formatCurrency(getActivePlatformData().totalDiscount) }}
+            </p>
+            <span class="card-subtext"
+              >{{ getActivePlatformData().ordersWithDiscount }} orders</span
+            >
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">🎁</div>
+          <div class="card-content">
+            <h3>Total Freebies</h3>
+            <p class="card-value">
+              {{ formatCurrency(getActivePlatformData().totalFreebies) }}
+            </p>
+            <span class="card-subtext"
+              >{{ getActivePlatformData().ordersWithFreebies }} orders</span
+            >
           </div>
         </div>
 
@@ -603,7 +891,9 @@
           <div class="card-icon">📊</div>
           <div class="card-content">
             <h3>Total Deduction</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalDeduction) }}</p>
+            <p class="card-value">
+              {{ formatCurrency(getActivePlatformData().totalDeduction) }}
+            </p>
             <span class="card-subtext">Platform commission</span>
           </div>
         </div>
@@ -612,7 +902,9 @@
           <div class="card-icon">🏦</div>
           <div class="card-content">
             <h3>Total Monthly Charges</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalMonthlyCharges) }}</p>
+            <p class="card-value">
+              {{ formatCurrency(getActivePlatformData().totalMonthlyCharges) }}
+            </p>
             <span class="card-subtext">Platform fees</span>
           </div>
         </div>
@@ -621,7 +913,9 @@
           <div class="card-icon">💰</div>
           <div class="card-content">
             <h3>Net Payout</h3>
-            <p class="card-value">{{ formatCurrency(getActivePlatformData().totalIncome) }}</p>
+            <p class="card-value">
+              {{ formatCurrency(getActivePlatformData().totalIncome) }}
+            </p>
             <span class="card-subtext">Actual earnings</span>
           </div>
         </div>
@@ -630,7 +924,9 @@
           <div class="card-icon">⭐</div>
           <div class="card-content">
             <h3>Average Rating</h3>
-            <p class="card-value">{{ getActivePlatformData().avgRating.toFixed(1) }} ⭐</p>
+            <p class="card-value">
+              {{ getActivePlatformData().avgRating.toFixed(1) }} ⭐
+            </p>
             <span class="card-subtext">Customer satisfaction</span>
           </div>
         </div>
@@ -649,27 +945,47 @@
               </div>
               <div class="stat-row">
                 <span>Income:</span>
-                <strong>{{ formatCurrency(onlineAnalytics.zomato.totalIncome) }}</strong>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.zomato.totalIncome)
+                }}</strong>
               </div>
               <div class="stat-row">
                 <span>Avg/Order:</span>
-                <strong>{{ formatCurrency(onlineAnalytics.zomato.avgIncomePerOrder) }}</strong>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.zomato.avgIncomePerOrder)
+                }}</strong>
               </div>
               <div class="stat-row">
                 <span>Rating:</span>
-                <strong>{{ onlineAnalytics.zomato.avgRating.toFixed(1) }} ⭐</strong>
+                <strong
+                  >{{ onlineAnalytics.zomato.avgRating.toFixed(1) }} ⭐</strong
+                >
               </div>
               <div class="stat-row">
                 <span>Deduction %:</span>
-                <strong>{{ onlineAnalytics.zomato.avgDeductionPercent.toFixed(1) }}%</strong>
+                <strong
+                  >{{
+                    onlineAnalytics.zomato.avgDeductionPercent.toFixed(1)
+                  }}%</strong
+                >
               </div>
               <div class="stat-row">
                 <span>Total Discount:</span>
-                <strong>{{ formatCurrency(onlineAnalytics.zomato.totalDiscount) }}</strong>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.zomato.totalDiscount)
+                }}</strong>
               </div>
               <div class="stat-row">
                 <span>Packaging:</span>
-                <strong>{{ formatCurrency(onlineAnalytics.zomato.totalPackaging) }}</strong>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.zomato.totalPackaging)
+                }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Freebies:</span>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.zomato.totalFreebies)
+                }}</strong>
               </div>
             </div>
           </div>
@@ -683,27 +999,47 @@
               </div>
               <div class="stat-row">
                 <span>Income:</span>
-                <strong>{{ formatCurrency(onlineAnalytics.swiggy.totalIncome) }}</strong>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.swiggy.totalIncome)
+                }}</strong>
               </div>
               <div class="stat-row">
                 <span>Avg/Order:</span>
-                <strong>{{ formatCurrency(onlineAnalytics.swiggy.avgIncomePerOrder) }}</strong>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.swiggy.avgIncomePerOrder)
+                }}</strong>
               </div>
               <div class="stat-row">
                 <span>Rating:</span>
-                <strong>{{ onlineAnalytics.swiggy.avgRating.toFixed(1) }} ⭐</strong>
+                <strong
+                  >{{ onlineAnalytics.swiggy.avgRating.toFixed(1) }} ⭐</strong
+                >
               </div>
               <div class="stat-row">
                 <span>Deduction %:</span>
-                <strong>{{ onlineAnalytics.swiggy.avgDeductionPercent.toFixed(1) }}%</strong>
+                <strong
+                  >{{
+                    onlineAnalytics.swiggy.avgDeductionPercent.toFixed(1)
+                  }}%</strong
+                >
               </div>
               <div class="stat-row">
                 <span>Total Discount:</span>
-                <strong>{{ formatCurrency(onlineAnalytics.swiggy.totalDiscount) }}</strong>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.swiggy.totalDiscount)
+                }}</strong>
               </div>
               <div class="stat-row">
                 <span>Packaging:</span>
-                <strong>{{ formatCurrency(onlineAnalytics.swiggy.totalPackaging) }}</strong>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.swiggy.totalPackaging)
+                }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Freebies:</span>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.swiggy.totalFreebies)
+                }}</strong>
               </div>
             </div>
           </div>
@@ -714,7 +1050,13 @@
       <div class="insight-section">
         <h2>🏆 Top Ordered Items</h2>
         <div class="top-items-grid">
-          <div *ngFor="let item of getActivePlatformData().topItems; let i = index" class="top-item-card" [class.top-1]="i === 0" [class.top-2]="i === 1" [class.top-3]="i === 2">
+          <div
+            *ngFor="let item of getActivePlatformData().topItems; let i = index"
+            class="top-item-card"
+            [class.top-1]="i === 0"
+            [class.top-2]="i === 1"
+            [class.top-3]="i === 2"
+          >
             <div class="item-rank">{{ i + 1 }}</div>
             <div class="item-details">
               <h4>{{ item.name }}</h4>
@@ -729,9 +1071,17 @@
       <div class="insight-section">
         <h2>📈 Daily Income Trend</h2>
         <div class="trend-chart">
-          <div *ngFor="let day of getActivePlatformData().dailyTrend" class="trend-bar">
+          <div
+            *ngFor="let day of getActivePlatformData().dailyTrend"
+            class="trend-bar"
+          >
             <div class="bar-container">
-              <div class="bar" [style.height.%]="(day.income / getActivePlatformData().maxDailyIncome) * 100"></div>
+              <div
+                class="bar"
+                [style.height.%]="
+                  (day.income / getActivePlatformData().maxDailyIncome) * 100
+                "
+              ></div>
             </div>
             <div class="bar-label">{{ formatShortDate(day.date) }}</div>
             <div class="bar-value">{{ formatCurrency(day.income) }}</div>
@@ -744,7 +1094,10 @@
       <div class="insight-section">
         <h2>⏰ Peak Days Analysis</h2>
         <div class="peak-hours-grid">
-          <div *ngFor="let peak of getActivePlatformData().peakDays" class="peak-card">
+          <div
+            *ngFor="let peak of getActivePlatformData().peakDays"
+            class="peak-card"
+          >
             <div class="peak-day">{{ peak.dayName }}</div>
             <div class="peak-stats">
               <div>{{ peak.orders }} orders</div>
@@ -760,19 +1113,27 @@
         <div class="distance-stats">
           <div class="distance-card">
             <h4>Min Distance</h4>
-            <p class="distance-value">{{ getActivePlatformData().minDistance.toFixed(1) }} km</p>
+            <p class="distance-value">
+              {{ getActivePlatformData().minDistance.toFixed(1) }} km
+            </p>
           </div>
           <div class="distance-card">
             <h4>Max Distance</h4>
-            <p class="distance-value">{{ getActivePlatformData().maxDistance.toFixed(1) }} km</p>
+            <p class="distance-value">
+              {{ getActivePlatformData().maxDistance.toFixed(1) }} km
+            </p>
           </div>
           <div class="distance-card">
             <h4>Avg Distance</h4>
-            <p class="distance-value">{{ getActivePlatformData().avgDistance.toFixed(1) }} km</p>
+            <p class="distance-value">
+              {{ getActivePlatformData().avgDistance.toFixed(1) }} km
+            </p>
           </div>
           <div class="distance-card">
             <h4>Most Common Range</h4>
-            <p class="distance-value">{{ getActivePlatformData().commonDistanceRange }}</p>
+            <p class="distance-value">
+              {{ getActivePlatformData().commonDistanceRange }}
+            </p>
           </div>
         </div>
       </div>
@@ -781,12 +1142,20 @@
       <div class="insight-section">
         <h2>⭐ Rating Distribution</h2>
         <div class="rating-distribution">
-          <div *ngFor="let rating of getActivePlatformData().ratingDistribution" class="rating-bar">
+          <div
+            *ngFor="let rating of getActivePlatformData().ratingDistribution"
+            class="rating-bar"
+          >
             <div class="rating-label">{{ rating.stars }} ⭐</div>
             <div class="rating-bar-container">
-              <div class="rating-fill" [style.width.%]="rating.percentage"></div>
+              <div
+                class="rating-fill"
+                [style.width.%]="rating.percentage"
+              ></div>
             </div>
-            <div class="rating-count">{{ rating.count }} orders ({{ rating.percentage.toFixed(1) }}%)</div>
+            <div class="rating-count">
+              {{ rating.count }} orders ({{ rating.percentage.toFixed(1) }}%)
+            </div>
           </div>
         </div>
       </div>
@@ -795,7 +1164,10 @@
       <div class="insight-section">
         <h2>📊 Monthly Performance</h2>
         <div class="monthly-comparison">
-          <div *ngFor="let month of getActivePlatformData().monthlyData" class="month-card">
+          <div
+            *ngFor="let month of getActivePlatformData().monthlyData"
+            class="month-card"
+          >
             <h4>{{ month.month }}</h4>
             <div class="month-stats">
               <div class="stat">
@@ -814,19 +1186,24 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
   <!-- Customer Analytics Tab -->
   <div class="analytics-content" *ngIf="selectedAnalyticsTab === 'customers'">
-    <div *ngIf="customerLoading" class="loading">Loading customer analytics...</div>
-
-    <div *ngIf="!customerLoading && !customerAnalytics" class="no-data">
-      No customer data available for this date range. Add customer names to online orders to see analytics.
+    <div *ngIf="customerLoading" class="loading">
+      Loading customer analytics...
     </div>
 
-    <div *ngIf="!customerLoading && customerAnalytics" class="customer-analytics-section">
+    <div *ngIf="!customerLoading && !customerAnalytics" class="no-data">
+      No customer data available for this date range. Add customer names to
+      online orders to see analytics.
+    </div>
+
+    <div
+      *ngIf="!customerLoading && customerAnalytics"
+      class="customer-analytics-section"
+    >
       <!-- Summary Cards -->
       <div class="summary-cards">
         <div class="summary-card">
@@ -843,7 +1220,12 @@
           <div class="card-content">
             <h3>Total Orders</h3>
             <p class="card-value">{{ customerAnalytics.totalOrders }}</p>
-            <span class="card-subtext">{{ customerAnalytics.avgOrdersPerCustomer.toFixed(1) }} avg/customer</span>
+            <span class="card-subtext"
+              >{{
+                customerAnalytics.avgOrdersPerCustomer.toFixed(1)
+              }}
+              avg/customer</span
+            >
           </div>
         </div>
 
@@ -852,7 +1234,9 @@
           <div class="card-content">
             <h3>Repeat Customers</h3>
             <p class="card-value">{{ customerAnalytics.repeatCustomers }}</p>
-            <span class="card-subtext">{{ customerAnalytics.repeatRate.toFixed(1) }}% repeat rate</span>
+            <span class="card-subtext"
+              >{{ customerAnalytics.repeatRate.toFixed(1) }}% repeat rate</span
+            >
           </div>
         </div>
 
@@ -881,17 +1265,23 @@
         <div class="platform-preference-cards">
           <div class="preference-card zomato-card">
             <h4>🍔 Zomato Only</h4>
-            <p class="preference-value">{{ customerAnalytics.platformCounts.Zomato }}</p>
+            <p class="preference-value">
+              {{ customerAnalytics.platformCounts.Zomato }}
+            </p>
             <span class="preference-subtext">Customers</span>
           </div>
           <div class="preference-card swiggy-card">
             <h4>🍕 Swiggy Only</h4>
-            <p class="preference-value">{{ customerAnalytics.platformCounts.Swiggy }}</p>
+            <p class="preference-value">
+              {{ customerAnalytics.platformCounts.Swiggy }}
+            </p>
             <span class="preference-subtext">Customers</span>
           </div>
           <div class="preference-card both-card">
             <h4>🤝 Both Platforms</h4>
-            <p class="preference-value">{{ customerAnalytics.platformCounts.Both }}</p>
+            <p class="preference-value">
+              {{ customerAnalytics.platformCounts.Both }}
+            </p>
             <span class="preference-subtext">Customers</span>
           </div>
         </div>
@@ -915,22 +1305,40 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let customer of customerAnalytics.topCustomersBySpending; let i = index">
+              <tr
+                *ngFor="
+                  let customer of customerAnalytics.topCustomersBySpending;
+                  let i = index
+                "
+              >
                 <td class="rank">{{ i + 1 }}</td>
                 <td class="customer-name">{{ customer.name }}</td>
                 <td class="text-center">{{ customer.orders }}</td>
-                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
-                <td class="amount">{{ formatCurrency(customer.avgOrderValue) }}</td>
+                <td class="amount">
+                  {{ formatCurrency(customer.totalSpent) }}
+                </td>
+                <td class="amount">
+                  {{ formatCurrency(customer.avgOrderValue) }}
+                </td>
                 <td class="text-center">
-                  <span *ngIf="customer.avgRating > 0" class="rating">{{ customer.avgRating.toFixed(1) }} ⭐</span>
-                  <span *ngIf="customer.avgRating === 0" class="no-rating">N/A</span>
+                  <span *ngIf="customer.avgRating > 0" class="rating"
+                    >{{ customer.avgRating.toFixed(1) }} ⭐</span
+                  >
+                  <span *ngIf="customer.avgRating === 0" class="no-rating"
+                    >N/A</span
+                  >
                 </td>
                 <td>
-                  <span *ngFor="let platform of customer.platforms" [class]="'platform-badge ' + platform.toLowerCase()">
+                  <span
+                    *ngFor="let platform of customer.platforms"
+                    [class]="'platform-badge ' + platform.toLowerCase()"
+                  >
                     {{ platform }}
                   </span>
                 </td>
-                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+                <td class="date-cell">
+                  {{ formatShortDate(customer.lastOrderDate.toString()) }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -954,13 +1362,24 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let customer of customerAnalytics.topCustomersByOrders; let i = index">
+              <tr
+                *ngFor="
+                  let customer of customerAnalytics.topCustomersByOrders;
+                  let i = index
+                "
+              >
                 <td class="rank">{{ i + 1 }}</td>
                 <td class="customer-name">{{ customer.name }}</td>
                 <td class="text-center highlight">{{ customer.orders }}</td>
-                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
-                <td class="favorite-items">{{ customer.favoriteItems.join(', ') || 'N/A' }}</td>
-                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+                <td class="amount">
+                  {{ formatCurrency(customer.totalSpent) }}
+                </td>
+                <td class="favorite-items">
+                  {{ customer.favoriteItems.join(", ") || "N/A" }}
+                </td>
+                <td class="date-cell">
+                  {{ formatShortDate(customer.lastOrderDate.toString()) }}
+                </td>
                 <td class="text-center">{{ customer.daysSinceLastOrder }}d</td>
               </tr>
             </tbody>
@@ -969,7 +1388,10 @@
       </div>
 
       <!-- Top Rated Customers -->
-      <div class="insight-section" *ngIf="customerAnalytics.topRatedCustomers.length > 0">
+      <div
+        class="insight-section"
+        *ngIf="customerAnalytics.topRatedCustomers.length > 0"
+      >
         <h3>⭐ Top Rated Customers (4.5+ Stars)</h3>
         <div class="customer-table-wrapper">
           <table class="customer-table">
@@ -984,14 +1406,26 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let customer of customerAnalytics.topRatedCustomers; let i = index">
+              <tr
+                *ngFor="
+                  let customer of customerAnalytics.topRatedCustomers;
+                  let i = index
+                "
+              >
                 <td class="rank">{{ i + 1 }}</td>
                 <td class="customer-name">{{ customer.name }}</td>
                 <td class="text-center">{{ customer.orders }}</td>
-                <td class="text-center rating-highlight">{{ customer.avgRating.toFixed(1) }} ⭐</td>
-                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
+                <td class="text-center rating-highlight">
+                  {{ customer.avgRating.toFixed(1) }} ⭐
+                </td>
+                <td class="amount">
+                  {{ formatCurrency(customer.totalSpent) }}
+                </td>
                 <td>
-                  <span *ngFor="let platform of customer.platforms" [class]="'platform-badge ' + platform.toLowerCase()">
+                  <span
+                    *ngFor="let platform of customer.platforms"
+                    [class]="'platform-badge ' + platform.toLowerCase()"
+                  >
                     {{ platform }}
                   </span>
                 </td>
@@ -1023,18 +1457,31 @@
                 <td class="rank">{{ i + 1 }}</td>
                 <td class="customer-name">{{ customer.name }}</td>
                 <td class="text-center highlight">{{ customer.orders }}</td>
-                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
-                <td class="amount">{{ formatCurrency(customer.avgOrderValue) }}</td>
+                <td class="amount">
+                  {{ formatCurrency(customer.totalSpent) }}
+                </td>
+                <td class="amount">
+                  {{ formatCurrency(customer.avgOrderValue) }}
+                </td>
                 <td class="text-center">
-                  <span *ngIf="customer.avgRating > 0" class="rating">{{ customer.avgRating.toFixed(1) }} ⭐</span>
-                  <span *ngIf="customer.avgRating === 0" class="no-rating">N/A</span>
+                  <span *ngIf="customer.avgRating > 0" class="rating"
+                    >{{ customer.avgRating.toFixed(1) }} ⭐</span
+                  >
+                  <span *ngIf="customer.avgRating === 0" class="no-rating"
+                    >N/A</span
+                  >
                 </td>
                 <td>
-                  <span *ngFor="let platform of customer.platforms" [class]="'platform-badge ' + platform.toLowerCase()">
+                  <span
+                    *ngFor="let platform of customer.platforms"
+                    [class]="'platform-badge ' + platform.toLowerCase()"
+                  >
                     {{ platform }}
                   </span>
                 </td>
-                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+                <td class="date-cell">
+                  {{ formatShortDate(customer.lastOrderDate.toString()) }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1043,9 +1490,27 @@
 
       <!-- All Customers with Search -->
       <div class="insight-section">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-          <h3 style="margin: 0;">👤 All Customers ({{ getFilteredCustomers().length }})</h3>
-          <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+          "
+        >
+          <h3 style="margin: 0">
+            👤 All Customers ({{ getFilteredCustomers().length }})
+          </h3>
+          <div
+            style="
+              display: flex;
+              gap: 1rem;
+              align-items: center;
+              flex-wrap: wrap;
+            "
+          >
             <input
               type="text"
               [(ngModel)]="customerSearchTerm"
@@ -1053,7 +1518,11 @@
               class="customer-search-input"
               (input)="filterCustomers()"
             />
-            <select [(ngModel)]="customerFilterType" (change)="filterCustomers()" class="customer-filter-select">
+            <select
+              [(ngModel)]="customerFilterType"
+              (change)="filterCustomers()"
+              class="customer-filter-select"
+            >
               <option value="all">All Customers</option>
               <option value="repeat">Repeat Only (2+)</option>
               <option value="single">Single Order</option>
@@ -1078,22 +1547,39 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let customer of getFilteredCustomers(); let i = index">
+              <tr
+                *ngFor="let customer of getFilteredCustomers(); let i = index"
+              >
                 <td class="rank">{{ i + 1 }}</td>
                 <td class="customer-name">{{ customer.name }}</td>
-                <td class="text-center" [class.highlight]="customer.orders > 1">{{ customer.orders }}</td>
-                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
-                <td class="amount">{{ formatCurrency(customer.avgOrderValue) }}</td>
+                <td class="text-center" [class.highlight]="customer.orders > 1">
+                  {{ customer.orders }}
+                </td>
+                <td class="amount">
+                  {{ formatCurrency(customer.totalSpent) }}
+                </td>
+                <td class="amount">
+                  {{ formatCurrency(customer.avgOrderValue) }}
+                </td>
                 <td class="text-center">
-                  <span *ngIf="customer.avgRating > 0" class="rating">{{ customer.avgRating.toFixed(1) }} ⭐</span>
-                  <span *ngIf="customer.avgRating === 0" class="no-rating">N/A</span>
+                  <span *ngIf="customer.avgRating > 0" class="rating"
+                    >{{ customer.avgRating.toFixed(1) }} ⭐</span
+                  >
+                  <span *ngIf="customer.avgRating === 0" class="no-rating"
+                    >N/A</span
+                  >
                 </td>
                 <td>
-                  <span *ngFor="let platform of customer.platforms" [class]="'platform-badge ' + platform.toLowerCase()">
+                  <span
+                    *ngFor="let platform of customer.platforms"
+                    [class]="'platform-badge ' + platform.toLowerCase()"
+                  >
                     {{ platform }}
                   </span>
                 </td>
-                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+                <td class="date-cell">
+                  {{ formatShortDate(customer.lastOrderDate.toString()) }}
+                </td>
                 <td class="text-center">{{ customer.daysSinceLastOrder }}d</td>
               </tr>
             </tbody>
@@ -1102,5 +1588,4 @@
       </div>
     </div>
   </div>
-
 </div>

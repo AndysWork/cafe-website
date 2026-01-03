@@ -1,9 +1,20 @@
 <div class="dashboard-page">
   <div class="main-header">
     <h1>Dashboard Overview</h1>
+    <div class="header-actions">
+      <span class="auto-refresh-badge">🔄 Auto-refresh: 30s</span>
+      <button class="btn-refresh" (click)="loadDashboardData()" [disabled]="isLoading">
+        {{ isLoading ? '⏳ Loading...' : '🔄 Refresh Now' }}
+      </button>
+    </div>
   </div>
 
   <div class="dashboard-content">
+    <!-- Loading Indicator -->
+    <div *ngIf="isLoading && stats[0].value === '0'" class="loading-overlay">
+      <div class="loading-spinner">⏳ Loading dashboard data...</div>
+    </div>
+
     <!-- Stats Cards -->
     <div class="stats-grid">
       <div
@@ -21,42 +32,192 @@
       </div>
     </div>
 
-    <!-- Recent Orders -->
+    <!-- Monthly Sales Trend -->
     <div class="content-section">
       <div class="section-header">
-        <h2>Recent Orders</h2>
-        <a routerLink="/admin/orders" class="btn-view-all">View All →</a>
+        <h2>� Monthly Sales Trend (Last 6 Months)</h2>
       </div>
-      <div class="orders-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let order of recentOrders">
-              <td class="order-id">{{ order.id }}</td>
-              <td>{{ order.customer }}</td>
-              <td>{{ order.items }}</td>
-              <td class="order-total">{{ order.total }}</td>
-              <td>
-                <span
-                  class="order-status"
-                  [ngClass]="getStatusClass(order.status)"
-                >
-                  {{ order.status }}
-                </span>
-              </td>
-              <td class="order-time">{{ order.time }}</td>
-            </tr>
-          </tbody>
-        </table>
+
+      <div *ngIf="monthlyTrends.length === 0 && !isLoading" class="empty-state">
+        <p>📊 No sales data available</p>
+      </div>
+
+      <div *ngIf="monthlyTrends.length > 0" class="chart-container">
+        <div class="chart-wrapper">
+          <div class="line-chart">
+            <svg viewBox="0 0 800 350" class="chart-svg">
+              <!-- Grid lines -->
+              <line x1="50" y1="50" x2="50" y2="300" stroke="#e2e8f0" stroke-width="2"/>
+              <line x1="50" y1="300" x2="750" y2="300" stroke="#e2e8f0" stroke-width="2"/>
+
+              <!-- Y-axis labels -->
+              <text x="40" y="60" text-anchor="end" class="axis-label">{{getMaxSales() / 1000}}K</text>
+              <text x="40" y="175" text-anchor="end" class="axis-label">{{getMaxSales() / 2000}}K</text>
+              <text x="40" y="305" text-anchor="end" class="axis-label">0</text>
+
+              <!-- Offline Sales Line -->
+              <polyline
+                [attr.points]="getLinePoints('offline')"
+                fill="none"
+                stroke="#6c5ce7"
+                stroke-width="3"
+                class="trend-line"
+              />
+
+              <!-- Zomato Sales Line -->
+              <polyline
+                [attr.points]="getLinePoints('zomato')"
+                fill="none"
+                stroke="#e74c3c"
+                stroke-width="3"
+                class="trend-line"
+              />
+
+              <!-- Swiggy Sales Line -->
+              <polyline
+                [attr.points]="getLinePoints('swiggy')"
+                fill="none"
+                stroke="#f39c12"
+                stroke-width="3"
+                class="trend-line"
+              />
+
+              <!-- Total Sales Line -->
+              <polyline
+                [attr.points]="getLinePoints('total')"
+                fill="none"
+                stroke="#2ecc71"
+                stroke-width="4"
+                stroke-dasharray="5,5"
+                class="trend-line"
+              />
+
+              <!-- Data points for Offline -->
+              <circle
+                *ngFor="let trend of monthlyTrends; let i = index"
+                [attr.cx]="getXPosition(i)"
+                [attr.cy]="getYPosition(trend.offlineSales)"
+                r="5"
+                fill="#6c5ce7"
+                class="data-point"
+              >
+                <title>{{trend.month}}: Offline ₹{{trend.offlineSales.toLocaleString('en-IN')}}</title>
+              </circle>
+
+              <!-- Data points for Zomato -->
+              <circle
+                *ngFor="let trend of monthlyTrends; let i = index"
+                [attr.cx]="getXPosition(i)"
+                [attr.cy]="getYPosition(trend.zomatoSales)"
+                r="5"
+                fill="#e74c3c"
+                class="data-point"
+              >
+                <title>{{trend.month}}: Zomato ₹{{trend.zomatoSales.toLocaleString('en-IN')}}</title>
+              </circle>
+
+              <!-- Data points for Swiggy -->
+              <circle
+                *ngFor="let trend of monthlyTrends; let i = index"
+                [attr.cx]="getXPosition(i)"
+                [attr.cy]="getYPosition(trend.swiggySales)"
+                r="5"
+                fill="#f39c12"
+                class="data-point"
+              >
+                <title>{{trend.month}}: Swiggy ₹{{trend.swiggySales.toLocaleString('en-IN')}}</title>
+              </circle>
+
+              <!-- Data points for Total -->
+              <circle
+                *ngFor="let trend of monthlyTrends; let i = index"
+                [attr.cx]="getXPosition(i)"
+                [attr.cy]="getYPosition(trend.totalSales)"
+                r="6"
+                fill="#2ecc71"
+                class="data-point"
+              >
+                <title>{{trend.month}}: Total ₹{{trend.totalSales.toLocaleString('en-IN')}}</title>
+              </circle>
+
+              <!-- X-axis labels -->
+              <text
+                *ngFor="let trend of monthlyTrends; let i = index"
+                [attr.x]="getXPosition(i)"
+                y="320"
+                text-anchor="middle"
+                class="axis-label"
+              >
+                {{trend.month}}
+              </text>
+            </svg>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item">
+              <span class="legend-color" style="background: #6c5ce7;"></span>
+              <span>Offline Sales</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-color" style="background: #e74c3c;"></span>
+              <span>Zomato</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-color" style="background: #f39c12;"></span>
+              <span>Swiggy</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-color" style="background: #2ecc71;"></span>
+              <span>Total (Dashed)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two Column Layout -->
+    <div class="two-column-grid">
+      <!-- Most Ordered Items -->
+      <div class="content-section">
+        <div class="section-header">
+          <h2>🔥 Most Ordered Items</h2>
+        </div>
+
+        <div *ngIf="mostOrderedItems.length === 0 && !isLoading" class="empty-state">
+          <p>🍽️ No orders yet</p>
+        </div>
+
+        <div *ngIf="mostOrderedItems.length > 0" class="list-container">
+          <div class="list-item" *ngFor="let item of mostOrderedItems; let i = index">
+            <div class="item-rank">{{ i + 1 }}</div>
+            <div class="item-info">
+              <div class="item-name">{{ item.itemName }}</div>
+              <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue.toLocaleString('en-IN') }}</div>
+            </div>
+            <div class="item-badge">{{ item.quantity }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Customers -->
+      <div class="content-section">
+        <div class="section-header">
+          <h2>👑 Top Customers</h2>
+        </div>
+
+        <div *ngIf="topCustomers.length === 0 && !isLoading" class="empty-state">
+          <p>👥 No customers yet</p>
+        </div>
+
+        <div *ngIf="topCustomers.length > 0" class="list-container">
+          <div class="list-item" *ngFor="let customer of topCustomers; let i = index">
+            <div class="item-rank">{{ i + 1 }}</div>
+            <div class="item-info">
+              <div class="item-name">{{ customer.customerName }}</div>
+              <div class="item-detail">{{ customer.totalOrders }} orders</div>
+            </div>
+            <div class="item-badge customer-badge">₹{{ customer.totalSpent.toLocaleString('en-IN') }}</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -179,90 +179,7 @@
       </button>
     </div>
 
-    <!-- Inventory Form (Create/Edit) -->
-    <div *ngIf="inventoryForm.ingredientName !== undefined" class="form-section">
-      <h3>{{ selectedItem ? 'Edit' : 'New' }} Inventory Item</h3>
 
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Item Name *</label>
-          <input type="text" [(ngModel)]="inventoryForm.ingredientName" />
-        </div>
-
-        <div class="form-group">
-          <label>Category *</label>
-          <select [(ngModel)]="inventoryForm.category">
-            <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>Unit *</label>
-          <select [(ngModel)]="inventoryForm.unit">
-            <option *ngFor="let unit of measurementUnits" [value]="unit">{{ unit }}</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>Current Stock</label>
-          <input type="number" [(ngModel)]="inventoryForm.currentStock" min="0" step="0.01" />
-        </div>
-
-        <div class="form-group">
-          <label>Minimum Stock</label>
-          <input type="number" [(ngModel)]="inventoryForm.minimumStock" min="0" step="0.01" />
-        </div>
-
-        <div class="form-group">
-          <label>Maximum Stock</label>
-          <input type="number" [(ngModel)]="inventoryForm.maximumStock" min="0" step="0.01" />
-        </div>
-
-        <div class="form-group">
-          <label>Reorder Quantity</label>
-          <input type="number" [(ngModel)]="inventoryForm.reorderQuantity" min="0" step="0.01" />
-        </div>
-
-        <div class="form-group">
-          <label>Cost Per Unit</label>
-          <input type="number" [(ngModel)]="inventoryForm.costPerUnit" min="0" step="0.01" />
-        </div>
-
-        <div class="form-group">
-          <label>Supplier Name</label>
-          <input type="text" [(ngModel)]="inventoryForm.supplierName" />
-        </div>
-
-        <div class="form-group">
-          <label>Supplier Contact</label>
-          <input type="text" [(ngModel)]="inventoryForm.supplierContact" />
-        </div>
-
-        <div class="form-group">
-          <label>Storage Location</label>
-          <input type="text" [(ngModel)]="inventoryForm.storageLocation" />
-        </div>
-
-        <div class="form-group">
-          <label>Expiry Date</label>
-          <input type="date" [(ngModel)]="inventoryForm.expiryDate" />
-        </div>
-
-        <div class="form-group full-width">
-          <label>Notes</label>
-          <textarea [(ngModel)]="inventoryForm.notes" rows="2"></textarea>
-        </div>
-      </div>
-
-      <div class="form-actions">
-        <button (click)="saveInventory()" class="btn btn-success">
-          💾 {{ selectedItem ? 'Update' : 'Create' }}
-        </button>
-        <button (click)="inventoryForm = getEmptyInventoryForm(); selectedItem = null;" class="btn btn-secondary">
-          ❌ Cancel
-        </button>
-      </div>
-    </div>
 
     <!-- Inventory Table -->
     <div class="section">
@@ -275,6 +192,7 @@
               <th>Category</th>
               <th>Current Stock</th>
               <th>Min/Max</th>
+              <th>Buy Price</th>
               <th>Cost/Unit</th>
               <th>Total Value</th>
               <th>Status</th>
@@ -288,6 +206,7 @@
               <td>{{ item.category }}</td>
               <td>{{ item.currentStock }} {{ item.unit }}</td>
               <td>{{ item.minimumStock }} / {{ item.maximumStock }}</td>
+              <td>{{ formatCurrency(item.lastPurchasePrice || 0) }}</td>
               <td>{{ formatCurrency(item.costPerUnit) }}</td>
               <td>{{ formatCurrency(item.totalValue) }}</td>
               <td>
@@ -435,6 +354,105 @@
         </button>
         <button (click)="closeStockModal()" class="btn btn-secondary">
           Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVENTORY FORM MODAL (Create/Edit) -->
+  <div *ngIf="showInventoryModal" class="modal-backdrop" (click)="closeInventoryModal()">
+    <div class="modal modal-large" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ selectedItem ? '✏️ Edit' : '➕ New' }} Inventory Item</h3>
+        <button (click)="closeInventoryModal()" class="btn-close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Item Name *</label>
+            <input type="text" [(ngModel)]="inventoryForm.ingredientName" />
+          </div>
+
+          <div class="form-group">
+            <label>Category *</label>
+            <select [(ngModel)]="inventoryForm.category">
+              <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Unit *</label>
+            <select [(ngModel)]="inventoryForm.unit">
+              <option *ngFor="let unit of measurementUnits" [value]="unit">{{ unit }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Current Stock</label>
+            <input type="number" [(ngModel)]="inventoryForm.currentStock" min="0" step="0.01"
+                   (ngModelChange)="calculateCostPerUnit()" />
+          </div>
+
+          <div class="form-group">
+            <label>Minimum Stock</label>
+            <input type="number" [(ngModel)]="inventoryForm.minimumStock" min="0" step="0.01" />
+          </div>
+
+          <div class="form-group">
+            <label>Maximum Stock</label>
+            <input type="number" [(ngModel)]="inventoryForm.maximumStock" min="0" step="0.01" />
+          </div>
+
+          <div class="form-group">
+            <label>Reorder Quantity</label>
+            <input type="number" [(ngModel)]="inventoryForm.reorderQuantity" min="0" step="0.01" />
+          </div>
+
+          <div class="form-group">
+            <label>Buy Price (Total)</label>
+            <input type="number" [(ngModel)]="inventoryForm.lastPurchasePrice" min="0" step="0.01"
+                   (ngModelChange)="calculateCostPerUnit()" />
+          </div>
+
+          <div class="form-group">
+            <label>Cost Per Unit</label>
+            <input type="number" [(ngModel)]="inventoryForm.costPerUnit" min="0" step="0.01" readonly />
+          </div>
+
+          <div class="form-group">
+            <label>Supplier Name</label>
+            <input type="text" [(ngModel)]="inventoryForm.supplierName" />
+          </div>
+
+          <div class="form-group">
+            <label>Supplier Contact</label>
+            <input type="text" [(ngModel)]="inventoryForm.supplierContact" />
+          </div>
+
+          <div class="form-group">
+            <label>Storage Location</label>
+            <input type="text" [(ngModel)]="inventoryForm.storageLocation" />
+          </div>
+
+          <div class="form-group">
+            <label>Expiry Date</label>
+            <input type="date" [(ngModel)]="inventoryForm.expiryDate" />
+          </div>
+
+          <div class="form-group full-width">
+            <label>Notes</label>
+            <textarea [(ngModel)]="inventoryForm.notes" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="saveInventory()" class="btn btn-success">
+          💾 {{ selectedItem ? 'Update' : 'Create' }}
+        </button>
+        <button (click)="closeInventoryModal()" class="btn btn-secondary">
+          ❌ Cancel
         </button>
       </div>
     </div>

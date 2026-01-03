@@ -83,25 +83,24 @@ public partial class MongoService
             .Find(inv => inv.IngredientId == frozenItem.Id && inv.Category == "frozen")
             .FirstOrDefaultAsync();
 
-        // Calculate total weight and cost per unit
-        decimal totalWeight = frozenItem.Quantity * frozenItem.PacketWeight; // in grams
-        decimal costPerGram = frozenItem.BuyPrice / totalWeight;
+        // Calculate per piece price: Buy Price / Quantity
+        decimal perPiecePrice = frozenItem.Quantity > 0 ? frozenItem.BuyPrice / frozenItem.Quantity : 0;
 
         if (existingInventory != null)
         {
             // Update existing inventory
             existingInventory.IngredientName = frozenItem.ItemName;
-            existingInventory.CurrentStock = totalWeight; // Store in grams
-            existingInventory.Unit = "gm";
+            existingInventory.CurrentStock = frozenItem.Quantity; // Store quantity in pieces
+            existingInventory.Unit = "pc"; // pieces
             existingInventory.SupplierName = frozenItem.Vendor;
             existingInventory.LastPurchasePrice = frozenItem.BuyPrice;
             existingInventory.LastPurchaseDate = DateTime.UtcNow;
-            existingInventory.CostPerUnit = costPerGram;
+            existingInventory.CostPerUnit = perPiecePrice; // Cost per piece
             existingInventory.TotalValue = frozenItem.BuyPrice;
             existingInventory.LastRestockDate = DateTime.UtcNow;
             existingInventory.IsActive = frozenItem.IsActive;
             existingInventory.UpdatedAt = DateTime.UtcNow;
-            existingInventory.Notes = $"Packet Weight: {frozenItem.PacketWeight}gm, Per Piece: ₹{frozenItem.PerPiecePrice} ({frozenItem.PerPieceWeight}gm)";
+            existingInventory.Notes = $"Packet Weight: {frozenItem.PacketWeight}kg, Per Piece Price: ₹{perPiecePrice:F2}, Per Piece Weight: {frozenItem.PerPieceWeight}gm";
 
             // Update stock status
             existingInventory.Status = existingInventory.CurrentStock <= existingInventory.MinimumStock
@@ -118,20 +117,20 @@ public partial class MongoService
                 IngredientId = frozenItem.Id,
                 IngredientName = frozenItem.ItemName,
                 Category = "frozen",
-                Unit = "gm",
-                CurrentStock = totalWeight, // Total weight in grams
-                MinimumStock = frozenItem.PacketWeight, // At least 1 packet
-                MaximumStock = totalWeight * 2, // 2x current stock
-                ReorderQuantity = frozenItem.PacketWeight * 5, // 5 packets
+                Unit = "pc", // pieces
+                CurrentStock = frozenItem.Quantity, // Number of pieces
+                MinimumStock = 10, // Minimum 10 pieces
+                MaximumStock = frozenItem.Quantity * 2, // 2x current stock
+                ReorderQuantity = 50, // 50 pieces
                 SupplierName = frozenItem.Vendor,
                 LastPurchasePrice = frozenItem.BuyPrice,
                 LastPurchaseDate = DateTime.UtcNow,
-                CostPerUnit = costPerGram,
+                CostPerUnit = perPiecePrice, // Cost per piece
                 TotalValue = frozenItem.BuyPrice,
                 Status = StockStatus.InStock,
                 IsActive = frozenItem.IsActive,
                 LastRestockDate = DateTime.UtcNow,
-                Notes = $"Packet Weight: {frozenItem.PacketWeight}gm, Per Piece: ₹{frozenItem.PerPiecePrice} ({frozenItem.PerPieceWeight}gm)",
+                Notes = $"Packet Weight: {frozenItem.PacketWeight}kg, Per Piece Price: ₹{perPiecePrice:F2}, Per Piece Weight: {frozenItem.PerPieceWeight}gm",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };

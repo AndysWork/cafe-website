@@ -4,11 +4,53 @@
 
 .main-header {
   margin-bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
 
   h1 {
     font-size: 2rem;
     color: #2d3748;
     font-weight: 800;
+  }
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.auto-refresh-badge {
+  background: #e6fffa;
+  color: #0f766e;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.btn-refresh {
+  background: #ff6b6b;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background: #ee5a6f;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 }
 
@@ -176,11 +218,179 @@
     background: #f8d7da;
     color: #721c24;
   }
+
+  &.status-cancelled {
+    background: #e2e8f0;
+    color: #4a5568;
+  }
 }
 
 .order-time {
   color: #718096;
   font-size: 0.9rem;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  font-size: 1.5rem;
+  color: #ff6b6b;
+  font-weight: 600;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #718096;
+  font-size: 1.1rem;
+}
+
+.two-column-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 30px;
+}
+
+.chart-container {
+  padding: 20px 0;
+}
+
+.chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.line-chart {
+  padding: 20px;
+  background: #f7fafc;
+  border-radius: 10px;
+}
+
+.chart-svg {
+  width: 100%;
+  height: auto;
+  max-height: 350px;
+}
+
+.axis-label {
+  font-size: 12px;
+  fill: #718096;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.trend-line {
+  transition: all 0.3s ease;
+
+  &:hover {
+    stroke-width: 5;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  }
+}
+
+.data-point {
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    r: 8;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  }
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #4a5568;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: #f7fafc;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: #edf2f7;
+    transform: translateX(5px);
+  }
+}
+
+.item-rank {
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 800;
+  border-radius: 8px;
+  font-size: 1.1rem;
+}
+
+.item-info {
+  flex: 1;
+}
+
+.item-name {
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 4px;
+  font-size: 1rem;
+}
+
+.item-detail {
+  font-size: 0.85rem;
+  color: #718096;
+}
+
+.item-badge {
+  background: #ff6b6b;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.customer-badge {
+  background: #4ecdc4;
 }
 
 // Responsive Design
@@ -192,6 +402,11 @@
   .stats-grid {
     grid-template-columns: 1fr;
     gap: 15px;
+  }
+
+  .two-column-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   .stat-card {
@@ -208,6 +423,18 @@
       }
     }
   }
+
+  .line-chart {
+    padding: 10px;
+  }
+
+  .axis-label {
+    font-size: 10px;
+  }
+
+  .chart-legend {
+    gap: 15px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -219,5 +446,35 @@
     width: 50px;
     height: 50px;
     font-size: 1.5rem;
+  }
+
+  .line-chart {
+    padding: 5px;
+  }
+
+  .axis-label {
+    font-size: 8px;
+  }
+
+  .trend-line {
+    stroke-width: 2;
+  }
+
+  .data-point {
+    r: 3;
+  }
+
+  .item-rank {
+    width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
+  }
+
+  .item-name {
+    font-size: 0.9rem;
+  }
+
+  .item-detail {
+    font-size: 0.75rem;
   }
 }

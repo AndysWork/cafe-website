@@ -77,8 +77,9 @@ public partial class MongoService
 
     public async Task<bool> UpdateInventoryAsync(string id, Inventory inventory)
     {
-        inventory.UpdatedAt = DateTime.UtcNow;
+        // Ensure TotalValue is always calculated from CurrentStock * CostPerUnit
         inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
+        inventory.UpdatedAt = DateTime.UtcNow;
         inventory.Status = DetermineStockStatus(inventory);
 
         var result = await _inventory.ReplaceOneAsync(i => i.Id == id, inventory);

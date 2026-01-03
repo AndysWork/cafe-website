@@ -32,6 +32,7 @@ export class InventoryManagementComponent implements OnInit {
   selectedItem: Inventory | null = null;
   showStockModal = false;
   stockModalType: 'in' | 'out' | 'adjust' | null = null;
+  showInventoryModal = false;
 
   // Forms
   inventoryForm: Partial<Inventory> = this.getEmptyInventoryForm();
@@ -136,11 +137,27 @@ export class InventoryManagementComponent implements OnInit {
   createNewItem(): void {
     this.inventoryForm = this.getEmptyInventoryForm();
     this.selectedItem = null;
+    this.showInventoryModal = true;
   }
 
   editItem(item: Inventory): void {
     this.selectedItem = item;
     this.inventoryForm = { ...item };
+    this.showInventoryModal = true;
+  }
+
+  closeInventoryModal(): void {
+    this.showInventoryModal = false;
+    this.selectedItem = null;
+    this.inventoryForm = this.getEmptyInventoryForm();
+  }
+
+  calculateCostPerUnit(): void {
+    // Calculate cost per unit based on buy price and current stock
+    if (this.inventoryForm.lastPurchasePrice && this.inventoryForm.currentStock && this.inventoryForm.currentStock > 0) {
+      this.inventoryForm.costPerUnit = this.inventoryForm.lastPurchasePrice / this.inventoryForm.currentStock;
+      this.inventoryForm.totalValue = this.inventoryForm.lastPurchasePrice;
+    }
   }
 
   saveInventory(): void {
@@ -165,9 +182,8 @@ export class InventoryManagementComponent implements OnInit {
     request.subscribe({
       next: () => {
         this.showAlert('Inventory saved successfully', 'success');
+        this.closeInventoryModal();
         this.loadInventory();
-        this.inventoryForm = this.getEmptyInventoryForm();
-        this.selectedItem = null;
       },
       error: (error) => {
         console.error('Error saving inventory:', error);

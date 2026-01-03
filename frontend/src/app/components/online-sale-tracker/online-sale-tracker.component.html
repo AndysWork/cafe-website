@@ -80,6 +80,10 @@
       <div class="stat-value">{{ formatCurrency(totalDiscount) }}</div>
     </div>
     <div class="stat-card">
+      <div class="stat-label">🎁 Total Freebies</div>
+      <div class="stat-value">{{ formatCurrency(totalFreebies) }}</div>
+    </div>
+    <div class="stat-card">
       <div class="stat-label">📊 Total Deduction</div>
       <div class="stat-value">{{ formatCurrency(totalDeduction) }}</div>
     </div>
@@ -122,6 +126,64 @@
     <button (click)="exportToCSV()" class="btn btn-secondary export-btn">
       📊 Export to CSV
     </button>
+    <button (click)="toggleDeleteSection()" class="btn btn-danger export-btn">
+      🗑️ Delete Sales
+    </button>
+  </div>
+
+  <!-- Delete Sales by Date Range Section -->
+  <div *ngIf="showDeleteSection" class="delete-section card">
+    <h3>⚠️ Delete Sales by Date Range</h3>
+    <p class="warning-text">This will permanently delete sales data. This action cannot be undone!</p>
+
+    <div class="delete-form">
+      <div class="filter-group">
+        <label for="deleteStartDate">Delete From:</label>
+        <input
+          type="date"
+          id="deleteStartDate"
+          [(ngModel)]="deleteStartDate"
+          class="date-input"
+        />
+      </div>
+      <div class="filter-group">
+        <label for="deleteEndDate">Delete To:</label>
+        <input
+          type="date"
+          id="deleteEndDate"
+          [(ngModel)]="deleteEndDate"
+          class="date-input"
+        />
+      </div>
+      <div class="filter-group">
+        <label>Platform:</label>
+        <span class="platform-badge">{{ selectedPlatform }}</span>
+      </div>
+    </div>
+
+    <div class="delete-actions">
+      <button
+        (click)="deleteSalesByDateRange()"
+        class="btn btn-danger"
+        [disabled]="isDeleting"
+      >
+        {{ isDeleting ? 'Deleting...' : 'Delete Sales' }}
+      </button>
+      <button
+        (click)="toggleDeleteSection()"
+        class="btn btn-secondary"
+        [disabled]="isDeleting"
+      >
+        Cancel
+      </button>
+    </div>
+
+    <div *ngIf="deleteMessage"
+         class="upload-message"
+         [class.success]="deleteSuccess"
+         [class.error]="!deleteSuccess">
+      {{ deleteMessage }}
+    </div>
   </div>
 
   <!-- Platform Charges Section -->

@@ -9,6 +9,13 @@ import {
   CreatePlatformChargeRequest,
   UpdatePlatformChargeRequest,
 } from '../../services/platform-charge.service';
+import {
+  getIstNow,
+  getIstDateString,
+  getIstInputDate,
+  formatIstDate,
+  formatIstDateTime
+} from '../../utils/date-utils';
 
 interface OrderedItem {
   quantity: number;
@@ -35,6 +42,7 @@ interface OnlineSale {
   platformDeduction: number;
   investment: number;
   miscCharges: number;
+  freebies?: number;
   rating?: number;
   review?: string;
   kpt?: number;
@@ -54,6 +62,7 @@ interface DailyIncome {
   totalDeduction: number;
   totalDiscount: number;
   totalPackaging: number;
+  totalFreebies: number;
   averageRating: number;
 }
 
@@ -71,17 +80,20 @@ export class OnlineSaleTrackerComponent implements OnInit {
   uploadMessage = '';
   uploadSuccess = false;
   isDeleting = false;
+  showDeleteSection = false;
+  deleteStartDate = getIstInputDate(new Date(getIstNow().getFullYear(), 0, 1));
+  deleteEndDate = getIstDateString();
+  deleteMessage = '';
+  deleteSuccess = false;
 
   sales: OnlineSale[] = [];
   dailyIncome: DailyIncome[] = [];
   isLoading = false;
   errorMessage = '';
 
-  // Date range for filtering - Start from November 1st
-  startDate = new Date(new Date().getFullYear(), 10, 1)
-    .toISOString()
-    .split('T')[0]; // Month is 0-indexed, 10 = November
-  endDate = new Date().toISOString().split('T')[0];
+  // Date range for filtering - Start from beginning of current year in IST
+  startDate = getIstInputDate(new Date(getIstNow().getFullYear(), 0, 1));
+  endDate = getIstDateString();
 
   // View options
   showDailyIncome = true;
@@ -105,6 +117,7 @@ export class OnlineSaleTrackerComponent implements OnInit {
   itemSubtotal = 0;
   packagingCharge = 0;
   totalDiscount = 0;
+  totalFreebies = 0;
   totalDeduction = 0;
   totalMonthlyCharges = 0;
   totalPayout = 0;
@@ -335,22 +348,14 @@ export class OnlineSaleTrackerComponent implements OnInit {
       (d) => d.platform?.toLowerCase() === this.selectedPlatform.toLowerCase()
     );
 
-    this.totalOrders = platformData.reduce((sum, d) => sum + d.totalOrders, 0);
-    this.totalDeduction = platformData.reduce(
-      (sum, d) => sum + d.totalDeduction,
-      0
-    );
-    this.totalDiscount = platformData.reduce(
-      (sum, d) => sum + (d.totalDiscount || 0),
-      0
-    );
-    this.packagingCharge = platformData.reduce(
-      (sum, d) => sum + (d.totalPackaging || 0),
-      0
-    );
-
-    // Calculate Item Subtotal directly from sales data (same as Analytics page)
+    // Calculate all metrics directly from sales data for accuracy
     const platformSales = this.sales.filter(s => s.platform?.toLowerCase() === this.selectedPlatform.toLowerCase());
+
+    this.totalOrders = platformSales.length;
+    this.totalDeduction = platformSales.reduce((sum, s) => sum + (s.platformDeduction || 0), 0);
+    this.totalDiscount = platformSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
+    this.totalFreebies = platformSales.reduce((sum, s) => sum + (s.freebies || 0), 0);
+    this.packagingCharge = platformSales.reduce((sum, s) => sum + (s.packagingCharges || 0), 0);
     this.itemSubtotal = platformSales.reduce((sum, s) => sum + (s.billSubTotal || 0), 0);
 
     // Calculate monthly charges from platform charges
@@ -378,6 +383,8 @@ export class OnlineSaleTrackerComponent implements OnInit {
       .reduce((sum, pc) => sum + pc.charges, 0);
 
     // Calculate Total Net Payout = Item Subtotal + Packaging - Discount - Deduction - Monthly Charges
+    // Note: If charges are negative (platform pays us), they will be added to payout (subtracting negative = adding)
+    //       If charges are positive (we pay platform), they will be subtracted from payout
     this.totalPayout = this.itemSubtotal + this.packagingCharge - this.totalDiscount - this.totalDeduction - this.totalMonthlyCharges;
 
     const ratingsSum = platformData.reduce(
@@ -390,6 +397,51 @@ export class OnlineSaleTrackerComponent implements OnInit {
 
   onDateRangeChange(): void {
     this.loadData();
+  }
+
+  toggleDeleteSection(): void {
+    this.showDeleteSection = !this.showDeleteSection;
+    this.deleteMessage = '';
+  }
+
+  async deleteSalesByDateRange(): Promise<void> {
+    if (!confirm(`Are you sure you want to delete all ${this.selectedPlatform} sales from ${this.deleteStartDate} to ${this.deleteEndDate}? This action cannot be undone.`)) {
+      return;
+    }
+
+    this.isDeleting = true;
+    this.deleteMessage = '';
+    this.deleteSuccess = false;
+
+    try {
+      const params = new URLSearchParams({
+        platform: this.selectedPlatform,
+        startDate: this.deleteStartDate,
+        endDate: this.deleteEndDate,
+      });
+
+      const response: any = await this.http
+        .delete(
+          `${environment.apiUrl}/online-sales/bulk?${params.toString()}`
+        )
+        .toPromise();
+
+      if (response.success) {
+        this.deleteSuccess = true;
+        this.deleteMessage = response.message || `Successfully deleted ${response.deletedCount} sales`;
+        // Reload data after deletion
+        await this.loadData();
+      } else {
+        this.deleteSuccess = false;
+        this.deleteMessage = response.message || 'Failed to delete sales';
+      }
+    } catch (error: any) {
+      this.deleteSuccess = false;
+      this.deleteMessage = error.error?.message || 'Failed to delete sales';
+      console.error('Delete error:', error);
+    } finally {
+      this.isDeleting = false;
+    }
   }
 
   toggleDailyIncome(): void {
@@ -434,7 +486,8 @@ export class OnlineSaleTrackerComponent implements OnInit {
   getGroupedDailyIncome(): { [key: string]: DailyIncome[] } {
     const grouped: { [key: string]: DailyIncome[] } = {};
     this.dailyIncome.forEach((income) => {
-      const dateKey = new Date(income.date).toLocaleDateString('en-IN', {
+      // Use IST formatting for grouping
+      const dateKey = formatIstDate(income.date, {
         month: 'short',
         year: 'numeric',
       });
@@ -496,11 +549,8 @@ export class OnlineSaleTrackerComponent implements OnInit {
   }
 
   formatDate(date: Date | string): string {
-    return new Date(date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    // Use IST date formatting
+    return formatIstDateTime(date);
   }
 
   formatCurrency(amount: number): string {

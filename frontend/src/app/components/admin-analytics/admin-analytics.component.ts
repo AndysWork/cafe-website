@@ -3,10 +3,22 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { SalesService, Sales } from '../../services/sales.service';
-import { ExpenseService, ExpenseAnalytics } from '../../services/expense.service';
+import {
+  ExpenseService,
+  ExpenseAnalytics,
+} from '../../services/expense.service';
 import { OperationalExpenseService } from '../../services/operational-expense.service';
 import { PlatformChargeService } from '../../services/platform-charge.service';
-import { getIstNow, getIstDateString, getIstDaysDifference, convertToIst, formatIstDate, getIstInputDate, getIstStartOfDay, getIstEndOfDay } from '../../utils/date-utils';
+import {
+  getIstNow,
+  getIstDateString,
+  getIstDaysDifference,
+  convertToIst,
+  formatIstDate,
+  getIstInputDate,
+  getIstStartOfDay,
+  getIstEndOfDay,
+} from '../../utils/date-utils';
 import { environment } from '../../../environments/environment';
 
 interface SalesInsights {
@@ -28,17 +40,23 @@ interface SalesInsights {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './admin-analytics.component.html',
-  styleUrls: ['./admin-analytics.component.scss']
+  styleUrls: ['./admin-analytics.component.scss'],
 })
 export class AdminAnalyticsComponent implements OnInit {
   loading = false;
   salesData: Sales[] = [];
+  allSalesData: Sales[] = []; // Store all sales for comparison
   insights: SalesInsights | null = null;
 
   // Expense Analytics
   expenseAnalytics: ExpenseAnalytics | null = null;
   expenseLoading = false;
-  selectedAnalyticsTab: 'sales' | 'expenses' | 'earnings' | 'online' | 'customers' = 'sales';
+  selectedAnalyticsTab:
+    | 'sales'
+    | 'expenses'
+    | 'earnings'
+    | 'online'
+    | 'customers' = 'sales';
   expenseSource: 'All' | 'Offline' | 'Online' = 'All';
 
   // Earnings Analytics
@@ -67,7 +85,7 @@ export class AdminAnalyticsComponent implements OnInit {
       ist.setMonth(ist.getMonth() - 1);
       return getIstInputDate(ist);
     })(),
-    endDate: getIstDateString()
+    endDate: getIstDateString(),
   };
 
   constructor(
@@ -106,63 +124,70 @@ export class AdminAnalyticsComponent implements OnInit {
 
   loadExpenseAnalytics() {
     this.expenseLoading = true;
-    this.expenseService.getExpenseAnalytics(
-      this.dateRange.startDate,
-      this.dateRange.endDate,
-      this.expenseSource
-    ).subscribe({
-      next: (data) => {
-        this.expenseAnalytics = data;
+    this.expenseService
+      .getExpenseAnalytics(
+        this.dateRange.startDate,
+        this.dateRange.endDate,
+        this.expenseSource
+      )
+      .subscribe({
+        next: (data) => {
+          this.expenseAnalytics = data;
 
-        // Add operational expenses to the total
-        if (this.expenseSource === 'All') {
-          this.operationalExpenseService.getAllOperationalExpenses().subscribe({
-            next: (opExpenses) => {
-              const startDate = new Date(this.dateRange.startDate);
-              const endDate = new Date(this.dateRange.endDate);
+          // Add operational expenses to the total
+          if (this.expenseSource === 'All') {
+            this.operationalExpenseService
+              .getAllOperationalExpenses()
+              .subscribe({
+                next: (opExpenses) => {
+                  const startDate = new Date(this.dateRange.startDate);
+                  const endDate = new Date(this.dateRange.endDate);
 
-              let operationalTotal = 0;
-              opExpenses.forEach(opExp => {
-                const expDate = new Date(opExp.year, opExp.month - 1, 1);
-                if (expDate >= startDate && expDate <= endDate) {
-                  operationalTotal += opExp.totalOperationalCost;
-                }
+                  let operationalTotal = 0;
+                  opExpenses.forEach((opExp) => {
+                    const expDate = new Date(opExp.year, opExp.month - 1, 1);
+                    if (expDate >= startDate && expDate <= endDate) {
+                      operationalTotal += opExp.totalOperationalCost;
+                    }
+                  });
+
+                  // Update the expense analytics with operational expenses included
+                  if (this.expenseAnalytics) {
+                    this.expenseAnalytics.summary.totalExpenses +=
+                      operationalTotal;
+
+                    // Add operational expenses as a category in the breakdown
+                    const summary = this.expenseAnalytics.summary as any;
+                    if (!summary.expensesByType) {
+                      summary.expensesByType = {};
+                    }
+                    summary.expensesByType['Operational Costs'] =
+                      operationalTotal;
+                  }
+
+                  this.expenseLoading = false;
+                },
+                error: (err) => {
+                  console.error('Error loading operational expenses:', err);
+                  this.expenseLoading = false;
+                },
               });
-
-              // Update the expense analytics with operational expenses included
-              if (this.expenseAnalytics) {
-                this.expenseAnalytics.summary.totalExpenses += operationalTotal;
-
-                // Add operational expenses as a category in the breakdown
-                const summary = this.expenseAnalytics.summary as any;
-                if (!summary.expensesByType) {
-                  summary.expensesByType = {};
-                }
-                summary.expensesByType['Operational Costs'] = operationalTotal;
-              }
-
-              this.expenseLoading = false;
-            },
-            error: (err) => {
-              console.error('Error loading operational expenses:', err);
-              this.expenseLoading = false;
-            }
-          });
-        } else {
+          } else {
+            this.expenseLoading = false;
+          }
+        },
+        error: (err) => {
+          console.error('Error loading expense analytics:', err);
           this.expenseLoading = false;
-        }
-      },
-      error: (err) => {
-        console.error('Error loading expense analytics:', err);
-        this.expenseLoading = false;
-      }
-    });
+        },
+      });
   }
 
   loadSalesInsights() {
     this.loading = true;
     this.salesService.getAllSales().subscribe({
       next: (data) => {
+        this.allSalesData = data; // Store all sales data
         this.salesData = this.filterByDateRange(data);
         this.calculateInsights();
         this.loading = false;
@@ -170,14 +195,14 @@ export class AdminAnalyticsComponent implements OnInit {
       error: (err) => {
         console.error('Error loading sales data:', err);
         this.loading = false;
-      }
+      },
     });
   }
 
   filterByDateRange(sales: Sales[]): Sales[] {
     const start = getIstStartOfDay(this.dateRange.startDate);
     const end = getIstEndOfDay(this.dateRange.endDate);
-    return sales.filter(sale => {
+    return sales.filter((sale) => {
       const saleDate = new Date(sale.date);
       return saleDate >= start && saleDate <= end;
     });
@@ -190,18 +215,24 @@ export class AdminAnalyticsComponent implements OnInit {
     }
 
     // Total Revenue & Transactions
-    const totalRevenue = this.salesData.reduce((sum, sale) => sum + sale.totalAmount, 0);
+    const totalRevenue = this.salesData.reduce(
+      (sum, sale) => sum + sale.totalAmount,
+      0
+    );
     const totalTransactions = this.salesData.length;
     const averageTransaction = totalRevenue / totalTransactions;
 
     // Top Selling Items
     const itemMap = new Map<string, { quantity: number; revenue: number }>();
-    this.salesData.forEach(sale => {
-      sale.items.forEach(item => {
-        const existing = itemMap.get(item.itemName) || { quantity: 0, revenue: 0 };
+    this.salesData.forEach((sale) => {
+      sale.items.forEach((item) => {
+        const existing = itemMap.get(item.itemName) || {
+          quantity: 0,
+          revenue: 0,
+        };
         itemMap.set(item.itemName, {
           quantity: existing.quantity + item.quantity,
-          revenue: existing.revenue + item.totalPrice
+          revenue: existing.revenue + item.totalPrice,
         });
       });
     });
@@ -212,11 +243,14 @@ export class AdminAnalyticsComponent implements OnInit {
 
     // Payment Method Breakdown
     const paymentMap = new Map<string, { count: number; total: number }>();
-    this.salesData.forEach(sale => {
-      const existing = paymentMap.get(sale.paymentMethod) || { count: 0, total: 0 };
+    this.salesData.forEach((sale) => {
+      const existing = paymentMap.get(sale.paymentMethod) || {
+        count: 0,
+        total: 0,
+      };
       paymentMap.set(sale.paymentMethod, {
         count: existing.count + 1,
-        total: existing.total + sale.totalAmount
+        total: existing.total + sale.totalAmount,
       });
     });
     const paymentMethodBreakdown = Array.from(paymentMap.entries())
@@ -224,7 +258,10 @@ export class AdminAnalyticsComponent implements OnInit {
       .sort((a, b) => b.total - a.total);
 
     // Daily Average
-    const dateRange = getIstDaysDifference(new Date(this.dateRange.endDate), new Date(this.dateRange.startDate));
+    const dateRange = getIstDaysDifference(
+      new Date(this.dateRange.endDate),
+      new Date(this.dateRange.startDate)
+    );
     const dailyAverage = totalRevenue / Math.max(dateRange, 1);
 
     // Weekly Trend (last 4 weeks)
@@ -253,13 +290,13 @@ export class AdminAnalyticsComponent implements OnInit {
       monthlyComparison,
       peakSalesDays,
       growthRate,
-      itemCategoryBreakdown
+      itemCategoryBreakdown,
     };
   }
 
   calculateWeeklyTrend(): { week: string; total: number }[] {
     const weeks = new Map<string, number>();
-    this.salesData.forEach(sale => {
+    this.salesData.forEach((sale) => {
       const date = convertToIst(new Date(sale.date));
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
@@ -272,21 +309,30 @@ export class AdminAnalyticsComponent implements OnInit {
       .slice(0, 4);
   }
 
-  calculateMonthlyComparison(): { month: string; total: number; transactions: number }[] {
+  calculateMonthlyComparison(): {
+    month: string;
+    total: number;
+    transactions: number;
+  }[] {
     const months = new Map<string, { total: number; transactions: number }>();
-    this.salesData.forEach(sale => {
+    this.salesData.forEach((sale) => {
       const date = convertToIst(new Date(sale.date));
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthKey = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, '0')}`;
       const existing = months.get(monthKey) || { total: 0, transactions: 0 };
       months.set(monthKey, {
         total: existing.total + sale.totalAmount,
-        transactions: existing.transactions + 1
+        transactions: existing.transactions + 1,
       });
     });
     return Array.from(months.entries())
       .map(([month, data]) => ({
-        month: formatIstDate(new Date(month + '-01'), { month: 'short', year: 'numeric' }),
-        ...data
+        month: formatIstDate(new Date(month + '-01'), {
+          month: 'short',
+          year: 'numeric',
+        }),
+        ...data,
       }))
       .sort((a, b) => b.month.localeCompare(a.month))
       .slice(0, 6)
@@ -295,7 +341,7 @@ export class AdminAnalyticsComponent implements OnInit {
 
   calculatePeakDays(): { day: string; total: number }[] {
     const days = new Map<string, number>();
-    this.salesData.forEach(sale => {
+    this.salesData.forEach((sale) => {
       const day = sale.date.split('T')[0];
       days.set(day, (days.get(day) || 0) + sale.totalAmount);
     });
@@ -306,30 +352,58 @@ export class AdminAnalyticsComponent implements OnInit {
   }
 
   calculateGrowthRate(): number {
-    const sortedSales = [...this.salesData].sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+    // Calculate current period total
+    const currentPeriodTotal = this.salesData.reduce(
+      (sum, sale) => sum + sale.totalAmount,
+      0
     );
-    const midPoint = Math.floor(sortedSales.length / 2);
-    const firstHalf = sortedSales.slice(0, midPoint);
-    const secondHalf = sortedSales.slice(midPoint);
 
-    const firstHalfTotal = firstHalf.reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const secondHalfTotal = secondHalf.reduce((sum, sale) => sum + sale.totalAmount, 0);
+    // Calculate date range duration
+    const startDate = getIstStartOfDay(this.dateRange.startDate);
+    const endDate = getIstEndOfDay(this.dateRange.endDate);
+    const daysDiff = Math.floor(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
 
-    if (firstHalfTotal === 0) return 0;
-    return ((secondHalfTotal - firstHalfTotal) / firstHalfTotal) * 100;
+    // Calculate previous month's same date range
+    const prevStartDate = new Date(startDate);
+    prevStartDate.setMonth(prevStartDate.getMonth() - 1);
+
+    const prevEndDate = new Date(prevStartDate);
+    prevEndDate.setDate(prevEndDate.getDate() + daysDiff);
+
+    // Filter previous period sales from all sales data
+    const prevPeriodSales = this.allSalesData.filter((sale) => {
+      const saleDate = new Date(sale.date);
+      return saleDate >= prevStartDate && saleDate <= prevEndDate;
+    });
+
+    const prevPeriodTotal = prevPeriodSales.reduce(
+      (sum, sale) => sum + sale.totalAmount,
+      0
+    );
+
+    if (prevPeriodTotal === 0) {
+      return currentPeriodTotal > 0 ? 100 : 0; // 100% growth if there was no previous data
+    }
+
+    return ((currentPeriodTotal - prevPeriodTotal) / prevPeriodTotal) * 100;
   }
 
-  calculateCategoryBreakdown(): { category: string; count: number; revenue: number }[] {
+  calculateCategoryBreakdown(): {
+    category: string;
+    count: number;
+    revenue: number;
+  }[] {
     const categories = new Map<string, { count: number; revenue: number }>();
 
-    this.salesData.forEach(sale => {
-      sale.items.forEach(item => {
+    this.salesData.forEach((sale) => {
+      sale.items.forEach((item) => {
         const category = this.categorizeItem(item.itemName);
         const existing = categories.get(category) || { count: 0, revenue: 0 };
         categories.set(category, {
           count: existing.count + item.quantity,
-          revenue: existing.revenue + item.totalPrice
+          revenue: existing.revenue + item.totalPrice,
         });
       });
     });
@@ -343,8 +417,16 @@ export class AdminAnalyticsComponent implements OnInit {
     if (itemName.includes('Tea -')) return 'Tea Variants';
     if (itemName.toLowerCase().includes('tea')) return 'Tea Products';
     if (itemName.toLowerCase().includes('coffee')) return 'Coffee';
-    if (itemName.toLowerCase().includes('biscuit') || itemName.toLowerCase().includes('snacks')) return 'Snacks';
-    if (itemName.toLowerCase().includes('water') || itemName.toLowerCase().includes('campa')) return 'Beverages';
+    if (
+      itemName.toLowerCase().includes('biscuit') ||
+      itemName.toLowerCase().includes('snacks')
+    )
+      return 'Snacks';
+    if (
+      itemName.toLowerCase().includes('water') ||
+      itemName.toLowerCase().includes('campa')
+    )
+      return 'Beverages';
     if (itemName.toLowerCase().includes('cigarete')) return 'Tobacco';
     return 'Others';
   }
@@ -355,21 +437,33 @@ export class AdminAnalyticsComponent implements OnInit {
 
     // Fetch both online sales and platform charges
     Promise.all([
-      this.http.get<any>(`${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise(),
-      this.platformChargeService.getAllPlatformCharges().toPromise()
-    ]).then(([salesResponse, platformCharges]) => {
-      console.log('Online Sales Analytics Response:', salesResponse);
-      const sales = salesResponse?.data || [];
-      console.log('Online Sales Data:', sales);
-      console.log('Platform Charges:', platformCharges);
-      console.log('Zomato Sales:', sales.filter((s: any) => s.platform === 'Zomato'));
-      console.log('Swiggy Sales:', sales.filter((s: any) => s.platform === 'Swiggy'));
-      this.calculateOnlineSalesAnalytics(sales, platformCharges || []);
-      this.onlineLoading = false;
-    }).catch(err => {
-      console.error('Error loading online sales analytics:', err);
-      this.onlineLoading = false;
-    });
+      this.http
+        .get<any>(
+          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`
+        )
+        .toPromise(),
+      this.platformChargeService.getAllPlatformCharges().toPromise(),
+    ])
+      .then(([salesResponse, platformCharges]) => {
+        console.log('Online Sales Analytics Response:', salesResponse);
+        const sales = salesResponse?.data || [];
+        console.log('Online Sales Data:', sales);
+        console.log('Platform Charges:', platformCharges);
+        console.log(
+          'Zomato Sales:',
+          sales.filter((s: any) => s.platform === 'Zomato')
+        );
+        console.log(
+          'Swiggy Sales:',
+          sales.filter((s: any) => s.platform === 'Swiggy')
+        );
+        this.calculateOnlineSalesAnalytics(sales, platformCharges || []);
+        this.onlineLoading = false;
+      })
+      .catch((err) => {
+        console.error('Error loading online sales analytics:', err);
+        this.onlineLoading = false;
+      });
   }
 
   switchPlatform(platform: 'All' | 'Zomato' | 'Swiggy') {
@@ -383,27 +477,43 @@ export class AdminAnalyticsComponent implements OnInit {
     }
 
     // Calculate for each platform (case-insensitive filtering)
-    const zomatoSales = sales.filter(s => s.platform?.toLowerCase() === 'zomato');
-    const swiggySales = sales.filter(s => s.platform?.toLowerCase() === 'swiggy');
+    const zomatoSales = sales.filter(
+      (s) => s.platform?.toLowerCase() === 'zomato'
+    );
+    const swiggySales = sales.filter(
+      (s) => s.platform?.toLowerCase() === 'swiggy'
+    );
 
     console.log('Online Sales Analytics Platform Filtering:', {
       totalSales: sales.length,
       zomatoCount: zomatoSales.length,
-      swiggyCount: swiggySales.length
+      swiggyCount: swiggySales.length,
     });
 
     this.onlineAnalytics = {
       all: this.calculatePlatformMetrics(sales, 'All', platformCharges),
-      zomato: this.calculatePlatformMetrics(zomatoSales, 'Zomato', platformCharges),
-      swiggy: this.calculatePlatformMetrics(swiggySales, 'Swiggy', platformCharges)
+      zomato: this.calculatePlatformMetrics(
+        zomatoSales,
+        'Zomato',
+        platformCharges
+      ),
+      swiggy: this.calculatePlatformMetrics(
+        swiggySales,
+        'Swiggy',
+        platformCharges
+      ),
     };
   }
 
-  calculatePlatformMetrics(sales: any[], platform: string, platformCharges: any[]) {
+  calculatePlatformMetrics(
+    sales: any[],
+    platform: string,
+    platformCharges: any[]
+  ) {
     console.log(`Calculating metrics for ${platform}:`, {
       salesCount: sales.length,
       sampleSale: sales[0],
-      platformCharges
+      platformCharges,
     });
 
     if (sales.length === 0) {
@@ -425,6 +535,10 @@ export class AdminAnalyticsComponent implements OnInit {
         avgPackagingPerOrder: 0,
         ordersWithPackaging: 0,
         packagingUsagePercent: 0,
+        totalFreebies: 0,
+        avgFreebiesPerOrder: 0,
+        ordersWithFreebies: 0,
+        freebiesUsagePercent: 0,
         totalMonthlyCharges: 0,
         avgDistance: 0,
         minDistance: 0,
@@ -435,25 +549,52 @@ export class AdminAnalyticsComponent implements OnInit {
         maxDailyIncome: 1,
         peakDays: [],
         ratingDistribution: [],
-        monthlyData: []
+        monthlyData: [],
       };
     }
 
     const totalOrders = sales.length;
-    const totalDeduction = sales.reduce((sum, s) => sum + (s.platformDeduction || 0), 0);
+    const totalDeduction = sales.reduce(
+      (sum, s) => sum + (s.platformDeduction || 0),
+      0
+    );
 
     // Calculate Item Subtotal and Packaging
-    const itemSubtotal = sales.reduce((sum, s) => sum + (s.billSubTotal || 0), 0);
-    const totalPackaging = sales.reduce((sum, s) => sum + (s.packagingCharges || 0), 0);
+    const itemSubtotal = sales.reduce(
+      (sum, s) => sum + (s.billSubTotal || 0),
+      0
+    );
+    const totalPackaging = sales.reduce(
+      (sum, s) => sum + (s.packagingCharges || 0),
+      0
+    );
     const avgPackagingPerOrder = totalPackaging / totalOrders;
-    const ordersWithPackaging = sales.filter(s => (s.packagingCharges || 0) > 0).length;
-    const packagingUsagePercent = totalOrders > 0 ? (ordersWithPackaging / totalOrders) * 100 : 0;
+    const ordersWithPackaging = sales.filter(
+      (s) => (s.packagingCharges || 0) > 0
+    ).length;
+    const packagingUsagePercent =
+      totalOrders > 0 ? (ordersWithPackaging / totalOrders) * 100 : 0;
 
     // Discount metrics
-    const totalDiscount = sales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
-    const ordersWithDiscount = sales.filter(s => (s.discountAmount || 0) > 0).length;
+    const totalDiscount = sales.reduce(
+      (sum, s) => sum + (s.discountAmount || 0),
+      0
+    );
+    const ordersWithDiscount = sales.filter(
+      (s) => (s.discountAmount || 0) > 0
+    ).length;
     const avgDiscountPerOrder = totalDiscount / totalOrders;
-    const discountUsagePercent = totalOrders > 0 ? (ordersWithDiscount / totalOrders) * 100 : 0;
+    const discountUsagePercent =
+      totalOrders > 0 ? (ordersWithDiscount / totalOrders) * 100 : 0;
+
+    // Freebies metrics
+    const totalFreebies = sales.reduce((sum, s) => sum + (s.freebies || 0), 0);
+    const ordersWithFreebies = sales.filter(
+      (s) => (s.freebies || 0) > 0
+    ).length;
+    const avgFreebiesPerOrder = totalFreebies / totalOrders;
+    const freebiesUsagePercent =
+      totalOrders > 0 ? (ordersWithFreebies / totalOrders) * 100 : 0;
 
     // Calculate monthly charges from platform charges for this platform and date range
     const startDate = new Date(this.dateRange.startDate);
@@ -467,7 +608,8 @@ export class AdminAnalyticsComponent implements OnInit {
       .filter((pc: any) => {
         // For 'All' platform, include both Zomato and Swiggy
         if (platform === 'All') {
-          if (pc.platform !== 'Zomato' && pc.platform !== 'Swiggy') return false;
+          if (pc.platform !== 'Zomato' && pc.platform !== 'Swiggy')
+            return false;
         } else {
           if (pc.platform !== platform) return false;
         }
@@ -489,46 +631,62 @@ export class AdminAnalyticsComponent implements OnInit {
     console.log(`${platform} Monthly Charges:`, totalMonthlyCharges);
 
     // Recalculate Total Net Payout = Item Subtotal + Packaging - Discount - Deduction - Monthly Charges
-    const totalIncome = itemSubtotal + totalPackaging - totalDiscount - totalDeduction - totalMonthlyCharges;
+    const totalIncome =
+      itemSubtotal +
+      totalPackaging -
+      totalDiscount -
+      totalDeduction -
+      totalMonthlyCharges;
     console.log(`${platform} Net Payout Calculation:`, {
       itemSubtotal,
       totalPackaging,
       totalDiscount,
       totalDeduction,
       totalMonthlyCharges,
-      totalIncome
+      totalIncome,
     });
 
     // Calculate days in range
-    const dates = [...new Set(sales.map(s => new Date(s.orderAt).toDateString()))];
+    const dates = [
+      ...new Set(sales.map((s) => new Date(s.orderAt).toDateString())),
+    ];
     const daysInRange = dates.length;
     const dailyAverage = totalIncome / Math.max(daysInRange, 1);
     const avgOrdersPerDay = totalOrders / Math.max(daysInRange, 1);
     const avgIncomePerOrder = totalIncome / totalOrders;
-    const avgDeductionPercent = totalDeduction > 0 && (totalIncome + totalMonthlyCharges) > 0
-      ? (totalDeduction / (totalIncome + totalMonthlyCharges + totalDeduction)) * 100
-      : 0;
+    const avgDeductionPercent =
+      totalDeduction > 0 && totalIncome + totalMonthlyCharges > 0
+        ? (totalDeduction /
+            (totalIncome + totalMonthlyCharges + totalDeduction)) *
+          100
+        : 0;
 
     // Average rating
-    const ratingsWithValues = sales.filter(s => s.rating && s.rating > 0);
-    const avgRating = ratingsWithValues.length > 0
-      ? ratingsWithValues.reduce((sum, s) => sum + s.rating, 0) / ratingsWithValues.length
-      : 0;
+    const ratingsWithValues = sales.filter((s) => s.rating && s.rating > 0);
+    const avgRating =
+      ratingsWithValues.length > 0
+        ? ratingsWithValues.reduce((sum, s) => sum + s.rating, 0) /
+          ratingsWithValues.length
+        : 0;
 
     // Distance metrics
-    const salesWithDistance = sales.filter(s => s.distance && s.distance > 0);
-    const avgDistance = salesWithDistance.length > 0
-      ? salesWithDistance.reduce((sum, s) => sum + s.distance, 0) / salesWithDistance.length
-      : 0;
-    const minDistance = salesWithDistance.length > 0
-      ? Math.min(...salesWithDistance.map(s => s.distance))
-      : 0;
-    const maxDistance = salesWithDistance.length > 0
-      ? Math.max(...salesWithDistance.map(s => s.distance))
-      : 0;
+    const salesWithDistance = sales.filter((s) => s.distance && s.distance > 0);
+    const avgDistance =
+      salesWithDistance.length > 0
+        ? salesWithDistance.reduce((sum, s) => sum + s.distance, 0) /
+          salesWithDistance.length
+        : 0;
+    const minDistance =
+      salesWithDistance.length > 0
+        ? Math.min(...salesWithDistance.map((s) => s.distance))
+        : 0;
+    const maxDistance =
+      salesWithDistance.length > 0
+        ? Math.max(...salesWithDistance.map((s) => s.distance))
+        : 0;
 
     // Common distance range
-    const distanceRanges = salesWithDistance.map(s => {
+    const distanceRanges = salesWithDistance.map((s) => {
       const km = s.distance;
       if (km < 2) return '0-2 km';
       if (km < 5) return '2-5 km';
@@ -539,17 +697,20 @@ export class AdminAnalyticsComponent implements OnInit {
       acc[range] = (acc[range] || 0) + 1;
       return acc;
     }, {} as any);
-    const commonDistanceRange = Object.entries(rangeCounts)
-      .sort(([,a]:any, [,b]:any) => b - a)[0]?.[0] || 'N/A';
+    const commonDistanceRange =
+      Object.entries(rangeCounts).sort(
+        ([, a]: any, [, b]: any) => b - a
+      )[0]?.[0] || 'N/A';
 
     // Top Items
     const itemMap = new Map<string, { count: number; quantity: number }>();
-    sales.forEach(sale => {
+    sales.forEach((sale) => {
       if (sale.orderedItems) {
         try {
-          const items = typeof sale.orderedItems === 'string'
-            ? JSON.parse(sale.orderedItems)
-            : sale.orderedItems;
+          const items =
+            typeof sale.orderedItems === 'string'
+              ? JSON.parse(sale.orderedItems)
+              : sale.orderedItems;
 
           if (Array.isArray(items)) {
             items.forEach((item: any) => {
@@ -558,7 +719,7 @@ export class AdminAnalyticsComponent implements OnInit {
               const existing = itemMap.get(name) || { count: 0, quantity: 0 };
               itemMap.set(name, {
                 count: existing.count + 1,
-                quantity: existing.quantity + qty
+                quantity: existing.quantity + qty,
               });
             });
           }
@@ -574,78 +735,125 @@ export class AdminAnalyticsComponent implements OnInit {
 
     // Daily Trend
     const dailyMap = new Map<string, { income: number; orders: number }>();
-    sales.forEach(sale => {
+    sales.forEach((sale) => {
       const dateKey = new Date(sale.orderAt).toISOString().split('T')[0];
       const existing = dailyMap.get(dateKey) || { income: 0, orders: 0 };
       // Net Payout = Item Subtotal + Packaging - Discount - Deduction
-      const netPayout = (sale.billSubTotal || 0) + (sale.packagingCharges || 0) - (sale.discountAmount || 0) - (sale.platformDeduction || 0);
+      const netPayout =
+        (sale.billSubTotal || 0) +
+        (sale.packagingCharges || 0) -
+        (sale.discountAmount || 0) -
+        (sale.platformDeduction || 0);
       dailyMap.set(dateKey, {
         income: existing.income + netPayout,
-        orders: existing.orders + 1
+        orders: existing.orders + 1,
       });
     });
     const dailyTrend = Array.from(dailyMap.entries())
       .map(([date, data]) => ({ date, ...data }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const maxDailyIncome = Math.max(...dailyTrend.map(d => d.income), 1);
+    const maxDailyIncome = Math.max(...dailyTrend.map((d) => d.income), 1);
 
     // Peak Days
     const dayMap = new Map<number, { income: number; orders: number }>();
-    sales.forEach(sale => {
+    sales.forEach((sale) => {
       const dayOfWeek = new Date(sale.orderAt).getDay();
       const existing = dayMap.get(dayOfWeek) || { income: 0, orders: 0 };
       // Peak Days based on Item Subtotal + Packaging Charges
-      const grossRevenue = (sale.billSubTotal || 0) + (sale.packagingCharges || 0);
+      const grossRevenue =
+        (sale.billSubTotal || 0) + (sale.packagingCharges || 0);
       dayMap.set(dayOfWeek, {
         income: existing.income + grossRevenue,
-        orders: existing.orders + 1
+        orders: existing.orders + 1,
       });
     });
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayNames = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
     const peakDays = Array.from(dayMap.entries())
       .map(([day, data]) => ({ dayName: dayNames[day], ...data }))
       .sort((a, b) => b.income - a.income);
 
     // Rating Distribution
-    const ratingCounts = [5, 4, 3, 2, 1].map(stars => {
-      const count = sales.filter(s => s.rating === stars).length;
+    const ratingCounts = [5, 4, 3, 2, 1].map((stars) => {
+      const count = sales.filter((s) => s.rating === stars).length;
       const percentage = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
       return { stars, count, percentage };
     });
 
     // Monthly Data
-    const monthlyMap = new Map<string, { income: number; orders: number; ratings: number[] }>();
-    sales.forEach(sale => {
+    const monthlyMap = new Map<
+      string,
+      { income: number; orders: number; ratings: number[] }
+    >();
+    sales.forEach((sale) => {
       const date = new Date(sale.orderAt);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const existing = monthlyMap.get(monthKey) || { income: 0, orders: 0, ratings: [] };
+      const monthKey = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, '0')}`;
+      const existing = monthlyMap.get(monthKey) || {
+        income: 0,
+        orders: 0,
+        ratings: [],
+      };
       // Net Payout = Item Subtotal + Packaging - Discount - Deduction
-      const netPayout = (sale.billSubTotal || 0) + (sale.packagingCharges || 0) - (sale.discountAmount || 0) - (sale.platformDeduction || 0);
+      const netPayout =
+        (sale.billSubTotal || 0) +
+        (sale.packagingCharges || 0) -
+        (sale.discountAmount || 0) -
+        (sale.platformDeduction || 0);
       monthlyMap.set(monthKey, {
         income: existing.income + netPayout,
         orders: existing.orders + 1,
-        ratings: sale.rating > 0 ? [...existing.ratings, sale.rating] : existing.ratings
+        ratings:
+          sale.rating > 0
+            ? [...existing.ratings, sale.rating]
+            : existing.ratings,
       });
     });
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     const monthlyData = Array.from(monthlyMap.entries())
       .map(([key, data]) => {
         const [year, month] = key.split('-');
-        const avgRating = data.ratings.length > 0
-          ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length
-          : 0;
+        const avgRating =
+          data.ratings.length > 0
+            ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length
+            : 0;
 
         // Deduct monthly platform charges for this specific month and platform
         const monthCharges = platformCharges
           .filter((pc: any) => {
             if (platform === 'All') {
-              return (pc.platform === 'Zomato' || pc.platform === 'Swiggy') &&
-                     pc.year === parseInt(year) &&
-                     pc.month === parseInt(month);
+              return (
+                (pc.platform === 'Zomato' || pc.platform === 'Swiggy') &&
+                pc.year === parseInt(year) &&
+                pc.month === parseInt(month)
+              );
             } else {
-              return pc.platform === platform &&
-                     pc.year === parseInt(year) &&
-                     pc.month === parseInt(month);
+              return (
+                pc.platform === platform &&
+                pc.year === parseInt(year) &&
+                pc.month === parseInt(month)
+              );
             }
           })
           .reduce((sum: number, pc: any) => sum + (pc.charges || 0), 0);
@@ -654,7 +862,7 @@ export class AdminAnalyticsComponent implements OnInit {
           month: `${monthNames[parseInt(month) - 1]} ${year}`,
           income: data.income - monthCharges,
           orders: data.orders,
-          avgRating
+          avgRating,
         };
       })
       .sort((a, b) => a.month.localeCompare(b.month));
@@ -677,6 +885,10 @@ export class AdminAnalyticsComponent implements OnInit {
       avgPackagingPerOrder,
       ordersWithPackaging,
       packagingUsagePercent,
+      totalFreebies,
+      avgFreebiesPerOrder,
+      ordersWithFreebies,
+      freebiesUsagePercent,
       totalMonthlyCharges,
       avgDistance,
       minDistance,
@@ -687,7 +899,7 @@ export class AdminAnalyticsComponent implements OnInit {
       maxDailyIncome,
       peakDays,
       ratingDistribution: ratingCounts,
-      monthlyData
+      monthlyData,
     };
   }
 
@@ -721,7 +933,7 @@ export class AdminAnalyticsComponent implements OnInit {
         maxDailyIncome: 1,
         peakDays: [],
         ratingDistribution: [],
-        monthlyData: []
+        monthlyData: [],
       };
     }
 
@@ -748,7 +960,11 @@ export class AdminAnalyticsComponent implements OnInit {
   }
 
   formatDate(date: Date): string {
-    return formatIstDate(date, { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatIstDate(date, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   }
 
   formatPercentage(value: number): string {
@@ -757,89 +973,181 @@ export class AdminAnalyticsComponent implements OnInit {
 
   getMaxWeeklyTotal(): number {
     if (!this.insights?.weeklyTrend.length) return 1;
-    return Math.max(...this.insights.weeklyTrend.map(w => w.total));
+    return Math.max(...this.insights.weeklyTrend.map((w) => w.total));
   }
 
   getMaxMonthlyTotal(): number {
     if (!this.insights?.monthlyComparison.length) return 1;
-    return Math.max(...this.insights.monthlyComparison.map(m => m.total));
+    return Math.max(...this.insights.monthlyComparison.map((m) => m.total));
   }
 
   getCategoryIcon(category: string): string {
     const icons: { [key: string]: string } = {
       'Tea Variants': '🍵',
       'Tea Products': '☕',
-      'Coffee': '☕',
-      'Snacks': '🍪',
-      'Beverages': '🥤',
-      'Tobacco': '🚬',
-      'Others': '📦'
+      Coffee: '☕',
+      Snacks: '🍪',
+      Beverages: '🥤',
+      Tobacco: '🚬',
+      Others: '📦',
     };
     return icons[category] || '📦';
   }
 
   getExpenseTypeIcon(type: string): string {
     const icons: { [key: string]: string } = {
-      'Milk': '🥛',
-      'Tea': '🍵',
-      'Rent': '🏠',
-      'Salary': '💰',
-      'Grocerry': '🛒',
-      'Electricity': '⚡',
-      'Water': '💧'
+      Milk: '🥛',
+      Tea: '🍵',
+      Rent: '🏠',
+      Salary: '💰',
+      Grocerry: '🛒',
+      Electricity: '⚡',
+      Water: '💧',
     };
     return icons[type] || '💸';
   }
 
   getMaxExpenseWeekly(): number {
     if (!this.expenseAnalytics?.weeklyTrend.length) return 1;
-    return Math.max(...this.expenseAnalytics.weeklyTrend.map(w => w.totalAmount));
+    return Math.max(
+      ...this.expenseAnalytics.weeklyTrend.map((w) => w.totalAmount)
+    );
   }
 
   getMaxExpenseMonthly(): number {
     if (!this.expenseAnalytics?.monthlyComparison.length) return 1;
-    return Math.max(...this.expenseAnalytics.monthlyComparison.map(m => m.totalAmount));
+    return Math.max(
+      ...this.expenseAnalytics.monthlyComparison.map((m) => m.totalAmount)
+    );
   }
 
   loadEarningsAnalytics() {
     this.earningsLoading = true;
 
-    // Fetch sales, expenses, cash reconciliations, and online sales for the date range
+    // Calculate previous month's date range
+    const startDate = getIstStartOfDay(this.dateRange.startDate);
+    const endDate = getIstEndOfDay(this.dateRange.endDate);
+    const daysDiff = Math.floor(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    const prevStartDate = new Date(startDate);
+    prevStartDate.setMonth(prevStartDate.getMonth() - 1);
+    const prevEndDate = new Date(prevStartDate);
+    prevEndDate.setDate(prevEndDate.getDate() + daysDiff);
+
+    const prevStartStr = getIstInputDate(prevStartDate);
+    const prevEndStr = getIstInputDate(prevEndDate);
+
+    // Fetch current and previous period data
     Promise.all([
+      // Current period
       this.salesService.getAllSales().toPromise(),
-      this.http.get(`${environment.apiUrl}/expenses/range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise(),
-      this.http.get(`${environment.apiUrl}/cash-reconciliation?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise(),
-      this.http.get(`${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`).toPromise()
-    ]).then(([sales, expenses, reconciliationResponse, onlineSalesResponse]: [any, any, any, any]) => {
-      const filteredSales = this.filterByDateRange(sales);
-      const reconciliations = reconciliationResponse?.data || [];
-      const onlineSales = onlineSalesResponse?.data || [];
-      // Handle expenses response - it might be wrapped in {data: []} or direct array
-      const expensesData = expenses?.data || expenses || [];
-      console.log('Earnings Analytics Data:', {
-        salesCount: filteredSales?.length || 0,
-        expensesCount: expensesData?.length || 0,
-        reconciliationsCount: reconciliations?.length || 0,
-        onlineSalesCount: onlineSales?.length || 0,
-        filteredSales: filteredSales,
-        expenses: expensesData,
-        reconciliations: reconciliations,
-        onlineSales: onlineSales
+      this.http
+        .get(
+          `${environment.apiUrl}/expenses/range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`
+        )
+        .toPromise(),
+      this.http
+        .get(
+          `${environment.apiUrl}/cash-reconciliation?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`
+        )
+        .toPromise(),
+      this.http
+        .get(
+          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`
+        )
+        .toPromise(),
+      // Previous period for comparison
+      this.http
+        .get(
+          `${environment.apiUrl}/expenses/range?startDate=${prevStartStr}&endDate=${prevEndStr}`
+        )
+        .toPromise(),
+      this.http
+        .get(
+          `${environment.apiUrl}/cash-reconciliation?startDate=${prevStartStr}&endDate=${prevEndStr}`
+        )
+        .toPromise(),
+      this.http
+        .get(
+          `${environment.apiUrl}/online-sales/date-range?startDate=${prevStartStr}&endDate=${prevEndStr}`
+        )
+        .toPromise(),
+    ])
+      .then(
+        ([
+          sales,
+          expenses,
+          reconciliationResponse,
+          onlineSalesResponse,
+          prevExpenses,
+          prevReconciliationResponse,
+          prevOnlineSalesResponse,
+        ]: [any, any, any, any, any, any, any]) => {
+          const filteredSales = this.filterByDateRange(sales);
+          const reconciliations = reconciliationResponse?.data || [];
+          const onlineSales = onlineSalesResponse?.data || [];
+          const expensesData = expenses?.data || expenses || [];
+
+          // Previous period data
+          const prevSales = sales.filter((sale: any) => {
+            const saleDate = new Date(sale.date);
+            return saleDate >= prevStartDate && saleDate <= prevEndDate;
+          });
+          const prevExpensesData = prevExpenses?.data || prevExpenses || [];
+          const prevReconciliations = prevReconciliationResponse?.data || [];
+          const prevOnlineSales = prevOnlineSalesResponse?.data || [];
+
+          console.log('Earnings Analytics Data:', {
+            salesCount: filteredSales?.length || 0,
+            expensesCount: expensesData?.length || 0,
+            reconciliationsCount: reconciliations?.length || 0,
+            onlineSalesCount: onlineSales?.length || 0,
+            prevSalesCount: prevSales?.length || 0,
+            filteredSales: filteredSales,
+            expenses: expensesData,
+            reconciliations: reconciliations,
+            onlineSales: onlineSales,
+          });
+          this.calculateEarningsInsights(
+            filteredSales,
+            expensesData,
+            reconciliations,
+            onlineSales,
+            prevSales,
+            prevExpensesData,
+            prevReconciliations,
+            prevOnlineSales
+          );
+          this.earningsLoading = false;
+        }
+      )
+      .catch((err) => {
+        console.error('Error loading earnings analytics:', err);
+        this.earningsLoading = false;
       });
-      this.calculateEarningsInsights(filteredSales, expensesData, reconciliations, onlineSales);
-      this.earningsLoading = false;
-    }).catch(err => {
-      console.error('Error loading earnings analytics:', err);
-      this.earningsLoading = false;
-    });
   }
 
-  calculateEarningsInsights(sales: any[], expenses: any[], reconciliations: any[], onlineSales: any[]) {
+  calculateEarningsInsights(
+    sales: any[],
+    expenses: any[],
+    reconciliations: any[],
+    onlineSales: any[],
+    prevSales: any[],
+    prevExpensesData: any[],
+    prevReconciliations: any[],
+    prevOnlineSales: any[]
+  ) {
     console.log('calculateEarningsInsights called with:', {
       salesLength: sales?.length,
       expensesLength: expenses?.length,
       reconciliationsLength: reconciliations?.length,
-      onlineSalesLength: onlineSales?.length
+      onlineSalesLength: onlineSales?.length,
+      prevSalesLength: prevSales?.length,
+      prevExpensesLength: prevExpensesData?.length,
+      prevReconciliationsLength: prevReconciliations?.length,
+      prevOnlineSalesLength: prevOnlineSales?.length,
     });
 
     // Calculate total offline sales
@@ -847,27 +1155,50 @@ export class AdminAnalyticsComponent implements OnInit {
 
     // Calculate online sales from payment methods (card, online, upi, etc.)
     const onlineSalesPayment = sales
-      .filter(s => {
+      .filter((s) => {
         const method = s.paymentMethod?.toLowerCase() || '';
-        return method === 'card' || method === 'online' || method === 'upi' ||
-               method === 'paytm' || method === 'gpay' || method === 'phonepe';
+        return (
+          method === 'card' ||
+          method === 'online' ||
+          method === 'upi' ||
+          method === 'paytm' ||
+          method === 'gpay' ||
+          method === 'phonepe'
+        );
       })
       .reduce((sum, s) => sum + s.totalAmount, 0);
 
     // Calculate cash sales
     const cashSales = sales
-      .filter(s => s.paymentMethod?.toLowerCase() === 'cash')
+      .filter((s) => s.paymentMethod?.toLowerCase() === 'cash')
       .reduce((sum, s) => sum + s.totalAmount, 0);
 
     // Calculate Zomato/Swiggy online sales (Net Payout = Subtotal + Packaging - Discount - Deduction)
     const zomatoSwiggyIncome = onlineSales.reduce((sum, s) => {
-      const netPayout = (s.billSubTotal || 0) + (s.packagingCharges || 0) - (s.discountAmount || 0) - (s.platformDeduction || 0);
+      const netPayout =
+        (s.billSubTotal || 0) +
+        (s.packagingCharges || 0) -
+        (s.discountAmount || 0) -
+        (s.platformDeduction || 0);
       return sum + netPayout;
     }, 0);
     const zomatoSwiggyOrders = onlineSales.length;
-    const zomatoSwiggyDeductions = onlineSales.reduce((sum, s) => sum + (s.platformDeduction || 0), 0);
-    const zomatoSwiggyDiscount = onlineSales.reduce((sum, s) => sum + (s.discountAmount || 0), 0);
-    const zomatoSwiggyPackaging = onlineSales.reduce((sum, s) => sum + (s.packagingCharges || 0), 0);
+    const zomatoSwiggyDeductions = onlineSales.reduce(
+      (sum, s) => sum + (s.platformDeduction || 0),
+      0
+    );
+    const zomatoSwiggyDiscount = onlineSales.reduce(
+      (sum, s) => sum + (s.discountAmount || 0),
+      0
+    );
+    const zomatoSwiggyPackaging = onlineSales.reduce(
+      (sum, s) => sum + (s.packagingCharges || 0),
+      0
+    );
+    const zomatoSwiggyFreebies = onlineSales.reduce(
+      (sum, s) => sum + (s.freebies || 0),
+      0
+    );
 
     console.log('Zomato/Swiggy Income Calculation:', {
       totalOnlineSales: onlineSales.length,
@@ -876,26 +1207,41 @@ export class AdminAnalyticsComponent implements OnInit {
       zomatoSwiggyDeductions,
       zomatoSwiggyDiscount,
       zomatoSwiggyPackaging,
-      sampleSale: onlineSales[0]
+      zomatoSwiggyFreebies,
+      sampleSale: onlineSales[0],
     });
 
     // Breakdown by platform
-    const zomatoSales = onlineSales.filter(s => s.platform?.toLowerCase() === 'zomato');
-    const swiggySales = onlineSales.filter(s => s.platform?.toLowerCase() === 'swiggy');
+    const zomatoSales = onlineSales.filter(
+      (s) => s.platform?.toLowerCase() === 'zomato'
+    );
+    const swiggySales = onlineSales.filter(
+      (s) => s.platform?.toLowerCase() === 'swiggy'
+    );
 
     console.log('Platform Filtering:', {
       totalOnlineSales: onlineSales.length,
       zomatoCount: zomatoSales.length,
       swiggyCount: swiggySales.length,
-      samplePlatforms: onlineSales.slice(0, 5).map(s => ({id: s.orderId, platform: s.platform}))
+      samplePlatforms: onlineSales
+        .slice(0, 5)
+        .map((s) => ({ id: s.orderId, platform: s.platform })),
     });
 
     const zomatoIncome = zomatoSales.reduce((sum, s) => {
-      const netPayout = (s.billSubTotal || 0) + (s.packagingCharges || 0) - (s.discountAmount || 0) - (s.platformDeduction || 0);
+      const netPayout =
+        (s.billSubTotal || 0) +
+        (s.packagingCharges || 0) -
+        (s.discountAmount || 0) -
+        (s.platformDeduction || 0);
       return sum + netPayout;
     }, 0);
     const swiggyIncome = swiggySales.reduce((sum, s) => {
-      const netPayout = (s.billSubTotal || 0) + (s.packagingCharges || 0) - (s.discountAmount || 0) - (s.platformDeduction || 0);
+      const netPayout =
+        (s.billSubTotal || 0) +
+        (s.packagingCharges || 0) -
+        (s.discountAmount || 0) -
+        (s.platformDeduction || 0);
       return sum + netPayout;
     }, 0);
 
@@ -903,7 +1249,7 @@ export class AdminAnalyticsComponent implements OnInit {
       zomatoSalesCount: zomatoSales.length,
       zomatoIncome,
       swiggySalesCount: swiggySales.length,
-      swiggyIncome
+      swiggyIncome,
     });
 
     // Calculate total expenses
@@ -920,108 +1266,129 @@ export class AdminAnalyticsComponent implements OnInit {
     // Fetch operational expenses and platform charges, then calculate proportionally
     Promise.all([
       this.operationalExpenseService.getAllOperationalExpenses().toPromise(),
-      this.platformChargeService.getAllPlatformCharges().toPromise()
-    ]).then(([opExpenses, platformCharges]) => {
-      // Calculate proportional operational expenses
-      opExpenses = opExpenses || [];
-      opExpenses.forEach(opExp => {
-        const proportionalAmount = this.calculateProportionalMonthlyExpense(
-          opExp.month,
-          opExp.year,
-          opExp.totalOperationalCost,
-          startDate,
-          endDate
+      this.platformChargeService.getAllPlatformCharges().toPromise(),
+    ])
+      .then(([opExpenses, platformCharges]) => {
+        // Calculate proportional operational expenses
+        opExpenses = opExpenses || [];
+        opExpenses.forEach((opExp) => {
+          const proportionalAmount = this.calculateProportionalMonthlyExpense(
+            opExp.month,
+            opExp.year,
+            opExp.totalOperationalCost,
+            startDate,
+            endDate
+          );
+          operationalExpensesTotal += proportionalAmount;
+        });
+
+        // Calculate proportional platform charges (separate by platform)
+        platformCharges = platformCharges || [];
+        platformCharges.forEach((charge) => {
+          const proportionalAmount = this.calculateProportionalMonthlyExpense(
+            charge.month,
+            charge.year,
+            charge.charges,
+            startDate,
+            endDate
+          );
+          platformChargesTotal += proportionalAmount;
+
+          // Track platform-specific charges
+          if (charge.platform?.toLowerCase() === 'zomato') {
+            zomatoMonthlyCharges += proportionalAmount;
+          } else if (charge.platform?.toLowerCase() === 'swiggy') {
+            swiggyMonthlyCharges += proportionalAmount;
+          }
+        });
+
+        // Deduct monthly charges from platform income
+        const zomatoIncomeAfterCharges = zomatoIncome - zomatoMonthlyCharges;
+        const swiggyIncomeAfterCharges = swiggyIncome - swiggyMonthlyCharges;
+        const zomatoSwiggyIncomeAfterCharges =
+          zomatoIncomeAfterCharges + swiggyIncomeAfterCharges;
+
+        console.log('Platform Charges Breakdown:', {
+          zomatoMonthlyCharges,
+          swiggyMonthlyCharges,
+          totalPlatformCharges: platformChargesTotal,
+          zomatoIncomeBeforeCharges: zomatoIncome,
+          zomatoIncomeAfterCharges,
+          swiggyIncomeBeforeCharges: swiggyIncome,
+          swiggyIncomeAfterCharges,
+        });
+
+        // Recalculate revenue after deducting monthly charges from platform income
+        const totalRevenueAfterCharges =
+          totalCashCollection +
+          totalOnlineCollection +
+          zomatoSwiggyIncomeAfterCharges;
+
+        // Recalculate totals with proportional monthly expenses
+        const totalExpensesWithMonthly =
+          totalExpenses + operationalExpensesTotal + platformChargesTotal;
+        const netProfitLoss =
+          totalRevenueAfterCharges - totalExpensesWithMonthly;
+        const profitMargin =
+          totalRevenueAfterCharges > 0
+            ? (netProfitLoss / totalRevenueAfterCharges) * 100
+            : 0;
+
+        this.earningsData = {
+          ...this.earningsData,
+          // Update with charges-deducted values
+          zomatoIncome: zomatoIncomeAfterCharges,
+          swiggyIncome: swiggyIncomeAfterCharges,
+          zomatoSwiggyIncome: zomatoSwiggyIncomeAfterCharges,
+          onlinePlatformCollection: zomatoSwiggyIncomeAfterCharges,
+          totalCollection:
+            totalCashCollection +
+            totalOnlineCollection +
+            zomatoSwiggyIncomeAfterCharges,
+          totalRevenue: totalRevenueAfterCharges,
+          totalExpenses: totalExpensesWithMonthly,
+          regularExpenses: totalExpenses,
+          operationalExpenses: operationalExpensesTotal,
+          platformCharges: platformChargesTotal,
+          netProfitLoss,
+          profitMargin,
+        };
+
+        console.log(
+          'Earnings Data Updated with Proportional Monthly Expenses:',
+          {
+            operationalExpenses: operationalExpensesTotal,
+            platformCharges: platformChargesTotal,
+            total: this.earningsData,
+          }
         );
-        operationalExpensesTotal += proportionalAmount;
+      })
+      .catch((err) => {
+        console.error('Error loading monthly expenses for analytics:', err);
       });
-
-      // Calculate proportional platform charges (separate by platform)
-      platformCharges = platformCharges || [];
-      platformCharges.forEach(charge => {
-        const proportionalAmount = this.calculateProportionalMonthlyExpense(
-          charge.month,
-          charge.year,
-          charge.charges,
-          startDate,
-          endDate
-        );
-        platformChargesTotal += proportionalAmount;
-
-        // Track platform-specific charges
-        if (charge.platform?.toLowerCase() === 'zomato') {
-          zomatoMonthlyCharges += proportionalAmount;
-        } else if (charge.platform?.toLowerCase() === 'swiggy') {
-          swiggyMonthlyCharges += proportionalAmount;
-        }
-      });
-
-      // Deduct monthly charges from platform income
-      const zomatoIncomeAfterCharges = zomatoIncome - zomatoMonthlyCharges;
-      const swiggyIncomeAfterCharges = swiggyIncome - swiggyMonthlyCharges;
-      const zomatoSwiggyIncomeAfterCharges = zomatoIncomeAfterCharges + swiggyIncomeAfterCharges;
-
-      console.log('Platform Charges Breakdown:', {
-        zomatoMonthlyCharges,
-        swiggyMonthlyCharges,
-        totalPlatformCharges: platformChargesTotal,
-        zomatoIncomeBeforeCharges: zomatoIncome,
-        zomatoIncomeAfterCharges,
-        swiggyIncomeBeforeCharges: swiggyIncome,
-        swiggyIncomeAfterCharges
-      });
-
-      // Recalculate revenue after deducting monthly charges from platform income
-      const totalRevenueAfterCharges = totalCashCollection + totalOnlineCollection + zomatoSwiggyIncomeAfterCharges;
-
-      // Recalculate totals with proportional monthly expenses
-      const totalExpensesWithMonthly = totalExpenses + operationalExpensesTotal + platformChargesTotal;
-      const netProfitLoss = totalRevenueAfterCharges - totalExpensesWithMonthly;
-      const profitMargin = totalRevenueAfterCharges > 0 ? (netProfitLoss / totalRevenueAfterCharges) * 100 : 0;
-
-      this.earningsData = {
-        ...this.earningsData,
-        // Update with charges-deducted values
-        zomatoIncome: zomatoIncomeAfterCharges,
-        swiggyIncome: swiggyIncomeAfterCharges,
-        zomatoSwiggyIncome: zomatoSwiggyIncomeAfterCharges,
-        onlinePlatformCollection: zomatoSwiggyIncomeAfterCharges,
-        totalCollection: totalCashCollection + totalOnlineCollection + zomatoSwiggyIncomeAfterCharges,
-        totalRevenue: totalRevenueAfterCharges,
-        totalExpenses: totalExpensesWithMonthly,
-        regularExpenses: totalExpenses,
-        operationalExpenses: operationalExpensesTotal,
-        platformCharges: platformChargesTotal,
-        netProfitLoss,
-        profitMargin
-      };
-
-      console.log('Earnings Data Updated with Proportional Monthly Expenses:', {
-        operationalExpenses: operationalExpensesTotal,
-        platformCharges: platformChargesTotal,
-        total: this.earningsData
-      });
-    }).catch(err => {
-      console.error('Error loading monthly expenses for analytics:', err);
-    });
 
     // Calculate offline expenses (cash payment method)
     const offlineExpenses = expenses
-      .filter(e => e.paymentMethod?.toLowerCase() === 'cash')
+      .filter((e) => e.paymentMethod?.toLowerCase() === 'cash')
       .reduce((sum, e) => sum + e.amount, 0);
 
     // Calculate online expenses (card, online, upi, bank transfer)
     const onlineExpenses = expenses
-      .filter(e => {
+      .filter((e) => {
         const method = e.paymentMethod?.toLowerCase() || '';
-        return method === 'online' || method === 'card' || method === 'upi' ||
-               method === 'bank transfer';
+        return (
+          method === 'online' ||
+          method === 'card' ||
+          method === 'upi' ||
+          method === 'bank transfer'
+        );
       })
       .reduce((sum, e) => sum + e.amount, 0);
 
     // Calculate Total Cash Collection from reconciliations
     // Sort by date
-    const sortedRecs = reconciliations.sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+    const sortedRecs = reconciliations.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
     let totalCashCollection = 0;
@@ -1029,39 +1396,127 @@ export class AdminAnalyticsComponent implements OnInit {
     sortedRecs.forEach((rec, index) => {
       // Get offline expenses for this day
       const recDate = new Date(rec.date);
-      const offlineExpensesForDay = expenses.filter(e => {
-        const expDate = new Date(e.date);
-        return expDate.toDateString() === recDate.toDateString() &&
-               e.paymentMethod?.toLowerCase() === 'cash';
-      }).reduce((sum, e) => sum + e.amount, 0);
+      const offlineExpensesForDay = expenses
+        .filter((e) => {
+          const expDate = new Date(e.date);
+          return (
+            expDate.toDateString() === recDate.toDateString() &&
+            e.paymentMethod?.toLowerCase() === 'cash'
+          );
+        })
+        .reduce((sum, e) => sum + e.amount, 0);
 
       if (index === 0) {
         // First day: (CashCounted - OpeningCash) + (CoinCounted - OpeningCoin) + OfflineExpenses
-        const cashDifference = (rec.countedCash || 0) - (rec.openingCashBalance || 0);
-        const coinDifference = (rec.countedCoins || 0) - (rec.openingCoinBalance || 0);
-        totalCashCollection += cashDifference + coinDifference + offlineExpensesForDay;
+        const cashDifference =
+          (rec.countedCash || 0) - (rec.openingCashBalance || 0);
+        const coinDifference =
+          (rec.countedCoins || 0) - (rec.openingCoinBalance || 0);
+        totalCashCollection +=
+          cashDifference + coinDifference + offlineExpensesForDay;
       } else {
         // Subsequent days: (CashCounted - OpeningCash) + (CoinCounted - OpeningCoin) + OfflineExpenses
-        const cashDifference = (rec.countedCash || 0) - (rec.openingCashBalance || 0);
-        const coinDifference = (rec.countedCoins || 0) - (rec.openingCoinBalance || 0);
-        totalCashCollection += cashDifference + coinDifference + offlineExpensesForDay;
+        const cashDifference =
+          (rec.countedCash || 0) - (rec.openingCashBalance || 0);
+        const coinDifference =
+          (rec.countedCoins || 0) - (rec.openingCoinBalance || 0);
+        totalCashCollection +=
+          cashDifference + coinDifference + offlineExpensesForDay;
       }
     });
 
     // Total online collection = sum of actualOnline from reconciliations
-    const totalOnlineCollection = reconciliations.reduce((sum, rec) =>
-      sum + (rec.actualOnline || 0), 0
+    const totalOnlineCollection = reconciliations.reduce(
+      (sum, rec) => sum + (rec.actualOnline || 0),
+      0
     );
 
     // Online platform collection = Zomato/Swiggy income
     const onlinePlatformCollection = zomatoSwiggyIncome;
 
     // Calculate total revenue based on actual collections
-    const totalRevenue = totalCashCollection + totalOnlineCollection + onlinePlatformCollection;
+    const totalRevenue =
+      totalCashCollection + totalOnlineCollection + onlinePlatformCollection;
 
     // Calculate net profit/loss
     const netProfitLoss = totalRevenue - totalExpenses;
-    const profitMargin = totalRevenue > 0 ? (netProfitLoss / totalRevenue) * 100 : 0;
+    const profitMargin =
+      totalRevenue > 0 ? (netProfitLoss / totalRevenue) * 100 : 0;
+
+    // Calculate previous period profit margin for growth comparison
+    let profitMarginGrowth = 0;
+    if (
+      prevSales &&
+      prevExpensesData &&
+      prevReconciliations &&
+      prevOnlineSales
+    ) {
+      // Calculate previous period collections
+      const prevTotalExpenses = prevExpensesData.reduce(
+        (sum, e) => sum + e.amount,
+        0
+      );
+
+      const prevSortedRecs = prevReconciliations.sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+
+      let prevTotalCashCollection = 0;
+      prevSortedRecs.forEach((rec, index) => {
+        const recDate = new Date(rec.date);
+        const offlineExpensesForDay = prevExpensesData
+          .filter((e) => {
+            const expDate = new Date(e.date);
+            return (
+              expDate.toDateString() === recDate.toDateString() &&
+              e.paymentMethod?.toLowerCase() === 'cash'
+            );
+          })
+          .reduce((sum, e) => sum + e.amount, 0);
+
+        const cashDifference =
+          (rec.countedCash || 0) - (rec.openingCashBalance || 0);
+        const coinDifference =
+          (rec.countedCoins || 0) - (rec.openingCoinBalance || 0);
+        prevTotalCashCollection +=
+          cashDifference + coinDifference + offlineExpensesForDay;
+      });
+
+      const prevTotalOnlineCollection = prevReconciliations.reduce(
+        (sum, rec) => sum + (rec.actualOnline || 0),
+        0
+      );
+
+      const prevZomatoSwiggyIncome = prevOnlineSales.reduce((sum, s) => {
+        const netPayout =
+          (s.billSubTotal || 0) +
+          (s.packagingCharges || 0) -
+          (s.discountAmount || 0) -
+          (s.platformDeduction || 0);
+        return sum + netPayout;
+      }, 0);
+
+      const prevTotalRevenue =
+        prevTotalCashCollection +
+        prevTotalOnlineCollection +
+        prevZomatoSwiggyIncome;
+      const prevNetProfitLoss = prevTotalRevenue - prevTotalExpenses;
+      const prevProfitMargin =
+        prevTotalRevenue > 0 ? (prevNetProfitLoss / prevTotalRevenue) * 100 : 0;
+
+      // Calculate growth rate
+      if (Math.abs(prevProfitMargin) > 0.01) {
+        profitMarginGrowth =
+          ((profitMargin - prevProfitMargin) / Math.abs(prevProfitMargin)) *
+          100;
+      }
+
+      console.log('Profit Margin Growth Calculation:', {
+        currentProfitMargin: profitMargin,
+        prevProfitMargin,
+        profitMarginGrowth,
+      });
+    }
 
     this.earningsData = {
       // Offline sales
@@ -1075,6 +1530,7 @@ export class AdminAnalyticsComponent implements OnInit {
       zomatoSwiggyDeductions,
       zomatoSwiggyDiscount,
       zomatoSwiggyPackaging,
+      zomatoSwiggyFreebies,
       zomatoIncome,
       swiggyIncome,
 
@@ -1090,12 +1546,14 @@ export class AdminAnalyticsComponent implements OnInit {
       totalCashCollection,
       totalOnlineCollection,
       onlinePlatformCollection,
-      totalCollection: totalCashCollection + totalOnlineCollection + onlinePlatformCollection,
+      totalCollection:
+        totalCashCollection + totalOnlineCollection + onlinePlatformCollection,
 
       // PnL (will be updated with operational expenses)
       totalRevenue,
       netProfitLoss,
-      profitMargin
+      profitMargin,
+      profitMarginGrowth,
     };
 
     console.log('Earnings Data Calculated:', this.earningsData);
@@ -1122,8 +1580,12 @@ export class AdminAnalyticsComponent implements OnInit {
     const monthEnd = new Date(year, month, 0); // Last day of the month
 
     // Check if there's any overlap between the month and the date range
-    const overlapStart = new Date(Math.max(monthStart.getTime(), rangeStart.getTime()));
-    const overlapEnd = new Date(Math.min(monthEnd.getTime(), rangeEnd.getTime()));
+    const overlapStart = new Date(
+      Math.max(monthStart.getTime(), rangeStart.getTime())
+    );
+    const overlapEnd = new Date(
+      Math.min(monthEnd.getTime(), rangeEnd.getTime())
+    );
 
     // No overlap
     if (overlapStart > overlapEnd) {
@@ -1131,7 +1593,10 @@ export class AdminAnalyticsComponent implements OnInit {
     }
 
     // Calculate days in overlap
-    const daysInOverlap = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const daysInOverlap =
+      Math.ceil(
+        (overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)
+      ) + 1;
 
     // Calculate total days in the month
     const daysInMonth = monthEnd.getDate();
@@ -1147,7 +1612,7 @@ export class AdminAnalyticsComponent implements OnInit {
       daysInOverlap,
       proportionalAmount,
       rangeStart: rangeStart.toISOString().split('T')[0],
-      rangeEnd: rangeEnd.toISOString().split('T')[0]
+      rangeEnd: rangeEnd.toISOString().split('T')[0],
     });
 
     return proportionalAmount;
@@ -1158,14 +1623,17 @@ export class AdminAnalyticsComponent implements OnInit {
     this.customerLoading = true;
 
     // Load online sales for the date range
-    this.http.get(`${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`)
+    this.http
+      .get(
+        `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`
+      )
       .toPromise()
       .then((response: any) => {
         const sales = response?.data || [];
         this.calculateCustomerAnalytics(sales);
         this.customerLoading = false;
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Error loading customer analytics:', err);
         this.customerLoading = false;
       });
@@ -1173,7 +1641,9 @@ export class AdminAnalyticsComponent implements OnInit {
 
   calculateCustomerAnalytics(sales: any[]) {
     // Filter sales with customer names
-    const salesWithCustomers = sales.filter(s => s.customerName && s.customerName.trim() !== '');
+    const salesWithCustomers = sales.filter(
+      (s) => s.customerName && s.customerName.trim() !== ''
+    );
 
     if (salesWithCustomers.length === 0) {
       this.customerAnalytics = null;
@@ -1181,21 +1651,27 @@ export class AdminAnalyticsComponent implements OnInit {
     }
 
     // Group by customer name
-    const customerMap = new Map<string, {
-      displayName: string; // Keep original casing for display
-      orders: number;
-      totalSpent: number;
-      totalDiscount: number;
-      totalDeduction: number;
-      ratings: number[];
-      platforms: Set<string>;
-      lastOrderDate: Date;
-      items: string[];
-    }>();
+    const customerMap = new Map<
+      string,
+      {
+        displayName: string; // Keep original casing for display
+        orders: number;
+        totalSpent: number;
+        totalDiscount: number;
+        totalDeduction: number;
+        ratings: number[];
+        platforms: Set<string>;
+        lastOrderDate: Date;
+        items: string[];
+      }
+    >();
 
-    salesWithCustomers.forEach(sale => {
+    salesWithCustomers.forEach((sale) => {
       // Normalize customer name: lowercase and remove extra spaces
-      const normalizedName = sale.customerName.trim().toLowerCase().replace(/\s+/g, ' ');
+      const normalizedName = sale.customerName
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
       const displayName = sale.customerName.trim().replace(/\s+/g, ' '); // Keep original case but normalize spaces
 
       const existing = customerMap.get(normalizedName) || {
@@ -1207,10 +1683,14 @@ export class AdminAnalyticsComponent implements OnInit {
         ratings: [] as number[],
         platforms: new Set<string>(),
         lastOrderDate: new Date(sale.orderAt),
-        items: [] as string[]
+        items: [] as string[],
       };
 
-      const netPayout = (sale.billSubTotal || 0) + (sale.packagingCharges || 0) - (sale.discountAmount || 0) - (sale.platformDeduction || 0);
+      const netPayout =
+        (sale.billSubTotal || 0) +
+        (sale.packagingCharges || 0) -
+        (sale.discountAmount || 0) -
+        (sale.platformDeduction || 0);
 
       existing.orders += 1;
       existing.totalSpent += netPayout;
@@ -1241,28 +1721,42 @@ export class AdminAnalyticsComponent implements OnInit {
 
     // Use the end date from the selected range for calculating days since last order
     const referenceDate = new Date(this.dateRange.endDate);
-    console.log('Reference Date (End of Range):', referenceDate.toISOString().split('T')[0]);
+    console.log(
+      'Reference Date (End of Range):',
+      referenceDate.toISOString().split('T')[0]
+    );
 
     // Convert to array and calculate metrics
-    const customers = Array.from(customerMap.entries()).map(([normalizedName, data]) => ({
-      name: data.displayName, // Use the display name (original casing)
-      orders: data.orders,
-      totalSpent: data.totalSpent,
-      avgOrderValue: data.totalSpent / data.orders,
-      totalDiscount: data.totalDiscount,
-      totalDeduction: data.totalDeduction,
-      avgRating: data.ratings.length > 0 ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length : 0,
-      platforms: Array.from(data.platforms),
-      lastOrderDate: data.lastOrderDate,
-      daysSinceLastOrder: Math.floor((referenceDate.getTime() - data.lastOrderDate.getTime()) / (1000 * 60 * 60 * 24)),
-      favoriteItems: this.getTopItems(data.items, 3)
-    }));
+    const customers = Array.from(customerMap.entries()).map(
+      ([normalizedName, data]) => ({
+        name: data.displayName, // Use the display name (original casing)
+        orders: data.orders,
+        totalSpent: data.totalSpent,
+        avgOrderValue: data.totalSpent / data.orders,
+        totalDiscount: data.totalDiscount,
+        totalDeduction: data.totalDeduction,
+        avgRating:
+          data.ratings.length > 0
+            ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length
+            : 0,
+        platforms: Array.from(data.platforms),
+        lastOrderDate: data.lastOrderDate,
+        daysSinceLastOrder: Math.floor(
+          (referenceDate.getTime() - data.lastOrderDate.getTime()) /
+            (1000 * 60 * 60 * 24)
+        ),
+        favoriteItems: this.getTopItems(data.items, 3),
+      })
+    );
 
-    console.log('Sample Customer Data:', customers.slice(0, 3).map(c => ({
-      name: c.name,
-      lastOrderDate: c.lastOrderDate.toISOString().split('T')[0],
-      daysSinceLastOrder: c.daysSinceLastOrder
-    })));
+    console.log(
+      'Sample Customer Data:',
+      customers.slice(0, 3).map((c) => ({
+        name: c.name,
+        lastOrderDate: c.lastOrderDate.toISOString().split('T')[0],
+        daysSinceLastOrder: c.daysSinceLastOrder,
+      }))
+    );
 
     // Sort by total spent
     customers.sort((a, b) => b.totalSpent - a.totalSpent);
@@ -1271,40 +1765,58 @@ export class AdminAnalyticsComponent implements OnInit {
     const totalCustomers = customers.length;
     const totalOrders = salesWithCustomers.length;
     const avgOrdersPerCustomer = totalOrders / totalCustomers;
-    const repeatCustomers = customers.filter(c => c.orders > 1).length;
+    const repeatCustomers = customers.filter((c) => c.orders > 1).length;
     const repeatRate = (repeatCustomers / totalCustomers) * 100;
 
     // Top customers
     const topCustomersBySpending = customers.slice(0, 10);
-    const topCustomersByOrders = [...customers].sort((a, b) => b.orders - a.orders).slice(0, 10);
-    const topRatedCustomers = customers.filter(c => c.avgRating >= 4.5).slice(0, 10);
+    const topCustomersByOrders = [...customers]
+      .sort((a, b) => b.orders - a.orders)
+      .slice(0, 10);
+    const topRatedCustomers = customers
+      .filter((c) => c.avgRating >= 4.5)
+      .slice(0, 10);
 
     // Platform preference
     const platformCounts = {
-      Zomato: customers.filter(c => c.platforms.length === 1 && c.platforms.includes('Zomato')).length,
-      Swiggy: customers.filter(c => c.platforms.length === 1 && c.platforms.includes('Swiggy')).length,
-      Both: customers.filter(c => c.platforms.length > 1).length
+      Zomato: customers.filter(
+        (c) => c.platforms.length === 1 && c.platforms.includes('Zomato')
+      ).length,
+      Swiggy: customers.filter(
+        (c) => c.platforms.length === 1 && c.platforms.includes('Swiggy')
+      ).length,
+      Both: customers.filter((c) => c.platforms.length > 1).length,
     };
 
     // Recent vs inactive customers
-    const recentCustomers = customers.filter(c => c.daysSinceLastOrder <= 30).length;
-    const inactiveCustomers = customers.filter(c => c.daysSinceLastOrder > 60).length;
+    const recentCustomers = customers.filter(
+      (c) => c.daysSinceLastOrder <= 30
+    ).length;
+    const inactiveCustomers = customers.filter(
+      (c) => c.daysSinceLastOrder > 60
+    ).length;
 
     console.log('Customer Classification:', {
       dateRange: `${this.dateRange.startDate} to ${this.dateRange.endDate}`,
       totalCustomers: customers.length,
       recentCustomers: recentCustomers,
       inactiveCustomers: inactiveCustomers,
-      recentSample: customers.filter(c => c.daysSinceLastOrder <= 30).slice(0, 3).map(c => ({
-        name: c.name,
-        lastOrder: c.lastOrderDate.toISOString().split('T')[0],
-        daysAgo: c.daysSinceLastOrder
-      })),
-      inactiveSample: customers.filter(c => c.daysSinceLastOrder > 60).slice(0, 3).map(c => ({
-        name: c.name,
-        lastOrder: c.lastOrderDate.toISOString().split('T')[0],
-        daysAgo: c.daysSinceLastOrder
-      }))
+      recentSample: customers
+        .filter((c) => c.daysSinceLastOrder <= 30)
+        .slice(0, 3)
+        .map((c) => ({
+          name: c.name,
+          lastOrder: c.lastOrderDate.toISOString().split('T')[0],
+          daysAgo: c.daysSinceLastOrder,
+        })),
+      inactiveSample: customers
+        .filter((c) => c.daysSinceLastOrder > 60)
+        .slice(0, 3)
+        .map((c) => ({
+          name: c.name,
+          lastOrder: c.lastOrderDate.toISOString().split('T')[0],
+          daysAgo: c.daysSinceLastOrder,
+        })),
     });
 
     this.customerAnalytics = {
@@ -1319,7 +1831,7 @@ export class AdminAnalyticsComponent implements OnInit {
       platformCounts,
       recentCustomers,
       inactiveCustomers,
-      customers
+      customers,
     };
 
     // Initialize filtered list with all customers
@@ -1335,7 +1847,7 @@ export class AdminAnalyticsComponent implements OnInit {
     }, {} as any);
 
     return Object.entries(itemCounts)
-      .sort(([,a]:any, [,b]:any) => b - a)
+      .sort(([, a]: any, [, b]: any) => b - a)
       .slice(0, limit)
       .map(([item]) => item);
   }
@@ -1391,11 +1903,14 @@ export class AdminAnalyticsComponent implements OnInit {
 
   // Get filtered customers list
   getFilteredCustomers(): any[] {
-    if (this.filteredCustomersList.length === 0 && this.customerAnalytics && this.customerAnalytics.customers) {
+    if (
+      this.filteredCustomersList.length === 0 &&
+      this.customerAnalytics &&
+      this.customerAnalytics.customers
+    ) {
       // Initialize with all customers if not filtered yet
       this.filteredCustomersList = [...this.customerAnalytics.customers];
     }
     return this.filteredCustomersList;
   }
 }
-

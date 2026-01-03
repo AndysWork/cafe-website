@@ -1,6 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System.ComponentModel.DataAnnotations;
+using Cafe.Api.Helpers;
 
 namespace Cafe.Api.Models;
 
@@ -80,6 +81,9 @@ public class OnlineSale
     [BsonElement("complain")]
     public string? Complain { get; set; }
 
+    [BsonElement("freebies")]
+    public decimal Freebies { get; set; } = 0; // Price field, always integer value
+
     [BsonElement("uploadedBy")]
     public string UploadedBy { get; set; } = string.Empty;
 
@@ -152,6 +156,10 @@ public class CreateOnlineSaleRequest
     [Range(0, 10000000, ErrorMessage = "Misc charges must be between 0 and 10,000,000")]
     public decimal MiscCharges { get; set; }
 
+    [Range(0, 10000000, ErrorMessage = "Freebies must be between 0 and 10,000,000")]
+    [IntegerValue(ErrorMessage = "Freebies must be a whole number")]
+    public decimal Freebies { get; set; } = 0;
+
     [Range(0, 5, ErrorMessage = "Rating must be between 0 and 5")]
     public decimal? Rating { get; set; }
 
@@ -202,6 +210,7 @@ public class OnlineSaleResponse
     public decimal PlatformDeduction { get; set; }
     public decimal Investment { get; set; }
     public decimal MiscCharges { get; set; }
+    public decimal Freebies { get; set; }
     public decimal? Rating { get; set; }
     public string? Review { get; set; }
     public decimal? KPT { get; set; }
@@ -222,6 +231,7 @@ public class DailyOnlineIncomeResponse
     public decimal TotalDeduction { get; set; }
     public decimal TotalDiscount { get; set; }
     public decimal TotalPackaging { get; set; }
+    public decimal TotalFreebies { get; set; }
     public decimal AverageRating { get; set; }
 }
 

@@ -315,29 +315,53 @@ public class FileUploadService
                     var billSubTotalStr = worksheet.Cells[row, 8].Text.Trim();
                     var packagingChargesStr = worksheet.Cells[row, 9].Text.Trim();
                     var discountAmountStr = worksheet.Cells[row, 10].Text.Trim();
-                    var totalCommissionableStr = worksheet.Cells[row, 11].Text.Trim();
-                    var payoutStr = worksheet.Cells[row, 12].Text.Trim();
-                    var deductionStr = worksheet.Cells[row, 13].Text.Trim();
-                    var investmentStr = worksheet.Cells[row, 14].Text.Trim();
-                    var miscChargesStr = worksheet.Cells[row, 15].Text.Trim();
-                    var ratingStr = worksheet.Cells[row, 16].Text.Trim();
-                    var review = worksheet.Cells[row, 17].Text.Trim();
-                    var kptStr = worksheet.Cells[row, 18].Text.Trim();
-                    var rwtStr = worksheet.Cells[row, 19].Text.Trim();
-                    var orderMarking = worksheet.Cells[row, 20].Text.Trim();
-                    var complain = worksheet.Cells[row, 21].Text.Trim();
+                    var freebiesStr = worksheet.Cells[row, 11].Text.Trim();
+                    var totalCommissionableStr = worksheet.Cells[row, 12].Text.Trim();
+                    var payoutStr = worksheet.Cells[row, 13].Text.Trim();
+                    var deductionStr = worksheet.Cells[row, 14].Text.Trim();
+                    var investmentStr = worksheet.Cells[row, 15].Text.Trim();
+                    var miscChargesStr = worksheet.Cells[row, 16].Text.Trim();
+                    var ratingStr = worksheet.Cells[row, 17].Text.Trim();
+                    var review = worksheet.Cells[row, 18].Text.Trim();
+                    var kptStr = worksheet.Cells[row, 19].Text.Trim();
+                    var rwtStr = worksheet.Cells[row, 20].Text.Trim();
+                    var orderMarking = worksheet.Cells[row, 21].Text.Trim();
+                    var complain = worksheet.Cells[row, 22].Text.Trim();
 
-                    // Parse date (format: 01-Nov-25 or 1-Nov-25)
+                    // Parse date (format: 01-Nov-25 or 1-Nov-25 or 01-12-2025 08:46 or 12-1-25 8:46 or 12-13-25 9:08)
                     DateTime orderAt;
-                    if (!DateTime.TryParseExact(orderAtStr, new[] { "d-MMM-yy", "dd-MMM-yy", "d-MMM-yyyy", "dd-MMM-yyyy", "dd-MM-yyyy", "d/M/yyyy", "dd/MM/yyyy", "d-M-yyyy" },
+                    // Normalize double spaces to single space for parsing
+                    var normalizedOrderAtStr = System.Text.RegularExpressions.Regex.Replace(orderAtStr, @"\s+", " ");
+                    
+                    if (!DateTime.TryParseExact(normalizedOrderAtStr, new[] { 
+                        "d-MMM-yy", "dd-MMM-yy", "d-MMM-yyyy", "dd-MMM-yyyy", 
+                        "dd-MM-yyyy", "d/M/yyyy", "dd/MM/yyyy", "d-M-yyyy", "d-M-yy", "dd-M-yy",
+                        "dd-MM-yyyy HH:mm", "d-M-yyyy HH:mm", "dd-MM-yyyy HH:mm:ss", "d-M-yyyy HH:mm:ss",
+                        "dd-MM-yyyy H:mm", "d-M-yyyy H:mm", "dd-MM-yyyy H:mm:ss", "d-M-yyyy H:mm:ss",
+                        "d-M-yy H:mm", "dd-M-yy H:mm", "d-M-yy HH:mm", "dd-M-yy HH:mm",
+                        "d-M-yy H:mm:ss", "dd-M-yy H:mm:ss", "d-M-yy HH:mm:ss", "dd-M-yy HH:mm:ss",
+                        "M-d-yy H:mm", "MM-d-yy H:mm", "M-dd-yy H:mm", "MM-dd-yy H:mm",
+                        "M-d-yy HH:mm", "MM-d-yy HH:mm", "M-dd-yy HH:mm", "MM-dd-yy HH:mm",
+                        "M-d-yy H:mm:ss", "MM-d-yy H:mm:ss", "M-dd-yy H:mm:ss", "MM-dd-yy H:mm:ss"
+                    },
                         CultureInfo.InvariantCulture, DateTimeStyles.None, out orderAt))
                     {
                         result.Errors.Add($"Row {row}: Invalid date format '{orderAtStr}'");
                         continue;
                     }
 
-                    // Assume the date in Excel is in IST, set the time to noon IST to avoid date boundary issues
-                    var istOrderAt = new DateTime(orderAt.Year, orderAt.Month, orderAt.Day, 12, 0, 0, DateTimeKind.Unspecified);
+                    // If the parsed date has a time component, use it; otherwise set to noon IST
+                    DateTime istOrderAt;
+                    if (orderAt.TimeOfDay.TotalSeconds > 0)
+                    {
+                        // Time component exists, use it as-is (assumed to be in IST)
+                        istOrderAt = DateTime.SpecifyKind(orderAt, DateTimeKind.Unspecified);
+                    }
+                    else
+                    {
+                        // No time component, set to noon IST to avoid date boundary issues
+                        istOrderAt = new DateTime(orderAt.Year, orderAt.Month, orderAt.Day, 12, 0, 0, DateTimeKind.Unspecified);
+                    }
 
                     // Parse ordered items (e.g., "1 x Chicken Red Sauce Pasta, 1 x Bread Egg Toast")
                     var orderedItems = await ParseOrderedItems(orderedItemsStr, mongoService);
@@ -367,6 +391,7 @@ public class FileUploadService
                         RWT = ParseNullableDecimal(rwtStr),
                         OrderMarking = string.IsNullOrEmpty(orderMarking) ? null : orderMarking,
                         Complain = string.IsNullOrEmpty(complain) ? null : complain,
+                        Freebies = ParseDecimal(freebiesStr),
                         UploadedBy = uploadedBy,
                         CreatedAt = MongoService.GetIstNow(),
                         UpdatedAt = MongoService.GetIstNow()
@@ -443,10 +468,10 @@ public class FileUploadService
 
             var sales = new List<OnlineSale>();
 
-            // Swiggy Excel Column Mapping (22 columns):
+            // Swiggy Excel Column Mapping (22 columns) - No Freebies for Swiggy:
             // A: SwiggyOrderId, B: CustomerName, C: OrderAt, D: Distance, E: OrderedItems, F: Instructions
             // G: DiscountCoupon, H: BillSubTotal, I: PackagingCharges, J: DiscountAmount, K: GST
-            // L: TotalCommisonable, M: Payout, N: SwiggyDeduction, O: Investment, P: MiscCharges
+            // L: TotalCommissionable, M: Payout, N: SwiggyDeduction, O: Investment, P: MiscCharges
             // Q: Rating, R: Review, S: KPT, T: RWT, U: OrderMarking, V: Complain
             for (int row = 2; row <= rowCount; row++)
             {
@@ -548,13 +573,14 @@ public class FileUploadService
                         BillSubTotal = ParseDecimal(billSubTotalStr),
                         PackagingCharges = ParseDecimal(packagingChargesStr),
                         DiscountAmount = ParseDecimal(discountAmountStr),
+                        Freebies = 0, // Swiggy doesn't have freebies
                         GST = ParseDecimal(gstStr),
                         TotalCommissionable = ParseDecimal(totalCommissionableStr),
                         Payout = ParseDecimal(payoutStr),
                         PlatformDeduction = ParseDecimal(deductionStr),
                         Investment = ParseDecimal(investmentStr),
                         MiscCharges = ParseDecimal(miscChargesStr),
-                        Rating = null, // Swiggy orders don't have ratings
+                        Rating = ParseNullableDecimal(ratingStr),
                         Review = string.IsNullOrEmpty(review) ? null : review,
                         KPT = ParseNullableDecimal(kptStr),
                         RWT = ParseNullableDecimal(rwtStr),

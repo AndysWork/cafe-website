@@ -226,6 +226,85 @@
     }
   }
 
+  // Delete Section
+  .delete-section {
+    background: #fff5f5;
+    border: 2px solid #fc8181;
+
+    h3 {
+      color: #c53030;
+      margin-bottom: 10px;
+    }
+
+    .warning-text {
+      color: #c53030;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+
+    .delete-form {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+
+      .filter-group {
+        flex: 1;
+        min-width: 200px;
+
+        label {
+          display: block;
+          margin-bottom: 8px;
+          font-weight: 600;
+          color: #4a5568;
+        }
+
+        .date-input {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #cbd5e0;
+          border-radius: 8px;
+          font-size: 1rem;
+        }
+
+        .platform-badge {
+          display: inline-block;
+          padding: 8px 16px;
+          background: #667eea;
+          color: white;
+          border-radius: 6px;
+          font-weight: 600;
+        }
+      }
+    }
+
+    .delete-actions {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-start;
+    }
+
+    .btn-danger {
+      background: #c53030;
+      color: white;
+      border: none;
+      padding: 10px 25px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.3s;
+
+      &:hover:not(:disabled) {
+        background: #9b2c2c;
+      }
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+  }
+
   // Loading & Error States
   .loading {
     text-align: center;

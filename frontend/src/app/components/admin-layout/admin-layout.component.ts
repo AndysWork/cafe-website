@@ -25,8 +25,19 @@ export class AdminLayoutComponent {
     {
       icon: '🍽️',
       label: 'Menu',
-      route: '/admin/menu',
-      active: false
+      active: false,
+      children: [
+        {
+          icon: '📋',
+          label: 'Menu Items',
+          route: '/admin/menu'
+        },
+        {
+          icon: '📁',
+          label: 'Categories',
+          route: '/admin/category/crud'
+        }
+      ]
     },
     {
       icon: '🎁',

@@ -521,6 +521,11 @@
   max-height: 90vh;
   overflow-y: auto;
 
+  &.modal-large {
+    max-width: 900px;
+    width: 95%;
+  }
+
   .modal-header {
     display: flex;
     justify-content: space-between;

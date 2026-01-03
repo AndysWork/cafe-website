@@ -2104,6 +2104,7 @@ public partial class MongoService
 
     public async Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate)
     {
+        // Dates are received as IST dates (YYYY-MM-DD), treat them as IST for filtering
         var startOfDay = startDate.Date;
         var endOfDay = endDate.Date.AddDays(1).AddTicks(-1);
 
@@ -2122,6 +2123,7 @@ public partial class MongoService
 
     public async Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate)
     {
+        // Dates are received as IST dates (YYYY-MM-DD), treat them as IST for filtering
         var startOfDay = startDate.Date;
         var endOfDay = endDate.Date.AddDays(1).AddTicks(-1);
 
@@ -2141,6 +2143,7 @@ public partial class MongoService
                 TotalDeduction = g.Sum(s => s.PlatformDeduction),
                 TotalDiscount = g.Sum(s => s.DiscountAmount),
                 TotalPackaging = g.Sum(s => s.PackagingCharges),
+                TotalFreebies = g.Sum(s => s.Freebies),
                 AverageRating = g.Where(s => s.Rating.HasValue).Any()
                     ? g.Where(s => s.Rating.HasValue).Average(s => s.Rating!.Value)
                     : 0
@@ -2294,20 +2297,23 @@ public partial class MongoService
         if (!sales.Any())
             return result;
 
-        // Get all existing order IDs for the same platform to check for duplicates
+        // Get all existing order IDs with their dates for the same platform to check for duplicates
+        // We check based on Platform + OrderId + OrderAt (date only) combination
         var platforms = sales.Select(s => s.Platform).Distinct();
-        var existingOrderIds = new HashSet<string>();
+        var existingOrderKeys = new HashSet<string>();
         
         foreach (var platform in platforms)
         {
             var filter = Builders<OnlineSale>.Filter.Eq(s => s.Platform, platform);
             var existingOrders = await _onlineSales.Find(filter)
-                .Project(s => s.OrderId)
+                .Project(s => new { s.OrderId, s.OrderAt })
                 .ToListAsync();
             
-            foreach (var orderId in existingOrders)
+            foreach (var order in existingOrders)
             {
-                existingOrderIds.Add($"{platform}:{orderId}");
+                // Use Platform:OrderId:Date as the unique key
+                var dateKey = order.OrderAt.Date.ToString("yyyy-MM-dd");
+                existingOrderKeys.Add($"{platform}:{order.OrderId}:{dateKey}");
             }
         }
 
@@ -2318,12 +2324,14 @@ public partial class MongoService
 
         foreach (var sale in sales)
         {
-            var key = $"{sale.Platform}:{sale.OrderId}";
+            // Use Platform:OrderId:Date as the unique key
+            var dateKey = sale.OrderAt.Date.ToString("yyyy-MM-dd");
+            var key = $"{sale.Platform}:{sale.OrderId}:{dateKey}";
             
             // Check if already exists in database
-            if (existingOrderIds.Contains(key))
+            if (existingOrderKeys.Contains(key))
             {
-                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) - already exists in database");
+                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) on {dateKey} - already exists in database");
                 result.SkippedCount++;
                 continue;
             }
@@ -2331,7 +2339,7 @@ public partial class MongoService
             // Check if duplicate within current batch
             if (seenInCurrentBatch.Contains(key))
             {
-                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) - duplicate in upload file");
+                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) on {dateKey} - duplicate in upload file");
                 result.SkippedCount++;
                 continue;
             }
@@ -2423,6 +2431,7 @@ public partial class MongoService
             filters.Add(filterBuilder.Eq(s => s.Platform, platform));
         }
 
+        // Dates are received as IST dates (YYYY-MM-DD), treat them as IST for filtering
         if (startDate.HasValue)
         {
             var startOfDay = startDate.Value.Date;

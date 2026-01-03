@@ -3,6 +3,31 @@ using System.ComponentModel.DataAnnotations;
 namespace Cafe.Api.Helpers;
 
 /// <summary>
+/// Validates that a decimal value is a whole number (integer)
+/// </summary>
+public class IntegerValueAttribute : ValidationAttribute
+{
+    public IntegerValueAttribute()
+    {
+        ErrorMessage = "Value must be a whole number (no decimal places)";
+    }
+    
+    protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
+    {
+        if (value is null)
+            return ValidationResult.Success;
+        
+        if (value is decimal decimalValue)
+        {
+            if (decimalValue % 1 != 0)
+                return new ValidationResult(ErrorMessage);
+        }
+        
+        return ValidationResult.Success;
+    }
+}
+
+/// <summary>
 /// Validates that a file size does not exceed the maximum allowed size
 /// </summary>
 public class MaxFileSizeAttribute : ValidationAttribute

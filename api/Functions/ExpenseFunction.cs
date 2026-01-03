@@ -384,12 +384,22 @@ public class ExpenseFunction
                 .Take(10)
                 .ToList();
 
-            // Growth rate calculation (first half vs second half)
-            var sortedExpenses = expenses.OrderBy(e => e.Date).ToList();
-            var midPoint = sortedExpenses.Count / 2;
-            var firstHalf = sortedExpenses.Take(midPoint).Sum(e => e.Amount);
-            var secondHalf = sortedExpenses.Skip(midPoint).Sum(e => e.Amount);
-            var growthRate = firstHalf > 0 ? ((secondHalf - firstHalf) / firstHalf) * 100 : 0;
+            // Growth rate calculation - compare with same date range from previous month
+            var daysDiff = (endDate - startDate).Days;
+            var prevStartDate = startDate.AddMonths(-1);
+            var prevEndDate = prevStartDate.AddDays(daysDiff);
+            
+            var prevPeriodExpenses = await _mongo.GetExpensesByDateRangeAsync(prevStartDate, prevEndDate);
+            var prevPeriodFiltered = source == "All" 
+                ? prevPeriodExpenses 
+                : prevPeriodExpenses.Where(e => e.ExpenseSource == source).ToList();
+            
+            var prevPeriodTotal = prevPeriodFiltered.Sum(e => e.Amount);
+            var currentPeriodTotal = totalExpenses;
+            
+            var growthRate = prevPeriodTotal > 0 
+                ? ((currentPeriodTotal - prevPeriodTotal) / prevPeriodTotal) * 100 
+                : (currentPeriodTotal > 0 ? 100 : 0);
 
             // Expense trends by type over time
             var expenseTypesTrend = expenses
