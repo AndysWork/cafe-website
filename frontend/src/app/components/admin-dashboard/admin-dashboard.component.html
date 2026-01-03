@@ -35,7 +35,7 @@
     <!-- Monthly Sales Trend -->
     <div class="content-section">
       <div class="section-header">
-        <h2>� Monthly Sales Trend (Last 6 Months)</h2>
+        <h2>📈 Monthly Sales Trend (Last 6 Months)</h2>
       </div>
 
       <div *ngIf="monthlyTrends.length === 0 && !isLoading" class="empty-state">
@@ -174,34 +174,78 @@
       </div>
     </div>
 
-    <!-- Two Column Layout -->
+    <!-- ONLINE SALES SECTION -->
+    <div class="section-divider">
+      <h2 class="section-title">🌐 Online Sales (Zomato & Swiggy)</h2>
+    </div>
+
+    <!-- Online Stats Cards -->
+    <div class="stats-grid-five secondary-stats">
+      <div class="stat-card" style="border-left-color: #e74c3c;">
+        <div class="stat-icon" style="background: #e74c3c;">📦</div>
+        <div class="stat-info">
+          <div class="stat-label">Total Online Orders</div>
+          <div class="stat-value">{{ onlineStats.totalOrders.toLocaleString() }}</div>
+        </div>
+      </div>
+      <div class="stat-card" style="border-left-color: #3498db;">
+        <div class="stat-icon" style="background: #3498db;">💰</div>
+        <div class="stat-info">
+          <div class="stat-label">Online Revenue</div>
+          <div class="stat-value">₹{{ onlineStats.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+        </div>
+      </div>
+      <div class="stat-card" style="border-left-color: #2ecc71;">
+        <div class="stat-icon" style="background: #2ecc71;">📊</div>
+        <div class="stat-info">
+          <div class="stat-label">Daily Avg Payout</div>
+          <div class="stat-value">₹{{ onlineStats.dailyAvgPayout.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+        </div>
+      </div>
+      <div class="stat-card" style="border-left-color: #ffd93d;">
+        <div class="stat-icon" style="background: #ffd93d;">⭐</div>
+        <div class="stat-info">
+          <div class="stat-label">Avg Rating</div>
+          <div class="stat-value">{{ onlineStats.avgRating > 0 ? onlineStats.avgRating.toFixed(1) : 'N/A' }}</div>
+        </div>
+      </div>
+      <div class="stat-card" style="border-left-color: #95e1d3;">
+        <div class="stat-icon" style="background: #95e1d3;">👥</div>
+        <div class="stat-info">
+          <div class="stat-label">Unique Customers</div>
+          <div class="stat-value">{{ onlineStats.uniqueCustomers }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two Column Layout for Online -->
     <div class="two-column-grid">
-      <!-- Most Ordered Items -->
+      <!-- Most Ordered Items (Online) -->
       <div class="content-section">
         <div class="section-header">
-          <h2>🔥 Most Ordered Items</h2>
+          <h2>🔥 Most Ordered Items (Online)</h2>
         </div>
 
-        <div *ngIf="mostOrderedItems.length === 0 && !isLoading" class="empty-state">
-          <p>🍽️ No orders yet</p>
+        <div *ngIf="onlineMostOrderedItems.length === 0 && !isLoading" class="empty-state">
+          <p>🍽️ No online orders yet</p>
         </div>
 
-        <div *ngIf="mostOrderedItems.length > 0" class="list-container">
-          <div class="list-item" *ngFor="let item of mostOrderedItems; let i = index">
+        <div *ngIf="onlineMostOrderedItems.length > 0" class="list-container">
+          <div class="list-item" *ngFor="let item of onlineMostOrderedItems; let i = index">
             <div class="item-rank">{{ i + 1 }}</div>
             <div class="item-info">
               <div class="item-name">{{ item.itemName }}</div>
-              <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue.toLocaleString('en-IN') }}</div>
+              <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
             </div>
             <div class="item-badge">{{ item.quantity }}</div>
           </div>
         </div>
       </div>
 
-      <!-- Top Customers -->
+      <!-- Top Customers (Online) -->
       <div class="content-section">
         <div class="section-header">
-          <h2>👑 Top Customers</h2>
+          <h2>👑 Top Customers (Online)</h2>
         </div>
 
         <div *ngIf="topCustomers.length === 0 && !isLoading" class="empty-state">
@@ -217,6 +261,65 @@
             </div>
             <div class="item-badge customer-badge">₹{{ customer.totalSpent.toLocaleString('en-IN') }}</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OFFLINE SALES SECTION -->
+    <div class="section-divider">
+      <h2 class="section-title">🏪 Offline Sales (In-Store)</h2>
+    </div>
+
+    <!-- Offline Stats Cards -->
+    <div class="stats-grid secondary-stats">
+      <div class="stat-card" style="border-left-color: #9b59b6;">
+        <div class="stat-icon" style="background: #9b59b6;">📦</div>
+        <div class="stat-info">
+          <div class="stat-label">Total Offline Orders</div>
+          <div class="stat-value">{{ offlineStats.totalOrders.toLocaleString() }}</div>
+        </div>
+      </div>
+      <div class="stat-card" style="border-left-color: #16a085;">
+        <div class="stat-icon" style="background: #16a085;">💰</div>
+        <div class="stat-info">
+          <div class="stat-label">Offline Revenue</div>
+          <div class="stat-value">₹{{ offlineStats.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+        </div>
+      </div>
+      <div class="stat-card" style="border-left-color: #e67e22;">
+        <div class="stat-icon" style="background: #e67e22;">📊</div>
+        <div class="stat-info">
+          <div class="stat-label">Daily Avg Sales</div>
+          <div class="stat-value">₹{{ offlineStats.dailyAvgSales.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+        </div>
+      </div>
+      <div class="stat-card" style="border-left-color: #34495e;">
+        <div class="stat-icon" style="background: #34495e;">💸</div>
+        <div class="stat-info">
+          <div class="stat-label">Daily Avg Expenses</div>
+          <div class="stat-value">₹{{ offlineStats.dailyAvgExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Most Ordered Items (Offline) -->
+    <div class="content-section">
+      <div class="section-header">
+        <h2>🔥 Most Ordered Items (Offline)</h2>
+      </div>
+
+      <div *ngIf="offlineMostOrderedItems.length === 0 && !isLoading" class="empty-state">
+        <p>🍽️ No offline orders yet</p>
+      </div>
+
+      <div *ngIf="offlineMostOrderedItems.length > 0" class="list-container">
+        <div class="list-item" *ngFor="let item of offlineMostOrderedItems; let i = index">
+          <div class="item-rank">{{ i + 1 }}</div>
+          <div class="item-info">
+            <div class="item-name">{{ item.itemName }}</div>
+            <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+          </div>
+          <div class="item-badge offline-badge">{{ item.quantity }}</div>
         </div>
       </div>
     </div>

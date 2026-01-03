@@ -67,6 +67,12 @@
   gap: 20px;
 }
 
+.stats-grid-five {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
 .stat-card {
   background: white;
   border-radius: 15px;
@@ -391,6 +397,34 @@
 
 .customer-badge {
   background: #4ecdc4;
+}
+
+.offline-badge {
+  background: #9b59b6;
+}
+
+.section-divider {
+  margin: 40px 0 20px 0;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.section-title {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.secondary-stats {
+  margin-bottom: 30px;
+
+  .stat-card {
+    border-left-width: 4px;
+  }
 }
 
 // Responsive Design

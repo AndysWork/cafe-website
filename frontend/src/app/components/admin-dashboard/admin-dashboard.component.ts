@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { OrderService, Order, OrderItem } from '../../services/order.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { SalesService, Sales } from '../../services/sales.service';
+import { ExpenseService, Expense } from '../../services/expense.service';
 import { environment } from '../../../environments/environment';
 import { interval, Subscription, forkJoin } from 'rxjs';
 import { switchMap, startWith } from 'rxjs/operators';
@@ -58,6 +59,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   private orderService = inject(OrderService);
   private menuService = inject(MenuService);
   private salesService = inject(SalesService);
+  private expenseService = inject(ExpenseService);
   private http = inject(HttpClient);
   private refreshSubscription?: Subscription;
 
@@ -72,11 +74,30 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   monthlyTrends: MonthlyTrend[] = [];
   topCustomers: TopCustomer[] = [];
-  mostOrderedItems: MostOrderedItem[] = [];
+  onlineMostOrderedItems: MostOrderedItem[] = [];
+  offlineMostOrderedItems: MostOrderedItem[] = [];
   onlineSales: OnlineSale[] = [];
   offlineSales: Sales[] = [];
   allOrders: Order[] = [];
   menuItems: MenuItem[] = [];
+  expenses: Expense[] = [];
+
+  // Online stats
+  onlineStats = {
+    totalOrders: 0,
+    totalRevenue: 0,
+    avgRating: 0,
+    uniqueCustomers: 0,
+    dailyAvgPayout: 0
+  };
+
+  // Offline stats
+  offlineStats = {
+    totalOrders: 0,
+    totalRevenue: 0,
+    dailyAvgSales: 0,
+    dailyAvgExpenses: 0
+  };
 
   isLoading = true;
 
@@ -102,18 +123,21 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       orders: this.orderService.getAllOrders(),
       menuItems: this.menuService.getMenuItems(),
       onlineSales: this.http.get<{ success: boolean; data: OnlineSale[] }>(`${environment.apiUrl}/online-sales`),
-      offlineSales: this.salesService.getAllSales()
+      offlineSales: this.salesService.getAllSales(),
+      expenses: this.expenseService.getAllExpenses()
     }).subscribe({
       next: (data) => {
         this.allOrders = data.orders;
         this.menuItems = data.menuItems;
         this.onlineSales = data.onlineSales.data || [];
         this.offlineSales = data.offlineSales;
+        this.expenses = data.expenses;
 
         this.updateStats();
         this.calculateMonthlyTrends();
         this.calculateTopCustomers();
-        this.calculateMostOrderedItems();
+        this.calculateOnlineMostOrderedItems();
+        this.calculateOfflineMostOrderedItems();
 
         this.isLoading = false;
       },
@@ -128,28 +152,61 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     // Total Menu Items
     this.stats[0].value = this.menuItems.length.toString();
 
-    // Online Customers (unique customer names from online sales)
+    // Online Stats
+    this.onlineStats.totalOrders = this.onlineSales.length;
+    this.onlineStats.totalRevenue = this.onlineSales.reduce((sum, s) => sum + (s.payout || 0), 0);
     const uniqueOnlineCustomers = new Set(
       this.onlineSales
         .filter(s => s.customerName)
         .map(s => s.customerName?.toLowerCase())
     ).size;
+    this.onlineStats.uniqueCustomers = uniqueOnlineCustomers;
     this.stats[1].value = uniqueOnlineCustomers.toString();
 
-    // Average Online Rating
     const ratingsWithValues = this.onlineSales.filter(s => s.rating && s.rating > 0);
     const avgRating = ratingsWithValues.length > 0
       ? ratingsWithValues.reduce((sum, s) => sum + (s.rating || 0), 0) / ratingsWithValues.length
       : 0;
+    this.onlineStats.avgRating = avgRating;
     this.stats[2].value = avgRating > 0 ? avgRating.toFixed(1) : 'N/A';
 
+    // Calculate daily average payout for online sales
+    const uniqueOnlineDays = new Set(this.onlineSales.map(s => {
+      const date = new Date(s.orderAt);
+      return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+    })).size;
+    this.onlineStats.dailyAvgPayout = uniqueOnlineDays > 0
+      ? this.onlineStats.totalRevenue / uniqueOnlineDays
+      : 0;
+
+    // Offline Stats
+    this.offlineStats.totalOrders = this.offlineSales.length;
+    this.offlineStats.totalRevenue = this.offlineSales.reduce((sum, s) => sum + s.totalAmount, 0);
+
+    // Calculate daily average sales
+    const uniqueDays = new Set(this.offlineSales.map(s => {
+      const date = new Date(s.date);
+      return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+    })).size;
+    this.offlineStats.dailyAvgSales = uniqueDays > 0
+      ? this.offlineStats.totalRevenue / uniqueDays
+      : 0;
+
+    // Calculate daily average expenses
+    const totalExpenses = this.expenses.reduce((sum, e) => sum + e.amount, 0);
+    const uniqueExpenseDays = new Set(this.expenses.map(e => {
+      const date = new Date(e.date);
+      return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+    })).size;
+    this.offlineStats.dailyAvgExpenses = uniqueExpenseDays > 0
+      ? totalExpenses / uniqueExpenseDays
+      : 0;
+
     // Total Revenue (Online + Offline)
-    const onlineRevenue = this.onlineSales.reduce((sum, s) => sum + (s.payout || 0), 0);
-    const offlineRevenue = this.offlineSales.reduce((sum, s) => sum + s.totalAmount, 0);
     const orderRevenue = this.allOrders
       .filter(o => o.paymentStatus === 'paid')
       .reduce((sum, o) => sum + o.total, 0);
-    const totalRevenue = onlineRevenue + offlineRevenue + orderRevenue;
+    const totalRevenue = this.onlineStats.totalRevenue + this.offlineStats.totalRevenue + orderRevenue;
     this.stats[3].value = `₹${totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
   }
 
@@ -229,26 +286,10 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       .slice(0, 5);
   }
 
-  calculateMostOrderedItems(): void {
+  calculateOnlineMostOrderedItems(): void {
     const itemMap: { [key: string]: MostOrderedItem } = {};
 
-    // From online orders
-    this.allOrders.forEach(order => {
-      order.items.forEach(item => {
-        const key = item.name;
-        if (!itemMap[key]) {
-          itemMap[key] = {
-            itemName: item.name,
-            quantity: 0,
-            revenue: 0
-          };
-        }
-        itemMap[key].quantity += item.quantity;
-        itemMap[key].revenue += item.total;
-      });
-    });
-
-    // From online sales (Zomato/Swiggy)
+    // From online sales (Zomato/Swiggy) only
     this.onlineSales.forEach(sale => {
       sale.orderedItems?.forEach(item => {
         const key = item.itemName;
@@ -260,10 +301,23 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
           };
         }
         itemMap[key].quantity += item.quantity;
+        // Calculate approximate revenue from online sales
+        // Note: Individual item prices not available, so we estimate based on bill subtotal
+        const itemRatio = item.quantity / sale.orderedItems.reduce((sum, i) => sum + i.quantity, 0);
+        itemMap[key].revenue += (sale.billSubTotal || 0) * itemRatio;
       });
     });
 
-    // From offline sales
+    // Sort by quantity and take top 5
+    this.onlineMostOrderedItems = Object.values(itemMap)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+  }
+
+  calculateOfflineMostOrderedItems(): void {
+    const itemMap: { [key: string]: MostOrderedItem } = {};
+
+    // From offline sales only
     this.offlineSales.forEach(sale => {
       sale.items.forEach(item => {
         const key = item.itemName;
@@ -280,7 +334,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     });
 
     // Sort by quantity and take top 5
-    this.mostOrderedItems = Object.values(itemMap)
+    this.offlineMostOrderedItems = Object.values(itemMap)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5);
   }
