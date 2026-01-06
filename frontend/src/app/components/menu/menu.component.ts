@@ -1,5 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { MenuService, MenuItem, MenuCategory } from '../../services/menu.service';
 import { CartService } from '../../services/cart.service';
 import { Router } from '@angular/router';
@@ -11,7 +12,7 @@ import { Router } from '@angular/router';
   templateUrl: './menu.component.html',
   styleUrls: ['./menu.component.scss']
 })
-export class MenuComponent implements OnInit {
+export class MenuComponent implements OnInit, OnDestroy {
   categories: MenuCategory[] = [];
   menuItems: MenuItem[] = [];
   filteredItems: MenuItem[] = [];
@@ -19,6 +20,8 @@ export class MenuComponent implements OnInit {
   isLoading = false;
   errorMessage = '';
   addedToCartMessage: string | null = null;
+
+  private menuRefreshSubscription?: Subscription;
 
   constructor(
     private menuService: MenuService,
@@ -28,6 +31,18 @@ export class MenuComponent implements OnInit {
 
   ngOnInit() {
     this.loadMenu();
+
+    // Subscribe to menu refresh notifications
+    this.menuRefreshSubscription = this.menuService.menuItemsRefresh$.subscribe((refresh) => {
+      if (refresh) {
+        console.log('Menu items updated, refreshing menu...');
+        this.loadMenu();
+      }
+    });
+  }
+
+  ngOnDestroy() {
+    this.menuRefreshSubscription?.unsubscribe();
   }
 
   loadMenu() {

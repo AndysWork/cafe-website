@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, BehaviorSubject } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface MenuSubCategory {
@@ -41,6 +42,19 @@ export class MenuService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
 
+  // Subject to notify components when menu items are updated
+  private menuItemsUpdated$ = new BehaviorSubject<boolean>(false);
+
+  // Observable that components can subscribe to
+  get menuItemsRefresh$(): Observable<boolean> {
+    return this.menuItemsUpdated$.asObservable();
+  }
+
+  // Trigger refresh notification
+  notifyMenuItemsUpdated(): void {
+    this.menuItemsUpdated$.next(true);
+  }
+
   // Get all categories
   getCategories(): Observable<MenuCategory[]> {
     return this.http.get<MenuCategory[]>(`${this.apiUrl}/categories`);
@@ -64,5 +78,21 @@ export class MenuService {
   // Get menu items by category
   getMenuItemsByCategory(categoryId: string): Observable<MenuItem[]> {
     return this.http.get<MenuItem[]>(`${this.apiUrl}/menu/category/${categoryId}`);
+  }
+
+  // Update menu item
+  updateMenuItem(id: string, menuItem: Partial<MenuItem>): Observable<MenuItem> {
+    return this.http.put<MenuItem>(`${this.apiUrl}/menu/${id}`, menuItem)
+      .pipe(
+        tap(() => this.notifyMenuItemsUpdated())
+      );
+  }
+
+  // Create menu item
+  createMenuItem(menuItem: Partial<MenuItem>): Observable<MenuItem> {
+    return this.http.post<MenuItem>(`${this.apiUrl}/menu`, menuItem)
+      .pipe(
+        tap(() => this.notifyMenuItemsUpdated())
+      );
   }
 }

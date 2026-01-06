@@ -10,9 +10,8 @@ public class PriceForecast
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string Id { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Menu item ID is required")]
     [BsonRepresentation(BsonType.ObjectId)]
-    public string MenuItemId { get; set; } = string.Empty;
+    public string? MenuItemId { get; set; }
 
     [Required(ErrorMessage = "Menu item name is required")]
     public string MenuItemName { get; set; } = string.Empty;

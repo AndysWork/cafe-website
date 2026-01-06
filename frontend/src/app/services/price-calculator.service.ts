@@ -52,11 +52,18 @@ export class PriceCalculatorService {
 
   private loadRecipesFromServer(): void {
     this.http.get<MenuItemRecipe[]>(`${this.apiUrl}/recipes`)
-      .pipe(catchError(() => {
+      .pipe(catchError((error) => {
+        console.error('Error loading recipes from API:', error);
         const stored = localStorage.getItem('cafe_recipes');
-        return stored ? of(JSON.parse(stored)) : of([]);
+        if (stored) {
+          console.log('Loading recipes from localStorage');
+          return of(JSON.parse(stored));
+        }
+        console.log('No recipes found in localStorage, returning empty array');
+        return of([]);
       }))
       .subscribe(recipes => {
+        console.log('Recipes loaded:', recipes);
         this.recipesSubject.next(recipes);
         localStorage.setItem('cafe_recipes', JSON.stringify(recipes));
       });

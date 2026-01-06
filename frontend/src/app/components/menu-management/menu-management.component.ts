@@ -1,7 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { Subscription } from 'rxjs';
+import { MenuService } from '../../services/menu.service';
 import { environment } from '../../../environments/environment';
 import { getIstNow } from '../../utils/date-utils';
 
@@ -48,11 +50,13 @@ interface SubCategory {
   templateUrl: './menu-management.component.html',
   styleUrl: './menu-management.component.scss'
 })
-export class MenuManagementComponent implements OnInit {
+export class MenuManagementComponent implements OnInit, OnDestroy {
   menuItems: MenuItem[] = [];
   categories: Category[] = [];
   subCategories: SubCategory[] = [];
   filteredSubCategories: SubCategory[] = [];
+
+  private menuRefreshSubscription?: Subscription;
 
   loading = false;
   showModal = false;
@@ -91,24 +95,47 @@ export class MenuManagementComponent implements OnInit {
     quantity: undefined
   };
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private menuService: MenuService
+  ) {}
 
   ngOnInit(): void {
     this.loadMenuItems();
     this.loadCategories();
     this.loadSubCategories();
+
+    // Subscribe to menu refresh notifications
+    this.menuRefreshSubscription = this.menuService.menuItemsRefresh$.subscribe((refresh) => {
+      if (refresh) {
+        console.log('Menu items updated, refreshing list...');
+        this.loadMenuItems();
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.menuRefreshSubscription?.unsubscribe();
+  }
+
+  refreshMenuItems(): void {
+    console.log('Refreshing menu items...');
+    this.loadMenuItems();
   }
 
   loadMenuItems(): void {
     this.loading = true;
+    console.log('Loading menu items from:', `${environment.apiUrl}/menu`);
     this.http.get<MenuItem[]>(`${environment.apiUrl}/menu`)
       .subscribe({
         next: (data) => {
+          console.log('Menu items loaded successfully:', data.length, 'items');
           this.menuItems = data;
           this.loading = false;
         },
         error: (error) => {
           console.error('Error loading menu items:', error);
+          alert('Failed to load menu items. Please check the console for details.');
           this.loading = false;
         }
       });

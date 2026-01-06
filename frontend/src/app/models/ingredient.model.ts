@@ -69,6 +69,34 @@ export interface MenuItemRecipe {
   suggestedSellingPrice: number; // Making cost + profit
   actualSellingPrice?: number; // User can override
   notes?: string;
+  oilUsage?: {
+    fryingTimeMinutes: number;
+    oilCapacityLiters: number;
+    oilPricePer750ml: number;
+    oilUsageDays: number;
+    oilUsageHoursPerDay: number;
+    calculatedOilCost: number;
+  };
+  priceForecast?: {
+    packagingCost: number;
+    onlineDeduction: number;
+    onlineDiscount: number;
+    shopPrice: number;
+    shopDeliveryPrice: number;
+    onlinePrice: number;
+    onlinePayout: number;
+    onlineProfit: number;
+    offlineProfit: number;
+    takeawayProfit: number;
+  };
+  kptAnalysis?: {
+    avgPreparationTime: number;
+    minPreparationTime: number;
+    maxPreparationTime: number;
+    medianPreparationTime: number;
+    stdDeviation: number;
+    orderCount: number;
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }

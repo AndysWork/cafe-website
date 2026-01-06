@@ -186,7 +186,40 @@ public partial class MongoService
     public async Task<bool> UpdateMenuItemAsync(string id, CafeMenuItem item)
     {
         item.LastUpdated = GetIstNow();
-        var result = await _menu.ReplaceOneAsync(x => x.Id == id, item);
+        
+        // Build update definition for only the fields that are provided
+        var updateBuilder = Builders<CafeMenuItem>.Update;
+        var updates = new List<UpdateDefinition<CafeMenuItem>>();
+        
+        // Always update LastUpdated
+        updates.Add(updateBuilder.Set(x => x.LastUpdated, item.LastUpdated));
+        
+        // Update fields if they are provided (not null/empty)
+        if (!string.IsNullOrEmpty(item.Name))
+            updates.Add(updateBuilder.Set(x => x.Name, item.Name));
+            
+        if (!string.IsNullOrEmpty(item.Description))
+            updates.Add(updateBuilder.Set(x => x.Description, item.Description));
+            
+        if (!string.IsNullOrEmpty(item.CategoryId))
+            updates.Add(updateBuilder.Set(x => x.CategoryId, item.CategoryId));
+            
+        if (!string.IsNullOrEmpty(item.SubCategoryId))
+            updates.Add(updateBuilder.Set(x => x.SubCategoryId, item.SubCategoryId));
+            
+        if (!string.IsNullOrEmpty(item.ImageUrl))
+            updates.Add(updateBuilder.Set(x => x.ImageUrl, item.ImageUrl));
+            
+        // Update numeric fields - always update even if zero
+        updates.Add(updateBuilder.Set(x => x.OnlinePrice, item.OnlinePrice));
+        updates.Add(updateBuilder.Set(x => x.DineInPrice, item.DineInPrice));
+        updates.Add(updateBuilder.Set(x => x.MakingPrice, item.MakingPrice));
+        updates.Add(updateBuilder.Set(x => x.PackagingCharge, item.PackagingCharge));
+        updates.Add(updateBuilder.Set(x => x.ShopSellingPrice, item.ShopSellingPrice));
+        updates.Add(updateBuilder.Set(x => x.IsAvailable, item.IsAvailable));
+        
+        var combinedUpdate = updateBuilder.Combine(updates);
+        var result = await _menu.UpdateOneAsync(x => x.Id == id, combinedUpdate);
         return result.ModifiedCount > 0;
     }
 

@@ -77,9 +77,21 @@
             placeholder="e.g., Chicken Biryani, Paneer Butter Masala"
             class="form-input">
           <datalist id="menuItemsList">
+            <!-- Show existing menu items -->
             <option *ngFor="let item of menuItems" [value]="item.name"></option>
+            <!-- Show recipe names that aren't in menu yet -->
+            <ng-container *ngFor="let recipe of recipes">
+              <option *ngIf="isRecipeNotInMenu(recipe)"
+                      [value]="recipe.menuItemName"></option>
+            </ng-container>
           </datalist>
-          <small class="form-hint">💡 Start typing to select from existing menu items or enter a new name</small>
+          <small class="form-hint">💡 Start typing to select from existing menu items or recipes, or enter a new name</small>
+          <small class="form-hint" style="color: #10b981; font-weight: 600;" *ngIf="isMenuItemLinked()">
+            ✅ Linked to menu - prices will auto-update when saved
+          </small>
+          <small class="form-hint" style="color: #3b82f6; font-weight: 600;" *ngIf="currentRecipe.menuItemName && !isMenuItemLinked()">
+            ➕ New menu item will be created when saved
+          </small>
         </div>
 
         <!-- Add Ingredients Section -->
@@ -316,6 +328,105 @@
           </div>
         </div>
 
+        <!-- Oil Usage Section (Optional) -->
+        <div class="form-section">
+          <h3>🛢️ Oil Usage (Optional)</h3>
+          <small class="form-hint" style="margin-bottom: 1rem; display: block;">
+            💡 For fried items, specify frying time to auto-calculate oil cost
+          </small>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label>Frying Time (minutes)</label>
+            <input
+              type="number"
+              [(ngModel)]="fryingTimeMinutes"
+              (ngModelChange)="calculatePrice()"
+              min="0"
+              step="0.5"
+              placeholder="e.g., 4 minutes"
+              class="form-input">
+            <small class="form-hint">Average time item spends in hot oil</small>
+          </div>
+
+          <!-- Oil Configuration (Collapsible) -->
+          <details style="margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e5e7eb;">
+            <summary style="cursor: pointer; font-weight: 600; color: #475569; margin-bottom: 0.5rem;">
+              ⚙️ Oil Configuration (Click to expand)
+            </summary>
+            <div class="overhead-grid" style="margin-top: 1rem;">
+              <div class="form-group">
+                <label>Oil Capacity (Liters)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="oilCapacityLiters"
+                  (ngModelChange)="calculatePrice()"
+                  min="0"
+                  step="0.5"
+                  class="form-input">
+                <small class="form-hint">Total oil in fryer</small>
+              </div>
+              <div class="form-group">
+                <label>Price per 750ml (₹)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="oilPricePer750ml"
+                  (ngModelChange)="calculatePrice()"
+                  min="0"
+                  step="1"
+                  class="form-input">
+                <small class="form-hint">Cost of one 750ml bottle</small>
+              </div>
+              <div class="form-group">
+                <label>Usage Days</label>
+                <input
+                  type="number"
+                  [(ngModel)]="oilUsageDays"
+                  (ngModelChange)="calculatePrice()"
+                  min="1"
+                  max="30"
+                  step="1"
+                  class="form-input">
+                <small class="form-hint">Oil replacement cycle</small>
+              </div>
+              <div class="form-group">
+                <label>Hours per Day</label>
+                <input
+                  type="number"
+                  [(ngModel)]="oilUsageHoursPerDay"
+                  (ngModelChange)="calculatePrice()"
+                  min="1"
+                  max="24"
+                  step="1"
+                  class="form-input">
+                <small class="form-hint">Operating hours daily</small>
+              </div>
+            </div>
+          </details>
+
+          <!-- Oil Cost Display -->
+          <div *ngIf="fryingTimeMinutes > 0" style="padding: 1rem; background: #e7f3ff; border-radius: 8px; border-left: 4px solid #0284c7;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #075985;">
+              🧮 Calculated Oil Cost
+            </h4>
+            <div style="font-size: 0.85rem; color: #0c4a6e; line-height: 1.6;">
+              <div>Total Oil Cost: ₹{{((oilCapacityLiters / 0.75) * oilPricePer750ml).toFixed(2)}}
+                <span style="color: #64748b;">({{oilCapacityLiters}}L &#64; ₹{{oilPricePer750ml}}/750ml)</span>
+              </div>
+              <div>Usage Period: {{oilUsageDays * oilUsageHoursPerDay * 60}} minutes
+                <span style="color: #64748b;">({{oilUsageDays}} days × {{oilUsageHoursPerDay}} hrs)</span>
+              </div>
+              <div>Cost per Minute: ₹{{(((oilCapacityLiters / 0.75) * oilPricePer750ml) / (oilUsageDays * oilUsageHoursPerDay * 60)).toFixed(4)}}</div>
+              <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 2px solid #0284c7; font-weight: 700; font-size: 1rem;">
+                Item Oil Cost: ₹{{calculatedOilCost.toFixed(2)}}
+                <span style="color: #64748b; font-weight: 400; font-size: 0.85rem;">({{fryingTimeMinutes}} min frying)</span>
+              </div>
+            </div>
+            <small class="form-hint" style="color: #075985; font-weight: 600; margin-top: 0.5rem; display: block;">
+              ✅ This cost is automatically added to overhead costs
+            </small>
+          </div>
+        </div>
+
         <!-- Profit Margin -->
         <div class="form-section">
           <h3>📈 Profit Margin</h3>
@@ -403,6 +514,10 @@
                   <span class="item-name">🗑️ Wastage ({{currentRecipe.overheadCosts.wastagePercentage}}%)</span>
                   <span class="item-value">₹{{calculation.breakdown.wastage.toFixed(2)}}</span>
                 </div>
+                <div class="breakdown-item" *ngIf="calculatedOilCost > 0">
+                  <span class="item-name">🛢️ Oil Cost ({{fryingTimeMinutes}} min frying)</span>
+                  <span class="item-value">₹{{calculatedOilCost.toFixed(2)}}</span>
+                </div>
                 <div class="breakdown-item">
                   <span class="item-name">📌 Miscellaneous</span>
                   <span class="item-value">₹{{calculation.breakdown.miscellaneous.toFixed(2)}}</span>
@@ -442,6 +557,212 @@
             <p>Add ingredients to see cost breakdown</p>
           </div>
         </ng-template>
+
+        <!-- Price Forecast Panel -->
+        <div class="forecast-panel" *ngIf="calculation && priceForecast && showForecastPanel">
+          <div class="panel-header">
+            <h3>💰 Price Forecast & Profit Analysis</h3>
+            <div class="header-actions" style="display: flex; gap: 0.5rem;">
+              <button class="btn-action btn-history"
+                      (click)="viewPriceHistory()"
+                      *ngIf="savedPriceForecast && savedPriceForecast.history && savedPriceForecast.history.length > 0"
+                      title="View Price History">
+                <span>📜</span> History ({{savedPriceForecast.history.length}})
+              </button>
+              <button class="btn-action btn-save" (click)="savePriceForecast()" title="Save Price Forecast">
+                <span>💾</span> Save Forecast
+              </button>
+            </div>
+          </div>
+
+          <div class="forecast-content">
+            <!-- Menu Sync Info -->
+            <div *ngIf="isMenuItemLinked()"
+                 class="sync-info-banner"
+                 style="background: #e0f2fe; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #0284c7;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #075985;">
+                <span style="font-size: 1.2rem;">🔄</span>
+                <div>
+                  <strong>Auto-Sync Enabled:</strong> Saving will automatically update menu prices for
+                  <strong>{{currentRecipe.menuItemName}}</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Last Saved Info -->
+            <div *ngIf="savedPriceForecast" class="saved-info-banner" style="background: #d1fae5; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #10b981;">
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                <div>
+                  <strong>✅ Last Saved:</strong> {{savedPriceForecast.lastUpdated | date:'medium'}}
+                  <span style="margin-left: 1rem; color: #666;">by {{savedPriceForecast.lastUpdatedBy}}</span>
+                </div>
+                <div *ngIf="savedPriceForecast.history && savedPriceForecast.history.length > 0" style="color: #059669;">
+                  {{savedPriceForecast.history.length}} price change(s) in history
+                </div>
+              </div>
+            </div>
+
+            <!-- Channel Settings -->
+            <div class="forecast-settings">
+              <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: #2c3e50;">⚙️ Channel Pricing</h4>
+
+              <div class="forecast-grid">
+                <div class="form-group">
+                  <label>🏪 Shop Price (₹)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.shopPrice"
+                    (ngModelChange)="updateForecastCalculation()"
+                    min="0"
+                    step="1"
+                    class="form-input">
+                </div>
+
+                <div class="form-group">
+                  <label>🛵 Takeaway Price (₹)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.shopDeliveryPrice"
+                    (ngModelChange)="updateForecastCalculation()"
+                    min="0"
+                    step="1"
+                    class="form-input">
+                </div>
+
+                <div class="form-group">
+                  <label>📱 Online Price (₹)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.onlinePrice"
+                    (ngModelChange)="updateForecastCalculation()"
+                    min="0"
+                    step="1"
+                    class="form-input">
+                </div>
+
+                <div class="form-group">
+                  <label>📦 Packaging Cost (₹)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.packagingCost"
+                    (ngModelChange)="updateForecastCalculation()"
+                    min="0"
+                    step="1"
+                    class="form-input">
+                </div>
+
+                <div class="form-group">
+                  <label>💸 Online Deduction (%)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.onlineDeduction"
+                    (ngModelChange)="updateForecastCalculation()"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    class="form-input">
+                  <small class="form-hint">Platform commission</small>
+                </div>
+
+                <div class="form-group">
+                  <label>🎁 Online Discount (%)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.onlineDiscount"
+                    (ngModelChange)="updateForecastCalculation()"
+                    min="0"
+                    max="100"
+                    step="1"
+                    class="form-input">
+                  <small class="form-hint">Customer discount</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Profit Comparison -->
+            <div class="profit-comparison">
+              <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: #2c3e50;">📊 Profit by Channel</h4>
+
+              <div class="profit-cards">
+                <!-- Offline Profit -->
+                <div class="profit-card" [class.best-option]="priceForecast.offlineProfit >= priceForecast.onlineProfit && priceForecast.offlineProfit >= priceForecast.takeawayProfit">
+                  <div class="profit-icon">🏪</div>
+                  <div class="profit-details">
+                    <div class="profit-label">Dine-In/Shop</div>
+                    <div class="profit-price">₹{{priceForecast.shopPrice.toFixed(2)}}</div>
+                    <div class="profit-amount" [class.negative]="priceForecast.offlineProfit < 0">
+                      Profit: ₹{{priceForecast.offlineProfit.toFixed(2)}}
+                    </div>
+                    <div class="profit-margin">
+                      {{((priceForecast.offlineProfit / calculation.breakdown.makingCost) * 100).toFixed(1)}}% margin
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Takeaway Profit -->
+                <div class="profit-card" [class.best-option]="priceForecast.takeawayProfit >= priceForecast.onlineProfit && priceForecast.takeawayProfit >= priceForecast.offlineProfit">
+                  <div class="profit-icon">🛵</div>
+                  <div class="profit-details">
+                    <div class="profit-label">Takeaway</div>
+                    <div class="profit-price">₹{{priceForecast.shopDeliveryPrice.toFixed(2)}}</div>
+                    <div class="profit-amount" [class.negative]="priceForecast.takeawayProfit < 0">
+                      Profit: ₹{{priceForecast.takeawayProfit.toFixed(2)}}
+                    </div>
+                    <div class="profit-margin">
+                      {{((priceForecast.takeawayProfit / calculation.breakdown.makingCost) * 100).toFixed(1)}}% margin
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Online Profit -->
+                <div class="profit-card" [class.best-option]="priceForecast.onlineProfit >= priceForecast.offlineProfit && priceForecast.onlineProfit >= priceForecast.takeawayProfit">
+                  <div class="profit-icon">📱</div>
+                  <div class="profit-details">
+                    <div class="profit-label">Online (Zomato/Swiggy)</div>
+                    <div class="profit-price">₹{{priceForecast.onlinePrice.toFixed(2)}}</div>
+                    <div class="profit-breakdown-mini">
+                      <div style="font-size: 0.75rem; color: #666;">
+                        Payout: ₹{{priceForecast.onlinePayout.toFixed(2)}}
+                      </div>
+                    </div>
+                    <div class="profit-amount" [class.negative]="priceForecast.onlineProfit < 0">
+                      Profit: ₹{{priceForecast.onlineProfit.toFixed(2)}}
+                    </div>
+                    <div class="profit-margin">
+                      {{((priceForecast.onlineProfit / calculation.breakdown.makingCost) * 100).toFixed(1)}}% margin
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Best Channel Indicator -->
+              <div class="best-channel-alert" *ngIf="priceForecast.offlineProfit >= priceForecast.onlineProfit && priceForecast.offlineProfit >= priceForecast.takeawayProfit">
+                ⭐ <strong>Best Channel:</strong> Dine-In/Shop with ₹{{priceForecast.offlineProfit.toFixed(2)}} profit
+              </div>
+              <div class="best-channel-alert" *ngIf="priceForecast.takeawayProfit >= priceForecast.onlineProfit && priceForecast.takeawayProfit >= priceForecast.offlineProfit">
+                ⭐ <strong>Best Channel:</strong> Takeaway with ₹{{priceForecast.takeawayProfit.toFixed(2)}} profit
+              </div>
+              <div class="best-channel-alert" *ngIf="priceForecast.onlineProfit >= priceForecast.offlineProfit && priceForecast.onlineProfit >= priceForecast.takeawayProfit">
+                ⭐ <strong>Best Channel:</strong> Online with ₹{{priceForecast.onlineProfit.toFixed(2)}} profit
+              </div>
+            </div>
+
+            <!-- Online Calculation Details -->
+            <div class="online-calc-details" style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 8px; font-size: 0.85rem;">
+              <h5 style="margin: 0 0 0.5rem 0; font-size: 0.9rem;">🧮 Online Payout Calculation:</h5>
+              <div style="display: flex; flex-direction: column; gap: 0.25rem; color: #666;">
+                <div>Base Amount: ₹{{priceForecast.onlinePrice.toFixed(2)}} + ₹{{priceForecast.packagingCost.toFixed(2)}} = ₹{{(priceForecast.onlinePrice + priceForecast.packagingCost).toFixed(2)}}</div>
+                <div *ngIf="priceForecast.onlineDiscount > 0">
+                  After {{priceForecast.onlineDiscount}}% Discount: ₹{{((priceForecast.onlinePrice + priceForecast.packagingCost) * (1 - priceForecast.onlineDiscount/100)).toFixed(2)}}
+                </div>
+                <div>Platform Deduction ({{priceForecast.onlineDeduction}}%): -₹{{(priceForecast.onlinePayout * priceForecast.onlineDeduction / (100 - priceForecast.onlineDeduction)).toFixed(2)}}</div>
+                <div style="font-weight: bold; color: #2c3e50; margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px solid #ccc;">
+                  Final Payout: ₹{{priceForecast.onlinePayout.toFixed(2)}} - ₹{{calculation.breakdown.makingCost.toFixed(2)}} = ₹{{priceForecast.onlineProfit.toFixed(2)}} profit
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1247,6 +1568,133 @@
       <div class="alert-content">
         <span class="alert-message">{{alert.message}}</span>
         <button class="alert-close" (click)="dismissAlert(alert)">✖</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Price History Modal -->
+  <div class="modal-overlay" *ngIf="showForecastHistoryModal" (click)="closePriceHistoryModal()">
+    <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>📜 Price Change History - {{currentRecipe.menuItemName}}</h2>
+        <button class="modal-close" (click)="closePriceHistoryModal()">✖</button>
+      </div>
+      <div class="modal-body" style="max-height: 600px; overflow-y: auto;">
+        <div *ngIf="savedPriceForecast && savedPriceForecast.history && savedPriceForecast.history.length > 0">
+          <!-- Current Prices -->
+          <div class="current-prices-section" style="background: #e7f3ff; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6;">
+            <h3 style="margin: 0 0 1rem 0; color: #1e40af; font-size: 1.1rem;">✅ Current Prices</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+              <div class="price-stat-card">
+                <div class="stat-label">Making Cost</div>
+                <div class="stat-value">₹{{savedPriceForecast.makePrice.toFixed(2)}}</div>
+              </div>
+              <div class="price-stat-card">
+                <div class="stat-label">Shop Price</div>
+                <div class="stat-value">₹{{savedPriceForecast.shopPrice.toFixed(2)}}</div>
+              </div>
+              <div class="price-stat-card">
+                <div class="stat-label">Takeaway Price</div>
+                <div class="stat-value">₹{{savedPriceForecast.shopDeliveryPrice.toFixed(2)}}</div>
+              </div>
+              <div class="price-stat-card">
+                <div class="stat-label">Online Price</div>
+                <div class="stat-value">₹{{savedPriceForecast.onlinePrice.toFixed(2)}}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- History Timeline -->
+          <h3 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.1rem;">📅 Change History</h3>
+          <div class="history-timeline">
+            <div class="history-entry" *ngFor="let entry of savedPriceForecast.history; let i = index">
+              <div class="history-marker">
+                <div class="history-number">{{savedPriceForecast.history.length - i}}</div>
+              </div>
+              <div class="history-content">
+                <div class="history-header">
+                  <div class="history-date">
+                    <strong>📅 {{entry.changeDate | date:'medium'}}</strong>
+                  </div>
+                  <div class="history-user">
+                    👤 Changed by: {{entry.changedBy}}
+                  </div>
+                </div>
+
+                <div class="history-reason" *ngIf="entry.changeReason">
+                  <strong>💬 Reason:</strong> {{entry.changeReason}}
+                </div>
+
+                <div class="history-prices">
+                  <table class="price-history-table">
+                    <thead>
+                      <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Making Cost</td>
+                        <td>₹{{entry.makePrice.toFixed(2)}}</td>
+                      </tr>
+                      <tr>
+                        <td>Packaging Cost</td>
+                        <td>₹{{entry.packagingCost.toFixed(2)}}</td>
+                      </tr>
+                      <tr>
+                        <td>Shop Price</td>
+                        <td>₹{{entry.shopPrice.toFixed(2)}}</td>
+                      </tr>
+                      <tr>
+                        <td>Takeaway Price</td>
+                        <td>₹{{entry.shopDeliveryPrice.toFixed(2)}}</td>
+                      </tr>
+                      <tr>
+                        <td>Online Price</td>
+                        <td>₹{{entry.onlinePrice.toFixed(2)}}</td>
+                      </tr>
+                      <tr>
+                        <td>Online Deduction</td>
+                        <td>{{entry.onlineDeduction.toFixed(1)}}%</td>
+                      </tr>
+                      <tr>
+                        <td>Online Discount</td>
+                        <td>{{entry.onlineDiscount.toFixed(1)}}%</td>
+                      </tr>
+                      <tr style="background: #f8fafc; font-weight: 600;">
+                        <td>Online Profit</td>
+                        <td [style.color]="entry.onlineProfit >= 0 ? '#10b981' : '#ef4444'">
+                          ₹{{entry.onlineProfit.toFixed(2)}}
+                        </td>
+                      </tr>
+                      <tr style="background: #f8fafc; font-weight: 600;">
+                        <td>Offline Profit</td>
+                        <td [style.color]="entry.offlineProfit >= 0 ? '#10b981' : '#ef4444'">
+                          ₹{{entry.offlineProfit.toFixed(2)}}
+                        </td>
+                      </tr>
+                      <tr style="background: #f8fafc; font-weight: 600;">
+                        <td>Takeaway Profit</td>
+                        <td [style.color]="entry.takeawayProfit >= 0 ? '#10b981' : '#ef4444'">
+                          ₹{{entry.takeawayProfit.toFixed(2)}}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="!savedPriceForecast || !savedPriceForecast.history || savedPriceForecast.history.length === 0" class="no-data-state">
+          <span class="no-data-icon">📋</span>
+          <p>No price history available yet</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" (click)="closePriceHistoryModal()">Close</button>
       </div>
     </div>
   </div>

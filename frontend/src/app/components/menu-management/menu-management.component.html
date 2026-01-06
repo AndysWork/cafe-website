@@ -5,6 +5,10 @@
       <p>Manage your cafe menu items, variants, and pricing</p>
     </div>
     <div class="header-actions">
+      <button class="btn-refresh" (click)="refreshMenuItems()" [disabled]="loading" title="Refresh menu items">
+        <span class="icon">🔄</span>
+        Refresh
+      </button>
       <button class="btn-upload" (click)="openUploadModal()">
         <span class="icon">📤</span>
         Upload Excel

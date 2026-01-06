@@ -7,6 +7,7 @@ import { PriceCalculatorService } from '../../services/price-calculator.service'
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { OverheadCostService, OverheadCost, OverheadAllocation } from '../../services/overhead-cost.service';
 import { FrozenItemService } from '../../services/frozen-item.service';
+import { PriceForecastService, PriceForecast } from '../../services/price-forecast.service';
 import { environment } from '../../../environments/environment';
 import {
   Ingredient,
@@ -83,6 +84,14 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   calculation: PriceCalculation | null = null;
   preparationTimeMinutes = 0; // Preparation time for overhead calculation
 
+  // Oil Usage Calculation
+  fryingTimeMinutes = 0; // Optional frying time for items that use oil
+  oilCapacityLiters = 2.5; // Oil capacity in liters
+  oilPricePer750ml = 112; // Price for 750ml oil bottle
+  oilUsageDays = 7; // Number of days oil is used
+  oilUsageHoursPerDay = 9; // Operating hours per day
+  calculatedOilCost = 0; // Calculated oil cost for this item
+
   // KPT Analysis Integration
   kptData: {
     avgPreparationTime: number;
@@ -95,6 +104,24 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   isLoadingKpt = false;
   kptMessage = '';
 
+  // Price Forecast Integration
+  priceForecast: {
+    packagingCost: number;
+    onlineDeduction: number;
+    onlineDiscount: number;
+    shopPrice: number;
+    shopDeliveryPrice: number;
+    onlinePrice: number;
+    onlinePayout: number;
+    onlineProfit: number;
+    offlineProfit: number;
+    takeawayProfit: number;
+  } | null = null;
+  showForecastPanel = true;
+  savedPriceForecast: any = null; // Currently saved forecast with history
+  showForecastHistoryModal = false;
+  priceChangeReason = '';
+
   // Constants for templates
   categories = INGREDIENT_CATEGORIES;
   units = MEASUREMENT_UNITS;
@@ -106,6 +133,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     private menuService: MenuService,
     private overheadCostService: OverheadCostService,
     private frozenItemService: FrozenItemService,
+    private priceForecastService: PriceForecastService,
     private http: HttpClient
   ) {}
 
@@ -135,8 +163,15 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   loadRecipes(): void {
     this.priceCalculatorService.getRecipes()
       .pipe(takeUntil(this.destroy$))
-      .subscribe(recipes => {
-        this.recipes = recipes;
+      .subscribe({
+        next: (recipes) => {
+          this.recipes = recipes;
+          console.log('Loaded recipes:', recipes);
+        },
+        error: (err) => {
+          console.error('Error loading recipes:', err);
+          this.showAlert('Failed to load recipes', 'error');
+        }
       });
   }
 
@@ -642,6 +677,41 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   loadRecipe(recipe: MenuItemRecipe): void {
     this.currentRecipe = { ...recipe };
+
+    // Load oil usage data if available
+    if (recipe.oilUsage) {
+      this.fryingTimeMinutes = recipe.oilUsage.fryingTimeMinutes || 0;
+      this.oilCapacityLiters = recipe.oilUsage.oilCapacityLiters || 2.5;
+      this.oilPricePer750ml = recipe.oilUsage.oilPricePer750ml || 112;
+      this.oilUsageDays = recipe.oilUsage.oilUsageDays || 7;
+      this.oilUsageHoursPerDay = recipe.oilUsage.oilUsageHoursPerDay || 9;
+      this.calculatedOilCost = recipe.oilUsage.calculatedOilCost || 0;
+      console.log('Loaded oil usage data:', recipe.oilUsage);
+    } else {
+      // Reset oil usage to defaults
+      this.fryingTimeMinutes = 0;
+      this.oilCapacityLiters = 2.5;
+      this.oilPricePer750ml = 112;
+      this.oilUsageDays = 7;
+      this.oilUsageHoursPerDay = 9;
+      this.calculatedOilCost = 0;
+    }
+
+    // Load price forecast data if available
+    if (recipe.priceForecast) {
+      this.priceForecast = { ...recipe.priceForecast };
+      console.log('Loaded price forecast data:', recipe.priceForecast);
+    } else {
+      // Initialize price forecast if not present
+      this.initializePriceForecast();
+    }
+
+    // Load KPT data if available
+    if (recipe.kptAnalysis) {
+      this.kptData = { ...recipe.kptAnalysis };
+      console.log('Loaded KPT analysis data:', recipe.kptAnalysis);
+    }
+
     this.calculatePrice();
     this.activeTab = 'calculator';
   }
@@ -809,6 +879,13 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   calculatePrice(): void {
+    // Calculate oil cost if frying time is specified
+    if (this.fryingTimeMinutes > 0) {
+      this.calculateOilCost();
+    } else {
+      this.calculatedOilCost = 0;
+    }
+
     // Update totals in recipe
     this.currentRecipe.totalIngredientCost = this.currentRecipe.ingredients
       .reduce((sum, ing) => sum + ing.totalCost, 0);
@@ -819,6 +896,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       this.currentRecipe.overheadCosts.rentAllocation +
       this.currentRecipe.overheadCosts.electricityCharge +
       wastage +
+      this.calculatedOilCost + // Add oil cost to overhead
       this.currentRecipe.overheadCosts.miscellaneous;
 
     this.currentRecipe.totalMakingCost = this.currentRecipe.totalIngredientCost + this.currentRecipe.totalOverheadCost;
@@ -828,6 +906,375 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     // Get detailed calculation
     this.calculation = this.priceCalculatorService.calculateRecipePrice(this.currentRecipe);
+
+    // Calculate price forecast
+    this.calculatePriceForecast();
+  }
+
+  initializePriceForecast(): void {
+    if (!this.calculation) {
+      // Calculate first if not already calculated
+      this.calculatePrice();
+    }
+
+    if (!this.calculation) return;
+
+    const makePrice = this.calculation.breakdown.makingCost;
+    const packagingCost = 6; // Default ₹16
+    const onlineDeduction = 42; // Default 42%
+    const onlineDiscount = 0; // Default 0%
+
+    // Calculate suggested prices with 25% profit margin
+    const suggestedPrice = this.calculation.breakdown.sellingPrice;
+    const shopPrice = suggestedPrice;
+    const shopDeliveryPrice = suggestedPrice + packagingCost;
+    const onlinePrice = suggestedPrice + packagingCost;
+
+    // Use service to calculate profits
+    const profits = this.priceForecastService.calculateProfits({
+      makePrice,
+      packagingCost,
+      onlineDeduction,
+      onlineDiscount,
+      shopPrice,
+      shopDeliveryPrice,
+      onlinePrice,
+      updatedOnlinePrice: onlinePrice
+    });
+
+    this.priceForecast = {
+      packagingCost,
+      onlineDeduction,
+      onlineDiscount,
+      shopPrice,
+      shopDeliveryPrice,
+      onlinePrice,
+      onlinePayout: profits.onlinePayout,
+      onlineProfit: profits.onlineProfit,
+      offlineProfit: profits.offlineProfit,
+      takeawayProfit: profits.takeawayProfit
+    };
+  }
+
+  calculatePriceForecast(): void {
+    if (!this.calculation) return;
+
+    const makePrice = this.calculation.breakdown.makingCost;
+    const packagingCost = this.priceForecast?.packagingCost || 6; // Default ₹6
+    const onlineDeduction = this.priceForecast?.onlineDeduction || 42; // Default 42%
+    const onlineDiscount = this.priceForecast?.onlineDiscount || 0; // Default 0%
+
+    // Calculate suggested prices with 25% profit margin
+    const suggestedPrice = this.calculation.breakdown.sellingPrice;
+    const shopPrice = this.priceForecast?.shopPrice || suggestedPrice;
+    const shopDeliveryPrice = this.priceForecast?.shopDeliveryPrice || (suggestedPrice + packagingCost);
+    const onlinePrice = this.priceForecast?.onlinePrice || (suggestedPrice + packagingCost);
+
+    // Use service to calculate profits
+    const profits = this.priceForecastService.calculateProfits({
+      makePrice,
+      packagingCost,
+      onlineDeduction,
+      onlineDiscount,
+      shopPrice,
+      shopDeliveryPrice,
+      onlinePrice,
+      updatedOnlinePrice: onlinePrice
+    });
+
+    this.priceForecast = {
+      packagingCost,
+      onlineDeduction,
+      onlineDiscount,
+      shopPrice,
+      shopDeliveryPrice,
+      onlinePrice,
+      onlinePayout: profits.onlinePayout,
+      onlineProfit: profits.onlineProfit,
+      offlineProfit: profits.offlineProfit,
+      takeawayProfit: profits.takeawayProfit
+    };
+  }
+
+  updateForecastCalculation(): void {
+    if (this.priceForecast) {
+      this.calculatePriceForecast();
+    }
+  }
+
+  calculateOilCost(): void {
+    // Formula:
+    // 1. Total oil cost = (oilCapacityLiters / 0.75) * oilPricePer750ml
+    // 2. Total usage minutes = oilUsageDays * oilUsageHoursPerDay * 60
+    // 3. Cost per minute = Total oil cost / Total usage minutes
+    // 4. Item oil cost = Cost per minute * fryingTimeMinutes
+
+    const totalOilCost = (this.oilCapacityLiters / 0.75) * this.oilPricePer750ml;
+    const totalUsageMinutes = this.oilUsageDays * this.oilUsageHoursPerDay * 60;
+    const costPerMinute = totalOilCost / totalUsageMinutes;
+    this.calculatedOilCost = costPerMinute * this.fryingTimeMinutes;
+
+    console.log('Oil Cost Calculation:', {
+      totalOilCost: totalOilCost.toFixed(2),
+      totalUsageMinutes,
+      costPerMinute: costPerMinute.toFixed(4),
+      fryingTimeMinutes: this.fryingTimeMinutes,
+      calculatedOilCost: this.calculatedOilCost.toFixed(2)
+    });
+  }
+
+  loadPriceForecastForMenuItem(): void {
+    if (!this.currentRecipe.menuItemName) return;
+
+    // Find menu item by name
+    const menuItem = this.menuItems.find(m =>
+      m.name.toLowerCase() === this.currentRecipe.menuItemName.toLowerCase()
+    );
+
+    if (!menuItem || !menuItem.id) return;
+
+    // Get price forecasts for this menu item
+    this.priceForecastService.getPriceForecastsByMenuItem(menuItem.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (forecasts) => {
+          if (forecasts && forecasts.length > 0) {
+            // Get the most recent forecast
+            const latestForecast = forecasts.sort((a, b) =>
+              new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+            )[0];
+
+            this.savedPriceForecast = latestForecast;
+
+            // Pre-populate forecast values if they exist
+            if (this.priceForecast) {
+              this.priceForecast.packagingCost = latestForecast.packagingCost;
+              this.priceForecast.onlineDeduction = latestForecast.onlineDeduction;
+              this.priceForecast.onlineDiscount = latestForecast.onlineDiscount;
+              this.priceForecast.shopPrice = latestForecast.shopPrice;
+              this.priceForecast.shopDeliveryPrice = latestForecast.shopDeliveryPrice;
+              this.priceForecast.onlinePrice = latestForecast.onlinePrice;
+              this.updateForecastCalculation();
+            }
+          } else {
+            this.savedPriceForecast = null;
+          }
+        },
+        error: (err) => {
+          console.error('Error loading price forecast:', err);
+        }
+      });
+  }
+
+  savePriceForecast(): void {
+    if (!this.calculation || !this.priceForecast) {
+      alert('Please calculate the recipe price first.');
+      return;
+    }
+
+    if (!this.currentRecipe.menuItemName) {
+      alert('Please enter a menu item name.');
+      return;
+    }
+
+    // Find menu item - don't use empty string for missing ID
+    let menuItem = this.menuItems.find(m =>
+      m.name.toLowerCase() === this.currentRecipe.menuItemName.toLowerCase()
+    );
+
+    const makePrice = this.calculation.breakdown.makingCost;
+
+    const forecastData: any = {
+      menuItemName: this.currentRecipe.menuItemName,
+      makePrice: makePrice,
+      packagingCost: this.priceForecast.packagingCost,
+      shopPrice: this.priceForecast.shopPrice,
+      shopDeliveryPrice: this.priceForecast.shopDeliveryPrice,
+      onlinePrice: this.priceForecast.onlinePrice,
+      updatedShopPrice: this.priceForecast.shopPrice,
+      updatedOnlinePrice: this.priceForecast.onlinePrice,
+      onlineDeduction: this.priceForecast.onlineDeduction,
+      onlineDiscount: this.priceForecast.onlineDiscount,
+      payoutCalculation: this.priceForecast.onlinePayout,
+      onlinePayout: this.priceForecast.onlinePayout,
+      onlineProfit: this.priceForecast.onlineProfit,
+      offlineProfit: this.priceForecast.offlineProfit,
+      takeawayProfit: this.priceForecast.takeawayProfit,
+      isFinalized: false,
+      createdBy: 'Current User',
+      lastUpdatedBy: 'Current User'
+    };
+
+    // Only include menuItemId if menu item exists
+    if (menuItem?.id) {
+      forecastData.menuItemId = menuItem.id;
+    }
+
+    if (this.savedPriceForecast && this.savedPriceForecast.id) {
+      // Update existing forecast
+      // Add to history if values changed
+      const hasChanges =
+        this.savedPriceForecast.makePrice !== makePrice ||
+        this.savedPriceForecast.shopPrice !== this.priceForecast.shopPrice ||
+        this.savedPriceForecast.onlinePrice !== this.priceForecast.onlinePrice ||
+        this.savedPriceForecast.shopDeliveryPrice !== this.priceForecast.shopDeliveryPrice;
+
+      if (hasChanges) {
+        if (!this.priceChangeReason) {
+          this.priceChangeReason = prompt('Please provide a reason for the price change:') || 'Price updated';
+        }
+
+        forecastData.history = this.savedPriceForecast.history || [];
+        forecastData.history.push({
+          changeDate: new Date().toISOString(),
+          changedBy: 'Current User',
+          makePrice: this.savedPriceForecast.makePrice,
+          packagingCost: this.savedPriceForecast.packagingCost,
+          shopPrice: this.savedPriceForecast.shopPrice,
+          shopDeliveryPrice: this.savedPriceForecast.shopDeliveryPrice,
+          onlinePrice: this.savedPriceForecast.onlinePrice,
+          updatedShopPrice: this.savedPriceForecast.updatedShopPrice,
+          updatedOnlinePrice: this.savedPriceForecast.updatedOnlinePrice,
+          onlineDeduction: this.savedPriceForecast.onlineDeduction,
+          onlineDiscount: this.savedPriceForecast.onlineDiscount,
+          payoutCalculation: this.savedPriceForecast.payoutCalculation,
+          onlinePayout: this.savedPriceForecast.onlinePayout,
+          onlineProfit: this.savedPriceForecast.onlineProfit,
+          offlineProfit: this.savedPriceForecast.offlineProfit,
+          takeawayProfit: this.savedPriceForecast.takeawayProfit,
+          changeReason: this.priceChangeReason
+        });
+      }
+
+      this.priceForecastService.updatePriceForecast(this.savedPriceForecast.id, forecastData)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (updated) => {
+            this.savedPriceForecast = updated;
+            this.priceChangeReason = '';
+
+            // Update menu item prices
+            this.updateMenuItemPricesFromForecast();
+
+            this.showAlert('Price forecast updated successfully!', 'success');
+          },
+          error: (err) => {
+            console.error('Error updating price forecast:', err);
+            this.showAlert('Failed to update price forecast', 'error');
+          }
+        });
+    } else {
+      // Create new forecast
+      forecastData.history = [];
+      this.priceForecastService.createPriceForecast(forecastData)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (created) => {
+            this.savedPriceForecast = created;
+
+            // Update menu item prices
+            this.updateMenuItemPricesFromForecast();
+
+            this.showAlert('Price forecast saved successfully!', 'success');
+          },
+          error: (err) => {
+            console.error('Error creating price forecast:', err);
+            this.showAlert('Failed to save price forecast', 'error');
+          }
+        });
+    }
+  }
+
+  updateMenuItemPricesFromForecast(): void {
+    if (!this.priceForecast || !this.calculation || !this.currentRecipe.menuItemName) return;
+
+    // Find the menu item by name
+    const menuItem = this.menuItems.find(m =>
+      m.name.toLowerCase() === this.currentRecipe.menuItemName.toLowerCase()
+    );
+
+    // Prepare price data with forecast prices
+    const priceData: any = {
+      name: this.currentRecipe.menuItemName,
+      makingPrice: this.calculation.breakdown.makingCost,
+      onlinePrice: this.priceForecast.onlinePrice,
+      dineInPrice: this.priceForecast.shopPrice,
+      shopSellingPrice: this.priceForecast.shopPrice,
+      packagingCharge: this.priceForecast.packagingCost
+    };
+
+    if (!menuItem || !menuItem.id) {
+      // Menu item doesn't exist, create it
+      console.log('Menu item not found, creating new menu item from forecast');
+
+      // Set default category if available
+      if (this.menuItems.length > 0 && this.menuItems[0].categoryId) {
+        priceData.categoryId = this.menuItems[0].categoryId;
+      }
+
+      // Set default availability
+      priceData.isAvailable = true;
+
+      this.menuService.createMenuItem(priceData)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (created) => {
+            console.log('Menu item created successfully:', created);
+            // Add to local menu items array
+            this.menuItems.push(created);
+            this.showAlert('Menu item created and prices synced!', 'success');
+          },
+          error: (err) => {
+            console.error('Error creating menu item:', err);
+            this.showAlert('Forecast saved but failed to create menu item', 'warning');
+            // Reload to ensure consistency after error
+            this.loadMenuItems();
+          }
+        });
+      return;
+    }
+
+    // Menu item exists, update it with forecast prices
+    const priceUpdate: any = {
+      makingPrice: priceData.makingPrice,
+      onlinePrice: priceData.onlinePrice,
+      dineInPrice: priceData.dineInPrice,
+      shopSellingPrice: priceData.shopSellingPrice,
+      packagingCharge: priceData.packagingCharge
+    };
+
+    // Update the menu item
+    this.menuService.updateMenuItem(menuItem.id, priceUpdate)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (updated) => {
+          console.log('Menu item prices updated from forecast:', updated);
+          // Update local menu items array with server response
+          const index = this.menuItems.findIndex(m => m.id === menuItem.id);
+          if (index !== -1) {
+            this.menuItems[index] = { ...this.menuItems[index], ...updated };
+          }
+          this.showAlert('Menu prices synced successfully!', 'success');
+        },
+        error: (err) => {
+          console.error('Error updating menu item prices:', err);
+          this.showAlert('Forecast saved but failed to sync menu prices', 'warning');
+          // Reload to ensure consistency after error
+          this.loadMenuItems();
+        }
+      });
+  }
+
+  viewPriceHistory(): void {
+    if (!this.savedPriceForecast || !this.savedPriceForecast.history || this.savedPriceForecast.history.length === 0) {
+      alert('No price history available for this menu item.');
+      return;
+    }
+    this.showForecastHistoryModal = true;
+  }
+
+  closePriceHistoryModal(): void {
+    this.showForecastHistoryModal = false;
   }
 
   saveCurrentRecipe(): void {
@@ -841,10 +1288,160 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       return;
     }
 
+    console.log('Saving recipe:', this.currentRecipe);
+
+    // Add oil usage data to recipe if frying time is specified
+    if (this.fryingTimeMinutes > 0) {
+      this.currentRecipe.oilUsage = {
+        fryingTimeMinutes: this.fryingTimeMinutes,
+        oilCapacityLiters: this.oilCapacityLiters,
+        oilPricePer750ml: this.oilPricePer750ml,
+        oilUsageDays: this.oilUsageDays,
+        oilUsageHoursPerDay: this.oilUsageHoursPerDay,
+        calculatedOilCost: this.calculatedOilCost
+      };
+      console.log('Oil usage data added:', this.currentRecipe.oilUsage);
+    } else {
+      // Clear oil usage if frying time is 0
+      this.currentRecipe.oilUsage = undefined;
+    }
+
+    // Add price forecast data to recipe if available
+    if (this.priceForecast) {
+      this.currentRecipe.priceForecast = {
+        packagingCost: this.priceForecast.packagingCost,
+        onlineDeduction: this.priceForecast.onlineDeduction,
+        onlineDiscount: this.priceForecast.onlineDiscount,
+        shopPrice: this.priceForecast.shopPrice,
+        shopDeliveryPrice: this.priceForecast.shopDeliveryPrice,
+        onlinePrice: this.priceForecast.onlinePrice,
+        onlinePayout: this.priceForecast.onlinePayout,
+        onlineProfit: this.priceForecast.onlineProfit,
+        offlineProfit: this.priceForecast.offlineProfit,
+        takeawayProfit: this.priceForecast.takeawayProfit
+      };
+      console.log('Price forecast data added:', this.currentRecipe.priceForecast);
+    }
+
+    // Add KPT data if available
+    if (this.kptData) {
+      this.currentRecipe.kptAnalysis = {
+        avgPreparationTime: this.kptData.avgPreparationTime,
+        minPreparationTime: this.kptData.minPreparationTime,
+        maxPreparationTime: this.kptData.maxPreparationTime,
+        medianPreparationTime: this.kptData.medianPreparationTime,
+        stdDeviation: this.kptData.stdDeviation,
+        orderCount: this.kptData.orderCount
+      };
+      console.log('KPT analysis data added:', this.currentRecipe.kptAnalysis);
+    }
+
+    console.log('Final recipe to save:', JSON.stringify(this.currentRecipe, null, 2));
+
     this.priceCalculatorService.saveRecipe(this.currentRecipe)
-      .subscribe(savedRecipe => {
-        alert('Recipe saved successfully!');
-        this.currentRecipe = savedRecipe;
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (savedRecipe) => {
+          console.log('Recipe saved successfully:', savedRecipe);
+          this.currentRecipe = savedRecipe;
+
+          // Reload recipes to update the list
+          this.loadRecipes();
+
+          // Update menu item with calculated prices
+          this.updateMenuItemPrices();
+
+          // Save price forecast if present
+          if (this.priceForecast && this.calculation) {
+            this.savePriceForecast();
+          }
+
+          this.showAlert('Recipe saved successfully!', 'success');
+        },
+        error: (err) => {
+          console.error('Error saving recipe:', err);
+          this.showAlert('Failed to save recipe', 'error');
+        }
+      });
+  }
+
+  updateMenuItemPrices(): void {
+    if (!this.calculation || !this.currentRecipe.menuItemName) return;
+
+    // Find the menu item by name
+    const menuItem = this.menuItems.find(m =>
+      m.name.toLowerCase() === this.currentRecipe.menuItemName.toLowerCase()
+    );
+
+    // Prepare price data
+    const priceData: any = {
+      name: this.currentRecipe.menuItemName,
+      makingPrice: this.calculation.breakdown.makingCost,
+      onlinePrice: this.priceForecast?.onlinePrice || this.calculation.breakdown.sellingPrice,
+      dineInPrice: this.priceForecast?.shopPrice || this.calculation.breakdown.sellingPrice,
+      shopSellingPrice: this.priceForecast?.shopPrice || this.calculation.breakdown.sellingPrice,
+      packagingCharge: this.priceForecast?.packagingCost || 0
+    };
+
+    if (!menuItem || !menuItem.id) {
+      // Menu item doesn't exist, create it
+      console.log('Menu item not found, creating new menu item');
+
+      // Set default category if available
+      if (this.menuItems.length > 0 && this.menuItems[0].categoryId) {
+        priceData.categoryId = this.menuItems[0].categoryId;
+      }
+
+      // Set default availability
+      priceData.isAvailable = true;
+
+      this.menuService.createMenuItem(priceData)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (created) => {
+            console.log('Menu item created successfully:', created);
+            // Add to local menu items array
+            this.menuItems.push(created);
+            this.showAlert('Menu item created and prices set!', 'success');
+          },
+          error: (err) => {
+            console.error('Error creating menu item:', err);
+            this.showAlert('Recipe saved but failed to create menu item', 'warning');
+            // Reload to ensure consistency after error
+            this.loadMenuItems();
+          }
+        });
+      return;
+    }
+
+    // Menu item exists, update it
+    const priceUpdate: any = {
+      makingPrice: priceData.makingPrice,
+      onlinePrice: priceData.onlinePrice,
+      dineInPrice: priceData.dineInPrice,
+      shopSellingPrice: priceData.shopSellingPrice,
+      packagingCharge: priceData.packagingCharge
+    };
+
+    // Update the menu item
+    this.menuService.updateMenuItem(menuItem.id, priceUpdate)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (updated) => {
+          console.log('Menu item prices updated successfully:', updated);
+          // Update local menu items array with server response
+          const index = this.menuItems.findIndex(m => m.id === menuItem.id);
+          if (index !== -1) {
+            this.menuItems[index] = { ...this.menuItems[index], ...updated };
+          }
+          this.showAlert('Menu prices updated successfully!', 'success');
+        },
+        error: (err) => {
+          console.error('Error updating menu item prices:', err);
+          this.showAlert('Recipe saved but failed to update menu prices', 'warning');
+          // Reload to ensure consistency after error
+          this.loadMenuItems();
+        }
       });
   }
 
@@ -860,6 +1457,20 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   // ===== UTILITY METHODS =====
+
+  isMenuItemLinked(): boolean {
+    if (!this.currentRecipe.menuItemName) return false;
+    return this.menuItems.some(m =>
+      m.name.toLowerCase() === this.currentRecipe.menuItemName.toLowerCase()
+    );
+  }
+
+  isRecipeNotInMenu(recipe: MenuItemRecipe): boolean {
+    if (!recipe.menuItemName) return false;
+    return !this.menuItems.some(m =>
+      m.name.toLowerCase() === recipe.menuItemName.toLowerCase()
+    );
+  }
 
   getCategoryLabel(value: string): string {
     const category = this.categories.find(c => c.value === value);
