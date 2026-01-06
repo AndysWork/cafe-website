@@ -96,6 +96,11 @@ export class AdminLayoutComponent {
           route: '/admin/online-profit-tracker'
         },
         {
+          icon: '⏱️',
+          label: 'KPT Analysis',
+          route: '/admin/kpt-analysis'
+        },
+        {
           icon: '💲',
           label: 'Price Forecasting',
           route: '/admin/price-forecasting'

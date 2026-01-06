@@ -606,4 +606,156 @@ public class OnlineSaleFunction
             return errorResponse;
         }
     }
+
+    // GET /api/online-sales/kpt-analysis - Get KPT analysis by menu items
+    [Function("GetKptAnalysis")]
+    public async Task<HttpResponseData> GetKptAnalysis(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales/kpt-analysis")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var platform = query["platform"]; // Optional: "Zomato" or "Swiggy"
+            var startDateStr = query["startDate"];
+            var endDateStr = query["endDate"];
+
+            DateTime? startDate = null;
+            DateTime? endDate = null;
+
+            if (!string.IsNullOrEmpty(startDateStr) && DateTime.TryParse(startDateStr, out var parsedStart))
+            {
+                startDate = parsedStart;
+            }
+
+            if (!string.IsNullOrEmpty(endDateStr) && DateTime.TryParse(endDateStr, out var parsedEnd))
+            {
+                endDate = parsedEnd;
+            }
+
+            // Get sales with KPT data
+            var sales = await _mongo.GetOnlineSalesAsync(platform);
+            
+            // Filter by date range if provided
+            if (startDate.HasValue)
+            {
+                sales = sales.Where(s => s.OrderAt >= startDate.Value).ToList();
+            }
+            if (endDate.HasValue)
+            {
+                // Add one day to include the end date
+                sales = sales.Where(s => s.OrderAt < endDate.Value.AddDays(1)).ToList();
+            }
+
+            // Filter only sales with KPT data
+            var salesWithKpt = sales.Where(s => s.KPT.HasValue && s.KPT.Value > 0).ToList();
+
+            // Group by menu items and calculate statistics
+            var menuItemStats = new Dictionary<string, MenuItemKptStats>();
+
+            foreach (var sale in salesWithKpt)
+            {
+                // Calculate total items in this order (sum of all quantities)
+                var totalItemsInOrder = sale.OrderedItems.Sum(i => i.Quantity);
+                
+                // Calculate per-item KPT (divide total KPT by number of items)
+                var perItemKpt = totalItemsInOrder > 0 
+                    ? sale.KPT.Value / totalItemsInOrder 
+                    : sale.KPT.Value;
+
+                foreach (var item in sale.OrderedItems)
+                {
+                    var itemName = item.ItemName?.Trim() ?? "Unknown Item";
+
+                    if (!menuItemStats.ContainsKey(itemName))
+                    {
+                        menuItemStats[itemName] = new MenuItemKptStats
+                        {
+                            ItemName = itemName,
+                            PreparationTimes = new List<decimal>(),
+                            OrderCount = 0,
+                            TotalQuantity = 0,
+                            MenuItemId = item.MenuItemId
+                        };
+                    }
+
+                    // Add the proportional KPT for this item (per-item KPT × quantity)
+                    // This represents this item's contribution to the total preparation time
+                    var itemKpt = perItemKpt * item.Quantity;
+                    menuItemStats[itemName].PreparationTimes.Add(itemKpt);
+                    menuItemStats[itemName].OrderCount++;
+                    menuItemStats[itemName].TotalQuantity += item.Quantity;
+                }
+            }
+
+            // Calculate statistics for each menu item
+            var results = menuItemStats.Values.Select(stats =>
+            {
+                var times = stats.PreparationTimes.OrderBy(x => x).ToList();
+                var count = times.Count;
+
+                return new
+                {
+                    itemName = stats.ItemName,
+                    menuItemId = stats.MenuItemId,
+                    orderCount = stats.OrderCount,
+                    totalQuantity = stats.TotalQuantity,
+                    avgPreparationTime = times.Average(),
+                    minPreparationTime = times.Min(),
+                    maxPreparationTime = times.Max(),
+                    medianPreparationTime = count % 2 == 0 
+                        ? (times[count / 2 - 1] + times[count / 2]) / 2 
+                        : times[count / 2],
+                    // Standard deviation calculation
+                    stdDeviation = Math.Sqrt(times.Average(t => Math.Pow((double)(t - times.Average()), 2))),
+                    preparationTimeRange = $"{times.Min():F1} - {times.Max():F1} min"
+                };
+            })
+            .OrderByDescending(x => x.orderCount)
+            .ToList();
+
+            var summary = new
+            {
+                totalOrdersAnalyzed = salesWithKpt.Count,
+                totalMenuItems = results.Count,
+                dateRange = new
+                {
+                    start = startDate?.ToString("yyyy-MM-dd") ?? salesWithKpt.MinBy(s => s.OrderAt)?.OrderAt.ToString("yyyy-MM-dd"),
+                    end = endDate?.ToString("yyyy-MM-dd") ?? salesWithKpt.MaxBy(s => s.OrderAt)?.OrderAt.ToString("yyyy-MM-dd")
+                },
+                platform = string.IsNullOrEmpty(platform) ? "All Platforms" : platform,
+                averageKptAllOrders = salesWithKpt.Average(s => s.KPT!.Value),
+                minKptAllOrders = salesWithKpt.Min(s => s.KPT!.Value),
+                maxKptAllOrders = salesWithKpt.Max(s => s.KPT!.Value)
+            };
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new 
+            { 
+                success = true, 
+                summary,
+                menuItems = results 
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error analyzing KPT data");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            return errorResponse;
+        }
+    }
+}
+
+// Helper class for KPT statistics
+internal class MenuItemKptStats
+{
+    public string ItemName { get; set; } = string.Empty;
+    public string? MenuItemId { get; set; }
+    public List<decimal> PreparationTimes { get; set; } = new();
+    public int OrderCount { get; set; }
+    public int TotalQuantity { get; set; }
 }

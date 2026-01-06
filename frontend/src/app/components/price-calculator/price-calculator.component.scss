@@ -843,6 +843,24 @@
     }
   }
 
+  // ===== KPT BUTTONS =====
+  .kpt-btn {
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #e7f3ff !important;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(52, 152, 219, 0.2);
+    }
+
+    &.active {
+      background: #3498db !important;
+      color: white !important;
+      border-color: #2980b9 !important;
+      font-weight: 600;
+    }
+  }
+
   // ===== MODAL =====
   .modal-overlay {
     position: fixed;

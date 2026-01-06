@@ -31,6 +31,7 @@ import { PriceForecastingComponent } from './components/price-forecasting/price-
 import { PriceCalculatorComponent } from './components/price-calculator/price-calculator.component';
 import { DiscountMappingComponent } from './components/discount-mapping/discount-mapping.component';
 import { InventoryManagementComponent } from './inventory-management/inventory-management.component';
+import { KptAnalysisComponent } from './components/kpt-analysis/kpt-analysis.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -67,6 +68,7 @@ export const routes: Routes = [
       { path: 'cashier', component: CashierComponent },
       { path: 'online-sale-tracker', component: OnlineSaleTrackerComponent },
       { path: 'online-profit-tracker', component: OnlineProfitTrackerComponent },
+      { path: 'kpt-analysis', component: KptAnalysisComponent },
       { path: 'discount-mapping', component: DiscountMappingComponent },
       { path: 'price-forecasting', component: PriceForecastingComponent },
       { path: 'price-calculator', component: PriceCalculatorComponent },

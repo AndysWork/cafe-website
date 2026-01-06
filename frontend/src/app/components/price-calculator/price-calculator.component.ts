@@ -1,11 +1,13 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
 import { PriceCalculatorService } from '../../services/price-calculator.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { OverheadCostService, OverheadCost, OverheadAllocation } from '../../services/overhead-cost.service';
 import { FrozenItemService } from '../../services/frozen-item.service';
+import { environment } from '../../../environments/environment';
 import {
   Ingredient,
   MenuItemRecipe,
@@ -77,19 +79,34 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   selectedIngredientId: string = '';
   ingredientQuantity = 0;
   ingredientUnit: 'kg' | 'gm' | 'ml' | 'pc' | 'ltr' = 'gm';
+  customIngredientPrice: number = 0; // Override price for individual ingredient
   calculation: PriceCalculation | null = null;
   preparationTimeMinutes = 0; // Preparation time for overhead calculation
+
+  // KPT Analysis Integration
+  kptData: {
+    avgPreparationTime: number;
+    minPreparationTime: number;
+    maxPreparationTime: number;
+    medianPreparationTime: number;
+    orderCount: number;
+    stdDeviation: number;
+  } | null = null;
+  isLoadingKpt = false;
+  kptMessage = '';
 
   // Constants for templates
   categories = INGREDIENT_CATEGORIES;
   units = MEASUREMENT_UNITS;
   measurementUnits = MEASUREMENT_UNITS;
+  Math = Math; // Expose Math for template
 
   constructor(
     private priceCalculatorService: PriceCalculatorService,
     private menuService: MenuService,
     private overheadCostService: OverheadCostService,
-    private frozenItemService: FrozenItemService
+    private frozenItemService: FrozenItemService,
+    private http: HttpClient
   ) {}
 
   ngOnInit(): void {
@@ -643,6 +660,97 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         this.loadRecipe(existingRecipe);
       }
     }
+
+    // Fetch KPT data for this menu item
+    this.fetchKptDataForMenuItem();
+  }
+
+  fetchKptDataForMenuItem(): void {
+    if (!this.currentRecipe.menuItemName || this.currentRecipe.menuItemName.trim() === '') {
+      this.kptData = null;
+      this.kptMessage = '';
+      return;
+    }
+
+    this.isLoadingKpt = true;
+    this.kptMessage = '';
+
+    // Get last 90 days of data
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 90);
+
+    const params = new URLSearchParams();
+    params.append('startDate', startDate.toISOString().split('T')[0]);
+    params.append('endDate', endDate.toISOString().split('T')[0]);
+
+    this.http.get<any>(`${environment.apiUrl}/online-sales/kpt-analysis?${params.toString()}`)
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.menuItems) {
+            // Find the matching menu item (case-insensitive)
+            const menuItemName = this.currentRecipe.menuItemName.toLowerCase().trim();
+            const matchingItem = response.menuItems.find((item: any) =>
+              item.itemName.toLowerCase().trim() === menuItemName
+            );
+
+            if (matchingItem) {
+              this.kptData = {
+                avgPreparationTime: matchingItem.avgPreparationTime,
+                minPreparationTime: matchingItem.minPreparationTime,
+                maxPreparationTime: matchingItem.maxPreparationTime,
+                medianPreparationTime: matchingItem.medianPreparationTime,
+                orderCount: matchingItem.orderCount,
+                stdDeviation: matchingItem.stdDeviation
+              };
+
+              // Auto-populate preparation time with the average (rounded to nearest minute)
+              this.preparationTimeMinutes = Math.round(matchingItem.avgPreparationTime);
+
+              // Calculate overhead costs with the new time
+              if (this.preparationTimeMinutes > 0) {
+                this.calculateOverheadCosts();
+              }
+
+              this.kptMessage = `✅ KPT data loaded from ${matchingItem.orderCount} orders (last 90 days)`;
+            } else {
+              this.kptData = null;
+              this.kptMessage = '⚠️ No KPT data found for this item. Using manual input.';
+            }
+          }
+          this.isLoadingKpt = false;
+        },
+        error: (error) => {
+          console.error('Error fetching KPT data:', error);
+          this.kptData = null;
+          this.kptMessage = '⚠️ Could not load KPT data. Using manual input.';
+          this.isLoadingKpt = false;
+        }
+      });
+  }
+
+  useKptValue(type: 'avg' | 'min' | 'max' | 'median'): void {
+    if (!this.kptData) return;
+
+    switch(type) {
+      case 'avg':
+        this.preparationTimeMinutes = Math.round(this.kptData.avgPreparationTime);
+        break;
+      case 'min':
+        this.preparationTimeMinutes = Math.round(this.kptData.minPreparationTime);
+        break;
+      case 'max':
+        this.preparationTimeMinutes = Math.round(this.kptData.maxPreparationTime);
+        break;
+      case 'median':
+        this.preparationTimeMinutes = Math.round(this.kptData.medianPreparationTime);
+        break;
+    }
+
+    // Recalculate overhead with the new time
+    if (this.preparationTimeMinutes > 0) {
+      this.calculateOverheadCosts();
+    }
   }
 
   newRecipe(): void {
@@ -657,10 +765,21 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Use custom price if provided, otherwise use market price
+    const priceToUse = this.customIngredientPrice > 0
+      ? this.customIngredientPrice
+      : this.selectedIngredient.marketPrice;
+
+    // Create a temporary ingredient object with the custom price for calculation
+    const ingredientForCalc = {
+      ...this.selectedIngredient,
+      marketPrice: priceToUse
+    };
+
     const cost = this.priceCalculatorService.calculateIngredientCost(
       this.ingredientQuantity,
       this.ingredientUnit,
-      this.selectedIngredient
+      ingredientForCalc
     );
 
     const usage: IngredientUsage = {
@@ -668,7 +787,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       ingredientName: this.selectedIngredient.name,
       quantity: this.ingredientQuantity,
       unit: this.ingredientUnit,
-      unitPrice: this.selectedIngredient.marketPrice,
+      unitPrice: priceToUse, // Store the custom price used
       totalCost: cost
     };
 
@@ -679,6 +798,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     this.selectedIngredientId = '';
     this.ingredientQuantity = 0;
     this.ingredientUnit = 'gm';
+    this.customIngredientPrice = 0;
 
     this.calculatePrice();
   }
@@ -689,12 +809,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   calculatePrice(): void {
-    // Calculate overhead costs first if preparation time is set
-    if (this.preparationTimeMinutes > 0 && !this.isCalculatingOverhead) {
-      this.calculateOverheadCosts();
-      return; // Wait for overhead calculation to complete
-    }
-
     // Update totals in recipe
     this.currentRecipe.totalIngredientCost = this.currentRecipe.ingredients
       .reduce((sum, ing) => sum + ing.totalCost, 0);
@@ -791,6 +905,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     // Auto-set unit based on ingredient
     if (this.selectedIngredient) {
       this.ingredientUnit = this.selectedIngredient.unit;
+      // Auto-populate custom price with market price (can be overridden)
+      this.customIngredientPrice = this.selectedIngredient.marketPrice;
     }
   }
 

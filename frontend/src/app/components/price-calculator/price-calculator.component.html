@@ -116,12 +116,29 @@
                   </option>
                 </select>
               </div>
+              <div class="form-group form-group-small">
+                <label>
+                  Price (₹/{{ingredientUnit}})
+                  <span style="font-size: 0.75rem; color: #666;">*optional</span>
+                </label>
+                <input
+                  type="number"
+                  [(ngModel)]="customIngredientPrice"
+                  min="0"
+                  step="0.01"
+                  [placeholder]="selectedIngredient ? '₹' + selectedIngredient.marketPrice : '0'"
+                  class="form-input"
+                  title="Override the default market price for this ingredient">
+              </div>
               <div class="form-group form-group-btn">
                 <button class="btn-add" (click)="addIngredientToRecipe()">
                   <span>➕</span> Add
                 </button>
               </div>
             </div>
+            <small class="form-hint" style="display: block; margin-top: 0.5rem;">
+              💡 Price field auto-fills with market price. Override it if you got a different price for this recipe.
+            </small>
           </div>
         </div>
 
@@ -132,7 +149,9 @@
             <div class="ingredient-item" *ngFor="let ing of currentRecipe.ingredients; let i = index">
               <div class="ingredient-info">
                 <span class="ingredient-name">{{ing.ingredientName}}</span>
-                <span class="ingredient-qty">{{ing.quantity}} {{ing.unit}}</span>
+                <span class="ingredient-qty">
+                  {{ing.quantity}} {{ing.unit}} &#64; ₹{{ing.unitPrice}}/{{ing.unit}}
+                </span>
               </div>
               <div class="ingredient-actions">
                 <span class="ingredient-cost">₹{{ing.totalCost.toFixed(2)}}</span>
@@ -157,15 +176,61 @@
             <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
               <span>⏱️ Preparation Time (minutes)</span>
               <span style="font-size: 0.8rem; color: #666;">(for auto-calculation)</span>
+              <span *ngIf="isLoadingKpt" style="font-size: 0.8rem; color: #3498db;">⏳ Loading KPT data...</span>
             </label>
             <input
               type="number"
               [(ngModel)]="preparationTimeMinutes"
+              (change)="calculateOverheadCosts()"
               min="0"
               step="1"
               placeholder="e.g., 6 minutes"
               class="form-input">
-            <small class="form-hint" *ngIf="overheadAllocation">
+
+            <!-- KPT Data Display -->
+            <div *ngIf="kptData" style="margin-top: 0.75rem; padding: 0.75rem; background: #e7f3ff; border-radius: 6px; border-left: 3px solid #3498db;">
+              <div style="font-weight: 600; margin-bottom: 0.5rem; color: #2c3e50; font-size: 0.9rem;">
+                📊 Real KPT Data (from {{kptData.orderCount}} orders):
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.85rem;">
+                <button
+                  (click)="useKptValue('avg')"
+                  class="kpt-btn"
+                  [class.active]="preparationTimeMinutes === Math.round(kptData.avgPreparationTime)"
+                  style="padding: 0.4rem 0.6rem; background: white; border: 1px solid #3498db; border-radius: 4px; cursor: pointer; text-align: left;">
+                  <strong>Avg:</strong> {{kptData.avgPreparationTime.toFixed(1)}} min
+                </button>
+                <button
+                  (click)="useKptValue('median')"
+                  class="kpt-btn"
+                  [class.active]="preparationTimeMinutes === Math.round(kptData.medianPreparationTime)"
+                  style="padding: 0.4rem 0.6rem; background: white; border: 1px solid #3498db; border-radius: 4px; cursor: pointer; text-align: left;">
+                  <strong>Median:</strong> {{kptData.medianPreparationTime.toFixed(1)}} min
+                </button>
+                <button
+                  (click)="useKptValue('min')"
+                  class="kpt-btn"
+                  [class.active]="preparationTimeMinutes === Math.round(kptData.minPreparationTime)"
+                  style="padding: 0.4rem 0.6rem; background: white; border: 1px solid #27ae60; border-radius: 4px; cursor: pointer; text-align: left;">
+                  <strong>Min:</strong> {{kptData.minPreparationTime.toFixed(1)}} min
+                </button>
+                <button
+                  (click)="useKptValue('max')"
+                  class="kpt-btn"
+                  [class.active]="preparationTimeMinutes === Math.round(kptData.maxPreparationTime)"
+                  style="padding: 0.4rem 0.6rem; background: white; border: 1px solid #e74c3c; border-radius: 4px; cursor: pointer; text-align: left;">
+                  <strong>Max:</strong> {{kptData.maxPreparationTime.toFixed(1)}} min
+                </button>
+              </div>
+              <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #7f8c8d;">
+                Std Dev: {{kptData.stdDeviation.toFixed(2)}} | Click to use value
+              </div>
+            </div>
+
+            <small class="form-hint" *ngIf="kptMessage" [style.color]="kptMessage.includes('✅') ? '#27ae60' : '#e67e22'">
+              {{kptMessage}}
+            </small>
+            <small class="form-hint" *ngIf="overheadAllocation && !kptMessage">
               ✅ Overhead costs auto-calculated for {{preparationTimeMinutes}} minute(s) preparation time
             </small>
           </div>

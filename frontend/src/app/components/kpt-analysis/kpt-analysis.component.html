@@ -1,0 +1,302 @@
+<div class="kpt-analysis-container">
+  <div class="header">
+    <h1>📊 Kitchen Preparation Time (KPT) Analysis</h1>
+    <p class="subtitle">Analyze menu items preparation time based on Zomato/Swiggy order data</p>
+  </div>
+
+  <!-- Filters Section -->
+  <div class="filters-section">
+    <div class="filter-group">
+      <label>Platform:</label>
+      <select [(ngModel)]="selectedPlatform" (change)="onFilterChange()" class="filter-select">
+        <option value="All">All Platforms</option>
+        <option value="Zomato">Zomato</option>
+        <option value="Swiggy">Swiggy</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Start Date:</label>
+      <input
+        type="date"
+        [(ngModel)]="startDate"
+        (change)="onFilterChange()"
+        class="filter-input"
+      />
+    </div>
+
+    <div class="filter-group">
+      <label>End Date:</label>
+      <input
+        type="date"
+        [(ngModel)]="endDate"
+        (change)="onFilterChange()"
+        class="filter-input"
+      />
+    </div>
+
+    <div class="filter-group">
+      <button class="btn-refresh" (click)="loadKptAnalysis()" [disabled]="isLoading">
+        <span *ngIf="!isLoading">🔄 Refresh</span>
+        <span *ngIf="isLoading">⏳ Loading...</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-cards" *ngIf="summary">
+    <div class="summary-card">
+      <div class="card-icon">📦</div>
+      <div class="card-content">
+        <h3>Total Orders</h3>
+        <p class="card-value">{{ summary.totalOrdersAnalyzed }}</p>
+        <span class="card-subtext">Analyzed with KPT data</span>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-icon">🍽️</div>
+      <div class="card-content">
+        <h3>Menu Items</h3>
+        <p class="card-value">{{ summary.totalMenuItems }}</p>
+        <span class="card-subtext">Different items ordered</span>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-icon">⏱️</div>
+      <div class="card-content">
+        <h3>Avg Preparation</h3>
+        <p class="card-value">{{ summary.averageKptAllOrders.toFixed(1) }} min</p>
+        <span class="card-subtext">Average across all orders</span>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-icon">⚡</div>
+      <div class="card-content">
+        <h3>Time Range</h3>
+        <p class="card-value">{{ summary.minKptAllOrders.toFixed(1) }} - {{ summary.maxKptAllOrders.toFixed(1) }}</p>
+        <span class="card-subtext">Min to Max (minutes)</span>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-icon">📅</div>
+      <div class="card-content">
+        <h3>Date Range</h3>
+        <p class="card-value-small">{{ summary.dateRange.start }}</p>
+        <p class="card-value-small">to {{ summary.dateRange.end }}</p>
+        <span class="card-subtext">{{ summary.platform }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Message -->
+  <div class="error-message" *ngIf="errorMessage">
+    ⚠️ {{ errorMessage }}
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="isLoading">
+    <div class="spinner"></div>
+    <p>Analyzing KPT data...</p>
+  </div>
+
+  <!-- Menu Items Analysis -->
+  <div class="analysis-section" *ngIf="!isLoading && menuItems.length > 0">
+    <!-- Controls Bar -->
+    <div class="controls-bar">
+      <div class="search-box">
+        <input
+          type="text"
+          [(ngModel)]="searchTerm"
+          (input)="onSearchChange()"
+          placeholder="🔍 Search menu items..."
+          class="search-input"
+        />
+        <span class="result-count">{{ filteredMenuItems.length }} items</span>
+      </div>
+
+      <div class="view-controls">
+        <button
+          class="btn-view"
+          [class.active]="viewMode === 'table'"
+          (click)="viewMode = 'table'"
+          title="Table View"
+        >
+          📋
+        </button>
+        <button
+          class="btn-view"
+          [class.active]="viewMode === 'cards'"
+          (click)="viewMode = 'cards'"
+          title="Card View"
+        >
+          📇
+        </button>
+        <button class="btn-export" (click)="exportToCSV()" title="Export to CSV">
+          📥 Export
+        </button>
+      </div>
+    </div>
+
+    <!-- Table View -->
+    <div class="table-container" *ngIf="viewMode === 'table'">
+      <table class="kpt-table">
+        <thead>
+          <tr>
+            <th (click)="changeSort('name')" class="sortable">
+              Item Name
+              <span class="sort-indicator" *ngIf="sortBy === 'name'">
+                {{ sortDirection === 'asc' ? '▲' : '▼' }}
+              </span>
+            </th>
+            <th (click)="changeSort('orders')" class="sortable">
+              Orders
+              <span class="sort-indicator" *ngIf="sortBy === 'orders'">
+                {{ sortDirection === 'asc' ? '▲' : '▼' }}
+              </span>
+            </th>
+            <th (click)="changeSort('quantity')" class="sortable">
+              Qty
+              <span class="sort-indicator" *ngIf="sortBy === 'quantity'">
+                {{ sortDirection === 'asc' ? '▲' : '▼' }}
+              </span>
+            </th>
+            <th (click)="changeSort('avgTime')" class="sortable">
+              Avg Time
+              <span class="sort-indicator" *ngIf="sortBy === 'avgTime'">
+                {{ sortDirection === 'asc' ? '▲' : '▼' }}
+              </span>
+            </th>
+            <th>Min Time</th>
+            <th>Max Time</th>
+            <th>Median</th>
+            <th>Std Dev</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of paginatedItems" [class.fast]="getTimeCategory(item.avgPreparationTime) === 'fast'"
+              [class.medium]="getTimeCategory(item.avgPreparationTime) === 'medium'"
+              [class.slow]="getTimeCategory(item.avgPreparationTime) === 'slow'">
+            <td class="item-name">{{ item.itemName }}</td>
+            <td class="numeric">{{ item.orderCount }}</td>
+            <td class="numeric">{{ item.totalQuantity }}</td>
+            <td class="numeric avg-time">
+              <strong>{{ item.avgPreparationTime.toFixed(1) }}</strong> min
+            </td>
+            <td class="numeric">{{ item.minPreparationTime.toFixed(1) }} min</td>
+            <td class="numeric">{{ item.maxPreparationTime.toFixed(1) }} min</td>
+            <td class="numeric">{{ item.medianPreparationTime.toFixed(1) }} min</td>
+            <td class="numeric">{{ item.stdDeviation.toFixed(2) }}</td>
+            <td>
+              <span class="category-badge" [style.background-color]="getTimeCategoryColor(item.avgPreparationTime)">
+                {{ getTimeCategory(item.avgPreparationTime).toUpperCase() }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Card View -->
+    <div class="cards-grid" *ngIf="viewMode === 'cards'">
+      <div class="kpt-card" *ngFor="let item of paginatedItems"
+           [class.fast]="getTimeCategory(item.avgPreparationTime) === 'fast'"
+           [class.medium]="getTimeCategory(item.avgPreparationTime) === 'medium'"
+           [class.slow]="getTimeCategory(item.avgPreparationTime) === 'slow'">
+        <div class="card-header">
+          <h3>{{ item.itemName }}</h3>
+          <span class="category-badge" [style.background-color]="getTimeCategoryColor(item.avgPreparationTime)">
+            {{ getTimeCategory(item.avgPreparationTime).toUpperCase() }}
+          </span>
+        </div>
+
+        <div class="card-stats">
+          <div class="stat-row">
+            <span class="stat-label">📦 Orders:</span>
+            <span class="stat-value">{{ item.orderCount }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">🔢 Quantity:</span>
+            <span class="stat-value">{{ item.totalQuantity }}</span>
+          </div>
+          <div class="stat-row highlight">
+            <span class="stat-label">⏱️ Avg Time:</span>
+            <span class="stat-value">{{ item.avgPreparationTime.toFixed(1) }} min</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">⚡ Min Time:</span>
+            <span class="stat-value">{{ item.minPreparationTime.toFixed(1) }} min</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">🔥 Max Time:</span>
+            <span class="stat-value">{{ item.maxPreparationTime.toFixed(1) }} min</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">📊 Median:</span>
+            <span class="stat-value">{{ item.medianPreparationTime.toFixed(1) }} min</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">📈 Std Dev:</span>
+            <span class="stat-value">{{ item.stdDeviation.toFixed(2) }}</span>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <small>Range: {{ item.preparationTimeRange }}</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" *ngIf="totalPages > 1">
+      <button
+        class="btn-page"
+        [disabled]="currentPage === 1"
+        (click)="goToPage(currentPage - 1)"
+      >
+        ◀ Previous
+      </button>
+
+      <span class="page-info">
+        Page {{ currentPage }} of {{ totalPages }} ({{ filteredMenuItems.length }} items)
+      </span>
+
+      <button
+        class="btn-page"
+        [disabled]="currentPage === totalPages"
+        (click)="goToPage(currentPage + 1)"
+      >
+        Next ▶
+      </button>
+    </div>
+  </div>
+
+  <!-- No Data Message -->
+  <div class="no-data" *ngIf="!isLoading && menuItems.length === 0 && !errorMessage">
+    <p>📊 No KPT data available for the selected filters.</p>
+    <p>Make sure you have uploaded Zomato/Swiggy orders with KPT information.</p>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend" *ngIf="!isLoading && menuItems.length > 0">
+    <h3>Legend:</h3>
+    <div class="legend-items">
+      <div class="legend-item">
+        <span class="legend-badge" style="background-color: #4caf50;">FAST</span>
+        <span>Less than 15 minutes</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-badge" style="background-color: #ff9800;">MEDIUM</span>
+        <span>15-25 minutes</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-badge" style="background-color: #f44336;">SLOW</span>
+        <span>More than 25 minutes</span>
+      </div>
+    </div>
+  </div>
+</div>
