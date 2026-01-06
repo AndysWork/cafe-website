@@ -2610,7 +2610,7 @@ public partial class MongoService
     public async Task<bool> FinalizePriceForecastAsync(string forecastId, string userId)
     {
         var forecast = await GetPriceForecastAsync(forecastId);
-        if (forecast == null || forecast.IsFinalized)
+        if (forecast == null || forecast.IsFinalized || string.IsNullOrEmpty(forecast.MenuItemId))
             return false;
 
         // Get the menu item
@@ -2625,6 +2625,9 @@ public partial class MongoService
         menuItem.OnlinePrice = forecast.OnlinePrice;
         menuItem.LastUpdatedBy = userId;
         menuItem.LastUpdated = GetIstNow();
+
+        if (string.IsNullOrEmpty(menuItem.Id))
+            return false;
 
         var updateMenuItem = await UpdateMenuItemAsync(menuItem.Id, menuItem);
         if (!updateMenuItem)

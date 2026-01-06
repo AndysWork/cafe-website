@@ -85,7 +85,7 @@ public class MarketPriceService
         return result;
     }
 
-    private async Task<PriceFetchResult> FetchFromAgriMarketAsync(string ingredientName, string unit)
+    private Task<PriceFetchResult> FetchFromAgriMarketAsync(string ingredientName, string unit)
     {
         var result = new PriceFetchResult
         {
@@ -110,7 +110,7 @@ public class MarketPriceService
                 else
                 {
                     result.ErrorMessage = "Ingredient not found in AGMARKNET mapping";
-                    return result;
+                    return Task.FromResult(result);
                 }
             }
 
@@ -122,7 +122,7 @@ public class MarketPriceService
 
             // For now, returning unsuccessful to try fallback methods
             result.ErrorMessage = "AGMARKNET API integration pending";
-            return result;
+            return Task.FromResult(result);
 
             /* Example AGMARKNET API call structure:
             var apiUrl = $"https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070";
@@ -150,10 +150,10 @@ public class MarketPriceService
             result.ErrorMessage = ex.Message;
         }
 
-        return result;
+        return Task.FromResult(result);
     }
 
-    private async Task<PriceFetchResult> FetchFromWebScrapingAsync(string ingredientName, string unit)
+    private Task<PriceFetchResult> FetchFromWebScrapingAsync(string ingredientName, string unit)
     {
         var result = new PriceFetchResult
         {
@@ -174,7 +174,7 @@ public class MarketPriceService
             // 4. Handle rate limiting and errors
 
             result.ErrorMessage = "Web scraping not yet implemented";
-            return result;
+            return Task.FromResult(result);
 
             /* Example scraping logic:
             var searchUrl = $"https://www.bigbasket.com/ps/?q={Uri.EscapeDataString(ingredientName)}";
@@ -200,7 +200,7 @@ public class MarketPriceService
             result.ErrorMessage = ex.Message;
         }
 
-        return result;
+        return Task.FromResult(result);
     }
 
     public async Task<List<PriceFetchResult>> FetchBulkPricesAsync(List<Ingredient> ingredients)

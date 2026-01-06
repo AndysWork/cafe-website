@@ -212,7 +212,7 @@ public class PlatformChargeFunction
                 Charges = request.Charges,
                 ChargeType = request.ChargeType ?? string.Empty,
                 Notes = request.Notes ?? string.Empty,
-                RecordedBy = username,
+                RecordedBy = username ?? "System",
                 CreatedAt = MongoService.GetIstNow(),
                 UpdatedAt = MongoService.GetIstNow()
             };

@@ -661,9 +661,10 @@ public class OnlineSaleFunction
                 var totalItemsInOrder = sale.OrderedItems.Sum(i => i.Quantity);
                 
                 // Calculate per-item KPT (divide total KPT by number of items)
+                var kptValue = sale.KPT ?? 0m;
                 var perItemKpt = totalItemsInOrder > 0 
-                    ? sale.KPT.Value / totalItemsInOrder 
-                    : sale.KPT.Value;
+                    ? kptValue / totalItemsInOrder 
+                    : kptValue;
 
                 foreach (var item in sale.OrderedItems)
                 {

@@ -148,6 +148,13 @@ public class PriceForecastFunction
             }
 
             // Validate that menu item exists
+            if (string.IsNullOrEmpty(forecast.MenuItemId))
+            {
+                var badReq2 = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq2.WriteAsJsonAsync(new { error = "Menu item ID is required" });
+                return badReq2;
+            }
+
             var menuItem = await _mongo.GetMenuItemAsync(forecast.MenuItemId);
             if (menuItem == null)
             {
