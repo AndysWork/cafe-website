@@ -23,6 +23,16 @@ public class AuthFunction
         _log = loggerFactory.CreateLogger<AuthFunction>();
     }
 
+    /// <summary>
+    /// Authenticates a user and returns a JWT token
+    /// </summary>
+    /// <param name="req">HTTP request with username and password</param>
+    /// <returns>JWT token, user details, and CSRF token</returns>
+    /// <response code="200">Successfully authenticated</response>
+    /// <response code="400">Invalid request data</response>
+    /// <response code="401">Invalid credentials</response>
+    /// <response code="403">Account deactivated</response>
+    /// <response code="429">Too many failed login attempts</response>
     [Function("Login")]
     public async Task<HttpResponseData> Login(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/login")] HttpRequestData req)
@@ -146,6 +156,14 @@ public class AuthFunction
         }
     }
 
+    /// <summary>
+    /// Registers a new user account
+    /// </summary>
+    /// <param name="req">HTTP request with user registration details (username, email, password, firstName, lastName)</param>
+    /// <returns>Created user details without password hash</returns>
+    /// <response code="201">User successfully registered</response>
+    /// <response code="400">Invalid data or validation failed</response>
+    /// <response code="409">Username or email already exists</response>
     [Function("Register")]
     public async Task<HttpResponseData> Register(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/register")] HttpRequestData req)

@@ -21,6 +21,12 @@ public class CategoryFunction
         _log = loggerFactory.CreateLogger<CategoryFunction>();
     }
 
+    /// <summary>
+    /// Retrieves all menu categories
+    /// </summary>
+    /// <param name="req">HTTP request</param>
+    /// <returns>List of all categories with names and descriptions</returns>
+    /// <response code="200">Successfully retrieved categories</response>
     // GET: Get all categories
     [Function("GetCategories")]
     public async Task<HttpResponseData> GetCategories([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories")] HttpRequestData req)
@@ -41,6 +47,14 @@ public class CategoryFunction
         }
     }
 
+    /// <summary>
+    /// Retrieves a specific category by ID
+    /// </summary>
+    /// <param name="req">HTTP request</param>
+    /// <param name="id">The category ID</param>
+    /// <returns>Category details</returns>
+    /// <response code="200">Successfully retrieved category</response>
+    /// <response code="404">Category not found</response>
     // GET: Get single category by ID
     [Function("GetCategory")]
     public async Task<HttpResponseData> GetCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories/{id}")] HttpRequestData req, string id)

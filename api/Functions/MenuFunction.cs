@@ -21,6 +21,12 @@ public class MenuFunction
         _log = loggerFactory.CreateLogger<MenuFunction>();
     }
 
+    /// <summary>
+    /// Retrieves all menu items
+    /// </summary>
+    /// <param name="req">HTTP request</param>
+    /// <returns>List of all menu items with pricing and details</returns>
+    /// <response code="200">Successfully retrieved menu items</response>
     // GET: Get all menu items
     [Function("GetMenu")]
     public async Task<HttpResponseData> GetMenu([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu")] HttpRequestData req)
@@ -41,6 +47,13 @@ public class MenuFunction
         }
     }
 
+    /// <summary>
+    /// Retrieves menu items for a specific category
+    /// </summary>
+    /// <param name="req">HTTP request</param>
+    /// <param name="categoryId">The category ID to filter by</param>
+    /// <returns>List of menu items in the specified category</returns>
+    /// <response code="200">Successfully retrieved menu items</response>
     // GET: Get menu items by CategoryId
     [Function("GetMenuItemsByCategory")]
     public async Task<HttpResponseData> GetMenuItemsByCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories/{categoryId}/menu")] HttpRequestData req, string categoryId)
@@ -61,6 +74,13 @@ public class MenuFunction
         }
     }
 
+    /// <summary>
+    /// Retrieves menu items for a specific subcategory
+    /// </summary>
+    /// <param name="req">HTTP request</param>
+    /// <param name="subCategoryId">The subcategory ID to filter by</param>
+    /// <returns>List of menu items in the specified subcategory</returns>
+    /// <response code="200">Successfully retrieved menu items</response>
     // GET: Get menu items by SubCategoryId
     [Function("GetMenuItemsBySubCategory")]
     public async Task<HttpResponseData> GetMenuItemsBySubCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "subcategories/{subCategoryId}/menu")] HttpRequestData req, string subCategoryId)
@@ -81,6 +101,14 @@ public class MenuFunction
         }
     }
 
+    /// <summary>
+    /// Retrieves a specific menu item by ID
+    /// </summary>
+    /// <param name="req">HTTP request</param>
+    /// <param name="id">The menu item ID</param>
+    /// <returns>Menu item details including name, description, pricing, and category</returns>
+    /// <response code="200">Successfully retrieved menu item</response>
+    /// <response code="404">Menu item not found</response>
     // GET: Get single menu item by ID
     [Function("GetMenuItem")]
     public async Task<HttpResponseData> GetMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu/{id}")] HttpRequestData req, string id)
@@ -108,6 +136,15 @@ public class MenuFunction
         }
     }
 
+    /// <summary>
+    /// Creates a new menu item (Admin only)
+    /// </summary>
+    /// <param name="req">HTTP request with menu item data</param>
+    /// <returns>Created menu item with ID</returns>
+    /// <response code="201">Menu item successfully created</response>
+    /// <response code="400">Invalid menu item data</response>
+    /// <response code="401">User not authenticated</response>
+    /// <response code="403">User not authorized (admin role required)</response>
     // POST: Create new menu item (Admin only)
     [Function("CreateMenuItem")]
     public async Task<HttpResponseData> CreateMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "menu")] HttpRequestData req)

@@ -21,6 +21,14 @@ public class UserManagementFunction
         _log = loggerFactory.CreateLogger<UserManagementFunction>();
     }
 
+    /// <summary>
+    /// Retrieves all user accounts in the system (Admin only)
+    /// </summary>
+    /// <param name="req">HTTP request with authorization header</param>
+    /// <returns>List of all users with details (excluding password hashes)</returns>
+    /// <response code="200">Successfully retrieved users</response>
+    /// <response code="401">User not authenticated</response>
+    /// <response code="403">User not authorized (admin role required)</response>
     [Function("GetAllUsers")]
     public async Task<HttpResponseData> GetAllUsers(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "users")] HttpRequestData req)

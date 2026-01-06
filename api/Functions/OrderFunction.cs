@@ -22,7 +22,14 @@ public class OrderFunction
         _log = loggerFactory.CreateLogger<OrderFunction>();
     }
 
-    // POST: Create new order (Authenticated users only)
+    /// <summary>
+    /// Creates a new order for the authenticated user
+    /// </summary>
+    /// <param name="req">HTTP request containing order details including items, delivery method, and payment info</param>
+    /// <returns>Created order with order ID and confirmation details</returns>
+    /// <response code="201">Order successfully created</response>
+    /// <response code="400">Invalid request data or menu item not found</response>
+    /// <response code="401">User not authenticated</response>
     [Function("CreateOrder")]
     public async Task<HttpResponseData> CreateOrder(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders")] HttpRequestData req)
@@ -157,6 +164,13 @@ public class OrderFunction
         }
     }
 
+    /// <summary>
+    /// Retrieves all orders for the authenticated user
+    /// </summary>
+    /// <param name="req">HTTP request with authorization header</param>
+    /// <returns>List of user's orders with order details</returns>
+    /// <response code="200">Successfully retrieved user's orders</response>
+    /// <response code="401">User not authenticated</response>
     // GET: Get user's orders (Authenticated users only)
     [Function("GetMyOrders")]
     public async Task<HttpResponseData> GetMyOrders(
@@ -208,6 +222,14 @@ public class OrderFunction
         }
     }
 
+    /// <summary>
+    /// Retrieves all orders in the system (Admin only)
+    /// </summary>
+    /// <param name="req">HTTP request with authorization header</param>
+    /// <returns>List of all orders</returns>
+    /// <response code="200">Successfully retrieved all orders</response>
+    /// <response code="401">User not authenticated</response>
+    /// <response code="403">User not authorized (admin role required)</response>
     // GET: Get all orders (Admin only)
     [Function("GetAllOrders")]
     public async Task<HttpResponseData> GetAllOrders(
@@ -235,6 +257,16 @@ public class OrderFunction
         }
     }
 
+    /// <summary>
+    /// Retrieves a specific order by ID
+    /// </summary>
+    /// <param name="req">HTTP request with authorization header</param>
+    /// <param name="id">The order ID</param>
+    /// <returns>Order details</returns>
+    /// <response code="200">Successfully retrieved order</response>
+    /// <response code="401">User not authenticated</response>
+    /// <response code="403">Access denied (users can only view their own orders)</response>
+    /// <response code="404">Order not found</response>
     // GET: Get order by ID
     [Function("GetOrder")]
     public async Task<HttpResponseData> GetOrder(
@@ -295,6 +327,16 @@ public class OrderFunction
         }
     }
 
+    /// <summary>
+    /// Updates the status of an order (Admin only)
+    /// </summary>
+    /// <param name="req">HTTP request with new status (pending, confirmed, preparing, ready, delivered, cancelled)</param>
+    /// <param name="id">The order ID</param>
+    /// <returns>Updated order details</returns>
+    /// <response code="200">Order status successfully updated</response>
+    /// <response code="400">Invalid status or order not found</response>
+    /// <response code="401">User not authenticated</response>
+    /// <response code="403">User not authorized (admin role required)</response>
     // PUT: Update order status (Admin only)
     [Function("UpdateOrderStatus")]
     public async Task<HttpResponseData> UpdateOrderStatus(
