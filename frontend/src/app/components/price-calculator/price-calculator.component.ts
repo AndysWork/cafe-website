@@ -116,6 +116,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     onlineProfit: number;
     offlineProfit: number;
     takeawayProfit: number;
+    // Future pricing
+    futureShopPrice?: number;
+    futureOnlinePrice?: number;
+    futureShopProfit?: number;
+    futureOnlineProfit?: number;
   } | null = null;
   showForecastPanel = true;
   savedPriceForecast: any = null; // Currently saved forecast with history
@@ -425,16 +430,24 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Store original values for rollback if needed
+    const originalPrice = ingredient.marketPrice;
+    const originalUnit = ingredient.unit;
+
+    // Optimistic update - update local ingredient immediately for instant UI feedback
+    ingredient.marketPrice = this.inlineEditForm.price;
+    ingredient.unit = this.inlineEditForm.unit as any;
+    this.editingInlineId = null;
+
     const updatedIngredient: Partial<Ingredient> = {
       ...ingredient,
-      marketPrice: this.inlineEditForm.price,
-      unit: this.inlineEditForm.unit as any
+      isActive: ingredient.isActive ?? true // Preserve or default to true
     };
 
     this.priceCalculatorService.updateIngredient(ingredient.id, updatedIngredient)
       .subscribe({
         next: (response: any) => {
-          this.editingInlineId = null;
+          // Reload ingredients in background to sync with server
           this.loadIngredients();
 
           // Check for major price change alert
@@ -451,6 +464,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error updating price:', err);
+          // Rollback optimistic update on error
+          ingredient.marketPrice = originalPrice;
+          ingredient.unit = originalUnit;
           this.showAlert('Failed to update price', 'error');
           this.editingInlineId = null;
         }
@@ -489,7 +505,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       const matchesSearch = !this.ingredientSearchTerm ||
         ing.name.toLowerCase().includes(this.ingredientSearchTerm.toLowerCase());
       const matchesCategory = !this.selectedCategory || ing.category === this.selectedCategory;
-      return matchesSearch && matchesCategory && ing.isActive;
+      // Show ingredient if isActive is true or undefined (default to active)
+      const isActiveOrUndefined = ing.isActive !== false;
+      return matchesSearch && matchesCategory && isActiveOrUndefined;
     });
   }
 
@@ -677,6 +695,14 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   loadRecipe(recipe: MenuItemRecipe): void {
     this.currentRecipe = { ...recipe };
+
+    // Load preparation time if available
+    if (recipe.preparationTimeMinutes !== undefined && recipe.preparationTimeMinutes !== null) {
+      this.preparationTimeMinutes = recipe.preparationTimeMinutes;
+      console.log('Loaded preparation time:', recipe.preparationTimeMinutes);
+    } else {
+      this.preparationTimeMinutes = 0;
+    }
 
     // Load oil usage data if available
     if (recipe.oilUsage) {
@@ -992,13 +1018,46 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       onlinePayout: profits.onlinePayout,
       onlineProfit: profits.onlineProfit,
       offlineProfit: profits.offlineProfit,
-      takeawayProfit: profits.takeawayProfit
+      takeawayProfit: profits.takeawayProfit,
+      // Future prices
+      futureShopPrice: this.priceForecast?.futureShopPrice || shopPrice,
+      futureOnlinePrice: this.priceForecast?.futureOnlinePrice || onlinePrice,
+      futureShopProfit: 0,
+      futureOnlineProfit: 0
     };
+
+    // Calculate future profits if future prices are set
+    this.updateFutureProfits();
+  }
+
+  updateFutureProfits(): void {
+    if (!this.priceForecast || !this.calculation) return;
+
+    const makePrice = this.calculation.breakdown.makingCost;
+    const packagingCost = this.priceForecast.packagingCost;
+
+    // Calculate future shop profit (Shop Price - Making Price)
+    if (this.priceForecast.futureShopPrice) {
+      this.priceForecast.futureShopProfit = this.priceForecast.futureShopPrice - makePrice;
+    }
+
+    // Calculate future online profit using the same formula as current prices
+    // Online Payout = ((Online Price + Packaging) - Discount%) - Deduction%
+    // Online Profit = Online Payout - Making Price
+    if (this.priceForecast.futureOnlinePrice) {
+      const baseAmount = this.priceForecast.futureOnlinePrice + packagingCost;
+      const discountAmount = (baseAmount * this.priceForecast.onlineDiscount) / 100;
+      const afterDiscount = baseAmount - discountAmount;
+      const deductionAmount = (afterDiscount * this.priceForecast.onlineDeduction) / 100;
+      const futurePayout = Math.max(0, afterDiscount - deductionAmount);
+      this.priceForecast.futureOnlineProfit = Math.max(0, futurePayout - makePrice);
+    }
   }
 
   updateForecastCalculation(): void {
     if (this.priceForecast) {
       this.calculatePriceForecast();
+      this.updateFutureProfits();
     }
   }
 
@@ -1100,6 +1159,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       onlineProfit: this.priceForecast.onlineProfit,
       offlineProfit: this.priceForecast.offlineProfit,
       takeawayProfit: this.priceForecast.takeawayProfit,
+      // Future pricing
+      futureShopPrice: this.priceForecast.futureShopPrice,
+      futureOnlinePrice: this.priceForecast.futureOnlinePrice,
       isFinalized: false,
       createdBy: 'Current User',
       lastUpdatedBy: 'Current User'
@@ -1200,7 +1262,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       onlinePrice: this.priceForecast.onlinePrice,
       dineInPrice: this.priceForecast.shopPrice,
       shopSellingPrice: this.priceForecast.shopPrice,
-      packagingCharge: this.priceForecast.packagingCost
+      packagingCharge: this.priceForecast.packagingCost,
+      // Add future prices if set
+      futureShopPrice: this.priceForecast.futureShopPrice,
+      futureOnlinePrice: this.priceForecast.futureOnlinePrice
     };
 
     if (!menuItem || !menuItem.id) {
@@ -1306,6 +1371,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       this.currentRecipe.oilUsage = undefined;
     }
 
+    // Add preparation time to recipe
+    this.currentRecipe.preparationTimeMinutes = this.preparationTimeMinutes;
+    console.log('Preparation time added:', this.preparationTimeMinutes);
+
     // Add price forecast data to recipe if available
     if (this.priceForecast) {
       this.currentRecipe.priceForecast = {
@@ -1318,7 +1387,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         onlinePayout: this.priceForecast.onlinePayout,
         onlineProfit: this.priceForecast.onlineProfit,
         offlineProfit: this.priceForecast.offlineProfit,
-        takeawayProfit: this.priceForecast.takeawayProfit
+        takeawayProfit: this.priceForecast.takeawayProfit,
+        futureShopPrice: this.priceForecast.futureShopPrice,
+        futureOnlinePrice: this.priceForecast.futureOnlinePrice,
+        futureShopProfit: this.priceForecast.futureShopProfit,
+        futureOnlineProfit: this.priceForecast.futureOnlineProfit
       };
       console.log('Price forecast data added:', this.currentRecipe.priceForecast);
     }

@@ -25,6 +25,8 @@ interface MenuItem {
   packagingCharge: number;
   shopSellingPrice: number;
   onlinePrice: number;
+  futureShopPrice?: number;
+  futureOnlinePrice?: number;
   variants: MenuItemVariant[];
   createdBy: string;
   createdDate: string;
@@ -86,6 +88,8 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     packagingCharge: 0,
     shopSellingPrice: 0,
     onlinePrice: 0,
+    futureShopPrice: undefined,
+    futureOnlinePrice: undefined,
     variants: []
   };
 
@@ -130,6 +134,11 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (data) => {
           console.log('Menu items loaded successfully:', data.length, 'items');
+          console.log('First item sample:', data[0]);
+          console.log('Future prices in first item:', {
+            futureShopPrice: data[0]?.futureShopPrice,
+            futureOnlinePrice: data[0]?.futureOnlinePrice
+          });
           this.menuItems = data;
           this.loading = false;
         },

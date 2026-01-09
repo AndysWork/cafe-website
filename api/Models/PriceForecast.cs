@@ -53,6 +53,10 @@ public class PriceForecast
 
     public decimal TakeawayProfit { get; set; }
 
+    // Future pricing for forecasting
+    public decimal? FutureShopPrice { get; set; }
+    public decimal? FutureOnlinePrice { get; set; }
+
     public bool IsFinalized { get; set; } = false;
 
     public DateTime? FinalizedDate { get; set; }

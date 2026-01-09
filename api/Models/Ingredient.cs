@@ -141,6 +141,19 @@ namespace Cafe.Api.Models
 
         [BsonElement("takeawayProfit")]
         public decimal TakeawayProfit { get; set; }
+
+        // Future pricing for planning
+        [BsonElement("futureShopPrice")]
+        public decimal? FutureShopPrice { get; set; }
+
+        [BsonElement("futureOnlinePrice")]
+        public decimal? FutureOnlinePrice { get; set; }
+
+        [BsonElement("futureShopProfit")]
+        public decimal? FutureShopProfit { get; set; }
+
+        [BsonElement("futureOnlineProfit")]
+        public decimal? FutureOnlineProfit { get; set; }
     }
 
     public class KptAnalysis
@@ -208,6 +221,9 @@ namespace Cafe.Api.Models
 
         [BsonElement("priceForecast")]
         public PriceForecastData? PriceForecast { get; set; }
+
+        [BsonElement("preparationTimeMinutes")]
+        public decimal? PreparationTimeMinutes { get; set; }
 
         [BsonElement("kptAnalysis")]
         public KptAnalysis? KptAnalysis { get; set; }

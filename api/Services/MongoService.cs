@@ -158,20 +158,89 @@ public partial class MongoService
     #region CafeMenuItem Operations
     
     // Get all menu items
-    public async Task<List<CafeMenuItem>> GetMenuAsync() =>
-        await _menu.Find(_ => true).ToListAsync();
+    public async Task<List<CafeMenuItem>> GetMenuAsync()
+    {
+        var menuItems = await _menu.Find(_ => true).ToListAsync();
+        
+        // Populate future prices from latest active price forecasts
+        foreach (var item in menuItems)
+        {
+            if (!string.IsNullOrEmpty(item.Id))
+            {
+                var latestForecast = await GetLatestActivePriceForecastByMenuItemAsync(item.Id);
+                if (latestForecast != null)
+                {
+                    item.FutureShopPrice = latestForecast.FutureShopPrice;
+                    item.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
+                }
+            }
+        }
+        
+        return menuItems;
+    }
 
     // Get menu items by CategoryId
-    public async Task<List<CafeMenuItem>> GetMenuItemsByCategoryAsync(string categoryId) =>
-        await _menu.Find(item => item.CategoryId == categoryId).ToListAsync();
+    public async Task<List<CafeMenuItem>> GetMenuItemsByCategoryAsync(string categoryId)
+    {
+        var menuItems = await _menu.Find(item => item.CategoryId == categoryId).ToListAsync();
+        
+        // Populate future prices from latest active price forecasts
+        foreach (var item in menuItems)
+        {
+            if (!string.IsNullOrEmpty(item.Id))
+            {
+                var latestForecast = await GetLatestActivePriceForecastByMenuItemAsync(item.Id);
+                if (latestForecast != null)
+                {
+                    item.FutureShopPrice = latestForecast.FutureShopPrice;
+                    item.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
+                }
+            }
+        }
+        
+        return menuItems;
+    }
 
     // Get menu items by SubCategoryId
-    public async Task<List<CafeMenuItem>> GetMenuItemsBySubCategoryAsync(string subCategoryId) =>
-        await _menu.Find(item => item.SubCategoryId == subCategoryId).ToListAsync();
+    public async Task<List<CafeMenuItem>> GetMenuItemsBySubCategoryAsync(string subCategoryId)
+    {
+        var menuItems = await _menu.Find(item => item.SubCategoryId == subCategoryId).ToListAsync();
+        
+        // Populate future prices from latest active price forecasts
+        foreach (var item in menuItems)
+        {
+            if (!string.IsNullOrEmpty(item.Id))
+            {
+                var latestForecast = await GetLatestActivePriceForecastByMenuItemAsync(item.Id);
+                if (latestForecast != null)
+                {
+                    item.FutureShopPrice = latestForecast.FutureShopPrice;
+                    item.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
+                }
+            }
+        }
+        
+        return menuItems;
+    }
 
     // Get single menu item by ID
-    public async Task<CafeMenuItem?> GetMenuItemAsync(string id) =>
-        await _menu.Find(x => x.Id == id).FirstOrDefaultAsync();
+    public async Task<CafeMenuItem?> GetMenuItemAsync(string id)
+    {
+        var menuItem = await _menu.Find(x => x.Id == id).FirstOrDefaultAsync();
+        
+        // Populate future prices from latest active price forecast
+        if (menuItem != null)
+        {
+            var latestForecast = await GetLatestActivePriceForecastByMenuItemAsync(id);
+            if (latestForecast != null)
+            {
+                menuItem.FutureShopPrice = latestForecast.FutureShopPrice;
+                menuItem.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
+            }
+        }
+        
+        return menuItem;
+    }
 
     // Create new menu item
     public async Task<CafeMenuItem> CreateMenuItemAsync(CafeMenuItem item)
@@ -2577,6 +2646,12 @@ public partial class MongoService
     // Get price forecasts by menu item ID
     public async Task<List<PriceForecast>> GetPriceForecastsByMenuItemAsync(string menuItemId) =>
         await _priceForecasts.Find(p => p.MenuItemId == menuItemId).SortByDescending(p => p.CreatedDate).ToListAsync();
+
+    // Get latest active (non-finalized) price forecast by menu item ID
+    public async Task<PriceForecast?> GetLatestActivePriceForecastByMenuItemAsync(string menuItemId) =>
+        await _priceForecasts.Find(p => p.MenuItemId == menuItemId && !p.IsFinalized)
+            .SortByDescending(p => p.CreatedDate)
+            .FirstOrDefaultAsync();
 
     // Get single price forecast by ID
     public async Task<PriceForecast?> GetPriceForecastAsync(string id) =>

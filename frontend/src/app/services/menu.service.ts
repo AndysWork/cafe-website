@@ -33,6 +33,9 @@ export interface MenuItem {
   makingPrice?: number;
   packagingCharge?: number;
   shopSellingPrice?: number;
+  // Future pricing
+  futureShopPrice?: number;
+  futureOnlinePrice?: number;
 }
 
 @Injectable({

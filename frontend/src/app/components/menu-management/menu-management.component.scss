@@ -340,6 +340,28 @@
     font-weight: 700;
     color: #48bb78;
   }
+
+  &.future-price {
+    position: relative;
+
+    .no-future {
+      color: #a0aec0;
+      font-style: italic;
+    }
+
+    .price-indicator {
+      margin-left: 5px;
+      font-size: 0.9rem;
+
+      .increase {
+        color: #48bb78;
+      }
+
+      .decrease {
+        color: #f56565;
+      }
+    }
+  }
 }
 
 .actions {
@@ -499,6 +521,12 @@
     resize: vertical;
     font-family: inherit;
   }
+
+  small.price-change {
+    font-size: 0.85rem;
+    color: #718096;
+    margin-top: -4px;
+  }
 }
 
 .variants-section {
@@ -511,6 +539,22 @@
     margin: 0 0 15px 0;
     color: #2d3748;
     font-size: 1.2rem;
+  }
+}
+
+.future-prices-section {
+  margin-top: 10px;
+  padding: 15px;
+  background: #edf2f7;
+  border: 2px dashed #4299e1;
+  border-radius: 12px;
+
+  label {
+    color: #2c5282;
+  }
+
+  input {
+    background: white;
   }
 }
 

@@ -56,6 +56,8 @@
           <th>Variants</th>
           <th>Online Price</th>
           <th>Shop Price</th>
+          <th>Future Online</th>
+          <th>Future Shop</th>
           <th>Packaging</th>
           <th>Actions</th>
         </tr>
@@ -96,6 +98,26 @@
           <td>
             <div class="price-cell">
               <span class="price">₹{{ item.shopSellingPrice }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="price-cell future-price">
+              <span class="price" *ngIf="item.futureOnlinePrice">₹{{ item.futureOnlinePrice }}</span>
+              <span class="no-future" *ngIf="!item.futureOnlinePrice">—</span>
+              <span class="price-indicator" *ngIf="item.futureOnlinePrice && item.futureOnlinePrice !== item.onlinePrice">
+                <span class="increase" *ngIf="item.futureOnlinePrice > item.onlinePrice">↑</span>
+                <span class="decrease" *ngIf="item.futureOnlinePrice < item.onlinePrice">↓</span>
+              </span>
+            </div>
+          </td>
+          <td>
+            <div class="price-cell future-price">
+              <span class="price" *ngIf="item.futureShopPrice">₹{{ item.futureShopPrice }}</span>
+              <span class="no-future" *ngIf="!item.futureShopPrice">—</span>
+              <span class="price-indicator" *ngIf="item.futureShopPrice && item.futureShopPrice !== item.shopSellingPrice">
+                <span class="increase" *ngIf="item.futureShopPrice > item.shopSellingPrice">↑</span>
+                <span class="decrease" *ngIf="item.futureShopPrice < item.shopSellingPrice">↓</span>
+              </span>
             </div>
           </td>
           <td>
@@ -184,6 +206,24 @@
             <div class="form-group">
               <label>Packaging Charge</label>
               <input type="number" [(ngModel)]="formData.packagingCharge" name="packagingCharge" placeholder="0.00" step="0.01">
+            </div>
+          </div>
+
+          <!-- Future Prices Section -->
+          <div class="form-row future-prices-section">
+            <div class="form-group">
+              <label>Future Online Price</label>
+              <input type="number" [(ngModel)]="formData.futureOnlinePrice" name="futureOnlinePrice" placeholder="0.00" step="0.01">
+              <small *ngIf="formData.futureOnlinePrice && formData.onlinePrice" class="price-change">
+                Change: ₹{{ (formData.futureOnlinePrice - formData.onlinePrice).toFixed(2) }}
+              </small>
+            </div>
+            <div class="form-group">
+              <label>Future Shop Price</label>
+              <input type="number" [(ngModel)]="formData.futureShopPrice" name="futureShopPrice" placeholder="0.00" step="0.01">
+              <small *ngIf="formData.futureShopPrice && formData.shopSellingPrice" class="price-change">
+                Change: ₹{{ (formData.futureShopPrice - formData.shopSellingPrice).toFixed(2) }}
+              </small>
             </div>
           </div>
 

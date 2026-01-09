@@ -679,6 +679,71 @@
               </div>
             </div>
 
+            <!-- Future Pricing Section -->
+            <div class="forecast-settings" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 2px dashed #3b82f6;">
+              <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: #1e40af; display: flex; align-items: center; gap: 0.5rem;">
+                <span>📈</span> Future Price Planning (Optional)
+              </h4>
+              <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Set future prices to forecast profits when planning price increases</p>
+
+              <div class="forecast-grid" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="form-group">
+                  <label>🏪 Future Shop Price (₹)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.futureShopPrice"
+                    (ngModelChange)="updateFutureProfits()"
+                    min="0"
+                    step="1"
+                    placeholder="Enter future price"
+                    class="form-input">
+                  <small class="form-hint" *ngIf="priceForecast.futureShopProfit !== undefined"
+                         [style.color]="priceForecast.futureShopProfit! >= 0 ? '#10b981' : '#ef4444'">
+                    Forecasted Profit: ₹{{priceForecast.futureShopProfit!.toFixed(2)}}
+                  </small>
+                </div>
+
+                <div class="form-group">
+                  <label>📱 Future Online Price (₹)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.futureOnlinePrice"
+                    (ngModelChange)="updateFutureProfits()"
+                    min="0"
+                    step="1"
+                    placeholder="Enter future price"
+                    class="form-input">
+                  <small class="form-hint" *ngIf="priceForecast.futureOnlineProfit !== undefined"
+                         [style.color]="priceForecast.futureOnlineProfit! >= 0 ? '#10b981' : '#ef4444'">
+                    Forecasted Profit: ₹{{priceForecast.futureOnlineProfit!.toFixed(2)}} (after deductions)
+                  </small>
+                </div>
+              </div>
+
+              <div *ngIf="priceForecast.futureShopPrice || priceForecast.futureOnlinePrice"
+                   style="margin-top: 0.75rem; padding: 0.75rem; background: white; border-radius: 6px; font-size: 0.85rem;">
+                <strong style="color: #1e40af;">💡 Price Comparison:</strong>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
+                  <div *ngIf="priceForecast.futureShopPrice">
+                    <span style="color: #64748b;">Shop:</span>
+                    <span style="color: #dc2626;">₹{{priceForecast.shopPrice}}</span> →
+                    <span style="color: #10b981; font-weight: 600;">₹{{priceForecast.futureShopPrice}}</span>
+                    <span style="color: #64748b; font-size: 0.75rem;">
+                      (+₹{{(priceForecast.futureShopPrice - priceForecast.shopPrice).toFixed(2)}})
+                    </span>
+                  </div>
+                  <div *ngIf="priceForecast.futureOnlinePrice">
+                    <span style="color: #64748b;">Online:</span>
+                    <span style="color: #dc2626;">₹{{priceForecast.onlinePrice}}</span> →
+                    <span style="color: #10b981; font-weight: 600;">₹{{priceForecast.futureOnlinePrice}}</span>
+                    <span style="color: #64748b; font-size: 0.75rem;">
+                      (+₹{{(priceForecast.futureOnlinePrice - priceForecast.onlinePrice).toFixed(2)}})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Profit Comparison -->
             <div class="profit-comparison">
               <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: #2c3e50;">📊 Profit by Channel</h4>

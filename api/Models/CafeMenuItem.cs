@@ -46,6 +46,13 @@ public class CafeMenuItem
     [Range(0.01, 100000, ErrorMessage = "Dine-in price must be between 0.01 and 100,000")]
     public decimal DineInPrice { get; set; }
     
+    // Future pricing for planning
+    [BsonElement("futureShopPrice")]
+    public decimal? FutureShopPrice { get; set; }
+    
+    [BsonElement("futureOnlinePrice")]
+    public decimal? FutureOnlinePrice { get; set; }
+    
     [StringLength(500, ErrorMessage = "Image URL cannot exceed 500 characters")]
     public string ImageUrl { get; set; } = string.Empty;
     
