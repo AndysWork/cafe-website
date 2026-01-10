@@ -13,6 +13,10 @@ public class Expense
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; }
+
     [BsonElement("date")]
     public DateTime Date { get; set; }
 

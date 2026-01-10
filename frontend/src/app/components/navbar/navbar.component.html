@@ -30,116 +30,6 @@
           </a>
         </li>
 
-        <!-- Admin Only: Category Update with Dropdown -->
-        <li class="nav-item dropdown" *ngIf="isAdmin"
-            [class.active]="activeDropdown === 'category'"
-            (mouseenter)="openDropdown('category')"
-            (mouseleave)="scheduleCloseDropdown()">
-          <button class="nav-link dropdown-toggle"
-                  (click)="toggleDropdown('category')">
-            <span class="nav-icon">📁</span>
-            Category Update
-            <span class="arrow" [class.open]="activeDropdown === 'category'">▼</span>
-          </button>
-
-          <ul class="dropdown-menu"
-              [class.show]="activeDropdown === 'category'"
-              (mouseenter)="cancelCloseDropdown()"
-              (mouseleave)="scheduleCloseDropdown()">
-            <li>
-              <a routerLink="/category/upload"
-                 routerLinkActive="active"
-                 class="dropdown-item"
-                 (click)="closeMobileMenu()">
-                <span class="dropdown-icon">📤</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">Upload</span>
-                  <span class="dropdown-desc">Bulk upload via CSV/Excel</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a routerLink="/category/crud"
-                 routerLinkActive="active"
-                 class="dropdown-item"
-                 (click)="closeMobileMenu()">
-                <span class="dropdown-icon">✏️</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">CRUD</span>
-                  <span class="dropdown-desc">Manage categories manually</span>
-                </div>
-              </a>
-            </li>
-          </ul>
-        </li>
-
-        <!-- Admin Only: Tools Dropdown -->
-        <li class="nav-item dropdown" *ngIf="isAdmin"
-            [class.active]="activeDropdown === 'tools'"
-            (mouseenter)="openDropdown('tools')"
-            (mouseleave)="scheduleCloseDropdown()">
-          <button class="nav-link dropdown-toggle"
-                  (click)="toggleDropdown('tools')">
-            <span class="nav-icon">🛠️</span>
-            Tools
-            <span class="arrow" [class.open]="activeDropdown === 'tools'">▼</span>
-          </button>
-
-          <ul class="dropdown-menu"
-              [class.show]="activeDropdown === 'tools'"
-              (mouseenter)="cancelCloseDropdown()"
-              (mouseleave)="scheduleCloseDropdown()">
-            <li>
-              <a routerLink="/admin/cashier"
-                 routerLinkActive="active"
-                 class="dropdown-item"
-                 (click)="closeMobileMenu()">
-                <span class="dropdown-icon">🧾</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">Cashier</span>
-                  <span class="dropdown-desc">Process in-person sales</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a routerLink="/admin/online-sale-tracker"
-                 routerLinkActive="active"
-                 class="dropdown-item"
-                 (click)="closeMobileMenu()">
-                <span class="dropdown-icon">📊</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">Online Sale Tracker</span>
-                  <span class="dropdown-desc">Monitor online sales</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a routerLink="/admin/online-profit-tracker"
-                 routerLinkActive="active"
-                 class="dropdown-item"
-                 (click)="closeMobileMenu()">
-                <span class="dropdown-icon">💹</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">Online Profit Tracker</span>
-                  <span class="dropdown-desc">Track profitability</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a routerLink="/admin/discount-mapping"
-                 routerLinkActive="active"
-                 class="dropdown-item"
-                 (click)="closeMobileMenu()">
-                <span class="dropdown-icon">💳</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">Discount Mapping</span>
-                  <span class="dropdown-desc">View coupon analytics</span>
-                </div>
-              </a>
-            </li>
-          </ul>
-        </li>
-
         <!-- Regular User: Orders -->
         <li class="nav-item" *ngIf="isUser">
           <a routerLink="/orders" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
@@ -190,7 +80,59 @@
           <span class="login-icon">🔐</span>
           Login
         </button>
-        <div *ngIf="isLoggedIn" class="user-section">
+
+        <!-- Admin Profile Dropdown -->
+        <div *ngIf="isLoggedIn && isAdmin" class="profile-dropdown"
+             [class.active]="activeDropdown === 'profile'"
+             (mouseenter)="openDropdown('profile')"
+             (mouseleave)="scheduleCloseDropdown()">
+          <button class="profile-badge"
+                  (click)="toggleDropdown('profile')">
+            <span class="profile-icon">👤</span>
+            <span class="username">{{ displayName }}</span>
+            <span class="arrow" [class.open]="activeDropdown === 'profile'">▼</span>
+          </button>
+
+          <ul class="dropdown-menu profile-menu"
+              [class.show]="activeDropdown === 'profile'"
+              (mouseenter)="cancelCloseDropdown()"
+              (mouseleave)="scheduleCloseDropdown()">
+            <li>
+              <a routerLink="/profile"
+                 routerLinkActive="active"
+                 class="dropdown-item"
+                 (click)="closeMobileMenu()">
+                <span class="dropdown-icon">✏️</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Edit Profile</span>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a routerLink="/admin/outlets"
+                 routerLinkActive="active"
+                 class="dropdown-item"
+                 (click)="closeMobileMenu()">
+                <span class="dropdown-icon">🏪</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Outlets</span>
+                </div>
+              </a>
+            </li>
+            <li class="divider"></li>
+            <li>
+              <button class="dropdown-item logout-item" (click)="onLogout()">
+                <span class="dropdown-icon">🚪</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Logout</span>
+                </div>
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Regular User Display -->
+        <div *ngIf="isLoggedIn && isUser" class="user-section">
           <span class="username">{{ displayName }}</span>
           <button class="btn-logout" (click)="onLogout()">
             <span class="logout-icon">🚪</span>

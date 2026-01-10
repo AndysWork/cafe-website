@@ -8,6 +8,10 @@ public class Inventory
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; }
+
     [BsonRepresentation(BsonType.ObjectId)]
     public string? IngredientId { get; set; }
 
@@ -61,6 +65,10 @@ public class InventoryTransaction
 {
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
+
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; }
 
     [BsonRepresentation(BsonType.ObjectId)]
     public string InventoryId { get; set; } = string.Empty;

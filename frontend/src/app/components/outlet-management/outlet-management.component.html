@@ -1,0 +1,323 @@
+<div class="outlet-management">
+  <div class="page-header">
+    <h1>Outlet Management</h1>
+    <button class="btn btn-primary" (click)="openCreateModal()">
+      <i class="fas fa-plus"></i> Add New Outlet
+    </button>
+  </div>
+
+  <!-- Success/Error Messages -->
+  <div class="alert alert-success" *ngIf="successMessage">
+    {{ successMessage }}
+  </div>
+  <div class="alert alert-error" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading" *ngIf="isLoading && outlets.length === 0">
+    <div class="spinner"></div>
+    <p>Loading outlets...</p>
+  </div>
+
+  <!-- Outlets Grid -->
+  <div class="outlets-grid" *ngIf="!isLoading || outlets.length > 0">
+    <div class="outlet-card" *ngFor="let outlet of outlets">
+      <div class="outlet-header">
+        <div class="outlet-info">
+          <h3>{{ outlet.outletName }}</h3>
+          <span class="outlet-code">{{ outlet.outletCode }}</span>
+        </div>
+        <span
+          class="status-badge"
+          [class.active]="outlet.isActive"
+          [class.inactive]="!outlet.isActive">
+          {{ outlet.isActive ? 'Active' : 'Inactive' }}
+        </span>
+      </div>
+
+      <div class="outlet-details">
+        <div class="detail-item">
+          <i class="fas fa-map-marker-alt"></i>
+          <span>{{ outlet.address }}, {{ outlet.city }}, {{ outlet.state }}</span>
+        </div>
+        <div class="detail-item" *ngIf="outlet.phoneNumber">
+          <i class="fas fa-phone"></i>
+          <span>{{ outlet.phoneNumber }}</span>
+        </div>
+        <div class="detail-item" *ngIf="outlet.email">
+          <i class="fas fa-envelope"></i>
+          <span>{{ outlet.email }}</span>
+        </div>
+        <div class="detail-item" *ngIf="outlet.managerName">
+          <i class="fas fa-user"></i>
+          <span>Manager: {{ outlet.managerName }}</span>
+        </div>
+        <div class="detail-item">
+          <i class="fas fa-percentage"></i>
+          <span>Tax: {{ outlet.settings.taxPercentage }}%</span>
+        </div>
+      </div>
+
+      <div class="outlet-actions">
+        <button class="btn btn-secondary btn-sm" (click)="openEditModal(outlet)">
+          <i class="fas fa-edit"></i> Edit
+        </button>
+        <button
+          class="btn btn-sm"
+          [class.btn-warning]="outlet.isActive"
+          [class.btn-success]="!outlet.isActive"
+          (click)="toggleOutletStatus(outlet)">
+          <i class="fas" [class.fa-pause]="outlet.isActive" [class.fa-play]="!outlet.isActive"></i>
+          {{ outlet.isActive ? 'Deactivate' : 'Activate' }}
+        </button>
+        <button class="btn btn-danger btn-sm" (click)="deleteOutlet(outlet)">
+          <i class="fas fa-trash"></i> Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" *ngIf="outlets.length === 0 && !isLoading">
+    <i class="fas fa-store fa-3x"></i>
+    <h3>No Outlets Yet</h3>
+    <p>Create your first outlet to get started</p>
+    <button class="btn btn-primary" (click)="openCreateModal()">
+      <i class="fas fa-plus"></i> Add Outlet
+    </button>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ modalMode === 'create' ? 'Create New Outlet' : 'Edit Outlet' }}</h2>
+        <button class="btn-close" (click)="closeModal()">&times;</button>
+      </div>
+
+      <form class="modal-body" (ngSubmit)="saveOutlet()">
+        <!-- Basic Information -->
+        <div class="form-section">
+          <h3>Basic Information</h3>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="outletCode">Outlet Code *</label>
+              <input
+                type="text"
+                id="outletCode"
+                [(ngModel)]="outletForm.outletCode"
+                name="outletCode"
+                required
+                placeholder="e.g., MTC001">
+            </div>
+
+            <div class="form-group">
+              <label for="outletName">Outlet Name *</label>
+              <input
+                type="text"
+                id="outletName"
+                [(ngModel)]="outletForm.outletName"
+                name="outletName"
+                required
+                placeholder="e.g., Maa Tara Cafe - Main">
+            </div>
+          </div>
+        </div>
+
+        <!-- Address Information -->
+        <div class="form-section">
+          <h3>Address</h3>
+
+          <div class="form-group">
+            <label for="address">Street Address *</label>
+            <input
+              type="text"
+              id="address"
+              [(ngModel)]="outletForm.address"
+              name="address"
+              required
+              placeholder="Enter street address">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="city">City *</label>
+              <input
+                type="text"
+                id="city"
+                [(ngModel)]="outletForm.city"
+                name="city"
+                required
+                placeholder="Enter city">
+            </div>
+
+            <div class="form-group">
+              <label for="state">State *</label>
+              <input
+                type="text"
+                id="state"
+                [(ngModel)]="outletForm.state"
+                name="state"
+                required
+                placeholder="Enter state">
+            </div>
+          </div>
+
+
+        </div>
+
+        <!-- Contact Information -->
+        <div class="form-section">
+          <h3>Contact</h3>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="phoneNumber">Phone Number</label>
+              <input
+                type="tel"
+                id="phoneNumber"
+                [(ngModel)]="outletForm.phoneNumber"
+                name="phoneNumber"
+                placeholder="Enter phone number">
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input
+                type="email"
+                id="email"
+                [(ngModel)]="outletForm.email"
+                name="email"
+                placeholder="Enter email (optional)">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="managerName">Manager Name</label>
+            <input
+              type="text"
+              id="managerName"
+              [(ngModel)]="outletForm.managerName"
+              name="managerName"
+              placeholder="Enter manager name (optional)">
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="form-section">
+          <h3>Settings</h3>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="openingTime">Opening Time *</label>
+              <input
+                type="time"
+                id="openingTime"
+                [(ngModel)]="outletForm.settings!.openingTime"
+                name="openingTime"
+                required>
+            </div>
+
+            <div class="form-group">
+              <label for="closingTime">Closing Time *</label>
+              <input
+                type="time"
+                id="closingTime"
+                [(ngModel)]="outletForm.settings!.closingTime"
+                name="closingTime"
+                required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="taxPercentage">Tax Percentage (%) *</label>
+            <input
+              type="number"
+              id="taxPercentage"
+              [(ngModel)]="outletForm.settings!.taxPercentage"
+              name="taxPercentage"
+              required
+              min="0"
+              max="100"
+              step="0.01"
+              placeholder="Enter tax percentage">
+          </div>
+
+          <div class="form-group">
+            <label>Service Types</label>
+            <div class="checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  [(ngModel)]="outletForm.settings!.acceptsOnlineOrders"
+                  name="acceptsOnlineOrders">
+                Online Orders
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  [(ngModel)]="outletForm.settings!.acceptsDineIn"
+                  name="acceptsDineIn">
+                Dine-in
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  [(ngModel)]="outletForm.settings!.acceptsTakeaway"
+                  name="acceptsTakeaway">
+                Takeaway
+              </label>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="deliveryRadius">Delivery Radius (km)</label>
+              <input
+                type="number"
+                id="deliveryRadius"
+                [(ngModel)]="outletForm.settings!.deliveryRadius"
+                name="deliveryRadius"
+                min="0"
+                step="0.5"
+                placeholder="Enter delivery radius">
+            </div>
+
+            <div class="form-group">
+              <label for="minimumOrderAmount">Minimum Order Amount</label>
+              <input
+                type="number"
+                id="minimumOrderAmount"
+                [(ngModel)]="outletForm.settings!.minimumOrderAmount"
+                name="minimumOrderAmount"
+                min="0"
+                step="10"
+                placeholder="Enter minimum amount">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input
+                type="checkbox"
+                [(ngModel)]="outletForm.isActive"
+                name="isActive">
+              Active
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeModal()">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" [disabled]="isLoading">
+            {{ modalMode === 'create' ? 'Create' : 'Update' }} Outlet
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

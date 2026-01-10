@@ -1,8 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SalesService, Sales, CreateSalesRequest, SalesItem } from '../../services/sales.service';
 import { SalesItemTypeService, SalesItemType } from '../../services/sales-item-type.service';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { getIstDateString, getIstNow, convertToIst, formatIstDate } from '../../utils/date-utils';
 
 @Component({
@@ -12,7 +15,10 @@ import { getIstDateString, getIstNow, convertToIst, formatIstDate } from '../../
   templateUrl: './admin-sales.component.html',
   styleUrls: ['./admin-sales.component.scss']
 })
-export class AdminSalesComponent implements OnInit {
+export class AdminSalesComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   sales: Sales[] = [];
   salesItemTypes: SalesItemType[] = [];
   loading = false;
@@ -73,8 +79,23 @@ export class AdminSalesComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.loadSales();
-    this.loadSalesItemTypes();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadSales();
+        this.loadSalesItemTypes();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadSales();
+      this.loadSalesItemTypes();
+    }
+  }
+
+  ngOnDestroy() {
+    this.outletSubscription?.unsubscribe();
   }
 
   loadSales() {

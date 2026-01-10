@@ -34,7 +34,8 @@ public class OperationalExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var expenses = await _mongo.GetAllOperationalExpensesAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var expenses = await _mongo.GetAllOperationalExpensesAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(expenses);
             return response;
@@ -158,6 +159,15 @@ public class OperationalExpenseFunction
                 return badRequest;
             }
 
+            // Validate outlet access
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+
             // Check if operational expense already exists for this month/year
             var existing = await _mongo.GetOperationalExpenseByMonthYearAsync(requestBody.Month, requestBody.Year);
             if (existing != null)
@@ -169,6 +179,7 @@ public class OperationalExpenseFunction
 
             var expense = new OperationalExpense
             {
+                OutletId = outletId,
                 Month = requestBody.Month,
                 Year = requestBody.Year,
                 CookSalary = requestBody.CookSalary,

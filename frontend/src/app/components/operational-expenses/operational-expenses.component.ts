@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { OperationalExpenseService, OperationalExpense, CreateOperationalExpenseRequest, UpdateOperationalExpenseRequest } from '../../services/operational-expense.service';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { getIstDateString, formatIstDate, getIstNow } from '../../utils/date-utils';
 
 @Component({
@@ -11,7 +14,10 @@ import { getIstDateString, formatIstDate, getIstNow } from '../../utils/date-uti
   templateUrl: './operational-expenses.component.html',
   styleUrl: './operational-expenses.component.scss'
 })
-export class OperationalExpensesComponent implements OnInit {
+export class OperationalExpensesComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   expenses: OperationalExpense[] = [];
   loading = false;
   showModal = false;
@@ -53,7 +59,21 @@ export class OperationalExpensesComponent implements OnInit {
   constructor(private operationalExpenseService: OperationalExpenseService) {}
 
   ngOnInit() {
-    this.loadExpenses();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadExpenses();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadExpenses();
+    }
+  }
+
+  ngOnDestroy() {
+    this.outletSubscription?.unsubscribe();
   }
 
   loadExpenses() {

@@ -38,7 +38,8 @@ public class PlatformChargeFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var charges = await _mongoService.GetAllPlatformChargesAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var charges = await _mongoService.GetAllPlatformChargesAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
@@ -197,6 +198,15 @@ public class PlatformChargeFunction
                 return await CreateErrorResponse(req, "Invalid platform, month, or year");
             }
 
+            // Validate outlet access
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _authService, _mongoService);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+
             // Check if charge already exists for this month/year/platform
             var existing = await _mongoService.GetPlatformChargeByKeyAsync(request.Platform, request.Year, request.Month);
             if (existing != null)
@@ -206,6 +216,7 @@ public class PlatformChargeFunction
 
             var charge = new PlatformCharge
             {
+                OutletId = outletId,
                 Platform = request.Platform,
                 Month = request.Month,
                 Year = request.Year,

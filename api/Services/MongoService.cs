@@ -56,8 +56,12 @@ public partial class MongoService
     private readonly IMongoCollection<StockAlert> _stockAlerts;
     private readonly IMongoCollection<OverheadCost> _overheadCosts;
     private readonly IMongoCollection<FrozenItem> _frozenItems;
+    private readonly IMongoCollection<Outlet> _outlets;
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
+    
+    // Public property to expose database for dependency injection
+    public IMongoDatabase Database => _database;
     
     public MongoService(IConfiguration config)
     {
@@ -108,6 +112,7 @@ public partial class MongoService
         _stockAlerts = db.GetCollection<StockAlert>("StockAlerts");
         _overheadCosts = db.GetCollection<OverheadCost>("OverheadCosts");
         _frozenItems = db.GetCollection<FrozenItem>("FrozenItems");
+        _outlets = db.GetCollection<Outlet>("Outlets");
 
         // Ensure default admin user exists
         try
@@ -153,14 +158,31 @@ public partial class MongoService
         {
             Console.WriteLine($"✗ Error ensuring default overhead costs: {ex.Message}");
         }
+
+        // Ensure default outlet exists
+        try
+        {
+            EnsureDefaultOutletAsync().Wait();
+            Console.WriteLine("✓ Default outlet check completed");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Error ensuring default outlet: {ex.Message}");
+        }
     }
 
     #region CafeMenuItem Operations
     
     // Get all menu items
-    public async Task<List<CafeMenuItem>> GetMenuAsync()
+    public async Task<List<CafeMenuItem>> GetMenuAsync(string? outletId = null)
     {
-        var menuItems = await _menu.Find(_ => true).ToListAsync();
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<CafeMenuItem>();
+        
+        var filter = Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId);
+        
+        var menuItems = await _menu.Find(filter).ToListAsync();
         
         // Populate future prices from latest active price forecasts
         foreach (var item in menuItems)
@@ -642,11 +664,17 @@ public partial class MongoService
             .ToListAsync();
     }
 
-    // Get all orders (admin)
-    public async Task<List<Order>> GetAllOrdersAsync()
+    // Get all orders (admin) - optionally filtered by outlet
+    public async Task<List<Order>> GetAllOrdersAsync(string? outletId = null)
     {
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<Order>();
+        
+        var filter = Builders<Order>.Filter.Eq(o => o.OutletId, outletId);
+        
         return await _orders
-            .Find(_ => true)
+            .Find(filter)
             .SortByDescending(x => x.CreatedAt)
             .ToListAsync();
     }
@@ -1434,14 +1462,37 @@ public partial class MongoService
     #region Sales Operations
 
     // Get all sales records
-    public async Task<List<Sales>> GetAllSalesAsync() =>
-        await _sales.Find(_ => true).SortByDescending(s => s.Date).ToListAsync();
+    public async Task<List<Sales>> GetAllSalesAsync(string? outletId = null)
+    {
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<Sales>();
+        
+        var filter = Builders<Sales>.Filter.Eq(s => s.OutletId, outletId);
+        
+        return await _sales.Find(filter).SortByDescending(s => s.Date).ToListAsync();
+    }
 
     // Get sales by date range
-    public async Task<List<Sales>> GetSalesByDateRangeAsync(DateTime startDate, DateTime endDate) =>
-        await _sales.Find(s => s.Date >= startDate && s.Date <= endDate)
+    public async Task<List<Sales>> GetSalesByDateRangeAsync(DateTime startDate, DateTime endDate, string? outletId = null)
+    {
+        var filterBuilder = Builders<Sales>.Filter;
+        var filters = new List<FilterDefinition<Sales>>
+        {
+            filterBuilder.Gte(s => s.Date, startDate),
+            filterBuilder.Lte(s => s.Date, endDate)
+        };
+
+        if (outletId != null)
+        {
+            filters.Add(filterBuilder.Eq(s => s.OutletId, outletId));
+        }
+
+        var filter = filterBuilder.And(filters);
+        return await _sales.Find(filter)
             .SortByDescending(s => s.Date)
             .ToListAsync();
+    }
 
     // Get sales by ID
     public async Task<Sales?> GetSalesByIdAsync(string id) =>
@@ -1471,13 +1522,24 @@ public partial class MongoService
         return result.DeletedCount > 0;
     }
 
-    // Get sales summary by date
-    public async Task<SalesSummary> GetSalesSummaryByDateAsync(DateTime date)
+    // Get sales summary by date (optionally filtered by outlet)
+    public async Task<SalesSummary> GetSalesSummaryByDateAsync(DateTime date, string? outletId = null)
     {
         var startOfDay = date.Date;
         var endOfDay = startOfDay.AddDays(1);
 
-        var salesRecords = await _sales.Find(s => s.Date >= startOfDay && s.Date < endOfDay).ToListAsync();
+        var builder = Builders<Sales>.Filter;
+        var filter = builder.And(
+            builder.Gte(s => s.Date, startOfDay),
+            builder.Lt(s => s.Date, endOfDay)
+        );
+        
+        if (outletId != null)
+        {
+            filter = builder.And(filter, builder.Eq(s => s.OutletId, outletId));
+        }
+
+        var salesRecords = await _sales.Find(filter).ToListAsync();
 
         var summary = new SalesSummary
         {
@@ -1496,15 +1558,34 @@ public partial class MongoService
 
     #region Expense Operations
 
-    // Get all expenses
-    public async Task<List<Expense>> GetAllExpensesAsync() =>
-        await _expenses.Find(_ => true).SortByDescending(e => e.Date).ToListAsync();
+    // Get all expenses (optionally filtered by outlet)
+    public async Task<List<Expense>> GetAllExpensesAsync(string? outletId = null)
+    {
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<Expense>();
+        
+        var filter = Builders<Expense>.Filter.Eq(e => e.OutletId, outletId);
+        
+        return await _expenses.Find(filter).SortByDescending(e => e.Date).ToListAsync();
+    }
 
-    // Get expenses by date range
-    public async Task<List<Expense>> GetExpensesByDateRangeAsync(DateTime startDate, DateTime endDate) =>
-        await _expenses.Find(e => e.Date >= startDate && e.Date <= endDate)
-            .SortByDescending(e => e.Date)
-            .ToListAsync();
+    // Get expenses by date range (optionally filtered by outlet)
+    public async Task<List<Expense>> GetExpensesByDateRangeAsync(DateTime startDate, DateTime endDate, string? outletId = null)
+    {
+        var builder = Builders<Expense>.Filter;
+        var filter = builder.And(
+            builder.Gte(e => e.Date, startDate),
+            builder.Lte(e => e.Date, endDate)
+        );
+        
+        if (outletId != null)
+        {
+            filter = builder.And(filter, builder.Eq(e => e.OutletId, outletId));
+        }
+        
+        return await _expenses.Find(filter).SortByDescending(e => e.Date).ToListAsync();
+    }
 
     // Get expense by ID
     public async Task<Expense?> GetExpenseByIdAsync(string id) =>
@@ -1560,11 +1641,19 @@ public partial class MongoService
     #region OperationalExpense Operations
 
     // Get all operational expenses
-    public async Task<List<OperationalExpense>> GetAllOperationalExpensesAsync() =>
-        await _operationalExpenses.Find(_ => true)
+    public async Task<List<OperationalExpense>> GetAllOperationalExpensesAsync(string? outletId = null)
+    {
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<OperationalExpense>();
+        
+        var filter = Builders<OperationalExpense>.Filter.Eq(e => e.OutletId, outletId);
+        
+        return await _operationalExpenses.Find(filter)
             .SortByDescending(e => e.Year)
             .ThenByDescending(e => e.Month)
             .ToListAsync();
+    }
 
     // Get operational expense by month and year
     public async Task<OperationalExpense?> GetOperationalExpenseByMonthYearAsync(int month, int year) =>
@@ -1928,18 +2017,24 @@ public partial class MongoService
     }
 
     // Get reconciliation for a specific date
-    public async Task<DailyCashReconciliation?> GetCashReconciliationByDateAsync(DateTime date)
+    public async Task<DailyCashReconciliation?> GetCashReconciliationByDateAsync(DateTime date, string? outletId = null)
     {
         var startOfDay = date.Date;
         var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
         
+        var filterBuilder = Builders<DailyCashReconciliation>.Filter;
+        var filter = filterBuilder.Gte(r => r.Date, startOfDay) & filterBuilder.Lte(r => r.Date, endOfDay);
+        
+        if (!string.IsNullOrEmpty(outletId))
+            filter &= filterBuilder.Eq(r => r.OutletId, outletId);
+        
         return await _cashReconciliations
-            .Find(r => r.Date >= startOfDay && r.Date <= endOfDay)
+            .Find(filter)
             .FirstOrDefaultAsync();
     }
 
     // Get all reconciliations within date range
-    public async Task<List<DailyCashReconciliation>> GetCashReconciliationsAsync(DateTime? startDate = null, DateTime? endDate = null)
+    public async Task<List<DailyCashReconciliation>> GetCashReconciliationsAsync(DateTime? startDate = null, DateTime? endDate = null, string? outletId = null)
     {
         var filter = Builders<DailyCashReconciliation>.Filter.Empty;
         
@@ -1953,6 +2048,11 @@ public partial class MongoService
         {
             var end = endDate.Value.Date.AddDays(1).AddTicks(-1);
             filter &= Builders<DailyCashReconciliation>.Filter.Lte(r => r.Date, end);
+        }
+        
+        if (!string.IsNullOrEmpty(outletId))
+        {
+            filter &= Builders<DailyCashReconciliation>.Filter.Eq(r => r.OutletId, outletId);
         }
         
         return await _cashReconciliations
@@ -2193,30 +2293,46 @@ public partial class MongoService
 
     #region Online Sales Management
 
-    public async Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null)
+    public async Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null)
     {
-        var filter = string.IsNullOrEmpty(platform)
-            ? Builders<OnlineSale>.Filter.Empty
-            : Builders<OnlineSale>.Filter.Eq(s => s.Platform, platform);
+        var filterBuilder = Builders<OnlineSale>.Filter;
+        var filters = new List<FilterDefinition<OnlineSale>>();
+        
+        if (!string.IsNullOrEmpty(platform))
+            filters.Add(filterBuilder.Eq(s => s.Platform, platform));
+            
+        if (!string.IsNullOrEmpty(outletId))
+            filters.Add(filterBuilder.Eq(s => s.OutletId, outletId));
+
+        var filter = filters.Count > 0 
+            ? filterBuilder.And(filters) 
+            : filterBuilder.Empty;
 
         return await _onlineSales.Find(filter)
             .SortByDescending(s => s.OrderAt)
             .ToListAsync();
     }
 
-    public async Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate)
+    public async Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null)
     {
         // Dates are received as IST dates (YYYY-MM-DD), treat them as IST for filtering
         var startOfDay = startDate.Date;
         var endOfDay = endDate.Date.AddDays(1).AddTicks(-1);
 
         var filterBuilder = Builders<OnlineSale>.Filter;
-        var filter = filterBuilder.Gte(s => s.OrderAt, startOfDay) & filterBuilder.Lte(s => s.OrderAt, endOfDay);
+        var filters = new List<FilterDefinition<OnlineSale>>
+        {
+            filterBuilder.Gte(s => s.OrderAt, startOfDay),
+            filterBuilder.Lte(s => s.OrderAt, endOfDay)
+        };
 
         if (!string.IsNullOrEmpty(platform))
-        {
-            filter &= filterBuilder.Eq(s => s.Platform, platform);
-        }
+            filters.Add(filterBuilder.Eq(s => s.Platform, platform));
+            
+        if (!string.IsNullOrEmpty(outletId))
+            filters.Add(filterBuilder.Eq(s => s.OutletId, outletId));
+
+        var filter = filterBuilder.And(filters);
 
         return await _onlineSales.Find(filter)
             .SortByDescending(s => s.OrderAt)
@@ -2573,9 +2689,15 @@ public partial class MongoService
 
     #region Platform Charges Methods
 
-    public async Task<List<PlatformCharge>> GetAllPlatformChargesAsync()
+    public async Task<List<PlatformCharge>> GetAllPlatformChargesAsync(string? outletId = null)
     {
-        return await _platformCharges.Find(_ => true)
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<PlatformCharge>();
+        
+        var filter = Builders<PlatformCharge>.Filter.Eq(c => c.OutletId, outletId);
+        
+        return await _platformCharges.Find(filter)
             .SortByDescending(c => c.Year)
             .ThenByDescending(c => c.Month)
             .ToListAsync();
@@ -2640,8 +2762,16 @@ public partial class MongoService
     #region PriceForecast Operations
 
     // Get all price forecasts
-    public async Task<List<PriceForecast>> GetPriceForecastsAsync() =>
-        await _priceForecasts.Find(_ => true).SortByDescending(p => p.CreatedDate).ToListAsync();
+    public async Task<List<PriceForecast>> GetPriceForecastsAsync(string? outletId = null)
+    {
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<PriceForecast>();
+        
+        var filter = Builders<PriceForecast>.Filter.Eq(p => p.OutletId, outletId);
+        
+        return await _priceForecasts.Find(filter).SortByDescending(p => p.CreatedDate).ToListAsync();
+    }
 
     // Get price forecasts by menu item ID
     public async Task<List<PriceForecast>> GetPriceForecastsByMenuItemAsync(string menuItemId) =>

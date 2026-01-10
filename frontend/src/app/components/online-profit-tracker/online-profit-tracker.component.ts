@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 interface ProfitData {
@@ -32,7 +35,10 @@ interface ExpenseCategory {
   templateUrl: './online-profit-tracker.component.html',
   styleUrls: ['./online-profit-tracker.component.scss']
 })
-export class OnlineProfitTrackerComponent implements OnInit {
+export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   // Expose Math object to template
   Math = Math;
 
@@ -61,7 +67,21 @@ export class OnlineProfitTrackerComponent implements OnInit {
 
   ngOnInit(): void {
     this.setDefaultDateRange();
-    this.loadProfitData();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadProfitData();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadProfitData();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.outletSubscription?.unsubscribe();
   }
 
   setDefaultDateRange(): void {

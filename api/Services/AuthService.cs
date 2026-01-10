@@ -30,19 +30,32 @@ public class AuthService
         return BCrypt.Net.BCrypt.Verify(password, passwordHash);
     }
 
-    public string GenerateJwtToken(string userId, string username, string role)
+    public string GenerateJwtToken(string userId, string username, string role, string? defaultOutletId = null, List<string>? assignedOutlets = null)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(_jwtSecret);
         
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId),
+            new Claim(ClaimTypes.Name, username),
+            new Claim(ClaimTypes.Role, role)
+        };
+        
+        // Add outlet claims if provided
+        if (!string.IsNullOrEmpty(defaultOutletId))
+        {
+            claims.Add(new Claim("DefaultOutletId", defaultOutletId));
+        }
+        
+        if (assignedOutlets != null && assignedOutlets.Count > 0)
+        {
+            claims.Add(new Claim("AssignedOutlets", string.Join(",", assignedOutlets)));
+        }
+        
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId),
-                new Claim(ClaimTypes.Name, username),
-                new Claim(ClaimTypes.Role, role)
-            }),
+            Subject = new ClaimsIdentity(claims),
             Expires = MongoService.GetIstNow().AddMinutes(_jwtExpiryMinutes),
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(key), 

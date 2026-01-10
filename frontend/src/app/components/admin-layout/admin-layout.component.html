@@ -11,16 +11,29 @@
     <nav class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ng-container *ngFor="let item of menuItems; let i = index">
         <!-- Menu item with dropdown -->
-        <div *ngIf="item.children" class="nav-item-dropdown" [class.active]="activeDropdown === item.label">
-          <a
-            class="nav-item"
+        <div
+          *ngIf="item.children"
+          class="nav-item-dropdown"
+          [class.active]="activeDropdown === item.label"
+        >
+          <button
+            type="button"
+            class="nav-item dropdown-toggle"
             (click)="toggleDropdown(item.label, $event)"
+            [class.active]="activeDropdown === item.label"
           >
             <span class="nav-icon">{{ item.icon }}</span>
             <span class="nav-label">{{ item.label }}</span>
             <span class="dropdown-arrow">▼</span>
-          </a>
-          <div class="dropdown-menu" *ngIf="activeDropdown === item.label">
+          </button>
+          <div
+            class="dropdown-menu"
+            [class.show]="activeDropdown === item.label"
+            [style.display]="activeDropdown === item.label ? 'block' : 'none'"
+            [style.opacity]="activeDropdown === item.label ? '1' : '0'"
+            [style.visibility]="activeDropdown === item.label ? 'visible' : 'hidden'"
+            (click)="$event.stopPropagation()"
+          >
             <a
               *ngFor="let child of item.children"
               [routerLink]="child.route"
@@ -53,26 +66,74 @@
         <span class="notification-badge">3</span>
       </button>
 
-      <div class="user-section" *ngIf="currentUser$ | async as user">
-        <div class="user-info">
+      <!-- Profile Dropdown -->
+      <div
+        class="profile-dropdown-container"
+        *ngIf="currentUser$ | async as user"
+        [class.active]="isProfileDropdownOpen"
+      >
+        <button class="profile-button" (click)="toggleProfileDropdown($event)">
           <div class="user-avatar">
             {{ user.username.charAt(0).toUpperCase() }}
           </div>
           <div class="user-details">
             <div class="user-name">{{ user.username }}</div>
-            <div class="user-role">Admin</div>
+            <div class="user-outlet" *ngIf="selectedOutlet$ | async as outlet">
+              <span class="outlet-icon">🏪</span>
+              {{ outlet.outletName }}
+            </div>
+            <div class="user-role" *ngIf="!(selectedOutlet$ | async)">
+              Admin
+            </div>
           </div>
+          <span class="profile-arrow">▼</span>
+        </button>
+
+        <div
+          class="profile-dropdown-menu"
+          [class.show]="isProfileDropdownOpen"
+          (click)="$event.stopPropagation()"
+        >
+          <!-- Outlet Selector in Dropdown -->
+          <div class="profile-dropdown-outlet">
+            <label class="outlet-dropdown-label">Switch Outlet:</label>
+            <app-outlet-selector></app-outlet-selector>
+          </div>
+          <div class="profile-dropdown-divider"></div>
+
+          <a
+            routerLink="/admin/profile"
+            class="profile-dropdown-item"
+            (click)="closeProfileDropdown(); closeMobileMenu()"
+          >
+            <span class="dropdown-icon">✏️</span>
+            <span class="dropdown-label">Edit Profile</span>
+          </a>
+          <a
+            routerLink="/admin/outlets"
+            class="profile-dropdown-item"
+            (click)="closeProfileDropdown(); closeMobileMenu()"
+          >
+            <span class="dropdown-icon">🏪</span>
+            <span class="dropdown-label">Manage Outlets</span>
+          </a>
+          <div class="profile-dropdown-divider"></div>
+          <button
+            class="profile-dropdown-item logout-item"
+            (click)="onLogout()"
+          >
+            <span class="dropdown-icon">🚪</span>
+            <span class="dropdown-label">Logout</span>
+          </button>
         </div>
       </div>
 
-      <button class="btn-logout" (click)="onLogout()" title="Logout">
-        <span class="logout-icon">🚪</span>
-        <span class="logout-text">Logout</span>
-      </button>
-
-      <button class="mobile-menu-toggle" (click)="toggleMobileMenu()">
-        <span *ngIf="!isMobileMenuOpen">☰</span>
-        <span *ngIf="isMobileMenuOpen">✕</span>
+      <button class="mobile-menu-toggle"
+              [class.active]="isMobileMenuOpen"
+              (click)="toggleMobileMenu()">
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
       </button>
     </div>
   </header>

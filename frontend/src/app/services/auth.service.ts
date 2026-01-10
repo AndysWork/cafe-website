@@ -13,6 +13,8 @@ export interface User {
   firstName?: string;
   lastName?: string;
   token?: string;
+  defaultOutletId?: string;
+  assignedOutlets?: string[];
 }
 
 export interface LoginRequest {
@@ -36,6 +38,8 @@ export interface LoginResponse {
   role: string;
   firstName?: string;
   lastName?: string;
+  defaultOutletId?: string;
+  assignedOutlets?: string[];
 }
 
 export interface ApiLoginResponse {
@@ -92,6 +96,9 @@ export class AuthService {
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('csrfToken');
+    // Clear outlet data as well
+    localStorage.removeItem('selectedOutletId');
+    localStorage.removeItem('selectedOutlet');
     this.currentUserSubject.next(null);
   }
 
@@ -119,7 +126,9 @@ export class AuthService {
               role: response.role as UserRole,
               firstName: response.firstName,
               lastName: response.lastName,
-              token: response.token
+              token: response.token,
+              defaultOutletId: response.defaultOutletId,
+              assignedOutlets: response.assignedOutlets
             };
 
             localStorage.setItem('currentUser', JSON.stringify(user));

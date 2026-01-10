@@ -6,9 +6,10 @@ import { OrderService, Order, OrderItem } from '../../services/order.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { SalesService, Sales } from '../../services/sales.service';
 import { ExpenseService, Expense } from '../../services/expense.service';
+import { OutletService } from '../../services/outlet.service';
 import { environment } from '../../../environments/environment';
-import { interval, Subscription, forkJoin } from 'rxjs';
-import { switchMap, startWith } from 'rxjs/operators';
+import { forkJoin, Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 interface OnlineSale {
   _id?: string;
@@ -60,8 +61,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   private menuService = inject(MenuService);
   private salesService = inject(SalesService);
   private expenseService = inject(ExpenseService);
+  private outletService = inject(OutletService);
   private http = inject(HttpClient);
-  private refreshSubscription?: Subscription;
+  private outletSubscription?: Subscription;
 
   stats = [
     { label: 'Total Menu Items', value: '0', icon: '🍽️', color: '#f38181' },
@@ -100,23 +102,29 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   };
 
   isLoading = true;
+  errorMessage: string | null = null;
 
   ngOnInit(): void {
-    this.loadDashboardData();
-    // Auto-refresh every 30 seconds
-    this.refreshSubscription = interval(30000)
-      .pipe(startWith(0))
-      .subscribe(() => this.loadDashboardData());
+    // Subscribe to outlet changes and reload data
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadDashboardData();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadDashboardData();
+    }
   }
 
   ngOnDestroy(): void {
-    if (this.refreshSubscription) {
-      this.refreshSubscription.unsubscribe();
-    }
+    this.outletSubscription?.unsubscribe();
   }
 
   loadDashboardData(): void {
     this.isLoading = true;
+    this.errorMessage = null;
 
     // Load all data in parallel
     forkJoin({
@@ -143,6 +151,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error loading dashboard data:', error);
+        this.errorMessage = 'Failed to load dashboard data. Please try again.';
         this.isLoading = false;
       }
     });
@@ -385,4 +394,5 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       })
       .join(' ');
   }
+
 }

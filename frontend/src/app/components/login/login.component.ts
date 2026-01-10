@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { OutletService } from '../../services/outlet.service';
 
 @Component({
   selector: 'app-login',
@@ -19,6 +20,7 @@ export class LoginComponent {
 
   constructor(
     private authService: AuthService,
+    private outletService: OutletService,
     private router: Router
   ) {}
 
@@ -28,13 +30,30 @@ export class LoginComponent {
 
     this.authService.login(this.username, this.password).subscribe({
       next: (response) => {
-        this.isLoading = false;
+        // Initialize outlets after successful login
         const user = this.authService.getCurrentUser();
-        if (user?.role === 'admin') {
-          this.router.navigate(['/admin/dashboard']);
-        } else {
-          this.router.navigate(['/menu']);
-        }
+
+        // Load outlets for the user
+        this.outletService.initializeOutlets(user?.assignedOutlets).subscribe({
+          next: () => {
+            this.isLoading = false;
+            if (user?.role === 'admin') {
+              this.router.navigate(['/admin/dashboard']);
+            } else {
+              this.router.navigate(['/menu']);
+            }
+          },
+          error: (outletError) => {
+            console.error('Error loading outlets:', outletError);
+            // Continue anyway even if outlet loading fails
+            this.isLoading = false;
+            if (user?.role === 'admin') {
+              this.router.navigate(['/admin/dashboard']);
+            } else {
+              this.router.navigate(['/menu']);
+            }
+          }
+        });
       },
       error: (error) => {
         this.isLoading = false;

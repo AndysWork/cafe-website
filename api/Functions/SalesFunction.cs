@@ -36,7 +36,10 @@ public class SalesFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var sales = await _mongo.GetAllSalesAsync();
+            // Extract outlet ID from request (optional for admin)
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+
+            var sales = await _mongo.GetAllSalesAsync(outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(sales);
@@ -76,7 +79,10 @@ public class SalesFunction
                 return badRequest;
             }
 
-            var sales = await _mongo.GetSalesByDateRangeAsync(startDate, endDate);
+            // Extract outlet ID from request (optional for admin)
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+
+            var sales = await _mongo.GetSalesByDateRangeAsync(startDate, endDate, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(sales);
@@ -158,6 +164,15 @@ public class SalesFunction
                 return badRequest;
             }
 
+            // Validate outlet access
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+
             // Get username for recordedBy
             var user = await _mongo.GetUserByIdAsync(userId!);
             var username = user?.Username ?? "Admin";
@@ -183,6 +198,7 @@ public class SalesFunction
 
             var sales = new Sales
             {
+                OutletId = outletId,
                 Date = salesRequest.Date,
                 Items = salesItems,
                 TotalAmount = totalAmount,

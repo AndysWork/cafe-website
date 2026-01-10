@@ -10,14 +10,37 @@ public partial class MongoService
 
     // ==== INVENTORY CRUD ====
 
-    public async Task<List<Inventory>> GetAllInventoryAsync()
+    public async Task<List<Inventory>> GetAllInventoryAsync(string? outletId = null)
     {
-        return await _inventory.Find(_ => true).ToListAsync();
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<Inventory>();
+        
+        var filter = Builders<Inventory>.Filter.Eq(i => i.OutletId, outletId);
+        
+        return await _inventory.Find(filter)
+            .SortBy(i => i.IngredientName)
+            .ToListAsync();
     }
 
-    public async Task<List<Inventory>> GetActiveInventoryAsync()
+    public async Task<List<Inventory>> GetActiveInventoryAsync(string? outletId = null)
     {
-        return await _inventory.Find(i => i.IsActive).ToListAsync();
+        var filterBuilder = Builders<Inventory>.Filter;
+        var filters = new List<FilterDefinition<Inventory>>
+        {
+            filterBuilder.Eq(i => i.IsActive, true)
+        };
+
+        if (outletId != null)
+        {
+            filters.Add(filterBuilder.Eq(i => i.OutletId, outletId));
+        }
+
+        var filter = filterBuilder.And(filters);
+        
+        return await _inventory.Find(filter)
+            .SortBy(i => i.IngredientName)
+            .ToListAsync();
     }
 
     public async Task<Inventory?> GetInventoryByIdAsync(string id)
@@ -40,28 +63,66 @@ public partial class MongoService
         return await _inventory.Find(i => i.Status == status && i.IsActive).ToListAsync();
     }
 
-    public async Task<List<Inventory>> GetLowStockItemsAsync()
+    public async Task<List<Inventory>> GetLowStockItemsAsync(string? outletId = null)
     {
-        var filter = Builders<Inventory>.Filter.Where(i =>
-            i.IsActive &&
-            i.CurrentStock <= i.MinimumStock &&
-            i.CurrentStock > 0);
-        return await _inventory.Find(filter).ToListAsync();
+        var filterBuilder = Builders<Inventory>.Filter;
+        var filters = new List<FilterDefinition<Inventory>>
+        {
+            filterBuilder.Eq(i => i.IsActive, true),
+            filterBuilder.Where(i => i.CurrentStock <= i.MinimumStock && i.CurrentStock > 0)
+        };
+
+        if (outletId != null)
+        {
+            filters.Add(filterBuilder.Eq(i => i.OutletId, outletId));
+        }
+
+        var filter = filterBuilder.And(filters);
+        return await _inventory.Find(filter)
+            .SortBy(i => i.CurrentStock)
+            .ToListAsync();
     }
 
-    public async Task<List<Inventory>> GetOutOfStockItemsAsync()
+    public async Task<List<Inventory>> GetOutOfStockItemsAsync(string? outletId = null)
     {
-        return await _inventory.Find(i => i.CurrentStock == 0 && i.IsActive).ToListAsync();
+        var filterBuilder = Builders<Inventory>.Filter;
+        var filters = new List<FilterDefinition<Inventory>>
+        {
+            filterBuilder.Eq(i => i.IsActive, true),
+            filterBuilder.Eq(i => i.CurrentStock, 0)
+        };
+
+        if (outletId != null)
+        {
+            filters.Add(filterBuilder.Eq(i => i.OutletId, outletId));
+        }
+
+        var filter = filterBuilder.And(filters);
+        return await _inventory.Find(filter)
+            .SortBy(i => i.IngredientName)
+            .ToListAsync();
     }
 
-    public async Task<List<Inventory>> GetExpiringItemsAsync(int daysThreshold = 7)
+    public async Task<List<Inventory>> GetExpiringItemsAsync(int daysThreshold = 7, string? outletId = null)
     {
         var thresholdDate = DateTime.UtcNow.AddDays(daysThreshold);
-        var filter = Builders<Inventory>.Filter.Where(i =>
-            i.IsActive &&
-            i.ExpiryDate != null &&
-            i.ExpiryDate <= thresholdDate);
-        return await _inventory.Find(filter).ToListAsync();
+        var filterBuilder = Builders<Inventory>.Filter;
+        var filters = new List<FilterDefinition<Inventory>>
+        {
+            filterBuilder.Eq(i => i.IsActive, true),
+            filterBuilder.Ne(i => i.ExpiryDate, null),
+            filterBuilder.Lte(i => i.ExpiryDate, thresholdDate)
+        };
+
+        if (outletId != null)
+        {
+            filters.Add(filterBuilder.Eq(i => i.OutletId, outletId));
+        }
+
+        var filter = filterBuilder.And(filters);
+        return await _inventory.Find(filter)
+            .SortBy(i => i.ExpiryDate)
+            .ToListAsync();
     }
 
     public async Task<Inventory> CreateInventoryAsync(Inventory inventory)
@@ -237,9 +298,15 @@ public partial class MongoService
 
     // ==== TRANSACTIONS ====
 
-    public async Task<List<InventoryTransaction>> GetAllInventoryTransactionsAsync()
+    public async Task<List<InventoryTransaction>> GetAllInventoryTransactionsAsync(string? outletId = null)
     {
-        return await _inventoryTransactions.Find(_ => true)
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<InventoryTransaction>();
+        
+        var filter = Builders<InventoryTransaction>.Filter.Eq(t => t.OutletId, outletId);
+        
+        return await _inventoryTransactions.Find(filter)
             .SortByDescending(t => t.TransactionDate)
             .ToListAsync();
     }

@@ -8,6 +8,9 @@ public class OverheadCost
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; } // Null means shared across all outlets
+
     public string CostType { get; set; } = string.Empty; // Rent, Labour, Electricity, etc.
     public decimal MonthlyCost { get; set; } = 0;
     public int OperationalHoursPerDay { get; set; } = 11; // Default 11 hours

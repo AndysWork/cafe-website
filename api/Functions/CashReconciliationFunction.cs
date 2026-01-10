@@ -41,7 +41,8 @@ public class CashReconciliationFunction
             if (DateTime.TryParse(query["endDate"], out var end))
                 endDate = end;
 
-            var reconciliations = await _mongo.GetCashReconciliationsAsync(startDate, endDate);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var reconciliations = await _mongo.GetCashReconciliationsAsync(startDate, endDate, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = reconciliations });
@@ -74,7 +75,8 @@ public class CashReconciliationFunction
                 return badRequest;
             }
 
-            var reconciliation = await _mongo.GetCashReconciliationByDateAsync(parsedDate);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var reconciliation = await _mongo.GetCashReconciliationByDateAsync(parsedDate, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = reconciliation });
@@ -148,8 +150,17 @@ public class CashReconciliationFunction
                 return badRequest;
             }
 
+            // Validate outlet access
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+
             // Check if reconciliation already exists for this date
-            var existing = await _mongo.GetCashReconciliationByDateAsync(request.Date);
+            var existing = await _mongo.GetCashReconciliationByDateAsync(request.Date, outletId);
             if (existing != null)
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
@@ -159,6 +170,7 @@ public class CashReconciliationFunction
 
             var reconciliation = new DailyCashReconciliation
             {
+                OutletId = outletId,
                 Date = request.Date,
                 ExpectedCash = request.ExpectedCash,
                 ExpectedCoins = request.ExpectedCoins,

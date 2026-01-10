@@ -1,9 +1,11 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { MenuService } from '../../services/menu.service';
+import { OutletService } from '../../services/outlet.service';
 import { environment } from '../../../environments/environment';
 import { getIstNow } from '../../utils/date-utils';
 
@@ -53,6 +55,9 @@ interface SubCategory {
   styleUrl: './menu-management.component.scss'
 })
 export class MenuManagementComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   menuItems: MenuItem[] = [];
   categories: Category[] = [];
   subCategories: SubCategory[] = [];
@@ -105,9 +110,14 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.loadMenuItems();
-    this.loadCategories();
-    this.loadSubCategories();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadMenuItems();
+        this.loadCategories();
+        this.loadSubCategories();
+      });
 
     // Subscribe to menu refresh notifications
     this.menuRefreshSubscription = this.menuService.menuItemsRefresh$.subscribe((refresh) => {
@@ -116,9 +126,17 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
         this.loadMenuItems();
       }
     });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadMenuItems();
+      this.loadCategories();
+      this.loadSubCategories();
+    }
   }
 
   ngOnDestroy(): void {
+    this.outletSubscription?.unsubscribe();
     this.menuRefreshSubscription?.unsubscribe();
   }
 

@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 interface DailySalesSummary {
@@ -50,7 +53,10 @@ interface CashReconciliation {
   templateUrl: './cashier.component.html',
   styleUrls: ['./cashier.component.scss']
 })
-export class CashierComponent implements OnInit {
+export class CashierComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   // Date selection
   selectedDate: string = '';
 
@@ -109,13 +115,27 @@ export class CashierComponent implements OnInit {
     // Set today's date
     const today = new Date();
     this.selectedDate = today.toISOString().split('T')[0];
-    this.loadData();
-    this.loadRecentReconciliations();
+
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadData();
+        this.loadRecentReconciliations();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadData();
+      this.loadRecentReconciliations();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.outletSubscription?.unsubscribe();
   }
 
   async loadData(): Promise<void> {
-    if (!this.selectedDate) return;
-
     this.isLoading = true;
     this.errorMessage = '';
 

@@ -28,6 +28,11 @@ public class CafeMenuItem
     [BsonRepresentation(BsonType.ObjectId)]
     public string? SubCategoryId { get; set; }
     
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [Required(ErrorMessage = "Outlet ID is required")]
+    public string OutletId { get; set; } = string.Empty; // Multi-outlet support
+    
     [Range(0, int.MaxValue, ErrorMessage = "Quantity must be a positive number")]
     public int Quantity { get; set; }
     

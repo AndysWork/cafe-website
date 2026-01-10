@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
+using MongoDB.Driver;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWebApplication(builder =>
@@ -18,6 +19,7 @@ var host = new HostBuilder()
     .ConfigureServices(s =>
     {
         s.AddSingleton<MongoService>();
+        s.AddSingleton(sp => sp.GetRequiredService<MongoService>().Database);
         s.AddSingleton<FileUploadService>();
         s.AddSingleton<AuthService>();
         s.AddSingleton<IEmailService, EmailService>();

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -10,6 +10,9 @@ import {
   StockInRequest,
   StockOutRequest
 } from '../services/inventory.service';
+import { OutletService } from '../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 @Component({
   selector: 'app-inventory-management',
@@ -18,7 +21,10 @@ import {
   templateUrl: './inventory-management.component.html',
   styleUrl: './inventory-management.component.scss'
 })
-export class InventoryManagementComponent implements OnInit {
+export class InventoryManagementComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   // Data
   inventoryItems: Inventory[] = [];
   filteredItems: Inventory[] = [];
@@ -64,7 +70,21 @@ export class InventoryManagementComponent implements OnInit {
   constructor(private inventoryService: InventoryService) {}
 
   ngOnInit(): void {
-    this.loadDashboard();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadDashboard();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadDashboard();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.outletSubscription?.unsubscribe();
   }
 
   // ===== DASHBOARD =====

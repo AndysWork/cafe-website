@@ -82,6 +82,15 @@ public class OrderFunction
                 return badRequest;
             }
 
+            // Validate outlet access
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+
             // Validate and build order items
             var orderItems = new List<OrderItem>();
             decimal subtotal = 0;
@@ -131,6 +140,7 @@ public class OrderFunction
             // Create order
             var order = new Order
             {
+                OutletId = outletId,
                 UserId = userId,
                 Username = username,
                 UserEmail = user?.Email,
@@ -241,7 +251,8 @@ public class OrderFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var orders = await _mongo.GetAllOrdersAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var orders = await _mongo.GetAllOrdersAsync(outletId);
             var orderResponses = orders.Select(MapToOrderResponse).ToList();
 
             var response = req.CreateResponse(HttpStatusCode.OK);

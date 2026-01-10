@@ -12,6 +12,10 @@ public class OnlineSale
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; }
+
     [BsonElement("platform")]
     public string Platform { get; set; } = string.Empty; // "Zomato" or "Swiggy"
 

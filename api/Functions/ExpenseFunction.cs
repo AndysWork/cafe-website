@@ -35,8 +35,9 @@ public class ExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             _log.LogInformation("Fetching all expenses from database...");
-            var expenses = await _mongo.GetAllExpensesAsync();
+            var expenses = await _mongo.GetAllExpensesAsync(outletId);
             _log.LogInformation($"Successfully fetched {expenses.Count} expenses");
 
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -122,7 +123,8 @@ public class ExpenseFunction
             startDate = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
             endDate = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, 999, DateTimeKind.Unspecified);
 
-            var expenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var expenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(expenses);
@@ -492,6 +494,15 @@ public class ExpenseFunction
             var user = await _mongo.GetUserByIdAsync(userId!);
             var username = user?.Username ?? "Admin";
 
+            // Validate outlet access
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+
             // Parse date as IST date (date-only, no time component)
             if (!DateTime.TryParse(expenseRequest.Date, out var expenseDate))
             {
@@ -503,6 +514,7 @@ public class ExpenseFunction
 
             var expense = new Expense
             {
+                OutletId = outletId,
                 Date = istDate,
                 ExpenseType = expenseRequest.ExpenseType,
                 ExpenseSource = expenseRequest.ExpenseSource,

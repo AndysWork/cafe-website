@@ -33,7 +33,8 @@ public class MenuFunction
     {
         try
         {
-            var items = await _mongo.GetMenuAsync();
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            var items = await _mongo.GetMenuAsync(outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
             return res;
@@ -163,6 +164,21 @@ public class MenuFunction
                 return badRequest;
             }
 
+            // Get or validate outlet ID
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { success = false, error = accessError });
+                return forbidden;
+            }
+            
+            // Set the outlet ID if not provided
+            if (string.IsNullOrEmpty(item.OutletId))
+            {
+                item.OutletId = outletId!;
+            }
+
             // Validate request
             if (!ValidationHelper.TryValidate(item, out var validationError))
             {
@@ -233,6 +249,20 @@ public class MenuFunction
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid menu item data" });
                 return badRequest;
+            }
+
+            // Ensure outlet ID is set
+            if (string.IsNullOrEmpty(item.OutletId))
+            {
+                // Get outlet ID from request
+                var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+                if (!hasAccess)
+                {
+                    var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                    await forbidden.WriteAsJsonAsync(new { error = accessError });
+                    return forbidden;
+                }
+                item.OutletId = outletId!;
             }
 
             // Validate CategoryId exists

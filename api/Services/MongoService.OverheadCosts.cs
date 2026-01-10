@@ -9,14 +9,32 @@ public partial class MongoService
 
     // ===== OVERHEAD COSTS CRUD =====
 
-    public async Task<List<OverheadCost>> GetAllOverheadCostsAsync()
+    public async Task<List<OverheadCost>> GetAllOverheadCostsAsync(string? outletId = null)
     {
-        return await _overheadCosts.Find(_ => true).ToListAsync();
+        // If no outlet is selected, return empty list instead of all data
+        if (outletId == null)
+            return new List<OverheadCost>();
+        
+        var filter = Builders<OverheadCost>.Filter.Eq(o => o.OutletId, outletId);
+        
+        return await _overheadCosts.Find(filter).ToListAsync();
     }
 
-    public async Task<List<OverheadCost>> GetActiveOverheadCostsAsync()
+    public async Task<List<OverheadCost>> GetActiveOverheadCostsAsync(string? outletId = null)
     {
-        return await _overheadCosts.Find(o => o.IsActive).ToListAsync();
+        var filterBuilder = Builders<OverheadCost>.Filter;
+        var filters = new List<FilterDefinition<OverheadCost>>
+        {
+            filterBuilder.Eq(o => o.IsActive, true)
+        };
+
+        if (outletId != null)
+        {
+            filters.Add(filterBuilder.Eq(o => o.OutletId, outletId));
+        }
+
+        var filter = filterBuilder.And(filters);
+        return await _overheadCosts.Find(filter).ToListAsync();
     }
 
     public async Task<OverheadCost?> GetOverheadCostByIdAsync(string id)

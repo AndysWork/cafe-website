@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   PlatformChargeService,
@@ -73,7 +76,10 @@ interface DailyIncome {
   templateUrl: './online-sale-tracker.component.html',
   styleUrls: ['./online-sale-tracker.component.scss'],
 })
-export class OnlineSaleTrackerComponent implements OnInit {
+export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   selectedPlatform: 'Zomato' | 'Swiggy' = 'Zomato';
   selectedFile: File | null = null;
   isUploading = false;
@@ -166,8 +172,23 @@ export class OnlineSaleTrackerComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadData();
-    this.loadPlatformCharges();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadData();
+        this.loadPlatformCharges();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadData();
+      this.loadPlatformCharges();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.outletSubscription?.unsubscribe();
   }
 
   async loadData(): Promise<void> {

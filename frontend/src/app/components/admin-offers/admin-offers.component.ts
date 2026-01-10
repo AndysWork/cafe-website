@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { OffersService, Offer } from '../../services/offers.service';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { getIstNow, formatIstDate } from '../../utils/date-utils';
 
 @Component({
@@ -11,7 +14,10 @@ import { getIstNow, formatIstDate } from '../../utils/date-utils';
   templateUrl: './admin-offers.component.html',
   styleUrls: ['./admin-offers.component.scss']
 })
-export class AdminOffersComponent implements OnInit {
+export class AdminOffersComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   offers: Offer[] = [];
   loading = true;
   showModal = false;
@@ -23,7 +29,21 @@ export class AdminOffersComponent implements OnInit {
   constructor(private offersService: OffersService) {}
 
   ngOnInit() {
-    this.loadOffers();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadOffers();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadOffers();
+    }
+  }
+
+  ngOnDestroy() {
+    this.outletSubscription?.unsubscribe();
   }
 
   loadOffers() {

@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { getIstDateString, getIstInputDate, getIstNow } from '../../utils/date-utils';
 
@@ -38,7 +41,10 @@ interface KptAnalysisSummary {
   templateUrl: './kpt-analysis.component.html',
   styleUrls: ['./kpt-analysis.component.scss']
 })
-export class KptAnalysisComponent implements OnInit {
+export class KptAnalysisComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   isLoading = false;
   errorMessage = '';
 
@@ -68,7 +74,21 @@ export class KptAnalysisComponent implements OnInit {
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
-    this.loadKptAnalysis();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadKptAnalysis();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadKptAnalysis();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.outletSubscription?.unsubscribe();
   }
 
   async loadKptAnalysis(): Promise<void> {

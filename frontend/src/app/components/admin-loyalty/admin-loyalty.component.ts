@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LoyaltyService, Reward, LoyaltyAccount, PointsTransaction } from '../../services/loyalty.service';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { formatIstDate, formatIstDateTime } from '../../utils/date-utils';
 
 @Component({
@@ -11,7 +14,10 @@ import { formatIstDate, formatIstDateTime } from '../../utils/date-utils';
   templateUrl: './admin-loyalty.component.html',
   styleUrls: ['./admin-loyalty.component.scss']
 })
-export class AdminLoyaltyComponent implements OnInit {
+export class AdminLoyaltyComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   activeTab: 'rewards' | 'accounts' | 'redemptions' = 'rewards';
 
   // Rewards management
@@ -40,7 +46,21 @@ export class AdminLoyaltyComponent implements OnInit {
   constructor(private loyaltyService: LoyaltyService) {}
 
   ngOnInit() {
-    this.loadData();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadData();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadData();
+    }
+  }
+
+  ngOnDestroy() {
+    this.outletSubscription?.unsubscribe();
   }
 
   loadData() {

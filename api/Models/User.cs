@@ -24,6 +24,14 @@ public class User
     [BsonElement("role")]
     public string Role { get; set; } = "user"; // "admin" or "user"
 
+    [BsonElement("assignedOutlets")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public List<string> AssignedOutlets { get; set; } = new(); // ObjectIds of outlets user can access
+
+    [BsonElement("defaultOutletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? DefaultOutletId { get; set; } // User's primary outlet
+
     [BsonElement("firstName")]
     public string? FirstName { get; set; }
 
@@ -62,6 +70,8 @@ public class LoginResponse
     public string Role { get; set; } = string.Empty;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    public string? DefaultOutletId { get; set; }
+    public List<string>? AssignedOutlets { get; set; }
 }
 
 public class RegisterRequest

@@ -32,6 +32,7 @@ import { PriceCalculatorComponent } from './components/price-calculator/price-ca
 import { DiscountMappingComponent } from './components/discount-mapping/discount-mapping.component';
 import { InventoryManagementComponent } from './inventory-management/inventory-management.component';
 import { KptAnalysisComponent } from './components/kpt-analysis/kpt-analysis.component';
+import { OutletManagementComponent } from './components/outlet-management/outlet-management.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -55,6 +56,7 @@ export const routes: Routes = [
     canActivate: [adminGuard],
     children: [
       { path: 'dashboard', component: AdminDashboardComponent },
+      { path: 'profile', component: ProfileComponent },
       { path: 'category/upload', component: CategoryUploadComponent },
       { path: 'category/crud', component: CategoryCrudComponent },
       { path: 'menu/upload', component: MenuUploadComponent },
@@ -73,6 +75,7 @@ export const routes: Routes = [
       { path: 'price-forecasting', component: PriceForecastingComponent },
       { path: 'price-calculator', component: PriceCalculatorComponent },
       { path: 'inventory', component: InventoryManagementComponent },
+      { path: 'outlets', component: OutletManagementComponent },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

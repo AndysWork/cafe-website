@@ -1,10 +1,13 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary, HierarchicalExpense, MonthExpense, WeekExpense } from '../../services/expense.service';
 import { OfflineExpenseTypeService, OfflineExpenseType } from '../../services/offline-expense-type.service';
 import { OnlineExpenseTypeService, OnlineExpenseType } from '../../services/online-expense-type.service';
 import { OperationalExpenseService, OperationalExpense, CreateOperationalExpenseRequest, UpdateOperationalExpenseRequest } from '../../services/operational-expense.service';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { getIstDateString, formatIstDate, convertToIst, getIstNow, extractIstDateString } from '../../utils/date-utils';
 
 @Component({
@@ -14,7 +17,10 @@ import { getIstDateString, formatIstDate, convertToIst, getIstNow, extractIstDat
   templateUrl: './admin-expenses.component.html',
   styleUrl: './admin-expenses.component.scss'
 })
-export class AdminExpensesComponent implements OnInit {
+export class AdminExpensesComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   expenses: Expense[] = [];
   offlineExpenseTypes: OfflineExpenseType[] = [];
   onlineExpenseTypes: OnlineExpenseType[] = [];
@@ -98,6 +104,31 @@ export class AdminExpensesComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadExpenses();
+        this.loadOfflineExpenseTypes();
+        this.loadOnlineExpenseTypes();
+        if (this.currentExpenseSource === 'Operational') {
+          this.loadOperationalExpenses();
+        }
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadExpenses();
+      this.loadOfflineExpenseTypes();
+      this.loadOnlineExpenseTypes();
+    }
+  }
+
+  ngOnDestroy() {
+    this.outletSubscription?.unsubscribe();
+  }
+
+  private initializeComponent() {
     this.loadExpenses();
     this.loadOfflineExpenseTypes();
     this.loadOnlineExpenseTypes();

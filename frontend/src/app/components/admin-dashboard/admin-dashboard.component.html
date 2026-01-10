@@ -2,7 +2,6 @@
   <div class="main-header">
     <h1>Dashboard Overview</h1>
     <div class="header-actions">
-      <span class="auto-refresh-badge">🔄 Auto-refresh: 30s</span>
       <button class="btn-refresh" (click)="loadDashboardData()" [disabled]="isLoading">
         {{ isLoading ? '⏳ Loading...' : '🔄 Refresh Now' }}
       </button>
@@ -10,6 +9,12 @@
   </div>
 
   <div class="dashboard-content">
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="error-banner">
+      <span>⚠️ {{ errorMessage }}</span>
+      <button (click)="loadDashboardData()">Retry</button>
+    </div>
+
     <!-- Loading Indicator -->
     <div *ngIf="isLoading && stats[0].value === '0'" class="loading-overlay">
       <div class="loading-spinner">⏳ Loading dashboard data...</div>

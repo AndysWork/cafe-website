@@ -12,6 +12,10 @@ public class Order
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; }
+
     [BsonElement("userId")]
     public string UserId { get; set; } = string.Empty;
 

@@ -120,8 +120,8 @@ public class AuthFunction
             // Update last login
             await _mongo.UpdateUserLastLoginAsync(user.Id!);
 
-            // Generate JWT token
-            var token = _auth.GenerateJwtToken(user.Id!, user.Username, user.Role);
+            // Generate JWT token with outlet information
+            var token = _auth.GenerateJwtToken(user.Id!, user.Username, user.Role, user.DefaultOutletId, user.AssignedOutlets);
 
             // Generate CSRF token
             var csrfToken = CsrfTokenManager.GenerateToken(user.Id!);
@@ -140,7 +140,9 @@ public class AuthFunction
                     Email = user.Email,
                     Role = user.Role,
                     FirstName = user.FirstName,
-                    LastName = user.LastName
+                    LastName = user.LastName,
+                    DefaultOutletId = user.DefaultOutletId,
+                    AssignedOutlets = user.AssignedOutlets
                 },
                 csrfToken = csrfToken
             });

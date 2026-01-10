@@ -5,17 +5,20 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Cafe.Api.Services;
 using Cafe.Api.Models;
+using Cafe.Api.Helpers;
 
 namespace Cafe.Api.Functions;
 
 public class OverheadCostFunction
 {
     private readonly MongoService _mongoService;
+    private readonly AuthService _authService;
     private readonly ILogger<OverheadCostFunction> _logger;
 
-    public OverheadCostFunction(MongoService mongoService, ILogger<OverheadCostFunction> logger)
+    public OverheadCostFunction(MongoService mongoService, AuthService authService, ILogger<OverheadCostFunction> logger)
     {
         _mongoService = mongoService;
+        _authService = authService;
         _logger = logger;
     }
 
@@ -25,7 +28,8 @@ public class OverheadCostFunction
     {
         try
         {
-            var overheadCosts = await _mongoService.GetAllOverheadCostsAsync();
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            var overheadCosts = await _mongoService.GetAllOverheadCostsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(overheadCosts);
             return response;
@@ -45,7 +49,8 @@ public class OverheadCostFunction
     {
         try
         {
-            var overheadCosts = await _mongoService.GetActiveOverheadCostsAsync();
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            var overheadCosts = await _mongoService.GetActiveOverheadCostsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(overheadCosts);
             return response;

@@ -1,17 +1,20 @@
-import { Component } from '@angular/core';
+import { Component, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { OutletService } from '../../services/outlet.service';
+import { OutletSelectorComponent } from '../outlet-selector/outlet-selector.component';
 
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, OutletSelectorComponent],
   templateUrl: './admin-layout.component.html',
   styleUrls: ['./admin-layout.component.scss']
 })
 export class AdminLayoutComponent {
   currentUser$;
+  selectedOutlet$;
   isMobileMenuOpen = false;
   activeDropdown: string | null = null;
 
@@ -119,11 +122,31 @@ export class AdminLayoutComponent {
     }
   ];
 
+  // Profile dropdown state
+  isProfileDropdownOpen = false;
+
   constructor(
     private authService: AuthService,
-    private router: Router
+    private outletService: OutletService,
+    private router: Router,
+    private ngZone: NgZone
   ) {
     this.currentUser$ = this.authService.currentUser$;
+    this.selectedOutlet$ = this.outletService.selectedOutlet$;
+
+    // Close dropdowns when clicking outside
+    if (typeof document !== 'undefined') {
+      document.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement;
+        // Don't close if clicking on dropdown button or inside dropdown
+        if (!target.closest('.nav-item-dropdown') && !target.closest('.profile-dropdown-container')) {
+          this.ngZone.run(() => {
+            this.closeDropdown();
+            this.closeProfileDropdown();
+          });
+        }
+      });
+    }
   }
 
   toggleMobileMenu(): void {
@@ -155,5 +178,17 @@ export class AdminLayoutComponent {
 
   closeDropdown(): void {
     this.activeDropdown = null;
+  }
+
+  toggleProfileDropdown(event?: Event): void {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    this.isProfileDropdownOpen = !this.isProfileDropdownOpen;
+  }
+
+  closeProfileDropdown(): void {
+    this.isProfileDropdownOpen = false;
   }
 }

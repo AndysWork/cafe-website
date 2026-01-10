@@ -9,7 +9,9 @@ public static class AuthorizationHelper
     public static async Task<(bool isAuthorized, string? userId, string? role, HttpResponseData? errorResponse)> 
         ValidateAdminRole(HttpRequestData req, AuthService authService)
     {
-        var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+        var authHeader = req.Headers.TryGetValues("Authorization", out var headerValues) 
+            ? headerValues.FirstOrDefault() 
+            : null;
         
         if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
         {
@@ -44,7 +46,9 @@ public static class AuthorizationHelper
     public static async Task<(bool isAuthorized, string? userId, string? role, HttpResponseData? errorResponse)> 
         ValidateAuthenticatedUser(HttpRequestData req, AuthService authService)
     {
-        var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+        var authHeader = req.Headers.TryGetValues("Authorization", out var headerValues) 
+            ? headerValues.FirstOrDefault() 
+            : null;
         
         if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
         {
@@ -72,7 +76,9 @@ public static class AuthorizationHelper
     public static async Task<(bool isAuthorized, string? userId, string? role, HttpResponseData? errorResponse)> 
         ValidateAdminOrManagerRole(HttpRequestData req, AuthService authService)
     {
-        var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+        var authHeader = req.Headers.TryGetValues("Authorization", out var headerValues) 
+            ? headerValues.FirstOrDefault() 
+            : null;
         
         if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
         {

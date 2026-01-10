@@ -12,6 +12,10 @@ public class OperationalExpense
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; }
+
     [BsonElement("month")]
     [Required(ErrorMessage = "Month is required")]
     public int Month { get; set; } // 1-12

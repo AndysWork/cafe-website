@@ -35,7 +35,8 @@ public class OnlineSaleFunction
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var platform = query["platform"]; // Optional: "Zomato" or "Swiggy"
 
-            var sales = await _mongo.GetOnlineSalesAsync(platform);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var sales = await _mongo.GetOnlineSalesAsync(platform, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = sales });
@@ -86,7 +87,8 @@ public class OnlineSaleFunction
                 return badRequest;
             }
 
-            var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = sales });
@@ -223,8 +225,18 @@ public class OnlineSaleFunction
                 return badRequest;
             }
 
+            // Validate outlet access
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+
             var sale = new OnlineSale
             {
+                OutletId = outletId,
                 Platform = request.Platform,
                 OrderId = request.OrderId,
                 CustomerName = request.CustomerName,

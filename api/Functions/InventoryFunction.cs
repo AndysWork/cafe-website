@@ -12,15 +12,18 @@ namespace Cafe.Api.Functions;
 public class InventoryFunction
 {
     private readonly MongoService _mongoService;
+    private readonly AuthService _authService;
     private readonly IEmailService _emailService;
     private readonly ILogger<InventoryFunction> _logger;
 
     public InventoryFunction(
         MongoService mongoService,
+        AuthService authService,
         IEmailService emailService,
         ILogger<InventoryFunction> logger)
     {
         _mongoService = mongoService;
+        _authService = authService;
         _emailService = emailService;
         _logger = logger;
     }
@@ -31,7 +34,8 @@ public class InventoryFunction
     {
         try
         {
-            var inventory = await _mongoService.GetAllInventoryAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var inventory = await _mongoService.GetAllInventoryAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(inventory);
             return response;
@@ -51,7 +55,8 @@ public class InventoryFunction
     {
         try
         {
-            var inventory = await _mongoService.GetActiveInventoryAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var inventory = await _mongoService.GetActiveInventoryAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(inventory);
             return response;
@@ -99,7 +104,8 @@ public class InventoryFunction
     {
         try
         {
-            var items = await _mongoService.GetLowStockItemsAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var items = await _mongoService.GetLowStockItemsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(items);
             return response;
@@ -119,7 +125,8 @@ public class InventoryFunction
     {
         try
         {
-            var items = await _mongoService.GetOutOfStockItemsAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var items = await _mongoService.GetOutOfStockItemsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(items);
             return response;
@@ -145,7 +152,8 @@ public class InventoryFunction
                 daysThreshold = days;
             }
 
-            var items = await _mongoService.GetExpiringItemsAsync(daysThreshold);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var items = await _mongoService.GetExpiringItemsAsync(daysThreshold, outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(items);
             return response;
@@ -187,6 +195,16 @@ public class InventoryFunction
                 return badRequestResponse;
             }
 
+            // Validate outlet access and assign outlet
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _authService, _mongoService);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+            
+            inventory.OutletId = outletId;
             var createdInventory = await _mongoService.CreateInventoryAsync(inventory);
 
             var response = req.CreateResponse(HttpStatusCode.Created);

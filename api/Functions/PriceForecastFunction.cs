@@ -55,7 +55,8 @@ public class PriceForecastFunction
             var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var forecasts = await _mongo.GetPriceForecastsAsync();
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            var forecasts = await _mongo.GetPriceForecastsAsync(outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(forecasts);
             return res;

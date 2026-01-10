@@ -13,6 +13,10 @@ public class PriceForecast
     [BsonRepresentation(BsonType.ObjectId)]
     public string? MenuItemId { get; set; }
 
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; } // Multi-outlet support
+
     [Required(ErrorMessage = "Menu item name is required")]
     public string MenuItemName { get; set; } = string.Empty;
 

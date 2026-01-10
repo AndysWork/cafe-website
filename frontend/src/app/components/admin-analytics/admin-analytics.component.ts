@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { SalesService, Sales } from '../../services/sales.service';
 import {
   ExpenseService,
@@ -42,7 +45,10 @@ interface SalesInsights {
   templateUrl: './admin-analytics.component.html',
   styleUrls: ['./admin-analytics.component.scss'],
 })
-export class AdminAnalyticsComponent implements OnInit {
+export class AdminAnalyticsComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   loading = false;
   salesData: Sales[] = [];
   allSalesData: Sales[] = []; // Store all sales for comparison
@@ -97,11 +103,29 @@ export class AdminAnalyticsComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.loadSalesInsights();
-    this.loadExpenseAnalytics();
-    this.loadEarningsAnalytics();
-    this.loadOnlineSalesAnalytics();
-    this.loadCustomerAnalytics();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadSalesInsights();
+        this.loadExpenseAnalytics();
+        this.loadEarningsAnalytics();
+        this.loadOnlineSalesAnalytics();
+        this.loadCustomerAnalytics();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadSalesInsights();
+      this.loadExpenseAnalytics();
+      this.loadEarningsAnalytics();
+      this.loadOnlineSalesAnalytics();
+      this.loadCustomerAnalytics();
+    }
+  }
+
+  ngOnDestroy() {
+    this.outletSubscription?.unsubscribe();
   }
 
   switchTab(tab: 'sales' | 'expenses' | 'earnings' | 'online' | 'customers') {
