@@ -51,6 +51,7 @@
       <thead>
         <tr>
           <th>Item Name</th>
+          <th>Status</th>
           <th>Category</th>
           <th>Description</th>
           <th>Variants</th>
@@ -68,6 +69,11 @@
             <div class="name-cell">
               <span class="name">{{ item.name }}</span>
             </div>
+          </td>
+          <td>
+            <span class="stock-badge" [ngClass]="{'in-stock': item.isAvailable !== false, 'out-of-stock': item.isAvailable === false}">
+              {{ item.isAvailable !== false ? 'In Stock' : 'Out of Stock' }}
+            </span>
           </td>
           <td>
             <span class="category-badge">{{ item.category }}</span>
@@ -127,6 +133,13 @@
           </td>
           <td>
             <div class="actions">
+              <button
+                class="btn-toggle"
+                (click)="toggleAvailability(item)"
+                [title]="item.isAvailable !== false ? 'Mark as Out of Stock' : 'Mark as In Stock'"
+                [ngClass]="{'out-of-stock-btn': item.isAvailable !== false, 'in-stock-btn': item.isAvailable === false}">
+                {{ item.isAvailable !== false ? '🚫' : '✅' }}
+              </button>
               <button class="btn-edit" (click)="openEditModal(item)" title="Edit">
                 ✏️
               </button>
@@ -137,7 +150,7 @@
           </td>
         </tr>
         <tr *ngIf="filteredMenuItems.length === 0">
-          <td colspan="8" class="no-data">
+          <td colspan="11" class="no-data">
             <div class="no-data-content">
               <span class="icon">📭</span>
               <p>No menu items found</p>

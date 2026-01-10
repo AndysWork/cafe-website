@@ -98,4 +98,12 @@ export class MenuService {
         tap(() => this.notifyMenuItemsUpdated())
       );
   }
+
+  // Toggle menu item availability (in stock/out of stock)
+  toggleAvailability(id: string): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/menu/${id}/toggle-availability`, {})
+      .pipe(
+        tap(() => this.notifyMenuItemsUpdated())
+      );
+  }
 }

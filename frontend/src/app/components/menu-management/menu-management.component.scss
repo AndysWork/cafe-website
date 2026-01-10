@@ -395,6 +395,55 @@
         transform: scale(1.1);
       }
     }
+
+    &.btn-toggle {
+      background: #e2e8f0;
+      color: #2d3748;
+
+      &.out-of-stock-btn {
+        background: #fed7d7;
+        color: #c53030;
+
+        &:hover {
+          background: #fc8181;
+        }
+      }
+
+      &.in-stock-btn {
+        background: #c6f6d5;
+        color: #22543d;
+
+        &:hover {
+          background: #9ae6b4;
+        }
+      }
+
+      &:hover {
+        transform: scale(1.1);
+      }
+    }
+  }
+}
+
+.stock-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+
+  &.in-stock {
+    background: #c6f6d5;
+    color: #22543d;
+    border: 2px solid #9ae6b4;
+  }
+
+  &.out-of-stock {
+    background: #fed7d7;
+    color: #c53030;
+    border: 2px solid #fc8181;
   }
 }
 

@@ -384,6 +384,21 @@ public partial class MongoService
     {
         await _menu.DeleteManyAsync(_ => true);
     }
+
+    // Toggle menu item availability (stock status)
+    public async Task<bool> ToggleMenuItemAvailabilityAsync(string id)
+    {
+        var item = await _menu.Find(x => x.Id == id).FirstOrDefaultAsync();
+        if (item == null)
+            return false;
+
+        var update = Builders<CafeMenuItem>.Update
+            .Set(x => x.IsAvailable, !item.IsAvailable)
+            .Set(x => x.LastUpdated, GetIstNow());
+
+        var result = await _menu.UpdateOneAsync(x => x.Id == id, update);
+        return result.ModifiedCount > 0;
+    }
     
     #endregion
 

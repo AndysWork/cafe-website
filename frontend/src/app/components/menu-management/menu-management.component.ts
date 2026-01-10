@@ -30,6 +30,7 @@ interface MenuItem {
   futureShopPrice?: number;
   futureOnlinePrice?: number;
   variants: MenuItemVariant[];
+  isAvailable?: boolean;
   createdBy: string;
   createdDate: string;
   lastUpdatedBy: string;
@@ -354,6 +355,25 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
             console.error('Error deleting menu item:', error);
             this.loading = false;
             alert('Failed to delete menu item');
+          }
+        });
+    }
+  }
+
+  toggleAvailability(item: MenuItem): void {
+    const action = item.isAvailable ? 'mark as out of stock' : 'mark as in stock';
+    if (confirm(`Are you sure you want to ${action} "${item.name}"?`)) {
+      this.loading = true;
+      this.menuService.toggleAvailability(item.id)
+        .subscribe({
+          next: () => {
+            this.loading = false;
+            this.loadMenuItems();
+          },
+          error: (error) => {
+            console.error('Error toggling availability:', error);
+            this.loading = false;
+            alert('Failed to update availability status');
           }
         });
     }

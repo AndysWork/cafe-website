@@ -320,9 +320,11 @@ public class MenuFunction
         }
     }
 
-    // DELETE: Delete menu item (Admin only)
-    [Function("DeleteMenuItem")]
-    public async Task<HttpResponseData> DeleteMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "menu/{id}")] HttpRequestData req, string id)
+    // PATCH: Toggle menu item availability (Admin only)
+    [Function("ToggleMenuItemAvailability")]
+    public async Task<HttpResponseData> ToggleMenuItemAvailability(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "menu/{id}/toggle-availability")] HttpRequestData req, 
+        string id)
     {
         try
         {
@@ -330,7 +332,7 @@ public class MenuFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var success = await _mongo.DeleteMenuItemAsync(id);
+            var success = await _mongo.ToggleMenuItemAvailabilityAsync(id);
             
             if (!success)
             {
@@ -339,12 +341,13 @@ public class MenuFunction
                 return notFound;
             }
 
-            var res = req.CreateResponse(HttpStatusCode.NoContent);
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(new { success = true, message = "Availability toggled successfully" });
             return res;
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Error deleting menu item {Id}", id);
+            _log.LogError(ex, "Error toggling availability for menu item {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = ex.Message });
             return res;
