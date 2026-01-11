@@ -140,6 +140,8 @@ public class PriceForecastFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+
             var forecast = await req.ReadFromJsonAsync<PriceForecast>();
             if (forecast == null)
             {
@@ -164,6 +166,7 @@ public class PriceForecastFunction
                 return notFound;
             }
 
+            forecast.OutletId = outletId;
             forecast.MenuItemName = menuItem.Name;
             forecast.CreatedBy = userId ?? "System";
             forecast.LastUpdatedBy = userId ?? "System";
@@ -196,6 +199,8 @@ public class PriceForecastFunction
             // Validate admin or manager authorization
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
+
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
 
             var existingForecast = await _mongo.GetPriceForecastAsync(id);
             if (existingForecast == null)
@@ -245,6 +250,7 @@ public class PriceForecastFunction
             forecast.History = existingForecast.History ?? new List<PriceHistory>();
             forecast.History.Add(historyEntry);
             forecast.Id = id;
+            forecast.OutletId = outletId;
             forecast.CreatedBy = existingForecast.CreatedBy;
             forecast.CreatedDate = existingForecast.CreatedDate;
             forecast.LastUpdatedBy = userId ?? "System";
@@ -288,8 +294,24 @@ public class PriceForecastFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+
             var existingForecast = await _mongo.GetPriceForecastAsync(id);
-            if (existingForecast?.IsFinalized == true)
+            if (existingForecast == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Price forecast not found" });
+                return notFound;
+            }
+
+            if (existingForecast.OutletId != outletId && existingForecast.OutletId != null)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Cannot delete price forecast from another outlet" });
+                return forbidden;
+            }
+
+            if (existingForecast.IsFinalized)
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = "Cannot delete finalized price forecast" });

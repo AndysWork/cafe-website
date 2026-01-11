@@ -1,9 +1,12 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PriceForecastService, PriceForecast, PriceHistory } from '../../services/price-forecast.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { DiscountCouponService, DiscountCoupon } from '../../services/discount-coupon.service';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 @Component({
   selector: 'app-price-forecasting',
@@ -12,7 +15,10 @@ import { DiscountCouponService, DiscountCoupon } from '../../services/discount-c
   templateUrl: './price-forecasting.component.html',
   styleUrls: ['./price-forecasting.component.scss']
 })
-export class PriceForecastingComponent implements OnInit {
+export class PriceForecastingComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   forecasts: PriceForecast[] = [];
   menuItems: MenuItem[] = [];
   activeCoupons: DiscountCoupon[] = [];
@@ -34,9 +40,25 @@ export class PriceForecastingComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.loadMenuItems();
-    this.loadForecasts();
-    this.loadActiveCoupons();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadMenuItems();
+        this.loadForecasts();
+        this.loadActiveCoupons();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadMenuItems();
+      this.loadForecasts();
+      this.loadActiveCoupons();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.outletSubscription?.unsubscribe();
   }
 
   loadActiveCoupons() {
@@ -66,6 +88,9 @@ export class PriceForecastingComponent implements OnInit {
 
   loadForecasts() {
     this.loading = true;
+    // Reset data when loading new outlet
+    this.forecasts = [];
+
     this.forecastService.getPriceForecasts().subscribe({
       next: (forecasts) => {
         this.forecasts = forecasts;

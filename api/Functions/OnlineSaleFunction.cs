@@ -6,6 +6,9 @@ using Cafe.Api.Models;
 using Cafe.Api.Services;
 using Cafe.Api.Helpers;
 using System.Text.Json;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -24,6 +27,13 @@ public class OnlineSaleFunction
 
     // GET /api/online-sales - Get all online sales with optional platform filter
     [Function("GetOnlineSales")]
+    [OpenApiOperation(operationId: "GetOnlineSales", tags: new[] { "OnlineSales" }, Summary = "Get online sales", Description = "Retrieves all online sales with optional platform filter (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "platform", In = ParameterLocation.Query, Required = false, Type = typeof(string), Description = "Platform filter (Zomato or Swiggy)")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<OnlineSale>), Description = "Successfully retrieved online sales")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> GetOnlineSales(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales")] HttpRequestData req)
     {
@@ -53,6 +63,15 @@ public class OnlineSaleFunction
 
     // GET /api/online-sales/date-range - Get sales in date range
     [Function("GetOnlineSalesByDateRange")]
+    [OpenApiOperation(operationId: "GetOnlineSalesByDateRange", tags: new[] { "OnlineSales" }, Summary = "Get online sales by date range", Description = "Retrieves online sales within a specified date range")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "platform", In = ParameterLocation.Query, Required = false, Type = typeof(string), Description = "Platform filter")]
+    [OpenApiParameter(name: "startDate", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "Start date (ISO format)")]
+    [OpenApiParameter(name: "endDate", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "End date (ISO format)")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<OnlineSale>), Description = "Successfully retrieved online sales")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid date format")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetOnlineSalesByDateRange(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales/date-range")] HttpRequestData req)
     {
@@ -138,7 +157,8 @@ public class OnlineSaleFunction
                 return badRequest;
             }
 
-            var dailyIncome = await _mongo.GetDailyOnlineIncomeAsync(startDate, endDate);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var dailyIncome = await _mongo.GetDailyOnlineIncomeAsync(startDate, endDate, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = dailyIncome });
@@ -446,7 +466,8 @@ public class OnlineSaleFunction
             var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var coupons = await _mongo.GetUniqueDiscountCouponsAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var coupons = await _mongo.GetUniqueDiscountCouponsAsync(outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = coupons });
@@ -647,8 +668,11 @@ public class OnlineSaleFunction
                 endDate = parsedEnd;
             }
 
+            // Get outlet ID for filtering
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+
             // Get sales with KPT data
-            var sales = await _mongo.GetOnlineSalesAsync(platform);
+            var sales = await _mongo.GetOnlineSalesAsync(platform, outletId);
             
             // Filter by date range if provided
             if (startDate.HasValue)
@@ -729,7 +753,8 @@ public class OnlineSaleFunction
             .OrderByDescending(x => x.orderCount)
             .ToList();
 
-            var summary = new
+            // Handle case when no data is available
+            var summary = salesWithKpt.Any() ? new
             {
                 totalOrdersAnalyzed = salesWithKpt.Count,
                 totalMenuItems = results.Count,
@@ -742,6 +767,19 @@ public class OnlineSaleFunction
                 averageKptAllOrders = salesWithKpt.Average(s => s.KPT!.Value),
                 minKptAllOrders = salesWithKpt.Min(s => s.KPT!.Value),
                 maxKptAllOrders = salesWithKpt.Max(s => s.KPT!.Value)
+            } : new
+            {
+                totalOrdersAnalyzed = 0,
+                totalMenuItems = 0,
+                dateRange = new
+                {
+                    start = startDate?.ToString("yyyy-MM-dd"),
+                    end = endDate?.ToString("yyyy-MM-dd")
+                },
+                platform = string.IsNullOrEmpty(platform) ? "All Platforms" : platform,
+                averageKptAllOrders = 0m,
+                minKptAllOrders = 0m,
+                maxKptAllOrders = 0m
             };
 
             var response = req.CreateResponse(HttpStatusCode.OK);

@@ -17,7 +17,18 @@ export const outletInterceptor: HttpInterceptorFn = (req, next) => {
     const modifiedReq = req.clone({
       headers: req.headers.set('X-Outlet-Id', outletId)
     });
+
+    // Debug logging - remove after testing
+    if (req.url.includes('/api/')) {
+      console.log(`[OutletInterceptor] ${req.method} ${req.url} - Outlet ID: ${outletId}`);
+    }
+
     return next(modifiedReq);
+  }
+
+  // Debug logging for requests without outlet context
+  if (req.url.includes('/api/') && !req.url.includes('/auth/') && !req.url.includes('/outlets/')) {
+    console.warn(`[OutletInterceptor] ${req.method} ${req.url} - NO OUTLET ID! This may cause data inconsistency.`);
   }
 
   // No outlet selected, proceed with original request

@@ -109,7 +109,8 @@ public class CashReconciliationFunction
                 return badRequest;
             }
 
-            var summary = await _mongo.GetDailySalesSummaryForReconciliationAsync(parsedDate);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            var summary = await _mongo.GetDailySalesSummaryForReconciliationAsync(parsedDate, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = summary });

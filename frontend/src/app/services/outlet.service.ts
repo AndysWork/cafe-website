@@ -124,10 +124,14 @@ export class OutletService {
    * Select an outlet for the current session
    */
   selectOutlet(outlet: Outlet): void {
-    this.selectedOutletSubject.next(outlet);
     const outletId = outlet._id || outlet.id || '';
+    console.log(`[OutletService] Selecting outlet: ${outlet.outletName} (ID: ${outletId})`);
+
+    this.selectedOutletSubject.next(outlet);
     localStorage.setItem('selectedOutletId', outletId);
     localStorage.setItem('selectedOutlet', JSON.stringify(outlet));
+
+    console.log(`[OutletService] Outlet selected. Components subscribed to selectedOutlet$ will reload data.`);
   }
 
   /**
@@ -142,7 +146,8 @@ export class OutletService {
    */
   getSelectedOutletId(): string | null {
     const outlet = this.selectedOutletSubject.value;
-    return outlet?._id || outlet?.id || null;
+    const outletId = outlet?._id || outlet?.id || null;
+    return outletId;
   }
 
   /**

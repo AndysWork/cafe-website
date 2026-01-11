@@ -66,11 +66,11 @@ export interface StockAlert {
 
 export interface InventoryReport {
   totalItems: number;
-  inStockItems: number;
+  activeItems: number;
   lowStockItems: number;
   outOfStockItems: number;
   expiringItems: number;
-  totalInventoryValue: number;
+  totalValue: number;
   averageCostPerItem: number;
   topValueItems: InventoryItem[];
   criticalItems: InventoryItem[];

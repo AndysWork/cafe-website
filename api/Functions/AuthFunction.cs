@@ -5,6 +5,9 @@ using Cafe.Api.Helpers;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -34,6 +37,13 @@ public class AuthFunction
     /// <response code="403">Account deactivated</response>
     /// <response code="429">Too many failed login attempts</response>
     [Function("Login")]
+    [OpenApiOperation(operationId: "Login", tags: new[] { "Authentication" }, Summary = "Login to get JWT token", Description = "Authenticates a user and returns a JWT token along with user details")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(LoginRequest), Required = true, Description = "Login credentials")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(LoginResponse), Description = "Successfully authenticated")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.BadRequest, contentType: "application/json", bodyType: typeof(object), Description = "Invalid request data")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.Unauthorized, contentType: "application/json", bodyType: typeof(object), Description = "Invalid credentials")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.Forbidden, contentType: "application/json", bodyType: typeof(object), Description = "Account deactivated")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.TooManyRequests, contentType: "application/json", bodyType: typeof(object), Description = "Too many failed login attempts")]
     public async Task<HttpResponseData> Login(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/login")] HttpRequestData req)
     {
@@ -167,6 +177,11 @@ public class AuthFunction
     /// <response code="400">Invalid data or validation failed</response>
     /// <response code="409">Username or email already exists</response>
     [Function("Register")]
+    [OpenApiOperation(operationId: "Register", tags: new[] { "Authentication" }, Summary = "Register a new user", Description = "Creates a new user account with the provided details")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(RegisterRequest), Required = true, Description = "User registration details")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.Created, contentType: "application/json", bodyType: typeof(User), Description = "User successfully registered")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.BadRequest, contentType: "application/json", bodyType: typeof(object), Description = "Invalid data or validation failed")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.Conflict, contentType: "application/json", bodyType: typeof(object), Description = "Username or email already exists")]
     public async Task<HttpResponseData> Register(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/register")] HttpRequestData req)
     {

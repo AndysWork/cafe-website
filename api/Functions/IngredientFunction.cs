@@ -6,6 +6,10 @@ using Cafe.Api.Models;
 using Cafe.Api.Services;
 using System.Text.Json;
 using Cafe.Api.Helpers;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
+using System.Net;
 
 namespace Cafe.Api.Functions
 {
@@ -25,6 +29,10 @@ namespace Cafe.Api.Functions
 
         // GET: /api/ingredients
         [Function("GetIngredients")]
+        [OpenApiOperation(operationId: "GetIngredients", tags: new[] { "Ingredients" }, Summary = "Get all ingredients", Description = "Retrieves all ingredients")]
+        [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+        [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Ingredient>), Description = "Successfully retrieved ingredients")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
         public async Task<IActionResult> GetIngredients(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ingredients")] HttpRequest req)
         {
@@ -44,6 +52,12 @@ namespace Cafe.Api.Functions
 
         // GET: /api/ingredients/{id}
         [Function("GetIngredientById")]
+        [OpenApiOperation(operationId: "GetIngredientById", tags: new[] { "Ingredients" }, Summary = "Get ingredient by ID", Description = "Retrieves a specific ingredient by its ID")]
+        [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+        [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Ingredient ID")]
+        [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(Ingredient), Description = "Successfully retrieved ingredient")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Ingredient not found")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
         public async Task<IActionResult> GetIngredientById(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ingredients/{id}")] HttpRequest req,
             string id)
@@ -69,6 +83,12 @@ namespace Cafe.Api.Functions
 
         // POST: /api/ingredients
         [Function("CreateIngredient")]
+        [OpenApiOperation(operationId: "CreateIngredient", tags: new[] { "Ingredients" }, Summary = "Create a new ingredient", Description = "Creates a new ingredient")]
+        [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+        [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(Ingredient), Required = true, Description = "Ingredient details")]
+        [OpenApiResponseWithBody(statusCode: HttpStatusCode.Created, contentType: "application/json", bodyType: typeof(Ingredient), Description = "Ingredient successfully created")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid ingredient data")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
         public async Task<IActionResult> CreateIngredient(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ingredients")] HttpRequest req)
         {

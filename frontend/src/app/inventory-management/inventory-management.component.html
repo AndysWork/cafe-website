@@ -44,28 +44,28 @@
       </div>
       <div class="card">
         <h3>Total Value</h3>
-        <p class="big-number">{{ formatCurrency(report.totalInventoryValue) }}</p>
+        <p class="big-number">{{ formatCurrency(report.totalValue) }}</p>
       </div>
       <div class="card status-card">
-        <h3>In Stock</h3>
-        <p class="big-number" style="color: green;">{{ report.inStockItems }}</p>
+        <h3>Active Items</h3>
+        <p class="big-number" style="color: green;">{{ report.activeItems || 0 }}</p>
       </div>
       <div class="card status-card">
         <h3>Low Stock</h3>
-        <p class="big-number" style="color: orange;">{{ report.lowStockItems }}</p>
+        <p class="big-number" style="color: orange;">{{ report.lowStockItems || 0 }}</p>
       </div>
       <div class="card status-card">
         <h3>Out of Stock</h3>
-        <p class="big-number" style="color: red;">{{ report.outOfStockItems }}</p>
+        <p class="big-number" style="color: red;">{{ report.outOfStockItems || 0 }}</p>
       </div>
       <div class="card status-card">
         <h3>Expiring Soon</h3>
-        <p class="big-number" style="color: purple;">{{ report.expiringItems }}</p>
+        <p class="big-number" style="color: purple;">{{ report.expiringItems || 0 }}</p>
       </div>
     </div>
 
     <!-- Critical Items -->
-    <div *ngIf="report.criticalItems.length > 0" class="section">
+    <div *ngIf="report.criticalItems && report.criticalItems.length > 0" class="section">
       <h2>🚨 Critical Items</h2>
       <div class="table-container">
         <table>
@@ -96,7 +96,7 @@
     </div>
 
     <!-- Top Value Items -->
-    <div class="section">
+    <div *ngIf="report.topValueItems && report.topValueItems.length > 0" class="section">
       <h2>💎 Top Value Items</h2>
       <div class="table-container">
         <table>
@@ -121,7 +121,7 @@
     </div>
 
     <!-- Recent Activity -->
-    <div *ngIf="report.recentTransactions.length > 0" class="section">
+    <div *ngIf="report.recentTransactions && report.recentTransactions.length > 0" class="section">
       <h2>📝 Recent Transactions</h2>
       <div class="transactions-list">
         <div *ngFor="let transaction of report.recentTransactions" class="transaction-item">

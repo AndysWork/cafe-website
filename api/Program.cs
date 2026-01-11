@@ -5,8 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Azure.Functions.Worker;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.OpenApi.Models;
-using System.Reflection;
 using MongoDB.Driver;
 
 var host = new HostBuilder()
@@ -38,57 +36,6 @@ var host = new HostBuilder()
             jsonOptions.Converters.Add(new JsonStringEnumConverter());
             
             options.Serializer = new Azure.Core.Serialization.JsonObjectSerializer(jsonOptions);
-        });
-
-        // Configure Swagger/OpenAPI
-        s.AddSwaggerGen(c =>
-        {
-            c.SwaggerDoc("v1", new OpenApiInfo
-            {
-                Title = "Cafe Management API",
-                Version = "v1",
-                Description = "API for managing cafe operations including menu items, orders, inventory, expenses, and sales",
-                Contact = new OpenApiContact
-                {
-                    Name = "Cafe Management System",
-                    Email = "support@cafemanagement.com"
-                }
-            });
-
-            // Add JWT authentication to Swagger
-            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer"
-            });
-
-            c.AddSecurityRequirement(new OpenApiSecurityRequirement
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        }
-                    },
-                    Array.Empty<string>()
-                }
-            });
-
-            // Include XML comments
-            var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-            if (File.Exists(xmlPath))
-            {
-                c.IncludeXmlComments(xmlPath);
-            }
-
-            c.EnableAnnotations();
         });
     })
     .Build();

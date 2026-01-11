@@ -12,10 +12,14 @@ public partial class MongoService
     public async Task<List<OverheadCost>> GetAllOverheadCostsAsync(string? outletId = null)
     {
         // If no outlet is selected, return empty list instead of all data
-        if (outletId == null)
+        if (string.IsNullOrWhiteSpace(outletId))
             return new List<OverheadCost>();
         
-        var filter = Builders<OverheadCost>.Filter.Eq(o => o.OutletId, outletId);
+        // Return overhead costs for this outlet OR shared overhead costs (null OutletId)
+        var filter = Builders<OverheadCost>.Filter.Or(
+            Builders<OverheadCost>.Filter.Eq(o => o.OutletId, outletId),
+            Builders<OverheadCost>.Filter.Eq(o => o.OutletId, null)
+        );
         
         return await _overheadCosts.Find(filter).ToListAsync();
     }
@@ -30,7 +34,11 @@ public partial class MongoService
 
         if (outletId != null)
         {
-            filters.Add(filterBuilder.Eq(o => o.OutletId, outletId));
+            // Return overhead costs for this outlet OR shared overhead costs (null OutletId)
+            filters.Add(filterBuilder.Or(
+                filterBuilder.Eq(o => o.OutletId, outletId),
+                filterBuilder.Eq(o => o.OutletId, null)
+            ));
         }
 
         var filter = filterBuilder.And(filters);
@@ -76,9 +84,9 @@ public partial class MongoService
 
     // ===== OVERHEAD CALCULATIONS =====
 
-    public async Task<OverheadAllocation> CalculateOverheadAllocationAsync(int preparationTimeMinutes)
+    public async Task<OverheadAllocation> CalculateOverheadAllocationAsync(int preparationTimeMinutes, string? outletId = null)
     {
-        var activeOverheads = await GetActiveOverheadCostsAsync();
+        var activeOverheads = await GetActiveOverheadCostsAsync(outletId);
         
         var allocation = new OverheadAllocation
         {
@@ -146,5 +154,23 @@ public partial class MongoService
 
             await _overheadCosts.InsertManyAsync(defaultCosts);
         }
+    }
+
+    // ===== MIGRATION =====
+
+    public async Task<int> MigrateOverheadCostOutletIdsAsync(string targetOutletId)
+    {
+        // Find all overhead costs without an OutletId
+        var filter = Builders<OverheadCost>.Filter.Or(
+            Builders<OverheadCost>.Filter.Eq(o => o.OutletId, null),
+            Builders<OverheadCost>.Filter.Eq(o => o.OutletId, "")
+        );
+
+        var update = Builders<OverheadCost>.Update
+            .Set(o => o.OutletId, targetOutletId)
+            .Set(o => o.UpdatedAt, DateTime.UtcNow);
+
+        var result = await _overheadCosts.UpdateManyAsync(filter, update);
+        return (int)result.ModifiedCount;
     }
 }

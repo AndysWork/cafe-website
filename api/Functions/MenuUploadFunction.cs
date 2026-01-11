@@ -33,14 +33,23 @@ public class MenuUploadFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
+            // Get outlet ID from request
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
             // Check if we should clear existing menu items before upload
             var queryString = req.Url.Query;
             var clearExisting = queryString.Contains("clearExisting=true", StringComparison.OrdinalIgnoreCase);
             
             if (clearExisting)
             {
-                _log.LogInformation("Clearing existing menu items before upload...");
-                await _mongo.ClearMenuItemsAsync();
+                _log.LogInformation("Clearing existing menu items for outlet {OutletId} before upload...", outletId);
+                await _mongo.ClearMenuItemsByOutletAsync(outletId);
             }
             
             // Set EPPlus license context
@@ -72,7 +81,7 @@ public class MenuUploadFunction
             }
 
             // Process the Excel file
-            var result = await ProcessMenuExcel(excelData);
+            var result = await ProcessMenuExcel(excelData, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(result);
@@ -117,7 +126,7 @@ public class MenuUploadFunction
         }
     }
 
-    private async Task<object> ProcessMenuExcel(byte[] fileBytes)
+    private async Task<object> ProcessMenuExcel(byte[] fileBytes, string outletId)
     {
         using var stream = new MemoryStream(fileBytes);
         using var package = new ExcelPackage(stream);
@@ -274,6 +283,7 @@ public class MenuUploadFunction
                         Category = categoryName,
                         CategoryId = category.Id,
                         SubCategoryId = subCategory?.Id,
+                        OutletId = outletId,
                         Quantity = quantity ?? 0,
                         OnlinePrice = price,
                         ShopSellingPrice = price,

@@ -6,6 +6,9 @@ using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
 using System.Security.Claims;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -31,6 +34,12 @@ public class OrderFunction
     /// <response code="400">Invalid request data or menu item not found</response>
     /// <response code="401">User not authenticated</response>
     [Function("CreateOrder")]
+    [OpenApiOperation(operationId: "CreateOrder", tags: new[] { "Orders" }, Summary = "Create a new order", Description = "Creates a new order for the authenticated user")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(CreateOrderRequest), Required = true, Description = "Order details including items and delivery information")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.Created, contentType: "application/json", bodyType: typeof(Order), Description = "Order successfully created")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid request data")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> CreateOrder(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders")] HttpRequestData req)
     {

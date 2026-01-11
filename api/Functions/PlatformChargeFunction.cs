@@ -367,6 +367,56 @@ public class PlatformChargeFunction
         return response;
     }
 
+    [Function("MigratePlatformChargeOutlets")]
+    public async Task<HttpResponseData> MigratePlatformChargeOutlets(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "platform-charges/migrate-outlets")] HttpRequestData req)
+    {
+        try
+        {
+            _logger.LogInformation("Starting migration of platform charge outlet IDs");
+            
+            // Parse request body to get default outlet ID
+            string? defaultOutletId = null;
+            try
+            {
+                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                if (!string.IsNullOrEmpty(requestBody))
+                {
+                    var jsonDoc = System.Text.Json.JsonDocument.Parse(requestBody);
+                    if (jsonDoc.RootElement.TryGetProperty("defaultOutletId", out var outletIdElement))
+                    {
+                        defaultOutletId = outletIdElement.GetString();
+                    }
+                }
+            }
+            catch
+            {
+                // If parsing fails, continue without default outlet ID
+            }
+            
+            var updated = await _mongoService.MigratePlatformChargeOutletIdsAsync(defaultOutletId);
+            
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { 
+                success = true, 
+                message = $"Successfully updated {updated} platform charges with outlet IDs",
+                updatedCount = updated,
+                defaultOutletIdUsed = defaultOutletId
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error migrating platform charge outlet IDs");
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteAsJsonAsync(new { 
+                success = false, 
+                error = ex.Message 
+            });
+            return response;
+        }
+    }
+
     private async Task<HttpResponseData> CreateErrorResponse(HttpRequestData req, string message)
     {
         var response = req.CreateResponse(HttpStatusCode.BadRequest);

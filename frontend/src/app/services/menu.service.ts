@@ -106,4 +106,30 @@ export class MenuService {
         tap(() => this.notifyMenuItemsUpdated())
       );
   }
+
+  // Copy menu item data from one outlet to another
+  copyMenuItemFromOutlet(menuItemName: string, sourceOutletId: string, targetOutletId: string): Observable<CopyMenuItemResponse> {
+    return this.http.post<CopyMenuItemResponse>(`${this.apiUrl}/menu/copy-from-outlet`, {
+      menuItemName,
+      sourceOutletId,
+      targetOutletId
+    }).pipe(
+      tap(() => this.notifyMenuItemsUpdated())
+    );
+  }
+}
+
+export interface CopyMenuItemResponse {
+  success: boolean;
+  message: string;
+  data: {
+    menuItemName: string;
+    sourceOutletId: string;
+    targetOutletId: string;
+    recipeCopied: boolean;
+    copiedRecipeId?: string;
+    priceForecastCopied: boolean;
+    copiedForecastId?: string;
+    futurePricesUpdated: boolean;
+  };
 }

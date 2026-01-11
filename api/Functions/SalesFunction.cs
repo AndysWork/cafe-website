@@ -7,6 +7,9 @@ using Cafe.Api.Helpers;
 using System.Net;
 using System.Security.Claims;
 using OfficeOpenXml;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -25,6 +28,12 @@ public class SalesFunction
 
     // GET: Get all sales records (Admin only)
     [Function("GetAllSales")]
+    [OpenApiOperation(operationId: "GetAllSales", tags: new[] { "Sales" }, Summary = "Get all sales", Description = "Retrieves all sales records (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<object>), Description = "Successfully retrieved sales")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> GetAllSales(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sales")] HttpRequestData req)
     {
@@ -56,6 +65,14 @@ public class SalesFunction
 
     // GET: Get sales by date range (Admin only)
     [Function("GetSalesByDateRange")]
+    [OpenApiOperation(operationId: "GetSalesByDateRange", tags: new[] { "Sales" }, Summary = "Get sales by date range", Description = "Retrieves sales within a specified date range")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "startDate", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "Start date (ISO format)")]
+    [OpenApiParameter(name: "endDate", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "End date (ISO format)")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<object>), Description = "Successfully retrieved sales")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid date format")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetSalesByDateRange(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sales/range")] HttpRequestData req)
     {

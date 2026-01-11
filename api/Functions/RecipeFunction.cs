@@ -1,11 +1,16 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
 using System.Text.Json;
 using Cafe.Api.Helpers;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
+using System.Net;
 
 namespace Cafe.Api.Functions
 {
@@ -22,6 +27,10 @@ namespace Cafe.Api.Functions
 
         // GET: /api/recipes
         [Function("GetRecipes")]
+        [OpenApiOperation(operationId: "GetRecipes", tags: new[] { "Recipes" }, Summary = "Get all recipes", Description = "Retrieves all recipes")]
+        [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+        [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<MenuItemRecipe>), Description = "Successfully retrieved recipes")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
         public async Task<IActionResult> GetRecipes(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "recipes")] HttpRequest req)
         {
@@ -29,7 +38,10 @@ namespace Cafe.Api.Functions
             {
                 _logger.LogInformation("Getting all recipes");
 
-                var recipes = await _mongoService.GetRecipesAsync();
+                // Get outlet ID from header
+                var outletId = req.Headers["X-Outlet-Id"].FirstOrDefault();
+                
+                var recipes = await _mongoService.GetRecipesAsync(outletId);
                 return new OkObjectResult(recipes);
             }
             catch (Exception ex)
@@ -41,6 +53,12 @@ namespace Cafe.Api.Functions
 
         // GET: /api/recipes/{id}
         [Function("GetRecipeById")]
+        [OpenApiOperation(operationId: "GetRecipeById", tags: new[] { "Recipes" }, Summary = "Get recipe by ID", Description = "Retrieves a specific recipe by its ID")]
+        [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+        [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Recipe ID")]
+        [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(MenuItemRecipe), Description = "Successfully retrieved recipe")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Recipe not found")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
         public async Task<IActionResult> GetRecipeById(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "recipes/{id}")] HttpRequest req,
             string id)
@@ -66,6 +84,12 @@ namespace Cafe.Api.Functions
 
         // GET: /api/recipes/menuitem/{menuItemName}
         [Function("GetRecipeByMenuItemName")]
+        [OpenApiOperation(operationId: "GetRecipeByMenuItemName", tags: new[] { "Recipes" }, Summary = "Get recipe by menu item name", Description = "Retrieves a recipe for a specific menu item")]
+        [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+        [OpenApiParameter(name: "menuItemName", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Menu item name")]
+        [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(MenuItemRecipe), Description = "Successfully retrieved recipe")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Recipe not found")]
+        [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
         public async Task<IActionResult> GetRecipeByMenuItemName(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "recipes/menuitem/{menuItemName}")] HttpRequest req,
             string menuItemName)
@@ -305,6 +329,56 @@ namespace Cafe.Api.Functions
             {
                 _logger.LogError(ex, $"Error getting making cost for menu item: {menuItemName}");
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        [Function("MigrateRecipeOutlets")]
+        public async Task<HttpResponseData> MigrateRecipeOutlets(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "recipes/migrate-outlets")] HttpRequestData req)
+        {
+            try
+            {
+                _logger.LogInformation("Starting migration of recipe outlet IDs");
+                
+                // Parse request body to get default outlet ID
+                string? defaultOutletId = null;
+                try
+                {
+                    var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                    if (!string.IsNullOrEmpty(requestBody))
+                    {
+                        var jsonDoc = System.Text.Json.JsonDocument.Parse(requestBody);
+                        if (jsonDoc.RootElement.TryGetProperty("defaultOutletId", out var outletIdElement))
+                        {
+                            defaultOutletId = outletIdElement.GetString();
+                        }
+                    }
+                }
+                catch
+                {
+                    // If parsing fails, continue without default outlet ID
+                }
+                
+                var updated = await _mongoService.MigrateRecipeOutletIdsAsync(defaultOutletId);
+                
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(new { 
+                    success = true, 
+                    message = $"Successfully updated {updated} recipes with outlet IDs",
+                    updatedCount = updated,
+                    defaultOutletIdUsed = defaultOutletId
+                });
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error migrating recipe outlet IDs");
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { 
+                    success = false, 
+                    error = ex.Message 
+                });
+                return response;
             }
         }
     }

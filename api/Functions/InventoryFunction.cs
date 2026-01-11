@@ -6,6 +6,9 @@ using System.Text.Json;
 using Cafe.Api.Services;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -29,6 +32,11 @@ public class InventoryFunction
     }
 
     [Function("GetAllInventory")]
+    [OpenApiOperation(operationId: "GetAllInventory", tags: new[] { "Inventory" }, Summary = "Get all inventory", Description = "Retrieves all inventory items for the specified outlet")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Inventory>), Description = "Successfully retrieved inventory")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetAllInventory(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory")] HttpRequestData req)
     {
@@ -50,6 +58,11 @@ public class InventoryFunction
     }
 
     [Function("GetActiveInventory")]
+    [OpenApiOperation(operationId: "GetActiveInventory", tags: new[] { "Inventory" }, Summary = "Get active inventory", Description = "Retrieves all active inventory items with stock")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Inventory>), Description = "Successfully retrieved active inventory")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetActiveInventory(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/active")] HttpRequestData req)
     {
@@ -71,6 +84,12 @@ public class InventoryFunction
     }
 
     [Function("GetInventoryByIngredientId")]
+    [OpenApiOperation(operationId: "GetInventoryByIngredientId", tags: new[] { "Inventory" }, Summary = "Get inventory by ingredient", Description = "Retrieves inventory for a specific ingredient")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "ingredientId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Ingredient ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(Inventory), Description = "Successfully retrieved inventory")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Inventory not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetInventoryByIngredientId(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/ingredient/{ingredientId}")] HttpRequestData req,
         string ingredientId)
@@ -474,7 +493,8 @@ public class InventoryFunction
                 limit = l;
             }
 
-            var transactions = await _mongoService.GetRecentTransactionsAsync(limit);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var transactions = await _mongoService.GetRecentTransactionsAsync(limit, outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(transactions);
             return response;
@@ -494,7 +514,8 @@ public class InventoryFunction
     {
         try
         {
-            var alerts = await _mongoService.GetAllAlertsAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var alerts = await _mongoService.GetAllAlertsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(alerts);
             return response;
@@ -568,7 +589,8 @@ public class InventoryFunction
     {
         try
         {
-            var report = await _mongoService.GetInventoryReportAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var report = await _mongoService.GetInventoryReportAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(report);
             return response;
@@ -614,6 +636,56 @@ public class InventoryFunction
             _logger.LogError(ex, "Error getting inventory by ID: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
             await response.WriteStringAsync($"Error: {ex.Message}");
+            return response;
+        }
+    }
+
+    [Function("MigrateInventoryTransactionOutlets")]
+    public async Task<HttpResponseData> MigrateInventoryTransactionOutlets(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "inventory/migrate-transaction-outlets")] HttpRequestData req)
+    {
+        try
+        {
+            _logger.LogInformation("Starting migration of inventory transaction outlet IDs");
+            
+            // Parse request body to get default outlet ID
+            string? defaultOutletId = null;
+            try
+            {
+                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                if (!string.IsNullOrEmpty(requestBody))
+                {
+                    var jsonDoc = System.Text.Json.JsonDocument.Parse(requestBody);
+                    if (jsonDoc.RootElement.TryGetProperty("defaultOutletId", out var outletIdElement))
+                    {
+                        defaultOutletId = outletIdElement.GetString();
+                    }
+                }
+            }
+            catch
+            {
+                // If parsing fails, continue without default outlet ID
+            }
+            
+            var updated = await _mongoService.MigrateInventoryTransactionOutletIdsAsync(defaultOutletId);
+            
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { 
+                success = true, 
+                message = $"Successfully updated {updated} inventory transactions with outlet IDs",
+                updatedCount = updated,
+                defaultOutletIdUsed = defaultOutletId
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error migrating inventory transaction outlet IDs");
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteAsJsonAsync(new { 
+                success = false, 
+                error = ex.Message 
+            });
             return response;
         }
     }

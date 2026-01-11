@@ -5,6 +5,9 @@ using Cafe.Api.Services;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -29,6 +32,9 @@ public class MenuFunction
     /// <response code="200">Successfully retrieved menu items</response>
     // GET: Get all menu items
     [Function("GetMenu")]
+    [OpenApiOperation(operationId: "GetMenu", tags: new[] { "Menu" }, Summary = "Get all menu items", Description = "Retrieves all menu items with pricing and availability")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID for filtering menu items")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<CafeMenuItem>), Description = "Successfully retrieved menu items")]
     public async Task<HttpResponseData> GetMenu([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu")] HttpRequestData req)
     {
         try
@@ -57,6 +63,9 @@ public class MenuFunction
     /// <response code="200">Successfully retrieved menu items</response>
     // GET: Get menu items by CategoryId
     [Function("GetMenuItemsByCategory")]
+    [OpenApiOperation(operationId: "GetMenuItemsByCategory", tags: new[] { "Menu" }, Summary = "Get menu items by category", Description = "Retrieves all menu items in a specific category")]
+    [OpenApiParameter(name: "categoryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Category ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<CafeMenuItem>), Description = "Successfully retrieved menu items")]
     public async Task<HttpResponseData> GetMenuItemsByCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories/{categoryId}/menu")] HttpRequestData req, string categoryId)
     {
         try
@@ -84,6 +93,9 @@ public class MenuFunction
     /// <response code="200">Successfully retrieved menu items</response>
     // GET: Get menu items by SubCategoryId
     [Function("GetMenuItemsBySubCategory")]
+    [OpenApiOperation(operationId: "GetMenuItemsBySubCategory", tags: new[] { "Menu" }, Summary = "Get menu items by subcategory", Description = "Retrieves all menu items in a specific subcategory")]
+    [OpenApiParameter(name: "subCategoryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Subcategory ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<CafeMenuItem>), Description = "Successfully retrieved menu items")]
     public async Task<HttpResponseData> GetMenuItemsBySubCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "subcategories/{subCategoryId}/menu")] HttpRequestData req, string subCategoryId)
     {
         try
@@ -112,6 +124,10 @@ public class MenuFunction
     /// <response code="404">Menu item not found</response>
     // GET: Get single menu item by ID
     [Function("GetMenuItem")]
+    [OpenApiOperation(operationId: "GetMenuItem", tags: new[] { "Menu" }, Summary = "Get menu item by ID", Description = "Retrieves a specific menu item by its ID")]
+    [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Menu item ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(CafeMenuItem), Description = "Successfully retrieved menu item")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Menu item not found")]
     public async Task<HttpResponseData> GetMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu/{id}")] HttpRequestData req, string id)
     {
         try
@@ -148,6 +164,13 @@ public class MenuFunction
     /// <response code="403">User not authorized (admin role required)</response>
     // POST: Create new menu item (Admin only)
     [Function("CreateMenuItem")]
+    [OpenApiOperation(operationId: "CreateMenuItem", tags: new[] { "Menu" }, Summary = "Create a new menu item", Description = "Creates a new menu item (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(CafeMenuItem), Required = true, Description = "Menu item details")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.Created, contentType: "application/json", bodyType: typeof(CafeMenuItem), Description = "Menu item successfully created")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid menu item data")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> CreateMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "menu")] HttpRequestData req)
     {
         try
@@ -235,6 +258,14 @@ public class MenuFunction
 
     // PUT: Update menu item (Admin only)
     [Function("UpdateMenuItem")]
+    [OpenApiOperation(operationId: "UpdateMenuItem", tags: new[] { "Menu" }, Summary = "Update menu item", Description = "Updates an existing menu item (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Menu item ID")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(CafeMenuItem), Required = true, Description = "Updated menu item details")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(CafeMenuItem), Description = "Successfully updated menu item")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Menu item not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> UpdateMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "menu/{id}")] HttpRequestData req, string id)
     {
         try
@@ -322,6 +353,12 @@ public class MenuFunction
 
     // PATCH: Toggle menu item availability (Admin only)
     [Function("ToggleMenuItemAvailability")]
+    [OpenApiOperation(operationId: "ToggleMenuItemAvailability", tags: new[] { "Menu" }, Summary = "Toggle menu item availability", Description = "Toggles the availability status of a menu item")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Menu item ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(CafeMenuItem), Description = "Successfully toggled availability")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Menu item not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> ToggleMenuItemAvailability(
         [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "menu/{id}/toggle-availability")] HttpRequestData req, 
         string id)
@@ -353,4 +390,131 @@ public class MenuFunction
             return res;
         }
     }
+
+    /// <summary>
+    /// Copy menu item data (recipe, price forecast, future prices, oil usage, ingredients) from one outlet to another
+    /// </summary>
+    /// <param name="req">HTTP request with menuItemName, sourceOutletId, targetOutletId</param>
+    /// <returns>Success message with copied data details</returns>
+    /// <response code="200">Successfully copied menu item data</response>
+    /// <response code="404">Source menu item not found</response>
+    /// <response code="400">Invalid request parameters</response>
+    [Function("CopyMenuItemFromOutlet")]
+    public async Task<HttpResponseData> CopyMenuItemFromOutlet(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "menu/copy-from-outlet")] HttpRequestData req)
+    {
+        try
+        {
+            // Validate admin or manager authorization
+            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var body = await req.ReadFromJsonAsync<CopyMenuItemRequest>();
+            if (body == null || string.IsNullOrEmpty(body.MenuItemName) || 
+                string.IsNullOrEmpty(body.SourceOutletId) || string.IsNullOrEmpty(body.TargetOutletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "MenuItemName, SourceOutletId, and TargetOutletId are required" });
+                return badRequest;
+            }
+
+            if (body.SourceOutletId == body.TargetOutletId)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Source and target outlets cannot be the same" });
+                return badRequest;
+            }
+
+            var copiedData = new CopyMenuItemResponse
+            {
+                MenuItemName = body.MenuItemName,
+                SourceOutletId = body.SourceOutletId,
+                TargetOutletId = body.TargetOutletId
+            };
+
+            // Copy Recipe
+            var copiedRecipe = await _mongo.CopyRecipeFromOutletAsync(body.MenuItemName, body.SourceOutletId, body.TargetOutletId);
+            copiedData.RecipeCopied = copiedRecipe != null;
+            if (copiedRecipe != null)
+            {
+                copiedData.CopiedRecipeId = copiedRecipe.Id;
+                _log.LogInformation("Recipe copied for {MenuItemName} from {SourceOutlet} to {TargetOutlet} by {User}", 
+                    body.MenuItemName, body.SourceOutletId, body.TargetOutletId, username);
+            }
+
+            // Copy Price Forecast
+            var copiedForecast = await _mongo.CopyPriceForecastFromOutletAsync(body.MenuItemName, body.SourceOutletId, body.TargetOutletId);
+            copiedData.PriceForecastCopied = copiedForecast != null;
+            if (copiedForecast != null)
+            {
+                copiedData.CopiedForecastId = copiedForecast.Id;
+                _log.LogInformation("Price forecast copied for {MenuItemName} from {SourceOutlet} to {TargetOutlet} by {User}", 
+                    body.MenuItemName, body.SourceOutletId, body.TargetOutletId, username);
+            }
+
+            // Update future prices in target outlet's menu item if available
+            if (copiedForecast != null && !string.IsNullOrEmpty(copiedForecast.MenuItemId))
+            {
+                var targetMenuItem = await _mongo.GetMenuItemsByNameAndOutletAsync(body.MenuItemName, body.TargetOutletId);
+                if (targetMenuItem != null)
+                {
+                    await _mongo.UpdateMenuItemFuturePricesAsync(targetMenuItem.Id, 
+                        copiedForecast.FutureShopPrice, 
+                        copiedForecast.FutureOnlinePrice);
+                    copiedData.FuturePricesUpdated = true;
+                }
+            }
+
+            if (!copiedData.RecipeCopied && !copiedData.PriceForecastCopied)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { 
+                    error = $"No recipe or price forecast found for menu item '{body.MenuItemName}' in source outlet",
+                    menuItemName = body.MenuItemName,
+                    sourceOutletId = body.SourceOutletId
+                });
+                return notFound;
+            }
+
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(new { 
+                success = true,
+                message = "Menu item data copied successfully",
+                data = copiedData
+            });
+            
+            // Log audit trail
+            _log.LogInformation("Menu item data copied - Action: {Action}, User: {User}, MenuItem: {MenuItem}, From: {Source}, To: {Target}, RecipeCopied: {RecipeCopied}, ForecastCopied: {ForecastCopied}",
+                "CopyMenuItemFromOutlet", username, body.MenuItemName, body.SourceOutletId, body.TargetOutletId, 
+                copiedData.RecipeCopied, copiedData.PriceForecastCopied);
+
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error copying menu item data");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
+}
+
+public class CopyMenuItemRequest
+{
+    public string MenuItemName { get; set; } = string.Empty;
+    public string SourceOutletId { get; set; } = string.Empty;
+    public string TargetOutletId { get; set; } = string.Empty;
+}
+
+public class CopyMenuItemResponse
+{
+    public string MenuItemName { get; set; } = string.Empty;
+    public string SourceOutletId { get; set; } = string.Empty;
+    public string TargetOutletId { get; set; } = string.Empty;
+    public bool RecipeCopied { get; set; }
+    public string? CopiedRecipeId { get; set; }
+    public bool PriceForecastCopied { get; set; }
+    public string? CopiedForecastId { get; set; }
+    public bool FuturePricesUpdated { get; set; }
 }

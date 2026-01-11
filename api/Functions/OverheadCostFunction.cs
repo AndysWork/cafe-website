@@ -1,6 +1,9 @@
 using System.Net;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Cafe.Api.Services;
@@ -29,7 +32,11 @@ public class OverheadCostFunction
         try
         {
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            _logger.LogInformation($"GetAllOverheadCosts called with outletId: {outletId}");
+            
             var overheadCosts = await _mongoService.GetAllOverheadCostsAsync(outletId);
+            _logger.LogInformation($"Found {overheadCosts.Count} overhead costs for outlet {outletId}");
+            
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(overheadCosts);
             return response;
@@ -98,6 +105,8 @@ public class OverheadCostFunction
     {
         try
         {
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var overheadCost = JsonSerializer.Deserialize<OverheadCost>(requestBody, new JsonSerializerOptions
             {
@@ -118,6 +127,11 @@ public class OverheadCostFunction
                 await badRequestResponse.WriteStringAsync("Cost type is required");
                 return badRequestResponse;
             }
+
+            // Set the OutletId from the request header
+            overheadCost.OutletId = outletId;
+            overheadCost.CreatedAt = DateTime.UtcNow;
+            overheadCost.UpdatedAt = DateTime.UtcNow;
 
             var createdOverheadCost = await _mongoService.CreateOverheadCostAsync(overheadCost);
 
@@ -141,6 +155,8 @@ public class OverheadCostFunction
     {
         try
         {
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var overheadCost = JsonSerializer.Deserialize<OverheadCost>(requestBody, new JsonSerializerOptions
             {
@@ -153,6 +169,10 @@ public class OverheadCostFunction
                 await badRequestResponse.WriteStringAsync("Invalid overhead cost data");
                 return badRequestResponse;
             }
+
+            // Ensure the OutletId matches the request header
+            overheadCost.OutletId = outletId;
+            overheadCost.UpdatedAt = DateTime.UtcNow;
 
             var success = await _mongoService.UpdateOverheadCostAsync(id, overheadCost);
             if (!success)
@@ -182,6 +202,24 @@ public class OverheadCostFunction
     {
         try
         {
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            
+            // Verify the overhead cost belongs to the outlet before deleting
+            var existingCost = await _mongoService.GetOverheadCostByIdAsync(id);
+            if (existingCost == null)
+            {
+                var notFoundResponse = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundResponse.WriteStringAsync("Overhead cost not found");
+                return notFoundResponse;
+            }
+
+            if (existingCost.OutletId != outletId && existingCost.OutletId != null)
+            {
+                var forbiddenResponse = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbiddenResponse.WriteStringAsync("Cannot delete overhead cost from another outlet");
+                return forbiddenResponse;
+            }
+
             var success = await _mongoService.DeleteOverheadCostAsync(id);
             if (!success)
             {
@@ -209,7 +247,8 @@ public class OverheadCostFunction
     {
         try
         {
-            _logger.LogInformation("CalculateOverheadAllocation called");
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            _logger.LogInformation("CalculateOverheadAllocation called for outlet {OutletId}", outletId);
             
             if (!int.TryParse(req.Query["preparationTimeMinutes"], out var preparationTimeMinutes) || preparationTimeMinutes <= 0)
             {
@@ -220,7 +259,7 @@ public class OverheadCostFunction
             }
 
             _logger.LogInformation("Calculating allocation for {Minutes} minutes", preparationTimeMinutes);
-            var allocation = await _mongoService.CalculateOverheadAllocationAsync(preparationTimeMinutes);
+            var allocation = await _mongoService.CalculateOverheadAllocationAsync(preparationTimeMinutes, outletId);
             _logger.LogInformation("Allocation calculated successfully");
 
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -251,6 +290,45 @@ public class OverheadCostFunction
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error initializing default overhead costs");
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteStringAsync($"Error: {ex.Message}");
+            return response;
+        }
+    }
+
+    [Function("MigrateOverheadCostOutlets")]
+    [OpenApiOperation(operationId: "MigrateOverheadCostOutlets", tags: new[] { "OverheadCosts" }, Summary = "Migrate overhead costs to add OutletId", Description = "Assigns the specified OutletId to all overhead costs that don't have one.")]
+    [OpenApiParameter(name: "targetOutletId", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "The OutletId to assign to overhead costs without an outlet")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Migration completed successfully")]
+    public async Task<HttpResponseData> MigrateOverheadCostOutlets(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "overhead-costs/migrate-outlets")] HttpRequestData req)
+    {
+        try
+        {
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var targetOutletId = query["targetOutletId"];
+
+            if (string.IsNullOrWhiteSpace(targetOutletId))
+            {
+                var errorResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await errorResponse.WriteStringAsync("targetOutletId parameter is required");
+                return errorResponse;
+            }
+
+            var migratedCount = await _mongoService.MigrateOverheadCostOutletIdsAsync(targetOutletId);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Migration completed successfully",
+                migratedCount = migratedCount,
+                targetOutletId = targetOutletId
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error migrating overhead cost outlets");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
             await response.WriteStringAsync($"Error: {ex.Message}");
             return response;

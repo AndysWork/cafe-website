@@ -6,6 +6,9 @@ using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
 using System.Text.Json;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -24,6 +27,8 @@ public class OfferFunction
 
     // GET /api/offers - Get all active offers (public)
     [Function("GetActiveOffers")]
+    [OpenApiOperation(operationId: "GetActiveOffers", tags: new[] { "Offers" }, Summary = "Get active offers", Description = "Retrieves all active offers (public endpoint)")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Offer>), Description = "Successfully retrieved active offers")]
     public async Task<HttpResponseData> GetActiveOffers(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "offers")] HttpRequestData req)
     {
@@ -48,6 +53,11 @@ public class OfferFunction
 
     // GET /api/offers/all - Get all offers (admin)
     [Function("GetAllOffers")]
+    [OpenApiOperation(operationId: "GetAllOffers", tags: new[] { "Offers" }, Summary = "Get all offers", Description = "Retrieves all offers including inactive ones (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Offer>), Description = "Successfully retrieved all offers")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> GetAllOffers(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "offers/all")] HttpRequestData req)
     {
@@ -78,6 +88,12 @@ public class OfferFunction
 
     // GET /api/offers/{id} - Get offer by ID (admin)
     [Function("GetOfferById")]
+    [OpenApiOperation(operationId: "GetOfferById", tags: new[] { "Offers" }, Summary = "Get offer by ID", Description = "Retrieves a specific offer by its ID (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Offer ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(Offer), Description = "Successfully retrieved offer")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Offer not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetOfferById(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "offers/{id}")] HttpRequestData req,
         string id)

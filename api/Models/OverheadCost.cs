@@ -8,6 +8,7 @@ public class OverheadCost
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
+    [BsonElement("outletId")]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? OutletId { get; set; } // Null means shared across all outlets
 

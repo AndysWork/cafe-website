@@ -6,6 +6,9 @@ using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
 using OfficeOpenXml;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -24,6 +27,12 @@ public class ExpenseFunction
 
     // GET: Get all expenses (Admin only)
     [Function("GetAllExpenses")]
+    [OpenApiOperation(operationId: "GetAllExpenses", tags: new[] { "Expenses" }, Summary = "Get all expenses", Description = "Retrieves all expenses for the specified outlet (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Expense>), Description = "Successfully retrieved expenses")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> GetAllExpenses(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "expenses")] HttpRequestData req)
     {
@@ -60,6 +69,12 @@ public class ExpenseFunction
 
     // GET: Get expense by ID (Admin only)
     [Function("GetExpenseById")]
+    [OpenApiOperation(operationId: "GetExpenseById", tags: new[] { "Expenses" }, Summary = "Get expense by ID", Description = "Retrieves a specific expense by its ID")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Expense ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(Expense), Description = "Successfully retrieved expense")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Expense not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetExpenseById(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "expenses/detail/{id}")] HttpRequestData req,
         string id)
@@ -96,6 +111,14 @@ public class ExpenseFunction
 
     // GET: Get expenses by date range (Admin only)
     [Function("GetExpensesByDateRange")]
+    [OpenApiOperation(operationId: "GetExpensesByDateRange", tags: new[] { "Expenses" }, Summary = "Get expenses by date range", Description = "Retrieves expenses within a specified date range")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "startDate", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "Start date (ISO format)")]
+    [OpenApiParameter(name: "endDate", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "End date (ISO format)")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Expense>), Description = "Successfully retrieved expenses")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid date format")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetExpensesByDateRange(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "expenses/range")] HttpRequestData req)
     {
@@ -196,7 +219,8 @@ public class ExpenseFunction
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var source = query["source"] ?? "Offline"; // "Offline", "Online", or "All"
 
-            var allExpenses = await _mongo.GetAllExpensesAsync();
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            var allExpenses = await _mongo.GetAllExpensesAsync(outletId);
 
             // Filter by source
             var filteredExpenses = source == "All" 
@@ -276,7 +300,8 @@ public class ExpenseFunction
                 ? MongoService.GetIstNow() 
                 : DateTime.Parse(endDateStr);
 
-            var allExpenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            var allExpenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate, outletId);
 
             // Filter by source
             var expenses = source == "All" 

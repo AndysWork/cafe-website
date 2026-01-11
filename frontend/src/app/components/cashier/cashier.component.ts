@@ -139,6 +139,18 @@ export class CashierComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.errorMessage = '';
 
+    // Reset collected amounts and balances when loading new outlet data
+    this.reconciliation.countedCash = 0;
+    this.reconciliation.countedCoins = 0;
+    this.reconciliation.actualOnline = 0;
+    this.reconciliation.openingCashBalance = 0;
+    this.reconciliation.openingCoinBalance = 0;
+    this.reconciliation.openingOnlineBalance = 0;
+    this.reconciliation.closingCashBalance = 0;
+    this.reconciliation.closingCoinBalance = 0;
+    this.reconciliation.closingOnlineBalance = 0;
+    this.reconciliation.notes = '';
+
     try {
       // Load sales summary
       await this.loadSalesSummary();

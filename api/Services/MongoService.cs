@@ -184,17 +184,35 @@ public partial class MongoService
         
         var menuItems = await _menu.Find(filter).ToListAsync();
         
+        if (menuItems.Count == 0)
+            return menuItems;
+        
+        // Get all menu item IDs
+        var menuItemIds = menuItems.Where(m => !string.IsNullOrEmpty(m.Id)).Select(m => m.Id!).ToList();
+        
+        // Fetch all active price forecasts in one query
+        var forecastsFilter = Builders<PriceForecast>.Filter.And(
+            Builders<PriceForecast>.Filter.In(p => p.MenuItemId, menuItemIds),
+            Builders<PriceForecast>.Filter.Eq(p => p.IsFinalized, false)
+        );
+        
+        var allForecasts = await _priceForecasts.Find(forecastsFilter)
+            .SortByDescending(p => p.CreatedDate)
+            .ToListAsync();
+        
+        // Group forecasts by MenuItemId and get the latest one for each
+        var latestForecasts = allForecasts
+            .Where(f => !string.IsNullOrEmpty(f.MenuItemId))
+            .GroupBy(f => f.MenuItemId!)
+            .ToDictionary(g => g.Key, g => g.First());
+        
         // Populate future prices from latest active price forecasts
         foreach (var item in menuItems)
         {
-            if (!string.IsNullOrEmpty(item.Id))
+            if (!string.IsNullOrEmpty(item.Id) && latestForecasts.TryGetValue(item.Id, out var forecast))
             {
-                var latestForecast = await GetLatestActivePriceForecastByMenuItemAsync(item.Id);
-                if (latestForecast != null)
-                {
-                    item.FutureShopPrice = latestForecast.FutureShopPrice;
-                    item.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
-                }
+                item.FutureShopPrice = forecast.FutureShopPrice;
+                item.FutureOnlinePrice = forecast.FutureOnlinePrice;
             }
         }
         
@@ -206,17 +224,35 @@ public partial class MongoService
     {
         var menuItems = await _menu.Find(item => item.CategoryId == categoryId).ToListAsync();
         
+        if (menuItems.Count == 0)
+            return menuItems;
+        
+        // Get all menu item IDs
+        var menuItemIds = menuItems.Where(m => !string.IsNullOrEmpty(m.Id)).Select(m => m.Id!).ToList();
+        
+        // Fetch all active price forecasts in one query
+        var forecastsFilter = Builders<PriceForecast>.Filter.And(
+            Builders<PriceForecast>.Filter.In(p => p.MenuItemId, menuItemIds),
+            Builders<PriceForecast>.Filter.Eq(p => p.IsFinalized, false)
+        );
+        
+        var allForecasts = await _priceForecasts.Find(forecastsFilter)
+            .SortByDescending(p => p.CreatedDate)
+            .ToListAsync();
+        
+        // Group forecasts by MenuItemId and get the latest one for each
+        var latestForecasts = allForecasts
+            .Where(f => !string.IsNullOrEmpty(f.MenuItemId))
+            .GroupBy(f => f.MenuItemId!)
+            .ToDictionary(g => g.Key, g => g.First());
+        
         // Populate future prices from latest active price forecasts
         foreach (var item in menuItems)
         {
-            if (!string.IsNullOrEmpty(item.Id))
+            if (!string.IsNullOrEmpty(item.Id) && latestForecasts.TryGetValue(item.Id, out var forecast))
             {
-                var latestForecast = await GetLatestActivePriceForecastByMenuItemAsync(item.Id);
-                if (latestForecast != null)
-                {
-                    item.FutureShopPrice = latestForecast.FutureShopPrice;
-                    item.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
-                }
+                item.FutureShopPrice = forecast.FutureShopPrice;
+                item.FutureOnlinePrice = forecast.FutureOnlinePrice;
             }
         }
         
@@ -228,17 +264,35 @@ public partial class MongoService
     {
         var menuItems = await _menu.Find(item => item.SubCategoryId == subCategoryId).ToListAsync();
         
+        if (menuItems.Count == 0)
+            return menuItems;
+        
+        // Get all menu item IDs
+        var menuItemIds = menuItems.Where(m => !string.IsNullOrEmpty(m.Id)).Select(m => m.Id!).ToList();
+        
+        // Fetch all active price forecasts in one query
+        var forecastsFilter = Builders<PriceForecast>.Filter.And(
+            Builders<PriceForecast>.Filter.In(p => p.MenuItemId, menuItemIds),
+            Builders<PriceForecast>.Filter.Eq(p => p.IsFinalized, false)
+        );
+        
+        var allForecasts = await _priceForecasts.Find(forecastsFilter)
+            .SortByDescending(p => p.CreatedDate)
+            .ToListAsync();
+        
+        // Group forecasts by MenuItemId and get the latest one for each
+        var latestForecasts = allForecasts
+            .Where(f => !string.IsNullOrEmpty(f.MenuItemId))
+            .GroupBy(f => f.MenuItemId!)
+            .ToDictionary(g => g.Key, g => g.First());
+        
         // Populate future prices from latest active price forecasts
         foreach (var item in menuItems)
         {
-            if (!string.IsNullOrEmpty(item.Id))
+            if (!string.IsNullOrEmpty(item.Id) && latestForecasts.TryGetValue(item.Id, out var forecast))
             {
-                var latestForecast = await GetLatestActivePriceForecastByMenuItemAsync(item.Id);
-                if (latestForecast != null)
-                {
-                    item.FutureShopPrice = latestForecast.FutureShopPrice;
-                    item.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
-                }
+                item.FutureShopPrice = forecast.FutureShopPrice;
+                item.FutureOnlinePrice = forecast.FutureOnlinePrice;
             }
         }
         
@@ -262,6 +316,18 @@ public partial class MongoService
         }
         
         return menuItem;
+    }
+
+    public async Task<CafeMenuItem?> GetMenuItemsByNameAndOutletAsync(string menuItemName, string outletId)
+    {
+        var filter = Builders<CafeMenuItem>.Filter.And(
+            Builders<CafeMenuItem>.Filter.Regex(
+                m => m.Name, 
+                new MongoDB.Bson.BsonRegularExpression($"^{menuItemName}$", "i")
+            ),
+            Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId)
+        );
+        return await _menu.Find(filter).FirstOrDefaultAsync();
     }
 
     // Create new menu item
@@ -330,8 +396,10 @@ public partial class MongoService
         int count = 0;
         foreach (var item in items)
         {
-            // Check if item with same name already exists
-            var existingItem = await _menu.Find(x => x.Name.ToLower() == item.Name.ToLower()).FirstOrDefaultAsync();
+            // Check if item with same name AND outlet ID already exists
+            var existingItem = await _menu.Find(x => 
+                x.Name.ToLower() == item.Name.ToLower() && 
+                x.OutletId == item.OutletId).FirstOrDefaultAsync();
             
             if (existingItem != null)
             {
@@ -383,6 +451,12 @@ public partial class MongoService
     public async Task ClearMenuItemsAsync()
     {
         await _menu.DeleteManyAsync(_ => true);
+    }
+
+    // Clear menu items for a specific outlet
+    public async Task ClearMenuItemsByOutletAsync(string outletId)
+    {
+        await _menu.DeleteManyAsync(m => m.OutletId == outletId);
     }
 
     // Toggle menu item availability (stock status)
@@ -1503,8 +1577,8 @@ public partial class MongoService
             filters.Add(filterBuilder.Eq(s => s.OutletId, outletId));
         }
 
-        var filter = filterBuilder.And(filters);
-        return await _sales.Find(filter)
+        var combinedFilter = filterBuilder.And(filters);
+        return await _sales.Find(combinedFilter)
             .SortByDescending(s => s.Date)
             .ToListAsync();
     }
@@ -1987,7 +2061,7 @@ public partial class MongoService
         
         // Get previous day's closing balance as today's opening balance
         var previousDay = reconciliation.Date.AddDays(-1);
-        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay);
+        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay, reconciliation.OutletId);
         
         if (previousReconciliation != null)
         {
@@ -2083,7 +2157,7 @@ public partial class MongoService
         
         // Get previous day's closing balance for opening balance
         var previousDay = reconciliation.Date.AddDays(-1);
-        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay);
+        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay, reconciliation.OutletId);
         
         if (previousReconciliation != null)
         {
@@ -2137,7 +2211,8 @@ public partial class MongoService
         {
             var firstDate = reconciliations.First().Date;
             var previousDay = firstDate.AddDays(-1);
-            var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay);
+            var firstOutletId = reconciliations.First().OutletId;
+            var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay, firstOutletId);
             
             if (previousReconciliation != null)
             {
@@ -2236,14 +2311,22 @@ public partial class MongoService
     }
 
     // Get sales summary for expected values calculation
-    public async Task<object> GetDailySalesSummaryForReconciliationAsync(DateTime date)
+    public async Task<object> GetDailySalesSummaryForReconciliationAsync(DateTime date, string? outletId = null)
     {
         var startOfDay = date.Date;
         var endOfDay = startOfDay.AddDays(1);
         
-        var sales = await _sales
-            .Find(s => s.Date >= startOfDay && s.Date < endOfDay)
-            .ToListAsync();
+        // Build filters with outlet ID
+        var filterBuilder = Builders<Sales>.Filter;
+        var filter = filterBuilder.Gte(s => s.Date, startOfDay) & 
+                     filterBuilder.Lt(s => s.Date, endOfDay);
+        
+        if (!string.IsNullOrEmpty(outletId))
+        {
+            filter &= filterBuilder.Eq(s => s.OutletId, outletId);
+        }
+        
+        var sales = await _sales.Find(filter).ToListAsync();
         
         var cashSales = sales.Where(s => s.PaymentMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase)).Sum(s => s.TotalAmount);
         var cardSales = sales.Where(s => s.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) || 
@@ -2251,17 +2334,32 @@ public partial class MongoService
         var onlineSales = sales.Where(s => s.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase)).Sum(s => s.TotalAmount);
         
         // Get online orders for the date
-        var orders = await _orders
-            .Find(o => o.CreatedAt >= startOfDay && o.CreatedAt < endOfDay && 
-                      o.Status != "cancelled" && o.Status != "rejected")
-            .ToListAsync();
+        var ordersFilter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Gte(o => o.CreatedAt, startOfDay),
+            Builders<Order>.Filter.Lt(o => o.CreatedAt, endOfDay),
+            Builders<Order>.Filter.Ne(o => o.Status, "cancelled"),
+            Builders<Order>.Filter.Ne(o => o.Status, "rejected")
+        );
+        if (!string.IsNullOrEmpty(outletId))
+        {
+            ordersFilter &= Builders<Order>.Filter.Eq(o => o.OutletId, outletId);
+        }
+        
+        var orders = await _orders.Find(ordersFilter).ToListAsync();
         
         var onlineOrderTotal = orders.Sum(o => o.Total);
         
         // Get expenses for the date
-        var expenses = await _expenses
-            .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
-            .ToListAsync();
+        var expensesFilter = Builders<Expense>.Filter.And(
+            Builders<Expense>.Filter.Gte(e => e.Date, startOfDay),
+            Builders<Expense>.Filter.Lt(e => e.Date, endOfDay)
+        );
+        if (!string.IsNullOrEmpty(outletId))
+        {
+            expensesFilter &= Builders<Expense>.Filter.Eq(e => e.OutletId, outletId);
+        }
+        
+        var expenses = await _expenses.Find(expensesFilter).ToListAsync();
         
         var cashExpenses = expenses.Where(e => e.PaymentMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
         var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
@@ -2271,7 +2369,7 @@ public partial class MongoService
         
         // Get previous day's closing balance to calculate expected cash
         var previousDay = date.AddDays(-1);
-        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay);
+        var previousReconciliation = await GetCashReconciliationByDateAsync(previousDay, outletId);
         
         var openingCashBalance = previousReconciliation?.ClosingCashBalance ?? 0;
         var openingCoinBalance = previousReconciliation?.ClosingCoinBalance ?? 0;
@@ -2354,7 +2452,7 @@ public partial class MongoService
             .ToListAsync();
     }
 
-    public async Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate)
+    public async Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate, string? outletId = null)
     {
         // Dates are received as IST dates (YYYY-MM-DD), treat them as IST for filtering
         var startOfDay = startDate.Date;
@@ -2362,6 +2460,11 @@ public partial class MongoService
 
         var filter = Builders<OnlineSale>.Filter.Gte(s => s.OrderAt, startOfDay) &
                      Builders<OnlineSale>.Filter.Lte(s => s.OrderAt, endOfDay);
+        
+        if (!string.IsNullOrEmpty(outletId))
+        {
+            filter &= Builders<OnlineSale>.Filter.Eq(s => s.OutletId, outletId);
+        }
 
         var sales = await _onlineSales.Find(filter).ToListAsync();
 
@@ -2433,7 +2536,7 @@ public partial class MongoService
         }).ToList();
     }
 
-    public async Task<List<DiscountCouponResponse>> GetUniqueDiscountCouponsAsync()
+    public async Task<List<DiscountCouponResponse>> GetUniqueDiscountCouponsAsync(string? outletId = null)
     {
         // Get all discount coupon management records
         var couponManagement = await _discountCoupons.Find(_ => true).ToListAsync();
@@ -2447,6 +2550,11 @@ public partial class MongoService
             Builders<OnlineSale>.Filter.Ne(s => s.DiscountCoupon, null),
             Builders<OnlineSale>.Filter.Ne(s => s.DiscountCoupon, "")
         );
+        
+        if (!string.IsNullOrEmpty(outletId))
+        {
+            filter &= Builders<OnlineSale>.Filter.Eq(s => s.OutletId, outletId);
+        }
 
         var sales = await _onlineSales.Find(filter).ToListAsync();
 
@@ -2987,9 +3095,15 @@ public partial class MongoService
 
     #region Recipe Methods
 
-    public async Task<List<MenuItemRecipe>> GetRecipesAsync()
+    public async Task<List<MenuItemRecipe>> GetRecipesAsync(string? outletId = null)
     {
-        return await _recipes.Find(_ => true).ToListAsync();
+        if (string.IsNullOrEmpty(outletId))
+        {
+            return await _recipes.Find(_ => true).ToListAsync();
+        }
+        
+        var filter = Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, outletId);
+        return await _recipes.Find(filter).ToListAsync();
     }
 
     public async Task<MenuItemRecipe?> GetRecipeByIdAsync(string id)
@@ -3002,6 +3116,18 @@ public partial class MongoService
         var filter = Builders<MenuItemRecipe>.Filter.Regex(
             r => r.MenuItemName, 
             new MongoDB.Bson.BsonRegularExpression($"^{menuItemName}$", "i")
+        );
+        return await _recipes.Find(filter).FirstOrDefaultAsync();
+    }
+
+    public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAndOutletAsync(string menuItemName, string outletId)
+    {
+        var filter = Builders<MenuItemRecipe>.Filter.And(
+            Builders<MenuItemRecipe>.Filter.Regex(
+                r => r.MenuItemName, 
+                new MongoDB.Bson.BsonRegularExpression($"^{menuItemName}$", "i")
+            ),
+            Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, outletId)
         );
         return await _recipes.Find(filter).FirstOrDefaultAsync();
     }
@@ -3022,6 +3148,112 @@ public partial class MongoService
     {
         var result = await _recipes.DeleteOneAsync(r => r.Id == id);
         return result.DeletedCount > 0;
+    }
+
+    public async Task<MenuItemRecipe?> CopyRecipeFromOutletAsync(string menuItemName, string sourceOutletId, string targetOutletId)
+    {
+        var sourceRecipe = await GetRecipeByMenuItemNameAndOutletAsync(menuItemName, sourceOutletId);
+        if (sourceRecipe == null) return null;
+
+        var targetRecipe = new MenuItemRecipe
+        {
+            MenuItemName = sourceRecipe.MenuItemName,
+            MenuItemId = sourceRecipe.MenuItemId,
+            OutletId = targetOutletId,
+            Ingredients = sourceRecipe.Ingredients,
+            OverheadCosts = sourceRecipe.OverheadCosts,
+            TotalIngredientCost = sourceRecipe.TotalIngredientCost,
+            TotalOverheadCost = sourceRecipe.TotalOverheadCost,
+            TotalMakingCost = sourceRecipe.TotalMakingCost,
+            ProfitMargin = sourceRecipe.ProfitMargin,
+            SuggestedSellingPrice = sourceRecipe.SuggestedSellingPrice,
+            ActualSellingPrice = sourceRecipe.ActualSellingPrice,
+            Notes = sourceRecipe.Notes,
+            OilUsage = sourceRecipe.OilUsage != null ? new OilUsage
+            {
+                FryingTimeMinutes = sourceRecipe.OilUsage.FryingTimeMinutes,
+                OilCapacityLiters = sourceRecipe.OilUsage.OilCapacityLiters,
+                OilPricePer750ml = sourceRecipe.OilUsage.OilPricePer750ml,
+                OilUsageDays = sourceRecipe.OilUsage.OilUsageDays,
+                OilUsageHoursPerDay = sourceRecipe.OilUsage.OilUsageHoursPerDay,
+                CalculatedOilCost = sourceRecipe.OilUsage.CalculatedOilCost
+            } : null,
+            PriceForecast = sourceRecipe.PriceForecast != null ? new PriceForecastData
+            {
+                PackagingCost = sourceRecipe.PriceForecast.PackagingCost,
+                OnlineDeduction = sourceRecipe.PriceForecast.OnlineDeduction,
+                OnlineDiscount = sourceRecipe.PriceForecast.OnlineDiscount,
+                ShopPrice = sourceRecipe.PriceForecast.ShopPrice,
+                ShopDeliveryPrice = sourceRecipe.PriceForecast.ShopDeliveryPrice,
+                OnlinePrice = sourceRecipe.PriceForecast.OnlinePrice,
+                OnlinePayout = sourceRecipe.PriceForecast.OnlinePayout,
+                OnlineProfit = sourceRecipe.PriceForecast.OnlineProfit,
+                OfflineProfit = sourceRecipe.PriceForecast.OfflineProfit,
+                TakeawayProfit = sourceRecipe.PriceForecast.TakeawayProfit,
+                FutureShopPrice = sourceRecipe.PriceForecast.FutureShopPrice,
+                FutureOnlinePrice = sourceRecipe.PriceForecast.FutureOnlinePrice,
+                FutureShopProfit = sourceRecipe.PriceForecast.FutureShopProfit,
+                FutureOnlineProfit = sourceRecipe.PriceForecast.FutureOnlineProfit
+            } : null,
+            PreparationTimeMinutes = sourceRecipe.PreparationTimeMinutes,
+            KptAnalysis = sourceRecipe.KptAnalysis,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await _recipes.InsertOneAsync(targetRecipe);
+        return targetRecipe;
+    }
+
+    public async Task<PriceForecast?> CopyPriceForecastFromOutletAsync(string menuItemName, string sourceOutletId, string targetOutletId)
+    {
+        var sourceForecast = await _priceForecasts
+            .Find(pf => pf.MenuItemName == menuItemName && pf.OutletId == sourceOutletId)
+            .FirstOrDefaultAsync();
+        
+        if (sourceForecast == null) return null;
+
+        var targetForecast = new PriceForecast
+        {
+            MenuItemId = sourceForecast.MenuItemId,
+            MenuItemName = sourceForecast.MenuItemName,
+            OutletId = targetOutletId,
+            MakePrice = sourceForecast.MakePrice,
+            PackagingCost = sourceForecast.PackagingCost,
+            ShopPrice = sourceForecast.ShopPrice,
+            ShopDeliveryPrice = sourceForecast.ShopDeliveryPrice,
+            OnlinePrice = sourceForecast.OnlinePrice,
+            UpdatedShopPrice = sourceForecast.UpdatedShopPrice,
+            UpdatedOnlinePrice = sourceForecast.UpdatedOnlinePrice,
+            OnlineDeduction = sourceForecast.OnlineDeduction,
+            OnlineDiscount = sourceForecast.OnlineDiscount,
+            PayoutCalculation = sourceForecast.PayoutCalculation,
+            OnlinePayout = sourceForecast.OnlinePayout,
+            OnlineProfit = sourceForecast.OnlineProfit,
+            OfflineProfit = sourceForecast.OfflineProfit,
+            TakeawayProfit = sourceForecast.TakeawayProfit,
+            FutureShopPrice = sourceForecast.FutureShopPrice,
+            FutureOnlinePrice = sourceForecast.FutureOnlinePrice,
+            IsFinalized = false,
+            CreatedBy = "System - Copied",
+            CreatedDate = GetIstNow(),
+            LastUpdatedBy = "System - Copied",
+            LastUpdated = GetIstNow()
+        };
+
+        await _priceForecasts.InsertOneAsync(targetForecast);
+        return targetForecast;
+    }
+
+    public async Task<bool> UpdateMenuItemFuturePricesAsync(string menuItemId, decimal? futureShopPrice, decimal? futureOnlinePrice)
+    {
+        var update = Builders<CafeMenuItem>.Update
+            .Set(m => m.FutureShopPrice, futureShopPrice)
+            .Set(m => m.FutureOnlinePrice, futureOnlinePrice)
+            .Set(m => m.LastUpdated, GetIstNow());
+
+        var result = await _menu.UpdateOneAsync(m => m.Id == menuItemId, update);
+        return result.ModifiedCount > 0;
     }
 
     #endregion
@@ -3146,6 +3378,254 @@ public partial class MongoService
                       i.IsActive && 
                       settings.EnabledCategories.Contains(i.Category))
             .ToListAsync();
+    }
+
+    #endregion
+
+    #region Inventory Dashboard Methods
+
+    public async Task<List<InventoryTransaction>> GetRecentTransactionsAsync(int limit, string? outletId = null)
+    {
+        var filterBuilder = Builders<InventoryTransaction>.Filter;
+        var filter = filterBuilder.Empty;
+        
+        if (!string.IsNullOrEmpty(outletId))
+            filter = filterBuilder.Eq(t => t.OutletId, outletId);
+        
+        var transactions = await _inventoryTransactions
+            .Find(filter)
+            .SortByDescending(t => t.TransactionDate)
+            .Limit(limit)
+            .ToListAsync();
+        
+        // Debug logging
+        var totalCount = await _inventoryTransactions.CountDocumentsAsync(filterBuilder.Empty);
+        var outletCount = string.IsNullOrEmpty(outletId) ? 0 : await _inventoryTransactions.CountDocumentsAsync(filter);
+        Console.WriteLine($"[GetRecentTransactionsAsync] Total transactions in DB: {totalCount}, For outlet {outletId}: {outletCount}, Returning: {transactions.Count}");
+        
+        return transactions;
+    }
+
+    public async Task<List<StockAlert>> GetAllAlertsAsync(string? outletId = null)
+    {
+        var filterBuilder = Builders<StockAlert>.Filter;
+        var filter = filterBuilder.Eq(a => a.IsResolved, false);
+        
+        // Note: StockAlert doesn't have OutletId, but we can join with Inventory to filter
+        var alerts = await _stockAlerts
+            .Find(filter)
+            .SortByDescending(a => a.CreatedAt)
+            .ToListAsync();
+        
+        // If outlet filtering is needed, filter by checking inventory items
+        if (!string.IsNullOrEmpty(outletId))
+        {
+            var inventoryIds = await _inventory
+                .Find(i => i.OutletId == outletId)
+                .Project(i => i.Id)
+                .ToListAsync();
+            
+            var inventoryIdSet = new HashSet<string>(inventoryIds.Where(id => id != null).Select(id => id!));
+            alerts = alerts.Where(a => inventoryIdSet.Contains(a.InventoryId)).ToList();
+        }
+        
+        return alerts;
+    }
+
+    public async Task<object> GetInventoryReportAsync(string? outletId = null)
+    {
+        var filterBuilder = Builders<Inventory>.Filter;
+        var filter = filterBuilder.Empty;
+        
+        if (!string.IsNullOrEmpty(outletId))
+            filter = filterBuilder.Eq(i => i.OutletId, outletId);
+        
+        var inventory = await _inventory.Find(filter).ToListAsync();
+        
+        var totalItems = inventory.Count;
+        var activeItems = inventory.Count(i => i.IsActive);
+        var lowStockItems = inventory.Count(i => i.CurrentStock <= i.MinimumStock);
+        var outOfStockItems = inventory.Count(i => i.CurrentStock <= 0);
+        var totalValue = inventory.Sum(i => i.CurrentStock * i.CostPerUnit);
+        
+        return new
+        {
+            TotalItems = totalItems,
+            ActiveItems = activeItems,
+            LowStockItems = lowStockItems,
+            OutOfStockItems = outOfStockItems,
+            TotalValue = totalValue,
+            LastUpdated = GetIstNow()
+        };
+    }
+
+    public async Task<int> MigrateInventoryTransactionOutletIdsAsync(string? defaultOutletId = null)
+    {
+        // Get all transactions without outlet ID
+        // Use FilterDefinition to avoid ObjectId serialization issues with empty strings
+        var filter = Builders<InventoryTransaction>.Filter.Or(
+            Builders<InventoryTransaction>.Filter.Eq(t => t.OutletId, null),
+            Builders<InventoryTransaction>.Filter.Exists(t => t.OutletId, false)
+        );
+        
+        var transactionsWithoutOutlet = await _inventoryTransactions
+            .Find(filter)
+            .ToListAsync();
+        
+        if (transactionsWithoutOutlet.Count == 0)
+        {
+            Console.WriteLine("[MigrateInventoryTransactionOutletIds] No transactions need migration");
+            return 0;
+        }
+        
+        Console.WriteLine($"[MigrateInventoryTransactionOutletIds] Found {transactionsWithoutOutlet.Count} transactions without outlet IDs");
+        
+        // If no default outlet ID provided, try to get the first outlet from database
+        if (string.IsNullOrEmpty(defaultOutletId))
+        {
+            var firstOutlet = await _outlets.Find(_ => true).FirstOrDefaultAsync();
+            if (firstOutlet != null)
+            {
+                defaultOutletId = firstOutlet.Id;
+                Console.WriteLine($"[MigrateInventoryTransactionOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
+            }
+            else
+            {
+                Console.WriteLine("[MigrateInventoryTransactionOutletIds] ERROR: No outlets found in database and no default provided");
+                return 0;
+            }
+        }
+        
+        var updateCount = 0;
+        
+        // Update all transactions with the default outlet ID
+        foreach (var transaction in transactionsWithoutOutlet)
+        {
+            var update = Builders<InventoryTransaction>.Update
+                .Set(t => t.OutletId, defaultOutletId);
+            
+            await _inventoryTransactions.UpdateOneAsync(
+                t => t.Id == transaction.Id,
+                update
+            );
+            
+            updateCount++;
+        }
+        
+        Console.WriteLine($"[MigrateInventoryTransactionOutletIds] Updated {updateCount} transactions with outlet ID: {defaultOutletId}");
+        return updateCount;
+    }
+
+    public async Task<int> MigratePlatformChargeOutletIdsAsync(string? defaultOutletId = null)
+    {
+        // Get all platform charges without outlet ID
+        var filter = Builders<PlatformCharge>.Filter.Or(
+            Builders<PlatformCharge>.Filter.Eq(c => c.OutletId, null),
+            Builders<PlatformCharge>.Filter.Exists(c => c.OutletId, false)
+        );
+        
+        var chargesWithoutOutlet = await _platformCharges
+            .Find(filter)
+            .ToListAsync();
+        
+        if (chargesWithoutOutlet.Count == 0)
+        {
+            Console.WriteLine("[MigratePlatformChargeOutletIds] No platform charges need migration");
+            return 0;
+        }
+        
+        Console.WriteLine($"[MigratePlatformChargeOutletIds] Found {chargesWithoutOutlet.Count} platform charges without outlet IDs");
+        
+        // If no default outlet ID provided, try to get the first outlet from database
+        if (string.IsNullOrEmpty(defaultOutletId))
+        {
+            var firstOutlet = await _outlets.Find(_ => true).FirstOrDefaultAsync();
+            if (firstOutlet != null)
+            {
+                defaultOutletId = firstOutlet.Id;
+                Console.WriteLine($"[MigratePlatformChargeOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
+            }
+            else
+            {
+                Console.WriteLine("[MigratePlatformChargeOutletIds] ERROR: No outlets found in database and no default provided");
+                return 0;
+            }
+        }
+        
+        var updateCount = 0;
+        
+        // Update all platform charges with the default outlet ID
+        foreach (var charge in chargesWithoutOutlet)
+        {
+            var update = Builders<PlatformCharge>.Update
+                .Set(c => c.OutletId, defaultOutletId);
+            
+            await _platformCharges.UpdateOneAsync(
+                c => c.Id == charge.Id,
+                update
+            );
+            
+            updateCount++;
+        }
+        
+        Console.WriteLine($"[MigratePlatformChargeOutletIds] Updated {updateCount} platform charges with outlet ID: {defaultOutletId}");
+        return updateCount;
+    }
+
+    public async Task<int> MigrateRecipeOutletIdsAsync(string? defaultOutletId = null)
+    {
+        // Get all recipes without outlet ID
+        var filter = Builders<MenuItemRecipe>.Filter.Or(
+            Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, null),
+            Builders<MenuItemRecipe>.Filter.Exists(r => r.OutletId, false)
+        );
+        
+        var recipesWithoutOutlet = await _recipes
+            .Find(filter)
+            .ToListAsync();
+        
+        if (recipesWithoutOutlet.Count == 0)
+        {
+            Console.WriteLine("[MigrateRecipeOutletIds] No recipes need migration");
+            return 0;
+        }
+        
+        Console.WriteLine($"[MigrateRecipeOutletIds] Found {recipesWithoutOutlet.Count} recipes without outlet IDs");
+        
+        // If no default outlet ID provided, try to get the first outlet from database
+        if (string.IsNullOrEmpty(defaultOutletId))
+        {
+            var firstOutlet = await _outlets.Find(_ => true).FirstOrDefaultAsync();
+            if (firstOutlet != null)
+            {
+                defaultOutletId = firstOutlet.Id;
+                Console.WriteLine($"[MigrateRecipeOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
+            }
+            else
+            {
+                Console.WriteLine("[MigrateRecipeOutletIds] ERROR: No outlets found in database and no default provided");
+                return 0;
+            }
+        }
+        
+        var updateCount = 0;
+        
+        // Update all recipes with the default outlet ID
+        foreach (var recipe in recipesWithoutOutlet)
+        {
+            var update = Builders<MenuItemRecipe>.Update
+                .Set(r => r.OutletId, defaultOutletId);
+            
+            await _recipes.UpdateOneAsync(
+                r => r.Id == recipe.Id,
+                update
+            );
+            
+            updateCount++;
+        }
+        
+        Console.WriteLine($"[MigrateRecipeOutletIds] Updated {updateCount} recipes with outlet ID: {defaultOutletId}");
+        return updateCount;
     }
 
     #endregion

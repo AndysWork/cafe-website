@@ -6,6 +6,9 @@ using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
 using System.Security.Claims;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -24,6 +27,11 @@ public class LoyaltyFunction
 
     // GET: Get user's loyalty account
     [Function("GetLoyaltyAccount")]
+    [OpenApiOperation(operationId: "GetLoyaltyAccount", tags: new[] { "Loyalty" }, Summary = "Get loyalty account", Description = "Retrieves the authenticated user's loyalty account")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(LoyaltyAccountResponse), Description = "Successfully retrieved loyalty account")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid user information")]
     public async Task<HttpResponseData> GetLoyaltyAccount(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "loyalty")] HttpRequestData req)
     {

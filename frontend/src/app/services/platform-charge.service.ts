@@ -42,10 +42,18 @@ export class PlatformChargeService {
 
   private getHeaders(): HttpHeaders {
     const token = localStorage.getItem('authToken');
-    return new HttpHeaders({
+    const outletId = localStorage.getItem('selectedOutletId');
+
+    let headers = new HttpHeaders({
       'Content-Type': 'application/json',
       'Authorization': token ? `Bearer ${token}` : ''
     });
+
+    if (outletId) {
+      headers = headers.set('X-Outlet-Id', outletId);
+    }
+
+    return headers;
   }
 
   getAllPlatformCharges(): Observable<PlatformCharge[]> {

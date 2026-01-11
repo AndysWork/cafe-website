@@ -1,6 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiscountCouponService, DiscountCoupon } from '../../services/discount-coupon.service';
+import { OutletService } from '../../services/outlet.service';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 @Component({
   selector: 'app-discount-mapping',
@@ -9,7 +12,10 @@ import { DiscountCouponService, DiscountCoupon } from '../../services/discount-c
   templateUrl: './discount-mapping.component.html',
   styleUrls: ['./discount-mapping.component.scss']
 })
-export class DiscountMappingComponent implements OnInit {
+export class DiscountMappingComponent implements OnInit, OnDestroy {
+  private outletService = inject(OutletService);
+  private outletSubscription?: Subscription;
+
   coupons: DiscountCoupon[] = [];
   loading = true;
   error: string | null = null;
@@ -21,7 +27,21 @@ export class DiscountMappingComponent implements OnInit {
   constructor(private couponService: DiscountCouponService) {}
 
   ngOnInit() {
-    this.loadDiscountCoupons();
+    // Subscribe to outlet changes
+    this.outletSubscription = this.outletService.selectedOutlet$
+      .pipe(filter(outlet => outlet !== null))
+      .subscribe(() => {
+        this.loadDiscountCoupons();
+      });
+
+    // Load immediately if outlet is already selected
+    if (this.outletService.getSelectedOutlet()) {
+      this.loadDiscountCoupons();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.outletSubscription?.unsubscribe();
   }
 
   loadDiscountCoupons() {

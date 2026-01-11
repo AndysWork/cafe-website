@@ -388,7 +388,8 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
     return icons[type] || '📦';
   }
 
-  formatCurrency(value: number): string {
+  formatCurrency(value: number | undefined | null): string {
+    if (value === null || value === undefined) return '₹0.00';
     return `₹${value.toFixed(2)}`;
   }
 

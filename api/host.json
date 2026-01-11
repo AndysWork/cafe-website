@@ -12,6 +12,11 @@
     "extensions": {
         "http": {
             "routePrefix": "api"
+        },
+        "openApi": {
+            "version": "v3",
+            "forceHttps": false,
+            "forceHttp": false
         }
     },
     "cors": {

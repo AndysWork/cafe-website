@@ -5,6 +5,9 @@ using Cafe.Api.Services;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -25,6 +28,11 @@ public class OutletFunction
     /// Retrieves all outlets (Admin only)
     /// </summary>
     [Function("GetAllOutlets")]
+    [OpenApiOperation(operationId: "GetAllOutlets", tags: new[] { "Outlets" }, Summary = "Get all outlets", Description = "Retrieves all outlets (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Outlet>), Description = "Successfully retrieved outlets")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> GetAllOutlets(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "outlets")] HttpRequestData req)
     {
@@ -54,6 +62,10 @@ public class OutletFunction
     /// Retrieves active outlets only
     /// </summary>
     [Function("GetActiveOutlets")]
+    [OpenApiOperation(operationId: "GetActiveOutlets", tags: new[] { "Outlets" }, Summary = "Get active outlets", Description = "Retrieves all active outlets")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Outlet>), Description = "Successfully retrieved active outlets")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetActiveOutlets(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "outlets/active")] HttpRequestData req)
     {
@@ -84,6 +96,12 @@ public class OutletFunction
     /// Retrieves a specific outlet by ID
     /// </summary>
     [Function("GetOutlet")]
+    [OpenApiOperation(operationId: "GetOutlet", tags: new[] { "Outlets" }, Summary = "Get outlet by ID", Description = "Retrieves a specific outlet by its ID")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(Outlet), Description = "Successfully retrieved outlet")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Outlet not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetOutlet(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "outlets/{id}")] HttpRequestData req,
         string id)

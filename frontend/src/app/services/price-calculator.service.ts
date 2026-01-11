@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject, of, forkJoin } from 'rxjs';
 import { map, catchError, switchMap } from 'rxjs/operators';
 import {
@@ -31,9 +31,20 @@ export class PriceCalculatorService {
     this.loadRecipesFromServer();
   }
 
+  private getHeaders(): HttpHeaders {
+    const outletId = localStorage.getItem('selectedOutletId');
+    let headers = new HttpHeaders();
+
+    if (outletId) {
+      headers = headers.set('X-Outlet-Id', outletId);
+    }
+
+    return headers;
+  }
+
   // Load data from server
   private loadIngredientsFromServer(): void {
-    this.http.get<Ingredient[]>(`${this.apiUrl}/ingredients`)
+    this.http.get<Ingredient[]>(`${this.apiUrl}/ingredients`, { headers: this.getHeaders() })
       .pipe(catchError(() => {
         // If API fails, try localStorage as fallback
         const stored = localStorage.getItem('cafe_ingredients');
@@ -51,7 +62,7 @@ export class PriceCalculatorService {
   }
 
   private loadRecipesFromServer(): void {
-    this.http.get<MenuItemRecipe[]>(`${this.apiUrl}/recipes`)
+    this.http.get<MenuItemRecipe[]>(`${this.apiUrl}/recipes`, { headers: this.getHeaders() })
       .pipe(catchError((error) => {
         console.error('Error loading recipes from API:', error);
         const stored = localStorage.getItem('cafe_recipes');
@@ -72,6 +83,12 @@ export class PriceCalculatorService {
       id: `ing_${Date.now()}_${index}`,
       lastUpdated: new Date()
     }));
+  }
+
+  // Public method to reload data (used when outlet changes)
+  reloadData(): void {
+    this.loadIngredientsFromServer();
+    this.loadRecipesFromServer();
   }
 
   // ===== INGREDIENT MANAGEMENT =====

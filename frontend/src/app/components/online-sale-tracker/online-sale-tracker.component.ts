@@ -192,6 +192,17 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
   }
 
   async loadData(): Promise<void> {
+    // Reset summary values when loading new outlet data
+    this.totalOrders = 0;
+    this.totalDeduction = 0;
+    this.totalDiscount = 0;
+    this.totalFreebies = 0;
+    this.packagingCharge = 0;
+    this.itemSubtotal = 0;
+    this.totalMonthlyCharges = 0;
+    this.totalPayout = 0;
+    this.averageRating = 0;
+
     // Load both sales and daily income, then calculate summary
     await Promise.all([this.loadSales(), this.loadDailyIncome()]);
     this.calculateSummary();

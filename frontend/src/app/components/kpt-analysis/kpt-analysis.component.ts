@@ -95,6 +95,13 @@ export class KptAnalysisComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.errorMessage = '';
 
+    // Reset data when loading new outlet
+    this.summary = null;
+    this.menuItems = [];
+    this.filteredMenuItems = [];
+    this.searchTerm = '';
+    this.currentPage = 1;
+
     try {
       const params = new URLSearchParams();
 

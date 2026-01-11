@@ -3,11 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { PriceCalculatorService } from '../../services/price-calculator.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { OverheadCostService, OverheadCost, OverheadAllocation } from '../../services/overhead-cost.service';
 import { FrozenItemService } from '../../services/frozen-item.service';
 import { PriceForecastService, PriceForecast } from '../../services/price-forecast.service';
+import { OutletService } from '../../services/outlet.service';
+import { Outlet } from '../../models/outlet.model';
 import { environment } from '../../../environments/environment';
 import {
   Ingredient,
@@ -133,12 +136,25 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   measurementUnits = MEASUREMENT_UNITS;
   Math = Math; // Expose Math for template
 
+  // Copy Menu Data from Another Outlet
+  showCopyMenuModal = false;
+  copyMenuForm = {
+    menuItemName: '',
+    sourceOutletId: '',
+    targetOutletId: ''
+  };
+  availableOutlets: Outlet[] = [];
+  currentOutlet: Outlet | null = null;
+  isCopying = false;
+  copyResult: any = null;
+
   constructor(
     private priceCalculatorService: PriceCalculatorService,
     private menuService: MenuService,
     private overheadCostService: OverheadCostService,
     private frozenItemService: FrozenItemService,
     private priceForecastService: PriceForecastService,
+    private outletService: OutletService,
     private http: HttpClient
   ) {}
 
@@ -148,6 +164,33 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     this.loadMenuItems();
     this.loadOverheadCosts();
     this.loadFrozenItems();
+    this.loadOutlets();
+    this.loadCurrentOutlet();
+
+    // Subscribe to outlet changes and reload data
+    this.outletService.selectedOutlet$
+      .pipe(
+        takeUntil(this.destroy$),
+        filter(outlet => outlet !== null)
+      )
+      .subscribe(() => {
+        // Reset data before loading new outlet data
+        this.ingredients = [];
+        this.recipes = [];
+        this.menuItems = [];
+        this.overheadCosts = [];
+        this.frozenItems = [];
+        this.currentRecipe = this.getEmptyRecipe();
+
+        // Reload data from API with new outlet context
+        this.priceCalculatorService.reloadData();
+
+        this.loadIngredients();
+        this.loadRecipes();
+        this.loadMenuItems();
+        this.loadOverheadCosts();
+        this.loadFrozenItems();
+      });
   }
 
   ngOnDestroy(): void {
@@ -189,6 +232,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   loadOverheadCosts(): void {
+    this.overheadCosts = [];
     this.overheadCostService.getAllOverheadCosts()
       .pipe(takeUntil(this.destroy$))
       .subscribe(costs => {
@@ -1794,4 +1838,106 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     a.download = 'frozen_items_template.csv';
     a.click();
     window.URL.revokeObjectURL(url);
-  }}
+  }
+
+  // ===== COPY MENU DATA FROM ANOTHER OUTLET =====
+
+  loadOutlets(): void {
+    this.outletService.getAllOutlets()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (outlets) => {
+          this.availableOutlets = outlets;
+        },
+        error: (err) => {
+          console.error('Error loading outlets:', err);
+        }
+      });
+  }
+
+  loadCurrentOutlet(): void {
+    this.outletService.selectedOutlet$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(outlet => {
+        this.currentOutlet = outlet;
+        if (outlet) {
+          this.copyMenuForm.targetOutletId = outlet.id || '';
+        }
+      });
+  }
+
+  openCopyMenuModal(): void {
+    this.showCopyMenuModal = true;
+    this.copyMenuForm = {
+      menuItemName: this.currentRecipe.menuItemName || '',
+      sourceOutletId: '',
+      targetOutletId: this.currentOutlet?.id || ''
+    };
+    this.copyResult = null;
+  }
+
+  closeCopyMenuModal(): void {
+    this.showCopyMenuModal = false;
+    this.copyMenuForm = {
+      menuItemName: '',
+      sourceOutletId: '',
+      targetOutletId: this.currentOutlet?.id || ''
+    };
+    this.copyResult = null;
+  }
+
+  copyMenuDataFromOutlet(): void {
+    if (!this.copyMenuForm.menuItemName || !this.copyMenuForm.sourceOutletId || !this.copyMenuForm.targetOutletId) {
+      this.showAlert('Please fill in all fields', 'error');
+      return;
+    }
+
+    if (this.copyMenuForm.sourceOutletId === this.copyMenuForm.targetOutletId) {
+      this.showAlert('Source and target outlets must be different', 'error');
+      return;
+    }
+
+    this.isCopying = true;
+    this.copyResult = null;
+
+    this.menuService.copyMenuItemFromOutlet(
+      this.copyMenuForm.menuItemName,
+      this.copyMenuForm.sourceOutletId,
+      this.copyMenuForm.targetOutletId
+    ).pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.isCopying = false;
+          this.copyResult = response;
+
+          const copiedItems = [];
+          if (response.data.recipeCopied) copiedItems.push('Recipe');
+          if (response.data.priceForecastCopied) copiedItems.push('Price Forecast');
+          if (response.data.futurePricesUpdated) copiedItems.push('Future Prices');
+
+          const message = `Successfully copied: ${copiedItems.join(', ')}`;
+          this.showAlert(message, 'success');
+
+          // Reload data
+          this.loadRecipes();
+          this.loadMenuItems();
+
+          // Auto-close after 3 seconds
+          setTimeout(() => {
+            this.closeCopyMenuModal();
+          }, 3000);
+        },
+        error: (err) => {
+          this.isCopying = false;
+          console.error('Error copying menu data:', err);
+          const errorMsg = err.error?.error || 'Failed to copy menu data';
+          this.showAlert(errorMsg, 'error');
+        }
+      });
+  }
+
+  getOutletName(outletId: string): string {
+    const outlet = this.availableOutlets.find(o => o.id === outletId);
+    return outlet?.outletName || outletId;
+  }
+}

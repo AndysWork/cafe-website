@@ -5,6 +5,9 @@ using Cafe.Api.Helpers;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -30,6 +33,11 @@ public class UserManagementFunction
     /// <response code="401">User not authenticated</response>
     /// <response code="403">User not authorized (admin role required)</response>
     [Function("GetAllUsers")]
+    [OpenApiOperation(operationId: "GetAllUsers", tags: new[] { "Users" }, Summary = "Get all users", Description = "Retrieves all user accounts (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<User>), Description = "Successfully retrieved users")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> GetAllUsers(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "users")] HttpRequestData req)
     {
@@ -70,6 +78,13 @@ public class UserManagementFunction
     }
 
     [Function("PromoteUserToAdmin")]
+    [OpenApiOperation(operationId: "PromoteUserToAdmin", tags: new[] { "Users" }, Summary = "Promote user to admin", Description = "Promotes a user to admin role (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "userId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "User ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "User successfully promoted")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "User not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> PromoteUserToAdmin(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "users/{userId}/promote")] HttpRequestData req,
         string userId)

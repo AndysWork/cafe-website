@@ -5,6 +5,9 @@ using Cafe.Api.Services;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
+using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
@@ -23,6 +26,8 @@ public class SubCategoryFunction
 
     // GET: Get all subcategories
     [Function("GetSubCategories")]
+    [OpenApiOperation(operationId: "GetSubCategories", tags: new[] { "SubCategories" }, Summary = "Get all subcategories", Description = "Retrieves all menu subcategories")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<MenuSubCategory>), Description = "Successfully retrieved subcategories")]
     public async Task<HttpResponseData> GetSubCategories([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "subcategories")] HttpRequestData req)
     {
         try
@@ -43,6 +48,9 @@ public class SubCategoryFunction
 
     // GET: Get subcategories by category ID
     [Function("GetSubCategoriesByCategory")]
+    [OpenApiOperation(operationId: "GetSubCategoriesByCategory", tags: new[] { "SubCategories" }, Summary = "Get subcategories by category", Description = "Retrieves all subcategories for a specific category")]
+    [OpenApiParameter(name: "categoryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Category ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<MenuSubCategory>), Description = "Successfully retrieved subcategories")]
     public async Task<HttpResponseData> GetSubCategoriesByCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories/{categoryId}/subcategories")] HttpRequestData req, string categoryId)
     {
         try
@@ -63,6 +71,10 @@ public class SubCategoryFunction
 
     // GET: Get single subcategory by ID
     [Function("GetSubCategory")]
+    [OpenApiOperation(operationId: "GetSubCategory", tags: new[] { "SubCategories" }, Summary = "Get subcategory by ID", Description = "Retrieves a specific subcategory by its ID")]
+    [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Subcategory ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(MenuSubCategory), Description = "Successfully retrieved subcategory")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Subcategory not found")]
     public async Task<HttpResponseData> GetSubCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "subcategories/{id}")] HttpRequestData req, string id)
     {
         try
