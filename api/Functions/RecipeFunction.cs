@@ -133,6 +133,13 @@ namespace Cafe.Api.Functions
                     return new BadRequestObjectResult("Invalid recipe data");
                 }
 
+                // Get outlet ID from header
+                var outletId = req.Headers["X-Outlet-Id"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(outletId))
+                {
+                    recipe.OutletId = outletId;
+                }
+
                 // Sanitize inputs
                 recipe.MenuItemName = InputSanitizer.Sanitize(recipe.MenuItemName);
                 if (!string.IsNullOrEmpty(recipe.Notes))
@@ -173,6 +180,13 @@ namespace Cafe.Api.Functions
                 if (recipe == null)
                 {
                     return new BadRequestObjectResult("Invalid recipe data");
+                }
+
+                // Get outlet ID from header (preserve existing if not in header)
+                var outletId = req.Headers["X-Outlet-Id"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(outletId))
+                {
+                    recipe.OutletId = outletId;
                 }
 
                 // Sanitize inputs

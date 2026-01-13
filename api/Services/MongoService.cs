@@ -320,14 +320,41 @@ public partial class MongoService
 
     public async Task<CafeMenuItem?> GetMenuItemsByNameAndOutletAsync(string menuItemName, string outletId)
     {
+        // Trim whitespace from search term
+        var trimmedName = menuItemName?.Trim() ?? string.Empty;
+        Console.WriteLine($"[Menu Item Lookup] Searching for: '{trimmedName}' in outlet: {outletId}");
+        
+        // Escape special regex characters in the menu item name
+        var escapedName = System.Text.RegularExpressions.Regex.Escape(trimmedName);
+        
         var filter = Builders<CafeMenuItem>.Filter.And(
             Builders<CafeMenuItem>.Filter.Regex(
                 m => m.Name, 
-                new MongoDB.Bson.BsonRegularExpression($"^{menuItemName}$", "i")
+                new MongoDB.Bson.BsonRegularExpression($"^{escapedName}$", "i")
             ),
             Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId)
         );
-        return await _menu.Find(filter).FirstOrDefaultAsync();
+        
+        var result = await _menu.Find(filter).FirstOrDefaultAsync();
+        if (result != null)
+        {
+            Console.WriteLine($"[Menu Item Lookup] FOUND - Name: '{result.Name}', ID: {result.Id}, Outlet: {result.OutletId}");
+        }
+        else
+        {
+            Console.WriteLine($"[Menu Item Lookup] NOT FOUND - Name: '{trimmedName}', Outlet: {outletId}");
+            
+            // Try to find any menu items with similar names for debugging
+            var debugFilter = Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId);
+            var allItemsInOutlet = await _menu.Find(debugFilter).Limit(100).ToListAsync();
+            Console.WriteLine($"[Menu Item Lookup] Total items in outlet {outletId}: {allItemsInOutlet.Count}");
+            foreach (var item in allItemsInOutlet.Take(5))
+            {
+                Console.WriteLine($"  - Existing: '{item.Name}' (ID: {item.Id})");
+            }
+        }
+        
+        return result;
     }
 
     // Create new menu item
@@ -471,6 +498,17 @@ public partial class MongoService
             .Set(x => x.LastUpdated, GetIstNow());
 
         var result = await _menu.UpdateOneAsync(x => x.Id == id, update);
+        return result.ModifiedCount > 0;
+    }
+    
+    // Update menu item shop price (called when recipe is saved)
+    public async Task<bool> UpdateMenuItemShopPriceAsync(string menuItemId, decimal shopPrice)
+    {
+        var update = Builders<CafeMenuItem>.Update
+            .Set(x => x.ShopSellingPrice, shopPrice)
+            .Set(x => x.LastUpdated, GetIstNow());
+
+        var result = await _menu.UpdateOneAsync(x => x.Id == menuItemId, update);
         return result.ModifiedCount > 0;
     }
     
@@ -3095,20 +3133,68 @@ public partial class MongoService
 
     #region Recipe Methods
 
+    // Helper method to ensure overhead costs have required properties
+    private void EnsureOverheadCostsDefaults(MenuItemRecipe recipe)
+    {
+        if (recipe.OverheadCosts == null)
+        {
+            // Initialize with default values if null
+            recipe.OverheadCosts = new OverheadCosts
+            {
+                LabourCharge = 10,
+                RentAllocation = 5,
+                ElectricityCharge = 3,
+                WastagePercentage = 5,
+                Miscellaneous = 2,
+                OperationalHoursPerDay = 11,
+                WorkingDaysPerMonth = 30
+            };
+        }
+        else
+        {
+            // Ensure default values for properties that might not exist in older recipes
+            if (recipe.OverheadCosts.OperationalHoursPerDay == 0)
+            {
+                recipe.OverheadCosts.OperationalHoursPerDay = 11;
+            }
+            if (recipe.OverheadCosts.WorkingDaysPerMonth == 0)
+            {
+                recipe.OverheadCosts.WorkingDaysPerMonth = 30;
+            }
+        }
+    }
+
     public async Task<List<MenuItemRecipe>> GetRecipesAsync(string? outletId = null)
     {
+        List<MenuItemRecipe> recipes;
+        
         if (string.IsNullOrEmpty(outletId))
         {
-            return await _recipes.Find(_ => true).ToListAsync();
+            recipes = await _recipes.Find(_ => true).ToListAsync();
+        }
+        else
+        {
+            var filter = Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, outletId);
+            recipes = await _recipes.Find(filter).ToListAsync();
         }
         
-        var filter = Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, outletId);
-        return await _recipes.Find(filter).ToListAsync();
+        // Ensure all recipes have default overhead cost properties
+        foreach (var recipe in recipes)
+        {
+            EnsureOverheadCostsDefaults(recipe);
+        }
+        
+        return recipes;
     }
 
     public async Task<MenuItemRecipe?> GetRecipeByIdAsync(string id)
     {
-        return await _recipes.Find(r => r.Id == id).FirstOrDefaultAsync();
+        var recipe = await _recipes.Find(r => r.Id == id).FirstOrDefaultAsync();
+        if (recipe != null)
+        {
+            EnsureOverheadCostsDefaults(recipe);
+        }
+        return recipe;
     }
 
     public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAsync(string menuItemName)
@@ -3117,7 +3203,12 @@ public partial class MongoService
             r => r.MenuItemName, 
             new MongoDB.Bson.BsonRegularExpression($"^{menuItemName}$", "i")
         );
-        return await _recipes.Find(filter).FirstOrDefaultAsync();
+        var recipe = await _recipes.Find(filter).FirstOrDefaultAsync();
+        if (recipe != null)
+        {
+            EnsureOverheadCostsDefaults(recipe);
+        }
+        return recipe;
     }
 
     public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAndOutletAsync(string menuItemName, string outletId)
@@ -3129,18 +3220,46 @@ public partial class MongoService
             ),
             Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, outletId)
         );
-        return await _recipes.Find(filter).FirstOrDefaultAsync();
+        var recipe = await _recipes.Find(filter).FirstOrDefaultAsync();
+        if (recipe != null)
+        {
+            EnsureOverheadCostsDefaults(recipe);
+        }
+        return recipe;
     }
 
     public async Task<MenuItemRecipe> CreateRecipeAsync(MenuItemRecipe recipe)
     {
         await _recipes.InsertOneAsync(recipe);
+        
+        // Update the shop price in the menu item if recipe has price forecast
+        if (recipe.PriceForecast != null && recipe.PriceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(recipe.MenuItemId))
+        {
+            await UpdateMenuItemShopPriceAsync(recipe.MenuItemId, recipe.PriceForecast.ShopPrice);
+        }
+        
+        // Copy recipe to other outlets with the same menu item name (allow creating new recipes)
+        await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: false);
+        
         return recipe;
     }
 
     public async Task<bool> UpdateRecipeAsync(string id, MenuItemRecipe recipe)
     {
         var result = await _recipes.ReplaceOneAsync(r => r.Id == id, recipe);
+        
+        // Update the shop price in the menu item if recipe has price forecast
+        if (result.ModifiedCount > 0 && recipe.PriceForecast != null && recipe.PriceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(recipe.MenuItemId))
+        {
+            await UpdateMenuItemShopPriceAsync(recipe.MenuItemId, recipe.PriceForecast.ShopPrice);
+        }
+        
+        // Update recipe in other outlets where it already exists (don't create new ones)
+        if (result.ModifiedCount > 0)
+        {
+            await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: true);
+        }
+        
         return result.ModifiedCount > 0;
     }
 
@@ -3254,6 +3373,447 @@ public partial class MongoService
 
         var result = await _menu.UpdateOneAsync(m => m.Id == menuItemId, update);
         return result.ModifiedCount > 0;
+    }
+
+    // Copy recipe to other outlets with the same menu item name
+    // isUpdate: if true, only updates existing recipes; if false, creates new recipes in outlets that don't have them
+    private async Task CopyRecipeToOtherOutletsAsync(MenuItemRecipe sourceRecipe, bool isUpdate = false)
+    {
+        if (string.IsNullOrEmpty(sourceRecipe.MenuItemName) || string.IsNullOrEmpty(sourceRecipe.OutletId))
+        {
+            Console.WriteLine($"[Recipe Copy] Skipping copy - MenuItemName: {sourceRecipe.MenuItemName}, OutletId: {sourceRecipe.OutletId}");
+            return;
+        }
+
+        Console.WriteLine($"[Recipe Copy] Starting automatic {(isUpdate ? "update" : "copy")} for recipe: {sourceRecipe.MenuItemName} from outlet: {sourceRecipe.OutletId}");
+
+        // Get source menu item to copy its details
+        CafeMenuItem? sourceMenuItem = null;
+        if (!string.IsNullOrEmpty(sourceRecipe.MenuItemId))
+        {
+            sourceMenuItem = await GetMenuItemAsync(sourceRecipe.MenuItemId);
+        }
+        else
+        {
+            sourceMenuItem = await GetMenuItemsByNameAndOutletAsync(sourceRecipe.MenuItemName, sourceRecipe.OutletId);
+        }
+
+        if (sourceMenuItem == null)
+        {
+            Console.WriteLine($"[Recipe Copy] Warning: Source menu item not found for recipe: {sourceRecipe.MenuItemName}");
+        }
+
+        // Get all active outlets except the source outlet
+        var allOutlets = await GetAllOutletsAsync();
+        var targetOutlets = allOutlets.Where(o => o.IsActive && o.Id != sourceRecipe.OutletId).ToList();
+
+        Console.WriteLine($"[Recipe Copy] Found {targetOutlets.Count} target outlets to copy to");
+
+        if (!targetOutlets.Any())
+        {
+            Console.WriteLine($"[Recipe Copy] No other active outlets found");
+            return;
+        }
+
+        // Get the default outlet (first active outlet) for fallback KPT data
+        var defaultOutlet = allOutlets.FirstOrDefault(o => o.IsActive);
+
+        foreach (var outlet in targetOutlets)
+        {
+            try
+            {
+                Console.WriteLine($"[Recipe Copy] Processing outlet: {outlet.OutletName} (ID: {outlet.Id})");
+                
+                // Check if menu item exists in target outlet by name
+                var menuItem = await GetMenuItemsByNameAndOutletAsync(sourceRecipe.MenuItemName, outlet.Id!);
+                
+                // If menu item not found but recipe has a MenuItemId, try to find by ID and outlet
+                if (menuItem == null && !string.IsNullOrEmpty(sourceRecipe.MenuItemId))
+                {
+                    var menuItemById = await GetMenuItemAsync(sourceRecipe.MenuItemId);
+                    if (menuItemById != null && menuItemById.OutletId == outlet.Id)
+                    {
+                        menuItem = menuItemById;
+                        Console.WriteLine($"[Recipe Copy] Found existing menu item by ID in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
+                    }
+                }
+                
+                if (menuItem == null && sourceMenuItem != null)
+                {
+                    Console.WriteLine($"[Recipe Copy] Menu item '{sourceRecipe.MenuItemName}' not found in {outlet.OutletName}, creating it...");
+                    
+                    // Create menu item in target outlet based on source menu item
+                    var newMenuItem = new CafeMenuItem
+                    {
+                        Name = sourceMenuItem.Name,
+                        Description = sourceMenuItem.Description,
+                        Category = sourceMenuItem.Category,
+                        CategoryId = sourceMenuItem.CategoryId,
+                        SubCategoryId = sourceMenuItem.SubCategoryId,
+                        MakingPrice = sourceMenuItem.MakingPrice,
+                        OnlinePrice = sourceMenuItem.OnlinePrice,
+                        DineInPrice = sourceMenuItem.DineInPrice,
+                        ShopSellingPrice = sourceMenuItem.ShopSellingPrice,
+                        PackagingCharge = sourceMenuItem.PackagingCharge,
+                        IsAvailable = sourceMenuItem.IsAvailable,
+                        FutureShopPrice = sourceMenuItem.FutureShopPrice,
+                        FutureOnlinePrice = sourceMenuItem.FutureOnlinePrice,
+                        OutletId = outlet.Id,
+                        Variants = sourceMenuItem.Variants,
+                        CreatedBy = "System - Auto Copy",
+                        CreatedDate = GetIstNow(),
+                        LastUpdatedBy = "System - Auto Copy",
+                        LastUpdated = GetIstNow()
+                    };
+                    
+                    menuItem = await CreateMenuItemAsync(newMenuItem);
+                    Console.WriteLine($"[Recipe Copy] Created menu item in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
+                }
+                else if (menuItem == null)
+                {
+                    Console.WriteLine($"[Recipe Copy] Cannot create menu item - source menu item not found");
+                    continue;
+                }
+                else if (menuItem != null)
+                {
+                    Console.WriteLine($"[Recipe Copy] Found existing menu item in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
+                    
+                    // Update existing menu item with latest data from source (except outlet-specific fields)
+                    if (sourceMenuItem != null)
+                    {
+                        menuItem.Name = sourceMenuItem.Name;
+                        menuItem.Description = sourceMenuItem.Description;
+                        menuItem.Category = sourceMenuItem.Category;
+                        menuItem.CategoryId = sourceMenuItem.CategoryId;
+                        menuItem.SubCategoryId = sourceMenuItem.SubCategoryId;
+                        menuItem.Variants = sourceMenuItem.Variants;
+                        menuItem.LastUpdatedBy = "System - Auto Copy";
+                        menuItem.LastUpdated = GetIstNow();
+                        
+                        await UpdateMenuItemAsync(menuItem.Id, menuItem);
+                        Console.WriteLine($"[Recipe Copy] Updated existing menu item in {outlet.OutletName}");
+                    }
+                }
+
+                // Check if a recipe already exists for this outlet
+                var existingRecipe = await GetRecipeByMenuItemNameAndOutletAsync(sourceRecipe.MenuItemName, outlet.Id!);
+
+                // Calculate outlet-specific overhead costs
+                // Priority: Target outlet's overhead costs > Source outlet's overhead costs
+                var overheadCosts = new OverheadCosts();
+                bool usedOutletSpecificOverhead = false;
+                
+                if (sourceRecipe.PreparationTimeMinutes.HasValue)
+                {
+                    Console.WriteLine($"[Recipe Copy] Checking overhead costs for outlet {outlet.OutletName} with prep time {sourceRecipe.PreparationTimeMinutes.Value} minutes");
+                    
+                    // Try to get outlet-specific overhead costs
+                    var overheadAllocation = await CalculateOverheadAllocationAsync((int)sourceRecipe.PreparationTimeMinutes.Value, outlet.Id);
+                    
+                    // Check if outlet has configured overhead costs
+                    if (overheadAllocation.Costs != null && overheadAllocation.Costs.Any())
+                    {
+                        Console.WriteLine($"[Recipe Copy] ✅ Using outlet-specific overhead costs for {outlet.OutletName}");
+                        Console.WriteLine($"[Recipe Copy]    Found {overheadAllocation.Costs.Count} configured overhead cost types");
+                        usedOutletSpecificOverhead = true;
+                        
+                        // Map the overhead allocation to OverheadCosts structure
+                        decimal totalLabour = 0, totalRent = 0, totalElectricity = 0, totalMisc = 0;
+                        
+                        foreach (var cost in overheadAllocation.Costs)
+                        {
+                            Console.WriteLine($"[Recipe Copy]    - {cost.CostType}: ₹{cost.AllocatedCost:F2}");
+                            switch (cost.CostType.ToLower())
+                            {
+                                case "rent":
+                                    totalRent += cost.AllocatedCost;
+                                    break;
+                                case "electricity":
+                                    totalElectricity += cost.AllocatedCost;
+                                    break;
+                                case "staff":
+                                case "labor":
+                                case "labour":
+                                    totalLabour += cost.AllocatedCost;
+                                    break;
+                                default:
+                                    totalMisc += cost.AllocatedCost;
+                                    break;
+                            }
+                        }
+                        
+                        overheadCosts.LabourCharge = totalLabour;
+                        overheadCosts.RentAllocation = totalRent;
+                        overheadCosts.ElectricityCharge = totalElectricity;
+                        overheadCosts.Miscellaneous = totalMisc > 0 ? totalMisc : sourceRecipe.OverheadCosts.Miscellaneous; // Use calculated misc or source value
+                        overheadCosts.WastagePercentage = sourceRecipe.OverheadCosts.WastagePercentage;
+                        overheadCosts.OperationalHoursPerDay = sourceRecipe.OverheadCosts.OperationalHoursPerDay;
+                        overheadCosts.WorkingDaysPerMonth = sourceRecipe.OverheadCosts.WorkingDaysPerMonth;
+                        
+                        Console.WriteLine($"[Recipe Copy]    Total overhead: ₹{totalLabour + totalRent + totalElectricity + totalMisc:F2} (Misc: ₹{overheadCosts.Miscellaneous:F2})");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[Recipe Copy] ⚠️ No overhead costs configured for outlet {outlet.OutletName}");
+                        Console.WriteLine($"[Recipe Copy] ⚠️ Falling back to source outlet's overhead costs");
+                        
+                        // Fallback to source overhead costs if target outlet has no configuration
+                        overheadCosts = new OverheadCosts
+                        {
+                            LabourCharge = sourceRecipe.OverheadCosts.LabourCharge,
+                            RentAllocation = sourceRecipe.OverheadCosts.RentAllocation,
+                            ElectricityCharge = sourceRecipe.OverheadCosts.ElectricityCharge,
+                            WastagePercentage = sourceRecipe.OverheadCosts.WastagePercentage,
+                            Miscellaneous = sourceRecipe.OverheadCosts.Miscellaneous,
+                            OperationalHoursPerDay = sourceRecipe.OverheadCosts.OperationalHoursPerDay,
+                            WorkingDaysPerMonth = sourceRecipe.OverheadCosts.WorkingDaysPerMonth
+                        };
+                        
+                        Console.WriteLine($"[Recipe Copy]    Labour: ₹{overheadCosts.LabourCharge:F2}, Rent: ₹{overheadCosts.RentAllocation:F2}, Electricity: ₹{overheadCosts.ElectricityCharge:F2}, Misc: ₹{overheadCosts.Miscellaneous:F2}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[Recipe Copy] No preparation time available, using source overhead costs");
+                    
+                    // Create a copy of source overhead costs if no preparation time available
+                    overheadCosts = new OverheadCosts
+                    {
+                        LabourCharge = sourceRecipe.OverheadCosts.LabourCharge,
+                        RentAllocation = sourceRecipe.OverheadCosts.RentAllocation,
+                        ElectricityCharge = sourceRecipe.OverheadCosts.ElectricityCharge,
+                        WastagePercentage = sourceRecipe.OverheadCosts.WastagePercentage,
+                        Miscellaneous = sourceRecipe.OverheadCosts.Miscellaneous,
+                        OperationalHoursPerDay = sourceRecipe.OverheadCosts.OperationalHoursPerDay,
+                        WorkingDaysPerMonth = sourceRecipe.OverheadCosts.WorkingDaysPerMonth
+                    };
+                }
+
+                // Use KPT analysis - priority: target outlet -> default outlet -> source recipe (editable)
+                // The KPT value stored in the recipe is editable from the frontend
+                KptAnalysis? kptAnalysis = null;
+                if (!string.IsNullOrEmpty(menuItem.Id))
+                {
+                    // Try to get target outlet-specific KPT data from online sales
+                    var targetKptData = await GetKptAnalysisForMenuItem(menuItem.Id, outlet.Id!);
+                    
+                    if (targetKptData != null)
+                    {
+                        Console.WriteLine($"[Recipe Copy] Using target outlet's KPT data for {outlet.OutletName}");
+                        kptAnalysis = targetKptData;
+                    }
+                    else if (defaultOutlet != null && !string.IsNullOrEmpty(defaultOutlet.Id))
+                    {
+                        // Fallback to default outlet's KPT data
+                        var defaultMenuItem = await GetMenuItemsByNameAndOutletAsync(sourceRecipe.MenuItemName, defaultOutlet.Id);
+                        if (defaultMenuItem != null && !string.IsNullOrEmpty(defaultMenuItem.Id))
+                        {
+                            var defaultKptData = await GetKptAnalysisForMenuItem(defaultMenuItem.Id, defaultOutlet.Id);
+                            if (defaultKptData != null)
+                            {
+                                Console.WriteLine($"[Recipe Copy] Using default outlet's KPT data for {outlet.OutletName}");
+                                kptAnalysis = defaultKptData;
+                            }
+                            else
+                            {
+                                Console.WriteLine($"[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
+                                kptAnalysis = sourceRecipe.KptAnalysis;
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
+                            kptAnalysis = sourceRecipe.KptAnalysis;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
+                        kptAnalysis = sourceRecipe.KptAnalysis;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
+                    kptAnalysis = sourceRecipe.KptAnalysis;
+                }
+
+                // Recalculate totals with new overhead costs
+                var totalOverheadCost = overheadCosts.LabourCharge + overheadCosts.RentAllocation + 
+                                       overheadCosts.ElectricityCharge + overheadCosts.Miscellaneous;
+                var totalMakingCost = sourceRecipe.TotalIngredientCost + totalOverheadCost;
+
+                // Recalculate suggested selling price with profit margin
+                var suggestedSellingPrice = totalMakingCost * (1 + sourceRecipe.ProfitMargin / 100);
+
+                // Recalculate price forecast if available
+                PriceForecastData? priceForecast = null;
+                if (sourceRecipe.PriceForecast != null)
+                {
+                    var shopProfit = sourceRecipe.PriceForecast.ShopPrice - totalMakingCost - sourceRecipe.PriceForecast.PackagingCost;
+                    var onlinePayout = sourceRecipe.PriceForecast.OnlinePrice - sourceRecipe.PriceForecast.OnlineDeduction - sourceRecipe.PriceForecast.OnlineDiscount;
+                    var onlineProfit = onlinePayout - totalMakingCost - sourceRecipe.PriceForecast.PackagingCost;
+
+                    priceForecast = new PriceForecastData
+                    {
+                        PackagingCost = sourceRecipe.PriceForecast.PackagingCost,
+                        OnlineDeduction = sourceRecipe.PriceForecast.OnlineDeduction,
+                        OnlineDiscount = sourceRecipe.PriceForecast.OnlineDiscount,
+                        ShopPrice = sourceRecipe.PriceForecast.ShopPrice,
+                        ShopDeliveryPrice = sourceRecipe.PriceForecast.ShopDeliveryPrice,
+                        OnlinePrice = sourceRecipe.PriceForecast.OnlinePrice,
+                        OnlinePayout = onlinePayout,
+                        OnlineProfit = onlineProfit,
+                        OfflineProfit = shopProfit,
+                        TakeawayProfit = shopProfit, // Same as offline profit
+                        FutureShopPrice = sourceRecipe.PriceForecast.FutureShopPrice,
+                        FutureOnlinePrice = sourceRecipe.PriceForecast.FutureOnlinePrice,
+                        FutureShopProfit = sourceRecipe.PriceForecast.FutureShopProfit,
+                        FutureOnlineProfit = sourceRecipe.PriceForecast.FutureOnlineProfit
+                    };
+                }
+
+                if (existingRecipe != null)
+                {
+                    Console.WriteLine($"[Recipe Copy] Updating existing recipe in outlet {outlet.OutletName}");
+                    Console.WriteLine($"[Recipe Copy] Copying {sourceRecipe.Ingredients.Count} ingredients");
+                    
+                    // Update existing recipe with all data from source
+                    existingRecipe.Ingredients = sourceRecipe.Ingredients; // Copy all ingredients
+                    existingRecipe.OverheadCosts = overheadCosts; // Outlet-specific overhead costs
+                    existingRecipe.TotalIngredientCost = sourceRecipe.TotalIngredientCost;
+                    existingRecipe.TotalOverheadCost = totalOverheadCost;
+                    existingRecipe.TotalMakingCost = totalMakingCost;
+                    existingRecipe.ProfitMargin = sourceRecipe.ProfitMargin;
+                    existingRecipe.SuggestedSellingPrice = suggestedSellingPrice;
+                    existingRecipe.ActualSellingPrice = sourceRecipe.ActualSellingPrice;
+                    existingRecipe.Notes = sourceRecipe.Notes;
+                    existingRecipe.OilUsage = sourceRecipe.OilUsage; // Copy oil usage data
+                    existingRecipe.PriceForecast = priceForecast;
+                    existingRecipe.PreparationTimeMinutes = sourceRecipe.PreparationTimeMinutes;
+                    existingRecipe.KptAnalysis = kptAnalysis; // KPT from target/default/source (editable)
+                    existingRecipe.UpdatedAt = GetIstNow();
+
+                    await _recipes.ReplaceOneAsync(r => r.Id == existingRecipe.Id, existingRecipe);
+                    
+                    Console.WriteLine($"[Recipe Copy] ✅ Successfully updated recipe in outlet {outlet.OutletName}");
+                    Console.WriteLine($"[Recipe Copy]    - Ingredients: {sourceRecipe.Ingredients.Count}");
+                    Console.WriteLine($"[Recipe Copy]    - Total Making Cost: ₹{totalMakingCost}");
+                    Console.WriteLine($"[Recipe Copy]    - Overhead Costs: ₹{totalOverheadCost}");
+                    
+                    // Update menu item shop price for this outlet
+                    if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem.Id))
+                    {
+                        await UpdateMenuItemShopPriceAsync(menuItem.Id, priceForecast.ShopPrice);
+                        Console.WriteLine($"[Recipe Copy]    - Updated menu item shop price: ₹{priceForecast.ShopPrice}");
+                    }
+                }
+                else
+                {
+                    // Skip creating new recipes if this is an update operation
+                    if (isUpdate)
+                    {
+                        Console.WriteLine($"[Recipe Copy] Skipping outlet {outlet.OutletName} - no existing recipe found (update mode)");
+                        continue;
+                    }
+                    
+                    Console.WriteLine($"[Recipe Copy] Creating new recipe in outlet {outlet.OutletName}");
+                    Console.WriteLine($"[Recipe Copy] Copying {sourceRecipe.Ingredients.Count} ingredients");
+                    
+                    // Create new recipe for this outlet with all data from source
+                    var newRecipe = new MenuItemRecipe
+                    {
+                        MenuItemName = sourceRecipe.MenuItemName,
+                        MenuItemId = menuItem.Id,
+                        OutletId = outlet.Id,
+                        Ingredients = sourceRecipe.Ingredients,
+                        OverheadCosts = overheadCosts,
+                        TotalIngredientCost = sourceRecipe.TotalIngredientCost,
+                        TotalOverheadCost = totalOverheadCost,
+                        TotalMakingCost = totalMakingCost,
+                        ProfitMargin = sourceRecipe.ProfitMargin,
+                        SuggestedSellingPrice = suggestedSellingPrice,
+                        ActualSellingPrice = sourceRecipe.ActualSellingPrice,
+                        Notes = sourceRecipe.Notes,
+                        OilUsage = sourceRecipe.OilUsage,
+                        PriceForecast = priceForecast,
+                        PreparationTimeMinutes = sourceRecipe.PreparationTimeMinutes,
+                        KptAnalysis = kptAnalysis,
+                        CreatedAt = GetIstNow(),
+                        UpdatedAt = GetIstNow()
+                    };
+
+                    await _recipes.InsertOneAsync(newRecipe);
+                    
+                    Console.WriteLine($"[Recipe Copy] ✅ Successfully created recipe in outlet {outlet.OutletName}");
+                    Console.WriteLine($"[Recipe Copy]    - Ingredients: {sourceRecipe.Ingredients.Count}");
+                    Console.WriteLine($"[Recipe Copy]    - Total Making Cost: ₹{totalMakingCost}");
+                    Console.WriteLine($"[Recipe Copy]    - Overhead Costs: ₹{totalOverheadCost}");
+                    
+                    // Update menu item shop price for this outlet
+                    if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem.Id))
+                    {
+                        await UpdateMenuItemShopPriceAsync(menuItem.Id, priceForecast.ShopPrice);
+                        Console.WriteLine($"[Recipe Copy]    - Updated menu item shop price: ₹{priceForecast.ShopPrice}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error but continue with other outlets
+                Console.WriteLine($"[Recipe Copy] ❌ ERROR copying recipe to outlet {outlet.OutletName}: {ex.Message}");
+                Console.WriteLine($"[Recipe Copy] Stack trace: {ex.StackTrace}");
+            }
+        }
+        
+        Console.WriteLine($"[Recipe Copy] ========================================");
+        Console.WriteLine($"[Recipe Copy] Finished automatic copy to all outlets");
+        Console.WriteLine($"[Recipe Copy] ========================================");
+    }
+
+    // Helper method to get KPT analysis for a menu item from online sales
+    private async Task<KptAnalysis?> GetKptAnalysisForMenuItem(string menuItemId, string outletId)
+    {
+        try
+        {
+            var filter = Builders<OnlineSale>.Filter.And(
+                Builders<OnlineSale>.Filter.Eq(s => s.OutletId, outletId),
+                Builders<OnlineSale>.Filter.ElemMatch(s => s.OrderedItems, 
+                    Builders<OrderedItem>.Filter.Eq(item => item.MenuItemId, menuItemId)),
+                Builders<OnlineSale>.Filter.Ne(s => s.KPT, null)
+            );
+
+            var sales = await _onlineSales.Find(filter).ToListAsync();
+            if (!sales.Any())
+                return null;
+
+            var kptValues = sales.Where(s => s.KPT.HasValue).Select(s => s.KPT!.Value).ToList();
+            if (!kptValues.Any())
+                return null;
+
+            var avg = kptValues.Average();
+            var min = kptValues.Min();
+            var max = kptValues.Max();
+            var median = kptValues.OrderBy(x => x).ElementAt(kptValues.Count / 2);
+            
+            // Calculate standard deviation
+            var variance = kptValues.Select(x => Math.Pow((double)(x - avg), 2)).Average();
+            var stdDev = (decimal)Math.Sqrt(variance);
+
+            return new KptAnalysis
+            {
+                AvgPreparationTime = avg,
+                MinPreparationTime = min,
+                MaxPreparationTime = max,
+                MedianPreparationTime = median,
+                StdDeviation = stdDev,
+                OrderCount = kptValues.Count
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     #endregion

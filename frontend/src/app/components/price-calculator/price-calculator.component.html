@@ -1185,8 +1185,8 @@
         <div class="info-icon">ℹ️</div>
         <div class="info-content">
           <strong>How Auto-Calculation Works:</strong>
-          <p>Monthly Cost → Daily (÷{{overheadCosts[0].workingDaysPerMonth || 30}} days) →
-             Hourly (÷{{overheadCosts[0].operationalHoursPerDay || 11}} hrs) →
+          <p>Monthly Cost → Daily (÷{{overheadCosts[0]?.workingDaysPerMonth || 30}} days) →
+             Hourly (÷{{overheadCosts[0]?.operationalHoursPerDay || 11}} hrs) →
              Per Minute (÷60) → Allocated (×prep_time)</p>
           <p><strong>Example:</strong> Rent ₹6000/month → ₹200/day → ₹18.18/hr → ₹0.303/min → ₹1.82 for 6-min dish</p>
         </div>

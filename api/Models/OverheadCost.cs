@@ -38,6 +38,8 @@ public class OverheadCostCalculation
     public decimal MonthlyCost { get; set; }
     public decimal CostPerMinute { get; set; }
     public decimal AllocatedCost { get; set; } // Cost for specific preparation time
+    public int OperationalHoursPerDay { get; set; } = 11;
+    public int WorkingDaysPerMonth { get; set; } = 30;
 }
 
 public class OverheadAllocation

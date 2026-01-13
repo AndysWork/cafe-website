@@ -53,7 +53,9 @@ export class OverheadCostService {
   }
 
   getAllOverheadCosts(): Observable<OverheadCost[]> {
-    return this.http.get<OverheadCost[]>(this.apiUrl, { headers: this.getHeaders() });
+    // Add timestamp to prevent caching
+    const timestamp = new Date().getTime();
+    return this.http.get<OverheadCost[]>(`${this.apiUrl}?_t=${timestamp}`, { headers: this.getHeaders() });
   }
 
   getActiveOverheadCosts(): Observable<OverheadCost[]> {

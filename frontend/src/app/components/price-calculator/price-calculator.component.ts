@@ -232,11 +232,22 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   loadOverheadCosts(): void {
-    this.overheadCosts = [];
+    console.log('[Price Calculator] Loading overhead costs...');
     this.overheadCostService.getAllOverheadCosts()
       .pipe(takeUntil(this.destroy$))
-      .subscribe(costs => {
-        this.overheadCosts = costs;
+      .subscribe({
+        next: (costs) => {
+          console.log('[Price Calculator] Received overhead costs:', costs);
+          this.overheadCosts = costs;
+          // Trigger change detection
+          setTimeout(() => {
+            console.log('[Price Calculator] Overhead costs updated in UI:', this.overheadCosts);
+          }, 0);
+        },
+        error: (err) => {
+          console.error('[Price Calculator] Error loading overhead costs:', err);
+          this.showAlert('Failed to load overhead costs', 'error');
+        }
       });
   }
 
@@ -355,6 +366,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
               allocation.costs.find(c => c.costType.toLowerCase() === 'electricity')?.allocatedCost || 3;
           }
           this.isCalculatingOverhead = false;
+          // Reload overhead costs from database to reflect any updates
+          this.loadOverheadCosts();
           this.calculatePrice(); // Now recalculate with updated overhead costs
         },
         error: (err) => {
@@ -1398,6 +1411,19 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     }
 
     console.log('Saving recipe:', this.currentRecipe);
+
+    // Set menuItemId if the menu item exists
+    const matchingMenuItem = this.menuItems.find(m =>
+      m.name.toLowerCase() === this.currentRecipe.menuItemName.toLowerCase()
+    );
+    if (matchingMenuItem) {
+      this.currentRecipe.menuItemId = matchingMenuItem.id;
+      console.log('Linked to menu item ID:', matchingMenuItem.id);
+    } else {
+      // Clear menuItemId if no matching menu item
+      this.currentRecipe.menuItemId = undefined;
+      console.log('No matching menu item found, menuItemId cleared');
+    }
 
     // Add oil usage data to recipe if frying time is specified
     if (this.fryingTimeMinutes > 0) {

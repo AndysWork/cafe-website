@@ -105,9 +105,9 @@ public class OverheadCostFunction
     {
         try
         {
-            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
-            
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            _logger.LogInformation($"CreateOverheadCost received body: {requestBody}");
+            
             var overheadCost = JsonSerializer.Deserialize<OverheadCost>(requestBody, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
@@ -115,25 +115,60 @@ public class OverheadCostFunction
 
             if (overheadCost == null)
             {
+                _logger.LogWarning("Failed to deserialize overhead cost");
                 var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequestResponse.WriteStringAsync("Invalid overhead cost data");
                 return badRequestResponse;
             }
 
+            _logger.LogInformation($"Deserialized overhead cost - CostType: {overheadCost.CostType}, MonthlyCost: {overheadCost.MonthlyCost}, OutletId: {overheadCost.OutletId}");
+
             // Validate required fields
-            if (string.IsNullOrEmpty(overheadCost.CostType))
+            if (string.IsNullOrWhiteSpace(overheadCost.CostType))
             {
+                _logger.LogWarning("CostType is empty or null");
                 var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequestResponse.WriteStringAsync("Cost type is required");
                 return badRequestResponse;
             }
 
-            // Set the OutletId from the request header
-            overheadCost.OutletId = outletId;
+            if (overheadCost.MonthlyCost <= 0)
+            {
+                _logger.LogWarning($"MonthlyCost is invalid: {overheadCost.MonthlyCost}");
+                var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequestResponse.WriteStringAsync("Monthly cost must be greater than zero");
+                return badRequestResponse;
+            }
+
+            if (overheadCost.OperationalHoursPerDay <= 0)
+            {
+                _logger.LogWarning($"OperationalHoursPerDay is invalid: {overheadCost.OperationalHoursPerDay}");
+                var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequestResponse.WriteStringAsync("Operational hours per day must be greater than zero");
+                return badRequestResponse;
+            }
+
+            if (overheadCost.WorkingDaysPerMonth <= 0)
+            {
+                _logger.LogWarning($"WorkingDaysPerMonth is invalid: {overheadCost.WorkingDaysPerMonth}");
+                var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequestResponse.WriteStringAsync("Working days per month must be greater than zero");
+                return badRequestResponse;
+            }
+
+            // If OutletId is not provided in the request body, get it from the header
+            if (string.IsNullOrEmpty(overheadCost.OutletId))
+            {
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                overheadCost.OutletId = outletId;
+                _logger.LogInformation($"OutletId from header: {outletId}");
+            }
+            
             overheadCost.CreatedAt = DateTime.UtcNow;
             overheadCost.UpdatedAt = DateTime.UtcNow;
 
             var createdOverheadCost = await _mongoService.CreateOverheadCostAsync(overheadCost);
+            _logger.LogInformation($"Successfully created overhead cost with ID: {createdOverheadCost.Id}");
 
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(createdOverheadCost);
@@ -249,6 +284,7 @@ public class OverheadCostFunction
         {
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             _logger.LogInformation("CalculateOverheadAllocation called for outlet {OutletId}", outletId);
+            Console.WriteLine($"[API] CalculateOverheadAllocation: OutletId from request = {outletId ?? "NULL"}");
             
             if (!int.TryParse(req.Query["preparationTimeMinutes"], out var preparationTimeMinutes) || preparationTimeMinutes <= 0)
             {
@@ -259,8 +295,12 @@ public class OverheadCostFunction
             }
 
             _logger.LogInformation("Calculating allocation for {Minutes} minutes", preparationTimeMinutes);
+            Console.WriteLine($"[API] Calculating overhead for {preparationTimeMinutes} minutes with OutletId: {outletId ?? "NULL"}");
+            
             var allocation = await _mongoService.CalculateOverheadAllocationAsync(preparationTimeMinutes, outletId);
             _logger.LogInformation("Allocation calculated successfully");
+            
+            Console.WriteLine($"[API] Allocation result: {allocation.Costs.Count} cost items, Total: ₹{allocation.TotalOverheadCost:F2}");
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(allocation);

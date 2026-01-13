@@ -392,6 +392,56 @@ public class MenuFunction
     }
 
     /// <summary>
+    /// Deletes a menu item (Admin only)
+    /// </summary>
+    /// <param name="req">HTTP request</param>
+    /// <param name="id">The menu item ID to delete</param>
+    /// <returns>Success message</returns>
+    /// <response code="200">Menu item successfully deleted</response>
+    /// <response code="404">Menu item not found</response>
+    /// <response code="401">User not authenticated</response>
+    /// <response code="403">User not authorized (admin role required)</response>
+    [Function("DeleteMenuItem")]
+    [OpenApiOperation(operationId: "DeleteMenuItem", tags: new[] { "Menu" }, Summary = "Delete a menu item", Description = "Deletes a menu item (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Menu item ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Menu item successfully deleted")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Menu item not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
+    public async Task<HttpResponseData> DeleteMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "menu/{id}")] HttpRequestData req, string id)
+    {
+        try
+        {
+            // Validate admin authorization
+            var (isAuthorized, _, username, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var success = await _mongo.DeleteMenuItemAsync(id);
+            
+            if (!success)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { success = false, error = "Menu item not found" });
+                return notFound;
+            }
+
+            _log.LogInformation("Menu item deleted - ID: {Id}, User: {User}", id, username);
+            
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(new { success = true, message = "Menu item deleted successfully" });
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting menu item {Id}", id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = ex.Message });
+            return res;
+        }
+    }
+
+    /// <summary>
     /// Copy menu item data (recipe, price forecast, future prices, oil usage, ingredients) from one outlet to another
     /// </summary>
     /// <param name="req">HTTP request with menuItemName, sourceOutletId, targetOutletId</param>

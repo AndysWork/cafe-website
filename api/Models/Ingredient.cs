@@ -87,6 +87,12 @@ namespace Cafe.Api.Models
 
         [BsonElement("miscellaneous")]
         public decimal Miscellaneous { get; set; } = 2;
+
+        [BsonElement("operationalHoursPerDay")]
+        public int OperationalHoursPerDay { get; set; } = 11;
+
+        [BsonElement("workingDaysPerMonth")]
+        public int WorkingDaysPerMonth { get; set; } = 30;
     }
 
     public class OilUsage
