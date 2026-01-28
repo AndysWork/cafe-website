@@ -79,6 +79,33 @@ export class AdminLayoutComponent {
       active: false
     },
     {
+      icon: '👥',
+      label: 'Staff',
+      active: false,
+      children: [
+        {
+          icon: '👔',
+          label: 'Staff Management',
+          route: '/admin/staff'
+        },
+        {
+          icon: '📝',
+          label: 'Daily Performance Entry',
+          route: '/admin/daily-performance'
+        },
+        {
+          icon: '⚙️',
+          label: 'Bonus Configuration',
+          route: '/admin/bonus-configuration'
+        },
+        {
+          icon: '📊',
+          label: 'Staff Performance',
+          route: '/admin/staff-performance'
+        }
+      ]
+    },
+    {
       icon: '🛠️',
       label: 'Tools',
       active: false,
@@ -117,6 +144,11 @@ export class AdminLayoutComponent {
           icon: '🏷️',
           label: 'Discount Mapping',
           route: '/admin/discount-mapping'
+        },
+        {
+          icon: '💰',
+          label: 'Bonus Calculation',
+          route: '/admin/bonus-calculation'
         }
       ]
     }

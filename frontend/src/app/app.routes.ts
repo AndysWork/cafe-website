@@ -33,6 +33,11 @@ import { DiscountMappingComponent } from './components/discount-mapping/discount
 import { InventoryManagementComponent } from './inventory-management/inventory-management.component';
 import { KptAnalysisComponent } from './components/kpt-analysis/kpt-analysis.component';
 import { OutletManagementComponent } from './components/outlet-management/outlet-management.component';
+import { StaffManagementComponent } from './components/staff-management/staff-management.component';
+import { BonusCalculationComponent } from './components/bonus-calculation/bonus-calculation.component';
+import { BonusConfigurationComponent } from './components/bonus-configuration/bonus-configuration.component';
+import { StaffPerformanceComponent } from './components/staff-performance/staff-performance.component';
+import { DailyPerformanceEntryComponent } from './components/daily-performance-entry/daily-performance-entry.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -76,6 +81,11 @@ export const routes: Routes = [
       { path: 'price-calculator', component: PriceCalculatorComponent },
       { path: 'inventory', component: InventoryManagementComponent },
       { path: 'outlets', component: OutletManagementComponent },
+      { path: 'staff', component: StaffManagementComponent },
+      { path: 'bonus-calculation', component: BonusCalculationComponent },
+      { path: 'bonus-configuration', component: BonusConfigurationComponent },
+      { path: 'staff-performance', component: StaffPerformanceComponent },
+      { path: 'daily-performance', component: DailyPerformanceEntryComponent },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

@@ -111,9 +111,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
         this.loadExpenses();
         this.loadOfflineExpenseTypes();
         this.loadOnlineExpenseTypes();
-        if (this.currentExpenseSource === 'Operational') {
-          this.loadOperationalExpenses();
-        }
+        this.loadOperationalExpenses();
       });
 
     // Load immediately if outlet is already selected
@@ -121,6 +119,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       this.loadExpenses();
       this.loadOfflineExpenseTypes();
       this.loadOnlineExpenseTypes();
+      this.loadOperationalExpenses();
     }
   }
 

@@ -3,6 +3,7 @@ using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Cafe.Api.Models;
 
 namespace Cafe.Api.Services;
 
@@ -10,6 +11,7 @@ public class EmailService : IEmailService
 {
     private readonly IConfiguration _config;
     private readonly ILogger<EmailService> _logger;
+    private readonly MongoService _mongo;
     private readonly string _smtpHost;
     private readonly int _smtpPort;
     private readonly string _smtpUsername;
@@ -20,10 +22,11 @@ public class EmailService : IEmailService
     private readonly bool _useSsl;
     private readonly bool _isEnabled;
 
-    public EmailService(IConfiguration config, ILogger<EmailService> logger)
+    public EmailService(IConfiguration config, ILogger<EmailService> logger, MongoService mongo)
     {
         _config = config;
         _logger = logger;
+        _mongo = mongo;
         
         _smtpHost = _config["EmailService:SmtpHost"] ?? "smtp.gmail.com";
         _smtpPort = int.TryParse(_config["EmailService:SmtpPort"], out var port) ? port : 587;
@@ -632,6 +635,242 @@ Maa Tara Cafe Team
 
         var plainTextContent = "Please view this email in HTML format to see the price alert details.";
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
+    }
+
+    public async Task<bool> SendStaffWelcomeEmailAsync(Staff staff)
+    {
+        if (!_isEnabled)
+        {
+            _logger.LogWarning($"Email service disabled. Staff welcome email for {staff.Email}");
+            return false;
+        }
+
+        var subject = $"Welcome to Maa Tara Cafe Team! 🎉 - {staff.FirstName} {staff.LastName}";
+        
+        var htmlContent = GetStaffWelcomeTemplate(staff);
+        var plainTextContent = GetStaffWelcomePlainText(staff);
+
+        return await SendEmailAsync(staff.Email, subject, htmlContent, plainTextContent);
+    }
+
+    private string GetStaffWelcomeTemplate(Staff staff)
+    {
+        var workingDays = staff.WorkingDays.Any() ? string.Join(", ", staff.WorkingDays) : "To be determined";
+        var shiftTime = (!string.IsNullOrEmpty(staff.ShiftStartTime) && !string.IsNullOrEmpty(staff.ShiftEndTime)) 
+            ? $"{staff.ShiftStartTime} - {staff.ShiftEndTime}" 
+            : "To be determined";
+        
+        // Get bonus info from database configuration
+        var bonusInfo = _mongo.GetBonusDescriptionForStaffAsync(staff).GetAwaiter().GetResult();
+
+        return $@"
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Welcome to Maa Tara Cafe</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px; }}
+        .container {{ background-color: #f9f9f9; border-radius: 10px; padding: 30px; }}
+        .header {{ background-color: #8B4513; color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }}
+        .header h1 {{ margin: 0; font-size: 28px; }}
+        .content {{ background-color: white; padding: 30px; border-radius: 0 0 10px 10px; }}
+        .info-section {{ margin: 25px 0; padding: 20px; background-color: #f8f9fa; border-left: 4px solid #8B4513; border-radius: 5px; }}
+        .info-section h3 {{ margin-top: 0; color: #8B4513; }}
+        .info-row {{ display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6; }}
+        .info-row:last-child {{ border-bottom: none; }}
+        .info-label {{ font-weight: bold; color: #666; }}
+        .info-value {{ color: #333; text-align: right; }}
+        .highlight {{ background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 2px solid #dee2e6; text-align: center; color: #666; font-size: 14px; }}
+        .welcome-message {{ font-size: 16px; line-height: 1.8; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>🎉 Welcome to Maa Tara Cafe Team!</h1>
+        </div>
+        <div class='content'>
+            <div class='welcome-message'>
+                <p>Dear <strong>{staff.FirstName} {staff.LastName}</strong>,</p>
+                
+                <p>Congratulations and welcome to the Maa Tara Cafe family! We are thrilled to have you join our team as a <strong>{staff.Position}</strong>{(string.IsNullOrEmpty(staff.Department) ? "" : $" in the {staff.Department} department")}.</p>
+                
+                <p>Your skills and enthusiasm will be a valuable addition to our team. We look forward to working with you and achieving great things together!</p>
+            </div>
+
+            <div class='highlight'>
+                <strong>📋 Employee ID:</strong> {staff.EmployeeId}
+            </div>
+
+            <div class='info-section'>
+                <h3>💼 Employment Details</h3>
+                <div class='info-row'>
+                    <span class='info-label'>Position:</span>
+                    <span class='info-value'>{staff.Position}</span>
+                </div>
+                {(string.IsNullOrEmpty(staff.Department) ? "" : $@"
+                <div class='info-row'>
+                    <span class='info-label'>Department:</span>
+                    <span class='info-value'>{staff.Department}</span>
+                </div>")}
+                <div class='info-row'>
+                    <span class='info-label'>Employment Type:</span>
+                    <span class='info-value'>{staff.EmploymentType}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Start Date:</span>
+                    <span class='info-value'>{staff.HireDate:MMMM dd, yyyy}</span>
+                </div>
+                {(staff.ProbationEndDate.HasValue ? $@"
+                <div class='info-row'>
+                    <span class='info-label'>Probation Period Ends:</span>
+                    <span class='info-value'>{staff.ProbationEndDate.Value:MMMM dd, yyyy}</span>
+                </div>" : "")}
+            </div>
+
+            <div class='info-section'>
+                <h3>⏰ Work Schedule</h3>
+                <div class='info-row'>
+                    <span class='info-label'>Working Days:</span>
+                    <span class='info-value'>{workingDays}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Shift Timing:</span>
+                    <span class='info-value'>{shiftTime}</span>
+                </div>
+            </div>
+
+            <div class='info-section'>
+                <h3>💰 Compensation & Benefits</h3>
+                <div class='info-row'>
+                    <span class='info-label'>Salary Type:</span>
+                    <span class='info-value'>{staff.SalaryType}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Compensation:</span>
+                    <span class='info-value'>₹{staff.Salary:N2} ({staff.SalaryType})</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Bonus Calculation:</span>
+                    <span class='info-value'>{bonusInfo}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Annual Leave:</span>
+                    <span class='info-value'>{staff.AnnualLeaveBalance} days</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Sick Leave:</span>
+                    <span class='info-value'>{staff.SickLeaveBalance} days</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Casual Leave:</span>
+                    <span class='info-value'>{staff.CasualLeaveBalance} days</span>
+                </div>
+            </div>
+
+            <div class='info-section'>
+                <h3>📞 Contact Information</h3>
+                <div class='info-row'>
+                    <span class='info-label'>Email:</span>
+                    <span class='info-value'>{staff.Email}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Phone:</span>
+                    <span class='info-value'>{staff.PhoneNumber}</span>
+                </div>
+            </div>
+
+            <div class='highlight'>
+                <p><strong>📝 Next Steps:</strong></p>
+                <ul style='margin: 10px 0; padding-left: 20px;'>
+                    <li>Please arrive 15 minutes early on your first day</li>
+                    <li>Bring required documents for verification</li>
+                    <li>You'll receive orientation and training schedule</li>
+                    <li>Contact HR for any questions or concerns</li>
+                </ul>
+            </div>
+
+            {(string.IsNullOrEmpty(staff.Notes) ? "" : $@"
+            <div style='margin-top: 20px; padding: 15px; background-color: #e7f3ff; border-radius: 5px;'>
+                <strong>💡 Additional Information:</strong>
+                <p style='margin: 10px 0 0 0;'>{staff.Notes}</p>
+            </div>")}
+
+            <p style='margin-top: 30px;'>Once again, welcome aboard! We're excited to have you as part of the Maa Tara Cafe family.</p>
+            
+            <p>If you have any questions, please don't hesitate to reach out to your manager or HR department.</p>
+
+            <div class='footer'>
+                <p><strong>Best Regards,</strong></p>
+                <p><strong>Maa Tara Cafe Management Team</strong></p>
+                <p style='color: #8B4513; margin-top: 10px;'>☕ Brewing Excellence, One Cup at a Time ☕</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>";
+    }
+
+    private string GetStaffWelcomePlainText(Staff staff)
+    {
+        var workingDays = staff.WorkingDays.Any() ? string.Join(", ", staff.WorkingDays) : "To be determined";
+        var shiftTime = (!string.IsNullOrEmpty(staff.ShiftStartTime) && !string.IsNullOrEmpty(staff.ShiftEndTime)) 
+            ? $"{staff.ShiftStartTime} - {staff.ShiftEndTime}" 
+            : "To be determined";
+        
+        // Get bonus info from database configuration
+        var bonusInfo = _mongo.GetBonusDescriptionForStaffAsync(staff).GetAwaiter().GetResult();
+
+        return $@"
+Welcome to Maa Tara Cafe Team!
+
+Dear {staff.FirstName} {staff.LastName},
+
+Congratulations and welcome to the Maa Tara Cafe family! We are thrilled to have you join our team as a {staff.Position}{(string.IsNullOrEmpty(staff.Department) ? "" : $" in the {staff.Department} department")}.
+
+Your skills and enthusiasm will be a valuable addition to our team. We look forward to working with you and achieving great things together!
+
+EMPLOYEE ID: {staff.EmployeeId}
+
+--- EMPLOYMENT DETAILS ---
+Position: {staff.Position}
+{(string.IsNullOrEmpty(staff.Department) ? "" : $"Department: {staff.Department}\n")}Employment Type: {staff.EmploymentType}
+Start Date: {staff.HireDate:MMMM dd, yyyy}
+{(staff.ProbationEndDate.HasValue ? $"Probation Period Ends: {staff.ProbationEndDate.Value:MMMM dd, yyyy}\n" : "")}
+--- WORK SCHEDULE ---
+Working Days: {workingDays}
+Shift Timing: {shiftTime}
+
+--- COMPENSATION & BENEFITS ---
+Salary Type: {staff.SalaryType}
+Compensation: ₹{staff.Salary:N2} ({staff.SalaryType})
+Bonus Calculation: {bonusInfo}
+Annual Leave: {staff.AnnualLeaveBalance} days
+Sick Leave: {staff.SickLeaveBalance} days
+Casual Leave: {staff.CasualLeaveBalance} days
+
+--- CONTACT INFORMATION ---
+Email: {staff.Email}
+Phone: {staff.PhoneNumber}
+
+NEXT STEPS:
+- Please arrive 15 minutes early on your first day
+- Bring required documents for verification
+- You'll receive orientation and training schedule
+- Contact HR for any questions or concerns
+{(string.IsNullOrEmpty(staff.Notes) ? "" : $"\nADDITIONAL INFORMATION:\n{staff.Notes}\n")}
+Once again, welcome aboard! We're excited to have you as part of the Maa Tara Cafe family.
+
+If you have any questions, please don't hesitate to reach out to your manager or HR department.
+
+Best Regards,
+Maa Tara Cafe Management Team
+
+Brewing Excellence, One Cup at a Time
+";
     }
 
     #endregion

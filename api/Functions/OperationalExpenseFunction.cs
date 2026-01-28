@@ -62,7 +62,8 @@ public class OperationalExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var expenses = await _mongo.GetOperationalExpensesByYearAsync(year);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var expenses = await _mongo.GetOperationalExpensesByYearAsync(year, outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(expenses);
             return response;
@@ -89,7 +90,8 @@ public class OperationalExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var expense = await _mongo.GetOperationalExpenseByMonthYearAsync(month, year);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var expense = await _mongo.GetOperationalExpenseByMonthYearAsync(month, year, outletId);
             
             if (expense == null)
             {
@@ -124,7 +126,8 @@ public class OperationalExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var rentAmount = await _mongo.CalculateRentForMonthAsync(month, year);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var rentAmount = await _mongo.CalculateRentForMonthAsync(month, year, outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { rent = rentAmount });
             return response;
@@ -169,7 +172,7 @@ public class OperationalExpenseFunction
             }
 
             // Check if operational expense already exists for this month/year
-            var existing = await _mongo.GetOperationalExpenseByMonthYearAsync(requestBody.Month, requestBody.Year);
+            var existing = await _mongo.GetOperationalExpenseByMonthYearAsync(requestBody.Month, requestBody.Year, outletId);
             if (existing != null)
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);

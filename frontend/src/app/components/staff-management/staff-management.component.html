@@ -1,0 +1,651 @@
+<div class="staff-management-container">
+  <!-- Header -->
+  <div class="page-header">
+    <h1>Staff Management</h1>
+    <div class="header-actions">
+      <button class="btn btn-primary" (click)="openCreateModal()">
+        ➕ Add Staff Member
+      </button>
+      <button class="btn btn-secondary" (click)="exportToCSV()">
+        📥 Export CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="statistics-grid" *ngIf="statistics">
+    <div class="stat-card">
+      <div class="stat-icon blue">
+        👥
+      </div>
+      <div class="stat-content">
+        <h3>{{ statistics.totalStaff }}</h3>
+        <p>Total Staff</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon green">
+        ✅
+      </div>
+      <div class="stat-content">
+        <h3>{{ statistics.activeStaff }}</h3>
+        <p>Active Staff</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon orange">
+        💼
+      </div>
+      <div class="stat-content">
+        <h3>{{ statistics.fullTimeStaff }}</h3>
+        <p>Full-Time</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon purple">
+        🕐
+      </div>
+      <div class="stat-content">
+        <h3>{{ statistics.partTimeStaff }}</h3>
+        <p>Part-Time</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="alert alert-success" *ngIf="successMessage">
+    {{ successMessage }}
+  </div>
+  <div class="alert alert-danger" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-section">
+    <div class="search-bar">
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        (keyup.enter)="searchStaff()"
+        placeholder="Search by name, email, or employee ID..."
+        class="form-control">
+      <button class="btn btn-primary" (click)="searchStaff()">
+        🔍 Search
+      </button>
+      <button class="btn btn-secondary" (click)="clearSearch()" *ngIf="searchTerm">
+        ❌ Clear
+      </button>
+    </div>
+    <div class="filters">
+      <label class="filter-checkbox">
+        <input type="checkbox" [(ngModel)]="filterActiveOnly" (change)="applyFilters()">
+        Active Only
+      </label>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div class="loading-spinner" *ngIf="isLoading">
+    ⏳ Loading...
+  </div>
+
+  <!-- Staff Table -->
+  <div class="table-container" *ngIf="!isLoading">
+    <table class="staff-table">
+      <thead>
+        <tr>
+          <th>Employee ID</th>
+          <th>Name</th>
+          <th>Position</th>
+          <th>Department</th>
+          <th>Outlets</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Employment Type</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let staffMember of staff">
+          <td>{{ staffMember.employeeId }}</td>
+          <td>
+            <div class="staff-name">
+              <strong>{{ getFullName(staffMember) }}</strong>
+            </div>
+          </td>
+          <td>{{ staffMember.position }}</td>
+          <td>{{ staffMember.department || 'N/A' }}</td>
+          <td>
+            <span class="outlets-list">{{ getOutletNames(staffMember.outletIds) }}</span>
+          </td>
+          <td>{{ staffMember.email }}</td>
+          <td>{{ staffMember.phoneNumber }}</td>
+          <td>
+            <span class="badge badge-{{ staffMember.employmentType.toLowerCase() }}">
+              {{ staffMember.employmentType }}
+            </span>
+          </td>
+          <td>
+            <span class="badge" [ngClass]="staffMember.isActive ? 'badge-active' : 'badge-inactive'">
+              {{ staffMember.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button class="btn-icon" (click)="openViewModal(staffMember)" title="View Details">
+                👁️
+              </button>
+              <button class="btn-icon" (click)="openEditModal(staffMember)" title="Edit">
+                ✏️
+              </button>
+              <button
+                class="btn-icon"
+                [ngClass]="staffMember.isActive ? 'btn-warning' : 'btn-success'"
+                (click)="toggleStaffStatus(staffMember)"
+                [title]="staffMember.isActive ? 'Deactivate' : 'Activate'">
+                <span *ngIf="staffMember.isActive">🚫</span>
+                <span *ngIf="!staffMember.isActive">✅</span>
+              </button>
+              <button class="btn-icon btn-danger" (click)="deleteStaff(staffMember)" title="Delete">
+                🗑️
+              </button>
+            </div>
+          </td>
+        </tr>
+        <tr *ngIf="staff.length === 0">
+          <td colspan="9" class="no-data">No staff members found</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Staff Modal -->
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-content large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>
+        <span *ngIf="modalMode === 'create'">Add New Staff Member</span>
+        <span *ngIf="modalMode === 'edit'">Edit Staff Member</span>
+        <span *ngIf="modalMode === 'view'">Staff Member Details</span>
+      </h2>
+      <button class="close-btn" (click)="closeModal()">&times;</button>
+    </div>
+
+    <div class="modal-tabs">
+      <button
+        class="tab-btn"
+        [class.active]="currentTab === 'basic'"
+        (click)="switchTab('basic')">
+        Basic Info
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="currentTab === 'employment'"
+        (click)="switchTab('employment')">
+        Employment
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="currentTab === 'compensation'"
+        (click)="switchTab('compensation')">
+        Compensation
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="currentTab === 'schedule'"
+        (click)="switchTab('schedule')">
+        Schedule
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="currentTab === 'performance'"
+        (click)="switchTab('performance')">
+        Performance
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Basic Info Tab -->
+      <div *ngIf="currentTab === 'basic'" class="tab-content">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Employee ID <span class="required">*</span></label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.employeeId"
+              class="form-control"
+              [disabled]="modalMode === 'view' || modalMode === 'edit'"
+              placeholder="EMP001">
+          </div>
+
+          <div class="form-group">
+            <label>First Name <span class="required">*</span></label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.firstName"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="John">
+          </div>
+
+          <div class="form-group">
+            <label>Last Name <span class="required">*</span></label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.lastName"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="Doe">
+          </div>
+
+          <div class="form-group">
+            <label>Email <span class="required">*</span></label>
+            <input
+              type="email"
+              [(ngModel)]="staffForm.email"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="john.doe@example.com">
+          </div>
+
+          <div class="form-group">
+            <label>Phone Number <span class="required">*</span></label>
+            <input
+              type="tel"
+              [(ngModel)]="staffForm.phoneNumber"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="+91-9876543210">
+          </div>
+
+          <div class="form-group">
+            <label>Alternate Phone</label>
+            <input
+              type="tel"
+              [(ngModel)]="staffForm.alternatePhoneNumber"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="+91-9876543211">
+          </div>
+
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <input
+              type="date"
+              [(ngModel)]="staffForm.dateOfBirth"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+          </div>
+
+          <div class="form-group">
+            <label>Gender</label>
+            <select
+              [(ngModel)]="staffForm.gender"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+              <option value="">Select Gender</option>
+              <option *ngFor="let gender of genders" [value]="gender">{{ gender }}</option>
+            </select>
+          </div>
+        </div>
+
+        <h3>Address</h3>
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label>Street Address</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.address!.street"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="123 Main Street">
+          </div>
+
+          <div class="form-group">
+            <label>City</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.address!.city"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="Mumbai">
+          </div>
+
+          <div class="form-group">
+            <label>State</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.address!.state"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="Maharashtra">
+          </div>
+
+          <div class="form-group">
+            <label>Postal Code</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.address!.postalCode"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="400001">
+          </div>
+
+          <div class="form-group">
+            <label>Country</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.address!.country"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              value="India">
+          </div>
+        </div>
+
+        <h3>Emergency Contact</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Name</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.emergencyContact!.name"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="Jane Doe">
+          </div>
+
+          <div class="form-group">
+            <label>Relationship</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.emergencyContact!.relationship"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="Spouse">
+          </div>
+
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input
+              type="tel"
+              [(ngModel)]="staffForm.emergencyContact!.phoneNumber"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="+91-9876543211">
+          </div>
+        </div>
+      </div>
+
+      <!-- Employment Tab -->
+      <div *ngIf="currentTab === 'employment'" class="tab-content">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Position <span class="required">*</span></label>
+            <select
+              [(ngModel)]="staffForm.position"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+              <option value="">Select Position</option>
+              <option *ngFor="let position of positions" [value]="position">{{ position }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Department</label>
+            <select
+              [(ngModel)]="staffForm.department"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+              <option value="">Select Department</option>
+              <option *ngFor="let dept of departments" [value]="dept">{{ dept }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Employment Type</label>
+            <select
+              [(ngModel)]="staffForm.employmentType"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+              <option *ngFor="let type of employmentTypes" [value]="type">{{ type }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Hire Date</label>
+            <input
+              type="date"
+              [(ngModel)]="staffForm.hireDate"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+          </div>
+
+          <div class="form-group">
+            <label>Probation End Date</label>
+            <input
+              type="date"
+              [(ngModel)]="staffForm.probationEndDate"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+          </div>
+
+          <div class="form-group full-width">
+            <label>Assigned Outlets (Select multiple)</label>
+            <div class="outlet-selection-grid">
+              <label *ngFor="let outlet of outlets" class="outlet-checkbox">
+                <input
+                  type="checkbox"
+                  [checked]="isOutletSelected(outlet.id || outlet._id || '')"
+                  (change)="toggleOutletSelection(outlet.id || outlet._id || '')"
+                  [disabled]="modalMode === 'view'">
+                <span>{{ outlet.outletName }}</span>
+              </label>
+            </div>
+            <small class="help-text">Staff can work at multiple outlets</small>
+          </div>
+
+          <div class="form-group full-width">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                [(ngModel)]="staffForm.isActive"
+                [disabled]="modalMode === 'view'">
+              Active Status
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compensation Tab -->
+      <div *ngIf="currentTab === 'compensation'" class="tab-content">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Salary</label>
+            <input
+              type="number"
+              [(ngModel)]="staffForm.salary"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="25000">
+          </div>
+
+          <div class="form-group">
+            <label>Salary Type</label>
+            <select
+              [(ngModel)]="staffForm.salaryType"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+              <option *ngFor="let type of salaryTypes" [value]="type">{{ type }}</option>
+            </select>
+          </div>
+        </div>
+
+        <h3>Bank Details</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Account Holder Name</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.bankDetails!.accountHolderName"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="John Doe">
+          </div>
+
+          <div class="form-group">
+            <label>Account Number</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.bankDetails!.accountNumber"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="1234567890">
+          </div>
+
+          <div class="form-group">
+            <label>Bank Name</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.bankDetails!.bankName"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="State Bank of India">
+          </div>
+
+          <div class="form-group">
+            <label>IFSC Code</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.bankDetails!.ifscCode"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="SBIN0001234">
+          </div>
+
+          <div class="form-group">
+            <label>Branch Name</label>
+            <input
+              type="text"
+              [(ngModel)]="staffForm.bankDetails!.branchName"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              placeholder="Mumbai Main Branch">
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule Tab -->
+      <div *ngIf="currentTab === 'schedule'" class="tab-content">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Shift Start Time</label>
+            <input
+              type="time"
+              [(ngModel)]="staffForm.shiftStartTime"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+          </div>
+
+          <div class="form-group">
+            <label>Shift End Time</label>
+            <input
+              type="time"
+              [(ngModel)]="staffForm.shiftEndTime"
+              class="form-control"
+              [disabled]="modalMode === 'view'">
+          </div>
+        </div>
+
+        <h3>Working Days</h3>
+        <div class="working-days">
+          <label
+            *ngFor="let day of daysOfWeek"
+            class="day-checkbox"
+            [class.disabled]="modalMode === 'view'">
+            <input
+              type="checkbox"
+              [checked]="isWorkingDay(day)"
+              (change)="toggleWorkingDay(day)"
+              [disabled]="modalMode === 'view'">
+            {{ day }}
+          </label>
+        </div>
+
+        <h3>Leave Balances</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Annual Leave (days)</label>
+            <input
+              type="number"
+              [(ngModel)]="staffForm.annualLeaveBalance"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              min="0">
+          </div>
+
+          <div class="form-group">
+            <label>Sick Leave (days)</label>
+            <input
+              type="number"
+              [(ngModel)]="staffForm.sickLeaveBalance"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              min="0">
+          </div>
+
+          <div class="form-group">
+            <label>Casual Leave (days)</label>
+            <input
+              type="number"
+              [(ngModel)]="staffForm.casualLeaveBalance"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              min="0">
+          </div>
+        </div>
+      </div>
+
+      <!-- Performance Tab -->
+      <div *ngIf="currentTab === 'performance'" class="tab-content">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Performance Rating (0-5)</label>
+            <input
+              type="number"
+              [(ngModel)]="staffForm.performanceRating"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              min="0"
+              max="5"
+              step="0.1">
+          </div>
+
+          <div class="form-group full-width">
+            <label>Notes</label>
+            <textarea
+              [(ngModel)]="staffForm.notes"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              rows="4"
+              placeholder="Additional notes about the staff member..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeModal()">
+        {{ modalMode === 'view' ? 'Close' : 'Cancel' }}
+      </button>
+      <button
+        *ngIf="modalMode !== 'view'"
+        class="btn btn-primary"
+        (click)="saveStaff()"
+        [disabled]="isLoading">
+        {{ isLoading ? 'Saving...' : (modalMode === 'create' ? 'Create' : 'Update') }}
+      </button>
+    </div>
+  </div>
+</div>

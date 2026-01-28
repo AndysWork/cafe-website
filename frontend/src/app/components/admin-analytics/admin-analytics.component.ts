@@ -1543,7 +1543,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     }
 
     this.earningsData = {
-      // Offline sales
+      // Offline sales (recorded sales amounts)
       totalOfflineSales,
       totalOnlineSalesPayment: onlineSalesPayment,
       totalCashSales: cashSales,
@@ -1566,14 +1566,16 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       offlineExpenses,
       onlineExpenses,
 
-      // Collections
+      // Collections (actual collections from reconciliations)
       totalCashCollection,
       totalOnlineCollection,
       onlinePlatformCollection,
       totalCollection:
         totalCashCollection + totalOnlineCollection + onlinePlatformCollection,
+      // Collection variance (difference between recorded sales and actual collections)
+      offlineCollectionVariance: (totalCashCollection + totalOnlineCollection) - totalOfflineSales,
 
-      // PnL (will be updated with operational expenses)
+      // PnL (based on actual collections, will be updated with operational expenses)
       totalRevenue,
       netProfitLoss,
       profitMargin,

@@ -1,0 +1,245 @@
+<div class="daily-performance-container">
+  <div class="page-header">
+    <div class="header-left">
+      <h2>Daily Performance Entry</h2>
+      <p class="subtitle">Enter daily attendance and performance metrics for all staff</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" (click)="exportToCSV()" [disabled]="isLoading">
+        <i class="fas fa-download"></i> Export CSV
+      </button>
+      <button
+        class="btn btn-success"
+        (click)="saveAll()"
+        [disabled]="isSaving || isLoading || getEditedCount() === 0">
+        <i class="fas fa-save"></i> Save All Changes ({{ getEditedCount() }})
+      </button>
+    </div>
+  </div>
+
+  <!-- Alert messages -->
+  <div *ngIf="successMessage" class="alert alert-success">
+    <i class="fas fa-check-circle"></i> {{ successMessage }}
+  </div>
+  <div *ngIf="errorMessage" class="alert alert-danger">
+    <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
+  </div>
+
+  <!-- Filters Section -->
+  <div class="filters-section">
+    <div class="filter-group date-filter">
+      <label>Date <span class="required">*</span></label>
+      <input
+        type="date"
+        [(ngModel)]="selectedDate"
+        (ngModelChange)="onDateChange()"
+        class="form-control"
+        [disabled]="isLoading">
+    </div>
+
+    <div class="filter-group">
+      <label>Position</label>
+      <select
+        [(ngModel)]="filterPosition"
+        (ngModelChange)="onFilterChange()"
+        class="form-control">
+        <option value="">All Positions</option>
+        <option *ngFor="let position of positions" [value]="position">{{ position }}</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Search Staff</label>
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        (ngModelChange)="onFilterChange()"
+        placeholder="Name or Employee ID..."
+        class="form-control">
+    </div>
+
+    <div class="filter-group checkbox-filter">
+      <label>
+        <input
+          type="checkbox"
+          [(ngModel)]="showActiveOnly"
+          (ngModelChange)="onFilterChange()">
+        Active Staff Only
+      </label>
+    </div>
+  </div>
+
+  <!-- Loading spinner -->
+  <div *ngIf="isLoading" class="loading-spinner">
+    <i class="fas fa-spinner fa-spin"></i> Loading staff and performance data...
+  </div>
+
+  <!-- Performance Entry Table -->
+  <div *ngIf="!isLoading" class="table-container">
+    <div class="table-responsive">
+      <table class="performance-table">
+        <thead>
+          <tr>
+            <th class="sticky-col">Staff</th>
+            <th>Position</th>
+            <th>In Time</th>
+            <th>Out Time</th>
+            <th>Hours</th>
+            <th>Total Orders</th>
+            <th>Good Orders</th>
+            <th>Bad Orders</th>
+            <th>Refund Recovery</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of staffPerformanceRows" [class.edited]="row.isEdited" [class.has-data]="row.entry.id">
+            <!-- Staff Info -->
+            <td class="sticky-col staff-info">
+              <div class="staff-details">
+                <strong>{{ getStaffName(row.staff) }}</strong>
+                <small>{{ row.staff.employeeId }}</small>
+              </div>
+            </td>
+
+            <!-- Position -->
+            <td>
+              <span class="position-badge">{{ row.staff.position }}</span>
+            </td>
+
+            <!-- In Time -->
+            <td>
+              <input
+                type="time"
+                [(ngModel)]="row.entry.inTime"
+                (ngModelChange)="markAsEdited(row)"
+                class="form-control time-input"
+                [class.invalid]="!row.entry.inTime && row.isEdited">
+            </td>
+
+            <!-- Out Time -->
+            <td>
+              <input
+                type="time"
+                [(ngModel)]="row.entry.outTime"
+                (ngModelChange)="markAsEdited(row)"
+                class="form-control time-input"
+                [class.invalid]="!row.entry.outTime && row.isEdited">
+            </td>
+
+            <!-- Working Hours (calculated) -->
+            <td class="hours-cell">
+              <span class="hours-badge" *ngIf="row.entry.workingHours">
+                {{ row.entry.workingHours }} hrs
+              </span>
+              <span class="hours-badge empty" *ngIf="!row.entry.workingHours">-</span>
+            </td>
+
+            <!-- Total Orders -->
+            <td>
+              <input
+                type="number"
+                [(ngModel)]="row.entry.totalOrdersPrepared"
+                (ngModelChange)="markAsEdited(row)"
+                class="form-control number-input"
+                min="0"
+                placeholder="0">
+            </td>
+
+            <!-- Good Orders -->
+            <td>
+              <input
+                type="number"
+                [(ngModel)]="row.entry.goodOrdersCount"
+                (ngModelChange)="markAsEdited(row)"
+                class="form-control number-input good"
+                min="0"
+                placeholder="0">
+            </td>
+
+            <!-- Bad Orders -->
+            <td>
+              <input
+                type="number"
+                [(ngModel)]="row.entry.badOrdersCount"
+                (ngModelChange)="markAsEdited(row)"
+                class="form-control number-input bad"
+                min="0"
+                placeholder="0">
+            </td>
+
+            <!-- Refund Recovery -->
+            <td>
+              <input
+                type="number"
+                [(ngModel)]="row.entry.refundAmountRecovery"
+                (ngModelChange)="markAsEdited(row)"
+                class="form-control number-input currency"
+                min="0"
+                step="0.01"
+                placeholder="0.00">
+            </td>
+
+            <!-- Notes -->
+            <td>
+              <input
+                type="text"
+                [(ngModel)]="row.entry.notes"
+                (ngModelChange)="markAsEdited(row)"
+                class="form-control notes-input"
+                placeholder="Optional notes...">
+            </td>
+
+            <!-- Actions -->
+            <td class="actions-cell">
+              <div class="action-buttons">
+                <button
+                  class="btn btn-sm btn-success"
+                  (click)="saveIndividual(row)"
+                  [disabled]="isSaving || !row.isEdited"
+                  title="Save this entry">
+                  <i class="fas fa-check"></i>
+                </button>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  (click)="fillDefaults(row)"
+                  title="Fill default values">
+                  <i class="fas fa-magic"></i>
+                </button>
+                <button
+                  class="btn btn-sm btn-danger"
+                  (click)="clearRow(row)"
+                  [disabled]="!row.entry.inTime && !row.entry.outTime"
+                  title="Clear this row">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div *ngIf="!isLoading && staffPerformanceRows.length === 0" class="empty-state">
+    <i class="fas fa-users fa-3x"></i>
+    <p>No staff members found</p>
+    <small>Try adjusting your filters or add staff members first</small>
+  </div>
+
+  <!-- Instructions -->
+  <div class="instructions-card" *ngIf="!isLoading && staffPerformanceRows.length > 0">
+    <h4><i class="fas fa-info-circle"></i> Instructions</h4>
+    <ul>
+      <li><strong>In/Out Time:</strong> Enter the staff's clock-in and clock-out times. Working hours will be calculated automatically.</li>
+      <li><strong>Orders:</strong> Total orders should equal or exceed good orders + bad orders.</li>
+      <li><strong>Refund Recovery:</strong> Enter the amount recovered from staff for order refunds (if applicable).</li>
+      <li><strong>Fill Defaults:</strong> Click the magic wand icon to fill default times (9 AM - 6 PM).</li>
+      <li><strong>Save Individual:</strong> Click the check icon to save a single staff entry.</li>
+      <li><strong>Save All:</strong> Click "Save All Changes" button at the top to save all edited entries at once.</li>
+      <li><strong>Data Persistence:</strong> Previously entered data will load automatically when you select a date.</li>
+    </ul>
+  </div>
+</div>

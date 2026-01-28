@@ -57,6 +57,10 @@ public partial class MongoService
     private readonly IMongoCollection<OverheadCost> _overheadCosts;
     private readonly IMongoCollection<FrozenItem> _frozenItems;
     private readonly IMongoCollection<Outlet> _outlets;
+    private readonly IMongoCollection<Staff> _staff;
+    private readonly IMongoCollection<BonusConfiguration> _bonusConfigurations;
+    private readonly IMongoCollection<StaffPerformanceRecord> _staffPerformanceRecords;
+    private readonly IMongoCollection<DailyPerformanceEntry> _dailyPerformanceEntries;
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
     
@@ -113,6 +117,10 @@ public partial class MongoService
         _overheadCosts = db.GetCollection<OverheadCost>("OverheadCosts");
         _frozenItems = db.GetCollection<FrozenItem>("FrozenItems");
         _outlets = db.GetCollection<Outlet>("Outlets");
+        _staff = db.GetCollection<Staff>("Staff");
+        _bonusConfigurations = db.GetCollection<BonusConfiguration>("BonusConfigurations");
+        _staffPerformanceRecords = db.GetCollection<StaffPerformanceRecord>("StaffPerformanceRecords");
+        _dailyPerformanceEntries = db.GetCollection<DailyPerformanceEntry>("DailyPerformanceEntries");
 
         // Ensure default admin user exists
         try
@@ -769,6 +777,244 @@ public partial class MongoService
         var result = await _users.UpdateOneAsync(x => x.Id == admin.Id, update);
         
         return result.ModifiedCount > 0;
+    }
+
+    #endregion
+
+    #region Staff Operations
+
+    // Get all staff members
+    public async Task<List<Staff>> GetAllStaffAsync()
+    {
+        return await _staff.Find(_ => true)
+            .SortByDescending(s => s.CreatedAt)
+            .ToListAsync();
+    }
+
+    // Get active staff members only
+    public async Task<List<Staff>> GetActiveStaffAsync()
+    {
+        return await _staff.Find(s => s.IsActive)
+            .SortByDescending(s => s.CreatedAt)
+            .ToListAsync();
+    }
+
+    // Get staff by ID
+    public async Task<Staff?> GetStaffByIdAsync(string staffId)
+    {
+        return await _staff.Find(s => s.Id == staffId).FirstOrDefaultAsync();
+    }
+
+    // Get staff by Employee ID
+    public async Task<Staff?> GetStaffByEmployeeIdAsync(string employeeId)
+    {
+        return await _staff.Find(s => s.EmployeeId == employeeId).FirstOrDefaultAsync();
+    }
+
+    // Get staff by Email
+    public async Task<Staff?> GetStaffByEmailAsync(string email)
+    {
+        return await _staff.Find(s => s.Email == email).FirstOrDefaultAsync();
+    }
+
+    // Get staff by outlet
+    public async Task<List<Staff>> GetStaffByOutletAsync(string outletId)
+    {
+        return await _staff.Find(s => 
+            s.OutletIds.Contains(outletId) && s.IsActive)
+            .SortBy(s => s.FirstName)
+            .ToListAsync();
+    }
+
+    // Get staff by position
+    public async Task<List<Staff>> GetStaffByPositionAsync(string position)
+    {
+        return await _staff.Find(s => s.Position == position && s.IsActive)
+            .SortBy(s => s.FirstName)
+            .ToListAsync();
+    }
+
+    // Get staff by department
+    public async Task<List<Staff>> GetStaffByDepartmentAsync(string department)
+    {
+        return await _staff.Find(s => s.Department == department && s.IsActive)
+            .SortBy(s => s.FirstName)
+            .ToListAsync();
+    }
+
+    // Create new staff member
+    public async Task<Staff> CreateStaffAsync(Staff staff)
+    {
+        staff.CreatedAt = GetIstNow();
+        await _staff.InsertOneAsync(staff);
+        return staff;
+    }
+
+    // Update staff member
+    public async Task<bool> UpdateStaffAsync(string staffId, Staff updatedStaff)
+    {
+        updatedStaff.UpdatedAt = GetIstNow();
+        var result = await _staff.ReplaceOneAsync(s => s.Id == staffId, updatedStaff);
+        return result.ModifiedCount > 0;
+    }
+
+    // Update staff active status
+    public async Task<bool> UpdateStaffActiveStatusAsync(string staffId, bool isActive, string updatedBy)
+    {
+        var updateBuilder = Builders<Staff>.Update;
+        var update = updateBuilder.Combine(
+            updateBuilder.Set(s => s.IsActive, isActive),
+            updateBuilder.Set(s => s.UpdatedAt, GetIstNow()),
+            updateBuilder.Set(s => s.UpdatedBy, updatedBy)
+        );
+        
+        if (!isActive)
+        {
+            update = updateBuilder.Combine(update, updateBuilder.Set(s => s.TerminationDate, GetIstNow()));
+        }
+
+        var result = await _staff.UpdateOneAsync(s => s.Id == staffId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Update staff salary
+    public async Task<bool> UpdateStaffSalaryAsync(string staffId, decimal newSalary, string updatedBy)
+    {
+        var update = Builders<Staff>.Update
+            .Set(s => s.Salary, newSalary)
+            .Set(s => s.UpdatedAt, GetIstNow())
+            .Set(s => s.UpdatedBy, updatedBy);
+        
+        var result = await _staff.UpdateOneAsync(s => s.Id == staffId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Update staff outlet assignment
+    public async Task<bool> UpdateStaffOutletAsync(string staffId, string outletId, string updatedBy)
+    {
+        var staff = await GetStaffByIdAsync(staffId);
+        if (staff == null) return false;
+        
+        if (!staff.OutletIds.Contains(outletId))
+        {
+            staff.OutletIds.Add(outletId);
+        }
+        
+        var update = Builders<Staff>.Update
+            .Set(s => s.OutletIds, staff.OutletIds)
+            .Set(s => s.UpdatedAt, GetIstNow())
+            .Set(s => s.UpdatedBy, updatedBy);
+        
+        var result = await _staff.UpdateOneAsync(s => s.Id == staffId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Update staff position
+    public async Task<bool> UpdateStaffPositionAsync(string staffId, string position, string updatedBy)
+    {
+        var update = Builders<Staff>.Update
+            .Set(s => s.Position, position)
+            .Set(s => s.UpdatedAt, GetIstNow())
+            .Set(s => s.UpdatedBy, updatedBy);
+        
+        var result = await _staff.UpdateOneAsync(s => s.Id == staffId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Update staff performance rating
+    public async Task<bool> UpdateStaffPerformanceRatingAsync(string staffId, decimal rating, string updatedBy)
+    {
+        var update = Builders<Staff>.Update
+            .Set(s => s.PerformanceRating, rating)
+            .Set(s => s.UpdatedAt, GetIstNow())
+            .Set(s => s.UpdatedBy, updatedBy);
+        
+        var result = await _staff.UpdateOneAsync(s => s.Id == staffId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Add document to staff
+    public async Task<bool> AddStaffDocumentAsync(string staffId, StaffDocument document)
+    {
+        var update = Builders<Staff>.Update
+            .Push(s => s.Documents, document)
+            .Set(s => s.UpdatedAt, GetIstNow());
+        
+        var result = await _staff.UpdateOneAsync(s => s.Id == staffId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Update staff leave balances
+    public async Task<bool> UpdateStaffLeaveBalancesAsync(string staffId, int annual, int sick, int casual, string updatedBy)
+    {
+        var update = Builders<Staff>.Update
+            .Set(s => s.AnnualLeaveBalance, annual)
+            .Set(s => s.SickLeaveBalance, sick)
+            .Set(s => s.CasualLeaveBalance, casual)
+            .Set(s => s.UpdatedAt, GetIstNow())
+            .Set(s => s.UpdatedBy, updatedBy);
+        
+        var result = await _staff.UpdateOneAsync(s => s.Id == staffId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // Delete staff member (soft delete - set inactive)
+    public async Task<bool> DeleteStaffAsync(string staffId, string deletedBy)
+    {
+        return await UpdateStaffActiveStatusAsync(staffId, false, deletedBy);
+    }
+
+    // Hard delete staff member (permanent - use with caution)
+    public async Task<bool> HardDeleteStaffAsync(string staffId)
+    {
+        var result = await _staff.DeleteOneAsync(s => s.Id == staffId);
+        return result.DeletedCount > 0;
+    }
+
+    // Search staff by name or employee ID
+    public async Task<List<Staff>> SearchStaffAsync(string searchTerm)
+    {
+        var filter = Builders<Staff>.Filter.Or(
+            Builders<Staff>.Filter.Regex(s => s.FirstName, new MongoDB.Bson.BsonRegularExpression(searchTerm, "i")),
+            Builders<Staff>.Filter.Regex(s => s.LastName, new MongoDB.Bson.BsonRegularExpression(searchTerm, "i")),
+            Builders<Staff>.Filter.Regex(s => s.EmployeeId, new MongoDB.Bson.BsonRegularExpression(searchTerm, "i")),
+            Builders<Staff>.Filter.Regex(s => s.Email, new MongoDB.Bson.BsonRegularExpression(searchTerm, "i"))
+        );
+
+        return await _staff.Find(filter)
+            .SortBy(s => s.FirstName)
+            .ToListAsync();
+    }
+
+    // Get staff count by outlet
+    public async Task<long> GetStaffCountByOutletAsync(string outletId)
+    {
+        return await _staff.CountDocumentsAsync(s => 
+            s.OutletIds.Contains(outletId) && s.IsActive);
+    }
+
+    // Get staff statistics
+    public async Task<StaffStatistics> GetStaffStatisticsAsync()
+    {
+        var allStaff = await _staff.Find(_ => true).ToListAsync();
+        
+        return new StaffStatistics
+        {
+            TotalStaff = allStaff.Count,
+            ActiveStaff = allStaff.Count(s => s.IsActive),
+            InactiveStaff = allStaff.Count(s => !s.IsActive),
+            FullTimeStaff = allStaff.Count(s => s.EmploymentType == "Full-Time" && s.IsActive),
+            PartTimeStaff = allStaff.Count(s => s.EmploymentType == "Part-Time" && s.IsActive),
+            ContractStaff = allStaff.Count(s => s.EmploymentType == "Contract" && s.IsActive),
+            StaffByPosition = allStaff
+                .Where(s => s.IsActive)
+                .GroupBy(s => s.Position)
+                .ToDictionary(g => g.Key, g => g.Count()),
+            StaffByDepartment = allStaff
+                .Where(s => s.IsActive && !string.IsNullOrEmpty(s.Department))
+                .GroupBy(s => s.Department!)
+                .ToDictionary(g => g.Key, g => g.Count())
+        };
     }
 
     #endregion
@@ -1783,26 +2029,44 @@ public partial class MongoService
     }
 
     // Get operational expense by month and year
-    public async Task<OperationalExpense?> GetOperationalExpenseByMonthYearAsync(int month, int year) =>
-        await _operationalExpenses.Find(e => e.Month == month && e.Year == year)
-            .FirstOrDefaultAsync();
+    public async Task<OperationalExpense?> GetOperationalExpenseByMonthYearAsync(int month, int year, string? outletId = null)
+    {
+        var filter = outletId != null
+            ? Builders<OperationalExpense>.Filter.And(
+                Builders<OperationalExpense>.Filter.Eq(e => e.Month, month),
+                Builders<OperationalExpense>.Filter.Eq(e => e.Year, year),
+                Builders<OperationalExpense>.Filter.Eq(e => e.OutletId, outletId))
+            : Builders<OperationalExpense>.Filter.And(
+                Builders<OperationalExpense>.Filter.Eq(e => e.Month, month),
+                Builders<OperationalExpense>.Filter.Eq(e => e.Year, year));
+        
+        return await _operationalExpenses.Find(filter).FirstOrDefaultAsync();
+    }
 
     // Get operational expense by ID
     public async Task<OperationalExpense?> GetOperationalExpenseByIdAsync(string id) =>
         await _operationalExpenses.Find(x => x.Id == id).FirstOrDefaultAsync();
 
     // Calculate rent from offline expenses for a specific month
-    public async Task<decimal> CalculateRentForMonthAsync(int month, int year)
+    public async Task<decimal> CalculateRentForMonthAsync(int month, int year, string? outletId = null)
     {
         var startDate = new DateTime(year, month, 1);
         var endDate = startDate.AddMonths(1);
         
-        var rentExpenses = await _expenses.Find(e => 
-            e.Date >= startDate && 
-            e.Date < endDate && 
-            e.ExpenseType.ToLower() == "rent" &&
-            e.ExpenseSource == "Offline")
-            .ToListAsync();
+        var filterBuilder = Builders<Expense>.Filter;
+        var filter = filterBuilder.And(
+            filterBuilder.Gte(e => e.Date, startDate),
+            filterBuilder.Lt(e => e.Date, endDate),
+            filterBuilder.Eq(e => e.ExpenseSource, "Offline"),
+            filterBuilder.Regex(e => e.ExpenseType, new MongoDB.Bson.BsonRegularExpression("^rent$", "i"))
+        );
+        
+        if (outletId != null)
+        {
+            filter = filterBuilder.And(filter, filterBuilder.Eq(e => e.OutletId, outletId));
+        }
+        
+        var rentExpenses = await _expenses.Find(filter).ToListAsync();
         
         return rentExpenses.Sum(e => e.Amount);
     }
@@ -1814,7 +2078,7 @@ public partial class MongoService
         expense.UpdatedAt = GetIstNow();
         
         // Calculate rent automatically
-        expense.Rent = await CalculateRentForMonthAsync(expense.Month, expense.Year);
+        expense.Rent = await CalculateRentForMonthAsync(expense.Month, expense.Year, expense.OutletId);
         
         // Calculate total operational cost
         expense.TotalOperationalCost = expense.Rent + expense.CookSalary + 
@@ -1831,7 +2095,7 @@ public partial class MongoService
         expense.UpdatedAt = GetIstNow();
         
         // Recalculate rent
-        expense.Rent = await CalculateRentForMonthAsync(expense.Month, expense.Year);
+        expense.Rent = await CalculateRentForMonthAsync(expense.Month, expense.Year, expense.OutletId);
         
         // Recalculate total operational cost
         expense.TotalOperationalCost = expense.Rent + expense.CookSalary + 
@@ -1850,10 +2114,18 @@ public partial class MongoService
     }
 
     // Get operational expenses by year
-    public async Task<List<OperationalExpense>> GetOperationalExpensesByYearAsync(int year) =>
-        await _operationalExpenses.Find(e => e.Year == year)
+    public async Task<List<OperationalExpense>> GetOperationalExpensesByYearAsync(int year, string? outletId = null)
+    {
+        var filter = outletId != null
+            ? Builders<OperationalExpense>.Filter.And(
+                Builders<OperationalExpense>.Filter.Eq(e => e.Year, year),
+                Builders<OperationalExpense>.Filter.Eq(e => e.OutletId, outletId))
+            : Builders<OperationalExpense>.Filter.Eq(e => e.Year, year);
+        
+        return await _operationalExpenses.Find(filter)
             .SortByDescending(e => e.Month)
             .ToListAsync();
+    }
 
     #endregion
 
@@ -3458,7 +3730,7 @@ public partial class MongoService
                         IsAvailable = sourceMenuItem.IsAvailable,
                         FutureShopPrice = sourceMenuItem.FutureShopPrice,
                         FutureOnlinePrice = sourceMenuItem.FutureOnlinePrice,
-                        OutletId = outlet.Id,
+                        OutletId = outlet.Id!,
                         Variants = sourceMenuItem.Variants,
                         CreatedBy = "System - Auto Copy",
                         CreatedDate = GetIstNow(),
@@ -3501,7 +3773,6 @@ public partial class MongoService
                 // Calculate outlet-specific overhead costs
                 // Priority: Target outlet's overhead costs > Source outlet's overhead costs
                 var overheadCosts = new OverheadCosts();
-                bool usedOutletSpecificOverhead = false;
                 
                 if (sourceRecipe.PreparationTimeMinutes.HasValue)
                 {
@@ -3515,7 +3786,6 @@ public partial class MongoService
                     {
                         Console.WriteLine($"[Recipe Copy] ✅ Using outlet-specific overhead costs for {outlet.OutletName}");
                         Console.WriteLine($"[Recipe Copy]    Found {overheadAllocation.Costs.Count} configured overhead cost types");
-                        usedOutletSpecificOverhead = true;
                         
                         // Map the overhead allocation to OverheadCosts structure
                         decimal totalLabour = 0, totalRent = 0, totalElectricity = 0, totalMisc = 0;
@@ -3592,10 +3862,10 @@ public partial class MongoService
                 // Use KPT analysis - priority: target outlet -> default outlet -> source recipe (editable)
                 // The KPT value stored in the recipe is editable from the frontend
                 KptAnalysis? kptAnalysis = null;
-                if (!string.IsNullOrEmpty(menuItem.Id))
+                if (!string.IsNullOrEmpty(menuItem?.Id))
                 {
                     // Try to get target outlet-specific KPT data from online sales
-                    var targetKptData = await GetKptAnalysisForMenuItem(menuItem.Id, outlet.Id!);
+                    var targetKptData = await GetKptAnalysisForMenuItem(menuItem.Id!, outlet.Id!);
                     
                     if (targetKptData != null)
                     {

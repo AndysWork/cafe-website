@@ -1282,6 +1282,16 @@
         border: 2px solid #3b82f6;
       }
 
+      &.variance-positive {
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        border: 2px solid #22c55e;
+      }
+
+      &.variance-negative {
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        border: 2px solid #ef4444;
+      }
+
       h4 {
         margin: 0 0 0.75rem 0;
         font-size: 1.1rem;
@@ -1298,6 +1308,14 @@
         &.total {
           color: #2563eb;
           font-size: 2.25rem;
+        }
+
+        &.positive {
+          color: #22c55e;
+        }
+
+        &.negative {
+          color: #ef4444;
         }
       }
 

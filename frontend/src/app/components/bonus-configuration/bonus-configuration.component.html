@@ -1,0 +1,352 @@
+<div class="bonus-configuration-container">
+  <div class="page-header">
+    <h2>Bonus Configuration</h2>
+    <button class="btn btn-primary" (click)="openCreateModal()" [disabled]="isLoading">
+      <i class="fas fa-plus"></i> Create Configuration
+    </button>
+  </div>
+
+  <!-- Alert messages -->
+  <div *ngIf="successMessage" class="alert alert-success">
+    {{ successMessage }}
+  </div>
+  <div *ngIf="errorMessage" class="alert alert-danger">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-section">
+    <div class="filter-group">
+      <label>
+        <input type="checkbox" [(ngModel)]="filterActive" (change)="applyFilters()">
+        Show Active Only
+      </label>
+    </div>
+    <div class="search-group">
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        (ngModelChange)="applyFilters()"
+        placeholder="Search configurations..."
+        class="form-control">
+    </div>
+  </div>
+
+  <!-- Loading spinner -->
+  <div *ngIf="isLoading" class="loading-spinner">
+    <i class="fas fa-spinner fa-spin"></i> Loading...
+  </div>
+
+  <!-- Configurations List -->
+  <div *ngIf="!isLoading" class="configurations-grid">
+    <div *ngFor="let config of filteredConfigurations" class="config-card" [class.inactive]="!config.isActive">
+      <div class="card-header">
+        <h3>{{ config.configurationName }}</h3>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-info" (click)="openViewModal(config)" title="View">
+            <i class="fas fa-eye"></i>
+          </button>
+          <button class="btn btn-sm btn-warning" (click)="openEditModal(config)" title="Edit">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button
+            class="btn btn-sm"
+            [class.btn-success]="!config.isActive"
+            [class.btn-secondary]="config.isActive"
+            (click)="toggleActiveStatus(config)"
+            [title]="config.isActive ? 'Deactivate' : 'Activate'">
+            <i class="fas" [class.fa-toggle-on]="config.isActive" [class.fa-toggle-off]="!config.isActive"></i>
+          </button>
+          <button class="btn btn-sm btn-danger" (click)="deleteConfiguration(config)" title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div class="config-info">
+          <div class="info-row">
+            <strong>Period:</strong> {{ config.calculationPeriod }}
+          </div>
+          <div class="info-row">
+            <strong>Positions:</strong>
+            <span class="position-tags">
+              <span *ngFor="let pos of config.applicablePositions" class="tag">{{ pos }}</span>
+            </span>
+          </div>
+          <div class="info-row">
+            <strong>Rules:</strong> {{ config.rules.length }}
+          </div>
+          <div class="info-row">
+            <strong>Status:</strong>
+            <span [class.status-active]="config.isActive" [class.status-inactive]="!config.isActive">
+              {{ config.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div *ngIf="!isLoading && filteredConfigurations.length === 0" class="empty-state">
+    <i class="fas fa-inbox fa-3x"></i>
+    <p *ngIf="configurations.length === 0">No bonus configurations available</p>
+    <p *ngIf="configurations.length > 0">No configurations match your filters</p>
+    <button *ngIf="configurations.length === 0" class="btn btn-primary" (click)="openCreateModal()">
+      Create First Configuration
+    </button>
+    <button *ngIf="configurations.length > 0" class="btn btn-secondary" (click)="searchTerm = ''; filterActive = false; applyFilters()">
+      Clear Filters
+    </button>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal" [class.show]="showModal" *ngIf="showModal">
+  <div class="modal-overlay" (click)="closeModal()"></div>
+  <div class="modal-content large-modal">
+    <div class="modal-header">
+      <h3>
+        <span *ngIf="modalMode === 'create'">Create Bonus Configuration</span>
+        <span *ngIf="modalMode === 'edit'">Edit Bonus Configuration</span>
+        <span *ngIf="modalMode === 'view'">View Bonus Configuration</span>
+      </h3>
+      <button class="close-btn" (click)="closeModal()">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div *ngIf="successMessage" class="alert alert-success">{{ successMessage }}</div>
+      <div *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
+
+      <form (ngSubmit)="saveConfiguration()" #configurationForm="ngForm">
+        <!-- Basic Information -->
+        <div class="form-section">
+          <h4>Basic Information</h4>
+
+          <div class="form-group">
+            <label for="configName">Configuration Name <span class="required">*</span></label>
+            <input
+              type="text"
+              id="configName"
+              [(ngModel)]="configForm.configurationName"
+              name="configName"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              required>
+          </div>
+
+          <div class="form-group">
+            <label for="calculationPeriod">Calculation Period <span class="required">*</span></label>
+            <select
+              id="calculationPeriod"
+              [(ngModel)]="configForm.calculationPeriod"
+              name="calculationPeriod"
+              class="form-control"
+              [disabled]="modalMode === 'view'"
+              required>
+              <option *ngFor="let period of calculationPeriods" [value]="period">{{ period }}</option>
+            </select>
+          </div>
+
+          <div class="form-group" *ngIf="modalMode !== 'view'">
+            <label>
+              <input type="checkbox" [(ngModel)]="configForm.isActive" name="isActive">
+              Active
+            </label>
+          </div>
+        </div>
+
+        <!-- Applicable Positions -->
+        <div class="form-section">
+          <h4>Applicable Positions <span class="required">*</span></h4>
+          <div class="position-selection" *ngIf="modalMode !== 'view'">
+            <button type="button" class="btn btn-sm btn-secondary" (click)="selectAllPositions()">Select All</button>
+            <button type="button" class="btn btn-sm btn-secondary" (click)="clearAllPositions()">Clear All</button>
+          </div>
+          <div class="checkbox-grid">
+            <label *ngFor="let position of positions" class="checkbox-label">
+              <input
+                type="checkbox"
+                [checked]="isPositionSelected(position)"
+                (change)="togglePosition(position)"
+                [disabled]="modalMode === 'view'">
+              {{ position }}
+            </label>
+          </div>
+        </div>
+
+        <!-- Rules Section -->
+        <div class="form-section">
+          <div class="section-header">
+            <h4>Bonus Rules <span class="required">*</span></h4>
+            <button
+              type="button"
+              class="btn btn-sm btn-success"
+              (click)="addRule()"
+              *ngIf="modalMode !== 'view' && editingRuleIndex === null">
+              <i class="fas fa-plus"></i> Add Rule
+            </button>
+          </div>
+
+          <!-- Rule Form (when adding/editing) -->
+          <div *ngIf="editingRuleIndex !== null" class="rule-form">
+            <h5>{{ editingRuleIndex === -1 ? 'New Rule' : 'Edit Rule' }}</h5>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Rule Type <span class="required">*</span></label>
+                <select [(ngModel)]="ruleForm.ruleType" name="ruleType" class="form-control" required>
+                  <option *ngFor="let type of ruleTypes" [value]="type.value">
+                    {{ type.label }}
+                  </option>
+                </select>
+                <small class="form-text" *ngFor="let type of ruleTypes">
+                  <span *ngIf="type.value === ruleForm.ruleType">{{ type.description }}</span>
+                </small>
+              </div>
+
+              <div class="form-group">
+                <label>Calculation Type <span class="required">*</span></label>
+                <select [(ngModel)]="ruleForm.calculationType" name="calculationType" class="form-control" required>
+                  <option *ngFor="let type of calculationTypes" [value]="type.value">
+                    {{ type.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" [(ngModel)]="ruleForm.isBonus" name="isBonus">
+                  Is Bonus (uncheck for deduction)
+                </label>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group" *ngIf="ruleForm.calculationType !== 'Percentage'">
+                <label>Rate Amount (₹) <span class="required">*</span></label>
+                <input
+                  type="number"
+                  [(ngModel)]="ruleForm.rateAmount"
+                  name="rateAmount"
+                  class="form-control"
+                  min="0"
+                  step="0.01"
+                  required>
+              </div>
+
+              <div class="form-group" *ngIf="ruleForm.calculationType === 'Percentage'">
+                <label>Percentage Value <span class="required">*</span></label>
+                <input
+                  type="number"
+                  [(ngModel)]="ruleForm.percentageValue"
+                  name="percentageValue"
+                  class="form-control"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Threshold (optional)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="ruleForm.threshold"
+                  name="threshold"
+                  class="form-control"
+                  min="0"
+                  step="0.01">
+                <small class="form-text">Minimum value required to apply this rule</small>
+              </div>
+
+              <div class="form-group">
+                <label>Max Amount (₹) (optional)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="ruleForm.maxAmount"
+                  name="maxAmount"
+                  class="form-control"
+                  min="0"
+                  step="0.01">
+                <small class="form-text">Maximum bonus/deduction amount</small>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Description (optional)</label>
+              <textarea
+                [(ngModel)]="ruleForm.description"
+                name="description"
+                class="form-control"
+                rows="2"></textarea>
+            </div>
+
+            <div class="rule-form-actions">
+              <button type="button" class="btn btn-success" (click)="saveRule()">
+                <i class="fas fa-check"></i> Save Rule
+              </button>
+              <button type="button" class="btn btn-secondary" (click)="cancelRuleEdit()">
+                <i class="fas fa-times"></i> Cancel
+              </button>
+            </div>
+          </div>
+
+          <!-- Rules List -->
+          <div class="rules-list" *ngIf="configForm.rules.length > 0">
+            <div *ngFor="let rule of configForm.rules; let i = index" class="rule-item">
+              <div class="rule-info">
+                <div class="rule-type">
+                  <span class="badge" [class.badge-bonus]="rule.isBonus" [class.badge-deduction]="!rule.isBonus">
+                    {{ rule.isBonus ? 'BONUS' : 'DEDUCTION' }}
+                  </span>
+                  <strong>{{ getRuleTypeLabel(rule.ruleType) }}</strong>
+                </div>
+                <div class="rule-details">
+                  <span>{{ getCalculationTypeLabel(rule.calculationType) }}</span>
+                  <span *ngIf="rule.calculationType === 'Percentage'">: {{ rule.percentageValue }}%</span>
+                  <span *ngIf="rule.calculationType !== 'Percentage'">: ₹{{ rule.rateAmount }}</span>
+                  <span *ngIf="rule.threshold"> | Threshold: {{ rule.threshold }}</span>
+                  <span *ngIf="rule.maxAmount"> | Max: ₹{{ rule.maxAmount }}</span>
+                </div>
+                <div class="rule-description" *ngIf="rule.description">
+                  {{ rule.description }}
+                </div>
+              </div>
+              <div class="rule-actions" *ngIf="modalMode !== 'view'">
+                <button type="button" class="btn btn-sm btn-warning" (click)="editRule(i)" [disabled]="editingRuleIndex !== null">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-danger" (click)="removeRule(i)" [disabled]="editingRuleIndex !== null">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="configForm.rules.length === 0" class="no-rules">
+            <i class="fas fa-info-circle"></i> No rules added yet. Click "Add Rule" to create one.
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="modal-footer" *ngIf="modalMode !== 'view'">
+          <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="isLoading">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="isLoading || !isFormValid() || editingRuleIndex !== null">
+            <i class="fas fa-save"></i> {{ modalMode === 'create' ? 'Create' : 'Update' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,380 @@
+<div class="staff-performance-container">
+  <div class="page-header">
+    <h2>Staff Performance & Bonus Tracking</h2>
+    <div class="header-actions">
+      <button class="btn btn-secondary" (click)="exportToCSV()" [disabled]="isLoading || performanceRecords.length === 0">
+        <i class="fas fa-download"></i> Export CSV
+      </button>
+      <button class="btn btn-primary" (click)="openCreateModal()" [disabled]="isLoading">
+        <i class="fas fa-plus"></i> Add Performance Record
+      </button>
+    </div>
+  </div>
+
+  <!-- Alert messages -->
+  <div *ngIf="successMessage" class="alert alert-success">
+    {{ successMessage }}
+  </div>
+  <div *ngIf="errorMessage" class="alert alert-danger">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-section">
+    <div class="filter-group">
+      <label>View Mode:</label>
+      <select [(ngModel)]="viewMode" (ngModelChange)="onViewModeChange()" class="form-control">
+        <option value="all">All Staff</option>
+        <option value="individual">Individual Staff</option>
+      </select>
+    </div>
+
+    <div class="filter-group" *ngIf="viewMode === 'individual'">
+      <label>Staff Member:</label>
+      <select [(ngModel)]="selectedStaffId" (ngModelChange)="onFilterChange()" class="form-control">
+        <option value="">Select Staff</option>
+        <option *ngFor="let staff of staffMembers" [value]="staff.id">
+          {{ staff.firstName }} {{ staff.lastName }} - {{ staff.position }}
+        </option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Period:</label>
+      <select [(ngModel)]="selectedPeriod" (ngModelChange)="onFilterChange()" class="form-control">
+        <option value="">All Periods</option>
+        <option *ngFor="let period of availablePeriods" [value]="period">
+          {{ formatPeriod(period) }}
+        </option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading spinner -->
+  <div *ngIf="isLoading" class="loading-spinner">
+    <i class="fas fa-spinner fa-spin"></i> Loading...
+  </div>
+
+  <!-- Performance Records Table -->
+  <div *ngIf="!isLoading && performanceRecords.length > 0" class="records-container">
+    <div class="table-responsive">
+      <table class="performance-table">
+        <thead>
+          <tr>
+            <th>Staff Name</th>
+            <th>Period</th>
+            <th>Scheduled Hours</th>
+            <th>Actual Hours</th>
+            <th>Overtime</th>
+            <th>Undertime</th>
+            <th>Snacks</th>
+            <th>Bad Orders</th>
+            <th>Good Ratings</th>
+            <th>Refunds</th>
+            <th>Total Bonus</th>
+            <th>Total Deductions</th>
+            <th>Net Bonus</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let record of performanceRecords">
+            <td>
+              <strong>{{ getStaffName(record.staffId) }}</strong>
+            </td>
+            <td>{{ formatPeriod(record.period) }}</td>
+            <td>{{ record.scheduledHours }}</td>
+            <td>{{ record.actualHours }}</td>
+            <td class="overtime">{{ getOvertimeHours(record) }}</td>
+            <td class="undertime">{{ getUndertimeHours(record) }}</td>
+            <td>{{ record.snacksPrepared }}</td>
+            <td class="bad-orders">{{ record.badOrders }}</td>
+            <td class="good-ratings">{{ record.goodRatings }}</td>
+            <td class="refunds">{{ record.missingItemRefunds }}</td>
+            <td class="bonus">₹{{ record.totalBonus.toFixed(2) }}</td>
+            <td class="deduction">₹{{ record.totalDeductions.toFixed(2) }}</td>
+            <td [class.net-positive]="record.netBonusAmount > 0" [class.net-negative]="record.netBonusAmount < 0">
+              <strong>₹{{ record.netBonusAmount.toFixed(2) }}</strong>
+            </td>
+            <td class="actions-cell">
+              <button class="btn btn-sm btn-info" (click)="openDetailsModal(record)" title="View Details">
+                <i class="fas fa-eye"></i>
+              </button>
+              <button class="btn btn-sm btn-warning" (click)="openEditModal(record)" title="Edit">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn btn-sm btn-success" (click)="calculateBonus(record)" title="Recalculate Bonus">
+                <i class="fas fa-calculator"></i>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div *ngIf="!isLoading && performanceRecords.length === 0" class="empty-state">
+    <i class="fas fa-chart-line fa-3x"></i>
+    <p>No performance records found</p>
+    <button class="btn btn-primary" (click)="openCreateModal()">Add First Record</button>
+  </div>
+</div>
+
+<!-- Create/Edit Modal -->
+<div class="modal" [class.show]="showModal" *ngIf="showModal">
+  <div class="modal-overlay" (click)="closeModal()"></div>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>{{ modalMode === 'create' ? 'Add Performance Record' : 'Edit Performance Record' }}</h3>
+      <button class="close-btn" (click)="closeModal()">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div *ngIf="successMessage" class="alert alert-success">{{ successMessage }}</div>
+      <div *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
+
+      <form (ngSubmit)="savePerformanceRecord()" #performanceFormEl="ngForm">
+        <div class="form-group">
+          <label>Staff Member <span class="required">*</span></label>
+          <select
+            [(ngModel)]="performanceForm.staffId"
+            name="staffId"
+            class="form-control"
+            [disabled]="modalMode === 'edit'"
+            required>
+            <option value="">Select Staff</option>
+            <option *ngFor="let staff of staffMembers" [value]="staff.id">
+              {{ staff.firstName }} {{ staff.lastName }} - {{ staff.position }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Period <span class="required">*</span></label>
+          <select
+            [(ngModel)]="performanceForm.period"
+            name="period"
+            class="form-control"
+            [disabled]="modalMode === 'edit'"
+            required>
+            <option value="">Select Period</option>
+            <option *ngFor="let period of availablePeriods" [value]="period">
+              {{ formatPeriod(period) }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Scheduled Hours <span class="required">*</span></label>
+            <input
+              type="number"
+              [(ngModel)]="performanceForm.scheduledHours"
+              name="scheduledHours"
+              class="form-control"
+              min="0"
+              step="0.5"
+              required>
+          </div>
+
+          <div class="form-group">
+            <label>Actual Hours <span class="required">*</span></label>
+            <input
+              type="number"
+              [(ngModel)]="performanceForm.actualHours"
+              name="actualHours"
+              class="form-control"
+              min="0"
+              step="0.5"
+              required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Snacks Prepared</label>
+            <input
+              type="number"
+              [(ngModel)]="performanceForm.snacksPrepared"
+              name="snacksPrepared"
+              class="form-control"
+              min="0">
+          </div>
+
+          <div class="form-group">
+            <label>Bad Orders</label>
+            <input
+              type="number"
+              [(ngModel)]="performanceForm.badOrders"
+              name="badOrders"
+              class="form-control"
+              min="0">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Good Ratings</label>
+            <input
+              type="number"
+              [(ngModel)]="performanceForm.goodRatings"
+              name="goodRatings"
+              class="form-control"
+              min="0">
+          </div>
+
+          <div class="form-group">
+            <label>Missing Item Refunds (₹)</label>
+            <input
+              type="number"
+              [(ngModel)]="performanceForm.missingItemRefunds"
+              name="missingItemRefunds"
+              class="form-control"
+              min="0"
+              step="0.01">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea
+            [(ngModel)]="performanceForm.notes"
+            name="notes"
+            class="form-control"
+            rows="3"></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="isLoading">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" [disabled]="isLoading || !isFormValid()">
+            <i class="fas fa-save"></i> {{ modalMode === 'create' ? 'Create' : 'Update' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Details Modal -->
+<div class="modal" [class.show]="showDetailsModal" *ngIf="showDetailsModal">
+  <div class="modal-overlay" (click)="closeModal()"></div>
+  <div class="modal-content large-modal">
+    <div class="modal-header">
+      <h3>Performance Details - {{ selectedRecord ? getStaffName(selectedRecord.staffId) : '' }}</h3>
+      <button class="close-btn" (click)="closeModal()">&times;</button>
+    </div>
+
+    <div class="modal-body" *ngIf="selectedRecord">
+      <!-- Summary Section -->
+      <div class="details-section">
+        <h4>Performance Summary</h4>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <label>Period:</label>
+            <span>{{ formatPeriod(selectedRecord.period) }}</span>
+          </div>
+          <div class="summary-item">
+            <label>Scheduled Hours:</label>
+            <span>{{ selectedRecord.scheduledHours }}</span>
+          </div>
+          <div class="summary-item">
+            <label>Actual Hours:</label>
+            <span>{{ selectedRecord.actualHours }}</span>
+          </div>
+          <div class="summary-item">
+            <label>Overtime Hours:</label>
+            <span class="overtime">{{ getOvertimeHours(selectedRecord) }}</span>
+          </div>
+          <div class="summary-item">
+            <label>Undertime Hours:</label>
+            <span class="undertime">{{ getUndertimeHours(selectedRecord) }}</span>
+          </div>
+          <div class="summary-item">
+            <label>Snacks Prepared:</label>
+            <span>{{ selectedRecord.snacksPrepared }}</span>
+          </div>
+          <div class="summary-item">
+            <label>Bad Orders:</label>
+            <span class="bad-orders">{{ selectedRecord.badOrders }}</span>
+          </div>
+          <div class="summary-item">
+            <label>Good Ratings:</label>
+            <span class="good-ratings">{{ selectedRecord.goodRatings }}</span>
+          </div>
+          <div class="summary-item">
+            <label>Missing Item Refunds:</label>
+            <span class="refunds">₹{{ selectedRecord.missingItemRefunds.toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bonus Breakdown Section -->
+      <div class="details-section">
+        <h4>Bonus Calculation Breakdown</h4>
+        <div class="breakdown-list" *ngIf="selectedRecord.bonusBreakdown && selectedRecord.bonusBreakdown.length > 0">
+          <div *ngFor="let detail of selectedRecord.bonusBreakdown" class="breakdown-item" [class.is-bonus]="detail.isBonus" [class.is-deduction]="!detail.isBonus">
+            <div class="breakdown-header">
+              <span class="badge" [class.badge-bonus]="detail.isBonus" [class.badge-deduction]="!detail.isBonus">
+                {{ detail.isBonus ? 'BONUS' : 'DEDUCTION' }}
+              </span>
+              <strong>{{ detail.ruleName }}</strong>
+            </div>
+            <div class="breakdown-details">
+              <div class="detail-row">
+                <span class="label">Type:</span>
+                <span>{{ detail.calculationType }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Metric Value:</span>
+                <span>{{ detail.metricValue }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Amount:</span>
+                <span class="amount" [class.positive]="detail.isBonus" [class.negative]="!detail.isBonus">
+                  ₹{{ detail.calculatedAmount.toFixed(2) }}
+                </span>
+              </div>
+              <div class="detail-row" *ngIf="detail.description">
+                <span class="label">Description:</span>
+                <span class="description">{{ detail.description }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div *ngIf="!selectedRecord.bonusBreakdown || selectedRecord.bonusBreakdown.length === 0" class="no-breakdown">
+          <i class="fas fa-info-circle"></i> No bonus calculation details available
+        </div>
+      </div>
+
+      <!-- Financial Summary -->
+      <div class="details-section financial-summary">
+        <h4>Financial Summary</h4>
+        <div class="financial-grid">
+          <div class="financial-item bonus-item">
+            <label>Total Bonuses:</label>
+            <span class="amount positive">₹{{ selectedRecord.totalBonus.toFixed(2) }}</span>
+          </div>
+          <div class="financial-item deduction-item">
+            <label>Total Deductions:</label>
+            <span class="amount negative">₹{{ selectedRecord.totalDeductions.toFixed(2) }}</span>
+          </div>
+          <div class="financial-item net-item">
+            <label>Net Bonus Amount:</label>
+            <span class="amount" [class.positive]="selectedRecord.netBonusAmount > 0" [class.negative]="selectedRecord.netBonusAmount < 0">
+              <strong>₹{{ selectedRecord.netBonusAmount.toFixed(2) }}</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="details-section" *ngIf="selectedRecord.notes">
+        <h4>Notes</h4>
+        <p class="notes-text">{{ selectedRecord.notes }}</p>
+      </div>
+    </div>
+  </div>
+</div>

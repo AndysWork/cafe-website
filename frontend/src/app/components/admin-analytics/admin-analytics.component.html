@@ -617,7 +617,7 @@
           <h3>💰 Revenue Breakdown</h3>
           <div class="revenue-breakdown">
             <div class="breakdown-card">
-              <h4>🏪 Offline Store Sales</h4>
+              <h4>🏪 Offline Store Sales (Recorded)</h4>
               <p class="amount">
                 {{ formatCurrency(earningsData?.totalOfflineSales || 0) }}
               </p>
@@ -633,6 +633,7 @@
                   }}</span
                 >
               </div>
+              <span class="subtext">From sales records</span>
             </div>
 
             <div class="breakdown-card online-platform">
@@ -752,7 +753,7 @@
               <p class="amount">
                 {{ formatCurrency(earningsData?.totalCashCollection || 0) }}
               </p>
-              <span class="subtext">From cash sales</span>
+              <span class="subtext">Actual cash counted</span>
             </div>
 
             <div class="collection-card">
@@ -760,7 +761,20 @@
               <p class="amount">
                 {{ formatCurrency(earningsData?.totalOnlineCollection || 0) }}
               </p>
-              <span class="subtext">From card/UPI/online</span>
+              <span class="subtext">Card/UPI/online payments</span>
+            </div>
+
+            <div 
+              class="collection-card"
+              *ngIf="earningsData?.offlineCollectionVariance !== undefined && Math.abs(earningsData?.offlineCollectionVariance || 0) > 0.01"
+              [class.variance-positive]="(earningsData?.offlineCollectionVariance || 0) > 0"
+              [class.variance-negative]="(earningsData?.offlineCollectionVariance || 0) < 0"
+            >
+              <h4>📊 Collection Variance</h4>
+              <p class="amount" [class.positive]="(earningsData?.offlineCollectionVariance || 0) > 0" [class.negative]="(earningsData?.offlineCollectionVariance || 0) < 0">
+                {{ formatCurrency(earningsData?.offlineCollectionVariance || 0) }}
+              </p>
+              <span class="subtext">Difference: Collections vs Sales</span>
             </div>
 
             <div class="collection-card">

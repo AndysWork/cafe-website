@@ -1,3 +1,5 @@
+using Cafe.Api.Models;
+
 namespace Cafe.Api.Services;
 
 public interface IEmailService
@@ -41,4 +43,9 @@ public interface IEmailService
     /// Sends a promotional email
     /// </summary>
     Task<bool> SendPromotionalEmailAsync(string toEmail, string userName, string subject, string content);
+
+    /// <summary>
+    /// Sends a welcome email to new staff member with employment details
+    /// </summary>
+    Task<bool> SendStaffWelcomeEmailAsync(Staff staff);
 }

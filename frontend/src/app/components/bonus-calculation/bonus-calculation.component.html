@@ -1,0 +1,565 @@
+<div class="bonus-calculation-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <div class="title-section">
+        <span class="icon-badge">💰</span>
+        <div>
+          <h1 class="animated-title">Staff Bonus Calculator</h1>
+          <p class="subtitle">Performance-based bonus calculation system</p>
+        </div>
+      </div>
+      <div class="quick-stats" *ngIf="calculatedBonuses.length > 0">
+        <div class="stat-item">
+          <span class="stat-value">{{ calculatedBonuses.length }}</span>
+          <span class="stat-label">Calculations</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">₹{{ totalBonusAmount }}</span>
+          <span class="stat-label">Total Bonus</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="alert alert-success" *ngIf="successMessage">
+    {{ successMessage }}
+  </div>
+  <div class="alert alert-danger" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="content-grid">
+    <!-- Left Panel - Input Form -->
+    <div class="input-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>📋 Calculation Input</h2>
+        </div>
+        <div class="card-body">
+          <!-- Staff Selection -->
+          <div class="form-group">
+            <label>Select Staff Member <span class="required">*</span></label>
+            <select
+              class="form-control"
+              (change)="onStaffSelect($event)"
+              [value]="selectedStaff?.id || selectedStaff?._id || ''">
+              <option value="">-- Select Staff --</option>
+              <option *ngFor="let member of staff" [value]="member.id || member._id">
+                {{ member.employeeId }} - {{ member.firstName }} {{ member.lastName }} ({{ member.position }})
+              </option>
+            </select>
+          </div>
+
+          <!-- Selected Staff Info -->
+          <div class="staff-info-card" *ngIf="selectedStaff">
+            <div class="staff-avatar">{{ selectedStaff.firstName.charAt(0) }}{{ selectedStaff.lastName.charAt(0) }}</div>
+            <div class="staff-details">
+              <div class="staff-name">{{ selectedStaff.firstName }} {{ selectedStaff.lastName }}</div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="icon">🆔</span>
+                  <div>
+                    <span class="label">Employee ID</span>
+                    <span class="value">{{ selectedStaff.employeeId }}</span>
+                  </div>
+                </div>
+                <div class="info-item">
+                  <span class="icon">💼</span>
+                  <div>
+                    <span class="label">Position</span>
+                    <span class="value">{{ selectedStaff.position }}</span>
+                  </div>
+                </div>
+                <div class="info-item">
+                  <span class="icon">💵</span>
+                  <div>
+                    <span class="label">Base Salary</span>
+                    <span class="value">₹{{ selectedStaff.salary.toLocaleString() }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Period Selection -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Start Date <span class="required">*</span></label>
+              <input
+                type="date"
+                [(ngModel)]="startDate"
+                class="form-control">
+            </div>
+            <div class="form-group">
+              <label>End Date <span class="required">*</span></label>
+              <input
+                type="date"
+                [(ngModel)]="endDate"
+                class="form-control">
+            </div>
+          </div>
+
+          <!-- Performance Metrics -->
+          <h3 class="section-title">Performance Metrics</h3>
+
+          <div class="metric-group">
+            <label>⏰ Available Time (Hours Worked)</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">⏰</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.availableTime"
+                class="form-control fancy-input"
+                min="0"
+                step="0.5"
+                placeholder="e.g., 160">
+              <span class="input-unit">hrs</span>
+            </div>
+            <small class="help-text">Total hours worked in the period</small>
+          </div>
+
+          <div class="metric-group">
+            <label>⏱️ KPT - Kitchen Preparation Time (Minutes)</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">⏱️</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.kpt"
+                class="form-control fancy-input"
+                min="0"
+                step="0.1"
+                placeholder="e.g., 15">
+              <span class="input-unit">min</span>
+            </div>
+            <small class="help-text">Average preparation time (lower is better)</small>
+          </div>
+
+          <div class="metric-group">
+            <label>📦 Delivered Order Count</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">📦</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.deliveredOrderCount"
+                class="form-control fancy-input"
+                min="0"
+                placeholder="e.g., 85">
+              <span class="input-unit">orders</span>
+            </div>
+            <small class="help-text">Total orders successfully delivered</small>
+          </div>
+
+          <div class="metric-group">
+            <label>⚠️ Complaint Count</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">⚠️</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.complaintCount"
+                class="form-control fancy-input"
+                min="0"
+                placeholder="e.g., 2">
+              <span class="input-unit">issues</span>
+            </div>
+            <small class="help-text">Number of customer complaints (lower is better)</small>
+          </div>
+
+          <div class="metric-group">
+            <label>💸 Refund Given (₹)</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">💸</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.refundGiven"
+                class="form-control fancy-input"
+                min="0"
+                step="0.01"
+                placeholder="e.g., 500">
+              <span class="input-unit">₹</span>
+            </div>
+            <small class="help-text">Total refund amount issued (lower is better)</small>
+          </div>
+
+          <div class="metric-group">
+            <label>⭐ Ratings Received (0-5)</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">⭐</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.ratingsReceived"
+                class="form-control fancy-input"
+                min="0"
+                max="5"
+                step="0.1"
+                placeholder="e.g., 4.5">
+              <span class="input-unit">/5</span>
+            </div>
+            <small class="help-text">Average customer rating</small>
+          </div>
+
+          <div class="metric-group">
+            <label>📊 Stock Maintenance (0-100)</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">📊</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.stockMaintenance"
+                class="form-control fancy-input"
+                min="0"
+                max="100"
+                placeholder="e.g., 85">
+              <span class="input-unit">%</span>
+            </div>
+            <small class="help-text">Inventory management performance score</small>
+          </div>
+
+          <div class="metric-group">
+            <label>⚡ Prompt Action (0-100)</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">⚡</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.promptAction"
+                class="form-control fancy-input"
+                min="0"
+                max="100"
+                placeholder="e.g., 90">
+              <span class="input-unit">%</span>
+            </div>
+            <small class="help-text">Speed of response to issues/requests</small>
+          </div>
+
+          <div class="metric-group">
+            <label>♻️ Wastage Reduced (%)</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">♻️</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.wastageReduced"
+                class="form-control fancy-input"
+                min="0"
+                max="100"
+                placeholder="e.g., 75">
+              <span class="input-unit">%</span>
+            </div>
+            <small class="help-text">Percentage of wastage reduction</small>
+          </div>
+
+          <div class="metric-group">
+            <label>✨ Cleanliness (0-100)</label>
+            <div class="fancy-input-wrapper">
+              <span class="input-icon">✨</span>
+              <input
+                type="number"
+                [(ngModel)]="metrics.cleanliness"
+                class="form-control fancy-input"
+                min="0"
+                max="100"
+                placeholder="e.g., 95">
+              <span class="input-unit">%</span>
+            </div>
+            <small class="help-text">Workplace hygiene and cleanliness score</small>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="button-group">
+            <button
+              class="btn btn-primary btn-block"
+              (click)="calculateBonus()"
+              [disabled]="!selectedStaff || isLoading">
+              🧮 Calculate Bonus
+            </button>
+            <button
+              class="btn btn-secondary"
+              (click)="resetForm()">
+              🔄 Reset
+            </button>
+            <button
+              class="btn btn-outline"
+              (click)="showWeightSettings = !showWeightSettings">
+              ⚙️ {{ showWeightSettings ? 'Hide' : 'Show' }} Weights
+            </button>
+          </div>
+
+          <!-- Weight Settings (Collapsible) -->
+          <div class="weight-settings" *ngIf="showWeightSettings">
+            <h3 class="section-title">⚖️ Metric Weights</h3>
+            <p class="help-text">Adjust the importance of each metric (total should be 100)</p>
+
+            <div class="weight-grid">
+              <div class="weight-item">
+                <label>Available Time</label>
+                <input type="number" [(ngModel)]="weights.availableTime" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>KPT</label>
+                <input type="number" [(ngModel)]="weights.kpt" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>Order Delivery</label>
+                <input type="number" [(ngModel)]="weights.orderDelivery" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>Complaint</label>
+                <input type="number" [(ngModel)]="weights.complaint" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>Refund</label>
+                <input type="number" [(ngModel)]="weights.refund" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>Rating</label>
+                <input type="number" [(ngModel)]="weights.rating" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>Stock Maintenance</label>
+                <input type="number" [(ngModel)]="weights.stockMaintenance" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>Prompt Action</label>
+                <input type="number" [(ngModel)]="weights.promptAction" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>Wastage</label>
+                <input type="number" [(ngModel)]="weights.wastage" min="0" max="100" class="form-control-sm">
+              </div>
+              <div class="weight-item">
+                <label>Cleanliness</label>
+                <input type="number" [(ngModel)]="weights.cleanliness" min="0" max="100" class="form-control-sm">
+              </div>
+            </div>
+
+            <button class="btn btn-secondary btn-sm" (click)="resetWeights()">
+              Reset to Default
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel - Results -->
+    <div class="results-panel">
+      <!-- Calculation Result -->
+      <div class="card" *ngIf="calculationResult">
+        <div class="card-header">
+          <h2>📊 Calculation Result</h2>
+          <div class="header-actions">
+            <button class="btn-icon" (click)="exportCalculation()" title="Export">
+              📥
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- Total Score Display -->
+          <div class="score-display" [ngClass]="getTierClass(calculationResult.totalScore)">
+            <div class="score-circle">
+              <div class="score-value">{{ calculationResult.totalScore.toFixed(1) }}</div>
+              <div class="score-label">Total Score</div>
+            </div>
+            <div class="score-details">
+              <div class="bonus-tier">
+                {{ getBonusTier(calculationResult.totalScore).label }}
+              </div>
+              <div class="bonus-percentage">
+                {{ calculationResult.bonusPercentage }}% Bonus
+              </div>
+              <div class="bonus-amount">
+                ₹{{ calculationResult.bonusAmount.toLocaleString() }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Score Breakdown -->
+          <div class="score-breakdown">
+            <h3 class="section-title">Score Breakdown</h3>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">⏰ Available Time</span>
+                <span class="metric-value">{{ metrics.availableTime }} hrs</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.availableTimeScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.availableTimeScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">⏱️ KPT Performance</span>
+                <span class="metric-value">{{ metrics.kpt }} min</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.kptScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.kptScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">📦 Order Delivery</span>
+                <span class="metric-value">{{ metrics.deliveredOrderCount }} orders</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.orderDeliveryScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.orderDeliveryScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">⚠️ Complaint Score</span>
+                <span class="metric-value">{{ metrics.complaintCount }} complaints</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.complaintScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.complaintScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">💸 Refund Score</span>
+                <span class="metric-value">₹{{ metrics.refundGiven }}</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.refundScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.refundScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">⭐ Rating Score</span>
+                <span class="metric-value">{{ metrics.ratingsReceived }}/5</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.ratingScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.ratingScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">📊 Stock Maintenance</span>
+                <span class="metric-value">{{ metrics.stockMaintenance }}/100</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.stockMaintenanceScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.stockMaintenanceScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">⚡ Prompt Action</span>
+                <span class="metric-value">{{ metrics.promptAction }}/100</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.promptActionScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.promptActionScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">♻️ Wastage Reduction</span>
+                <span class="metric-value">{{ metrics.wastageReduced }}%</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.wastageScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.wastageScore.toFixed(1) }}</span>
+            </div>
+
+            <div class="score-item">
+              <div class="score-info">
+                <span class="metric-name">✨ Cleanliness</span>
+                <span class="metric-value">{{ metrics.cleanliness }}/100</span>
+              </div>
+              <div class="score-bar">
+                <div class="bar-fill" [style.width.%]="calculationResult.scores.cleanlinessScore"></div>
+              </div>
+              <span class="score-number">{{ calculationResult.scores.cleanlinessScore.toFixed(1) }}</span>
+            </div>
+          </div>
+
+          <!-- Save Button -->
+          <button class="btn btn-success btn-block" (click)="saveCalculation()">
+            💾 Save Calculation
+          </button>
+        </div>
+      </div>
+
+      <!-- Bonus Tiers Reference -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🎯 Bonus Tiers</h2>
+        </div>
+        <div class="card-body">
+          <div class="tier-list">
+            <div class="tier-item" *ngFor="let tier of bonusTiers">
+              <div class="tier-range">{{ tier.minScore }}-{{ tier.maxScore }}</div>
+              <div class="tier-label">{{ tier.label }}</div>
+              <div class="tier-bonus">{{ tier.bonusPercentage }}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Saved Calculations -->
+  <div class="card" *ngIf="calculatedBonuses.length > 0">
+    <div class="card-header">
+      <h2>📚 Saved Calculations</h2>
+      <button class="btn btn-secondary" (click)="exportAllCalculations()">
+        📥 Export All
+      </button>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table class="bonus-table">
+          <thead>
+            <tr>
+              <th>Employee ID</th>
+              <th>Name</th>
+              <th>Position</th>
+              <th>Period</th>
+              <th>Score</th>
+              <th>Bonus %</th>
+              <th>Bonus Amount</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let calc of calculatedBonuses; let i = index">
+              <td>{{ calc.employeeId }}</td>
+              <td>{{ calc.staffName }}</td>
+              <td>{{ calc.position }}</td>
+              <td>
+                {{ calc.calculationPeriod.startDate | date:'shortDate' }} -
+                {{ calc.calculationPeriod.endDate | date:'shortDate' }}
+              </td>
+              <td>
+                <span class="score-badge" [ngClass]="getTierClass(calc.totalScore)">
+                  {{ calc.totalScore.toFixed(1) }}
+                </span>
+              </td>
+              <td>{{ calc.bonusPercentage }}%</td>
+              <td>₹{{ calc.bonusAmount.toLocaleString() }}</td>
+              <td>
+                <button class="btn-icon btn-danger" (click)="deleteCalculation(i)" title="Delete">
+                  🗑️
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
