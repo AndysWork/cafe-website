@@ -32,7 +32,15 @@ public class SubCategoryFunction
     {
         try
         {
-            var subcategories = await _mongo.GetSubCategoriesAsync();
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
+            var subcategories = await _mongo.GetSubCategoriesAsync(outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(subcategories);
             return res;
@@ -55,7 +63,15 @@ public class SubCategoryFunction
     {
         try
         {
-            var subcategories = await _mongo.GetSubCategoriesByCategoryAsync(categoryId);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
+            var subcategories = await _mongo.GetSubCategoriesByCategoryAsync(categoryId, outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(subcategories);
             return res;
@@ -79,7 +95,15 @@ public class SubCategoryFunction
     {
         try
         {
-            var subcategory = await _mongo.GetSubCategoryAsync(id);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
+            var subcategory = await _mongo.GetSubCategoryAsync(id, outletId);
             if (subcategory == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
@@ -110,6 +134,14 @@ public class SubCategoryFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
             var subcategory = await req.ReadFromJsonAsync<MenuSubCategory>();
             if (subcategory == null)
             {
@@ -118,6 +150,7 @@ public class SubCategoryFunction
                 return badRequest;
             }
 
+            subcategory.OutletId = outletId;
             var created = await _mongo.CreateSubCategoryAsync(subcategory);
             var res = req.CreateResponse(HttpStatusCode.Created);
             await res.WriteAsJsonAsync(created);
@@ -142,6 +175,14 @@ public class SubCategoryFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
             var subcategory = await req.ReadFromJsonAsync<MenuSubCategory>();
             if (subcategory == null)
             {
@@ -151,7 +192,7 @@ public class SubCategoryFunction
             }
 
             subcategory.Id = id;
-            var success = await _mongo.UpdateSubCategoryAsync(id, subcategory);
+            var success = await _mongo.UpdateSubCategoryAsync(id, subcategory, outletId);
             
             if (!success)
             {
@@ -183,7 +224,15 @@ public class SubCategoryFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var success = await _mongo.DeleteSubCategoryAsync(id);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
+            var success = await _mongo.DeleteSubCategoryAsync(id, outletId);
             
             if (!success)
             {

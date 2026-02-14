@@ -2,6 +2,7 @@ using System.Linq;
 using System.Security.Claims;
 using Cafe.Api.Services;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.AspNetCore.Http;
 
 namespace Cafe.Api.Helpers;
 
@@ -146,5 +147,44 @@ public static class OutletHelper
     public static string? GetOutletIdForAdmin(HttpRequestData req, AuthService authService)
     {
         return GetOutletIdFromRequest(req, authService);
+    }
+
+    /// <summary>
+    /// Extracts outlet ID from ASP.NET Core HttpRequest (for older function patterns)
+    /// Priority: 1) X-Outlet-Id header, 2) User's DefaultOutletId from token, 3) null
+    /// </summary>
+    public static string? GetOutletIdFromRequest(HttpRequest req, AuthService authService)
+    {
+        // Try to get from header first
+        if (req.Headers.TryGetValue(OutletIdHeaderKey, out var headerValues))
+        {
+            var outletId = headerValues.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(outletId))
+            {
+                return outletId;
+            }
+        }
+
+        // Try to get from Authorization token (user's default outlet)
+        if (req.Headers.TryGetValue("Authorization", out var authHeaders))
+        {
+            var authHeader = authHeaders.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer "))
+            {
+                var token = authHeader.Substring("Bearer ".Length).Trim();
+                var principal = authService.ValidateToken(token);
+                
+                if (principal != null)
+                {
+                    var defaultOutletId = principal.FindFirst("DefaultOutletId")?.Value;
+                    if (!string.IsNullOrWhiteSpace(defaultOutletId))
+                    {
+                        return defaultOutletId;
+                    }
+                }
+            }
+        }
+
+        return null; // No outlet context provided
     }
 }

@@ -32,13 +32,18 @@ public class CategoryFunction
     /// <response code="200">Successfully retrieved categories</response>
     // GET: Get all categories
     [Function("GetCategories")]
-    [OpenApiOperation(operationId: "GetCategories", tags: new[] { "Categories" }, Summary = "Get all categories", Description = "Retrieves all menu categories")]
+    [OpenApiOperation(operationId: "GetCategories", tags: new[] { "Categories" }, Summary = "Get all categories", Description = "Retrieves all menu categories. Admins see all categories; other users see categories for their outlet.")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID (optional for admins)")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<MenuCategory>), Description = "Successfully retrieved categories")]
     public async Task<HttpResponseData> GetCategories([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories")] HttpRequestData req)
     {
         try
         {
-            var categories = await _mongo.GetCategoriesAsync();
+            // Extract outlet ID from request (header or user token)
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            
+            // Get categories filtered by outlet (null for admin viewing all outlets)
+            var categories = await _mongo.GetCategoriesAsync(outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(categories);
             return res;
@@ -64,13 +69,17 @@ public class CategoryFunction
     [Function("GetCategory")]
     [OpenApiOperation(operationId: "GetCategory", tags: new[] { "Categories" }, Summary = "Get category by ID", Description = "Retrieves a specific category by its ID")]
     [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Category ID")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID (optional for admins)")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(MenuCategory), Description = "Successfully retrieved category")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Category not found")]
     public async Task<HttpResponseData> GetCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories/{id}")] HttpRequestData req, string id)
     {
         try
         {
-            var category = await _mongo.GetCategoryAsync(id);
+            // Extract outlet ID from request (header or user token)
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            
+            var category = await _mongo.GetCategoryAsync(id, outletId);
             if (category == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
@@ -95,6 +104,7 @@ public class CategoryFunction
     [Function("CreateCategory")]
     [OpenApiOperation(operationId: "CreateCategory", tags: new[] { "Categories" }, Summary = "Create a new category", Description = "Creates a new menu category (Admin only)")]
     [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID (uses user's default if not provided)")]
     [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(MenuCategory), Required = true, Description = "Category details")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.Created, contentType: "application/json", bodyType: typeof(MenuCategory), Description = "Category successfully created")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid category data")]
@@ -115,6 +125,18 @@ public class CategoryFunction
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid category data" });
                 return badRequest;
             }
+
+            // Extract outlet ID from request
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or ensure user has a default outlet." });
+                return badRequest;
+            }
+
+            // Set outlet ID
+            category.OutletId = outletId;
 
             var created = await _mongo.CreateCategoryAsync(category);
             var res = req.CreateResponse(HttpStatusCode.Created);
@@ -148,13 +170,16 @@ public class CategoryFunction
                 return badRequest;
             }
 
+            // Extract outlet ID from request
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+
             category.Id = id;
-            var success = await _mongo.UpdateCategoryAsync(id, category);
+            var success = await _mongo.UpdateCategoryAsync(id, category, outletId);
             
             if (!success)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { error = "Category not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Category not found or outlet mismatch" });
                 return notFound;
             }
 
@@ -181,12 +206,15 @@ public class CategoryFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var success = await _mongo.DeleteCategoryAsync(id);
+            // Extract outlet ID from request
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+
+            var success = await _mongo.DeleteCategoryAsync(id, outletId);
             
             if (!success)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { error = "Category not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Category not found or outlet mismatch" });
                 return notFound;
             }
 

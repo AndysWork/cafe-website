@@ -169,9 +169,9 @@ public class MenuUploadFunction
             throw new Exception($"Missing required columns: {string.Join(", ", missingColumns)}. Found columns: {string.Join(", ", columnMap.Keys)}");
         }
 
-        // Get all categories and subcategories for matching
-        var allCategories = await _mongo.GetCategoriesAsync();
-        var allSubCategories = await _mongo.GetSubCategoriesAsync();
+        // Get all categories and subcategories for matching (filtered by outlet)
+        var allCategories = await _mongo.GetCategoriesAsync(outletId);
+        var allSubCategories = await _mongo.GetSubCategoriesAsync(outletId);
 
         // Debug: Show first data row (row 2) to see actual values
         _log.LogInformation("=== FIRST DATA ROW (Row 2) DEBUG ===");

@@ -228,9 +228,18 @@ public partial class MongoService
     }
 
     // Get menu items by CategoryId
-    public async Task<List<CafeMenuItem>> GetMenuItemsByCategoryAsync(string categoryId)
+    public async Task<List<CafeMenuItem>> GetMenuItemsByCategoryAsync(string categoryId, string? outletId = null)
     {
-        var menuItems = await _menu.Find(item => item.CategoryId == categoryId).ToListAsync();
+        var filterBuilder = Builders<CafeMenuItem>.Filter;
+        var filter = filterBuilder.Eq(item => item.CategoryId, categoryId);
+        
+        // Add outlet filter if provided
+        if (!string.IsNullOrWhiteSpace(outletId))
+        {
+            filter &= filterBuilder.Eq(item => item.OutletId, outletId);
+        }
+        
+        var menuItems = await _menu.Find(filter).ToListAsync();
         
         if (menuItems.Count == 0)
             return menuItems;
@@ -268,9 +277,18 @@ public partial class MongoService
     }
 
     // Get menu items by SubCategoryId
-    public async Task<List<CafeMenuItem>> GetMenuItemsBySubCategoryAsync(string subCategoryId)
+    public async Task<List<CafeMenuItem>> GetMenuItemsBySubCategoryAsync(string subCategoryId, string? outletId = null)
     {
-        var menuItems = await _menu.Find(item => item.SubCategoryId == subCategoryId).ToListAsync();
+        var filterBuilder = Builders<CafeMenuItem>.Filter;
+        var filter = filterBuilder.Eq(item => item.SubCategoryId, subCategoryId);
+        
+        // Add outlet filter if provided
+        if (!string.IsNullOrWhiteSpace(outletId))
+        {
+            filter &= filterBuilder.Eq(item => item.OutletId, outletId);
+        }
+        
+        var menuItems = await _menu.Find(filter).ToListAsync();
         
         if (menuItems.Count == 0)
             return menuItems;
@@ -308,9 +326,18 @@ public partial class MongoService
     }
 
     // Get single menu item by ID
-    public async Task<CafeMenuItem?> GetMenuItemAsync(string id)
+    public async Task<CafeMenuItem?> GetMenuItemAsync(string id, string? outletId = null)
     {
-        var menuItem = await _menu.Find(x => x.Id == id).FirstOrDefaultAsync();
+        var filterBuilder = Builders<CafeMenuItem>.Filter;
+        var filter = filterBuilder.Eq(x => x.Id, id);
+        
+        // Add outlet filter if provided
+        if (!string.IsNullOrWhiteSpace(outletId))
+        {
+            filter &= filterBuilder.Eq(x => x.OutletId, outletId);
+        }
+        
+        var menuItem = await _menu.Find(filter).FirstOrDefaultAsync();
         
         // Populate future prices from latest active price forecast
         if (menuItem != null)
@@ -525,31 +552,67 @@ public partial class MongoService
     #region MenuCategory Operations
     
     // Get all categories
-    public async Task<List<MenuCategory>> GetCategoriesAsync() =>
-        await _categories.Find(_ => true).ToListAsync();
+    public async Task<List<MenuCategory>> GetCategoriesAsync(string? outletId = null)
+    {
+        var filter = outletId != null 
+            ? Builders<MenuCategory>.Filter.Eq(x => x.OutletId, outletId)
+            : Builders<MenuCategory>.Filter.Empty;
+        return await _categories.Find(filter).ToListAsync();
+    }
 
     // Get single category by ID
-    public async Task<MenuCategory?> GetCategoryAsync(string id) =>
-        await _categories.Find(x => x.Id == id).FirstOrDefaultAsync();
+    public async Task<MenuCategory?> GetCategoryAsync(string id, string? outletId = null)
+    {
+        var builder = Builders<MenuCategory>.Filter;
+        var filter = builder.Eq(x => x.Id, id);
+        
+        if (outletId != null)
+        {
+            filter &= builder.Eq(x => x.OutletId, outletId);
+        }
+        
+        return await _categories.Find(filter).FirstOrDefaultAsync();
+    }
 
     // Create new category
     public async Task<MenuCategory> CreateCategoryAsync(MenuCategory category)
     {
+        // Generate ID if not already set
+        if (string.IsNullOrEmpty(category.Id))
+        {
+            category.Id = MongoDB.Bson.ObjectId.GenerateNewId().ToString();
+        }
         await _categories.InsertOneAsync(category);
         return category;
     }
 
     // Update existing category
-    public async Task<bool> UpdateCategoryAsync(string id, MenuCategory category)
+    public async Task<bool> UpdateCategoryAsync(string id, MenuCategory category, string? outletId = null)
     {
-        var result = await _categories.ReplaceOneAsync(x => x.Id == id, category);
+        var builder = Builders<MenuCategory>.Filter;
+        var filter = builder.Eq(x => x.Id, id);
+        
+        if (outletId != null)
+        {
+            filter &= builder.Eq(x => x.OutletId, outletId);
+        }
+        
+        var result = await _categories.ReplaceOneAsync(filter, category);
         return result.ModifiedCount > 0;
     }
 
     // Delete category
-    public async Task<bool> DeleteCategoryAsync(string id)
+    public async Task<bool> DeleteCategoryAsync(string id, string? outletId = null)
     {
-        var result = await _categories.DeleteOneAsync(x => x.Id == id);
+        var builder = Builders<MenuCategory>.Filter;
+        var filter = builder.Eq(x => x.Id, id);
+        
+        if (outletId != null)
+        {
+            filter &= builder.Eq(x => x.OutletId, outletId);
+        }
+        
+        var result = await _categories.DeleteOneAsync(filter);
         return result.DeletedCount > 0;
     }
     
@@ -558,35 +621,73 @@ public partial class MongoService
     #region MenuSubCategory Operations
     
     // Get all subcategories
-    public async Task<List<MenuSubCategory>> GetSubCategoriesAsync() =>
-        await _subCategories.Find(_ => true).ToListAsync();
+    public async Task<List<MenuSubCategory>> GetSubCategoriesAsync(string? outletId = null)
+    {
+        if (string.IsNullOrEmpty(outletId))
+            return await _subCategories.Find(_ => true).ToListAsync();
+        
+        return await _subCategories.Find(x => x.OutletId == outletId).ToListAsync();
+    }
 
     // Get subcategories by category ID
-    public async Task<List<MenuSubCategory>> GetSubCategoriesByCategoryAsync(string categoryId) =>
-        await _subCategories.Find(x => x.CategoryId == categoryId).ToListAsync();
+    public async Task<List<MenuSubCategory>> GetSubCategoriesByCategoryAsync(string categoryId, string? outletId = null)
+    {
+        if (string.IsNullOrEmpty(outletId))
+            return await _subCategories.Find(x => x.CategoryId == categoryId).ToListAsync();
+        
+        return await _subCategories.Find(x => x.CategoryId == categoryId && x.OutletId == outletId).ToListAsync();
+    }
 
     // Get single subcategory by ID
-    public async Task<MenuSubCategory?> GetSubCategoryAsync(string id) =>
-        await _subCategories.Find(x => x.Id == id).FirstOrDefaultAsync();
+    public async Task<MenuSubCategory?> GetSubCategoryAsync(string id, string? outletId = null)
+    {
+        if (string.IsNullOrEmpty(outletId))
+            return await _subCategories.Find(x => x.Id == id).FirstOrDefaultAsync();
+        
+        return await _subCategories.Find(x => x.Id == id && x.OutletId == outletId).FirstOrDefaultAsync();
+    }
 
     // Create new subcategory
     public async Task<MenuSubCategory> CreateSubCategoryAsync(MenuSubCategory subCategory)
     {
+        // Generate ID if not already set
+        if (string.IsNullOrEmpty(subCategory.Id))
+        {
+            subCategory.Id = MongoDB.Bson.ObjectId.GenerateNewId().ToString();
+        }
         await _subCategories.InsertOneAsync(subCategory);
         return subCategory;
     }
 
     // Update existing subcategory
-    public async Task<bool> UpdateSubCategoryAsync(string id, MenuSubCategory subCategory)
+    public async Task<bool> UpdateSubCategoryAsync(string id, MenuSubCategory subCategory, string? outletId = null)
     {
-        var result = await _subCategories.ReplaceOneAsync(x => x.Id == id, subCategory);
+        FilterDefinition<MenuSubCategory> filter;
+        if (string.IsNullOrEmpty(outletId))
+            filter = Builders<MenuSubCategory>.Filter.Eq(x => x.Id, id);
+        else
+            filter = Builders<MenuSubCategory>.Filter.And(
+                Builders<MenuSubCategory>.Filter.Eq(x => x.Id, id),
+                Builders<MenuSubCategory>.Filter.Eq(x => x.OutletId, outletId)
+            );
+        
+        var result = await _subCategories.ReplaceOneAsync(filter, subCategory);
         return result.ModifiedCount > 0;
     }
 
     // Delete subcategory
-    public async Task<bool> DeleteSubCategoryAsync(string id)
+    public async Task<bool> DeleteSubCategoryAsync(string id, string? outletId = null)
     {
-        var result = await _subCategories.DeleteOneAsync(x => x.Id == id);
+        FilterDefinition<MenuSubCategory> filter;
+        if (string.IsNullOrEmpty(outletId))
+            filter = Builders<MenuSubCategory>.Filter.Eq(x => x.Id, id);
+        else
+            filter = Builders<MenuSubCategory>.Filter.And(
+                Builders<MenuSubCategory>.Filter.Eq(x => x.Id, id),
+                Builders<MenuSubCategory>.Filter.Eq(x => x.OutletId, outletId)
+            );
+        
+        var result = await _subCategories.DeleteOneAsync(filter);
         return result.DeletedCount > 0;
     }
     
@@ -2801,11 +2902,18 @@ public partial class MongoService
         return grouped;
     }
 
-    public async Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10)
+    public async Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10, string? outletId = null)
     {
-        var filter = Builders<OnlineSale>.Filter.Eq(s => s.Rating, 5) &
-                     Builders<OnlineSale>.Filter.Ne(s => s.Review, null) &
-                     Builders<OnlineSale>.Filter.Ne(s => s.Review, "");
+        var filterBuilder = Builders<OnlineSale>.Filter;
+        var filter = filterBuilder.Eq(s => s.Rating, 5) &
+                     filterBuilder.Ne(s => s.Review, null) &
+                     filterBuilder.Ne(s => s.Review, "");
+
+        // Add outlet filter if provided
+        if (!string.IsNullOrWhiteSpace(outletId))
+        {
+            filter &= filterBuilder.Eq(s => s.OutletId, outletId);
+        }
 
         var sales = await _onlineSales
             .Find(filter)
@@ -3359,27 +3467,43 @@ public partial class MongoService
 
     #region Ingredient Methods
 
-    public async Task<List<Ingredient>> GetIngredientsAsync()
+    public async Task<List<Ingredient>> GetIngredientsAsync(string? outletId = null)
     {
-        return await _ingredients.Find(_ => true).ToListAsync();
+        if (string.IsNullOrEmpty(outletId))
+            return await _ingredients.Find(_ => true).ToListAsync();
+        
+        return await _ingredients.Find(i => i.OutletId == outletId).ToListAsync();
     }
 
-    public async Task<Ingredient?> GetIngredientByIdAsync(string id)
+    public async Task<Ingredient?> GetIngredientByIdAsync(string id, string? outletId = null)
     {
-        return await _ingredients.Find(i => i.Id == id).FirstOrDefaultAsync();
+        if (string.IsNullOrEmpty(outletId))
+            return await _ingredients.Find(i => i.Id == id).FirstOrDefaultAsync();
+        
+        return await _ingredients.Find(i => i.Id == id && i.OutletId == outletId).FirstOrDefaultAsync();
     }
 
-    public async Task<List<Ingredient>> GetIngredientsByCategoryAsync(string category)
+    public async Task<List<Ingredient>> GetIngredientsByCategoryAsync(string category, string? outletId = null)
     {
-        return await _ingredients.Find(i => i.Category == category && i.IsActive).ToListAsync();
+        if (string.IsNullOrEmpty(outletId))
+            return await _ingredients.Find(i => i.Category == category && i.IsActive).ToListAsync();
+        
+        return await _ingredients.Find(i => i.Category == category && i.IsActive && i.OutletId == outletId).ToListAsync();
     }
 
-    public async Task<List<Ingredient>> SearchIngredientsAsync(string searchTerm)
+    public async Task<List<Ingredient>> SearchIngredientsAsync(string searchTerm, string? outletId = null)
     {
-        var filter = Builders<Ingredient>.Filter.And(
-            Builders<Ingredient>.Filter.Regex(i => i.Name, new MongoDB.Bson.BsonRegularExpression(searchTerm, "i")),
-            Builders<Ingredient>.Filter.Eq(i => i.IsActive, true)
-        );
+        var filterBuilder = Builders<Ingredient>.Filter;
+        var filters = new List<FilterDefinition<Ingredient>>
+        {
+            filterBuilder.Regex(i => i.Name, new MongoDB.Bson.BsonRegularExpression(searchTerm, "i")),
+            filterBuilder.Eq(i => i.IsActive, true)
+        };
+        
+        if (!string.IsNullOrEmpty(outletId))
+            filters.Add(filterBuilder.Eq(i => i.OutletId, outletId));
+        
+        var filter = filterBuilder.And(filters);
         return await _ingredients.Find(filter).ToListAsync();
     }
 
@@ -3389,15 +3513,33 @@ public partial class MongoService
         return ingredient;
     }
 
-    public async Task<bool> UpdateIngredientAsync(string id, Ingredient ingredient)
+    public async Task<bool> UpdateIngredientAsync(string id, Ingredient ingredient, string? outletId = null)
     {
-        var result = await _ingredients.ReplaceOneAsync(i => i.Id == id, ingredient);
+        FilterDefinition<Ingredient> filter;
+        if (string.IsNullOrEmpty(outletId))
+            filter = Builders<Ingredient>.Filter.Eq(i => i.Id, id);
+        else
+            filter = Builders<Ingredient>.Filter.And(
+                Builders<Ingredient>.Filter.Eq(i => i.Id, id),
+                Builders<Ingredient>.Filter.Eq(i => i.OutletId, outletId)
+            );
+        
+        var result = await _ingredients.ReplaceOneAsync(filter, ingredient);
         return result.ModifiedCount > 0;
     }
 
-    public async Task<bool> DeleteIngredientAsync(string id)
+    public async Task<bool> DeleteIngredientAsync(string id, string? outletId = null)
     {
-        var result = await _ingredients.DeleteOneAsync(i => i.Id == id);
+        FilterDefinition<Ingredient> filter;
+        if (string.IsNullOrEmpty(outletId))
+            filter = Builders<Ingredient>.Filter.Eq(i => i.Id, id);
+        else
+            filter = Builders<Ingredient>.Filter.And(
+                Builders<Ingredient>.Filter.Eq(i => i.Id, id),
+                Builders<Ingredient>.Filter.Eq(i => i.OutletId, outletId)
+            );
+        
+        var result = await _ingredients.DeleteOneAsync(filter);
         return result.DeletedCount > 0;
     }
 

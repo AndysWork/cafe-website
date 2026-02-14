@@ -4,11 +4,18 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Cafe.Api.Models;
 
+[BsonIgnoreExtraElements]
 public class MenuSubCategory
 {
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string Id { get; set; } = string.Empty;
 
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [Required(ErrorMessage = "Outlet ID is required")]
+    public string OutletId { get; set; } = string.Empty;
+
+    [BsonElement("categoryId")]
     [BsonRepresentation(BsonType.ObjectId)]
     [Required(ErrorMessage = "Category ID is required")]
     public string CategoryId { get; set; } = string.Empty;

@@ -9,19 +9,28 @@ public partial class MongoService
 
     // ===== FROZEN ITEMS CRUD =====
 
-    public async Task<List<FrozenItem>> GetAllFrozenItemsAsync()
+    public async Task<List<FrozenItem>> GetAllFrozenItemsAsync(string? outletId = null)
     {
-        return await _frozenItems.Find(_ => true).ToListAsync();
+        if (string.IsNullOrEmpty(outletId))
+            return await _frozenItems.Find(_ => true).ToListAsync();
+        
+        return await _frozenItems.Find(item => item.OutletId == outletId).ToListAsync();
     }
 
-    public async Task<List<FrozenItem>> GetActiveFrozenItemsAsync()
+    public async Task<List<FrozenItem>> GetActiveFrozenItemsAsync(string? outletId = null)
     {
-        return await _frozenItems.Find(item => item.IsActive).ToListAsync();
+        if (string.IsNullOrEmpty(outletId))
+            return await _frozenItems.Find(item => item.IsActive).ToListAsync();
+        
+        return await _frozenItems.Find(item => item.IsActive && item.OutletId == outletId).ToListAsync();
     }
 
-    public async Task<FrozenItem?> GetFrozenItemByIdAsync(string id)
+    public async Task<FrozenItem?> GetFrozenItemByIdAsync(string id, string? outletId = null)
     {
-        return await _frozenItems.Find(item => item.Id == id).FirstOrDefaultAsync();
+        if (string.IsNullOrEmpty(outletId))
+            return await _frozenItems.Find(item => item.Id == id).FirstOrDefaultAsync();
+        
+        return await _frozenItems.Find(item => item.Id == id && item.OutletId == outletId).FirstOrDefaultAsync();
     }
 
     public async Task<FrozenItem> CreateFrozenItemAsync(FrozenItem frozenItem)
@@ -37,10 +46,20 @@ public partial class MongoService
         return frozenItem;
     }
 
-    public async Task<bool> UpdateFrozenItemAsync(string id, FrozenItem frozenItem)
+    public async Task<bool> UpdateFrozenItemAsync(string id, FrozenItem frozenItem, string? outletId = null)
     {
         frozenItem.UpdatedAt = DateTime.UtcNow;
-        var result = await _frozenItems.ReplaceOneAsync(item => item.Id == id, frozenItem);
+        
+        FilterDefinition<FrozenItem> filter;
+        if (string.IsNullOrEmpty(outletId))
+            filter = Builders<FrozenItem>.Filter.Eq(item => item.Id, id);
+        else
+            filter = Builders<FrozenItem>.Filter.And(
+                Builders<FrozenItem>.Filter.Eq(item => item.Id, id),
+                Builders<FrozenItem>.Filter.Eq(item => item.OutletId, outletId)
+            );
+        
+        var result = await _frozenItems.ReplaceOneAsync(filter, frozenItem);
 
         if (result.ModifiedCount > 0)
         {
@@ -51,10 +70,23 @@ public partial class MongoService
         return result.ModifiedCount > 0;
     }
 
-    public async Task<bool> DeleteFrozenItemAsync(string id)
+    public async Task<bool> DeleteFrozenItemAsync(string id, string? outletId = null)
     {
-        var frozenItem = await GetFrozenItemByIdAsync(id);
-        var result = await _frozenItems.DeleteOneAsync(item => item.Id == id);
+        var frozenItem = await GetFrozenItemByIdAsync(id, outletId);
+        
+        if (frozenItem == null)
+            return false;
+        
+        FilterDefinition<FrozenItem> filter;
+        if (string.IsNullOrEmpty(outletId))
+            filter = Builders<FrozenItem>.Filter.Eq(item => item.Id, id);
+        else
+            filter = Builders<FrozenItem>.Filter.And(
+                Builders<FrozenItem>.Filter.Eq(item => item.Id, id),
+                Builders<FrozenItem>.Filter.Eq(item => item.OutletId, outletId)
+            );
+        
+        var result = await _frozenItems.DeleteOneAsync(filter);
 
         if (result.DeletedCount > 0 && frozenItem != null)
         {
@@ -141,7 +173,7 @@ public partial class MongoService
 
     // ===== BULK UPLOAD FROM EXCEL =====
 
-    public async Task<(int success, int failed, List<string> errors)> BulkUploadFrozenItemsAsync(List<FrozenItemUpload> items)
+    public async Task<(int success, int failed, List<string> errors)> BulkUploadFrozenItemsAsync(List<FrozenItemUpload> items, string outletId)
     {
         int successCount = 0;
         int failedCount = 0;
@@ -166,9 +198,11 @@ public partial class MongoService
                     continue;
                 }
 
-                // Check if item already exists
+                // Check if item already exists for this outlet
                 var existingItem = await _frozenItems
-                    .Find(f => f.ItemName.ToLower() == item.ItemName.ToLower() && f.Vendor.ToLower() == item.Vendor.ToLower())
+                    .Find(f => f.ItemName.ToLower() == item.ItemName.ToLower() && 
+                              f.Vendor.ToLower() == item.Vendor.ToLower() && 
+                              f.OutletId == outletId)
                     .FirstOrDefaultAsync();
 
                 if (existingItem != null)
@@ -200,6 +234,7 @@ public partial class MongoService
                         Vendor = item.Vendor,
                         Category = "frozen",
                         IsActive = true,
+                        OutletId = outletId,
                         CreatedAt = DateTime.UtcNow
                     };
 

@@ -23,7 +23,7 @@ public class FileUploadService
         public string Message { get; set; } = string.Empty;
     }
 
-    public async Task<UploadResult> ProcessExcelFile(Stream fileStream, MongoService mongoService, string uploadedBy)
+    public async Task<UploadResult> ProcessExcelFile(Stream fileStream, MongoService mongoService, string uploadedBy, string outletId)
     {
         var result = new UploadResult();
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
@@ -62,7 +62,8 @@ public class FileUploadService
                     {
                         categories[categoryName] = new MenuCategory
                         {
-                            Name = categoryName
+                            Name = categoryName,
+                            OutletId = outletId
                         };
                     }
 
@@ -79,7 +80,8 @@ public class FileUploadService
                             subCategories.Add(new MenuSubCategory
                             {
                                 CategoryName = categoryName,
-                                Name = subCategoryName
+                                Name = subCategoryName,
+                                OutletId = outletId
                             });
                             subCategoryKeys.Add(subCategoryKey);
                         }
@@ -135,7 +137,7 @@ public class FileUploadService
         return result;
     }
 
-    public async Task<UploadResult> ProcessCsvFile(Stream fileStream, MongoService mongoService, string uploadedBy)
+    public async Task<UploadResult> ProcessCsvFile(Stream fileStream, MongoService mongoService, string uploadedBy, string outletId)
     {
         var result = new UploadResult();
 
@@ -175,7 +177,8 @@ public class FileUploadService
                     {
                         categories[record.CategoryName] = new MenuCategory
                         {
-                            Name = record.CategoryName
+                            Name = record.CategoryName,
+                            OutletId = outletId
                         };
                     }
 
@@ -192,7 +195,8 @@ public class FileUploadService
                             subCategories.Add(new MenuSubCategory
                             {
                                 CategoryName = record.CategoryName,
-                                Name = record.SubCategoryName
+                                Name = record.SubCategoryName,
+                                OutletId = outletId
                             });
                             subCategoryKeys.Add(subCategoryKey);
                         }
@@ -253,16 +257,17 @@ public class FileUploadService
         Stream fileStream,
         string platform,
         MongoService mongoService,
-        string uploadedBy)
+        string uploadedBy,
+        string outletId)
     {
         // Route to appropriate parser based on platform
         if (platform == "Zomato")
         {
-            return await ProcessZomatoExcel(fileStream, mongoService, uploadedBy);
+            return await ProcessZomatoExcel(fileStream, mongoService, uploadedBy, outletId);
         }
         else if (platform == "Swiggy")
         {
-            return await ProcessSwiggyExcel(fileStream, mongoService, uploadedBy);
+            return await ProcessSwiggyExcel(fileStream, mongoService, uploadedBy, outletId);
         }
         else
         {
@@ -279,7 +284,8 @@ public class FileUploadService
     private async Task<OnlineSaleUploadResult> ProcessZomatoExcel(
         Stream fileStream,
         MongoService mongoService,
-        string uploadedBy)
+        string uploadedBy,
+        string outletId)
     {
         var result = new OnlineSaleUploadResult();
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
@@ -392,6 +398,7 @@ public class FileUploadService
                         OrderMarking = string.IsNullOrEmpty(orderMarking) ? null : orderMarking,
                         Complain = string.IsNullOrEmpty(complain) ? null : complain,
                         Freebies = ParseDecimal(freebiesStr),
+                        OutletId = outletId, // Set outlet ID for multi-outlet support
                         UploadedBy = uploadedBy,
                         CreatedAt = MongoService.GetIstNow(),
                         UpdatedAt = MongoService.GetIstNow()
@@ -449,7 +456,8 @@ public class FileUploadService
     private async Task<OnlineSaleUploadResult> ProcessSwiggyExcel(
         Stream fileStream,
         MongoService mongoService,
-        string uploadedBy)
+        string uploadedBy,
+        string outletId)
     {
         var result = new OnlineSaleUploadResult();
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
@@ -586,6 +594,7 @@ public class FileUploadService
                         RWT = ParseNullableDecimal(rwtStr),
                         OrderMarking = string.IsNullOrEmpty(orderMarking) ? null : orderMarking,
                         Complain = string.IsNullOrEmpty(complain) ? null : complain,
+                        OutletId = outletId, // Set outlet ID for multi-outlet support
                         UploadedBy = uploadedBy,
                         CreatedAt = MongoService.GetIstNow(),
                         UpdatedAt = MongoService.GetIstNow()

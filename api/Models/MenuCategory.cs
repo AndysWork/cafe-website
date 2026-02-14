@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Cafe.Api.Models;
 
+[BsonIgnoreExtraElements]
 public class MenuCategory
 {
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
@@ -12,4 +13,9 @@ public class MenuCategory
     [Required(ErrorMessage = "Category name is required")]
     [StringLength(100, MinimumLength = 2, ErrorMessage = "Category name must be between 2 and 100 characters")]
     public string Name { get; set; } = string.Empty;
+
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [Required(ErrorMessage = "Outlet ID is required")]
+    public string OutletId { get; set; } = string.Empty; // Multi-outlet support
 }

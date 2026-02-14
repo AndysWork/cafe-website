@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Cafe.Api.Services;
 using Cafe.Api.Models;
+using Cafe.Api.Helpers;
 using OfficeOpenXml;
 
 namespace Cafe.Api.Functions;
@@ -12,11 +13,13 @@ namespace Cafe.Api.Functions;
 public class FrozenItemFunction
 {
     private readonly MongoService _mongoService;
+    private readonly AuthService _authService;
     private readonly ILogger<FrozenItemFunction> _logger;
 
-    public FrozenItemFunction(MongoService mongoService, ILogger<FrozenItemFunction> logger)
+    public FrozenItemFunction(MongoService mongoService, AuthService authService, ILogger<FrozenItemFunction> logger)
     {
         _mongoService = mongoService;
+        _authService = authService;
         _logger = logger;
         // Set EPPlus license context
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
@@ -28,7 +31,15 @@ public class FrozenItemFunction
     {
         try
         {
-            var items = await _mongoService.GetAllFrozenItemsAsync();
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
+            var items = await _mongoService.GetAllFrozenItemsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(items);
             return response;
@@ -48,7 +59,15 @@ public class FrozenItemFunction
     {
         try
         {
-            var items = await _mongoService.GetActiveFrozenItemsAsync();
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
+            var items = await _mongoService.GetActiveFrozenItemsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(items);
             return response;
@@ -69,7 +88,15 @@ public class FrozenItemFunction
     {
         try
         {
-            var item = await _mongoService.GetFrozenItemByIdAsync(id);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
+            var item = await _mongoService.GetFrozenItemByIdAsync(id, outletId);
             if (item == null)
             {
                 var notFoundResponse = req.CreateResponse(HttpStatusCode.NotFound);
@@ -96,6 +123,14 @@ public class FrozenItemFunction
     {
         try
         {
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var item = JsonSerializer.Deserialize<FrozenItem>(requestBody, new JsonSerializerOptions
             {
@@ -109,6 +144,7 @@ public class FrozenItemFunction
                 return badRequestResponse;
             }
 
+            item.OutletId = outletId;
             var createdItem = await _mongoService.CreateFrozenItemAsync(item);
 
             var response = req.CreateResponse(HttpStatusCode.Created);
@@ -131,6 +167,14 @@ public class FrozenItemFunction
     {
         try
         {
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var item = JsonSerializer.Deserialize<FrozenItem>(requestBody, new JsonSerializerOptions
             {
@@ -144,7 +188,7 @@ public class FrozenItemFunction
                 return badRequestResponse;
             }
 
-            var success = await _mongoService.UpdateFrozenItemAsync(id, item);
+            var success = await _mongoService.UpdateFrozenItemAsync(id, item, outletId);
             if (!success)
             {
                 var notFoundResponse = req.CreateResponse(HttpStatusCode.NotFound);
@@ -172,7 +216,15 @@ public class FrozenItemFunction
     {
         try
         {
-            var success = await _mongoService.DeleteFrozenItemAsync(id);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
+            var success = await _mongoService.DeleteFrozenItemAsync(id, outletId);
             if (!success)
             {
                 var notFoundResponse = req.CreateResponse(HttpStatusCode.NotFound);
@@ -199,6 +251,14 @@ public class FrozenItemFunction
     {
         try
         {
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+            if (string.IsNullOrEmpty(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                return badRequest;
+            }
+
             // Read the multipart form data
             var contentType = req.Headers.GetValues("Content-Type").FirstOrDefault();
             if (contentType == null || !contentType.Contains("multipart/form-data"))
@@ -270,7 +330,7 @@ public class FrozenItemFunction
             }
 
             // Process the items
-            var (success, failed, errors) = await _mongoService.BulkUploadFrozenItemsAsync(items);
+            var (success, failed, errors) = await _mongoService.BulkUploadFrozenItemsAsync(items, outletId);
 
             var result = new
             {

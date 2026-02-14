@@ -30,16 +30,26 @@ public class MenuFunction
     /// <param name="req">HTTP request</param>
     /// <returns>List of all menu items with pricing and details</returns>
     /// <response code="200">Successfully retrieved menu items</response>
+    /// <response code="400">Outlet ID is required</response>
     // GET: Get all menu items
     [Function("GetMenu")]
     [OpenApiOperation(operationId: "GetMenu", tags: new[] { "Menu" }, Summary = "Get all menu items", Description = "Retrieves all menu items with pricing and availability")]
-    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID for filtering menu items")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = true, Type = typeof(string), Description = "Outlet ID for filtering menu items")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<CafeMenuItem>), Description = "Successfully retrieved menu items")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Outlet ID is required")]
     public async Task<HttpResponseData> GetMenu([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu")] HttpRequestData req)
     {
         try
         {
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or authenticate with a user that has a default outlet." });
+                return badRequest;
+            }
+            
             var items = await _mongo.GetMenuAsync(outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
@@ -61,16 +71,28 @@ public class MenuFunction
     /// <param name="categoryId">The category ID to filter by</param>
     /// <returns>List of menu items in the specified category</returns>
     /// <response code="200">Successfully retrieved menu items</response>
+    /// <response code="400">Outlet ID is required</response>
     // GET: Get menu items by CategoryId
     [Function("GetMenuItemsByCategory")]
     [OpenApiOperation(operationId: "GetMenuItemsByCategory", tags: new[] { "Menu" }, Summary = "Get menu items by category", Description = "Retrieves all menu items in a specific category")]
     [OpenApiParameter(name: "categoryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Category ID")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = true, Type = typeof(string), Description = "Outlet ID for filtering menu items")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<CafeMenuItem>), Description = "Successfully retrieved menu items")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Outlet ID is required")]
     public async Task<HttpResponseData> GetMenuItemsByCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "categories/{categoryId}/menu")] HttpRequestData req, string categoryId)
     {
         try
         {
-            var items = await _mongo.GetMenuItemsByCategoryAsync(categoryId);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or authenticate with a user that has a default outlet." });
+                return badRequest;
+            }
+            
+            var items = await _mongo.GetMenuItemsByCategoryAsync(categoryId, outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
             return res;
@@ -91,16 +113,28 @@ public class MenuFunction
     /// <param name="subCategoryId">The subcategory ID to filter by</param>
     /// <returns>List of menu items in the specified subcategory</returns>
     /// <response code="200">Successfully retrieved menu items</response>
+    /// <response code="400">Outlet ID is required</response>
     // GET: Get menu items by SubCategoryId
     [Function("GetMenuItemsBySubCategory")]
     [OpenApiOperation(operationId: "GetMenuItemsBySubCategory", tags: new[] { "Menu" }, Summary = "Get menu items by subcategory", Description = "Retrieves all menu items in a specific subcategory")]
     [OpenApiParameter(name: "subCategoryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Subcategory ID")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = true, Type = typeof(string), Description = "Outlet ID for filtering menu items")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<CafeMenuItem>), Description = "Successfully retrieved menu items")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Outlet ID is required")]
     public async Task<HttpResponseData> GetMenuItemsBySubCategory([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "subcategories/{subCategoryId}/menu")] HttpRequestData req, string subCategoryId)
     {
         try
         {
-            var items = await _mongo.GetMenuItemsBySubCategoryAsync(subCategoryId);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or authenticate with a user that has a default outlet." });
+                return badRequest;
+            }
+            
+            var items = await _mongo.GetMenuItemsBySubCategoryAsync(subCategoryId, outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
             return res;
@@ -121,18 +155,30 @@ public class MenuFunction
     /// <param name="id">The menu item ID</param>
     /// <returns>Menu item details including name, description, pricing, and category</returns>
     /// <response code="200">Successfully retrieved menu item</response>
+    /// <response code="400">Outlet ID is required</response>
     /// <response code="404">Menu item not found</response>
     // GET: Get single menu item by ID
     [Function("GetMenuItem")]
     [OpenApiOperation(operationId: "GetMenuItem", tags: new[] { "Menu" }, Summary = "Get menu item by ID", Description = "Retrieves a specific menu item by its ID")]
     [OpenApiParameter(name: "id", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Menu item ID")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = true, Type = typeof(string), Description = "Outlet ID for filtering menu items")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(CafeMenuItem), Description = "Successfully retrieved menu item")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Outlet ID is required")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Menu item not found")]
     public async Task<HttpResponseData> GetMenuItem([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu/{id}")] HttpRequestData req, string id)
     {
         try
         {
-            var item = await _mongo.GetMenuItemAsync(id);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or authenticate with a user that has a default outlet." });
+                return badRequest;
+            }
+            
+            var item = await _mongo.GetMenuItemAsync(id, outletId);
             if (item == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);

@@ -63,17 +63,26 @@ public class FileUploadFunction
                 ? parts["uploadedBy"].Text
                 : "Unknown";
 
+            // Extract outlet ID from request
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or ensure user has a default outlet." });
+                return badRequest;
+            }
+
             FileUploadService.UploadResult result;
 
             using (var stream = new MemoryStream(fileData.Data!))
             {
                 if (fileName.EndsWith(".xlsx") || fileName.EndsWith(".xls"))
                 {
-                    result = await _fileUploadService.ProcessExcelFile(stream, _mongo, uploadedBy ?? "System");
+                    result = await _fileUploadService.ProcessExcelFile(stream, _mongo, uploadedBy ?? "System", outletId);
                 }
                 else if (fileName.EndsWith(".csv"))
                 {
-                    result = await _fileUploadService.ProcessCsvFile(stream, _mongo, uploadedBy ?? "System");
+                    result = await _fileUploadService.ProcessCsvFile(stream, _mongo, uploadedBy ?? "System", outletId);
                 }
                 else
                 {
@@ -325,11 +334,20 @@ public class FileUploadFunction
                 return res;
             }
 
+            // Extract outlet ID from request
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var res = req.CreateResponse(HttpStatusCode.BadRequest);
+                await res.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or authenticate with a user that has a default outlet." });
+                return res;
+            }
+
             var fileData = parts["file"].Data!;
             using var ms = new MemoryStream(fileData);
 
             var fileUploadService = new FileUploadService();
-            var onlineResult = await fileUploadService.ProcessOnlineSaleExcel(ms, platform, _mongo, userId!);
+            var onlineResult = await fileUploadService.ProcessOnlineSaleExcel(ms, platform, _mongo, userId!, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new

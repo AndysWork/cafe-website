@@ -441,7 +441,10 @@ public class OnlineSaleFunction
             var limitStr = query["limit"] ?? "10";
             var limit = int.TryParse(limitStr, out var l) ? l : 10;
 
-            var reviews = await _mongo.GetFiveStarReviewsAsync(limit);
+            // Extract outlet ID from request header (optional)
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+
+            var reviews = await _mongo.GetFiveStarReviewsAsync(limit, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = reviews });

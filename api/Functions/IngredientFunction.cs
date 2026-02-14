@@ -17,13 +17,15 @@ namespace Cafe.Api.Functions
     {
         private readonly ILogger<IngredientFunction> _logger;
         private readonly MongoService _mongoService;
+        private readonly AuthService _authService;
         private readonly IEmailService _emailService;
         private const decimal MAJOR_PRICE_CHANGE_THRESHOLD = 10.0m; // 10% change threshold
 
-        public IngredientFunction(ILogger<IngredientFunction> logger, MongoService mongoService, IEmailService emailService)
+        public IngredientFunction(ILogger<IngredientFunction> logger, MongoService mongoService, AuthService authService, IEmailService emailService)
         {
             _logger = logger;
             _mongoService = mongoService;
+            _authService = authService;
             _emailService = emailService;
         }
 
@@ -40,7 +42,13 @@ namespace Cafe.Api.Functions
             {
                 _logger.LogInformation("Getting all ingredients");
 
-                var ingredients = await _mongoService.GetIngredientsAsync();
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                if (string.IsNullOrEmpty(outletId))
+                {
+                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                }
+
+                var ingredients = await _mongoService.GetIngredientsAsync(outletId);
                 return new OkObjectResult(ingredients);
             }
             catch (Exception ex)
@@ -66,7 +74,13 @@ namespace Cafe.Api.Functions
             {
                 _logger.LogInformation($"Getting ingredient with ID: {id}");
 
-                var ingredient = await _mongoService.GetIngredientByIdAsync(id);
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                if (string.IsNullOrEmpty(outletId))
+                {
+                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                }
+
+                var ingredient = await _mongoService.GetIngredientByIdAsync(id, outletId);
                 if (ingredient == null)
                 {
                     return new NotFoundResult();
@@ -96,6 +110,12 @@ namespace Cafe.Api.Functions
             {
                 _logger.LogInformation("Creating new ingredient");
 
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                if (string.IsNullOrEmpty(outletId))
+                {
+                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                }
+
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 var ingredient = JsonSerializer.Deserialize<Ingredient>(requestBody, new JsonSerializerOptions
                 {
@@ -112,7 +132,8 @@ namespace Cafe.Api.Functions
                 ingredient.Category = InputSanitizer.Sanitize(ingredient.Category);
                 ingredient.Unit = InputSanitizer.Sanitize(ingredient.Unit);
 
-                // Set timestamps
+                // Set outlet and timestamps
+                ingredient.OutletId = outletId;
                 ingredient.CreatedAt = DateTime.UtcNow;
                 ingredient.UpdatedAt = DateTime.UtcNow;
                 ingredient.LastUpdated = DateTime.UtcNow;
@@ -138,6 +159,12 @@ namespace Cafe.Api.Functions
             {
                 _logger.LogInformation($"Updating ingredient with ID: {id}");
 
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                if (string.IsNullOrEmpty(outletId))
+                {
+                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                }
+
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 var ingredient = JsonSerializer.Deserialize<Ingredient>(requestBody, new JsonSerializerOptions
                 {
@@ -150,7 +177,7 @@ namespace Cafe.Api.Functions
                 }
 
                 // Get current ingredient to detect price changes
-                var currentIngredient = await _mongoService.GetIngredientByIdAsync(id);
+                var currentIngredient = await _mongoService.GetIngredientByIdAsync(id, outletId);
                 if (currentIngredient == null)
                 {
                     return new NotFoundResult();
@@ -193,7 +220,7 @@ namespace Cafe.Api.Functions
                     _logger.LogInformation($"Price updated for {ingredient.Name}: {currentIngredient.MarketPrice} -> {ingredient.MarketPrice} ({priceChangePercentage:F2}% change)");
                 }
 
-                var updated = await _mongoService.UpdateIngredientAsync(id, ingredient);
+                var updated = await _mongoService.UpdateIngredientAsync(id, ingredient, outletId);
                 if (!updated)
                 {
                     return new NotFoundResult();
@@ -326,7 +353,13 @@ This is an automated alert triggered when ingredient prices change by more than 
             {
                 _logger.LogInformation($"Deleting ingredient with ID: {id}");
 
-                var deleted = await _mongoService.DeleteIngredientAsync(id);
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                if (string.IsNullOrEmpty(outletId))
+                {
+                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                }
+
+                var deleted = await _mongoService.DeleteIngredientAsync(id, outletId);
                 if (!deleted)
                 {
                     return new NotFoundResult();
@@ -351,7 +384,13 @@ This is an automated alert triggered when ingredient prices change by more than 
             {
                 _logger.LogInformation($"Getting ingredients for category: {category}");
 
-                var ingredients = await _mongoService.GetIngredientsByCategoryAsync(category);
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                if (string.IsNullOrEmpty(outletId))
+                {
+                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                }
+
+                var ingredients = await _mongoService.GetIngredientsByCategoryAsync(category, outletId);
                 return new OkObjectResult(ingredients);
             }
             catch (Exception ex)
@@ -370,6 +409,12 @@ This is an automated alert triggered when ingredient prices change by more than 
             {
                 _logger.LogInformation("Searching ingredients");
 
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                if (string.IsNullOrEmpty(outletId))
+                {
+                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                }
+
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 var searchRequest = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody, new JsonSerializerOptions
                 {
@@ -382,7 +427,7 @@ This is an automated alert triggered when ingredient prices change by more than 
                 }
 
                 var searchTerm = InputSanitizer.Sanitize(searchRequest["searchTerm"]);
-                var ingredients = await _mongoService.SearchIngredientsAsync(searchTerm);
+                var ingredients = await _mongoService.SearchIngredientsAsync(searchTerm, outletId);
                 return new OkObjectResult(ingredients);
             }
             catch (Exception ex)

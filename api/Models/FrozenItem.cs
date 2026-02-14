@@ -9,6 +9,10 @@ public class FrozenItem
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string OutletId { get; set; } = string.Empty;
+
     [BsonElement("itemName")]
     public string ItemName { get; set; } = string.Empty;
 
