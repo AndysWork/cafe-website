@@ -16,12 +16,14 @@ public class OfferFunction
 {
     private readonly MongoService _mongoService;
     private readonly AuthService _authService;
+    private readonly IWhatsAppService _whatsAppService;
     private readonly ILogger<OfferFunction> _logger;
 
-    public OfferFunction(MongoService mongoService, AuthService authService, ILogger<OfferFunction> logger)
+    public OfferFunction(MongoService mongoService, AuthService authService, IWhatsAppService whatsAppService, ILogger<OfferFunction> logger)
     {
         _mongoService = mongoService;
         _authService = authService;
+        _whatsAppService = whatsAppService;
         _logger = logger;
     }
 

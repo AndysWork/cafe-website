@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface BonusCalculationDetail {
@@ -48,12 +49,18 @@ export interface UpsertStaffPerformanceRequest {
   notes?: string;
 }
 
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  error?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class StaffPerformanceService {
   private http = inject(HttpClient);
-  private apiUrl = `${environment.apiUrl}/api/staffperformance`;
+  private apiUrl = `${environment.apiUrl}/staff-performance`;
 
   private getHeaders(): HttpHeaders {
     const token = localStorage.getItem('token');
@@ -63,12 +70,28 @@ export class StaffPerformanceService {
     });
   }
 
+  private mapRecord(record: any): StaffPerformanceRecord {
+    return {
+      ...record,
+      netBonusAmount: record.netAmount !== undefined ? record.netAmount : (record.netBonusAmount || 0),
+      bonusBreakdown: (record.bonusBreakdown || []).map((detail: any) => ({
+        ...detail,
+        calculatedAmount: detail.amount !== undefined ? detail.amount : (detail.calculatedAmount || 0),
+        calculationType: detail.calculationType || detail.ruleType || '',
+        metricValue: detail.metricValue || 0,
+        description: detail.description || detail.calculationDetails || ''
+      }))
+    };
+  }
+
   getStaffPerformanceRecords(staffId: string, period?: string): Observable<StaffPerformanceRecord[]> {
-    let url = `${this.apiUrl}/staff/${staffId}`;
+    let url = `${this.apiUrl}?staffId=${staffId}`;
     if (period) {
-      url += `?period=${period}`;
+      url += `&period=${period}`;
     }
-    return this.http.get<StaffPerformanceRecord[]>(url, { headers: this.getHeaders() });
+    return this.http.get<ApiResponse<any[]>>(url, { headers: this.getHeaders() }).pipe(
+      map(response => (response.data || []).map(record => this.mapRecord(record)))
+    );
   }
 
   getOutletPerformanceRecords(period?: string): Observable<StaffPerformanceRecord[]> {
@@ -76,18 +99,24 @@ export class StaffPerformanceService {
     if (period) {
       url += `?period=${period}`;
     }
-    return this.http.get<StaffPerformanceRecord[]>(url, { headers: this.getHeaders() });
+    return this.http.get<ApiResponse<any[]>>(url, { headers: this.getHeaders() }).pipe(
+      map(response => (response.data || []).map(record => this.mapRecord(record)))
+    );
   }
 
   upsertStaffPerformanceRecord(request: UpsertStaffPerformanceRequest): Observable<StaffPerformanceRecord> {
-    return this.http.post<StaffPerformanceRecord>(this.apiUrl, request, { headers: this.getHeaders() });
+    return this.http.post<ApiResponse<any>>(this.apiUrl, request, { headers: this.getHeaders() }).pipe(
+      map(response => this.mapRecord(response.data))
+    );
   }
 
-  calculateStaffBonus(staffId: string, period: string): Observable<StaffPerformanceRecord> {
-    return this.http.post<StaffPerformanceRecord>(
-      `${this.apiUrl}/calculate-bonus`,
-      { staffId, period },
+  calculateStaffBonus(recordId: string): Observable<StaffPerformanceRecord> {
+    return this.http.post<ApiResponse<any>>(
+      `${this.apiUrl}/${recordId}/calculate`,
+      {},
       { headers: this.getHeaders() }
+    ).pipe(
+      map(response => this.mapRecord(response.data))
     );
   }
 }

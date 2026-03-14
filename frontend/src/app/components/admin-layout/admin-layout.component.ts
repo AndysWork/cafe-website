@@ -94,6 +94,11 @@ export class AdminLayoutComponent {
           route: '/admin/daily-performance'
         },
         {
+          icon: '💰',
+          label: 'Bonus Dashboard',
+          route: '/admin/bonus-calculation'
+        },
+        {
           icon: '⚙️',
           label: 'Bonus Configuration',
           route: '/admin/bonus-configuration'
@@ -144,11 +149,6 @@ export class AdminLayoutComponent {
           icon: '🏷️',
           label: 'Discount Mapping',
           route: '/admin/discount-mapping'
-        },
-        {
-          icon: '💰',
-          label: 'Bonus Calculation',
-          route: '/admin/bonus-calculation'
         }
       ]
     }

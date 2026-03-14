@@ -1275,7 +1275,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
             // Update menu item prices
             this.updateMenuItemPricesFromForecast();
 
-            this.showAlert('Price forecast updated successfully!', 'success');
+            this.showAlert('✅ Price forecast updated successfully! Prices will be applied across all outlets.', 'success');
           },
           error: (err) => {
             console.error('Error updating price forecast:', err);
@@ -1294,7 +1294,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
             // Update menu item prices
             this.updateMenuItemPricesFromForecast();
 
-            this.showAlert('Price forecast saved successfully!', 'success');
+            this.showAlert('✅ Price forecast saved successfully! Prices will be applied across all outlets.', 'success');
           },
           error: (err) => {
             console.error('Error creating price forecast:', err);
@@ -1362,7 +1362,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       onlinePrice: priceData.onlinePrice,
       dineInPrice: priceData.dineInPrice,
       shopSellingPrice: priceData.shopSellingPrice,
-      packagingCharge: priceData.packagingCharge
+      packagingCharge: priceData.packagingCharge,
+      // Include future prices if set
+      futureShopPrice: priceData.futureShopPrice,
+      futureOnlinePrice: priceData.futureOnlinePrice
     };
 
     // Update the menu item

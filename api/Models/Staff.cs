@@ -87,14 +87,21 @@ public class Staff
     [BsonRepresentation(BsonType.ObjectId)]
     public List<string> OutletIds { get; set; } = new();
 
-    // Work Schedule
+    // Work Schedule - Enhanced with multiple shifts support
+    [BsonElement("shifts")]
+    public List<StaffShift> Shifts { get; set; } = new();
+
+    // Legacy schedule fields (kept for backward compatibility)
     [BsonElement("workingDays")]
+    [Obsolete("Use Shifts property instead for multiple shift support")]
     public List<string> WorkingDays { get; set; } = new(); // Monday, Tuesday, etc.
 
     [BsonElement("shiftStartTime")]
+    [Obsolete("Use Shifts property instead for multiple shift support")]
     public string? ShiftStartTime { get; set; } // e.g., "09:00"
 
     [BsonElement("shiftEndTime")]
+    [Obsolete("Use Shifts property instead for multiple shift support")]
     public string? ShiftEndTime { get; set; } // e.g., "18:00"
 
     // Documents
@@ -135,6 +142,46 @@ public class Staff
 
     [BsonElement("casualLeaveBalance")]
     public int CasualLeaveBalance { get; set; } = 0;
+}
+
+public class StaffShift
+{
+    [BsonElement("id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    [BsonElement("shiftName")]
+    public string ShiftName { get; set; } = string.Empty; // e.g., "Morning Shift", "Evening Shift"
+
+    [BsonElement("dayOfWeek")]
+    [Required]
+    public string DayOfWeek { get; set; } = string.Empty; // Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+
+    [BsonElement("startTime")]
+    [Required]
+    public string StartTime { get; set; } = string.Empty; // e.g., "09:00"
+
+    [BsonElement("endTime")]
+    [Required]
+    public string EndTime { get; set; } = string.Empty; // e.g., "18:00"
+
+    [BsonElement("breakDuration")]
+    public int BreakDuration { get; set; } = 0; // Break duration in minutes
+
+    [BsonElement("isActive")]
+    public bool IsActive { get; set; } = true;
+
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? OutletId { get; set; } // Optional: assign shift to specific outlet
+
+    [BsonElement("notes")]
+    public string? Notes { get; set; }
+
+    [BsonElement("createdAt")]
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+
+    [BsonElement("updatedAt")]
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class StaffAddress

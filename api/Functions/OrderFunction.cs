@@ -17,11 +17,13 @@ public class OrderFunction
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
+    private readonly IWhatsAppService _whatsApp;
 
-    public OrderFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public OrderFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
+        _whatsApp = whatsApp;
         _log = loggerFactory.CreateLogger<OrderFunction>();
     }
 
@@ -169,6 +171,27 @@ public class OrderFunction
             var createdOrder = await _mongo.CreateOrderAsync(order);
 
             _log.LogInformation($"Order {createdOrder.Id} created by user {username}");
+
+            // Send WhatsApp notification to customer
+            if (!string.IsNullOrEmpty(orderRequest.PhoneNumber))
+            {
+                try
+                {
+                    var orderDetails = string.Join("\n", orderItems.Select(item => $"- {item.Name} x{item.Quantity} (₹{item.Total:N2})"));
+                    await _whatsApp.SendOrderConfirmationAsync(
+                        orderRequest.PhoneNumber,
+                        username,
+                        createdOrder.Id!,
+                        total,
+                        orderDetails
+                    );
+                }
+                catch (Exception whatsAppEx)
+                {
+                    _log.LogWarning(whatsAppEx, "Failed to send WhatsApp notification for order {OrderId}", createdOrder.Id);
+                    // Don't fail the order creation if WhatsApp sending fails
+                }
+            }
 
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(MapToOrderResponse(createdOrder));
@@ -395,31 +418,68 @@ public class OrderFunction
                 return notFound;
             }
 
-            // Award loyalty points when order is delivered
-            if (statusRequest.Status.ToLower() == "delivered")
+            // Get order details for notifications
+            var order = await _mongo.GetOrderByIdAsync(id);
+
+            // Send WhatsApp notification to customer about status update
+            if (order != null && !string.IsNullOrEmpty(order.PhoneNumber))
             {
-                var order = await _mongo.GetOrderByIdAsync(id);
-                if (order != null)
+                try
                 {
-                    // Award 1 point per ₹10 spent
-                    int pointsToAward = (int)(order.Total / 10);
-                    if (pointsToAward > 0)
+                    await _whatsApp.SendOrderStatusUpdateAsync(
+                        order.PhoneNumber,
+                        order.Username ?? "Customer",
+                        order.Id!,
+                        statusRequest.Status
+                    );
+                }
+                catch (Exception whatsAppEx)
+                {
+                    _log.LogWarning(whatsAppEx, "Failed to send WhatsApp notification for order {OrderId} status update", id);
+                    // Don't fail the status update if WhatsApp sending fails
+                }
+            }
+
+            // Award loyalty points when order is delivered
+            if (statusRequest.Status.ToLower() == "delivered" && order != null)
+            {
+                // Award 1 point per ₹10 spent
+                int pointsToAward = (int)(order.Total / 10);
+                if (pointsToAward > 0)
+                {
+                    try
                     {
-                        try
+                        await _mongo.AwardPointsAsync(
+                            order.UserId,
+                            pointsToAward,
+                            $"Order #{order.Id}",
+                            order.Id
+                        );
+                        _log.LogInformation($"Awarded {pointsToAward} points to user {order.UserId} for order {order.Id}");
+
+                        // Send WhatsApp notification about loyalty points
+                        if (!string.IsNullOrEmpty(order.PhoneNumber))
                         {
-                            await _mongo.AwardPointsAsync(
-                                order.UserId,
-                                pointsToAward,
-                                $"Order #{order.Id}",
-                                order.Id
-                            );
-                            _log.LogInformation($"Awarded {pointsToAward} points to user {order.UserId} for order {order.Id}");
+                            try
+                            {
+                                var totalPoints = pointsToAward;
+                                await _whatsApp.SendLoyaltyNotificationAsync(
+                                    order.PhoneNumber,
+                                    order.Username ?? "Customer",
+                                    pointsToAward,
+                                    totalPoints
+                                );
+                            }
+                            catch (Exception whatsAppEx)
+                            {
+                                _log.LogWarning(whatsAppEx, "Failed to send WhatsApp loyalty notification for order {OrderId}", id);
+                            }
                         }
-                        catch (Exception pointsEx)
-                        {
-                            _log.LogWarning($"Failed to award points for order {id}: {pointsEx.Message}");
-                            // Don't fail the order status update if points award fails
-                        }
+                    }
+                    catch (Exception pointsEx)
+                    {
+                        _log.LogWarning($"Failed to award points for order {id}: {pointsEx.Message}");
+                        // Don't fail the order status update if points award fails
                     }
                 }
             }

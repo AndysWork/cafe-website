@@ -42,14 +42,15 @@ export class StaffPerformanceComponent implements OnInit {
   selectedRecord: StaffPerformanceRecord | null = null;
 
   // Form data
-  performanceForm: UpsertStaffPerformanceRequest = this.getEmptyForm();
+  performanceForm!: UpsertStaffPerformanceRequest;
 
   // Available periods (last 12 months)
   availablePeriods: string[] = [];
 
   ngOnInit(): void {
     this.generateAvailablePeriods();
-    this.selectedPeriod = this.availablePeriods[0]; // Current month
+    this.selectedPeriod = this.availablePeriods[1]; // Default to last month (February) instead of current month
+    this.performanceForm = this.getEmptyForm(); // Initialize form after periods are generated
     this.loadStaff();
     this.loadPerformanceRecords();
   }
@@ -57,7 +58,7 @@ export class StaffPerformanceComponent implements OnInit {
   private getEmptyForm(): UpsertStaffPerformanceRequest {
     return {
       staffId: '',
-      period: this.availablePeriods[0] || '',
+      period: (this.availablePeriods && this.availablePeriods.length > 0) ? this.availablePeriods[0] : '',
       scheduledHours: 0,
       actualHours: 0,
       snacksPrepared: 0,
@@ -207,7 +208,7 @@ export class StaffPerformanceComponent implements OnInit {
     this.errorMessage = '';
     this.successMessage = '';
 
-    this.performanceService.calculateStaffBonus(record.staffId, record.period).subscribe({
+    this.performanceService.calculateStaffBonus(record.id).subscribe({
       next: () => {
         this.successMessage = 'Bonus calculated successfully!';
         this.loadPerformanceRecords();
@@ -252,12 +253,18 @@ export class StaffPerformanceComponent implements OnInit {
   }
 
   getTotalBonuses(record: StaffPerformanceRecord): number {
+    if (!record.bonusBreakdown || !Array.isArray(record.bonusBreakdown)) {
+      return 0;
+    }
     return record.bonusBreakdown
       .filter(b => b.isBonus)
       .reduce((sum, b) => sum + b.calculatedAmount, 0);
   }
 
   getTotalDeductions(record: StaffPerformanceRecord): number {
+    if (!record.bonusBreakdown || !Array.isArray(record.bonusBreakdown)) {
+      return 0;
+    }
     return record.bonusBreakdown
       .filter(b => !b.isBonus)
       .reduce((sum, b) => sum + b.calculatedAmount, 0);

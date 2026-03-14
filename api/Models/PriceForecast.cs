@@ -15,7 +15,8 @@ public class PriceForecast
 
     [BsonElement("outletId")]
     [BsonRepresentation(BsonType.ObjectId)]
-    public string? OutletId { get; set; } // Multi-outlet support
+    [Obsolete("OutletId is deprecated. Price forecasts are now global and apply to all outlets.")]
+    public string? OutletId { get; set; } // Deprecated - Price forecasts are global
 
     [Required(ErrorMessage = "Menu item name is required")]
     public string MenuItemName { get; set; } = string.Empty;

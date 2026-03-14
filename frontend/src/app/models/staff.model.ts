@@ -29,7 +29,10 @@ export interface Staff {
   // Outlet Assignment - Staff can work at multiple outlets
   outletIds: string[];
 
-  // Work Schedule
+  // Work Schedule - Enhanced with multiple shifts
+  shifts: StaffShift[];
+
+  // Legacy schedule fields (kept for backward compatibility)
   workingDays: string[];
   shiftStartTime?: string;
   shiftEndTime?: string;
@@ -84,6 +87,20 @@ export interface StaffDocument {
   uploadedAt?: Date | string;
   expiryDate?: Date | string;
   isVerified: boolean;
+}
+
+export interface StaffShift {
+  id?: string;
+  shiftName: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  breakDuration: number;
+  isActive: boolean;
+  outletId?: string;
+  notes?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
 
 export interface StaffStatistics {

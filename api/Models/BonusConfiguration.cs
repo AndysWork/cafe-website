@@ -82,8 +82,32 @@ public class BonusRule
     [BsonElement("maxAmount")]
     public decimal? MaxAmount { get; set; } // Maximum bonus/deduction cap
 
+    [BsonElement("useDynamicRate")]
+    public bool UseDynamicRate { get; set; } = false; // If true, calculates rate based on staff hourly rate x multiplier
+
+    [BsonElement("rateMultiplier")]
+    public decimal RateMultiplier { get; set; } = 1.5m; // Default multiplier for overtime (1.5x hourly rate)
+
+    [BsonElement("staffRateOverrides")]
+    public List<StaffRateOverride> StaffRateOverrides { get; set; } = new(); // Staff-specific rate customization
+
     [BsonElement("isActive")]
     public bool IsActive { get; set; } = true;
+}
+
+// Staff-specific rate override for bonus rules
+public class StaffRateOverride
+{
+    [BsonElement("staffId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [Required]
+    public string StaffId { get; set; } = string.Empty;
+
+    [BsonElement("customRate")]
+    public decimal CustomRate { get; set; } = 0; // Custom rate for this specific staff member
+
+    [BsonElement("notes")]
+    public string? Notes { get; set; }
 }
 
 public class CreateBonusConfigurationRequest
@@ -124,7 +148,23 @@ public class BonusRuleRequest
 
     public decimal? MaxAmount { get; set; }
 
+    public bool UseDynamicRate { get; set; } = false;
+
+    public decimal RateMultiplier { get; set; } = 1.5m;
+
+    public List<StaffRateOverrideRequest>? StaffRateOverrides { get; set; }
+
     public bool IsActive { get; set; } = true;
+}
+
+public class StaffRateOverrideRequest
+{
+    [Required]
+    public string StaffId { get; set; } = string.Empty;
+
+    public decimal CustomRate { get; set; } = 0;
+
+    public string? Notes { get; set; }
 }
 
 public class UpdateBonusConfigurationRequest

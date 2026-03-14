@@ -4,7 +4,8 @@ import { FormsModule } from '@angular/forms';
 import {
   DailyPerformanceService,
   DailyPerformanceEntry,
-  BulkDailyPerformanceRequest
+  BulkDailyPerformanceRequest,
+  PerformanceShift,
 } from '../../services/daily-performance.service';
 import { StaffService } from '../../services/staff.service';
 import { OutletService } from '../../services/outlet.service';
@@ -14,6 +15,7 @@ interface StaffPerformanceRow {
   staff: Staff;
   entry: DailyPerformanceEntry;
   isEdited: boolean;
+  currentShifts: PerformanceShift[];
 }
 
 @Component({
@@ -21,7 +23,7 @@ interface StaffPerformanceRow {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './daily-performance-entry.component.html',
-  styleUrls: ['./daily-performance-entry.component.scss']
+  styleUrls: ['./daily-performance-entry.component.scss'],
 })
 export class DailyPerformanceEntryComponent implements OnInit {
   private performanceService = inject(DailyPerformanceService);
@@ -43,6 +45,13 @@ export class DailyPerformanceEntryComponent implements OnInit {
   // Available positions (will be loaded from staff data)
   positions: string[] = [];
 
+  // Shift management
+  showShiftModal = false;
+  shiftModalMode: 'create' | 'edit' = 'create';
+  selectedRow: StaffPerformanceRow | null = null;
+  shiftForm: PerformanceShift = this.getEmptyShiftForm();
+  editingShiftIndex = -1;
+
   ngOnInit(): void {
     this.selectedDate = this.getTodayDate();
     this.loadStaffAndPerformance();
@@ -63,36 +72,49 @@ export class DailyPerformanceEntryComponent implements OnInit {
     this.staffService.getAllStaff(this.showActiveOnly).subscribe({
       next: (staff: Staff[]) => {
         // Extract unique positions
-        this.positions = [...new Set(staff.map((s: Staff) => s.position).filter((p): p is string => !!p))];
+        this.positions = [
+          ...new Set(
+            staff.map((s: Staff) => s.position).filter((p): p is string => !!p),
+          ),
+        ];
 
         // Load performance data for selected date
-        this.performanceService.getDailyPerformanceByDate(this.selectedDate).subscribe({
-          next: (performanceData: DailyPerformanceEntry[]) => {
-            this.buildPerformanceRows(staff, performanceData);
-            this.isLoading = false;
-          },
-          error: (error: any) => {
-            // If no data exists for this date, just show staff with empty entries
-            this.buildPerformanceRows(staff, []);
-            this.isLoading = false;
-          }
-        });
+        this.performanceService
+          .getDailyPerformanceByDate(this.selectedDate)
+          .subscribe({
+            next: (performanceData: DailyPerformanceEntry[]) => {
+              this.buildPerformanceRows(staff, performanceData);
+              this.isLoading = false;
+            },
+            error: (error: any) => {
+              // If no data exists for this date, just show staff with empty entries
+              this.buildPerformanceRows(staff, []);
+              this.isLoading = false;
+            },
+          });
       },
       error: (error: any) => {
-        this.errorMessage = 'Failed to load staff: ' + (error.error?.message || error.message);
+        this.errorMessage =
+          'Failed to load staff: ' + (error.error?.message || error.message);
         this.isLoading = false;
-      }
+      },
     });
   }
 
-  buildPerformanceRows(staff: Staff[], performanceData: DailyPerformanceEntry[]): void {
+  buildPerformanceRows(
+    staff: Staff[],
+    performanceData: DailyPerformanceEntry[],
+  ): void {
     this.staffPerformanceRows = staff.map((s: Staff) => {
-      const existingEntry = performanceData.find((p: DailyPerformanceEntry) => p.staffId === s.id);
+      const existingEntry = performanceData.find(
+        (p: DailyPerformanceEntry) => p.staffId === s.id,
+      );
 
       return {
         staff: s,
         entry: existingEntry || this.createEmptyEntry(s.id || ''),
-        isEdited: false
+        isEdited: false,
+        currentShifts: existingEntry?.shifts ? [...existingEntry.shifts] : [],
       };
     });
 
@@ -111,7 +133,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
       badOrdersCount: 0,
       refundAmountRecovery: 0,
       workingHours: 0,
-      notes: ''
+      notes: '',
     };
   }
 
@@ -120,16 +142,19 @@ export class DailyPerformanceEntryComponent implements OnInit {
 
     // Filter by position
     if (this.filterPosition) {
-      filtered = filtered.filter(row => row.staff.position === this.filterPosition);
+      filtered = filtered.filter(
+        (row) => row.staff.position === this.filterPosition,
+      );
     }
 
     // Filter by search term
     if (this.searchTerm) {
       const term = this.searchTerm.toLowerCase();
-      filtered = filtered.filter(row =>
-        row.staff.firstName.toLowerCase().includes(term) ||
-        row.staff.lastName.toLowerCase().includes(term) ||
-        row.staff.employeeId?.toLowerCase().includes(term)
+      filtered = filtered.filter(
+        (row) =>
+          row.staff.firstName.toLowerCase().includes(term) ||
+          row.staff.lastName.toLowerCase().includes(term) ||
+          row.staff.employeeId?.toLowerCase().includes(term),
       );
     }
 
@@ -171,18 +196,52 @@ export class DailyPerformanceEntryComponent implements OnInit {
     if (!entry.inTime || !entry.outTime) {
       return false;
     }
-    if (entry.goodOrdersCount < 0 || entry.badOrdersCount < 0 ||
-        entry.totalOrdersPrepared < 0 || entry.refundAmountRecovery < 0) {
+    if (
+      entry.goodOrdersCount < 0 ||
+      entry.badOrdersCount < 0 ||
+      entry.totalOrdersPrepared < 0 ||
+      entry.refundAmountRecovery < 0
+    ) {
       return false;
     }
-    if (entry.totalOrdersPrepared < (entry.goodOrdersCount + entry.badOrdersCount)) {
+    if (
+      entry.totalOrdersPrepared <
+      entry.goodOrdersCount + entry.badOrdersCount
+    ) {
       return false;
     }
     return true;
   }
 
+  validateRow(row: StaffPerformanceRow): boolean {
+    // If the row has shifts, validate shifts instead of legacy fields
+    if (row.currentShifts && row.currentShifts.length > 0) {
+      // Shifts are present, no need to validate legacy fields
+      return true;
+    }
+
+    // No shifts, validate legacy fields
+    return this.validateEntry(row.entry);
+  }
+
+  private cleanShiftsForSave(shifts: PerformanceShift[]): PerformanceShift[] {
+    // Return empty array if shifts is null or undefined
+    if (!shifts || !Array.isArray(shifts)) {
+      return [];
+    }
+
+    // Remove temporary IDs (those starting with "temp_") before sending to API
+    return shifts.map(shift => {
+      const cleanedShift = { ...shift };
+      if (cleanedShift.id?.startsWith('temp_')) {
+        delete cleanedShift.id;
+      }
+      return cleanedShift;
+    });
+  }
+
   saveAll(): void {
-    const editedRows = this.staffPerformanceRows.filter(row => row.isEdited);
+    const editedRows = this.staffPerformanceRows.filter((row) => row.isEdited);
 
     if (editedRows.length === 0) {
       this.errorMessage = 'No changes to save';
@@ -190,9 +249,11 @@ export class DailyPerformanceEntryComponent implements OnInit {
     }
 
     // Validate all entries
-    const invalidEntries = editedRows.filter(row => !this.validateEntry(row.entry));
+    const invalidEntries = editedRows.filter(
+      (row) => !this.validateRow(row),
+    );
     if (invalidEntries.length > 0) {
-      this.errorMessage = `Please fix invalid entries for: ${invalidEntries.map(r => r.staff.firstName).join(', ')}`;
+      this.errorMessage = `Please fix invalid entries for: ${invalidEntries.map((r) => r.staff.firstName).join(', ')}`;
       return;
     }
 
@@ -202,16 +263,17 @@ export class DailyPerformanceEntryComponent implements OnInit {
 
     const bulkRequest: BulkDailyPerformanceRequest = {
       date: this.selectedDate,
-      entries: editedRows.map(row => ({
+      entries: editedRows.map((row) => ({
         staffId: row.staff.id || '',
-        inTime: row.entry.inTime,
-        outTime: row.entry.outTime,
-        totalOrdersPrepared: row.entry.totalOrdersPrepared,
-        goodOrdersCount: row.entry.goodOrdersCount,
-        badOrdersCount: row.entry.badOrdersCount,
-        refundAmountRecovery: row.entry.refundAmountRecovery,
-        notes: row.entry.notes
-      }))
+        inTime: row.entry.inTime || '00:00',
+        outTime: row.entry.outTime || '00:00',
+        totalOrdersPrepared: row.entry.totalOrdersPrepared || 0,
+        goodOrdersCount: row.entry.goodOrdersCount || 0,
+        badOrdersCount: row.entry.badOrdersCount || 0,
+        refundAmountRecovery: row.entry.refundAmountRecovery || 0,
+        notes: row.entry.notes,
+        shifts: this.cleanShiftsForSave(row.currentShifts),
+      })),
     };
 
     this.performanceService.bulkUpsertDailyPerformance(bulkRequest).subscribe({
@@ -220,7 +282,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
         this.isSaving = false;
 
         // Mark all as not edited
-        this.staffPerformanceRows.forEach(row => row.isEdited = false);
+        this.staffPerformanceRows.forEach((row) => (row.isEdited = false));
 
         // Reload data to get updated entries
         setTimeout(() => {
@@ -229,15 +291,18 @@ export class DailyPerformanceEntryComponent implements OnInit {
         }, 2000);
       },
       error: (error: any) => {
-        this.errorMessage = 'Failed to save performance data: ' + (error.error?.message || error.message);
+        this.errorMessage =
+          'Failed to save performance data: ' +
+          (error.error?.message || error.message);
         this.isSaving = false;
-      }
+      },
     });
   }
 
   saveIndividual(row: StaffPerformanceRow): void {
-    if (!this.validateEntry(row.entry)) {
-      this.errorMessage = 'Please fill in all required fields with valid values';
+    if (!this.validateRow(row)) {
+      this.errorMessage =
+        'Please fill in all required fields with valid values';
       return;
     }
 
@@ -247,13 +312,14 @@ export class DailyPerformanceEntryComponent implements OnInit {
     const request = {
       staffId: row.staff.id || '',
       date: this.selectedDate,
-      inTime: row.entry.inTime,
-      outTime: row.entry.outTime,
-      totalOrdersPrepared: row.entry.totalOrdersPrepared,
-      goodOrdersCount: row.entry.goodOrdersCount,
-      badOrdersCount: row.entry.badOrdersCount,
-      refundAmountRecovery: row.entry.refundAmountRecovery,
-      notes: row.entry.notes
+      inTime: row.entry.inTime || '00:00',
+      outTime: row.entry.outTime || '00:00',
+      totalOrdersPrepared: row.entry.totalOrdersPrepared || 0,
+      goodOrdersCount: row.entry.goodOrdersCount || 0,
+      badOrdersCount: row.entry.badOrdersCount || 0,
+      refundAmountRecovery: row.entry.refundAmountRecovery || 0,
+      notes: row.entry.notes,
+      shifts: this.cleanShiftsForSave(row.currentShifts),
     };
 
     this.performanceService.upsertDailyPerformance(request).subscribe({
@@ -265,9 +331,10 @@ export class DailyPerformanceEntryComponent implements OnInit {
         setTimeout(() => this.clearMessages(), 3000);
       },
       error: (error: any) => {
-        this.errorMessage = 'Failed to save: ' + (error.error?.message || error.message);
+        this.errorMessage =
+          'Failed to save: ' + (error.error?.message || error.message);
         this.isSaving = false;
-      }
+      },
     });
   }
 
@@ -282,8 +349,35 @@ export class DailyPerformanceEntryComponent implements OnInit {
   }
 
   clearRow(row: StaffPerformanceRow): void {
-    row.entry = this.createEmptyEntry(row.staff.id || '');
-    row.isEdited = false;
+    if (!confirm('This will clear all data and shifts for this staff member. Continue?')) {
+      return;
+    }
+
+    if (row.entry.id) {
+      // Entry exists in database - delete it via API
+      this.performanceService.deleteDailyPerformance(row.entry.id).subscribe({
+        next: () => {
+          row.entry = this.createEmptyEntry(row.staff.id || '');
+          row.currentShifts = [];
+          row.isEdited = false;
+          this.successMessage = 'Performance entry deleted successfully';
+          setTimeout(() => this.clearMessages(), 3000);
+        },
+        error: (error: any) => {
+          this.errorMessage =
+            'Failed to delete performance entry: ' +
+            (error.error?.error || error.error?.message || error.message);
+          setTimeout(() => this.clearMessages(), 5000);
+        },
+      });
+    } else {
+      // No entry in database - just clear locally
+      row.entry = this.createEmptyEntry(row.staff.id || '');
+      row.currentShifts = [];
+      row.isEdited = false;
+      this.successMessage = 'Row cleared successfully';
+      setTimeout(() => this.clearMessages(), 3000);
+    }
   }
 
   clearMessages(): void {
@@ -296,7 +390,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
   }
 
   getEditedCount(): number {
-    return this.staffPerformanceRows.filter(row => row.isEdited).length;
+    return this.staffPerformanceRows.filter((row) => row.isEdited).length;
   }
 
   exportToCSV(): void {
@@ -317,10 +411,10 @@ export class DailyPerformanceEntryComponent implements OnInit {
       'Good Orders',
       'Bad Orders',
       'Refund Recovery (₹)',
-      'Notes'
+      'Notes',
     ];
 
-    const rows = this.staffPerformanceRows.map(row => [
+    const rows = this.staffPerformanceRows.map((row) => [
       row.staff.employeeId || '',
       this.getStaffName(row.staff),
       row.staff.position || '',
@@ -332,12 +426,12 @@ export class DailyPerformanceEntryComponent implements OnInit {
       row.entry.goodOrdersCount || 0,
       row.entry.badOrdersCount || 0,
       row.entry.refundAmountRecovery || 0,
-      row.entry.notes || ''
+      row.entry.notes || '',
     ]);
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -347,5 +441,120 @@ export class DailyPerformanceEntryComponent implements OnInit {
     link.download = `daily-performance-${this.selectedDate}.csv`;
     link.click();
     window.URL.revokeObjectURL(url);
+  }
+
+  // Shift Management Methods
+  getEmptyShiftForm(): PerformanceShift {
+    return {
+      shiftName: '',
+      inTime: '',
+      outTime: '',
+      totalOrdersPrepared: 0,
+      goodOrdersCount: 0,
+      badOrdersCount: 0,
+      refundAmountRecovery: 0,
+      notes: '',
+    };
+  }
+
+  openAddShiftModal(row: StaffPerformanceRow): void {
+    this.selectedRow = row;
+    this.shiftModalMode = 'create';
+    this.shiftForm = this.getEmptyShiftForm();
+    this.editingShiftIndex = -1;
+    this.showShiftModal = true;
+  }
+
+  openEditShiftModal(row: StaffPerformanceRow, index: number): void {
+    this.selectedRow = row;
+    this.shiftModalMode = 'edit';
+    this.editingShiftIndex = index;
+    this.shiftForm = { ...row.currentShifts[index] };
+    this.showShiftModal = true;
+  }
+
+  closeShiftModal(): void {
+    this.showShiftModal = false;
+    this.selectedRow = null;
+    this.shiftForm = this.getEmptyShiftForm();
+    this.editingShiftIndex = -1;
+  }
+
+  saveShift(): void {
+    if (!this.selectedRow) return;
+
+    // Validate shift form
+    if (
+      !this.shiftForm.shiftName ||
+      !this.shiftForm.inTime ||
+      !this.shiftForm.outTime
+    ) {
+      this.errorMessage = 'Please fill in all required shift fields';
+      return;
+    }
+
+    // Calculate working hours
+    this.calculateShiftWorkingHours(this.shiftForm);
+
+    // Always handle shifts locally and save via bulk operation
+    if (this.shiftModalMode === 'create') {
+      // Generate a temporary ID for new shifts
+      this.shiftForm.id = `temp_${Date.now()}`;
+      this.selectedRow.currentShifts.push({ ...this.shiftForm });
+      this.successMessage = 'Shift added. Click "Save All Changes" to persist.';
+    } else {
+      // Edit mode - update existing shift
+      this.selectedRow.currentShifts[this.editingShiftIndex] = {
+        ...this.shiftForm,
+      };
+      this.successMessage = 'Shift updated. Click "Save All Changes" to persist.';
+    }
+
+    this.selectedRow.isEdited = true;
+    this.closeShiftModal();
+    setTimeout(() => this.clearMessages(), 3000);
+  }
+
+  deleteShift(row: StaffPerformanceRow, index: number): void {
+    if (!confirm('Are you sure you want to delete this shift?')) {
+      return;
+    }
+
+    // Always handle shift deletion locally and save via bulk operation
+    row.currentShifts.splice(index, 1);
+    row.isEdited = true;
+    this.successMessage = 'Shift removed. Click "Save All Changes" to persist.';
+    setTimeout(() => this.clearMessages(), 3000);
+  }
+
+  calculateShiftWorkingHours(shift: PerformanceShift): void {
+    if (shift.inTime && shift.outTime) {
+      const [inHours, inMinutes] = shift.inTime.split(':').map(Number);
+      const [outHours, outMinutes] = shift.outTime.split(':').map(Number);
+
+      const inTotalMinutes = inHours * 60 + inMinutes;
+      const outTotalMinutes = outHours * 60 + outMinutes;
+
+      let diffMinutes = outTotalMinutes - inTotalMinutes;
+      if (diffMinutes < 0) {
+        diffMinutes += 24 * 60; // Handle overnight shifts
+      }
+
+      shift.workingHours = Math.round((diffMinutes / 60) * 100) / 100;
+    }
+  }
+
+  getTotalShiftHours(row: StaffPerformanceRow): number {
+    return row.currentShifts.reduce(
+      (total, shift) => total + (shift.workingHours || 0),
+      0,
+    );
+  }
+
+  getTotalShiftOrders(row: StaffPerformanceRow): number {
+    return row.currentShifts.reduce(
+      (total, shift) => total + shift.totalOrdersPrepared,
+      0,
+    );
   }
 }

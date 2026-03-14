@@ -655,9 +655,11 @@ Maa Tara Cafe Team
 
     private string GetStaffWelcomeTemplate(Staff staff)
     {
-        var workingDays = staff.WorkingDays.Any() ? string.Join(", ", staff.WorkingDays) : "To be determined";
-        var shiftTime = (!string.IsNullOrEmpty(staff.ShiftStartTime) && !string.IsNullOrEmpty(staff.ShiftEndTime)) 
-            ? $"{staff.ShiftStartTime} - {staff.ShiftEndTime}" 
+        var workingDays = staff.Shifts.Any() 
+            ? string.Join(", ", staff.Shifts.Select(s => s.DayOfWeek).Distinct()) 
+            : "To be determined";
+        var shiftTime = staff.Shifts.Any() 
+            ? string.Join(", ", staff.Shifts.Select(s => $"{s.DayOfWeek}: {s.StartTime} - {s.EndTime}").Distinct()) 
             : "To be determined";
         
         // Get bonus info from database configuration
@@ -816,9 +818,11 @@ Maa Tara Cafe Team
 
     private string GetStaffWelcomePlainText(Staff staff)
     {
-        var workingDays = staff.WorkingDays.Any() ? string.Join(", ", staff.WorkingDays) : "To be determined";
-        var shiftTime = (!string.IsNullOrEmpty(staff.ShiftStartTime) && !string.IsNullOrEmpty(staff.ShiftEndTime)) 
-            ? $"{staff.ShiftStartTime} - {staff.ShiftEndTime}" 
+        var workingDays = staff.Shifts.Any() 
+            ? string.Join(", ", staff.Shifts.Select(s => s.DayOfWeek).Distinct()) 
+            : "To be determined";
+        var shiftTime = staff.Shifts.Any() 
+            ? string.Join(", ", staff.Shifts.Select(s => $"{s.DayOfWeek}: {s.StartTime} - {s.EndTime}").Distinct()) 
             : "To be determined";
         
         // Get bonus info from database configuration

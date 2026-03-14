@@ -5,6 +5,7 @@ import { environment } from '../../environments/environment';
 import {
   Staff,
   StaffStatistics,
+  StaffShift,
   UpdateSalaryRequest,
   UpdatePerformanceRatingRequest,
   UpdateLeaveBalancesRequest
@@ -141,6 +142,44 @@ export class StaffService {
     const request: UpdateLeaveBalancesRequest = { annualLeave, sickLeave, casualLeave };
     return this.http.patch<ApiResponse<any>>(`${this.apiUrl}/${staffId}/leave-balances`, request).pipe(
       map(response => response.data)
+    );
+  }
+
+  // Shift Management Methods
+
+  /**
+   * Get all shifts for a staff member
+   */
+  getStaffShifts(staffId: string): Observable<StaffShift[]> {
+    return this.http.get<ApiResponse<StaffShift[]>>(`${this.apiUrl}/${staffId}/shifts`).pipe(
+      map(response => response.data)
+    );
+  }
+
+  /**
+   * Add a new shift to staff member
+   */
+  addStaffShift(staffId: string, shift: Partial<StaffShift>): Observable<StaffShift> {
+    return this.http.post<ApiResponse<StaffShift>>(`${this.apiUrl}/${staffId}/shifts`, shift).pipe(
+      map(response => response.data)
+    );
+  }
+
+  /**
+   * Update a specific shift
+   */
+  updateStaffShift(staffId: string, shiftId: string, shift: Partial<StaffShift>): Observable<StaffShift> {
+    return this.http.put<ApiResponse<StaffShift>>(`${this.apiUrl}/${staffId}/shifts/${shiftId}`, shift).pipe(
+      map(response => response.data)
+    );
+  }
+
+  /**
+   * Delete a shift
+   */
+  deleteStaffShift(staffId: string, shiftId: string): Observable<any> {
+    return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/${staffId}/shifts/${shiftId}`).pipe(
+      map(response => response)
     );
   }
 }

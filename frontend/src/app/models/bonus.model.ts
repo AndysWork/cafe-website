@@ -55,6 +55,7 @@ export interface BonusCalculation {
   bonusPercentage: number; // Percentage of base salary
   bonusAmount: number; // Actual bonus amount
   baseSalary: number;
+  totalPayAmount?: number; // Total pay including bonus
 
   // Status
   status: 'pending' | 'approved' | 'rejected' | 'paid';

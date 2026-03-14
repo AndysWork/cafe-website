@@ -17,11 +17,13 @@ public class LoyaltyFunction
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
+    private readonly IWhatsAppService _whatsApp;
 
-    public LoyaltyFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public LoyaltyFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
+        _whatsApp = whatsApp;
         _log = loggerFactory.CreateLogger<LoyaltyFunction>();
     }
 
@@ -236,6 +238,31 @@ public class LoyaltyFunction
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = redemptionResult.Message });
                 return badRequest;
+            }
+
+            // Send WhatsApp notification about reward redemption
+            try
+            {
+                var user = await _mongo.GetUserByIdAsync(userId);
+                if (user != null && !string.IsNullOrEmpty(user.PhoneNumber))
+                {
+                    var notificationMessage = !string.IsNullOrWhiteSpace(redemptionResult.Message)
+                        ? redemptionResult.Message
+                        : "Redeemed a reward";
+                    
+                    await _whatsApp.SendLoyaltyNotificationAsync(
+                        user.PhoneNumber,
+                        redemptionResult.Account?.Username ?? "Customer",
+                        0, // No new points earned
+                        redemptionResult.Account?.TotalPointsEarned ?? 0,
+                        notificationMessage
+                    );
+                }
+            }
+            catch (Exception whatsAppEx)
+            {
+                _log.LogWarning(whatsAppEx, "Failed to send WhatsApp notification for reward redemption");
+                // Don't fail the redemption if WhatsApp sending fails
             }
 
             // Calculate next tier info

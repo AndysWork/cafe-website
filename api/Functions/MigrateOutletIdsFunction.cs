@@ -23,12 +23,12 @@ public class MigrateOutletIdsFunction
 
     /// <summary>
     /// Migrates existing records without OutletId to a specified outlet.
-    /// POST /api/admin/migrate-outlet-ids
+    /// POST /api/migration/outlet-ids
     /// Body: { "outletId": "outlet-id-here" }
     /// </summary>
     [Function("MigrateOutletIds")]
     public async Task<HttpResponseData> MigrateOutletIds(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/migrate-outlet-ids")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "migration/outlet-ids")] HttpRequestData req)
     {
         try
         {
@@ -145,11 +145,11 @@ public class MigrateOutletIdsFunction
 
     /// <summary>
     /// Gets migration status - counts records with and without outlet IDs
-    /// GET /api/admin/migrate-outlet-ids/status
+    /// GET /api/migration/status
     /// </summary>
     [Function("GetMigrationStatus")]
     public async Task<HttpResponseData> GetMigrationStatus(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "admin/migrate-outlet-ids/status")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "migration/status")] HttpRequestData req)
     {
         try
         {

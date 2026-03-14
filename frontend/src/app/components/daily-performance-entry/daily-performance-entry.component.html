@@ -82,14 +82,9 @@
           <tr>
             <th class="sticky-col">Staff</th>
             <th>Position</th>
-            <th>In Time</th>
-            <th>Out Time</th>
-            <th>Hours</th>
+            <th>Shifts</th>
+            <th>Total Hours</th>
             <th>Total Orders</th>
-            <th>Good Orders</th>
-            <th>Bad Orders</th>
-            <th>Refund Recovery</th>
-            <th>Notes</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -108,111 +103,108 @@
               <span class="position-badge">{{ row.staff.position }}</span>
             </td>
 
-            <!-- In Time -->
-            <td>
-              <input
-                type="time"
-                [(ngModel)]="row.entry.inTime"
-                (ngModelChange)="markAsEdited(row)"
-                class="form-control time-input"
-                [class.invalid]="!row.entry.inTime && row.isEdited">
+            <!-- Shifts Summary -->
+            <td class="shifts-cell">
+              <div class="shifts-header">
+                <div class="shift-count-badge" [class.empty]="row.currentShifts.length === 0">
+                  <i class="fas fa-calendar-day"></i>
+                  <span>{{ row.currentShifts.length }}</span>
+                </div>
+                <button
+                  class="btn-add-shift"
+                  (click)="openAddShiftModal(row)"
+                  title="Add new shift">
+                  <i class="fas fa-plus-circle"></i>
+                  <span>Add Shift</span>
+                </button>
+              </div>
+
+              <!-- Shifts List -->
+              <div *ngIf="row.currentShifts.length > 0" class="shifts-list">
+                <div *ngFor="let shift of row.currentShifts; let i = index" class="shift-card">
+                  <div class="shift-header-row">
+                    <div class="shift-name">
+                      <i class="fas fa-briefcase"></i>
+                      <strong>{{ shift.shiftName }}</strong>
+                    </div>
+                    <div class="shift-actions">
+                      <button
+                        class="action-btn edit"
+                        (click)="openEditShiftModal(row, i)"
+                        title="Edit shift">
+                        <i class="fas fa-edit"></i>
+                      </button>
+                      <button
+                        class="action-btn delete"
+                        (click)="deleteShift(row, i)"
+                        title="Delete shift">
+                        <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="shift-details-row">
+                    <div class="detail-item time">
+                      <i class="fas fa-clock"></i>
+                      <span>{{ shift.inTime }} - {{ shift.outTime }}</span>
+                      <small *ngIf="shift.workingHours">({{ shift.workingHours }}h)</small>
+                    </div>
+                  </div>
+                  <div class="shift-metrics-row">
+                    <div class="metric total">
+                      <i class="fas fa-clipboard-list"></i>
+                      <span>{{ shift.totalOrdersPrepared }}</span>
+                    </div>
+                    <div class="metric success">
+                      <i class="fas fa-check-circle"></i>
+                      <span>{{ shift.goodOrdersCount }}</span>
+                    </div>
+                    <div class="metric danger">
+                      <i class="fas fa-times-circle"></i>
+                      <span>{{ shift.badOrdersCount }}</span>
+                    </div>
+                    <div class="metric refund" *ngIf="shift.refundAmountRecovery > 0">
+                      <i class="fas fa-rupee-sign"></i>
+                      <span>{{ shift.refundAmountRecovery }}</span>
+                    </div>
+                  </div>
+                  <div class="shift-notes" *ngIf="shift.notes">
+                    <i class="fas fa-sticky-note"></i>
+                    <small>{{ shift.notes }}</small>
+                  </div>
+                </div>
+              </div>
+
+              <div *ngIf="row.currentShifts.length === 0" class="no-shifts-message">
+                <i class="fas fa-info-circle"></i>
+                <span>No shifts added yet</span>
+              </div>
             </td>
 
-            <!-- Out Time -->
-            <td>
-              <input
-                type="time"
-                [(ngModel)]="row.entry.outTime"
-                (ngModelChange)="markAsEdited(row)"
-                class="form-control time-input"
-                [class.invalid]="!row.entry.outTime && row.isEdited">
-            </td>
-
-            <!-- Working Hours (calculated) -->
+            <!-- Total Hours (sum of all shifts) -->
             <td class="hours-cell">
-              <span class="hours-badge" *ngIf="row.entry.workingHours">
-                {{ row.entry.workingHours }} hrs
+              <span class="hours-badge" *ngIf="getTotalShiftHours(row) > 0">
+                {{ getTotalShiftHours(row).toFixed(2) }} hrs
               </span>
-              <span class="hours-badge empty" *ngIf="!row.entry.workingHours">-</span>
+              <span class="hours-badge empty" *ngIf="getTotalShiftHours(row) === 0">-</span>
             </td>
 
-            <!-- Total Orders -->
-            <td>
-              <input
-                type="number"
-                [(ngModel)]="row.entry.totalOrdersPrepared"
-                (ngModelChange)="markAsEdited(row)"
-                class="form-control number-input"
-                min="0"
-                placeholder="0">
-            </td>
-
-            <!-- Good Orders -->
-            <td>
-              <input
-                type="number"
-                [(ngModel)]="row.entry.goodOrdersCount"
-                (ngModelChange)="markAsEdited(row)"
-                class="form-control number-input good"
-                min="0"
-                placeholder="0">
-            </td>
-
-            <!-- Bad Orders -->
-            <td>
-              <input
-                type="number"
-                [(ngModel)]="row.entry.badOrdersCount"
-                (ngModelChange)="markAsEdited(row)"
-                class="form-control number-input bad"
-                min="0"
-                placeholder="0">
-            </td>
-
-            <!-- Refund Recovery -->
-            <td>
-              <input
-                type="number"
-                [(ngModel)]="row.entry.refundAmountRecovery"
-                (ngModelChange)="markAsEdited(row)"
-                class="form-control number-input currency"
-                min="0"
-                step="0.01"
-                placeholder="0.00">
-            </td>
-
-            <!-- Notes -->
-            <td>
-              <input
-                type="text"
-                [(ngModel)]="row.entry.notes"
-                (ngModelChange)="markAsEdited(row)"
-                class="form-control notes-input"
-                placeholder="Optional notes...">
+            <!-- Total Orders (sum of all shifts) -->
+            <td class="orders-cell">
+              <span class="orders-badge" *ngIf="getTotalShiftOrders(row) > 0">
+                {{ getTotalShiftOrders(row) }} orders
+              </span>
+              <span class="orders-badge empty" *ngIf="getTotalShiftOrders(row) === 0">-</span>
             </td>
 
             <!-- Actions -->
             <td class="actions-cell">
               <div class="action-buttons">
                 <button
-                  class="btn btn-sm btn-success"
-                  (click)="saveIndividual(row)"
-                  [disabled]="isSaving || !row.isEdited"
-                  title="Save this entry">
-                  <i class="fas fa-check"></i>
-                </button>
-                <button
-                  class="btn btn-sm btn-secondary"
-                  (click)="fillDefaults(row)"
-                  title="Fill default values">
-                  <i class="fas fa-magic"></i>
-                </button>
-                <button
                   class="btn btn-sm btn-danger"
                   (click)="clearRow(row)"
-                  [disabled]="!row.entry.inTime && !row.entry.outTime"
-                  title="Clear this row">
-                  <i class="fas fa-times"></i>
+                  [disabled]="row.currentShifts.length === 0"
+                  title="Clear all shifts">
+                  <i class="fas fa-times"></i> Clear
                 </button>
               </div>
             </td>
@@ -233,13 +225,122 @@
   <div class="instructions-card" *ngIf="!isLoading && staffPerformanceRows.length > 0">
     <h4><i class="fas fa-info-circle"></i> Instructions</h4>
     <ul>
-      <li><strong>In/Out Time:</strong> Enter the staff's clock-in and clock-out times. Working hours will be calculated automatically.</li>
-      <li><strong>Orders:</strong> Total orders should equal or exceed good orders + bad orders.</li>
-      <li><strong>Refund Recovery:</strong> Enter the amount recovered from staff for order refunds (if applicable).</li>
-      <li><strong>Fill Defaults:</strong> Click the magic wand icon to fill default times (9 AM - 6 PM).</li>
-      <li><strong>Save Individual:</strong> Click the check icon to save a single staff entry.</li>
-      <li><strong>Save All:</strong> Click "Save All Changes" button at the top to save all edited entries at once.</li>
-      <li><strong>Data Persistence:</strong> Previously entered data will load automatically when you select a date.</li>
+      <li><strong>Multiple Shifts:</strong> Staff can have multiple shifts per day. Click "Add Shift" to create a new shift entry.</li>
+      <li><strong>Shift Details:</strong> Each shift includes name, in/out times, order counts (good/bad), and refund recovery amounts.</li>
+      <li><strong>Working Hours:</strong> Automatically calculated from shift times. Supports overnight shifts.</li>
+      <li><strong>Edit/Delete:</strong> Use the icons next to each shift to modify or remove it.</li>
+      <li><strong>Total Summary:</strong> Total hours and orders are automatically summed from all shifts.</li>
+      <li><strong>Data Persistence:</strong> Previously entered shifts will load automatically when you select a date.</li>
     </ul>
   </div>
 </div>
+
+<!-- Shift Modal -->
+<div class="modal-overlay" *ngIf="showShiftModal" (click)="closeShiftModal()">
+  <div class="modal-dialog shift-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>
+        <i class="fas fa-calendar-day"></i>
+        {{ shiftModalMode === 'create' ? 'Add New Shift' : 'Edit Shift' }}
+        <span *ngIf="selectedRow" class="staff-name-subtitle">
+          for {{ getStaffName(selectedRow.staff) }}
+        </span>
+      </h2>
+      <button class="close-btn" (click)="closeShiftModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Shift Name <span class="required">*</span></label>
+          <input
+            type="text"
+            [(ngModel)]="shiftForm.shiftName"
+            class="form-control"
+            placeholder="e.g., Morning Shift, Evening Shift, Lunch Service">
+        </div>
+
+        <div class="form-group">
+          <label>In Time <span class="required">*</span></label>
+          <input
+            type="time"
+            [(ngModel)]="shiftForm.inTime"
+            class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label>Out Time <span class="required">*</span></label>
+          <input
+            type="time"
+            [(ngModel)]="shiftForm.outTime"
+            class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label>Total Orders Prepared</label>
+          <input
+            type="number"
+            [(ngModel)]="shiftForm.totalOrdersPrepared"
+            class="form-control"
+            min="0"
+            placeholder="0">
+        </div>
+
+        <div class="form-group">
+          <label>Good Orders</label>
+          <input
+            type="number"
+            [(ngModel)]="shiftForm.goodOrdersCount"
+            class="form-control"
+            min="0"
+            placeholder="0">
+        </div>
+
+        <div class="form-group">
+          <label>Bad Orders</label>
+          <input
+            type="number"
+            [(ngModel)]="shiftForm.badOrdersCount"
+            class="form-control"
+            min="0"
+            placeholder="0">
+        </div>
+
+        <div class="form-group full-width">
+          <label>Refund Recovery Amount (₹)</label>
+          <input
+            type="number"
+            [(ngModel)]="shiftForm.refundAmountRecovery"
+            class="form-control"
+            min="0"
+            step="0.01"
+            placeholder="0.00">
+        </div>
+
+        <div class="form-group full-width">
+          <label>Notes</label>
+          <textarea
+            [(ngModel)]="shiftForm.notes"
+            class="form-control"
+            rows="3"
+            placeholder="Additional notes about this shift..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="closeShiftModal()">
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="saveShift()">
+        {{ shiftModalMode === 'create' ? 'Add Shift' : 'Update Shift' }}
+      </button>
+    </div>

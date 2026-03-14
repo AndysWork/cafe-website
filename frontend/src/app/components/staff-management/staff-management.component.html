@@ -4,10 +4,10 @@
     <h1>Staff Management</h1>
     <div class="header-actions">
       <button class="btn btn-primary" (click)="openCreateModal()">
-        ➕ Add Staff Member
+        <i class="fas fa-user-plus"></i> Add Staff Member
       </button>
       <button class="btn btn-secondary" (click)="exportToCSV()">
-        📥 Export CSV
+        <i class="fas fa-file-download"></i> Export CSV
       </button>
     </div>
   </div>
@@ -70,10 +70,10 @@
         placeholder="Search by name, email, or employee ID..."
         class="form-control">
       <button class="btn btn-primary" (click)="searchStaff()">
-        🔍 Search
+        <i class="fas fa-search"></i> Search
       </button>
       <button class="btn btn-secondary" (click)="clearSearch()" *ngIf="searchTerm">
-        ❌ Clear
+        <i class="fas fa-times"></i> Clear
       </button>
     </div>
     <div class="filters">
@@ -89,75 +89,137 @@
     ⏳ Loading...
   </div>
 
-  <!-- Staff Table -->
-  <div class="table-container" *ngIf="!isLoading">
-    <table class="staff-table">
-      <thead>
-        <tr>
-          <th>Employee ID</th>
-          <th>Name</th>
-          <th>Position</th>
-          <th>Department</th>
-          <th>Outlets</th>
-          <th>Email</th>
-          <th>Phone</th>
-          <th>Employment Type</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let staffMember of staff">
-          <td>{{ staffMember.employeeId }}</td>
-          <td>
-            <div class="staff-name">
-              <strong>{{ getFullName(staffMember) }}</strong>
+  <!-- Staff Cards -->
+  <div class="staff-cards-container" *ngIf="!isLoading">
+    <div class="staff-card" *ngFor="let staffMember of staff">
+      <!-- Card Header -->
+      <div class="card-header">
+        <div class="staff-avatar">
+          <i class="fas fa-user-circle"></i>
+        </div>
+        <div class="staff-info">
+          <h3 class="staff-name">{{ getFullName(staffMember) }}</h3>
+          <p class="employee-id">{{ staffMember.employeeId }}</p>
+        </div>
+        <div class="status-badge">
+          <span class="badge" [ngClass]="staffMember.isActive ? 'badge-active' : 'badge-inactive'">
+            {{ staffMember.isActive ? 'Active' : 'Inactive' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Card Body -->
+      <div class="card-body">
+        <div class="info-row">
+          <div class="info-item">
+            <i class="fas fa-briefcase"></i>
+            <div>
+              <label>Position</label>
+              <span>{{ staffMember.position }}</span>
             </div>
-          </td>
-          <td>{{ staffMember.position }}</td>
-          <td>{{ staffMember.department || 'N/A' }}</td>
-          <td>
-            <span class="outlets-list">{{ getOutletNames(staffMember.outletIds) }}</span>
-          </td>
-          <td>{{ staffMember.email }}</td>
-          <td>{{ staffMember.phoneNumber }}</td>
-          <td>
-            <span class="badge badge-{{ staffMember.employmentType.toLowerCase() }}">
-              {{ staffMember.employmentType }}
-            </span>
-          </td>
-          <td>
-            <span class="badge" [ngClass]="staffMember.isActive ? 'badge-active' : 'badge-inactive'">
-              {{ staffMember.isActive ? 'Active' : 'Inactive' }}
-            </span>
-          </td>
-          <td>
-            <div class="action-buttons">
-              <button class="btn-icon" (click)="openViewModal(staffMember)" title="View Details">
-                👁️
-              </button>
-              <button class="btn-icon" (click)="openEditModal(staffMember)" title="Edit">
-                ✏️
-              </button>
-              <button
-                class="btn-icon"
-                [ngClass]="staffMember.isActive ? 'btn-warning' : 'btn-success'"
-                (click)="toggleStaffStatus(staffMember)"
-                [title]="staffMember.isActive ? 'Deactivate' : 'Activate'">
-                <span *ngIf="staffMember.isActive">🚫</span>
-                <span *ngIf="!staffMember.isActive">✅</span>
-              </button>
-              <button class="btn-icon btn-danger" (click)="deleteStaff(staffMember)" title="Delete">
-                🗑️
-              </button>
+          </div>
+          <div class="info-item">
+            <i class="fas fa-building"></i>
+            <div>
+              <label>Department</label>
+              <span>{{ staffMember.department || 'N/A' }}</span>
             </div>
-          </td>
-        </tr>
-        <tr *ngIf="staff.length === 0">
-          <td colspan="9" class="no-data">No staff members found</td>
-        </tr>
-      </tbody>
-    </table>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <div class="info-item">
+            <i class="fas fa-store"></i>
+            <div>
+              <label>Outlets</label>
+              <span class="outlets-text">{{ getOutletNames(staffMember.outletIds) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <div class="info-item">
+            <i class="fas fa-envelope"></i>
+            <div>
+              <label>Email</label>
+              <span>{{ staffMember.email }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <div class="info-item">
+            <i class="fas fa-phone"></i>
+            <div>
+              <label>Phone</label>
+              <span>{{ staffMember.phoneNumber }}</span>
+            </div>
+          </div>
+          <div class="info-item">
+            <i class="fas fa-id-card"></i>
+            <div>
+              <label>Employment Type</label>
+              <span class="badge badge-{{ staffMember.employmentType.toLowerCase() }}">
+                {{ staffMember.employmentType }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Working Schedule Section -->
+        <div class="schedule-section" *ngIf="staffMember.shifts && staffMember.shifts.length > 0">
+          <div class="schedule-header">
+            <i class="fas fa-calendar-week"></i>
+            <label>Work Schedule</label>
+          </div>
+          <div class="schedule-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ getWorkingDaysPerWeek(staffMember) }}</span>
+              <span class="stat-label">Days/Week</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ getAverageHoursPerDay(staffMember).toFixed(1) }}</span>
+              <span class="stat-label">Avg Hrs/Day</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ getTotalHoursPerWeek(staffMember).toFixed(0) }}</span>
+              <span class="stat-label">Hrs/Week</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ getTotalHoursPerMonth(staffMember).toFixed(0) }}</span>
+              <span class="stat-label">Hrs/Month</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Footer -->
+      <div class="card-footer">
+        <button class="btn-card btn-view" (click)="openViewModal(staffMember)" title="View Details">
+          <i class="fas fa-eye"></i> View
+        </button>
+        <button class="btn-card btn-edit" (click)="openEditModal(staffMember)" title="Edit">
+          <i class="fas fa-edit"></i> Edit
+        </button>
+        <button
+          class="btn-card"
+          [ngClass]="staffMember.isActive ? 'btn-deactivate' : 'btn-activate'"
+          (click)="toggleStaffStatus(staffMember)"
+          [title]="staffMember.isActive ? 'Deactivate' : 'Activate'">
+          <i [class]="staffMember.isActive ? 'fas fa-ban' : 'fas fa-check-circle'"></i>
+          {{ staffMember.isActive ? 'Deactivate' : 'Activate' }}
+        </button>
+        <button class="btn-card btn-delete" (click)="deleteStaff(staffMember)" title="Delete">
+          <i class="fas fa-trash"></i> Delete
+        </button>
+      </div>
+    </div>
+
+    <!-- No Data Message -->
+    <div class="no-data-card" *ngIf="staff.length === 0">
+      <i class="fas fa-users"></i>
+      <p>No staff members found</p>
+    </div>
   </div>
 </div>
 
@@ -538,23 +600,69 @@
 
       <!-- Schedule Tab -->
       <div *ngIf="currentTab === 'schedule'" class="tab-content">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Shift Start Time</label>
-            <input
-              type="time"
-              [(ngModel)]="staffForm.shiftStartTime"
-              class="form-control"
-              [disabled]="modalMode === 'view'">
+        <!-- Shift Management Section -->
+        <div class="shift-section">
+          <div class="section-header">
+            <h3>Shift Schedule</h3>
+            <button
+              *ngIf="modalMode !== 'view'"
+              type="button"
+              class="btn btn-primary btn-sm"
+              (click)="openAddShiftModal()">
+              <i class="fas fa-plus"></i> Add Shift
+            </button>
           </div>
 
-          <div class="form-group">
-            <label>Shift End Time</label>
-            <input
-              type="time"
-              [(ngModel)]="staffForm.shiftEndTime"
-              class="form-control"
-              [disabled]="modalMode === 'view'">
+          <div *ngIf="currentShifts.length === 0" class="empty-state">
+            <i class="fas fa-calendar-alt"></i>
+            <p>No shifts configured yet. Click "Add Shift" to create a schedule.</p>
+          </div>
+
+          <div *ngIf="currentShifts.length > 0" class="shifts-list">
+            <div *ngFor="let shift of currentShifts; let i = index" class="shift-card" [class.inactive]="!shift.isActive">
+              <div class="shift-info">
+                <div class="shift-header">
+                  <h4>{{ shift.shiftName }}</h4>
+                  <span class="badge" [class.badge-success]="shift.isActive" [class.badge-secondary]="!shift.isActive">
+                    {{ shift.isActive ? 'Active' : 'Inactive' }}
+                  </span>
+                </div>
+                <div class="shift-details">
+                  <div class="detail-item">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>{{ shift.dayOfWeek }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <i class="fas fa-clock"></i>
+                    <span>{{ shift.startTime }} - {{ shift.endTime }}</span>
+                  </div>
+                  <div class="detail-item" *ngIf="shift.breakDuration">
+                    <i class="fas fa-coffee"></i>
+                    <span>Break: {{ shift.breakDuration }} min</span>
+                  </div>
+                  <div class="detail-item" *ngIf="shift.notes">
+                    <i class="fas fa-sticky-note"></i>
+                    <span>{{ shift.notes }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="shift-actions" *ngIf="modalMode !== 'view'">
+                <button
+                  type="button"
+                  class="btn btn-icon btn-edit"
+                  (click)="openEditShiftModal(i)"
+                  title="Edit Shift">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-icon btn-delete"
+                  (click)="deleteShift(i)"
+                  title="Delete Shift">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -645,6 +753,137 @@
         (click)="saveStaff()"
         [disabled]="isLoading">
         {{ isLoading ? 'Saving...' : (modalMode === 'create' ? 'Create' : 'Update') }}
+      </button>
+    </div>
+  </div>
+</div>
+<!-- Shift Modal -->
+<div class="modal-overlay" *ngIf="showShiftModal" (click)="closeShiftModal()">
+  <div class="modal-dialog shift-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>
+        <i class="fas fa-calendar-alt"></i>
+        {{ shiftModalMode === 'create' ? 'Add New Shift' : 'Edit Shift' }}
+      </h2>
+      <button class="close-btn" (click)="closeShiftModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="shift-form-container">
+        <!-- Shift Name -->
+        <div class="form-group full-width">
+          <label>Shift Name <span class="required">*</span></label>
+          <input
+            type="text"
+            [(ngModel)]="shiftForm.shiftName"
+            class="form-control"
+            placeholder="e.g., Morning Shift, Evening Shift">
+        </div>
+
+        <!-- Working Days Selection (Create Mode) -->
+        <div class="form-group full-width" *ngIf="shiftModalMode === 'create'">
+          <label>Working Days <span class="required">*</span></label>
+          <div class="days-selection">
+            <label *ngFor="let day of daysOfWeek" class="day-checkbox">
+              <input
+                type="checkbox"
+                [checked]="selectedWorkingDays.includes(day)"
+                (change)="toggleShiftWorkingDay(day)">
+              <span>{{ day }}</span>
+            </label>
+          </div>
+          <small class="form-hint">Select all days this shift applies to</small>
+        </div>
+
+        <!-- Day of Week (Edit Mode) -->
+        <div class="form-group" *ngIf="shiftModalMode === 'edit'">
+          <label>Day of Week</label>
+          <input
+            type="text"
+            [(ngModel)]="shiftForm.dayOfWeek"
+            class="form-control"
+            disabled>
+        </div>
+
+        <!-- Time Section -->
+        <div class="time-section">
+          <div class="form-group">
+            <label>Start Time <span class="required">*</span></label>
+            <input
+              type="time"
+              [(ngModel)]="shiftForm.startTime"
+              class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label>End Time <span class="required">*</span></label>
+            <input
+              type="time"
+              [(ngModel)]="shiftForm.endTime"
+              class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label>Break Duration (minutes)</label>
+            <input
+              type="number"
+              [(ngModel)]="shiftForm.breakDuration"
+              class="form-control"
+              min="0"
+              placeholder="e.g., 30">
+          </div>
+        </div>
+
+        <!-- Status and Outlet Row -->
+        <div class="status-outlet-section">
+          <div class="form-group status-group">
+            <label>Status</label>
+            <div class="switch-container">
+              <label class="switch">
+                <input type="checkbox" [(ngModel)]="shiftForm.isActive">
+                <span class="slider"></span>
+              </label>
+              <span class="switch-label">{{ shiftForm.isActive ? 'Active' : 'Inactive' }}</span>
+            </div>
+          </div>
+
+          <div class="form-group" *ngIf="outlets.length > 0">
+            <label>Outlet (Optional)</label>
+            <select [(ngModel)]="shiftForm.outletId" class="form-control">
+              <option value="">All Outlets</option>
+              <option *ngFor="let outlet of outlets" [value]="outlet.id || outlet._id">
+                {{ outlet.outletName }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group full-width">
+          <label>Notes</label>
+          <textarea
+            [(ngModel)]="shiftForm.notes"
+            class="form-control"
+            rows="3"
+            placeholder="Additional notes about this shift..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="closeShiftModal()">
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="saveShift()">
+        {{ shiftModalMode === 'create' ? 'Add Shift' : 'Update Shift' }}
       </button>
     </div>
   </div>

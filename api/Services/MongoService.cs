@@ -947,6 +947,19 @@ public partial class MongoService
     public async Task<Staff> CreateStaffAsync(Staff staff)
     {
         staff.CreatedAt = GetIstNow();
+        
+        // Clean up empty OutletId strings in Shifts (convert to null to avoid serialization errors)
+        if (staff.Shifts != null && staff.Shifts.Any())
+        {
+            foreach (var shift in staff.Shifts)
+            {
+                if (string.IsNullOrWhiteSpace(shift.OutletId))
+                {
+                    shift.OutletId = null;
+                }
+            }
+        }
+        
         await _staff.InsertOneAsync(staff);
         return staff;
     }
@@ -955,6 +968,19 @@ public partial class MongoService
     public async Task<bool> UpdateStaffAsync(string staffId, Staff updatedStaff)
     {
         updatedStaff.UpdatedAt = GetIstNow();
+        
+        // Clean up empty OutletId strings in Shifts (convert to null to avoid serialization errors)
+        if (updatedStaff.Shifts != null && updatedStaff.Shifts.Any())
+        {
+            foreach (var shift in updatedStaff.Shifts)
+            {
+                if (string.IsNullOrWhiteSpace(shift.OutletId))
+                {
+                    shift.OutletId = null;
+                }
+            }
+        }
+        
         var result = await _staff.ReplaceOneAsync(s => s.Id == staffId, updatedStaff);
         return result.ModifiedCount > 0;
     }
@@ -3302,16 +3328,11 @@ public partial class MongoService
 
     #region PriceForecast Operations
 
-    // Get all price forecasts
+    // Get all price forecasts (global - not outlet-specific)
     public async Task<List<PriceForecast>> GetPriceForecastsAsync(string? outletId = null)
     {
-        // If no outlet is selected, return empty list instead of all data
-        if (outletId == null)
-            return new List<PriceForecast>();
-        
-        var filter = Builders<PriceForecast>.Filter.Eq(p => p.OutletId, outletId);
-        
-        return await _priceForecasts.Find(filter).SortByDescending(p => p.CreatedDate).ToListAsync();
+        // Price forecasts are now global - return all forecasts regardless of outlet
+        return await _priceForecasts.Find(_ => true).SortByDescending(p => p.CreatedDate).ToListAsync();
     }
 
     // Get price forecasts by menu item ID
@@ -3352,32 +3373,52 @@ public partial class MongoService
         return result.DeletedCount > 0;
     }
 
-    // Finalize price forecast and update menu item
+    // Finalize price forecast and update menu item across ALL outlets
     public async Task<bool> FinalizePriceForecastAsync(string forecastId, string userId)
     {
         var forecast = await GetPriceForecastAsync(forecastId);
-        if (forecast == null || forecast.IsFinalized || string.IsNullOrEmpty(forecast.MenuItemId))
+        if (forecast == null || forecast.IsFinalized)
             return false;
 
-        // Get the menu item
-        var menuItem = await GetMenuItemAsync(forecast.MenuItemId);
-        if (menuItem == null)
-            return false;
+        // Get all menu items with the same name across ALL outlets
+        var filter = Builders<CafeMenuItem>.Filter.Eq(m => m.Name, forecast.MenuItemName);
+        var menuItems = await _menu.Find(filter).ToListAsync();
 
-        // Update menu item with forecast prices
-        menuItem.MakingPrice = forecast.MakePrice;
-        menuItem.PackagingCharge = forecast.PackagingCost;
-        menuItem.ShopSellingPrice = forecast.ShopPrice;
-        menuItem.OnlinePrice = forecast.OnlinePrice;
-        menuItem.LastUpdatedBy = userId;
-        menuItem.LastUpdated = GetIstNow();
+        if (menuItems == null || menuItems.Count == 0)
+        {
+            // If no menu items found by name, try to find by MenuItemId if available
+            if (!string.IsNullOrEmpty(forecast.MenuItemId))
+            {
+                var menuItem = await GetMenuItemAsync(forecast.MenuItemId);
+                if (menuItem != null)
+                    menuItems = new List<CafeMenuItem> { menuItem };
+            }
+            
+            if (menuItems == null || menuItems.Count == 0)
+                return false;
+        }
 
-        if (string.IsNullOrEmpty(menuItem.Id))
-            return false;
+        // Update ALL menu items with the same name across all outlets
+        foreach (var menuItem in menuItems)
+        {
+            menuItem.MakingPrice = forecast.MakePrice;
+            menuItem.PackagingCharge = forecast.PackagingCost;
+            menuItem.ShopSellingPrice = forecast.ShopPrice;
+            menuItem.OnlinePrice = forecast.OnlinePrice;
+            menuItem.LastUpdatedBy = userId;
+            menuItem.LastUpdated = GetIstNow();
+            
+            // Update future prices if set in forecast
+            if (forecast.FutureShopPrice.HasValue)
+                menuItem.FutureShopPrice = forecast.FutureShopPrice;
+            if (forecast.FutureOnlinePrice.HasValue)
+                menuItem.FutureOnlinePrice = forecast.FutureOnlinePrice;
 
-        var updateMenuItem = await UpdateMenuItemAsync(menuItem.Id, menuItem);
-        if (!updateMenuItem)
-            return false;
+            if (!string.IsNullOrEmpty(menuItem.Id))
+            {
+                await UpdateMenuItemAsync(menuItem.Id, menuItem);
+            }
+        }
 
         // Mark forecast as finalized
         forecast.IsFinalized = true;
@@ -3741,7 +3782,7 @@ public partial class MongoService
     public async Task<PriceForecast?> CopyPriceForecastFromOutletAsync(string menuItemName, string sourceOutletId, string targetOutletId)
     {
         var sourceForecast = await _priceForecasts
-            .Find(pf => pf.MenuItemName == menuItemName && pf.OutletId == sourceOutletId)
+            .Find(pf => pf.MenuItemName == menuItemName)
             .FirstOrDefaultAsync();
         
         if (sourceForecast == null) return null;
@@ -3750,7 +3791,7 @@ public partial class MongoService
         {
             MenuItemId = sourceForecast.MenuItemId,
             MenuItemName = sourceForecast.MenuItemName,
-            OutletId = targetOutletId,
+            // OutletId is deprecated - price forecasts are global
             MakePrice = sourceForecast.MakePrice,
             PackagingCost = sourceForecast.PackagingCost,
             ShopPrice = sourceForecast.ShopPrice,
@@ -4114,9 +4155,9 @@ public partial class MongoService
                     Console.WriteLine($"[Recipe Copy]    - Overhead Costs: ₹{totalOverheadCost}");
                     
                     // Update menu item shop price for this outlet
-                    if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem.Id))
+                    if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem?.Id))
                     {
-                        await UpdateMenuItemShopPriceAsync(menuItem.Id, priceForecast.ShopPrice);
+                        await UpdateMenuItemShopPriceAsync(menuItem.Id!, priceForecast.ShopPrice);
                         Console.WriteLine($"[Recipe Copy]    - Updated menu item shop price: ₹{priceForecast.ShopPrice}");
                     }
                 }
@@ -4136,7 +4177,7 @@ public partial class MongoService
                     var newRecipe = new MenuItemRecipe
                     {
                         MenuItemName = sourceRecipe.MenuItemName,
-                        MenuItemId = menuItem.Id,
+                        MenuItemId = menuItem?.Id,
                         OutletId = outlet.Id,
                         Ingredients = sourceRecipe.Ingredients,
                         OverheadCosts = overheadCosts,
@@ -4163,9 +4204,9 @@ public partial class MongoService
                     Console.WriteLine($"[Recipe Copy]    - Overhead Costs: ₹{totalOverheadCost}");
                     
                     // Update menu item shop price for this outlet
-                    if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem.Id))
+                    if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem?.Id))
                     {
-                        await UpdateMenuItemShopPriceAsync(menuItem.Id, priceForecast.ShopPrice);
+                        await UpdateMenuItemShopPriceAsync(menuItem.Id!, priceForecast.ShopPrice);
                         Console.WriteLine($"[Recipe Copy]    - Updated menu item shop price: ₹{priceForecast.ShopPrice}");
                     }
                 }

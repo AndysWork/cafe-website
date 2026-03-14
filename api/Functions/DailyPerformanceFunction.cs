@@ -194,7 +194,7 @@ public class DailyPerformanceFunction
             }
 
             // Validate request
-            if (string.IsNullOrEmpty(request.StaffId) || 
+            if (string.IsNullOrEmpty(request.StaffId) ||
                 string.IsNullOrEmpty(request.Date) ||
                 string.IsNullOrEmpty(request.InTime) ||
                 string.IsNullOrEmpty(request.OutTime))
@@ -307,4 +307,165 @@ public class DailyPerformanceFunction
             return errorRes;
         }
     }
+
+    #region Performance Shift Management
+
+    [Function("AddPerformanceShift")]
+    [OpenApiOperation(operationId: "AddPerformanceShift", tags: new[] { "DailyPerformance" })]
+    [OpenApiParameter(name: "entryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Entry ID")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(PerformanceShift), Description = "Shift data", Required = true)]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(PerformanceShift), Description = "The created shift")]
+    public async Task<HttpResponseData> AddPerformanceShift(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "dailyperformance/{entryId}/shifts")] HttpRequestData req,
+        string entryId)
+    {
+        _logger.LogInformation($"Adding shift to performance entry: {entryId}");
+
+        try
+        {
+            var (isAuthorized, adminUserId, user, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            var shift = JsonSerializer.Deserialize<PerformanceShift>(
+                requestBody,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (shift == null)
+            {
+                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid shift data" });
+                return badReqRes;
+            }
+
+            var createdShift = await _mongo.AddPerformanceShiftAsync(entryId, shift);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(createdShift);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding performance shift");
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            return errorRes;
+        }
+    }
+
+    [Function("UpdatePerformanceShift")]
+    [OpenApiOperation(operationId: "UpdatePerformanceShift", tags: new[] { "DailyPerformance" })]
+    [OpenApiParameter(name: "entryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Entry ID")]
+    [OpenApiParameter(name: "shiftId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Shift ID")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(PerformanceShift), Description = "Updated shift data", Required = true)]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(PerformanceShift), Description = "The updated shift")]
+    public async Task<HttpResponseData> UpdatePerformanceShift(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "dailyperformance/{entryId}/shifts/{shiftId}")] HttpRequestData req,
+        string entryId,
+        string shiftId)
+    {
+        _logger.LogInformation($"Updating shift {shiftId} in entry {entryId}");
+
+        try
+        {
+            var (isAuthorized, adminUserId, user, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            var shift = JsonSerializer.Deserialize<PerformanceShift>(
+                requestBody,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (shift == null)
+            {
+                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid shift data" });
+                return badReqRes;
+            }
+
+            var updatedShift = await _mongo.UpdatePerformanceShiftAsync(entryId, shiftId, shift);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(updatedShift);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating performance shift");
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            return errorRes;
+        }
+    }
+
+    [Function("DeletePerformanceShift")]
+    [OpenApiOperation(operationId: "DeletePerformanceShift", tags: new[] { "DailyPerformance" })]
+    [OpenApiParameter(name: "entryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Entry ID")]
+    [OpenApiParameter(name: "shiftId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Shift ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Success response")]
+    public async Task<HttpResponseData> DeletePerformanceShift(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "dailyperformance/{entryId}/shifts/{shiftId}")] HttpRequestData req,
+        string entryId,
+        string shiftId)
+    {
+        _logger.LogInformation($"Deleting shift {shiftId} from entry {entryId}");
+
+        try
+        {
+            var (isAuthorized, adminUserId, user, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var success = await _mongo.DeletePerformanceShiftAsync(entryId, shiftId);
+
+            if (!success)
+            {
+                var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Shift not found" });
+                return notFoundRes;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Shift deleted successfully" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting performance shift");
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            return errorRes;
+        }
+    }
+
+    [Function("GetPerformanceShifts")]
+    [OpenApiOperation(operationId: "GetPerformanceShifts", tags: new[] { "DailyPerformance" })]
+    [OpenApiParameter(name: "entryId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Entry ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<PerformanceShift>), Description = "List of shifts")]
+    public async Task<HttpResponseData> GetPerformanceShifts(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dailyperformance/{entryId}/shifts")] HttpRequestData req,
+        string entryId)
+    {
+        _logger.LogInformation($"Getting shifts for entry: {entryId}");
+
+        try
+        {
+            var (isAuthorized, adminUserId, user, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var shifts = await _mongo.GetPerformanceShiftsAsync(entryId);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(shifts);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting performance shifts");
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            return errorRes;
+        }
+    }
 }
+
+    #endregion

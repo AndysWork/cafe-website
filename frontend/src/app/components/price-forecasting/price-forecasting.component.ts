@@ -4,9 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { PriceForecastService, PriceForecast, PriceHistory } from '../../services/price-forecast.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { DiscountCouponService, DiscountCoupon } from '../../services/discount-coupon.service';
-import { OutletService } from '../../services/outlet.service';
-import { Subscription } from 'rxjs';
-import { filter } from 'rxjs/operators';
 
 @Component({
   selector: 'app-price-forecasting',
@@ -16,9 +13,6 @@ import { filter } from 'rxjs/operators';
   styleUrls: ['./price-forecasting.component.scss']
 })
 export class PriceForecastingComponent implements OnInit, OnDestroy {
-  private outletService = inject(OutletService);
-  private outletSubscription?: Subscription;
-
   forecasts: PriceForecast[] = [];
   menuItems: MenuItem[] = [];
   activeCoupons: DiscountCoupon[] = [];
@@ -40,25 +34,14 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    // Subscribe to outlet changes
-    this.outletSubscription = this.outletService.selectedOutlet$
-      .pipe(filter(outlet => outlet !== null))
-      .subscribe(() => {
-        this.loadMenuItems();
-        this.loadForecasts();
-        this.loadActiveCoupons();
-      });
-
-    // Load immediately if outlet is already selected
-    if (this.outletService.getSelectedOutlet()) {
-      this.loadMenuItems();
-      this.loadForecasts();
-      this.loadActiveCoupons();
-    }
+    // Price forecasts are global - load data once on component init
+    this.loadMenuItems();
+    this.loadForecasts();
+    this.loadActiveCoupons();
   }
 
   ngOnDestroy(): void {
-    this.outletSubscription?.unsubscribe();
+    // Cleanup if needed
   }
 
   loadActiveCoupons() {
@@ -88,7 +71,6 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
 
   loadForecasts() {
     this.loading = true;
-    // Reset data when loading new outlet
     this.forecasts = [];
 
     this.forecastService.getPriceForecasts().subscribe({
@@ -344,10 +326,10 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
   }
 
   finalizeForecast(id: string) {
-    if (confirm('Are you sure you want to finalize this price forecast? This will update the menu item prices and cannot be undone.')) {
+    if (confirm('⚠️ IMPORTANT: This will update prices for ALL OUTLETS!\n\nAre you sure you want to finalize this price forecast?\n\nThis action will:\n• Update menu item prices across ALL outlets\n• Cannot be undone\n• Apply the new pricing globally\n\nClick OK to proceed or Cancel to abort.')) {
       this.forecastService.finalizePriceForecast(id).subscribe({
         next: () => {
-          alert('Price forecast finalized successfully! Menu item prices have been updated.');
+          alert('✅ Price forecast finalized successfully!\n\nMenu item prices have been updated across ALL outlets.');
           this.loadForecasts();
         },
         error: (err) => {

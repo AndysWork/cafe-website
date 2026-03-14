@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { StaffService } from '../../services/staff.service';
 import { OutletService } from '../../services/outlet.service';
-import { Staff, StaffStatistics, EMPLOYMENT_TYPES, COMMON_POSITIONS, DEPARTMENTS, DAYS_OF_WEEK, SALARY_TYPES, GENDERS, DOCUMENT_TYPES } from '../../models/staff.model';
+import { Staff, StaffStatistics, StaffShift, EMPLOYMENT_TYPES, COMMON_POSITIONS, DEPARTMENTS, DAYS_OF_WEEK, SALARY_TYPES, GENDERS, DOCUMENT_TYPES } from '../../models/staff.model';
 import { Outlet } from '../../models/outlet.model';
 
 @Component({
@@ -40,6 +40,14 @@ export class StaffManagementComponent implements OnInit {
 
   // Form data
   staffForm: Partial<Staff> = this.getEmptyForm();
+
+  // Shift management
+  currentShifts: StaffShift[] = [];
+  showShiftModal = false;
+  shiftModalMode: 'create' | 'edit' = 'create';
+  selectedShiftIndex: number = -1;
+  shiftForm: Partial<StaffShift> = this.getEmptyShiftForm();
+  selectedWorkingDays: string[] = [];
 
   // Constants for dropdowns
   employmentTypes = EMPLOYMENT_TYPES;
@@ -78,6 +86,7 @@ export class StaffManagementComponent implements OnInit {
       salaryType: 'Monthly',
       outletIds: [],
       workingDays: [],
+      shifts: [],
       documents: [],
       skills: [],
       annualLeaveBalance: 0,
@@ -176,6 +185,7 @@ export class StaffManagementComponent implements OnInit {
     this.staffForm = this.getEmptyForm();
     this.selectedStaff = null;
     this.currentTab = 'basic';
+    this.currentShifts = [];
     this.showModal = true;
   }
 
@@ -184,6 +194,7 @@ export class StaffManagementComponent implements OnInit {
     this.selectedStaff = staff;
     this.staffForm = { ...staff };
     this.currentTab = 'basic';
+    this.currentShifts = staff.shifts ? [...staff.shifts] : [];
     this.showModal = true;
   }
 
@@ -192,6 +203,7 @@ export class StaffManagementComponent implements OnInit {
     this.selectedStaff = staff;
     this.staffForm = { ...staff };
     this.currentTab = 'basic';
+    this.currentShifts = staff.shifts ? [...staff.shifts] : [];
     this.showModal = true;
   }
 
@@ -208,6 +220,10 @@ export class StaffManagementComponent implements OnInit {
     }
 
     this.isLoading = true;
+
+    // Include shifts in the form data
+    this.staffForm.shifts = this.currentShifts;
+
     const saveObservable = this.modalMode === 'create'
       ? this.staffService.createStaff(this.staffForm)
       : this.staffService.updateStaff(this.selectedStaff!.id || this.selectedStaff!._id!, this.staffForm);
@@ -420,5 +436,271 @@ export class StaffManagementComponent implements OnInit {
 
   isOutletSelected(outletId: string): boolean {
     return this.staffForm.outletIds?.includes(outletId) || false;
+  }
+
+  // Shift Management Methods
+
+  private getEmptyShiftForm(): Partial<StaffShift> {
+    return {
+      shiftName: '',
+      dayOfWeek: '',
+      startTime: '09:00',
+      endTime: '17:00',
+      breakDuration: 0,
+      isActive: true,
+      notes: ''
+    };
+  }
+
+  openAddShiftModal(): void {
+    this.shiftModalMode = 'create';
+    this.shiftForm = this.getEmptyShiftForm();
+    this.selectedShiftIndex = -1;
+    this.selectedWorkingDays = [];
+    this.showShiftModal = true;
+  }
+
+  openEditShiftModal(index: number): void {
+    this.shiftModalMode = 'edit';
+    this.selectedShiftIndex = index;
+    this.shiftForm = { ...this.currentShifts[index] };
+    this.showShiftModal = true;
+  }
+
+  closeShiftModal(): void {
+    this.showShiftModal = false;
+    this.shiftForm = this.getEmptyShiftForm();
+    this.selectedShiftIndex = -1;
+    this.selectedWorkingDays = [];
+  }
+
+  toggleShiftWorkingDay(day: string): void {
+    const index = this.selectedWorkingDays.indexOf(day);
+    if (index > -1) {
+      this.selectedWorkingDays.splice(index, 1);
+    } else {
+      this.selectedWorkingDays.push(day);
+    }
+  }
+
+  saveShift(): void {
+    if (!this.shiftForm.startTime || !this.shiftForm.endTime) {
+      this.errorMessage = 'Please fill in shift start and end time';
+      return;
+    }
+
+    if (this.shiftModalMode === 'create') {
+      // Validate working days selection
+      if (!this.selectedWorkingDays || this.selectedWorkingDays.length === 0) {
+        this.errorMessage = 'Please select at least one working day';
+        return;
+      }
+
+      // Create shifts for all selected working days
+      const newShifts: StaffShift[] = this.selectedWorkingDays.map(day => ({
+        shiftName: this.shiftForm.shiftName || `${day} Shift`,
+        dayOfWeek: day,
+        startTime: this.shiftForm.startTime!,
+        endTime: this.shiftForm.endTime!,
+        breakDuration: this.shiftForm.breakDuration || 0,
+        isActive: this.shiftForm.isActive !== undefined ? this.shiftForm.isActive : true,
+        outletId: this.shiftForm.outletId || null,
+        notes: this.shiftForm.notes || ''
+      } as StaffShift));
+
+      if (this.modalMode === 'create') {
+        // For new staff, just add to the temporary array
+        this.currentShifts.push(...newShifts);
+        this.closeShiftModal();
+        this.successMessage = `${newShifts.length} shift(s) added (will be saved when staff is created)`;
+        setTimeout(() => this.successMessage = '', 3000);
+      } else if (this.modalMode === 'edit' && this.selectedStaff?.id) {
+        // For existing staff, save each shift to the API
+        const staffId = this.selectedStaff.id;
+        if (!staffId) {
+          this.errorMessage = 'Invalid staff ID. Please refresh and try again.';
+          return;
+        }
+
+        let addedCount = 0;
+        let errors = 0;
+        newShifts.forEach(shift => {
+          this.staffService.addStaffShift(staffId, shift).subscribe({
+            next: (addedShift) => {
+              this.currentShifts.push(addedShift);
+              addedCount++;
+              if (addedCount + errors === newShifts.length) {
+                this.closeShiftModal();
+                if (errors === 0) {
+                  this.successMessage = `${addedCount} shift(s) added successfully`;
+                } else {
+                  this.successMessage = `${addedCount} shift(s) added, ${errors} failed`;
+                }
+                setTimeout(() => this.successMessage = '', 3000);
+              }
+            },
+            error: (error) => {
+              errors++;
+              console.error('Error adding shift:', error);
+              if (addedCount + errors === newShifts.length) {
+                this.closeShiftModal();
+                this.errorMessage = `Failed to add some shifts. Added: ${addedCount}, Failed: ${errors}`;
+                setTimeout(() => this.errorMessage = '', 3000);
+              }
+            }
+          });
+        });
+      }
+    } else if (this.shiftModalMode === 'edit') {
+      // Edit mode - single day, no working days selection
+      if (!this.shiftForm.dayOfWeek) {
+        this.errorMessage = 'Day of week is required';
+        return;
+      }
+
+      if (this.modalMode === 'create') {
+        this.currentShifts[this.selectedShiftIndex] = this.shiftForm as StaffShift;
+        this.closeShiftModal();
+        this.successMessage = 'Shift updated (will be saved when staff is created)';
+        setTimeout(() => this.successMessage = '', 3000);
+      } else if (this.modalMode === 'edit' && this.selectedStaff?.id) {
+        this.staffService.updateStaffShift(this.selectedStaff.id, this.currentShifts[this.selectedShiftIndex].id!, this.shiftForm).subscribe({
+          next: (shift) => {
+            this.currentShifts[this.selectedShiftIndex] = shift;
+            this.closeShiftModal();
+            this.successMessage = 'Shift updated successfully';
+            setTimeout(() => this.successMessage = '', 3000);
+          },
+          error: (error) => {
+            this.errorMessage = 'Failed to add shift';
+            console.error('Error adding shift:', error);
+          }
+        });
+      } else {
+        const shiftId = this.currentShifts[this.selectedShiftIndex].id;
+        if (shiftId && this.selectedStaff?.id) {
+          this.staffService.updateStaffShift(this.selectedStaff.id, shiftId, this.shiftForm).subscribe({
+            next: (shift) => {
+              this.currentShifts[this.selectedShiftIndex] = shift;
+              this.closeShiftModal();
+              this.successMessage = 'Shift updated successfully';
+              setTimeout(() => this.successMessage = '', 3000);
+            },
+            error: (error) => {
+              this.errorMessage = 'Failed to update shift';
+              console.error('Error updating shift:', error);
+            }
+          });
+        }
+      }
+    }
+  }
+
+  deleteShift(index: number): void {
+    if (confirm('Are you sure you want to delete this shift?')) {
+      if (this.modalMode === 'create') {
+        // For new staff, just remove from the temporary array
+        this.currentShifts.splice(index, 1);
+        this.successMessage = 'Shift removed';
+        setTimeout(() => this.successMessage = '', 3000);
+      } else if (this.selectedStaff?.id) {
+        // For existing staff, delete from the API
+        const shiftId = this.currentShifts[index].id;
+        if (shiftId) {
+          this.staffService.deleteStaffShift(this.selectedStaff.id, shiftId).subscribe({
+            next: () => {
+              this.currentShifts.splice(index, 1);
+              this.successMessage = 'Shift deleted successfully';
+              setTimeout(() => this.successMessage = '', 3000);
+            },
+            error: (error) => {
+              this.errorMessage = 'Failed to delete shift';
+              console.error('Error deleting shift:', error);
+            }
+          });
+        }
+      }
+    }
+  }
+
+  getDayShortName(day: string): string {
+    const dayMap: { [key: string]: string } = {
+      'Monday': 'Mon',
+      'Tuesday': 'Tue',
+      'Wednesday': 'Wed',
+      'Thursday': 'Thu',
+      'Friday': 'Fri',
+      'Saturday': 'Sat',
+      'Sunday': 'Sun'
+    };
+    return dayMap[day] || day;
+  }
+
+  getWeeklySummary(): string {
+    const daysCount = new Set(this.currentShifts.map(s => s.dayOfWeek)).size;
+    return `${this.currentShifts.length} shift${this.currentShifts.length !== 1 ? 's' : ''} across ${daysCount} day${daysCount !== 1 ? 's' : ''}`;
+  }
+
+  // Working hours/days calculation methods
+  getWorkingDaysPerWeek(staff: Staff): number {
+    if (!staff.shifts || staff.shifts.length === 0) return 0;
+    const uniqueDays = new Set(staff.shifts.map(s => s.dayOfWeek));
+    return uniqueDays.size;
+  }
+
+  getAverageHoursPerDay(staff: Staff): number {
+    if (!staff.shifts || staff.shifts.length === 0) return 0;
+
+    let totalHours = 0;
+    staff.shifts.forEach(shift => {
+      const hours = this.calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration || 0);
+      totalHours += hours;
+    });
+
+    const workingDays = this.getWorkingDaysPerWeek(staff);
+    return workingDays > 0 ? totalHours / workingDays : 0;
+  }
+
+  getTotalHoursPerWeek(staff: Staff): number {
+    if (!staff.shifts || staff.shifts.length === 0) return 0;
+
+    let totalHours = 0;
+    staff.shifts.forEach(shift => {
+      const hours = this.calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration || 0);
+      totalHours += hours;
+    });
+
+    return totalHours;
+  }
+
+  getTotalHoursPerMonth(staff: Staff): number {
+    // Assuming 4.33 weeks per month on average
+    return this.getTotalHoursPerWeek(staff) * 4.33;
+  }
+
+  private calculateShiftHours(startTime: string, endTime: string, breakDuration: number): number {
+    if (!startTime || !endTime) return 0;
+
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+
+    const startInMinutes = startHour * 60 + startMinute;
+    const endInMinutes = endHour * 60 + endMinute;
+
+    let durationInMinutes = endInMinutes - startInMinutes;
+    if (durationInMinutes < 0) {
+      // Handle overnight shifts
+      durationInMinutes += 24 * 60;
+    }
+
+    return Math.max(0, durationInMinutes / 60);
+  }
+
+  getWorkScheduleSummary(staff: Staff): string {
+    const daysPerWeek = this.getWorkingDaysPerWeek(staff);
+    if (daysPerWeek === 0) return 'No shifts scheduled';
+
+    const avgHours = this.getAverageHoursPerDay(staff);
+    return `${daysPerWeek} day${daysPerWeek !== 1 ? 's' : ''}/week • ${avgHours.toFixed(1)} hrs/day avg`;
   }
 }

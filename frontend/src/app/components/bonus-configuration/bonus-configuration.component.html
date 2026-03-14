@@ -227,7 +227,7 @@
 
             <div class="form-row">
               <div class="form-group" *ngIf="ruleForm.calculationType !== 'Percentage'">
-                <label>Rate Amount (₹) <span class="required">*</span></label>
+                <label>Rate Amount (₹) <span class="required" *ngIf="!ruleForm.useDynamicRate">*</span></label>
                 <input
                   type="number"
                   [(ngModel)]="ruleForm.rateAmount"
@@ -235,7 +235,11 @@
                   class="form-control"
                   min="0"
                   step="0.01"
-                  required>
+                  [disabled]="!!ruleForm.useDynamicRate"
+                  [required]="!ruleForm.useDynamicRate">
+                <small class="form-text" *ngIf="ruleForm.useDynamicRate">
+                  Rate will be calculated dynamically based on staff hourly rate
+                </small>
               </div>
 
               <div class="form-group" *ngIf="ruleForm.calculationType === 'Percentage'">
@@ -249,6 +253,45 @@
                   max="100"
                   step="0.1"
                   required>
+              </div>
+            </div>
+
+            <!-- Dynamic Rate Configuration (for Overtime) -->
+            <div class="form-section" *ngIf="ruleForm.ruleType === 'OvertimeHours'">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" [(ngModel)]="ruleForm.useDynamicRate" name="useDynamicRate">
+                    Use Dynamic Rate Calculation
+                  </label>
+                  <small class="form-text">
+                    Calculate overtime rate based on staff's hourly rate
+                  </small>
+                </div>
+              </div>
+
+              <div class="form-row" *ngIf="ruleForm.useDynamicRate">
+                <div class="form-group">
+                  <label>Rate Multiplier</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="ruleForm.rateMultiplier"
+                    name="rateMultiplier"
+                    class="form-control"
+                    min="1"
+                    max="5"
+                    step="0.1"
+                    placeholder="1.5">
+                  <small class="form-text">
+                    Default: 1.5x (overtime = hourly rate × 1.5)
+                  </small>
+                </div>
+              </div>
+
+              <div class="alert alert-info" *ngIf="ruleForm.useDynamicRate">
+                <i class="fas fa-info-circle"></i>
+                With dynamic rates enabled, each staff member's overtime rate will be calculated automatically.
+                You can also set custom rates for individual staff members.
               </div>
             </div>
 
@@ -306,19 +349,35 @@
                     {{ rule.isBonus ? 'BONUS' : 'DEDUCTION' }}
                   </span>
                   <strong>{{ getRuleTypeLabel(rule.ruleType) }}</strong>
+                  <span class="badge badge-secondary" *ngIf="rule.useDynamicRate">
+                    <i class="fas fa-calculator"></i> Dynamic Rate
+                  </span>
                 </div>
                 <div class="rule-details">
                   <span>{{ getCalculationTypeLabel(rule.calculationType) }}</span>
                   <span *ngIf="rule.calculationType === 'Percentage'">: {{ rule.percentageValue }}%</span>
-                  <span *ngIf="rule.calculationType !== 'Percentage'">: ₹{{ rule.rateAmount }}</span>
+                  <span *ngIf="rule.calculationType !== 'Percentage' && !rule.useDynamicRate">: ₹{{ rule.rateAmount }}</span>
+                  <span *ngIf="rule.useDynamicRate">: {{ rule.rateMultiplier }}x hourly rate</span>
                   <span *ngIf="rule.threshold"> | Threshold: {{ rule.threshold }}</span>
                   <span *ngIf="rule.maxAmount"> | Max: ₹{{ rule.maxAmount }}</span>
+                  <span *ngIf="rule.staffRateOverrides && rule.staffRateOverrides.length > 0" class="text-info">
+                    | {{ rule.staffRateOverrides.length }} custom rate(s)
+                  </span>
                 </div>
                 <div class="rule-description" *ngIf="rule.description">
                   {{ rule.description }}
                 </div>
               </div>
               <div class="rule-actions" *ngIf="modalMode !== 'view'">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-info"
+                  (click)="openStaffRateModal(i)"
+                  [disabled]="editingRuleIndex !== null"
+                  *ngIf="rule.ruleType === 'OvertimeHours'"
+                  title="Manage Staff Rates">
+                  <i class="fas fa-users-cog"></i>
+                </button>
                 <button type="button" class="btn btn-sm btn-warning" (click)="editRule(i)" [disabled]="editingRuleIndex !== null">
                   <i class="fas fa-edit"></i>
                 </button>
@@ -347,6 +406,88 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Staff Rate Customization Modal -->
+<div class="modal" [class.show]="showStaffRateModal" *ngIf="showStaffRateModal && selectedRuleForStaffRates !== null">
+  <div class="modal-overlay" (click)="closeStaffRateModal()"></div>
+  <div class="modal-content large-modal">
+    <div class="modal-header">
+      <h3>
+        <i class="fas fa-users-cog"></i> Manage Staff Overtime Rates
+      </h3>
+      <button class="close-btn" (click)="closeStaffRateModal()">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        <strong>Dynamic Rate Calculation:</strong>
+        Overtime rate = Hourly Rate × {{ configForm.rules[selectedRuleForStaffRates].rateMultiplier || 1.5 }}
+        <br>
+        <small>You can set custom rates for individual staff members below.</small>
+      </div>
+
+      <div class="staff-rate-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="useDefaultRatesForAll(selectedRuleForStaffRates)">
+          <i class="fas fa-calculator"></i> Apply Default Rates to All
+        </button>
+      </div>
+
+      <div class="staff-rates-table">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Staff Member</th>
+              <th>Position</th>
+              <th>Salary Type</th>
+              <th>Hourly Rate</th>
+              <th>Default OT Rate</th>
+              <th>Custom Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let staff of applicableStaff">
+              <td>
+                <strong>{{ staff.firstName }} {{ staff.lastName }}</strong>
+                <br>
+                <small class="text-muted">{{ staff.employeeId }}</small>
+              </td>
+              <td>{{ staff.position }}</td>
+              <td>{{ staff.salaryType }}</td>
+              <td>₹{{ getHourlyRate(staff).toFixed(2) }}</td>
+              <td>₹{{ getDefaultOvertimeRate(staff, configForm.rules[selectedRuleForStaffRates].rateMultiplier).toFixed(2) }}</td>
+              <td>
+                <input
+                  type="number"
+                  class="form-control form-control-sm"
+                  [value]="getStaffCustomRate(staff.id!, selectedRuleForStaffRates)"
+                  (input)="setStaffCustomRate(staff.id!, selectedRuleForStaffRates, $any($event.target).value)"
+                  min="0"
+                  step="0.01"
+                  placeholder="Default">
+                <small class="form-text">Leave empty to use default</small>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div *ngIf="applicableStaff.length === 0" class="empty-state">
+          <i class="fas fa-users-slash fa-2x"></i>
+          <p>No staff members found for the selected positions</p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" (click)="closeStaffRateModal()">
+          <i class="fas fa-check"></i> Done
+        </button>
+      </div>
     </div>
   </div>
 </div>

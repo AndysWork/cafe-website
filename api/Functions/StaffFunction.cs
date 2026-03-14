@@ -17,13 +17,15 @@ public class StaffFunction
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
     private readonly IEmailService _emailService;
+    private readonly IWhatsAppService _whatsApp;
     private readonly ILogger _log;
 
-    public StaffFunction(MongoService mongo, AuthService auth, IEmailService emailService, ILoggerFactory loggerFactory)
+    public StaffFunction(MongoService mongo, AuthService auth, IEmailService emailService, IWhatsAppService whatsApp, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
         _emailService = emailService;
+        _whatsApp = whatsApp;
         _log = loggerFactory.CreateLogger<StaffFunction>();
     }
 
@@ -310,6 +312,29 @@ public class StaffFunction
             {
                 // Log error but don't fail the staff creation if email fails
                 _log.LogError(emailEx, $"Failed to send welcome email to {createdStaff.Email}");
+            }
+
+            // Send WhatsApp welcome notification to the new staff member
+            try
+            {
+                var staffName = $"{createdStaff.FirstName} {createdStaff.LastName}";
+                var message = $"Welcome to the team!\n\n"
+                    + $"Employee ID: {createdStaff.EmployeeId}\n"
+                    + $"Position: {createdStaff.Position}\n\n"
+                    + $"Your account has been created successfully. You can now access the system using your credentials.";
+                
+                await _whatsApp.SendStaffNotificationAsync(
+                    createdStaff.PhoneNumber,
+                    staffName,
+                    "Welcome to Maa Tara Cafe",
+                    message
+                );
+                _log.LogInformation($"WhatsApp welcome notification sent to {createdStaff.PhoneNumber}");
+            }
+            catch (Exception whatsAppEx)
+            {
+                // Log error but don't fail the staff creation if WhatsApp fails
+                _log.LogError(whatsAppEx, $"Failed to send WhatsApp notification to {createdStaff.PhoneNumber}");
             }
 
             var response = req.CreateResponse(HttpStatusCode.Created);
@@ -781,6 +806,299 @@ public class StaffFunction
             return forwardedFor.FirstOrDefault()?.Split(',')[0].Trim() ?? "Unknown";
         }
         return "Unknown";
+    }
+
+    /// <summary>
+    /// Add shift to staff member (Admin only)
+    /// </summary>
+    [Function("AddStaffShift")]
+    [OpenApiOperation(operationId: "AddStaffShift", tags: new[] { "Staff" }, Summary = "Add shift to staff", Description = "Adds a new shift to staff member's schedule (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "staffId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Staff ID")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(StaffShift), Required = true, Description = "Shift details")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(StaffShift), Description = "Shift added successfully")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid request data")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
+    public async Task<HttpResponseData> AddStaffShift(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId}/shifts")] HttpRequestData req,
+        string staffId)
+    {
+        var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!isAuthorized) return errorResponse!;
+
+        try
+        {
+            var shift = await req.ReadFromJsonAsync<StaffShift>();
+            if (shift == null)
+            {
+                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid shift data" });
+                return badReqRes;
+            }
+
+            // Validate required fields
+            var validationErrors = new List<string>();
+            if (string.IsNullOrWhiteSpace(shift.DayOfWeek))
+                validationErrors.Add("DayOfWeek is required");
+            if (string.IsNullOrWhiteSpace(shift.StartTime))
+                validationErrors.Add("StartTime is required");
+            if (string.IsNullOrWhiteSpace(shift.EndTime))
+                validationErrors.Add("EndTime is required");
+
+            // Validate day of week
+            var validDays = new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+            if (!string.IsNullOrWhiteSpace(shift.DayOfWeek) && !validDays.Contains(shift.DayOfWeek, StringComparer.OrdinalIgnoreCase))
+            {
+                validationErrors.Add($"Invalid DayOfWeek. Must be one of: {string.Join(", ", validDays)}");
+            }
+
+            if (validationErrors.Any())
+            {
+                var validationRes = req.CreateResponse(HttpStatusCode.BadRequest);
+                await validationRes.WriteAsJsonAsync(new { success = false, errors = validationErrors });
+                return validationRes;
+            }
+
+            // Get staff member
+            var staff = await _mongo.GetStaffByIdAsync(staffId);
+            if (staff == null)
+            {
+                var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                return notFoundRes;
+            }
+
+            // Generate new shift ID and set timestamps
+            shift.Id = Guid.NewGuid().ToString();
+            shift.CreatedAt = MongoService.GetIstNow();
+            shift.IsActive = true;
+
+            // Add shift to staff
+            staff.Shifts.Add(shift);
+            staff.UpdatedAt = MongoService.GetIstNow();
+            staff.UpdatedBy = adminUserId;
+
+            var success = await _mongo.UpdateStaffAsync(staffId, staff);
+            if (!success)
+            {
+                var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to add shift" });
+                return errorRes;
+            }
+
+            // Log audit
+            var auditLogger = new AuditLogger(_log);
+            auditLogger.LogAdminAction(adminUserId!, "ADD_STAFF_SHIFT", staffId, 
+                $"Added shift: {shift.ShiftName} on {shift.DayOfWeek} ({shift.StartTime} - {shift.EndTime})");
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, data = shift, message = "Shift added successfully" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error adding shift to staff {StaffId}", staffId);
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to add shift" });
+            return errorRes;
+        }
+    }
+
+    /// <summary>
+    /// Update staff shift (Admin only)
+    /// </summary>
+    [Function("UpdateStaffShift")]
+    [OpenApiOperation(operationId: "UpdateStaffShift", tags: new[] { "Staff" }, Summary = "Update staff shift", Description = "Updates a specific shift in staff member's schedule (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "staffId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Staff ID")]
+    [OpenApiParameter(name: "shiftId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Shift ID")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(StaffShift), Required = true, Description = "Updated shift details")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(StaffShift), Description = "Shift updated successfully")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member or shift not found")]
+    public async Task<HttpResponseData> UpdateStaffShift(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "staff/{staffId}/shifts/{shiftId}")] HttpRequestData req,
+        string staffId,
+        string shiftId)
+    {
+        var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!isAuthorized) return errorResponse!;
+
+        try
+        {
+            var updatedShift = await req.ReadFromJsonAsync<StaffShift>();
+            if (updatedShift == null)
+            {
+                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid shift data" });
+                return badReqRes;
+            }
+
+            // Get staff member
+            var staff = await _mongo.GetStaffByIdAsync(staffId);
+            if (staff == null)
+            {
+                var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                return notFoundRes;
+            }
+
+            // Find and update shift
+            var shift = staff.Shifts.FirstOrDefault(s => s.Id == shiftId);
+            if (shift == null)
+            {
+                var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Shift not found" });
+                return notFoundRes;
+            }
+
+            // Update shift properties
+            shift.ShiftName = updatedShift.ShiftName ?? shift.ShiftName;
+            shift.DayOfWeek = updatedShift.DayOfWeek ?? shift.DayOfWeek;
+            shift.StartTime = updatedShift.StartTime ?? shift.StartTime;
+            shift.EndTime = updatedShift.EndTime ?? shift.EndTime;
+            shift.BreakDuration = updatedShift.BreakDuration;
+            shift.OutletId = updatedShift.OutletId ?? shift.OutletId;
+            shift.Notes = updatedShift.Notes ?? shift.Notes;
+            shift.IsActive = updatedShift.IsActive;
+            shift.UpdatedAt = MongoService.GetIstNow();
+
+            staff.UpdatedAt = MongoService.GetIstNow();
+            staff.UpdatedBy = adminUserId;
+
+            var success = await _mongo.UpdateStaffAsync(staffId, staff);
+            if (!success)
+            {
+                var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update shift" });
+                return errorRes;
+            }
+
+            // Log audit
+            var auditLogger = new AuditLogger(_log);
+            auditLogger.LogAdminAction(adminUserId!, "UPDATE_STAFF_SHIFT", staffId, 
+                $"Updated shift: {shift.ShiftName} on {shift.DayOfWeek}");
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, data = shift, message = "Shift updated successfully" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating shift {ShiftId} for staff {StaffId}", shiftId, staffId);
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update shift" });
+            return errorRes;
+        }
+    }
+
+    /// <summary>
+    /// Delete staff shift (Admin only)
+    /// </summary>
+    [Function("DeleteStaffShift")]
+    [OpenApiOperation(operationId: "DeleteStaffShift", tags: new[] { "Staff" }, Summary = "Delete staff shift", Description = "Deletes a specific shift from staff member's schedule (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "staffId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Staff ID")]
+    [OpenApiParameter(name: "shiftId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Shift ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Shift deleted successfully")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member or shift not found")]
+    public async Task<HttpResponseData> DeleteStaffShift(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "staff/{staffId}/shifts/{shiftId}")] HttpRequestData req,
+        string staffId,
+        string shiftId)
+    {
+        var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!isAuthorized) return errorResponse!;
+
+        try
+        {
+            // Get staff member
+            var staff = await _mongo.GetStaffByIdAsync(staffId);
+            if (staff == null)
+            {
+                var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                return notFoundRes;
+            }
+
+            // Find shift
+            var shift = staff.Shifts.FirstOrDefault(s => s.Id == shiftId);
+            if (shift == null)
+            {
+                var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Shift not found" });
+                return notFoundRes;
+            }
+
+            // Remove shift
+            staff.Shifts.Remove(shift);
+            staff.UpdatedAt = MongoService.GetIstNow();
+            staff.UpdatedBy = adminUserId;
+
+            var success = await _mongo.UpdateStaffAsync(staffId, staff);
+            if (!success)
+            {
+                var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to delete shift" });
+                return errorRes;
+            }
+
+            // Log audit
+            var auditLogger = new AuditLogger(_log);
+            auditLogger.LogAdminAction(adminUserId!, "DELETE_STAFF_SHIFT", staffId, 
+                $"Deleted shift: {shift.ShiftName} on {shift.DayOfWeek}");
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, message = "Shift deleted successfully" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting shift {ShiftId} for staff {StaffId}", shiftId, staffId);
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to delete shift" });
+            return errorRes;
+        }
+    }
+
+    /// <summary>
+    /// Get all shifts for a staff member
+    /// </summary>
+    [Function("GetStaffShifts")]
+    [OpenApiOperation(operationId: "GetStaffShifts", tags: new[] { "Staff" }, Summary = "Get staff shifts", Description = "Retrieves all shifts for a staff member")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "staffId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Staff ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<StaffShift>), Description = "Successfully retrieved shifts")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member not found")]
+    public async Task<HttpResponseData> GetStaffShifts(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "staff/{staffId}/shifts")] HttpRequestData req,
+        string staffId)
+    {
+        var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!isAuthorized) return errorResponse!;
+
+        try
+        {
+            var staff = await _mongo.GetStaffByIdAsync(staffId);
+            if (staff == null)
+            {
+                var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                return notFoundRes;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, data = staff.Shifts });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting shifts for staff {StaffId}", staffId);
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve shifts" });
+            return errorRes;
+        }
     }
 }
 

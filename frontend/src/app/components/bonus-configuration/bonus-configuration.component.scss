@@ -523,3 +523,80 @@
     font-size: 12px;
   }
 }
+
+/* Staff Rate Customization Styles */
+.staff-rate-actions {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.staff-rates-table {
+  max-height: 500px;
+  overflow-y: auto;
+
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+
+    thead {
+      position: sticky;
+      top: 0;
+      background: #f8f9fa;
+      z-index: 10;
+
+      th {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+        color: #495057;
+      }
+    }
+
+    tbody {
+      tr {
+        border-bottom: 1px solid #dee2e6;
+
+        &:hover {
+          background: #f8f9fa;
+        }
+
+        td {
+          padding: 12px;
+          vertical-align: middle;
+
+          .form-control-sm {
+            max-width: 150px;
+          }
+
+          .text-muted {
+            color: #6c757d;
+            font-size: 0.875rem;
+          }
+        }
+      }
+    }
+  }
+}
+
+.badge-secondary {
+  background: #6c757d;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  margin-left: 8px;
+
+  i {
+    margin-right: 3px;
+  }
+}
+
+.text-info {
+  color: #17a2b8;
+  font-size: 0.875rem;
+  font-weight: 500;
+}

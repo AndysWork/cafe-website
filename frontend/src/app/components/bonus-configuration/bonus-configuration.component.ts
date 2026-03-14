@@ -10,10 +10,12 @@ import {
   BonusRuleRequest,
   BonusRuleType,
   CalculationType,
-  CalculationPeriod
+  CalculationPeriod,
+  StaffRateOverride
 } from '../../services/bonus-configuration.service';
 import { OutletService } from '../../services/outlet.service';
 import { StaffService } from '../../services/staff.service';
+import { Staff } from '../../models/staff.model';
 
 @Component({
   selector: 'app-bonus-configuration',
@@ -49,6 +51,12 @@ export class BonusConfigurationComponent implements OnInit {
   editingRuleIndex: number | null = null;
   ruleForm: BonusRuleRequest = this.getEmptyRuleForm();
 
+  // Staff management for per-staff rates
+  allStaff: Staff[] = [];
+  applicableStaff: Staff[] = [];
+  showStaffRateModal = false;
+  selectedRuleForStaffRates: number | null = null;
+
   // Constants
   positions: string[] = [];
   ruleTypes: { value: BonusRuleType; label: string; description: string }[] = [
@@ -72,6 +80,7 @@ export class BonusConfigurationComponent implements OnInit {
   ngOnInit(): void {
     this.loadConfigurations();
     this.loadPositions();
+    this.loadAllStaff();
   }
 
   private getEmptyForm(): CreateBonusConfigurationRequest {
@@ -93,7 +102,10 @@ export class BonusConfigurationComponent implements OnInit {
       percentageValue: undefined,
       threshold: undefined,
       maxAmount: undefined,
-      description: ''
+      description: '',
+      useDynamicRate: false,
+      rateMultiplier: 1.5,
+      staffRateOverrides: []
     };
   }
 
@@ -125,6 +137,109 @@ export class BonusConfigurationComponent implements OnInit {
         console.error('Failed to load staff positions:', error);
         // Fallback to empty array if staff can't be loaded
         this.positions = [];
+      }
+    });
+  }
+
+  loadAllStaff(): void {
+    this.staffService.getAllStaff(true).subscribe({
+      next: (staff) => {
+        this.allStaff = staff;
+        this.updateApplicableStaff();
+      },
+      error: (error) => {
+        console.error('Failed to load staff:', error);
+        this.allStaff = [];
+      }
+    });
+  }
+
+  updateApplicableStaff(): void {
+    // Filter staff based on selected positions
+    if (this.configForm.applicablePositions.length === 0) {
+      this.applicableStaff = [];
+    } else {
+      this.applicableStaff = this.allStaff.filter(staff =>
+        this.configForm.applicablePositions.includes(staff.position)
+      );
+    }
+  }
+
+  getHourlyRate(staff: Staff): number {
+    // Calculate hourly rate based on salary type
+    if (staff.salaryType === 'Hourly') {
+      return staff.salary;
+    } else if (staff.salaryType === 'Daily') {
+      // Assuming 8 hours per day
+      return staff.salary / 8;
+    } else if (staff.salaryType === 'Monthly') {
+      // Assuming 26 working days, 8 hours per day = 208 hours per month
+      return staff.salary / 208;
+    }
+    return 0;
+  }
+
+  getDefaultOvertimeRate(staff: Staff, multiplier: number = 1.5): number {
+    return this.getHourlyRate(staff) * multiplier;
+  }
+
+  getStaffCustomRate(staffId: string, ruleIndex: number): number {
+    const rule = this.configForm.rules[ruleIndex];
+    if (!rule.staffRateOverrides) return 0;
+
+    const override = rule.staffRateOverrides.find(o => o.staffId === staffId);
+    return override?.customRate || 0;
+  }
+
+  setStaffCustomRate(staffId: string, ruleIndex: number, rate: number): void {
+    const rule = this.configForm.rules[ruleIndex];
+    if (!rule.staffRateOverrides) {
+      rule.staffRateOverrides = [];
+    }
+
+    const existingIndex = rule.staffRateOverrides.findIndex(o => o.staffId === staffId);
+    if (existingIndex > -1) {
+      if (rate > 0) {
+        rule.staffRateOverrides[existingIndex].customRate = rate;
+      } else {
+        // Remove override if rate is 0
+        rule.staffRateOverrides.splice(existingIndex, 1);
+      }
+    } else if (rate > 0) {
+      rule.staffRateOverrides.push({ staffId, customRate: rate });
+    }
+  }
+
+  openStaffRateModal(ruleIndex: number): void {
+    this.selectedRuleForStaffRates = ruleIndex;
+    this.updateApplicableStaff();
+    this.showStaffRateModal = true;
+  }
+
+  closeStaffRateModal(): void {
+    this.showStaffRateModal = false;
+    this.selectedRuleForStaffRates = null;
+  }
+
+  useDefaultRatesForAll(ruleIndex: number): void {
+    const rule = this.configForm.rules[ruleIndex];
+    const multiplier = rule.rateMultiplier || 1.5;
+
+    if (!rule.staffRateOverrides) {
+      rule.staffRateOverrides = [];
+    }
+
+    this.applicableStaff.forEach(staff => {
+      const defaultRate = this.getDefaultOvertimeRate(staff, multiplier);
+      const existingIndex = rule.staffRateOverrides!.findIndex(o => o.staffId === staff.id);
+
+      if (existingIndex > -1) {
+        rule.staffRateOverrides![existingIndex].customRate = defaultRate;
+      } else {
+        rule.staffRateOverrides!.push({
+          staffId: staff.id!,
+          customRate: defaultRate
+        });
       }
     });
   }
@@ -221,9 +336,15 @@ export class BonusConfigurationComponent implements OnInit {
   }
 
   isRuleFormValid(): boolean {
-    if (!this.ruleForm.ruleType || this.ruleForm.rateAmount <= 0) {
+    if (!this.ruleForm.ruleType) {
       return false;
     }
+
+    // If using dynamic rate, rateAmount is not required
+    if (!this.ruleForm.useDynamicRate && this.ruleForm.rateAmount <= 0) {
+      return false;
+    }
+
     if (this.ruleForm.calculationType === 'Percentage' && !this.ruleForm.percentageValue) {
       return false;
     }
@@ -238,6 +359,7 @@ export class BonusConfigurationComponent implements OnInit {
     } else {
       this.configForm.applicablePositions.push(position);
     }
+    this.updateApplicableStaff();
   }
 
   isPositionSelected(position: string): boolean {
@@ -246,10 +368,12 @@ export class BonusConfigurationComponent implements OnInit {
 
   selectAllPositions(): void {
     this.configForm.applicablePositions = [...this.positions];
+    this.updateApplicableStaff();
   }
 
   clearAllPositions(): void {
     this.configForm.applicablePositions = [];
+    this.updateApplicableStaff();
   }
 
   // Form submission

@@ -8,6 +8,12 @@ export type BonusRuleType = 'OvertimeHours' | 'UndertimeHours' | 'SnacksPreparat
 export type CalculationType = 'PerUnit' | 'PerHour' | 'Percentage' | 'Fixed';
 export type CalculationPeriod = 'Monthly' | 'Quarterly' | 'Yearly';
 
+export interface StaffRateOverride {
+  staffId: string;
+  customRate: number;
+  notes?: string;
+}
+
 export interface BonusRule {
   ruleType: BonusRuleType;
   isBonus: boolean;
@@ -17,6 +23,9 @@ export interface BonusRule {
   threshold?: number;
   maxAmount?: number;
   description?: string;
+  useDynamicRate?: boolean;
+  rateMultiplier?: number;
+  staffRateOverrides?: StaffRateOverride[];
 }
 
 export interface BonusConfiguration {
@@ -40,6 +49,9 @@ export interface BonusRuleRequest {
   threshold?: number;
   maxAmount?: number;
   description?: string;
+  useDynamicRate?: boolean;
+  rateMultiplier?: number;
+  staffRateOverrides?: StaffRateOverride[];
 }
 
 export interface CreateBonusConfigurationRequest {

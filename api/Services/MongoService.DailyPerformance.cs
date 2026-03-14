@@ -35,8 +35,8 @@ public partial class MongoService
     }
 
     public async Task<List<DailyPerformanceEntry>> GetDailyPerformanceByStaffAsync(
-        string staffId, 
-        string? startDate = null, 
+        string staffId,
+        string? startDate = null,
         string? endDate = null)
     {
         var filterBuilder = Builders<DailyPerformanceEntry>.Filter;
@@ -78,8 +78,8 @@ public partial class MongoService
     }
 
     public async Task<List<DailyPerformanceEntry>> GetDailyPerformanceByDateRangeAsync(
-        string startDate, 
-        string endDate, 
+        string startDate,
+        string endDate,
         string outletId)
     {
         var filter = Builders<DailyPerformanceEntry>.Filter.And(
@@ -118,7 +118,7 @@ public partial class MongoService
     }
 
     public async Task<DailyPerformanceEntry> UpsertDailyPerformanceAsync(
-        UpsertDailyPerformanceRequest request, 
+        UpsertDailyPerformanceRequest request,
         string outletId)
     {
         // Find existing entry for this staff on this date
@@ -130,12 +130,29 @@ public partial class MongoService
 
         var existingEntry = await _dailyPerformanceEntries.Find(filter).FirstOrDefaultAsync();
 
-        // Calculate working hours
-        var workingHours = CalculateWorkingHours(request.InTime, request.OutTime);
+        // Fetch staff name to save in database
+        var staff = await GetStaffByIdAsync(request.StaffId);
+        var staffName = staff != null ? $"{staff.FirstName} {staff.LastName}" : null;
+
+        // Calculate individual shift working hours if shifts are provided
+        if (request.Shifts != null && request.Shifts.Any())
+        {
+            foreach (var shift in request.Shifts)
+            {
+                shift.WorkingHours = CalculateWorkingHours(shift.InTime, shift.OutTime);
+            }
+        }
+
+        // Calculate total working hours:
+        // If shifts exist, sum their working hours; otherwise use main InTime/OutTime
+        var workingHours = (request.Shifts != null && request.Shifts.Any())
+            ? request.Shifts.Sum(s => s.WorkingHours)
+            : CalculateWorkingHours(request.InTime, request.OutTime);
 
         if (existingEntry != null)
         {
             // Update existing entry
+            existingEntry.StaffName = staffName;
             existingEntry.InTime = request.InTime;
             existingEntry.OutTime = request.OutTime;
             existingEntry.WorkingHours = workingHours;
@@ -145,18 +162,17 @@ public partial class MongoService
             existingEntry.RefundAmountRecovery = request.RefundAmountRecovery;
             existingEntry.Notes = request.Notes;
             existingEntry.UpdatedAt = DateTime.UtcNow;
+            
+            // Update shifts if provided (including empty array to clear all shifts)
+            if (request.Shifts != null)
+            {
+                existingEntry.Shifts = request.Shifts;
+            }
 
             await _dailyPerformanceEntries.ReplaceOneAsync(
                 e => e.Id == existingEntry.Id,
                 existingEntry
             );
-
-            // Populate staff name
-            var staff = await GetStaffByIdAsync(request.StaffId);
-            if (staff != null)
-            {
-                existingEntry.StaffName = $"{staff.FirstName} {staff.LastName}";
-            }
 
             return existingEntry;
         }
@@ -167,6 +183,7 @@ public partial class MongoService
             {
                 OutletId = outletId,
                 StaffId = request.StaffId,
+                StaffName = staffName,
                 Date = request.Date,
                 InTime = request.InTime,
                 OutTime = request.OutTime,
@@ -176,25 +193,19 @@ public partial class MongoService
                 BadOrdersCount = request.BadOrdersCount,
                 RefundAmountRecovery = request.RefundAmountRecovery,
                 Notes = request.Notes,
+                Shifts = request.Shifts ?? new List<PerformanceShift>(),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
             await _dailyPerformanceEntries.InsertOneAsync(newEntry);
 
-            // Populate staff name
-            var staff = await GetStaffByIdAsync(request.StaffId);
-            if (staff != null)
-            {
-                newEntry.StaffName = $"{staff.FirstName} {staff.LastName}";
-            }
-
             return newEntry;
         }
     }
 
     public async Task<List<DailyPerformanceEntry>> BulkUpsertDailyPerformanceAsync(
-        BulkDailyPerformanceRequest request, 
+        BulkDailyPerformanceRequest request,
         string outletId)
     {
         var results = new List<DailyPerformanceEntry>();
@@ -211,7 +222,8 @@ public partial class MongoService
                 GoodOrdersCount = entryRequest.GoodOrdersCount,
                 BadOrdersCount = entryRequest.BadOrdersCount,
                 RefundAmountRecovery = entryRequest.RefundAmountRecovery,
-                Notes = entryRequest.Notes
+                Notes = entryRequest.Notes,
+                Shifts = entryRequest.Shifts
             };
 
             var result = await UpsertDailyPerformanceAsync(upsertRequest, outletId);
@@ -248,7 +260,7 @@ public partial class MongoService
             var outTotalMinutes = outHours * 60 + outMinutes;
 
             var diffMinutes = outTotalMinutes - inTotalMinutes;
-            
+
             // Handle overnight shifts
             if (diffMinutes < 0)
             {
@@ -264,4 +276,95 @@ public partial class MongoService
     }
 
     #endregion
+
+    #region Performance Shift Management
+
+    public async Task<PerformanceShift> AddPerformanceShiftAsync(string entryId, PerformanceShift shift)
+    {
+        var entry = await _dailyPerformanceEntries.Find(e => e.Id == entryId).FirstOrDefaultAsync();
+        if (entry == null)
+        {
+            throw new Exception("Daily performance entry not found");
+        }
+
+        shift.Id = MongoDB.Bson.ObjectId.GenerateNewId().ToString();
+        shift.WorkingHours = CalculateWorkingHours(shift.InTime, shift.OutTime);
+
+        if (entry.Shifts == null)
+        {
+            entry.Shifts = new List<PerformanceShift>();
+        }
+
+        entry.Shifts.Add(shift);
+        entry.UpdatedAt = DateTime.UtcNow;
+
+        await _dailyPerformanceEntries.ReplaceOneAsync(e => e.Id == entryId, entry);
+
+        return shift;
+    }
+
+    public async Task<PerformanceShift> UpdatePerformanceShiftAsync(string entryId, string shiftId, PerformanceShift updatedShift)
+    {
+        var entry = await _dailyPerformanceEntries.Find(e => e.Id == entryId).FirstOrDefaultAsync();
+        if (entry == null)
+        {
+            throw new Exception("Daily performance entry not found");
+        }
+
+        var shift = entry.Shifts?.FirstOrDefault(s => s.Id == shiftId);
+        if (shift == null)
+        {
+            throw new Exception("Shift not found");
+        }
+
+        shift.ShiftName = updatedShift.ShiftName;
+        shift.InTime = updatedShift.InTime;
+        shift.OutTime = updatedShift.OutTime;
+        shift.WorkingHours = CalculateWorkingHours(updatedShift.InTime, updatedShift.OutTime);
+        shift.TotalOrdersPrepared = updatedShift.TotalOrdersPrepared;
+        shift.GoodOrdersCount = updatedShift.GoodOrdersCount;
+        shift.BadOrdersCount = updatedShift.BadOrdersCount;
+        shift.RefundAmountRecovery = updatedShift.RefundAmountRecovery;
+        shift.Notes = updatedShift.Notes;
+
+        entry.UpdatedAt = DateTime.UtcNow;
+
+        await _dailyPerformanceEntries.ReplaceOneAsync(e => e.Id == entryId, entry);
+
+        return shift;
+    }
+
+    public async Task<bool> DeletePerformanceShiftAsync(string entryId, string shiftId)
+    {
+        var entry = await _dailyPerformanceEntries.Find(e => e.Id == entryId).FirstOrDefaultAsync();
+        if (entry == null)
+        {
+            return false;
+        }
+
+        var shift = entry.Shifts?.FirstOrDefault(s => s.Id == shiftId);
+        if (shift == null)
+        {
+            return false;
+        }
+
+        entry.Shifts?.Remove(shift);
+        entry.UpdatedAt = DateTime.UtcNow;
+
+        await _dailyPerformanceEntries.ReplaceOneAsync(e => e.Id == entryId, entry);
+
+        return true;
+    }
+
+    public async Task<List<PerformanceShift>> GetPerformanceShiftsAsync(string entryId)
+    {
+        var entry = await _dailyPerformanceEntries.Find(e => e.Id == entryId).FirstOrDefaultAsync();
+        if (entry == null)
+        {
+            throw new Exception("Daily performance entry not found");
+        }
+
+        return entry.Shifts ?? new List<PerformanceShift>();
+    }
 }
+    #endregion

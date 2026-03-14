@@ -1,123 +1,172 @@
 <div class="staff-performance-container">
+  <!-- Modern Header -->
   <div class="page-header">
-    <h2>Staff Performance & Bonus Tracking</h2>
-    <div class="header-actions">
-      <button class="btn btn-secondary" (click)="exportToCSV()" [disabled]="isLoading || performanceRecords.length === 0">
-        <i class="fas fa-download"></i> Export CSV
-      </button>
-      <button class="btn btn-primary" (click)="openCreateModal()" [disabled]="isLoading">
-        <i class="fas fa-plus"></i> Add Performance Record
-      </button>
+    <div class="header-content">
+      <div class="title-section">
+        <span class="icon-badge">📊</span>
+        <div>
+          <h1 class="animated-title">Staff Performance & Bonus Tracking</h1>
+          <p class="subtitle">Comprehensive performance monitoring and bonus calculation system</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" (click)="exportToCSV()" [disabled]="isLoading || performanceRecords.length === 0">
+          <i class="fas fa-download"></i> Export CSV
+        </button>
+        <button class="btn btn-primary" (click)="openCreateModal()" [disabled]="isLoading">
+          <i class="fas fa-plus"></i> Add Record
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- Alert messages -->
   <div *ngIf="successMessage" class="alert alert-success">
-    {{ successMessage }}
+    <i class="fas fa-check-circle"></i> {{ successMessage }}
   </div>
   <div *ngIf="errorMessage" class="alert alert-danger">
-    {{ errorMessage }}
+    <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
   </div>
 
-  <!-- Filters -->
-  <div class="filters-section">
-    <div class="filter-group">
-      <label>View Mode:</label>
-      <select [(ngModel)]="viewMode" (ngModelChange)="onViewModeChange()" class="form-control">
-        <option value="all">All Staff</option>
-        <option value="individual">Individual Staff</option>
-      </select>
+  <!-- Filters Card -->
+  <div class="filters-card">
+    <div class="filters-header">
+      <i class="fas fa-filter"></i> Filter Options
     </div>
+    <div class="filters-content">
+      <div class="filter-group">
+        <label><i class="fas fa-eye"></i> View Mode</label>
+        <select [(ngModel)]="viewMode" (ngModelChange)="onViewModeChange()" class="form-control">
+          <option value="all">All Staff</option>
+          <option value="individual">Individual Staff</option>
+        </select>
+      </div>
 
-    <div class="filter-group" *ngIf="viewMode === 'individual'">
-      <label>Staff Member:</label>
-      <select [(ngModel)]="selectedStaffId" (ngModelChange)="onFilterChange()" class="form-control">
-        <option value="">Select Staff</option>
-        <option *ngFor="let staff of staffMembers" [value]="staff.id">
-          {{ staff.firstName }} {{ staff.lastName }} - {{ staff.position }}
-        </option>
-      </select>
-    </div>
+      <div class="filter-group" *ngIf="viewMode === 'individual'">
+        <label><i class="fas fa-user"></i> Staff Member</label>
+        <select [(ngModel)]="selectedStaffId" (ngModelChange)="onFilterChange()" class="form-control">
+          <option value="">Select Staff</option>
+          <option *ngFor="let staff of staffMembers" [value]="staff.id">
+            {{ staff.firstName }} {{ staff.lastName }} - {{ staff.position }}
+          </option>
+        </select>
+      </div>
 
-    <div class="filter-group">
-      <label>Period:</label>
-      <select [(ngModel)]="selectedPeriod" (ngModelChange)="onFilterChange()" class="form-control">
-        <option value="">All Periods</option>
-        <option *ngFor="let period of availablePeriods" [value]="period">
-          {{ formatPeriod(period) }}
-        </option>
-      </select>
+      <div class="filter-group">
+        <label><i class="fas fa-calendar"></i> Period</label>
+        <select [(ngModel)]="selectedPeriod" (ngModelChange)="onFilterChange()" class="form-control">
+          <option *ngFor="let period of availablePeriods" [value]="period">
+            {{ formatPeriod(period) }}
+          </option>
+        </select>
+      </div>
     </div>
   </div>
 
   <!-- Loading spinner -->
   <div *ngIf="isLoading" class="loading-spinner">
-    <i class="fas fa-spinner fa-spin"></i> Loading...
+    <div class="spinner-icon">
+      <i class="fas fa-spinner fa-spin"></i>
+    </div>
+    <p>Loading performance data...</p>
   </div>
 
-  <!-- Performance Records Table -->
-  <div *ngIf="!isLoading && performanceRecords.length > 0" class="records-container">
-    <div class="table-responsive">
-      <table class="performance-table">
-        <thead>
-          <tr>
-            <th>Staff Name</th>
-            <th>Period</th>
-            <th>Scheduled Hours</th>
-            <th>Actual Hours</th>
-            <th>Overtime</th>
-            <th>Undertime</th>
-            <th>Snacks</th>
-            <th>Bad Orders</th>
-            <th>Good Ratings</th>
-            <th>Refunds</th>
-            <th>Total Bonus</th>
-            <th>Total Deductions</th>
-            <th>Net Bonus</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let record of performanceRecords">
-            <td>
-              <strong>{{ getStaffName(record.staffId) }}</strong>
-            </td>
-            <td>{{ formatPeriod(record.period) }}</td>
-            <td>{{ record.scheduledHours }}</td>
-            <td>{{ record.actualHours }}</td>
-            <td class="overtime">{{ getOvertimeHours(record) }}</td>
-            <td class="undertime">{{ getUndertimeHours(record) }}</td>
-            <td>{{ record.snacksPrepared }}</td>
-            <td class="bad-orders">{{ record.badOrders }}</td>
-            <td class="good-ratings">{{ record.goodRatings }}</td>
-            <td class="refunds">{{ record.missingItemRefunds }}</td>
-            <td class="bonus">₹{{ record.totalBonus.toFixed(2) }}</td>
-            <td class="deduction">₹{{ record.totalDeductions.toFixed(2) }}</td>
-            <td [class.net-positive]="record.netBonusAmount > 0" [class.net-negative]="record.netBonusAmount < 0">
-              <strong>₹{{ record.netBonusAmount.toFixed(2) }}</strong>
-            </td>
-            <td class="actions-cell">
-              <button class="btn btn-sm btn-info" (click)="openDetailsModal(record)" title="View Details">
-                <i class="fas fa-eye"></i>
-              </button>
-              <button class="btn btn-sm btn-warning" (click)="openEditModal(record)" title="Edit">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button class="btn btn-sm btn-success" (click)="calculateBonus(record)" title="Recalculate Bonus">
-                <i class="fas fa-calculator"></i>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+  <!-- Performance Records Cards -->
+  <div *ngIf="!isLoading && performanceRecords.length > 0" class="records-grid">
+    <div class="performance-card" *ngFor="let record of performanceRecords">
+      <div class="card-header-banner" [class.positive]="record.netBonusAmount > 0" [class.negative]="record.netBonusAmount < 0">
+        <div class="staff-info">
+          <h3>{{ getStaffName(record.staffId) }}</h3>
+          <span class="period-badge">{{ formatPeriod(record.period) }}</span>
+        </div>
+        <div class="net-bonus-display">
+          <span class="label">Net Bonus</span>
+          <span class="amount">₹{{ record.netBonusAmount.toFixed(2) }}</span>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <!-- Hours Section -->
+        <div class="metrics-section">
+          <div class="section-title">⏰ Working Hours</div>
+          <div class="metrics-row">
+            <div class="metric-item">
+              <span class="metric-label">Scheduled</span>
+              <span class="metric-value">{{ record.scheduledHours }}h</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Actual</span>
+              <span class="metric-value">{{ record.actualHours }}h</span>
+            </div>
+            <div class="metric-item success">
+              <span class="metric-label">Overtime</span>
+              <span class="metric-value">{{ getOvertimeHours(record) }}h</span>
+            </div>
+            <div class="metric-item warning">
+              <span class="metric-label">Undertime</span>
+              <span class="metric-value">{{ getUndertimeHours(record) }}h</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="metrics-section">
+          <div class="section-title">📈 Performance Metrics</div>
+          <div class="metrics-row">
+            <div class="metric-item">
+              <span class="metric-label">Snacks Prepared</span>
+              <span class="metric-value">{{ record.snacksPrepared }}</span>
+            </div>
+            <div class="metric-item success">
+              <span class="metric-label">Good Ratings</span>
+              <span class="metric-value">{{ record.goodRatings }}</span>
+            </div>
+            <div class="metric-item danger">
+              <span class="metric-label">Bad Orders</span>
+              <span class="metric-value">{{ record.badOrders }}</span>
+            </div>
+            <div class="metric-item danger">
+              <span class="metric-label">Refunds</span>
+              <span class="metric-value">₹{{ record.missingItemRefunds.toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Financial Summary -->
+        <div class="financial-section">
+          <div class="financial-item success">
+            <span class="label">Total Bonuses</span>
+            <span class="value">₹{{ record.totalBonus.toFixed(2) }}</span>
+          </div>
+          <div class="financial-item danger">
+            <span class="label">Total Deductions</span>
+            <span class="value">₹{{ record.totalDeductions.toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button class="btn btn-info" (click)="openDetailsModal(record)" title="View Details">
+          <i class="fas fa-eye"></i> Details
+        </button>
+        <button class="btn btn-warning" (click)="openEditModal(record)" title="Edit">
+          <i class="fas fa-edit"></i> Edit
+        </button>
+        <button class="btn btn-success" (click)="calculateBonus(record)" title="Recalculate Bonus">
+          <i class="fas fa-calculator"></i> Calculate
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- Empty state -->
   <div *ngIf="!isLoading && performanceRecords.length === 0" class="empty-state">
-    <i class="fas fa-chart-line fa-3x"></i>
-    <p>No performance records found</p>
-    <button class="btn btn-primary" (click)="openCreateModal()">Add First Record</button>
+    <div class="empty-icon">📊</div>
+    <h3>No Performance Records Found</h3>
+    <p>Start tracking staff performance by adding your first record</p>
+    <button class="btn btn-primary btn-lg" (click)="openCreateModal()">
+      <i class="fas fa-plus"></i> Add First Record
+    </button>
   </div>
 </div>
 
