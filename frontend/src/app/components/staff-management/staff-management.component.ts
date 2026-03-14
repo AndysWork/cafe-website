@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { StaffService } from '../../services/staff.service';
 import { OutletService } from '../../services/outlet.service';
+import { AuthService } from '../../services/auth.service';
 import { Staff, StaffStatistics, StaffShift, EMPLOYMENT_TYPES, COMMON_POSITIONS, DEPARTMENTS, DAYS_OF_WEEK, SALARY_TYPES, GENDERS, DOCUMENT_TYPES } from '../../models/staff.model';
 import { Outlet } from '../../models/outlet.model';
 
@@ -17,6 +18,7 @@ import { Outlet } from '../../models/outlet.model';
 export class StaffManagementComponent implements OnInit {
   private staffService = inject(StaffService);
   private outletService = inject(OutletService);
+  private authService = inject(AuthService);
   private router = inject(Router);
 
   staff: Staff[] = [];
@@ -49,6 +51,15 @@ export class StaffManagementComponent implements OnInit {
   shiftForm: Partial<StaffShift> = this.getEmptyShiftForm();
   selectedWorkingDays: string[] = [];
 
+  // Email notification modal
+  showEmailModal = false;
+  emailForm = {
+    subject: '',
+    message: '',
+    sendWhatsApp: false
+  };
+  emailSending = false;
+
   // Constants for dropdowns
   employmentTypes = EMPLOYMENT_TYPES;
   positions = COMMON_POSITIONS;
@@ -62,9 +73,15 @@ export class StaffManagementComponent implements OnInit {
   currentTab: 'basic' | 'employment' | 'compensation' | 'schedule' | 'documents' | 'performance' = 'basic';
 
   ngOnInit(): void {
-    this.loadStaff();
-    this.loadOutlets();
-    this.loadStatistics();
+    // Only load data if user is authenticated
+    if (this.authService.isLoggedIn()) {
+      this.loadStaff();
+      this.loadOutlets();
+      this.loadStatistics();
+    } else {
+      // Redirect to login if not authenticated
+      this.router.navigate(['/login']);
+    }
   }
 
   private getEmptyForm(): Partial<Staff> {
@@ -80,7 +97,7 @@ export class StaffManagementComponent implements OnInit {
       position: '',
       department: '',
       employmentType: 'Full-Time',
-      hireDate: new Date().toISOString().split('T')[0],
+      hireDate: this.getTodayInIST(),
       isActive: true,
       salary: 0,
       salaryType: 'Monthly',
@@ -148,6 +165,13 @@ export class StaffManagementComponent implements OnInit {
       },
       error: (error) => {
         console.error('Error loading statistics:', error);
+        if (error.status === 401 || error.status === 403) {
+          this.errorMessage = 'Authentication required. Please log in.';
+          setTimeout(() => this.router.navigate(['/login']), 2000);
+        } else {
+          this.errorMessage = 'Failed to load statistics';
+        }
+        setTimeout(() => this.errorMessage = '', 3000);
       }
     });
   }
@@ -193,6 +217,8 @@ export class StaffManagementComponent implements OnInit {
     this.modalMode = 'edit';
     this.selectedStaff = staff;
     this.staffForm = { ...staff };
+    // Convert dates to yyyy-MM-dd format for HTML date inputs
+    this.convertDatesForForm();
     this.currentTab = 'basic';
     this.currentShifts = staff.shifts ? [...staff.shifts] : [];
     this.showModal = true;
@@ -202,9 +228,74 @@ export class StaffManagementComponent implements OnInit {
     this.modalMode = 'view';
     this.selectedStaff = staff;
     this.staffForm = { ...staff };
+    // Convert dates to yyyy-MM-dd format for HTML date inputs
+    this.convertDatesForForm();
     this.currentTab = 'basic';
     this.currentShifts = staff.shifts ? [...staff.shifts] : [];
     this.showModal = true;
+  }
+
+  private convertDatesForForm(): void {
+    // Convert ISO date strings to yyyy-MM-dd format for HTML date inputs
+    if (this.staffForm.dateOfBirth) {
+      this.staffForm.dateOfBirth = this.formatDateForInput(this.staffForm.dateOfBirth) || '';
+    }
+    if (this.staffForm.hireDate) {
+      this.staffForm.hireDate = this.formatDateForInput(this.staffForm.hireDate) || '';
+    }
+    if (this.staffForm.probationEndDate) {
+      this.staffForm.probationEndDate = this.formatDateForInput(this.staffForm.probationEndDate) || '';
+    }
+    if (this.staffForm.terminationDate) {
+      this.staffForm.terminationDate = this.formatDateForInput(this.staffForm.terminationDate) || '';
+    }
+  }
+
+  private formatDateForInput(date: Date | string | undefined): string | undefined {
+    if (!date) return undefined;
+
+    try {
+      // If it's already in yyyy-MM-dd format, return as is
+      if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return date;
+      }
+
+      // Convert to Date object if string
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+
+      // Check if valid date
+      if (isNaN(dateObj.getTime())) {
+        return undefined;
+      }
+
+      // Convert to IST (Indian Standard Time - UTC+5:30) and format as yyyy-MM-dd
+      const istDateString = dateObj.toLocaleString('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+
+      // en-CA locale returns dates in yyyy-MM-dd format
+      return istDateString.split(',')[0].trim();
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return undefined;
+    }
+  }
+
+  private getTodayInIST(): string {
+    // Get current date in IST timezone
+    const today = new Date();
+    const istDateString = today.toLocaleString('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+
+    // en-CA locale returns dates in yyyy-MM-dd format
+    return istDateString.split(',')[0].trim();
   }
 
   closeModal(): void {
@@ -702,5 +793,64 @@ export class StaffManagementComponent implements OnInit {
 
     const avgHours = this.getAverageHoursPerDay(staff);
     return `${daysPerWeek} day${daysPerWeek !== 1 ? 's' : ''}/week • ${avgHours.toFixed(1)} hrs/day avg`;
+  }
+
+  // Email notification methods
+  openEmailModal(): void {
+    if (!this.selectedStaff) return;
+
+    this.emailForm = {
+      subject: '',
+      message: '',
+      sendWhatsApp: false
+    };
+    this.showEmailModal = true;
+  }
+
+  openEmailModalFromCard(staff: Staff): void {
+    this.selectedStaff = staff;
+    this.openEmailModal();
+  }
+
+  closeEmailModal(): void {
+    this.showEmailModal = false;
+    this.emailForm = {
+      subject: '',
+      message: '',
+      sendWhatsApp: false
+    };
+  }
+
+  sendEmail(): void {
+    if (!this.selectedStaff?.id && !this.selectedStaff?._id) return;
+
+    if (!this.emailForm.subject.trim() || !this.emailForm.message.trim()) {
+      this.errorMessage = 'Subject and message are required';
+      setTimeout(() => this.errorMessage = '', 3000);
+      return;
+    }
+
+    const staffId = this.selectedStaff.id || this.selectedStaff._id!;
+    this.emailSending = true;
+
+    this.staffService.sendEmailToStaff(
+      staffId,
+      this.emailForm.subject,
+      this.emailForm.message,
+      this.emailForm.sendWhatsApp
+    ).subscribe({
+      next: () => {
+        this.successMessage = 'Email sent successfully to ' + this.selectedStaff!.firstName + ' ' + this.selectedStaff!.lastName;
+        this.closeEmailModal();
+        this.emailSending = false;
+        setTimeout(() => this.successMessage = '', 3000);
+      },
+      error: (error) => {
+        this.errorMessage = 'Failed to send email';
+        console.error('Error sending email:', error);
+        this.emailSending = false;
+        setTimeout(() => this.errorMessage = '', 3000);
+      }
+    });
   }
 }

@@ -182,4 +182,14 @@ export class StaffService {
       map(response => response)
     );
   }
+
+  /**
+   * Send email notification to staff member
+   */
+  sendEmailToStaff(staffId: string, subject: string, message: string, sendWhatsApp: boolean = false): Observable<any> {
+    const request = { subject, message, sendWhatsApp };
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/${staffId}/send-email`, request).pipe(
+      map(response => response.data)
+    );
+  }
 }

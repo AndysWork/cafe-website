@@ -410,6 +410,17 @@
         }
       }
 
+      &.btn-email {
+        background: #17a2b8;
+        color: white;
+
+        &:hover {
+          background: #138496;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);
+        }
+      }
+
       &.btn-deactivate {
         background: #ffc107;
         color: #333;
@@ -1417,5 +1428,138 @@
       color: #d9534f;
       margin-left: 2px;
     }
+  }
+}
+
+// Email Modal
+.email-modal {
+  max-width: 600px;
+
+  .email-info {
+    background-color: #f8f9fa;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border-left: 4px solid #17a2b8;
+
+    p {
+      margin: 0;
+      color: #495057;
+      font-size: 0.95rem;
+
+      strong {
+        color: #212529;
+      }
+    }
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 600;
+      font-size: 0.95rem;
+
+      .required {
+        color: #d9534f;
+        margin-left: 2px;
+      }
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+
+      &:focus {
+        outline: none;
+        border-color: #17a2b8;
+        box-shadow: 0 0 0 3px rgba(23, 162, 184, 0.1);
+      }
+    }
+
+    textarea.form-control {
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .text-muted {
+      display: block;
+      margin-top: 5px;
+      font-size: 0.85rem;
+      color: #6c757d;
+    }
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    cursor: pointer;
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    span {
+      font-weight: 500;
+      color: #495057;
+    }
+  }
+}
+
+// Add btn-info style to modal footer buttons
+.btn-info {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  i {
+    font-size: 0.9rem;
+  }
+
+  &:hover:not(:disabled) {
+    background-color: #138496;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(23, 162, 184, 0.2);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }

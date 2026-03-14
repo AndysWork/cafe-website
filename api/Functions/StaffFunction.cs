@@ -1100,6 +1100,92 @@ public class StaffFunction
             return errorRes;
         }
     }
+
+    /// <summary>
+    /// Send email notification to a staff member
+    /// </summary>
+    [Function("SendStaffEmail")]
+    [OpenApiOperation(operationId: "SendStaffEmail", tags: new[] { "Staff" }, Summary = "Send email to staff member", Description = "Sends a custom email notification to a staff member (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "staffId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "Staff ID")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(SendStaffEmailRequest), Required = true, Description = "Email details")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.OK, Description = "Email sent successfully")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid request")]
+    public async Task<HttpResponseData> SendStaffEmail(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId}/send-email")] HttpRequestData req,
+        string staffId)
+    {
+        var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!isAuthorized) return errorResponse!;
+
+        try
+        {
+            var requestBody = await req.ReadAsStringAsync();
+            var emailRequest = JsonSerializer.Deserialize<SendStaffEmailRequest>(requestBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (emailRequest == null || string.IsNullOrWhiteSpace(emailRequest.Subject) || string.IsNullOrWhiteSpace(emailRequest.Message))
+            {
+                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Subject and message are required" });
+                return badReqRes;
+            }
+
+            var staff = await _mongo.GetStaffByIdAsync(staffId);
+            if (staff == null)
+            {
+                var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                return notFoundRes;
+            }
+
+            var staffName = $"{staff.FirstName} {staff.LastName}";
+            
+            // Send email
+            var emailSent = await _emailService.SendPromotionalEmailAsync(
+                staff.Email,
+                staffName,
+                emailRequest.Subject,
+                emailRequest.Message
+            );
+
+            // Send WhatsApp notification if enabled
+            var whatsappSent = false;
+            if (emailRequest.SendWhatsApp && !string.IsNullOrWhiteSpace(staff.PhoneNumber))
+            {
+                try
+                {
+                    whatsappSent = await _whatsApp.SendStaffNotificationAsync(
+                        staff.PhoneNumber,
+                        staffName,
+                        emailRequest.Subject,
+                        emailRequest.Message
+                    );
+                }
+                catch (Exception whatsappEx)
+                {
+                    _log.LogWarning(whatsappEx, "Failed to send WhatsApp notification to staff {StaffId}", staffId);
+                }
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new 
+            { 
+                success = true, 
+                message = "Notification sent successfully",
+                emailSent = emailSent,
+                whatsappSent = whatsappSent
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error sending email to staff {StaffId}", staffId);
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to send email" });
+            return errorRes;
+        }
+    }
 }
 
 // Request models for updates
@@ -1118,4 +1204,11 @@ public class UpdateLeaveBalancesRequest
     public int AnnualLeave { get; set; }
     public int SickLeave { get; set; }
     public int CasualLeave { get; set; }
+}
+
+public class SendStaffEmailRequest
+{
+    public string Subject { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public bool SendWhatsApp { get; set; } = false;
 }
