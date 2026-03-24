@@ -31,7 +31,7 @@ namespace Cafe.Api.Functions
 
         // GET: /api/ingredients
         [Function("GetIngredients")]
-        [OpenApiOperation(operationId: "GetIngredients", tags: new[] { "Ingredients" }, Summary = "Get all ingredients", Description = "Retrieves all ingredients")]
+        [OpenApiOperation(operationId: "GetIngredients", tags: new[] { "Ingredients" }, Summary = "Get all ingredients", Description = "Retrieves all ingredients across all outlets")]
         [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
         [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Ingredient>), Description = "Successfully retrieved ingredients")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
@@ -42,13 +42,8 @@ namespace Cafe.Api.Functions
             {
                 _logger.LogInformation("Getting all ingredients");
 
-                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
-                if (string.IsNullOrEmpty(outletId))
-                {
-                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
-                }
-
-                var ingredients = await _mongoService.GetIngredientsAsync(outletId);
+                // Get all ingredients without outlet filtering for price calculator dropdown
+                var ingredients = await _mongoService.GetAllIngredientsAsync();
                 return new OkObjectResult(ingredients);
             }
             catch (Exception ex)

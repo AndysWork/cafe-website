@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -62,8 +62,15 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     | 'expenses'
     | 'earnings'
     | 'online'
-    | 'customers' = 'sales';
+    | 'customers'
+    | 'outlets' = 'sales';
   expenseSource: 'All' | 'Offline' | 'Online' = 'All';
+
+  // Outlets Overview Analytics
+  outletsOverview: any = null;
+  outletsLoading = false;
+  outlets: any[] = [];
+  outletEarningsBreakdown: any[] = [];
 
   // Earnings Analytics
   earningsData: any = null;
@@ -103,6 +110,22 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
+    // Load all outlets for the outlets overview tab
+    this.outletService.getAllOutlets().subscribe({
+      next: (outlets) => {
+        this.outlets = outlets;
+        console.log('Outlets loaded:', outlets.length);
+
+        // If user is already on outlets tab, load the data now
+        if (this.selectedAnalyticsTab === 'outlets') {
+          this.loadOutletsOverview();
+        }
+      },
+      error: (err) => {
+        console.error('Error loading outlets:', err);
+      }
+    });
+
     // Subscribe to outlet changes
     this.outletSubscription = this.outletService.selectedOutlet$
       .pipe(filter(outlet => outlet !== null))
@@ -128,7 +151,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     this.outletSubscription?.unsubscribe();
   }
 
-  switchTab(tab: 'sales' | 'expenses' | 'earnings' | 'online' | 'customers') {
+  switchTab(tab: 'sales' | 'expenses' | 'earnings' | 'online' | 'customers' | 'outlets') {
     this.selectedAnalyticsTab = tab;
     if (tab === 'expenses' && !this.expenseAnalytics) {
       this.loadExpenseAnalytics();
@@ -138,6 +161,22 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       this.loadOnlineSalesAnalytics();
     } else if (tab === 'customers' && !this.customerAnalytics) {
       this.loadCustomerAnalytics();
+    } else if (tab === 'outlets') {
+      // Load outlets first if not loaded, then load overview
+      if (this.outlets.length === 0) {
+        this.outletService.getAllOutlets().subscribe({
+          next: (outlets) => {
+            this.outlets = outlets;
+            console.log('Outlets loaded for overview:', outlets.length);
+            this.loadOutletsOverview();
+          },
+          error: (err) => {
+            console.error('Error loading outlets for overview:', err);
+          }
+        });
+      } else {
+        this.loadOutletsOverview();
+      }
     }
   }
 
@@ -1938,5 +1977,361 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       this.filteredCustomersList = [...this.customerAnalytics.customers];
     }
     return this.filteredCustomersList;
+  }
+
+  // Outlets Overview Methods
+  loadOutletsOverview() {
+    // Don't load if outlets haven't been fetched yet
+    if (this.outlets.length === 0) {
+      console.log('Outlets not loaded yet, skipping overview load');
+      return;
+    }
+
+    this.outletsLoading = true;
+
+    // Headers to request all outlets data (empty string to override default outlet from JWT)
+    const headers = new HttpHeaders().set('X-Outlet-Id', '');
+
+    // Fetch data for all outlets
+    Promise.all([
+      // Sales data
+      this.http
+        .get<any>(
+          `${environment.apiUrl}/sales/range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`,
+          { headers }
+        )
+        .toPromise(),
+      // Online sales data
+      this.http
+        .get<any>(
+          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`,
+          { headers }
+        )
+        .toPromise(),
+      // Expenses data
+      this.http
+        .get<any>(`${environment.apiUrl}/expenses`, { headers })
+        .toPromise(),
+      // Operational expenses
+      this.http
+        .get<any>(`${environment.apiUrl}/operational-expenses`, { headers })
+        .toPromise(),
+      // Platform charges
+      this.http
+        .get<any>(`${environment.apiUrl}/platform-charges`, { headers })
+        .toPromise(),
+    ])
+      .then(([salesResponse, onlineSalesResponse, expensesResponse, operationalExpensesResponse, platformChargesResponse]) => {
+        console.log('Outlets Overview Data:', {
+          sales: salesResponse,
+          onlineSales: onlineSalesResponse,
+          expenses: expensesResponse,
+          operationalExpenses: operationalExpensesResponse,
+          platformCharges: platformChargesResponse
+        });
+
+        // Sales endpoint returns data directly (not wrapped)
+        const allSales = Array.isArray(salesResponse) ? salesResponse : [];
+        // Online sales endpoint wraps in { success, data }
+        const allOnlineSales = Array.isArray(onlineSalesResponse?.data) ? onlineSalesResponse.data : [];
+        // Expenses return arrays directly
+        const allExpenses = Array.isArray(expensesResponse) ? expensesResponse : [];
+        // Operational expenses return arrays directly
+        const allOperationalExpenses = Array.isArray(operationalExpensesResponse) ? operationalExpensesResponse : [];
+        // Platform charges wraps in { success, data }
+        const allPlatformCharges = Array.isArray(platformChargesResponse?.data) ? platformChargesResponse.data : [];
+
+        console.log('Parsed Data:', {
+          salesCount: allSales.length,
+          onlineSalesCount: allOnlineSales.length,
+          expensesCount: allExpenses.length,
+          operationalExpensesCount: allOperationalExpenses.length,
+          platformChargesCount: allPlatformCharges.length
+        });
+
+        // Debug: Check unique outlet IDs in the data
+        const salesOutletIds = [...new Set(allSales.map((s: any) => s.outletId || s.OutletId))];
+        const onlineSalesOutletIds = [...new Set(allOnlineSales.map((s: any) => s.outletId || s.OutletId))];
+        const expensesOutletIds = [...new Set(allExpenses.map((e: any) => e.outletId || e.OutletId))];
+        const operationalExpensesOutletIds = [...new Set(allOperationalExpenses.map((e: any) => e.OutletId || e.outletId))];
+        const platformChargesOutletIds = [...new Set(allPlatformCharges.map((p: any) => p.OutletId || p.outletId))];
+
+        console.log('Unique Outlet IDs in fetched data:', {
+          sales: salesOutletIds,
+          onlineSales: onlineSalesOutletIds,
+          expenses: expensesOutletIds,
+          operationalExpenses: operationalExpensesOutletIds,
+          platformCharges: platformChargesOutletIds,
+          totalOutlets: this.outlets.length,
+          outletsList: this.outlets.map((o: any) => ({ id: o._id, name: o.name }))
+        });
+
+        // Filter data by date range
+        const startDate = getIstStartOfDay(this.dateRange.startDate);
+        const endDate = getIstEndOfDay(this.dateRange.endDate);
+
+        const filteredSales = allSales.filter((s: any) => {
+          const saleDate = new Date(s.date);
+          return saleDate >= startDate && saleDate <= endDate;
+        });
+
+        const filteredOnlineSales = allOnlineSales.filter((s: any) => {
+          const saleDate = new Date(s.orderAt);
+          return saleDate >= startDate && saleDate <= endDate;
+        });
+
+        const filteredExpenses = allExpenses.filter((e: any) => {
+          const expenseDate = new Date(e.date);
+          return expenseDate >= startDate && expenseDate <= endDate;
+        });
+
+        const filteredOperationalExpenses = allOperationalExpenses.filter((e: any) => {
+          if (!e.Year && !e.year) return false;
+          if (!e.Month && !e.month) return false;
+          const year = e.Year || e.year;
+          const month = e.Month || e.month;
+          const expenseDate = new Date(year, month - 1, 1); // First day of the month
+          return expenseDate >= startDate && expenseDate <= endDate;
+        });
+
+        // Platform charges are monthly, so filter by month/year range
+        const filteredPlatformCharges = allPlatformCharges.filter((p: any) => {
+          if (!p.Year || !p.Month) return false;
+          const chargeDate = new Date(p.Year, p.Month - 1, 1); // First day of the month
+          return chargeDate >= startDate && chargeDate <= endDate;
+        });
+
+        console.log('Filtered Data:', {
+          salesCount: filteredSales.length,
+          onlineSalesCount: filteredOnlineSales.length,
+          expensesCount: filteredExpenses.length,
+          operationalExpensesCount: filteredOperationalExpenses.length,
+          platformChargesCount: filteredPlatformCharges.length
+        });
+
+        // Calculate totals across all outlets
+        this.calculateOutletsOverview(
+          filteredSales,
+          filteredOnlineSales,
+          filteredExpenses,
+          filteredOperationalExpenses,
+          filteredPlatformCharges
+        );
+
+        this.outletsLoading = false;
+      })
+      .catch((err) => {
+        console.error('Error loading outlets overview:', err);
+        this.outletsLoading = false;
+      });
+  }
+
+  calculateOutletsOverview(
+    sales: any[],
+    onlineSales: any[],
+    expenses: any[],
+    operationalExpenses: any[],
+    platformCharges: any[]
+  ) {
+    console.log('Calculating outlets overview with:', {
+      salesCount: sales.length,
+      onlineSalesCount: onlineSales.length,
+      expensesCount: expenses.length,
+      operationalExpensesCount: operationalExpenses.length,
+      platformChargesCount: platformCharges.length
+    });
+
+    // Calculate offline sales total
+    const offlineSalesTotal = sales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
+
+    // Calculate online sales totals
+    let onlineSalesTotal = 0;
+    let platformChargesTotal = 0;
+    let platformDeductionsTotal = 0;
+
+    onlineSales.forEach((sale) => {
+      const billSubTotal = sale.billSubTotal || 0;
+      const packagingCharges = sale.packagingCharges || 0;
+      const discountAmount = sale.discountAmount || 0;
+      const platformDeduction = sale.platformDeduction || 0;
+
+      const netPayout = billSubTotal + packagingCharges - discountAmount - platformDeduction;
+      onlineSalesTotal += netPayout;
+      platformDeductionsTotal += platformDeduction;
+    });
+
+    // Calculate platform charges (Charges field with capital C)
+    platformCharges.forEach((charge) => {
+      platformChargesTotal += charge.Charges || charge.charges || 0;
+    });
+
+    // Calculate total revenue
+    const totalRevenue = offlineSalesTotal + onlineSalesTotal;
+
+    // Calculate expenses
+    const offlineExpensesTotal = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    const operationalExpensesTotal = operationalExpenses.reduce(
+      (sum, exp) => sum + (exp.TotalOperationalCost || exp.totalOperationalCost || 0),
+      0
+    );
+    const totalExpenses =
+      offlineExpensesTotal + operationalExpensesTotal + platformChargesTotal;
+
+    // Calculate net profit
+    const netProfit = totalRevenue - totalExpenses;
+    const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+    console.log('Calculated totals:', {
+      offlineSalesTotal,
+      onlineSalesTotal,
+      totalRevenue,
+      offlineExpensesTotal,
+      operationalExpensesTotal,
+      platformChargesTotal,
+      totalExpenses,
+      netProfit,
+      profitMargin,
+      outletCount: this.outlets.length
+    });
+
+    // Calculate breakdown by outlet
+    const outletBreakdown = this.calculateOutletBreakdown(
+      sales,
+      onlineSales,
+      expenses,
+      operationalExpenses,
+      platformCharges
+    );
+
+    this.outletsOverview = {
+      totalRevenue,
+      offlineSales: offlineSalesTotal,
+      onlineSales: onlineSalesTotal,
+      totalExpenses,
+      offlineExpenses: offlineExpensesTotal,
+      operationalExpenses: operationalExpensesTotal,
+      platformCharges: platformChargesTotal,
+      platformDeductions: platformDeductionsTotal,
+      netProfit,
+      profitMargin,
+      outletCount: this.outlets.length,
+    };
+
+    this.outletEarningsBreakdown = outletBreakdown;
+
+    console.log('Outlets Overview Result:', this.outletsOverview);
+    console.log('Outlet Breakdown:', outletBreakdown);
+  }
+
+  calculateOutletBreakdown(
+    sales: any[],
+    onlineSales: any[],
+    expenses: any[],
+    operationalExpenses: any[],
+    platformCharges: any[]
+  ): any[] {
+    console.log('Calculating outlet breakdown...');
+    console.log('Available outlets:', this.outlets);
+    console.log('Outlet properties:', this.outlets.length > 0 ? Object.keys(this.outlets[0]) : 'No outlets');
+
+    const breakdown = this.outlets.map((outlet) => {
+      console.log(`\nProcessing outlet:`, outlet);
+
+      // Try different property name variations for outlet ID
+      const outletIdValue = outlet._id || outlet.id || outlet.Id || outlet.outletId || outlet.OutletId;
+      const outletNameValue = outlet.name || outlet.Name || outlet.outletName || outlet.OutletName;
+      const outletLocationValue = outlet.location || outlet.Location || outlet.address || outlet.Address || 'N/A';
+
+      console.log(`  Outlet ID: ${outletIdValue}, Name: ${outletNameValue}`);
+
+      // Filter data for this outlet - check all possible field name variations
+      const outletSales = sales.filter((s: any) => {
+        const saleOutletId = s.outletId || s.OutletId;
+        return saleOutletId === outletIdValue;
+      });
+
+      const outletOnlineSales = onlineSales.filter((s: any) => {
+        const saleOutletId = s.outletId || s.OutletId;
+        return saleOutletId === outletIdValue;
+      });
+
+      const outletExpenses = expenses.filter((e: any) => {
+        const expenseOutletId = e.outletId || e.OutletId;
+        return expenseOutletId === outletIdValue;
+      });
+
+      const outletOperationalExpenses = operationalExpenses.filter((e: any) => {
+        const expenseOutletId = e.OutletId || e.outletId;
+        return expenseOutletId === outletIdValue;
+      });
+
+      const outletPlatformCharges = platformCharges.filter((p: any) => {
+        const chargeOutletId = p.OutletId || p.outletId;
+        return chargeOutletId === outletIdValue;
+      });
+
+      console.log(`  Sales: ${outletSales.length}, Online: ${outletOnlineSales.length}, Expenses: ${outletExpenses.length}, OpExp: ${outletOperationalExpenses.length}, PlatformCharges: ${outletPlatformCharges.length}`);
+
+      // Log sample IDs to debug
+      if (sales.length > 0 && outletSales.length === 0) {
+        console.log(`  ⚠️ No sales matched! Sample sales outlet IDs:`, sales.slice(0, 3).map(s => s.outletId || s.OutletId));
+      }
+
+      // Calculate offline sales
+      const offlineSalesTotal = outletSales.reduce((sum: number, s: any) => sum + (s.totalAmount || 0), 0);
+
+      // Calculate online sales
+      let onlineSalesTotal = 0;
+      let platformDeductionsTotal = 0;
+      outletOnlineSales.forEach((sale: any) => {
+        const billSubTotal = sale.billSubTotal || 0;
+        const packagingCharges = sale.packagingCharges || 0;
+        const discountAmount = sale.discountAmount || 0;
+        const platformDeduction = sale.platformDeduction || 0;
+
+        const netPayout = billSubTotal + packagingCharges - discountAmount - platformDeduction;
+        onlineSalesTotal += netPayout;
+        platformDeductionsTotal += platformDeduction;
+      });
+
+      const totalRevenue = offlineSalesTotal + onlineSalesTotal;
+
+      // Calculate expenses
+      const offlineExpensesTotal = outletExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+      const operationalExpensesTotal = outletOperationalExpenses.reduce(
+        (sum: number, e: any) => sum + (e.TotalOperationalCost || e.totalOperationalCost || 0),
+        0
+      );
+      const platformChargesTotal = outletPlatformCharges.reduce(
+        (sum: number, p: any) => sum + (p.Charges || p.charges || 0),
+        0
+      );
+      const totalExpenses = offlineExpensesTotal + operationalExpensesTotal + platformChargesTotal;
+
+      // Calculate profit
+      const netProfit = totalRevenue - totalExpenses;
+      const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+      console.log(`  Results for ${outletNameValue}: Revenue=${totalRevenue}, Expenses=${totalExpenses}, Profit=${netProfit}`);
+
+      return {
+        outletId: outletIdValue,
+        outletName: outletNameValue,
+        location: outletLocationValue,
+        totalRevenue,
+        offlineSales: offlineSalesTotal,
+        onlineSales: onlineSalesTotal,
+        totalExpenses,
+        offlineExpenses: offlineExpensesTotal,
+        operationalExpenses: operationalExpensesTotal,
+        platformCharges: platformChargesTotal,
+        platformDeductions: platformDeductionsTotal,
+        netProfit,
+        profitMargin,
+      };
+    });
+
+    // Sort by total revenue descending
+    return breakdown.sort((a, b) => b.totalRevenue - a.totalRevenue);
   }
 }

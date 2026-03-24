@@ -3516,6 +3516,11 @@ public partial class MongoService
         return await _ingredients.Find(i => i.OutletId == outletId).ToListAsync();
     }
 
+    public async Task<List<Ingredient>> GetAllIngredientsAsync()
+    {
+        return await _ingredients.Find(_ => true).ToListAsync();
+    }
+
     public async Task<Ingredient?> GetIngredientByIdAsync(string id, string? outletId = null)
     {
         if (string.IsNullOrEmpty(outletId))

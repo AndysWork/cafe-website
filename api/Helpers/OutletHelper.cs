@@ -16,6 +16,7 @@ public static class OutletHelper
     /// <summary>
     /// Extracts outlet ID from request header or user's default outlet
     /// Priority: 1) X-Outlet-Id header, 2) User's DefaultOutletId from token, 3) null
+    /// If X-Outlet-Id header is present but empty, returns null (for querying all outlets)
     /// </summary>
     public static string? GetOutletIdFromRequest(HttpRequestData req, AuthService authService)
     {
@@ -23,9 +24,12 @@ public static class OutletHelper
         if (req.Headers.TryGetValues(OutletIdHeaderKey, out var headerValues))
         {
             var outletId = headerValues.FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(outletId))
+            
+            // If header is present (even if empty), use it and don't fall back to default
+            // Empty string means "return all outlets"
+            if (outletId != null)
             {
-                return outletId;
+                return string.IsNullOrWhiteSpace(outletId) ? null : outletId;
             }
         }
 
@@ -152,6 +156,7 @@ public static class OutletHelper
     /// <summary>
     /// Extracts outlet ID from ASP.NET Core HttpRequest (for older function patterns)
     /// Priority: 1) X-Outlet-Id header, 2) User's DefaultOutletId from token, 3) null
+    /// If X-Outlet-Id header is present but empty, returns null (for querying all outlets)
     /// </summary>
     public static string? GetOutletIdFromRequest(HttpRequest req, AuthService authService)
     {
@@ -159,9 +164,12 @@ public static class OutletHelper
         if (req.Headers.TryGetValue(OutletIdHeaderKey, out var headerValues))
         {
             var outletId = headerValues.FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(outletId))
+            
+            // If header is present (even if empty), use it and don't fall back to default
+            // Empty string means "return all outlets"
+            if (outletId != null)
             {
-                return outletId;
+                return string.IsNullOrWhiteSpace(outletId) ? null : outletId;
             }
         }
 

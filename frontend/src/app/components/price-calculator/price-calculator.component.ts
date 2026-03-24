@@ -130,6 +130,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   showForecastHistoryModal = false;
   priceChangeReason = '';
 
+  // Copy Recipe Modal
+  showCopyRecipeModal = false;
+  selectedRecipeToCopy: MenuItemRecipe | null = null;
+  copyRecipeSearchTerm = '';
+
   // Constants for templates
   categories = INGREDIENT_CATEGORIES;
   units = MEASUREMENT_UNITS;
@@ -433,11 +438,21 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       this.priceCalculatorService.updateIngredient(this.editingIngredient.id, this.ingredientForm)
         .subscribe({
           next: (response: any) => {
+            // Update the ingredient in-place to maintain object reference
+            const index = this.ingredients.findIndex(i => i.id === this.editingIngredient?.id);
+            if (index !== -1) {
+              // Update properties individually instead of replacing the object
+              Object.assign(this.ingredients[index], {
+                ...this.ingredientForm,
+                ...response,
+                isActive: response?.isActive ?? this.ingredientForm.isActive ?? true
+              });
+            }
+
             this.closeIngredientModal();
-            this.loadIngredients();
 
             // Check for price change alert
-            if (response.priceChangeAlert) {
+            if (response?.priceChangeAlert) {
               this.showAlert(
                 response.priceChangeAlert.message,
                 Math.abs(response.priceChangeAlert.percentage) >= 20 ? 'error' : 'warning',
@@ -455,9 +470,20 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     } else {
       this.priceCalculatorService.addIngredient(this.ingredientForm)
         .subscribe({
-          next: () => {
+          next: (newIngredient: any) => {
+            // Add the new ingredient to the local array
+            if (newIngredient) {
+              this.ingredients.push({
+                ...this.ingredientForm,
+                ...newIngredient,
+                isActive: newIngredient.isActive ?? true
+              });
+            } else {
+              // Fallback to full reload if no response
+              this.loadIngredients();
+            }
+
             this.closeIngredientModal();
-            this.loadIngredients();
             this.showAlert('Ingredient added successfully', 'success');
           },
           error: (err) => {
@@ -472,8 +498,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   startInlineEdit(ingredient: Ingredient): void {
     this.editingInlineId = ingredient.id || null;
     this.inlineEditForm = {
-      price: ingredient.marketPrice,
-      unit: ingredient.unit
+      price: ingredient.marketPrice || 0,
+      unit: ingredient.unit || 'kg'
     };
   }
 
@@ -491,24 +517,40 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     const originalPrice = ingredient.marketPrice;
     const originalUnit = ingredient.unit;
 
-    // Optimistic update - update local ingredient immediately for instant UI feedback
-    ingredient.marketPrice = this.inlineEditForm.price;
-    ingredient.unit = this.inlineEditForm.unit as any;
-    this.editingInlineId = null;
-
     const updatedIngredient: Partial<Ingredient> = {
       ...ingredient,
+      marketPrice: this.inlineEditForm.price,
+      unit: this.inlineEditForm.unit as any,
       isActive: ingredient.isActive ?? true // Preserve or default to true
     };
 
     this.priceCalculatorService.updateIngredient(ingredient.id, updatedIngredient)
       .subscribe({
         next: (response: any) => {
-          // Reload ingredients in background to sync with server
-          this.loadIngredients();
+          // Update properties in-place to maintain object reference
+          const index = this.ingredients.findIndex(i => i.id === ingredient.id);
+          if (index !== -1) {
+            // Update properties individually instead of replacing the object
+            const existingIng = this.ingredients[index];
+
+            if (response) {
+              // Apply all response properties to the existing object
+              Object.assign(existingIng, {
+                ...response,
+                isActive: response.isActive ?? existingIng.isActive ?? true
+              });
+            } else {
+              // If no response, just update the price and unit
+              existingIng.marketPrice = this.inlineEditForm.price;
+              existingIng.unit = this.inlineEditForm.unit as any;
+            }
+          }
+
+          // Close edit mode after successful update
+          this.editingInlineId = null;
 
           // Check for major price change alert
-          if (response.priceChangeAlert) {
+          if (response?.priceChangeAlert) {
             const alert = response.priceChangeAlert;
             this.showAlert(
               `⚠️ ${ingredient.name}: ${alert.message}`,
@@ -522,8 +564,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         error: (err) => {
           console.error('Error updating price:', err);
           // Rollback optimistic update on error
-          ingredient.marketPrice = originalPrice;
-          ingredient.unit = originalUnit;
+          const index = this.ingredients.findIndex(i => i.id === ingredient.id);
+          if (index !== -1) {
+            this.ingredients[index].marketPrice = originalPrice;
+            this.ingredients[index].unit = originalUnit;
+          }
           this.showAlert('Failed to update price', 'error');
           this.editingInlineId = null;
         }
@@ -537,7 +582,17 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   deleteIngredient(id?: string): void {
     if (!id) return;
     if (confirm('Are you sure you want to delete this ingredient?')) {
-      this.priceCalculatorService.deleteIngredient(id).subscribe();
+      this.priceCalculatorService.deleteIngredient(id).subscribe({
+        next: () => {
+          // Remove from local array instead of reloading all
+          this.ingredients = this.ingredients.filter(ing => ing.id !== id);
+          this.showAlert('Ingredient deleted successfully', 'success');
+        },
+        error: (err) => {
+          console.error('Error deleting ingredient:', err);
+          this.showAlert('Failed to delete ingredient', 'error');
+        }
+      });
     }
   }
 
@@ -558,7 +613,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     // Combine regular ingredients and frozen items
     const allIngredients = [...this.ingredients, ...frozenAsIngredients];
 
-    return allIngredients.filter(ing => {
+    const filtered = allIngredients.filter(ing => {
       const matchesSearch = !this.ingredientSearchTerm ||
         ing.name.toLowerCase().includes(this.ingredientSearchTerm.toLowerCase());
       const matchesCategory = !this.selectedCategory || ing.category === this.selectedCategory;
@@ -566,6 +621,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       const isActiveOrUndefined = ing.isActive !== false;
       return matchesSearch && matchesCategory && isActiveOrUndefined;
     });
+
+    // Sort alphabetically by name (case-insensitive)
+    return filtered.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }
 
   // ===== PRICE TRACKING METHODS =====
@@ -909,6 +967,56 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   newRecipe(): void {
     this.currentRecipe = this.getEmptyRecipe();
     this.calculation = null;
+    this.activeTab = 'calculator';
+  }
+
+  openCopyRecipeModal(): void {
+    this.showCopyRecipeModal = true;
+    this.selectedRecipeToCopy = null;
+    this.copyRecipeSearchTerm = '';
+  }
+
+  closeCopyRecipeModal(): void {
+    this.showCopyRecipeModal = false;
+    this.selectedRecipeToCopy = null;
+    this.copyRecipeSearchTerm = '';
+  }
+
+  get filteredRecipesForCopy(): MenuItemRecipe[] {
+    if (!this.copyRecipeSearchTerm) {
+      return this.recipes;
+    }
+    return this.recipes.filter(recipe =>
+      recipe.menuItemName.toLowerCase().includes(this.copyRecipeSearchTerm.toLowerCase())
+    );
+  }
+
+  copyFromRecipe(): void {
+    if (!this.selectedRecipeToCopy) {
+      this.showAlert('Please select a recipe to copy', 'error');
+      return;
+    }
+
+    // Deep clone the recipe to avoid reference issues
+    const copiedRecipe = JSON.parse(JSON.stringify(this.selectedRecipeToCopy));
+
+    // Clear the ID and modify the name to indicate it's a copy
+    delete copiedRecipe.id;
+    copiedRecipe.menuItemName = copiedRecipe.menuItemName + ' (Copy)';
+
+    // Set as current recipe
+    this.currentRecipe = copiedRecipe;
+
+    // Load the recipe data properly
+    this.loadRecipe(copiedRecipe);
+
+    // Close modal
+    this.closeCopyRecipeModal();
+
+    // Show success message
+    this.showAlert(`Recipe copied: ${this.selectedRecipeToCopy.menuItemName}`, 'success');
+
+    // Switch to calculator tab
     this.activeTab = 'calculator';
   }
 
@@ -1619,11 +1727,13 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   getCategoryLabel(value: string): string {
+    if (!value) return 'Uncategorized';
     const category = this.categories.find(c => c.value === value);
     return category ? category.label : value;
   }
 
   getUnitLabel(value: string): string {
+    if (!value) return 'kg';
     const unit = this.units.find(u => u.value === value);
     return unit ? unit.label : value;
   }
@@ -1665,6 +1775,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       // Auto-populate custom price with market price (can be overridden)
       this.customIngredientPrice = this.selectedIngredient.marketPrice;
     }
+  }
+
+  // TrackBy function for better change detection
+  trackByIngredientId(index: number, ingredient: Ingredient): string | undefined {
+    return ingredient.id;
   }
 
   // Helper methods for chart calculations
@@ -1755,8 +1870,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   saveFrozenItem(): void {
-    if (!this.frozenForm.itemName || this.frozenForm.buyPrice <= 0) {
-      alert('Please fill in all required fields with valid values.');
+    if (!this.frozenForm.itemName || !this.frozenForm.vendor || this.frozenForm.buyPrice <= 0 || this.frozenForm.quantity <= 0) {
+      this.showAlert('Please fill in all required fields with valid values.', 'error');
       return;
     }
 
@@ -1802,6 +1917,16 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
           this.showAlert('Failed to delete frozen item', 'error');
         }
       });
+    }
+  }
+
+  calculateFrozenPrices(): void {
+    if (this.frozenForm.quantity > 0 && this.frozenForm.packetWeight > 0 && this.frozenForm.buyPrice > 0) {
+      // Calculate per piece price: total price divided by quantity
+      this.frozenForm.perPiecePrice = this.frozenForm.buyPrice / this.frozenForm.quantity;
+
+      // Calculate per piece weight: convert packet weight (kg) to grams and divide by quantity
+      this.frozenForm.perPieceWeight = (this.frozenForm.packetWeight * 1000) / this.frozenForm.quantity;
     }
   }
 

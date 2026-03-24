@@ -23,7 +23,9 @@
         "allowedOrigins": [
             "http://localhost:4200",
             "https://*.azurewebsites.net",
-            "https://*.azurestaticapps.net"
+            "https://*.azurestaticapps.net",
+            "https://www.maataracafe.in",
+            "https://maataracafe.in"
         ],
         "supportCredentials": true
     }

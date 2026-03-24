@@ -5,9 +5,18 @@ import { OutletService } from '../services/outlet.service';
 /**
  * HTTP Interceptor that adds X-Outlet-Id header to all API requests
  * This allows the backend to filter data by outlet
+ * If X-Outlet-Id is already present (even if empty), it won't be overridden
  */
 export const outletInterceptor: HttpInterceptorFn = (req, next) => {
   const outletService = inject(OutletService);
+
+  // If X-Outlet-Id header is already set (even to empty string), don't override it
+  // Empty string is used to request all outlets data
+  if (req.headers.has('X-Outlet-Id')) {
+    const existingOutletId = req.headers.get('X-Outlet-Id');
+    console.log(`[OutletInterceptor] ${req.method} ${req.url} - X-Outlet-Id already set: "${existingOutletId}" ${existingOutletId === '' ? '(ALL OUTLETS)' : ''}`);
+    return next(req);
+  }
 
   // Get the currently selected outlet ID
   const outletId = outletService.getSelectedOutletId();

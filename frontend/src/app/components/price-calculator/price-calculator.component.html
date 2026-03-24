@@ -60,8 +60,8 @@
             <button class="btn-action" (click)="newRecipe()" title="New Recipe">
               <span>➕</span> New
             </button>
-            <button class="btn-action" (click)="openCopyMenuModal()" title="Copy from Another Outlet" style="background-color: #3b82f6;">
-              <span>📋</span> Copy from Outlet
+            <button class="btn-action" (click)="openCopyRecipeModal()" title="Copy from Existing Recipe" style="background-color: #8b5cf6;">
+              <span>📋</span> Copy Recipe
             </button>
             <button class="btn-action btn-save" (click)="saveCurrentRecipe()" title="Save Recipe">
               <span>💾</span> Save
@@ -878,9 +878,9 @@
       </div>
 
       <div class="ingredients-grid">
-        <div class="ingredient-card" *ngFor="let ing of filteredIngredients">
+        <div class="ingredient-card" *ngFor="let ing of filteredIngredients; trackBy: trackByIngredientId">
           <div class="card-header">
-            <h4>{{ing.name}}</h4>
+            <h4>{{ing.name || 'Unnamed Ingredient'}}</h4>
             <div class="card-badges">
               <span class="category-badge">{{getCategoryLabel(ing.category)}}</span>
               <span class="source-badge" [ngClass]="getPriceSourceBadge(ing.priceSource).class">
@@ -924,7 +924,7 @@
             <!-- Display Mode -->
             <div class="price-display" *ngIf="!isEditingInline(ing)">
               <span class="price-label">Market Price:</span>
-              <span class="price-amount">₹{{ing.marketPrice}}/{{ing.unit}}</span>
+              <span class="price-amount">₹{{ing.marketPrice || 0}}/{{ing.unit || 'kg'}}</span>
               <span *ngIf="ing.priceChangePercentage"
                     class="price-change"
                     [ngClass]="getPriceChangeClass(ing.priceChangePercentage)">
@@ -987,22 +987,69 @@
             <h4>{{recipe.menuItemName}}</h4>
           </div>
           <div class="card-body">
+            <!-- Basic Cost Info -->
             <div class="recipe-stats">
-              <div class="stat-item">
-                <span class="stat-label">Ingredients:</span>
-                <span class="stat-value">{{recipe.ingredients.length}}</span>
-              </div>
               <div class="stat-item">
                 <span class="stat-label">Making Cost:</span>
                 <span class="stat-value">₹{{recipe.totalMakingCost.toFixed(2)}}</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">Selling Price:</span>
+                <span class="stat-label">Selling Price ({{recipe.profitMargin}}%):</span>
                 <span class="stat-value selling">₹{{recipe.suggestedSellingPrice.toFixed(2)}}</span>
               </div>
-              <div class="stat-item">
-                <span class="stat-label">Profit:</span>
-                <span class="stat-value profit">{{recipe.profitMargin}}%</span>
+            </div>
+
+            <!-- Current Pricing -->
+            <div class="recipe-stats" *ngIf="recipe.priceForecast?.shopPrice || recipe.priceForecast?.onlinePrice">
+              <div class="section-divider">Current Pricing</div>
+              <div class="stat-item" *ngIf="recipe.priceForecast?.shopPrice">
+                <span class="stat-label">Shop:</span>
+                <span class="stat-value">₹{{(recipe.priceForecast?.shopPrice || 0).toFixed(2)}}
+                  <small 
+                    class="profit-badge" 
+                    [class.loss]="(recipe.priceForecast?.offlineProfit || 0) < 0"
+                    *ngIf="recipe.priceForecast?.offlineProfit">
+                    ({{(recipe.priceForecast?.offlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.offlineProfit || 0).toFixed(2)}})
+                  </small>
+                </span>
+              </div>
+              <div class="stat-item" *ngIf="recipe.priceForecast?.onlinePrice">
+                <span class="stat-label">Online:</span>
+                <span class="stat-value">₹{{(recipe.priceForecast?.onlinePrice || 0).toFixed(2)}}
+                  <small 
+                    class="profit-badge" 
+                    [class.loss]="(recipe.priceForecast?.onlineProfit || 0) < 0"
+                    *ngIf="recipe.priceForecast?.onlineProfit">
+                    ({{(recipe.priceForecast?.onlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.onlineProfit || 0).toFixed(2)}})
+                  </small>
+                </span>
+              </div>
+            </div>
+
+            <!-- Future Pricing -->
+            <div class="recipe-stats" *ngIf="recipe.priceForecast?.futureShopPrice || recipe.priceForecast?.futureOnlinePrice">
+              <div class="section-divider future">Future Pricing</div>
+              <div class="stat-item" *ngIf="recipe.priceForecast?.futureShopPrice">
+                <span class="stat-label">Shop:</span>
+                <span class="stat-value future">₹{{(recipe.priceForecast?.futureShopPrice || 0).toFixed(2)}}
+                  <small 
+                    class="profit-badge future" 
+                    [class.loss]="(recipe.priceForecast?.futureShopProfit || 0) < 0"
+                    *ngIf="recipe.priceForecast?.futureShopProfit">
+                    ({{(recipe.priceForecast?.futureShopProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureShopProfit || 0).toFixed(2)}})
+                  </small>
+                </span>
+              </div>
+              <div class="stat-item" *ngIf="recipe.priceForecast?.futureOnlinePrice">
+                <span class="stat-label">Online:</span>
+                <span class="stat-value future">₹{{(recipe.priceForecast?.futureOnlinePrice || 0).toFixed(2)}}
+                  <small 
+                    class="profit-badge future" 
+                    [class.loss]="(recipe.priceForecast?.futureOnlineProfit || 0) < 0"
+                    *ngIf="recipe.priceForecast?.futureOnlineProfit">
+                    ({{(recipe.priceForecast?.futureOnlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureOnlineProfit || 0).toFixed(2)}})
+                  </small>
+                </span>
               </div>
             </div>
           </div>
@@ -1323,55 +1370,44 @@
           <h2>🧊 Frozen Items Management</h2>
           <p class="subtitle">Upload frozen items via Excel or add them manually</p>
         </div>
-        <!-- <div class="header-actions">
+        <div class="header-actions">
           <button class="btn-action" (click)="downloadExcelTemplate()" title="Download Template">
             <span>📥</span> Download Template
+          </button>
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            (change)="onFileSelected($event)"
+            class="file-input"
+            id="excelFile">
+          <label for="excelFile" class="btn-action file-label" title="Choose Excel File">
+            <span *ngIf="!selectedFile">📎 Choose File</span>
+            <span *ngIf="selectedFile">✅ {{selectedFile.name}}</span>
+          </label>
+          <button
+            class="btn-action"
+            (click)="uploadExcelFile()"
+            [disabled]="!selectedFile || uploadProgress"
+            title="Upload Excel File">
+            <span *ngIf="!uploadProgress">⬆️ Upload</span>
+            <span *ngIf="uploadProgress">⏳ Uploading...</span>
           </button>
           <button class="btn-action btn-primary" (click)="openFrozenModal()" title="Add Frozen Item">
             <span>➕</span> Add Item
           </button>
-        </div> -->
+        </div>
       </div>
 
-      <!-- Excel Upload Section -->
-      <div class="upload-section">
-        <div class="upload-card">
-          <div class="upload-icon">📤</div>
-          <h3>Upload Excel File</h3>
-          <p>Upload an Excel file with frozen items data. Required columns: ItemName, Quantity, PacketWeight, BuyPrice, PerPiecePrice, PerPieceWeight, Vendor</p>
-
-          <div class="upload-form">
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              (change)="onFileSelected($event)"
-              class="file-input"
-              id="excelFile">
-            <label for="excelFile" class="file-label">
-              <span *ngIf="!selectedFile">📎 Choose Excel File</span>
-              <span *ngIf="selectedFile">✅ {{selectedFile.name}}</span>
-            </label>
-            <button
-              class="btn-upload"
-              (click)="uploadExcelFile()"
-              [disabled]="!selectedFile || uploadProgress">
-              <span *ngIf="!uploadProgress">⬆️ Upload</span>
-              <span *ngIf="uploadProgress">⏳ Uploading...</span>
-            </button>
-          </div>
-
-          <!-- Upload Result -->
-          <div class="upload-result" *ngIf="uploadResult">
-            <div class="result-summary" [ngClass]="uploadResult.failed === 0 ? 'success' : 'warning'">
-              <strong>Upload Complete:</strong> {{uploadResult.success}} successful, {{uploadResult.failed}} failed
-            </div>
-            <div class="result-errors" *ngIf="uploadResult.errors.length > 0">
-              <h4>Errors:</h4>
-              <ul>
-                <li *ngFor="let error of uploadResult.errors">{{error}}</li>
-              </ul>
-            </div>
-          </div>
+      <!-- Upload Result -->
+      <div class="upload-result" *ngIf="uploadResult">
+        <div class="result-summary" [ngClass]="uploadResult.failed === 0 ? 'success' : 'warning'">
+          <strong>Upload Complete:</strong> {{uploadResult.success}} successful, {{uploadResult.failed}} failed
+        </div>
+        <div class="result-errors" *ngIf="uploadResult.errors.length > 0">
+          <h4>Errors:</h4>
+          <ul>
+            <li *ngFor="let error of uploadResult.errors">{{error}}</li>
+          </ul>
         </div>
       </div>
 
@@ -1477,6 +1513,7 @@
             <input
               type="number"
               [(ngModel)]="frozenForm.quantity"
+              (ngModelChange)="calculateFrozenPrices()"
               min="0"
               step="1"
               class="form-input">
@@ -1487,6 +1524,7 @@
             <input
               type="number"
               [(ngModel)]="frozenForm.packetWeight"
+              (ngModelChange)="calculateFrozenPrices()"
               min="0"
               step="0.01"
               class="form-input">
@@ -1498,6 +1536,7 @@
           <input
             type="number"
             [(ngModel)]="frozenForm.buyPrice"
+            (ngModelChange)="calculateFrozenPrices()"
             min="0"
             step="0.01"
             class="form-input">
@@ -1511,7 +1550,8 @@
               [(ngModel)]="frozenForm.perPiecePrice"
               min="0"
               step="0.01"
-              class="form-input">
+              class="form-input"
+              readonly>
           </div>
 
           <div class="form-group">
@@ -1521,7 +1561,8 @@
               [(ngModel)]="frozenForm.perPieceWeight"
               min="0"
               step="0.01"
-              class="form-input">
+              class="form-input"
+              readonly>
           </div>
         </div>
 
@@ -1540,7 +1581,7 @@
             [(ngModel)]="frozenForm.notes"
             placeholder="Additional notes..."
             class="form-textarea"
-            rows="3"></textarea>
+            rows="2"></textarea>
         </div>
 
         <div class="form-group">
@@ -1619,7 +1660,7 @@
             [(ngModel)]="overheadForm.description"
             placeholder="Brief description of this overhead cost..."
             class="form-textarea"
-            rows="3"></textarea>
+            rows="2"></textarea>
         </div>
 
         <div class="form-group">
@@ -1659,12 +1700,12 @@
         <h2>📜 Price Change History - {{currentRecipe.menuItemName}}</h2>
         <button class="modal-close" (click)="closePriceHistoryModal()">✖</button>
       </div>
-      <div class="modal-body" style="max-height: 600px; overflow-y: auto;">
+      <div class="modal-body">
         <div *ngIf="savedPriceForecast && savedPriceForecast.history && savedPriceForecast.history.length > 0">
           <!-- Current Prices -->
-          <div class="current-prices-section" style="background: #e7f3ff; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6;">
-            <h3 style="margin: 0 0 1rem 0; color: #1e40af; font-size: 1.1rem;">✅ Current Prices</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+          <div class="current-prices-section">
+            <h3>✅ Current Prices</h3>
+            <div class="prices-grid">
               <div class="price-stat-card">
                 <div class="stat-label">Making Cost</div>
                 <div class="stat-value">₹{{savedPriceForecast.makePrice.toFixed(2)}}</div>
@@ -1779,97 +1820,66 @@
     </div>
   </div>
 
-  <!-- Copy Menu Data Modal -->
-  <div class="modal-overlay" *ngIf="showCopyMenuModal" (click)="closeCopyMenuModal()">
-    <div class="modal-container" (click)="$event.stopPropagation()" style="max-width: 600px;">
+  <!-- Copy Recipe Modal -->
+  <div class="modal-overlay" *ngIf="showCopyRecipeModal" (click)="closeCopyRecipeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h2>📋 Copy Menu Data from Another Outlet</h2>
-        <button class="close-btn" (click)="closeCopyMenuModal()">&times;</button>
+        <h2>📋 Copy from Existing Recipe</h2>
+        <button class="modal-close" (click)="closeCopyRecipeModal()">✖</button>
       </div>
       <div class="modal-body">
-        <div class="info-banner" style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 12px; margin-bottom: 20px; border-radius: 4px;">
-          <p style="margin: 0; color: #1e40af; font-size: 14px;">
+        <div class="info-banner" style="background: #f3e8ff; border-left: 4px solid #8b5cf6; padding: 0.75rem; margin-bottom: 1rem; border-radius: 6px;">
+          <p style="margin: 0; color: #6b21a8; font-size: 0.85rem;">
             <strong>ℹ️ What gets copied:</strong><br>
-            • Recipe with all ingredients and quantities<br>
-            • Oil usage time and cost calculations<br>
-            • Price forecast data and future prices<br>
-            • Overhead costs and profit margins
+            • All ingredients with quantities and costs<br>
+            • Overhead costs and profit margins<br>
+            • Oil usage settings (if any)<br>
+            • Preparation time
           </p>
         </div>
 
         <div class="form-section">
-          <label>Menu Item Name <span class="required">*</span></label>
+          <label>Search Recipe</label>
           <input
             type="text"
-            list="copyMenuItemsList"
-            [(ngModel)]="copyMenuForm.menuItemName"
-            placeholder="e.g., Masala Dosa"
-            class="form-input"
-            [disabled]="isCopying">
-          <datalist id="copyMenuItemsList">
-            <option *ngFor="let item of menuItems" [value]="item.name"></option>
-          </datalist>
-          <small class="form-hint">Enter the menu item name to copy (must match exactly)</small>
+            [(ngModel)]="copyRecipeSearchTerm"
+            placeholder="Search by menu item name..."
+            class="form-input">
         </div>
 
-        <div class="form-section">
-          <label>Source Outlet <span class="required">*</span></label>
-          <select
-            [(ngModel)]="copyMenuForm.sourceOutletId"
-            class="form-input"
-            [disabled]="isCopying">
-            <option value="">Select source outlet...</option>
-            <option *ngFor="let outlet of availableOutlets" [value]="outlet.id">
-              {{ outlet.outletName }}
-            </option>
-          </select>
-          <small class="form-hint">Outlet to copy data FROM</small>
-        </div>
-
-        <div class="form-section">
-          <label>Target Outlet <span class="required">*</span></label>
-          <select
-            [(ngModel)]="copyMenuForm.targetOutletId"
-            class="form-input"
-            [disabled]="isCopying">
-            <option value="">Select target outlet...</option>
-            <option *ngFor="let outlet of availableOutlets" [value]="outlet.id">
-              {{ outlet.outletName }}
-            </option>
-          </select>
-          <small class="form-hint">Outlet to copy data TO (current: {{ currentOutlet?.outletName || 'None' }})</small>
-        </div>
-
-        <!-- Copy Result -->
-        <div *ngIf="copyResult" class="result-card" style="margin-top: 20px; padding: 15px; border-radius: 8px; background: #f0fdf4; border: 1px solid #86efac;">
-          <h4 style="margin: 0 0 10px 0; color: #166534;">✅ {{ copyResult.message }}</h4>
-          <div style="font-size: 14px; color: #15803d;">
-            <p style="margin: 5px 0;"><strong>Menu Item:</strong> {{ copyResult.data.menuItemName }}</p>
-            <p style="margin: 5px 0;"><strong>From:</strong> {{ getOutletName(copyResult.data.sourceOutletId) }}</p>
-            <p style="margin: 5px 0;"><strong>To:</strong> {{ getOutletName(copyResult.data.targetOutletId) }}</p>
-            <div style="margin-top: 10px;">
-              <span *ngIf="copyResult.data.recipeCopied" style="display: inline-block; margin: 5px 10px 5px 0; padding: 4px 8px; background: #166534; color: white; border-radius: 4px; font-size: 12px;">
-                ✓ Recipe Copied
-              </span>
-              <span *ngIf="copyResult.data.priceForecastCopied" style="display: inline-block; margin: 5px 10px 5px 0; padding: 4px 8px; background: #166534; color: white; border-radius: 4px; font-size: 12px;">
-                ✓ Price Forecast Copied
-              </span>
-              <span *ngIf="copyResult.data.futurePricesUpdated" style="display: inline-block; margin: 5px 10px 5px 0; padding: 4px 8px; background: #166534; color: white; border-radius: 4px; font-size: 12px;">
-                ✓ Future Prices Updated
-              </span>
+        <div class="recipe-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.5rem;">
+          <div
+            *ngFor="let recipe of filteredRecipesForCopy"
+            class="recipe-item"
+            [class.selected]="selectedRecipeToCopy?.id === recipe.id"
+            (click)="selectedRecipeToCopy = recipe"
+            style="padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong style="font-size: 0.95rem; color: #1e293b;">{{ recipe.menuItemName }}</strong>
+                <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">
+                  <span>{{ recipe.ingredients.length }} ingredients</span>
+                  <span style="margin-left: 1rem;">Making Cost: ₹{{ recipe.totalMakingCost.toFixed(2) }}</span>
+                </div>
+              </div>
+              <span *ngIf="selectedRecipeToCopy?.id === recipe.id" style="color: #8b5cf6; font-size: 1.5rem;">✓</span>
             </div>
+          </div>
+          <div *ngIf="filteredRecipesForCopy.length === 0" style="text-align: center; padding: 2rem; color: #94a3b8;">
+            <span style="font-size: 3rem; display: block; margin-bottom: 0.5rem;">📋</span>
+            <p>No recipes found</p>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" (click)="closeCopyMenuModal()" [disabled]="isCopying">
+        <button class="btn-secondary" (click)="closeCopyRecipeModal()">
           Cancel
         </button>
-        <button class="btn-primary" (click)="copyMenuDataFromOutlet()" [disabled]="isCopying">
-          <span *ngIf="!isCopying">📋 Copy Data</span>
-          <span *ngIf="isCopying">⏳ Copying...</span>
+        <button class="btn-primary" (click)="copyFromRecipe()" [disabled]="!selectedRecipeToCopy">
+          <span>📋 Copy Recipe</span>
         </button>
       </div>
     </div>
   </div>
+
 </div>

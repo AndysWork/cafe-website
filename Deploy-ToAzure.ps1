@@ -160,12 +160,23 @@ if ($functionAppExists) {
 # Configure CORS
 Write-Step "Configuring CORS..."
 $ErrorActionPreference = "SilentlyContinue"
-az functionapp cors add `
-    --name $FunctionAppName `
-    --resource-group $ResourceGroupName `
-    --allowed-origins "https://your-frontend-url.azurestaticapps.net" `
-    --only-show-errors `
-    --output none 2>$null
+
+# Add multiple CORS origins
+$corsOrigins = @(
+    "http://localhost:4200",
+    "https://www.maataracafe.in",
+    "https://maataracafe.in"
+)
+
+foreach ($origin in $corsOrigins) {
+    az functionapp cors add `
+        --name $FunctionAppName `
+        --resource-group $ResourceGroupName `
+        --allowed-origins $origin `
+        --only-show-errors `
+        --output none 2>$null
+}
+
 $ErrorActionPreference = "Stop"
 Write-Success "CORS configured"
 

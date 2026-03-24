@@ -1865,4 +1865,143 @@
       }
     }
   }
+
+  // Outlets Overview Specific Styles
+  .table-container {
+    overflow-x: auto;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+    margin-top: 1.5rem;
+
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 8px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      border-radius: 8px;
+    }
+
+    .analytics-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: white;
+      min-width: 1100px;
+
+      thead {
+        tr {
+          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+
+          th {
+            padding: 1.25rem 1rem;
+            text-align: left;
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e2e8f0;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+
+            &:first-child {
+              border-top-left-radius: 12px;
+              padding-left: 1.5rem;
+            }
+
+            &:last-child {
+              border-top-right-radius: 12px;
+              padding-right: 1.5rem;
+            }
+
+            &.text-right {
+              text-align: right;
+            }
+
+            &.text-center {
+              text-align: center;
+            }
+          }
+        }
+      }
+
+      tbody {
+        tr {
+          transition: all 0.3s ease;
+          border-bottom: 1px solid #f1f5f9;
+
+          &:hover {
+            background: linear-gradient(90deg, #faf5ff 0%, #f5f3ff 100%);
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
+          }
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          td {
+            padding: 1.25rem 1rem;
+            font-size: 0.95rem;
+            color: #334155;
+
+            &:first-child {
+              padding-left: 1.5rem;
+            }
+
+            &:last-child {
+              padding-right: 1.5rem;
+            }
+
+            &.outlet-name {
+              font-weight: 700;
+              color: #1e293b;
+              font-size: 1rem;
+              min-width: 180px;
+            }
+
+            &.text-right {
+              text-align: right;
+              font-variant-numeric: tabular-nums;
+            }
+
+            &.text-center {
+              text-align: center;
+            }
+
+            &.revenue-cell {
+              font-weight: 700;
+              color: #10b981;
+              font-size: 1rem;
+            }
+
+            &.expense-cell {
+              font-weight: 600;
+              color: #ef4444;
+            }
+
+            &.profit-positive {
+              font-weight: 700;
+              color: #10b981;
+              background: linear-gradient(90deg, transparent 0%, rgba(16, 185, 129, 0.05) 100%);
+            }
+
+            &.profit-negative {
+              font-weight: 700;
+              color: #ef4444;
+              background: linear-gradient(90deg, transparent 0%, rgba(239, 68, 68, 0.05) 100%);
+            }
+          }
+        }
+      }
+    }
+  }
 }
