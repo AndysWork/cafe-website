@@ -1005,8 +1005,8 @@
               <div class="stat-item" *ngIf="recipe.priceForecast?.shopPrice">
                 <span class="stat-label">Shop:</span>
                 <span class="stat-value">₹{{(recipe.priceForecast?.shopPrice || 0).toFixed(2)}}
-                  <small 
-                    class="profit-badge" 
+                  <small
+                    class="profit-badge"
                     [class.loss]="(recipe.priceForecast?.offlineProfit || 0) < 0"
                     *ngIf="recipe.priceForecast?.offlineProfit">
                     ({{(recipe.priceForecast?.offlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.offlineProfit || 0).toFixed(2)}})
@@ -1016,8 +1016,8 @@
               <div class="stat-item" *ngIf="recipe.priceForecast?.onlinePrice">
                 <span class="stat-label">Online:</span>
                 <span class="stat-value">₹{{(recipe.priceForecast?.onlinePrice || 0).toFixed(2)}}
-                  <small 
-                    class="profit-badge" 
+                  <small
+                    class="profit-badge"
                     [class.loss]="(recipe.priceForecast?.onlineProfit || 0) < 0"
                     *ngIf="recipe.priceForecast?.onlineProfit">
                     ({{(recipe.priceForecast?.onlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.onlineProfit || 0).toFixed(2)}})
@@ -1032,8 +1032,8 @@
               <div class="stat-item" *ngIf="recipe.priceForecast?.futureShopPrice">
                 <span class="stat-label">Shop:</span>
                 <span class="stat-value future">₹{{(recipe.priceForecast?.futureShopPrice || 0).toFixed(2)}}
-                  <small 
-                    class="profit-badge future" 
+                  <small
+                    class="profit-badge future"
                     [class.loss]="(recipe.priceForecast?.futureShopProfit || 0) < 0"
                     *ngIf="recipe.priceForecast?.futureShopProfit">
                     ({{(recipe.priceForecast?.futureShopProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureShopProfit || 0).toFixed(2)}})
@@ -1043,8 +1043,8 @@
               <div class="stat-item" *ngIf="recipe.priceForecast?.futureOnlinePrice">
                 <span class="stat-label">Online:</span>
                 <span class="stat-value future">₹{{(recipe.priceForecast?.futureOnlinePrice || 0).toFixed(2)}}
-                  <small 
-                    class="profit-badge future" 
+                  <small
+                    class="profit-badge future"
                     [class.loss]="(recipe.priceForecast?.futureOnlineProfit || 0) < 0"
                     *ngIf="recipe.priceForecast?.futureOnlineProfit">
                     ({{(recipe.priceForecast?.futureOnlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureOnlineProfit || 0).toFixed(2)}})
