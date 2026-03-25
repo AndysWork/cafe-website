@@ -773,7 +773,7 @@ public partial class MongoService
 
         var combinedUpdate = updateBuilder.Combine(updates);
         var result = await _users.UpdateOneAsync(x => x.Id == userId, combinedUpdate);
-        return result.ModifiedCount > 0;
+        return result.MatchedCount > 0; // Return true if user was found, even if values didn't change
     }
 
     // Update user password

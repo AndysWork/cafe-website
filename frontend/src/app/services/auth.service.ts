@@ -12,6 +12,7 @@ export interface User {
   role: UserRole;
   firstName?: string;
   lastName?: string;
+  phoneNumber?: string;
   token?: string;
   defaultOutletId?: string;
   assignedOutlets?: string[];
@@ -212,7 +213,8 @@ export class AuthService {
           const updatedUser = {
             ...currentUser,
             firstName: response.data.firstName,
-            lastName: response.data.lastName
+            lastName: response.data.lastName,
+            phoneNumber: response.data.phoneNumber
           };
           localStorage.setItem('currentUser', JSON.stringify(updatedUser));
           this.currentUserSubject.next(updatedUser);

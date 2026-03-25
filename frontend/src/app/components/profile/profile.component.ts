@@ -41,6 +41,7 @@ export class ProfileComponent implements OnInit {
     if (this.user) {
       this.firstName = this.user.firstName || '';
       this.lastName = this.user.lastName || '';
+      this.phoneNumber = this.user.phoneNumber || '';
     }
   }
 
@@ -60,11 +61,20 @@ export class ProfileComponent implements OnInit {
     this.clearMessages();
     this.isUpdatingProfile = true;
 
-    this.authService.updateProfile({
-      firstName: this.firstName,
-      lastName: this.lastName,
-      phoneNumber: this.phoneNumber || undefined
-    }).subscribe({
+    const updateData: any = {};
+
+    // Only send non-empty values
+    if (this.firstName?.trim()) {
+      updateData.firstName = this.firstName.trim();
+    }
+    if (this.lastName?.trim()) {
+      updateData.lastName = this.lastName.trim();
+    }
+    if (this.phoneNumber?.trim()) {
+      updateData.phoneNumber = this.phoneNumber.trim();
+    }
+
+    this.authService.updateProfile(updateData).subscribe({
       next: () => {
         this.isUpdatingProfile = false;
         this.profileMessage = 'Profile updated successfully!';
