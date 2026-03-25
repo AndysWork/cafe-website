@@ -1,14 +1,15 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { MenuService, MenuItem, MenuCategory } from '../../services/menu.service';
-import { CartService } from '../../services/cart.service';
+import { CartService, Cart } from '../../services/cart.service';
 import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-menu',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './menu.component.html',
   styleUrls: ['./menu.component.scss']
 })
@@ -19,9 +20,14 @@ export class MenuComponent implements OnInit, OnDestroy {
   selectedCategoryId: string | null = null;
   isLoading = false;
   errorMessage = '';
-  addedToCartMessage: string | null = null;
+  searchQuery = '';
+  cart: Cart = { items: [], subtotal: 0, tax: 0, total: 0, itemCount: 0 };
+
+  // Track which items just got added (for animation)
+  recentlyAdded: Set<string> = new Set();
 
   private menuRefreshSubscription?: Subscription;
+  private cartSubscription?: Subscription;
 
   constructor(
     private menuService: MenuService,
@@ -32,10 +38,12 @@ export class MenuComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.loadMenu();
 
-    // Subscribe to menu refresh notifications
+    this.cartSubscription = this.cartService.cart$.subscribe(cart => {
+      this.cart = cart;
+    });
+
     this.menuRefreshSubscription = this.menuService.menuItemsRefresh$.subscribe((refresh) => {
       if (refresh) {
-        console.log('Menu items updated, refreshing menu...');
         this.loadMenu();
       }
     });
@@ -43,13 +51,13 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.menuRefreshSubscription?.unsubscribe();
+    this.cartSubscription?.unsubscribe();
   }
 
   loadMenu() {
     this.isLoading = true;
     this.errorMessage = '';
 
-    // Load categories and menu items in parallel
     Promise.all([
       this.menuService.getCategories().toPromise(),
       this.menuService.getMenuItems().toPromise()
@@ -57,7 +65,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     .then(([categories, items]) => {
       this.categories = categories || [];
       this.menuItems = items || [];
-      this.filteredItems = this.menuItems;
+      this.applyFilters();
       this.isLoading = false;
     })
     .catch(error => {
@@ -67,13 +75,42 @@ export class MenuComponent implements OnInit, OnDestroy {
     });
   }
 
+  applyFilters() {
+    let items = this.menuItems;
+
+    if (this.selectedCategoryId) {
+      items = items.filter(item => item.categoryId === this.selectedCategoryId);
+    }
+
+    if (this.searchQuery.trim()) {
+      const query = this.searchQuery.toLowerCase().trim();
+      items = items.filter(item =>
+        item.name.toLowerCase().includes(query) ||
+        (item.description && item.description.toLowerCase().includes(query)) ||
+        (item.categoryName && item.categoryName.toLowerCase().includes(query))
+      );
+    }
+
+    this.filteredItems = items;
+  }
+
+  onSearchChange() {
+    this.applyFilters();
+  }
+
+  clearSearch() {
+    this.searchQuery = '';
+    this.applyFilters();
+  }
+
   filterByCategory(categoryId: string | null) {
     this.selectedCategoryId = categoryId;
-    if (categoryId) {
-      this.filteredItems = this.menuItems.filter(item => item.categoryId === categoryId);
-    } else {
-      this.filteredItems = this.menuItems;
-    }
+    this.applyFilters();
+  }
+
+  getCartQuantity(itemId: string): number {
+    const cartItem = this.cart.items.find(i => i.menuItemId === itemId);
+    return cartItem ? cartItem.quantity : 0;
   }
 
   addToCart(item: MenuItem) {
@@ -86,19 +123,35 @@ export class MenuComponent implements OnInit, OnDestroy {
       imageUrl: item.imageUrl
     }, 1);
 
-    // Show success message
-    this.addedToCartMessage = `${item.name} added to cart!`;
-    setTimeout(() => {
-      this.addedToCartMessage = null;
-    }, 2000);
+    // Trigger animation
+    this.recentlyAdded.add(item.id);
+    setTimeout(() => this.recentlyAdded.delete(item.id), 600);
+  }
+
+  increaseQuantity(item: MenuItem) {
+    const current = this.getCartQuantity(item.id);
+    this.cartService.updateQuantity(item.id, current + 1);
+  }
+
+  decreaseQuantity(item: MenuItem) {
+    const current = this.getCartQuantity(item.id);
+    if (current > 1) {
+      this.cartService.updateQuantity(item.id, current - 1);
+    } else {
+      this.cartService.removeItem(item.id);
+    }
   }
 
   goToCart() {
     this.router.navigate(['/cart']);
   }
 
-  getCategoryName(categoryId: string): string {
-    const category = this.categories.find(c => c.id === categoryId);
-    return category?.name || 'Other';
+  getCategoryItemCount(categoryId: string | null): number {
+    if (!categoryId) return this.menuItems.length;
+    return this.menuItems.filter(item => item.categoryId === categoryId).length;
+  }
+
+  trackByItemId(index: number, item: MenuItem): string {
+    return item.id;
   }
 }

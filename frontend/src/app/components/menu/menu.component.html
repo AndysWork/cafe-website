@@ -1,73 +1,136 @@
-<div class="menu-container">
-  <!-- Header -->
-  <div class="page-header">
-    <h1>Our Menu</h1>
-    <p>Explore our delicious offerings</p>
+<div class="menu-page">
+  <!-- Hero Banner -->
+  <div class="hero-banner">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <h1>Our Menu</h1>
+      <p>Fresh flavors crafted with love — find your next favorite!</p>
+    </div>
+    <div class="hero-wave">
+      <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+        <path d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,48C672,43,768,53,864,64C960,75,1056,85,1152,80C1248,75,1344,53,1392,42.7L1440,32L1440,120L0,120Z" fill="#fafafa"/>
+      </svg>
+    </div>
   </div>
 
-  <!-- Success Message -->
-  <div *ngIf="addedToCartMessage" class="success-message">
-    {{ addedToCartMessage }}
+  <!-- Search Bar -->
+  <div class="search-section">
+    <div class="search-wrapper">
+      <span class="search-icon">🔍</span>
+      <input
+        type="text"
+        class="search-input"
+        placeholder="Search for dishes, categories..."
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="onSearchChange()"
+        autocomplete="off"
+      />
+      <button *ngIf="searchQuery" class="search-clear" (click)="clearSearch()">✕</button>
+    </div>
   </div>
 
-  <!-- Loading State -->
-  <div *ngIf="isLoading" class="loading-state">
-    <p>Loading menu...</p>
+  <!-- Category Pills -->
+  <div class="category-scroll-section">
+    <div class="category-pills">
+      <button
+        class="pill"
+        [class.active]="selectedCategoryId === null"
+        (click)="filterByCategory(null)">
+        🍽️ All <span class="pill-count">{{ getCategoryItemCount(null) }}</span>
+      </button>
+      <button
+        *ngFor="let category of categories"
+        class="pill"
+        [class.active]="selectedCategoryId === category.id"
+        (click)="filterByCategory(category.id)">
+        {{ category.name }} <span class="pill-count">{{ getCategoryItemCount(category.id) }}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading Skeleton -->
+  <div *ngIf="isLoading" class="skeleton-grid">
+    <div class="skeleton-card" *ngFor="let s of [1,2,3,4,5,6]">
+      <div class="skeleton-image shimmer"></div>
+      <div class="skeleton-body">
+        <div class="skeleton-line wide shimmer"></div>
+        <div class="skeleton-line medium shimmer"></div>
+        <div class="skeleton-line short shimmer"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Error State -->
   <div *ngIf="errorMessage && !isLoading" class="error-state">
-    <p class="error-message">{{ errorMessage }}</p>
-    <button class="btn-retry" (click)="loadMenu()">Retry</button>
+    <div class="error-icon">😔</div>
+    <h3>Oops! Something went wrong</h3>
+    <p>{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="loadMenu()">
+      🔄 Try Again
+    </button>
   </div>
 
   <!-- Menu Content -->
   <div *ngIf="!isLoading && !errorMessage" class="menu-content">
-    <!-- Category Filter -->
-    <div class="category-filter">
-      <button
-        class="filter-btn"
-        [class.active]="selectedCategoryId === null"
-        (click)="filterByCategory(null)">
-        All Items
-      </button>
-      <button
-        *ngFor="let category of categories"
-        class="filter-btn"
-        [class.active]="selectedCategoryId === category.id"
-        (click)="filterByCategory(category.id)">
-        {{ category.name }}
-      </button>
+
+    <!-- Results Info -->
+    <div class="results-info" *ngIf="searchQuery">
+      <span>Showing <strong>{{ filteredItems.length }}</strong> result{{ filteredItems.length !== 1 ? 's' : '' }} for "<em>{{ searchQuery }}</em>"</span>
     </div>
 
     <!-- Menu Items Grid -->
     <div *ngIf="filteredItems.length > 0" class="menu-grid">
-      <div *ngFor="let item of filteredItems" class="menu-item-card">
-        <div class="item-image" *ngIf="item.imageUrl">
-          <img [src]="item.imageUrl" [alt]="item.name">
-        </div>
-        <div class="item-image-placeholder" *ngIf="!item.imageUrl">
-          <span>📷</span>
-        </div>
+      <div
+        *ngFor="let item of filteredItems; trackBy: trackByItemId"
+        class="menu-card"
+        [class.in-cart]="getCartQuantity(item.id) > 0"
+        [class.just-added]="recentlyAdded.has(item.id)"
+        [class.unavailable]="item.isAvailable === false">
 
-        <div class="item-content">
-          <div class="item-header">
-            <h3>{{ item.name }}</h3>
-            <span class="category-badge">{{ item.categoryName }}</span>
+        <!-- Image Section -->
+        <div class="card-image-wrapper">
+          <img *ngIf="item.imageUrl" [src]="item.imageUrl" [alt]="item.name" class="card-image" loading="lazy"/>
+          <div *ngIf="!item.imageUrl" class="card-image-placeholder">
+            <span class="placeholder-icon">🍽️</span>
           </div>
+          <!-- Availability Badge -->
+          <span *ngIf="item.isAvailable === false" class="badge-unavailable">Out of Stock</span>
+          <span *ngIf="item.isAvailable !== false && getCartQuantity(item.id) > 0" class="badge-in-cart">
+            ✓ In Cart
+          </span>
+          <!-- Category Tag -->
+          <span class="card-category-tag">{{ item.categoryName }}</span>
+        </div>
 
-          <p class="item-description" *ngIf="item.description">
-            {{ item.description }}
-          </p>
+        <!-- Card Body -->
+        <div class="card-body">
+          <h3 class="card-title">{{ item.name }}</h3>
+          <p class="card-description" *ngIf="item.description">{{ item.description }}</p>
 
-          <div class="item-footer">
-            <span class="item-price">₹{{ item.onlinePrice }}</span>
-            <button
-              class="btn-add-to-cart"
-              (click)="addToCart(item)"
-              [disabled]="item.isAvailable === false">
-              {{ item.isAvailable === false ? 'Unavailable' : 'Add to Cart' }}
-            </button>
+          <div class="card-footer">
+            <div class="price-block">
+              <span class="price">₹{{ item.onlinePrice }}</span>
+            </div>
+
+            <!-- Add to Cart / Quantity Control -->
+            <div class="cart-actions">
+              <!-- Not in cart: show Add button -->
+              <button
+                *ngIf="getCartQuantity(item.id) === 0"
+                class="btn-add"
+                (click)="addToCart(item)"
+                [disabled]="item.isAvailable === false">
+                <span class="btn-add-icon">+</span>
+                <span class="btn-add-text">ADD</span>
+              </button>
+
+              <!-- In cart: show +/- controls -->
+              <div *ngIf="getCartQuantity(item.id) > 0" class="qty-control">
+                <button class="qty-btn minus" (click)="decreaseQuantity(item)">−</button>
+                <span class="qty-value">{{ getCartQuantity(item.id) }}</span>
+                <button class="qty-btn plus" (click)="increaseQuantity(item)">+</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -75,8 +138,24 @@
 
     <!-- Empty State -->
     <div *ngIf="filteredItems.length === 0" class="empty-state">
-      <p>No items found in this category</p>
-      <button class="btn-retry" (click)="filterByCategory(null)">View All Items</button>
+      <div class="empty-icon">🔎</div>
+      <h3>No items found</h3>
+      <p *ngIf="searchQuery">Try a different search term</p>
+      <p *ngIf="!searchQuery">No items available in this category</p>
+      <button class="btn-retry" (click)="filterByCategory(null); clearSearch()">View All Items</button>
     </div>
   </div>
+
+  <!-- Floating Cart Button -->
+  <button
+    *ngIf="cart.itemCount > 0"
+    class="floating-cart"
+    (click)="goToCart()">
+    <span class="cart-icon">🛒</span>
+    <span class="cart-info">
+      <span class="cart-count">{{ cart.itemCount }} item{{ cart.itemCount !== 1 ? 's' : '' }}</span>
+      <span class="cart-total">₹{{ cart.total }}</span>
+    </span>
+    <span class="cart-arrow">→</span>
+  </button>
 </div>
