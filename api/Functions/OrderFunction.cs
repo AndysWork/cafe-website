@@ -150,6 +150,31 @@ public class OrderFunction
             // Get user email
             var user = await _mongo.GetUserByIdAsync(userId);
 
+            // Determine payment method and status
+            var paymentMethod = orderRequest.PaymentMethod?.ToLower() ?? "cod";
+            var paymentStatus = "pending";
+            string? razorpayOrderId = null;
+            string? razorpayPaymentId = null;
+            string? razorpaySignature = null;
+
+            if (paymentMethod == "razorpay")
+            {
+                // Validate Razorpay payment details
+                if (string.IsNullOrEmpty(orderRequest.RazorpayPaymentId) ||
+                    string.IsNullOrEmpty(orderRequest.RazorpayOrderId) ||
+                    string.IsNullOrEmpty(orderRequest.RazorpaySignature))
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Razorpay payment details are required for online payment" });
+                    return badRequest;
+                }
+
+                razorpayOrderId = orderRequest.RazorpayOrderId;
+                razorpayPaymentId = orderRequest.RazorpayPaymentId;
+                razorpaySignature = orderRequest.RazorpaySignature;
+                paymentStatus = "paid";
+            }
+
             // Create order
             var order = new Order
             {
@@ -162,7 +187,11 @@ public class OrderFunction
                 Tax = tax,
                 Total = total,
                 Status = "pending",
-                PaymentStatus = "pending",
+                PaymentStatus = paymentStatus,
+                PaymentMethod = paymentMethod,
+                RazorpayOrderId = razorpayOrderId,
+                RazorpayPaymentId = razorpayPaymentId,
+                RazorpaySignature = razorpaySignature,
                 DeliveryAddress = orderRequest.DeliveryAddress,
                 PhoneNumber = orderRequest.PhoneNumber,
                 Notes = orderRequest.Notes,
@@ -631,6 +660,9 @@ public class OrderFunction
             Total = order.Total,
             Status = order.Status,
             PaymentStatus = order.PaymentStatus,
+            PaymentMethod = order.PaymentMethod,
+            RazorpayOrderId = order.RazorpayOrderId,
+            RazorpayPaymentId = order.RazorpayPaymentId,
             DeliveryAddress = order.DeliveryAddress,
             PhoneNumber = order.PhoneNumber,
             Notes = order.Notes,

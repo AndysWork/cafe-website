@@ -1200,6 +1200,22 @@ public partial class MongoService
         return result.ModifiedCount > 0;
     }
 
+    // Update payment status after Razorpay verification
+    public async Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null)
+    {
+        var update = Builders<Order>.Update
+            .Set(x => x.PaymentStatus, paymentStatus)
+            .Set(x => x.UpdatedAt, GetIstNow());
+
+        if (razorpayPaymentId != null)
+            update = update.Set(x => x.RazorpayPaymentId, razorpayPaymentId);
+        if (razorpaySignature != null)
+            update = update.Set(x => x.RazorpaySignature, razorpaySignature);
+
+        var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
+        return result.ModifiedCount > 0;
+    }
+
     #endregion
 
     #region Loyalty Operations

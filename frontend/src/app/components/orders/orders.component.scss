@@ -588,6 +588,9 @@ $radius-full: 9999px;
   font-size: 0.82rem;
 }
 
+.payment-paid { color: #00c853; font-weight: 600; }
+.payment-pending { color: #ff9800; font-weight: 600; }
+
 // Card Actions
 .card-actions {
   padding-top: 0.75rem;

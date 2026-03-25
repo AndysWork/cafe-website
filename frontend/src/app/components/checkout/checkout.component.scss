@@ -75,14 +75,33 @@ $danger: #ff5252;
   margin-bottom: 20px; animation: shake .5s ease-out;
 }
 
-/* Payment Badge */
-.payment-badge {
+/* Payment Section */
+.payment-section {
+  margin-bottom: 24px;
+  .section-label { display: block; font-size: .9rem; font-weight: 700; color: $dark; margin-bottom: 12px; }
+}
+
+.payment-options { display: flex; flex-direction: column; gap: 10px; }
+
+.payment-option {
   display: flex; align-items: center; gap: 14px; padding: 16px;
-  background: linear-gradient(135deg, rgba($green, .06), rgba($green, .12));
-  border: 1px solid rgba($green, .2); border-radius: 12px; margin-bottom: 24px;
-  .badge-icon { font-size: 1.8rem; }
-  strong { color: $dark; font-size: .95rem; }
+  border: 2px solid #e8e8e8; border-radius: 12px; cursor: pointer;
+  transition: all .3s; position: relative;
+  input[type="radio"] { display: none; }
+  .option-content { display: flex; align-items: center; gap: 12px; flex: 1; }
+  .option-icon { font-size: 1.5rem; }
+  strong { color: $dark; font-size: .95rem; display: block; }
   p { margin: 2px 0 0; color: #888; font-size: .82rem; }
+  .recommended-badge {
+    display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: $green; color: #fff; font-size: .75rem; font-weight: 700;
+  }
+  &.active {
+    border-color: $accent; background: rgba($accent, .04);
+    box-shadow: 0 0 0 4px rgba($accent, .08);
+  }
+  &:hover:not(.active) { border-color: #ccc; background: #fafafa; }
 }
 
 /* Actions */

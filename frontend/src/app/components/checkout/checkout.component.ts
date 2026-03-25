@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CartService, Cart } from '../../services/cart.service';
 import { OrderService, CreateOrderRequest } from '../../services/order.service';
+import { PaymentService } from '../../services/payment.service';
 
 @Component({
   selector: 'app-checkout',
@@ -25,6 +26,7 @@ export class CheckoutComponent implements OnInit {
   deliveryAddress = '';
   phoneNumber = '';
   notes = '';
+  paymentMethod: 'cod' | 'razorpay' = 'cod';
 
   isSubmitting = false;
   errorMessage = '';
@@ -32,6 +34,7 @@ export class CheckoutComponent implements OnInit {
   constructor(
     private cartService: CartService,
     private orderService: OrderService,
+    private paymentService: PaymentService,
     private router: Router
   ) {}
 
@@ -67,7 +70,47 @@ export class CheckoutComponent implements OnInit {
     this.isSubmitting = true;
     this.errorMessage = '';
 
-    // Create order request
+    if (this.paymentMethod === 'razorpay') {
+      this.processRazorpayPayment();
+    } else {
+      this.submitOrder();
+    }
+  }
+
+  private processRazorpayPayment() {
+    // Step 1: Create Razorpay order on backend
+    this.paymentService.createPaymentOrder(this.cart.total).subscribe({
+      next: (paymentOrder) => {
+        // Step 2: Open Razorpay checkout modal
+        this.paymentService.openRazorpayCheckout({
+          orderId: paymentOrder.orderId,
+          amount: paymentOrder.amount,
+          currency: paymentOrder.currency,
+          keyId: paymentOrder.keyId,
+          customerName: this.deliveryAddress.split('\n')[0] || 'Customer',
+          customerPhone: this.phoneNumber,
+          description: `Order - ${this.cart.itemCount} item(s)`
+        }).then((result) => {
+          // Step 3: Payment successful — create order with Razorpay details
+          this.submitOrder(
+            result.razorpay_payment_id,
+            result.razorpay_order_id,
+            result.razorpay_signature
+          );
+        }).catch((error) => {
+          this.errorMessage = error.message || 'Payment was cancelled or failed';
+          this.isSubmitting = false;
+        });
+      },
+      error: (error) => {
+        console.error('Error creating payment order:', error);
+        this.errorMessage = 'Failed to initiate payment. Please try again.';
+        this.isSubmitting = false;
+      }
+    });
+  }
+
+  private submitOrder(razorpayPaymentId?: string, razorpayOrderId?: string, razorpaySignature?: string) {
     const orderRequest: CreateOrderRequest = {
       items: this.cart.items.map(item => ({
         menuItemId: item.menuItemId,
@@ -75,7 +118,11 @@ export class CheckoutComponent implements OnInit {
       })),
       deliveryAddress: this.deliveryAddress.trim(),
       phoneNumber: this.phoneNumber.trim(),
-      notes: this.notes.trim() || undefined
+      notes: this.notes.trim() || undefined,
+      paymentMethod: this.paymentMethod,
+      razorpayPaymentId,
+      razorpayOrderId,
+      razorpaySignature
     };
 
     // Submit order

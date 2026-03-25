@@ -43,6 +43,18 @@ public class Order
     [BsonElement("paymentStatus")]
     public string PaymentStatus { get; set; } = "pending"; // pending, paid, refunded
 
+    [BsonElement("paymentMethod")]
+    public string PaymentMethod { get; set; } = "cod"; // cod, razorpay
+
+    [BsonElement("razorpayOrderId")]
+    public string? RazorpayOrderId { get; set; }
+
+    [BsonElement("razorpayPaymentId")]
+    public string? RazorpayPaymentId { get; set; }
+
+    [BsonElement("razorpaySignature")]
+    public string? RazorpaySignature { get; set; }
+
     [BsonElement("deliveryAddress")]
     public string? DeliveryAddress { get; set; }
 
@@ -98,6 +110,13 @@ public class CreateOrderRequest
     
     [StringLength(500, ErrorMessage = "Delivery address cannot exceed 500 characters")]
     public string? DeliveryAddress { get; set; }
+
+    [AllowedValuesList("cod", "razorpay")]
+    public string PaymentMethod { get; set; } = "cod";
+
+    public string? RazorpayPaymentId { get; set; }
+    public string? RazorpayOrderId { get; set; }
+    public string? RazorpaySignature { get; set; }
     
     [IndianPhoneNumber]
     public string? PhoneNumber { get; set; }
@@ -134,6 +153,9 @@ public class OrderResponse
     public decimal Total { get; set; }
     public string Status { get; set; } = string.Empty;
     public string PaymentStatus { get; set; } = string.Empty;
+    public string PaymentMethod { get; set; } = string.Empty;
+    public string? RazorpayOrderId { get; set; }
+    public string? RazorpayPaymentId { get; set; }
     public string? DeliveryAddress { get; set; }
     public string? PhoneNumber { get; set; }
     public string? Notes { get; set; }

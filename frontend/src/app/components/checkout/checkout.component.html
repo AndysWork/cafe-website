@@ -64,12 +64,32 @@
           ❌ {{ errorMessage }}
         </div>
 
-        <!-- Payment Badge -->
-        <div class="payment-badge">
-          <span class="badge-icon">💵</span>
-          <div>
-            <strong>Cash on Delivery</strong>
-            <p>Pay when your order arrives</p>
+        <!-- Payment Method Selection -->
+        <div class="payment-section">
+          <label class="section-label">💳 Payment Method</label>
+          <div class="payment-options">
+            <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" (click)="paymentMethod = 'razorpay'">
+              <input type="radio" name="paymentMethod" value="razorpay" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
+              <div class="option-content">
+                <span class="option-icon">🔒</span>
+                <div>
+                  <strong>Pay Online</strong>
+                  <p>UPI, Cards, Net Banking, Wallets</p>
+                </div>
+              </div>
+              <span class="recommended-badge" *ngIf="paymentMethod === 'razorpay'">✓</span>
+            </label>
+            <label class="payment-option" [class.active]="paymentMethod === 'cod'" (click)="paymentMethod = 'cod'">
+              <input type="radio" name="paymentMethod" value="cod" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
+              <div class="option-content">
+                <span class="option-icon">💵</span>
+                <div>
+                  <strong>Cash on Delivery</strong>
+                  <p>Pay when your order arrives</p>
+                </div>
+              </div>
+              <span class="recommended-badge" *ngIf="paymentMethod === 'cod'">✓</span>
+            </label>
           </div>
         </div>
 
@@ -79,7 +99,7 @@
             ← Back to Cart
           </button>
           <button type="submit" class="btn-place" [disabled]="!checkoutForm.valid || isSubmitting">
-            {{ isSubmitting ? '⏳ Placing Order...' : '🎉 Place Order' }}
+            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay ₹' + cart.total : '🎉 Place Order') }}
           </button>
         </div>
       </form>

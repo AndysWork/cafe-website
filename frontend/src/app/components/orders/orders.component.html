@@ -148,6 +148,14 @@
               <span class="info-label">📝 Notes</span>
               <span>{{ order.notes }}</span>
             </div>
+            <div class="info-chip">
+              <span class="info-label">💳 Payment</span>
+              <span [class.payment-paid]="order.paymentStatus === 'paid'" [class.payment-pending]="order.paymentStatus === 'pending'">
+                {{ order.paymentMethod === 'razorpay' ? '🔒 Online' : '💵 Cash on Delivery' }}
+                <small *ngIf="order.paymentStatus === 'paid'">(Paid)</small>
+                <small *ngIf="order.paymentStatus === 'pending'">(Pending)</small>
+              </span>
+            </div>
           </div>
 
           <!-- Actions -->

@@ -25,6 +25,9 @@ export interface Order {
   total: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'refunded';
+  paymentMethod: 'cod' | 'razorpay';
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
   deliveryAddress?: string;
   phoneNumber?: string;
   notes?: string;
@@ -41,6 +44,10 @@ export interface CreateOrderRequest {
   deliveryAddress?: string;
   phoneNumber?: string;
   notes?: string;
+  paymentMethod?: 'cod' | 'razorpay';
+  razorpayPaymentId?: string;
+  razorpayOrderId?: string;
+  razorpaySignature?: string;
 }
 
 export interface UpdateOrderStatusRequest {

@@ -24,6 +24,7 @@ var host = new HostBuilder()
         s.AddSingleton<IWhatsAppService, WhatsAppService>();
         s.AddHttpClient();
         s.AddSingleton<MarketPriceService>();
+        s.AddSingleton<IRazorpayService, RazorpayService>();
         
         // Configure JSON serialization to use camelCase for Azure Functions Worker
         s.Configure<WorkerOptions>(options =>
