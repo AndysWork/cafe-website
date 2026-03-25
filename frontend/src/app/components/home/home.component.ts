@@ -4,6 +4,8 @@ import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { CustomerReviewsComponent } from '../customer-reviews/customer-reviews.component';
+import { OutletService } from '../../services/outlet.service';
+import { Outlet } from '../../models/outlet.model';
 
 interface Category {
   id: string;
@@ -32,6 +34,8 @@ interface MenuItem {
 })
 export class HomeComponent implements OnInit {
   latestMenuItems: any[] = [];
+  outlets: Outlet[] = [];
+  currentYear = new Date().getFullYear();
 
   testimonials = [
     {
@@ -99,10 +103,10 @@ export class HomeComponent implements OnInit {
   categoryColors: string[] = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#D4A574', '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B195'];
 
   stats = [
-    { value: '...', label: 'Happy Customers', icon: '😊' },
+    { value: '...', label: 'Online Orders Served', icon: '😊' },
     { value: '...', label: 'Menu Items', icon: '🍽️' },
     { value: '...', label: 'Average Rating', icon: '⭐' },
-    { value: '3+', label: 'Years Serving', icon: '🎉' }
+    { value: '...', label: 'Years Serving', icon: '🎉' }
   ];
 
   experienceVideos = [
@@ -113,12 +117,32 @@ export class HomeComponent implements OnInit {
 
   currentTestimonialIndex = 0;
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private outletService: OutletService
+  ) {}
 
   ngOnInit() {
     this.startTestimonialRotation();
-    // Load categories first, which will trigger menu items, then stats
+    // Load categories first, which will trigger menu items
     this.loadCategories();
+    // Load outlets for display
+    this.loadOutlets();
+    // Load real stats from public API
+    this.loadPublicStats();
+  }
+
+  loadOutlets() {
+    console.log('Loading outlets from API');
+    this.outletService.getActiveOutlets().subscribe({
+      next: (data) => {
+        console.log('Outlets loaded:', data);
+        this.outlets = data || [];
+      },
+      error: (error) => {
+        console.error('Error loading outlets:', error);
+      }
+    });
   }
 
   loadCategories() {
@@ -145,8 +169,16 @@ export class HomeComponent implements OnInit {
     this.http.get<any>(`${environment.apiUrl}/menu`).subscribe({
       next: (data) => {
         console.log('Menu items API response:', data);
-        this.menuItems = data || [];
-        console.log('Menu items loaded for home page:', this.menuItems.length, 'items');
+        const allItems = data || [];
+        // Deduplicate menu items by name across outlets
+        const seen = new Set<string>();
+        this.menuItems = allItems.filter((item: any) => {
+          const name = (item.name || item.catalogueName || '').toLowerCase();
+          if (!name || seen.has(name)) return false;
+          seen.add(name);
+          return true;
+        });
+        console.log('Unique menu items for home page:', this.menuItems.length, 'of', allItems.length, 'total');
 
         // Update stats after menu items are loaded
         this.loadStats();
@@ -182,18 +214,57 @@ export class HomeComponent implements OnInit {
     });
   }
 
-  loadStats() {
-    // For public landing page, show impressive static stats
-    // Admin analytics has the real-time data with authentication
-    console.log('Setting stats with menu count:', this.menuItems.length);
+  loadPublicStats() {
+    this.http.get<any>(`${environment.apiUrl}/public/stats`).subscribe({
+      next: (res) => {
+        if (res?.success && res.data) {
+          const d = res.data;
+          // Animate the stat values
+          this.animateStatValue(0, d.totalOrders, 'Online Orders Served', '😊', '+');
+          this.animateStatValue(1, d.menuItemCount, 'Menu Items', '🍽️', '+');
+          this.animateStatValue(2, d.averageRating, 'Average Rating', '⭐', '⭐', false);
+          this.animateStatValue(3, d.yearsServing, 'Years Serving', '🎉', '+');
+        }
+      },
+      error: (err) => console.error('Error loading public stats:', err)
+    });
+  }
 
-    this.stats = [
-      { value: '1000+', label: 'Happy Customers', icon: '😊' },
-      { value: `${this.menuItems.length || 100}+`, label: 'Menu Items', icon: '🍽️' },
-      { value: '4.8⭐', label: 'Average Rating', icon: '⭐' },
-      { value: '3+', label: 'Years Serving', icon: '🎉' }
-    ];
-    console.log('Stats updated:', this.stats);
+  animateStatValue(index: number, targetValue: number, label: string, icon: string, suffix: string = '', isRating: boolean = false) {
+    const duration = 2000; // 2 seconds
+    const steps = 60;
+    const increment = targetValue / steps;
+    let currentValue = 0;
+    let step = 0;
+
+    const timer = setInterval(() => {
+      step++;
+      currentValue += increment;
+
+      if (step >= steps) {
+        currentValue = targetValue;
+        clearInterval(timer);
+      }
+
+      if (isRating) {
+        this.stats[index] = {
+          value: currentValue > 0 ? `${currentValue.toFixed(1)}${suffix}` : '...',
+          label,
+          icon
+        };
+      } else {
+        this.stats[index] = {
+          value: currentValue > 0 ? `${Math.floor(currentValue)}${suffix}` : '...',
+          label,
+          icon
+        };
+      }
+    }, duration / steps);
+  }
+
+  loadStats() {
+    // Kept as fallback for menu item count update
+    // Real stats are now loaded from the public API
   }
 
   getCategoryIcon(categoryName: string): string {
@@ -231,5 +302,19 @@ export class HomeComponent implements OnInit {
   scrollToSection(sectionId: string) {
     const element = document.getElementById(sectionId);
     element?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  formatTime(time: string): string {
+    // Convert 24-hour format to 12-hour format with AM/PM
+    if (!time) return '';
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  }
+
+  getOutletLocation(outlet: Outlet): string {
+    const parts = [outlet.address, outlet.city, outlet.state].filter(p => p);
+    return parts.join(', ');
   }
 }

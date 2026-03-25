@@ -184,11 +184,9 @@ public partial class MongoService
     // Get all menu items
     public async Task<List<CafeMenuItem>> GetMenuAsync(string? outletId = null)
     {
-        // If no outlet is selected, return empty list instead of all data
-        if (outletId == null)
-            return new List<CafeMenuItem>();
-        
-        var filter = Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId);
+        var filter = string.IsNullOrWhiteSpace(outletId)
+            ? Builders<CafeMenuItem>.Filter.Empty
+            : Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId);
         
         var menuItems = await _menu.Find(filter).ToListAsync();
         
@@ -4644,6 +4642,56 @@ public partial class MongoService
         
         Console.WriteLine($"[MigrateRecipeOutletIds] Updated {updateCount} recipes with outlet ID: {defaultOutletId}");
         return updateCount;
+    }
+
+    #endregion
+
+    #region Public Stats
+
+    public async Task<PublicStats> GetPublicStatsAsync()
+    {
+        // Run all count queries in parallel for performance
+        // Online orders served = total Zomato + Swiggy orders across all outlets
+        var onlineOrdersTask = _onlineSales.CountDocumentsAsync(Builders<OnlineSale>.Filter.Empty);
+        // Count unique menu items by name (deduplicate across outlets)
+        var uniqueMenuTask = _menu.Aggregate()
+            .Group(new MongoDB.Bson.BsonDocument("_id", "$Name"))
+            .ToListAsync();
+        var fiveStarTask = _onlineSales.CountDocumentsAsync(
+            Builders<OnlineSale>.Filter.Eq(s => s.Rating, 5) &
+            Builders<OnlineSale>.Filter.Ne(s => s.Review, null) &
+            Builders<OnlineSale>.Filter.Ne(s => s.Review, ""));
+
+        // Average rating via aggregation
+        var ratingPipeline = _onlineSales.Aggregate()
+            .Match(Builders<OnlineSale>.Filter.Ne(s => s.Rating, null) &
+                   Builders<OnlineSale>.Filter.Gt(s => s.Rating, 0))
+            .Group(new MongoDB.Bson.BsonDocument
+            {
+                { "_id", MongoDB.Bson.BsonNull.Value },
+                { "avg", new MongoDB.Bson.BsonDocument("$avg", "$rating") }
+            })
+            .ToListAsync();
+
+        // Active outlets
+        var outletsTask = _outlets.CountDocumentsAsync(
+            Builders<Outlet>.Filter.Eq(o => o.IsActive, true));
+
+        await Task.WhenAll(onlineOrdersTask, uniqueMenuTask, fiveStarTask, ratingPipeline, outletsTask);
+
+        var ratingDocs = await ratingPipeline;
+        var avgRating = ratingDocs.Count > 0 ? ratingDocs[0]["avg"].ToDouble() : 0;
+        var uniqueMenuItems = await uniqueMenuTask;
+
+        return new PublicStats
+        {
+            TotalOrders = await onlineOrdersTask,
+            MenuItemCount = uniqueMenuItems.Count,
+            OutletCount = (int)(await outletsTask),
+            AverageRating = Math.Round(avgRating, 1),
+            FiveStarReviewCount = await fiveStarTask,
+            YearsServing = 1
+        };
     }
 
     #endregion

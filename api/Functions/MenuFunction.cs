@@ -43,13 +43,7 @@ public class MenuFunction
         {
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
-            if (string.IsNullOrWhiteSpace(outletId))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or authenticate with a user that has a default outlet." });
-                return badRequest;
-            }
-            
+            // Allow public access without outlet ID (returns all menu items)
             var items = await _mongo.GetMenuAsync(outletId);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
