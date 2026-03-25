@@ -20,11 +20,41 @@ export class RegisterComponent {
   phoneNumber = '';
   errorMessage = '';
   isLoading = false;
+  showPassword = false;
+  showConfirmPassword = false;
+  passwordStrength = 0;
+  passwordStrengthLabel = '';
 
   constructor(
     private authService: AuthService,
     private router: Router
   ) {}
+
+  togglePassword(): void {
+    this.showPassword = !this.showPassword;
+  }
+
+  toggleConfirmPassword(): void {
+    this.showConfirmPassword = !this.showConfirmPassword;
+  }
+
+  onPasswordChange(): void {
+    this.calculatePasswordStrength();
+  }
+
+  private calculatePasswordStrength(): void {
+    const pwd = this.password;
+    let score = 0;
+    if (pwd.length >= 6) score++;
+    if (pwd.length >= 10) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+
+    this.passwordStrength = Math.min(score, 4);
+    const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+    this.passwordStrengthLabel = pwd.length > 0 ? labels[this.passwordStrength] || 'Weak' : '';
+  }
 
   onSubmit() {
     this.errorMessage = '';

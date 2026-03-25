@@ -17,12 +17,17 @@ export class LoginComponent {
   password = '';
   errorMessage = '';
   isLoading = false;
+  showPassword = false;
 
   constructor(
     private authService: AuthService,
     private outletService: OutletService,
     private router: Router
   ) {}
+
+  togglePassword(): void {
+    this.showPassword = !this.showPassword;
+  }
 
   onLogin(): void {
     this.errorMessage = '';

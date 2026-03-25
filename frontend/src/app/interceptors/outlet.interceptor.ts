@@ -36,7 +36,7 @@ export const outletInterceptor: HttpInterceptorFn = (req, next) => {
   }
 
   // Debug logging for requests without outlet context
-  if (req.url.includes('/api/') && !req.url.includes('/auth/') && !req.url.includes('/outlets/')) {
+  if (req.url.includes('/api/') && !req.url.includes('/auth/') && !req.url.includes('/outlets/') && !req.url.includes('/public/') && !req.url.includes('/reviews/')) {
     console.warn(`[OutletInterceptor] ${req.method} ${req.url} - NO OUTLET ID! This may cause data inconsistency.`);
   }
 

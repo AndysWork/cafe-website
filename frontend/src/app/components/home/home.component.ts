@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { CustomerReviewsComponent } from '../customer-reviews/customer-reviews.component';
 import { OutletService } from '../../services/outlet.service';
+import { AuthService } from '../../services/auth.service';
 import { Outlet } from '../../models/outlet.model';
 
 interface Category {
@@ -119,15 +120,18 @@ export class HomeComponent implements OnInit {
 
   constructor(
     private http: HttpClient,
-    private outletService: OutletService
+    private outletService: OutletService,
+    private authService: AuthService
   ) {}
 
   ngOnInit() {
     this.startTestimonialRotation();
     // Load categories first, which will trigger menu items
     this.loadCategories();
-    // Load outlets for display
-    this.loadOutlets();
+    // Load outlets for display (only if logged in - endpoint requires auth)
+    if (this.authService.isLoggedIn()) {
+      this.loadOutlets();
+    }
     // Load real stats from public API
     this.loadPublicStats();
   }
