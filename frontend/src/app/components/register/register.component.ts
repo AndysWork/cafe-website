@@ -62,7 +62,7 @@ export class RegisterComponent {
     this.errorMessage = '';
 
     // Validation
-    if (!this.username || !this.email || !this.password || !this.confirmPassword) {
+    if (!this.username || !this.email || !this.password || !this.confirmPassword || !this.phoneNumber) {
       this.errorMessage = 'Please fill in all required fields';
       return;
     }
@@ -79,6 +79,11 @@ export class RegisterComponent {
 
     if (!this.isValidEmail(this.email)) {
       this.errorMessage = 'Please enter a valid email address';
+      return;
+    }
+
+    if (!this.isValidPhone(this.phoneNumber)) {
+      this.errorMessage = 'Please enter a valid 10-digit Indian phone number';
       return;
     }
 
@@ -110,5 +115,10 @@ export class RegisterComponent {
   private isValidEmail(email: string): boolean {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     return emailRegex.test(email);
+  }
+
+  private isValidPhone(phone: string): boolean {
+    const phoneRegex = /^[6-9]\d{9}$/;
+    return phoneRegex.test(phone.replace(/\s+/g, ''));
   }
 }
