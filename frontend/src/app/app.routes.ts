@@ -38,6 +38,7 @@ import { BonusCalculationComponent } from './components/bonus-calculation/bonus-
 import { BonusConfigurationComponent } from './components/bonus-configuration/bonus-configuration.component';
 import { StaffPerformanceComponent } from './components/staff-performance/staff-performance.component';
 import { DailyPerformanceEntryComponent } from './components/daily-performance-entry/daily-performance-entry.component';
+import { UserAnalyticsComponent } from './components/user-analytics/user-analytics.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -86,6 +87,7 @@ export const routes: Routes = [
       { path: 'bonus-configuration', component: BonusConfigurationComponent },
       { path: 'staff-performance', component: StaffPerformanceComponent },
       { path: 'daily-performance', component: DailyPerformanceEntryComponent },
+      { path: 'user-analytics', component: UserAnalyticsComponent },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

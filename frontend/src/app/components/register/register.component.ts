@@ -24,6 +24,8 @@ export class RegisterComponent {
   showConfirmPassword = false;
   passwordStrength = 0;
   passwordStrengthLabel = '';
+  registrationSuccess = false;
+  registeredEmail = '';
 
   constructor(
     private authService: AuthService,
@@ -90,8 +92,13 @@ export class RegisterComponent {
       phoneNumber: this.phoneNumber
     }).subscribe({
       next: () => {
-        // Registration successful, redirect to login
-        this.router.navigate(['/login']);
+        this.isLoading = false;
+        this.registrationSuccess = true;
+        this.registeredEmail = this.email;
+        // Redirect to login after showing success message
+        setTimeout(() => {
+          this.router.navigate(['/login']);
+        }, 4000);
       },
       error: (error) => {
         this.isLoading = false;
@@ -101,7 +108,7 @@ export class RegisterComponent {
   }
 
   private isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     return emailRegex.test(email);
   }
 }

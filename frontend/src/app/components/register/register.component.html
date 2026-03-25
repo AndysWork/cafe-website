@@ -1,4 +1,17 @@
 <div class="auth-page">
+  <!-- Registration Success Overlay -->
+  <div class="success-overlay" *ngIf="registrationSuccess">
+    <div class="success-card">
+      <div class="success-icon">✅</div>
+      <h2>Registration Successful!</h2>
+      <p>A confirmation email has been sent to:</p>
+      <p class="success-email">{{ registeredEmail }}</p>
+      <p class="success-hint">Please check your inbox (and spam folder) for the welcome email from Maa Tara Cafe.</p>
+      <p class="success-redirect">Redirecting to login page...</p>
+      <a routerLink="/login" class="btn-go-login">Go to Login Now</a>
+    </div>
+  </div>
+
   <!-- Left Visual Panel -->
   <div class="auth-visual">
     <div class="floating-shapes">
@@ -76,12 +89,16 @@
         </div>
 
         <!-- Email -->
-        <div class="input-group" [class.has-value]="email">
+        <div class="input-group" [class.has-value]="email" [class.invalid]="emailField.touched && emailField.invalid">
           <span class="input-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           </span>
-          <input type="email" id="email" name="email" [(ngModel)]="email" required placeholder=" " />
+          <input type="email" id="email" name="email" [(ngModel)]="email" #emailField="ngModel" required email placeholder=" " />
           <label for="email">Email <span class="required">*</span></label>
+        </div>
+        <div class="field-errors" *ngIf="emailField.touched && emailField.invalid">
+          <span class="field-error" *ngIf="emailField.errors?.['required']">Email is required</span>
+          <span class="field-error" *ngIf="emailField.errors?.['email'] && !emailField.errors?.['required']">Please enter a valid email address</span>
         </div>
 
         <!-- Phone -->

@@ -1,7 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { CartService, Cart, CartItem } from '../../services/cart.service';
+import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 
 @Component({
   selector: 'app-cart',
@@ -18,6 +19,7 @@ export class CartComponent implements OnInit {
     total: 0,
     itemCount: 0
   };
+  private analyticsTracking = inject(AnalyticsTrackingService);
 
   constructor(
     private cartService: CartService,
@@ -25,6 +27,7 @@ export class CartComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    this.analyticsTracking.trackCartView();
     this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
     });

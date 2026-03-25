@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -7,6 +7,7 @@ import { CustomerReviewsComponent } from '../customer-reviews/customer-reviews.c
 import { OutletService } from '../../services/outlet.service';
 import { AuthService } from '../../services/auth.service';
 import { Outlet } from '../../models/outlet.model';
+import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 
 interface Category {
   id: string;
@@ -117,6 +118,8 @@ export class HomeComponent implements OnInit {
   ];
 
   currentTestimonialIndex = 0;
+
+  private analyticsTracking = inject(AnalyticsTrackingService);
 
   constructor(
     private http: HttpClient,
@@ -304,8 +307,21 @@ export class HomeComponent implements OnInit {
   }
 
   scrollToSection(sectionId: string) {
+    this.analyticsTracking.trackFeatureUsage('Landing Section Scroll', sectionId);
     const element = document.getElementById(sectionId);
     element?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  trackCategoryClick(categoryName: string): void {
+    this.analyticsTracking.trackFeatureUsage('Menu Category Browse', categoryName);
+  }
+
+  trackOutletPhoneClick(outletName: string): void {
+    this.analyticsTracking.trackFeatureUsage('Outlet Phone Click', outletName);
+  }
+
+  trackMenuItemClick(itemName: string): void {
+    this.analyticsTracking.trackFeatureUsage('Menu Item View', itemName);
   }
 
   formatTime(time: string): string {

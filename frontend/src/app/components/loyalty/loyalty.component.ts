@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { LoyaltyService, LoyaltyAccount, Reward, PointsTransaction } from '../../services/loyalty.service';
+import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { formatIstDate } from '../../utils/date-utils';
 
 interface DisplayTransaction {
@@ -25,6 +26,7 @@ interface DisplayReward extends Reward {
 })
 export class LoyaltyComponent implements OnInit {
   private loyaltyService = inject(LoyaltyService);
+  private analyticsService = inject(AnalyticsTrackingService);
 
   // Account data
   currentPoints = 0;
@@ -50,6 +52,7 @@ export class LoyaltyComponent implements OnInit {
   };
 
   ngOnInit() {
+    this.analyticsService.trackFeatureUsage('Loyalty Page', 'Viewed loyalty page');
     this.loadLoyaltyData();
   }
 
@@ -147,6 +150,8 @@ export class LoyaltyComponent implements OnInit {
 
     const confirmed = confirm(`Redeem ${reward.name} for ${reward.pointsCost} points?`);
     if (!confirmed) return;
+
+    this.analyticsService.trackFeatureUsage('Loyalty Redeem', `Redeemed: ${reward.name} (${reward.pointsCost} pts)`);
 
     try {
       const response = await this.loyaltyService.redeemReward(reward.id!).toPromise();

@@ -1,9 +1,10 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { OutletService } from '../../services/outlet.service';
+import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 
 @Component({
   selector: 'app-login',
@@ -24,6 +25,7 @@ export class LoginComponent {
     private outletService: OutletService,
     private router: Router
   ) {}
+  private analyticsTracking = inject(AnalyticsTrackingService);
 
   togglePassword(): void {
     this.showPassword = !this.showPassword;
@@ -35,6 +37,7 @@ export class LoginComponent {
 
     this.authService.login(this.username, this.password).subscribe({
       next: (response) => {
+        this.analyticsTracking.trackLogin();
         // Initialize outlets after successful login
         const user = this.authService.getCurrentUser();
 

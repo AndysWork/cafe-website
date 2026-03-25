@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { OffersService, Offer } from '../../services/offers.service';
+import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { getIstNow, formatIstDate, getIstDaysDifference } from '../../utils/date-utils';
 
 @Component({
@@ -14,10 +15,12 @@ export class OffersComponent implements OnInit {
   offers: Offer[] = [];
   loading = true;
   error: string | null = null;
+  private analyticsService = inject(AnalyticsTrackingService);
 
   constructor(private offersService: OffersService) {}
 
   ngOnInit() {
+    this.analyticsService.trackFeatureUsage('Offers Page', 'Viewed offers page');
     this.loadOffers();
   }
 
@@ -40,6 +43,7 @@ export class OffersComponent implements OnInit {
 
   copyCode(code: string) {
     navigator.clipboard.writeText(code);
+    this.analyticsService.trackFeatureUsage('Offer Code Copy', `Copied code: ${code}`);
     alert(`Code "${code}" copied to clipboard!`);
   }
 

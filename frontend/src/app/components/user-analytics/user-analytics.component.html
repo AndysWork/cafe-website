@@ -1,0 +1,374 @@
+<div class="analytics-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <h1>📊 User Analytics</h1>
+      <p class="subtitle">Real-time usage insights &amp; performance metrics</p>
+    </div>
+    <div class="header-actions">
+      <span class="last-refreshed" *ngIf="lastRefreshed">
+        Updated: {{ lastRefreshed | date:'shortTime' }}
+      </span>
+      <button class="btn-refresh" (click)="refreshData()" [disabled]="isLoading">
+        <span class="refresh-icon" [class.spinning]="isLoading">🔄</span>
+        Refresh
+      </button>
+      <button class="btn-init" (click)="initializeIndexes()" title="Run once to optimize queries">
+        ⚡ Init Indexes
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading && !dashboard" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading analytics data...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage && !dashboard" class="error-state">
+    <span class="error-icon">⚠️</span>
+    <p>{{ errorMessage }}</p>
+    <button class="btn-refresh" (click)="refreshData()">Try Again</button>
+  </div>
+
+  <!-- Dashboard Content -->
+  <div *ngIf="dashboard" class="dashboard-content">
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button [class.active]="activeTab === 'overview'" (click)="setTab('overview')">
+        <span class="tab-icon">📈</span> Overview
+      </button>
+      <button [class.active]="activeTab === 'sessions'" (click)="setTab('sessions')">
+        <span class="tab-icon">👥</span> Sessions
+      </button>
+      <button [class.active]="activeTab === 'features'" (click)="setTab('features')">
+        <span class="tab-icon">⭐</span> Features
+      </button>
+      <button [class.active]="activeTab === 'api'" (click)="setTab('api')">
+        <span class="tab-icon">⚡</span> API Performance
+      </button>
+      <button [class.active]="activeTab === 'cart'" (click)="setTab('cart')">
+        <span class="tab-icon">🛒</span> Cart Analytics
+      </button>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- OVERVIEW TAB -->
+    <!-- ================================================================ -->
+    <div *ngIf="activeTab === 'overview'" class="tab-content">
+
+      <!-- Key Metrics Cards -->
+      <div class="metrics-grid">
+        <div class="metric-card accent-green">
+          <div class="metric-icon">🟢</div>
+          <div class="metric-body">
+            <div class="metric-value">{{ dashboard.userMetrics.currentlyActiveUsers }}</div>
+            <div class="metric-label">Active Now</div>
+          </div>
+        </div>
+        <div class="metric-card accent-blue">
+          <div class="metric-icon">👤</div>
+          <div class="metric-body">
+            <div class="metric-value">{{ dashboard.userMetrics.totalRegisteredUsers }}</div>
+            <div class="metric-label">Total Users</div>
+          </div>
+        </div>
+        <div class="metric-card accent-purple">
+          <div class="metric-icon">📅</div>
+          <div class="metric-body">
+            <div class="metric-value">{{ dashboard.userMetrics.todayLogins }}</div>
+            <div class="metric-label">Logins Today</div>
+          </div>
+        </div>
+        <div class="metric-card accent-amber">
+          <div class="metric-icon">📊</div>
+          <div class="metric-body">
+            <div class="metric-value">{{ dashboard.userMetrics.uniqueUsersToday }}</div>
+            <div class="metric-label">Unique Users Today</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Login Trends Row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <h3>🔑 Login Summary</h3>
+          <div class="stat-grid">
+            <div class="stat-item">
+              <span class="stat-value">{{ dashboard.userMetrics.weekLogins }}</span>
+              <span class="stat-label">This Week</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ dashboard.userMetrics.monthLogins }}</span>
+              <span class="stat-label">This Month</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ dashboard.userMetrics.totalLoginEvents }}</span>
+              <span class="stat-label">All Time</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ dashboard.userMetrics.uniqueUsersThisWeek }}</span>
+              <span class="stat-label">Unique This Week</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ dashboard.userMetrics.uniqueUsersThisMonth }}</span>
+              <span class="stat-label">Unique This Month</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Active Users Chart -->
+      <div class="chart-card" *ngIf="dashboard.dailyActiveUsers.length > 0">
+        <h3>📈 Daily Active Users (Last 30 Days)</h3>
+        <div class="bar-chart horizontal-chart">
+          <div class="chart-row" *ngFor="let day of dashboard.dailyActiveUsers">
+            <span class="chart-label">{{ day.date | date:'MMM d' }}</span>
+            <div class="chart-bar-container">
+              <div class="chart-bar accent-blue-bar"
+                   [style.width]="getBarWidth(day.activeUsers, maxDailyUsers)">
+              </div>
+              <span class="chart-value">{{ day.activeUsers }} users / {{ day.loginCount }} logins</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hourly Activity Chart -->
+      <div class="chart-card" *ngIf="dashboard.hourlyActivity.length > 0">
+        <h3>⏰ Today's Activity by Hour</h3>
+        <div class="hourly-chart">
+          <div class="hourly-bar-group" *ngFor="let h of dashboard.hourlyActivity">
+            <div class="hourly-bar"
+                 [style.height]="getBarWidth(h.eventCount, maxHourlyEvents)"
+                 [title]="h.eventCount + ' events'">
+            </div>
+            <span class="hourly-label">{{ formatHour(h.hour) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- SESSIONS TAB -->
+    <!-- ================================================================ -->
+    <div *ngIf="activeTab === 'sessions'" class="tab-content">
+      <div class="section-header">
+        <h2>Recent User Sessions</h2>
+        <span class="badge">{{ dashboard.recentSessions.length }} sessions</span>
+      </div>
+
+      <div class="sessions-table-wrapper">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>User</th>
+              <th>Role</th>
+              <th>Login Time</th>
+              <th>Last Active</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let session of dashboard.recentSessions"
+                [class.active-row]="session.isActive">
+              <td>
+                <span class="status-dot" [class.online]="session.isActive" [class.offline]="!session.isActive"></span>
+                {{ session.isActive ? 'Online' : 'Offline' }}
+              </td>
+              <td class="user-cell">
+                <span class="user-avatar">{{ session.username.charAt(0).toUpperCase() }}</span>
+                {{ session.username }}
+              </td>
+              <td>
+                <span class="role-badge" [class.admin]="session.userRole === 'admin'">
+                  {{ session.userRole }}
+                </span>
+              </td>
+              <td>{{ formatTime(session.loginTime) }}</td>
+              <td>{{ formatTime(session.lastActiveTime) }}</td>
+              <td>{{ getSessionDuration(session) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div *ngIf="dashboard.recentSessions.length === 0" class="empty-state">
+        <span class="empty-icon">👤</span>
+        <p>No session data yet. Sessions will appear here once users start logging in.</p>
+      </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- FEATURES TAB -->
+    <!-- ================================================================ -->
+    <div *ngIf="activeTab === 'features'" class="tab-content">
+      <div class="section-header">
+        <h2>Most Used Features & Pages</h2>
+      </div>
+
+      <div class="features-list" *ngIf="dashboard.topFeatures.length > 0">
+        <div class="feature-item" *ngFor="let feature of dashboard.topFeatures; let i = index">
+          <div class="feature-rank" [class.top3]="i < 3">{{ i + 1 }}</div>
+          <div class="feature-info">
+            <div class="feature-name">{{ feature.featureName }}</div>
+            <div class="feature-meta">{{ feature.uniqueUsers }} unique users</div>
+          </div>
+          <div class="feature-bar-container">
+            <div class="feature-bar"
+                 [style.width]="getBarWidth(feature.usageCount, maxFeatureUsage)">
+            </div>
+          </div>
+          <div class="feature-count">{{ feature.usageCount }}</div>
+        </div>
+      </div>
+
+      <div *ngIf="dashboard.topFeatures.length === 0" class="empty-state">
+        <span class="empty-icon">⭐</span>
+        <p>No feature usage data yet. Data will populate as users interact with the site.</p>
+      </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- API PERFORMANCE TAB -->
+    <!-- ================================================================ -->
+    <div *ngIf="activeTab === 'api'" class="tab-content">
+      <div class="section-header">
+        <h2>API Response Times</h2>
+      </div>
+
+      <div class="api-table-wrapper" *ngIf="dashboard.apiPerformance.length > 0">
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Calls</th>
+              <th>Avg (ms)</th>
+              <th>P95 (ms)</th>
+              <th>Max (ms)</th>
+              <th>Errors</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let api of dashboard.apiPerformance">
+              <td class="endpoint-cell">
+                <code>{{ api.endpoint }}</code>
+              </td>
+              <td>{{ api.totalCalls }}</td>
+              <td>
+                <span class="response-time" [style.color]="getResponseTimeColor(api.avgResponseTimeMs)">
+                  {{ api.avgResponseTimeMs }}
+                </span>
+              </td>
+              <td>{{ api.p95ResponseTimeMs }}</td>
+              <td>{{ api.maxResponseTimeMs }}</td>
+              <td>
+                <span [class.error-count]="api.errorCount > 0">
+                  {{ api.errorCount }}
+                  <span class="error-rate" *ngIf="api.errorCount > 0">({{ getErrorRate(api) }})</span>
+                </span>
+              </td>
+              <td>
+                <span class="performance-badge" [style.background]="getResponseTimeColor(api.avgResponseTimeMs)">
+                  {{ getResponseTimeLabel(api.avgResponseTimeMs) }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div *ngIf="dashboard.apiPerformance.length === 0" class="empty-state">
+        <span class="empty-icon">⚡</span>
+        <p>No API performance data yet. Metrics will appear as users make API calls.</p>
+      </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- CART TAB -->
+    <!-- ================================================================ -->
+    <div *ngIf="activeTab === 'cart'" class="tab-content">
+
+      <!-- Cart Metrics -->
+      <div class="metrics-grid">
+        <div class="metric-card accent-teal">
+          <div class="metric-icon">👁️</div>
+          <div class="metric-body">
+            <div class="metric-value">{{ dashboard.cartAnalytics.totalCartViews }}</div>
+            <div class="metric-label">Cart Views</div>
+          </div>
+        </div>
+        <div class="metric-card accent-green">
+          <div class="metric-icon">➕</div>
+          <div class="metric-body">
+            <div class="metric-value">{{ dashboard.cartAnalytics.totalAddToCart }}</div>
+            <div class="metric-label">Add to Cart</div>
+          </div>
+        </div>
+        <div class="metric-card accent-red">
+          <div class="metric-icon">➖</div>
+          <div class="metric-body">
+            <div class="metric-value">{{ dashboard.cartAnalytics.totalCartRemovals }}</div>
+            <div class="metric-label">Cart Removals</div>
+          </div>
+        </div>
+        <div class="metric-card accent-blue">
+          <div class="metric-icon">👥</div>
+          <div class="metric-body">
+            <div class="metric-value">{{ dashboard.cartAnalytics.uniqueUsersWhoCarted }}</div>
+            <div class="metric-label">Users Who Added</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cart Funnel -->
+      <div class="stat-card" *ngIf="dashboard.cartAnalytics.totalCartViews > 0">
+        <h3>🔄 Cart Funnel</h3>
+        <div class="funnel">
+          <div class="funnel-step">
+            <div class="funnel-bar" style="width: 100%"></div>
+            <div class="funnel-info">
+              <span class="funnel-label">Browsed Cart</span>
+              <span class="funnel-value">{{ dashboard.cartAnalytics.uniqueUsersWhoBrowsed }}</span>
+            </div>
+          </div>
+          <div class="funnel-step">
+            <div class="funnel-bar accent-green-bar"
+                 [style.width]="dashboard.cartAnalytics.uniqueUsersWhoBrowsed > 0
+                   ? (dashboard.cartAnalytics.uniqueUsersWhoCarted / dashboard.cartAnalytics.uniqueUsersWhoBrowsed * 100) + '%'
+                   : '0%'">
+            </div>
+            <div class="funnel-info">
+              <span class="funnel-label">Added Items</span>
+              <span class="funnel-value">{{ dashboard.cartAnalytics.uniqueUsersWhoCarted }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Carted Items -->
+      <div class="stat-card" *ngIf="dashboard.cartAnalytics.topCartedItems.length > 0">
+        <h3>🏆 Most Added to Cart</h3>
+        <div class="top-items">
+          <div class="top-item" *ngFor="let item of dashboard.cartAnalytics.topCartedItems; let i = index">
+            <span class="item-rank" [class.gold]="i === 0" [class.silver]="i === 1" [class.bronze]="i === 2">
+              {{ i + 1 }}
+            </span>
+            <span class="item-name">{{ item.itemName }}</span>
+            <span class="item-count">{{ item.addCount }} adds</span>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="dashboard.cartAnalytics.totalCartViews === 0 && dashboard.cartAnalytics.totalAddToCart === 0"
+           class="empty-state">
+        <span class="empty-icon">🛒</span>
+        <p>No cart activity data yet. Data will appear as users browse and add items to their cart.</p>
+      </div>
+    </div>
+  </div>
+</div>

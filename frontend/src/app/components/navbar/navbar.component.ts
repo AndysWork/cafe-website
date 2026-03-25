@@ -1,8 +1,9 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
 import { CartService } from '../../services/cart.service';
+import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -20,6 +21,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   cartItemCount = 0;
   private authSubscription?: Subscription;
   private cartSubscription?: Subscription;
+  private analyticsTracking = inject(AnalyticsTrackingService);
 
   constructor(
     private authService: AuthService,
@@ -111,6 +113,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   onLogout() {
+    this.analyticsTracking.trackLogout();
     this.authService.logout();
     this.router.navigate(['/']);
     this.closeMobileMenu();

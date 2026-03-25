@@ -54,7 +54,7 @@
         </div>
         <div class="outlet-info-row" *ngIf="outlet.phoneNumber">
           <span class="outlet-info-icon">📞</span>
-          <a [href]="'tel:' + outlet.phoneNumber">{{ outlet.phoneNumber }}</a>
+          <a [href]="'tel:' + outlet.phoneNumber" (click)="trackOutletPhoneClick(outlet.outletName)">{{ outlet.phoneNumber }}</a>
         </div>
         <div class="outlet-tags">
           <span *ngIf="outlet.settings.acceptsDineIn" class="outlet-tag"
@@ -87,7 +87,7 @@
         </div>
         <div class="outlet-info-row">
           <span class="outlet-info-icon">📞</span>
-          <a href="tel:+918240443533">+91-8240443533</a>
+          <a href="tel:+918240443533" (click)="trackOutletPhoneClick('Maa Tara Cafe - Kanchrapara')">+91-8240443533</a>
         </div>
         <div class="outlet-tags">
           <span class="outlet-tag">🍽️ Dine-In</span>
@@ -116,7 +116,7 @@
         </div>
         <div class="outlet-info-row">
           <span class="outlet-info-icon">📞</span>
-          <a href="tel:+918240443533">+91-8240443533</a>
+          <a href="tel:+918240443533" (click)="trackOutletPhoneClick('Maa Tara Cafe - Bongaon Road')">+91-8240443533</a>
         </div>
         <div class="outlet-tags">
           <span class="outlet-tag">🍽️ Dine-In</span>
@@ -139,6 +139,7 @@
         *ngFor="let category of categories; let i = index"
         class="category-card"
         [style.--accent]="getCategoryColor(i)"
+        (click)="trackCategoryClick(category.name)"
       >
         <div class="category-icon">
           {{ getCategoryIcon(category.name) }}
@@ -156,7 +157,7 @@
       <p>Our latest menu items</p>
     </div>
     <div class="menu-grid">
-      <div *ngFor="let item of latestMenuItems" class="menu-card">
+      <div *ngFor="let item of latestMenuItems" class="menu-card" (click)="trackMenuItemClick(item.name)">
         <span class="menu-tag">{{ item.tag }}</span>
         <div class="menu-icon">{{ item.image }}</div>
         <h3>{{ item.name }}</h3>

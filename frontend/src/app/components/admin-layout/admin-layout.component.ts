@@ -73,6 +73,12 @@ export class AdminLayoutComponent {
       active: false
     },
     {
+      icon: '👁️',
+      label: 'User Analytics',
+      route: '/admin/user-analytics',
+      active: false
+    },
+    {
       icon: '📦',
       label: 'Inventory',
       route: '/admin/inventory',

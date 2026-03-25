@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { AnalyticsTrackingService } from './analytics-tracking.service';
 
 export interface CartItem {
   menuItemId: string;
@@ -25,6 +26,7 @@ export interface Cart {
 export class CartService {
   private cartSubject = new BehaviorSubject<Cart>(this.getEmptyCart());
   public cart$: Observable<Cart> = this.cartSubject.asObservable();
+  private analyticsTracking = inject(AnalyticsTrackingService);
 
   constructor() {
     // Load cart from localStorage on initialization
@@ -92,6 +94,7 @@ export class CartService {
     const updatedCart = this.calculateTotals(newItems);
     this.cartSubject.next(updatedCart);
     this.saveCartToStorage(updatedCart);
+    this.analyticsTracking.trackCartAdd(item.name, item.menuItemId);
   }
 
   updateQuantity(menuItemId: string, quantity: number): void {
@@ -113,11 +116,15 @@ export class CartService {
 
   removeItem(menuItemId: string): void {
     const currentCart = this.cartSubject.value;
+    const removedItem = currentCart.items.find(item => item.menuItemId === menuItemId);
     const newItems = currentCart.items.filter(item => item.menuItemId !== menuItemId);
 
     const updatedCart = this.calculateTotals(newItems);
     this.cartSubject.next(updatedCart);
     this.saveCartToStorage(updatedCart);
+    if (removedItem) {
+      this.analyticsTracking.trackCartRemove(removedItem.name, removedItem.menuItemId);
+    }
   }
 
   clearCart(): void {
