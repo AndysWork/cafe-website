@@ -1,37 +1,58 @@
-<div class="offers-container">
-  <div class="page-header">
-    <h1>Special Offers</h1>
-    <p>Exclusive deals and discounts just for you</p>
+﻿<div class="offers-page">
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-pattern"></div>
+    <div class="hero-content">
+      <span class="hero-badge">🎉 Exclusive Deals</span>
+      <h1>Special Offers</h1>
+      <p>Grab these amazing deals before they expire!</p>
+    </div>
+    <div class="hero-wave">
+      <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path d="M0,64L60,69.3C120,75,240,85,360,80C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90L1440,96L1440,120L0,120Z" fill="#fafafa"/></svg>
+    </div>
   </div>
 
-  <div *ngIf="loading" class="loading-spinner">
-    <div class="spinner"></div>
-    <p>Loading offers...</p>
+  <!-- Loading -->
+  <div *ngIf="loading" class="skeleton-grid">
+    <div class="skeleton-card" *ngFor="let s of [1,2,3]">
+      <div class="sk-badge shimmer"></div>
+      <div class="sk-icon shimmer"></div>
+      <div class="sk-line wide shimmer"></div>
+      <div class="sk-line medium shimmer"></div>
+      <div class="sk-line short shimmer"></div>
+    </div>
   </div>
 
-  <div *ngIf="error" class="error-message">
+  <!-- Error -->
+  <div *ngIf="error && !loading" class="error-card">
+    <div class="error-icon">😔</div>
+    <h3>Something went wrong</h3>
     <p>{{ error }}</p>
-    <button class="btn-retry" (click)="loadOffers()">Try Again</button>
+    <button class="btn-retry" (click)="loadOffers()">🔄 Try Again</button>
   </div>
 
+  <!-- Empty State -->
   <div *ngIf="!loading && !error && offers.length === 0" class="empty-state">
     <div class="empty-icon">🎁</div>
     <h2>No Active Offers</h2>
     <p>Check back soon for exciting deals and discounts!</p>
   </div>
 
+  <!-- Offers Grid -->
   <div *ngIf="!loading && !error && offers.length > 0" class="offers-grid">
     <div *ngFor="let offer of offers" class="offer-card">
-      <div class="offer-icon">{{ offer.icon }}</div>
-      <div class="offer-badge">{{ getDiscountDisplay(offer) }}</div>
-      <h3>{{ offer.title }}</h3>
-      <p class="offer-description">{{ offer.description }}</p>
-      <div class="offer-code">
-        <span class="code-label">Use Code:</span>
+      <div class="card-ribbon">{{ getDiscountDisplay(offer) }}</div>
+      <div class="card-icon">{{ offer.icon }}</div>
+      <h3 class="card-title">{{ offer.title }}</h3>
+      <p class="card-desc">{{ offer.description }}</p>
+      <div class="code-box">
+        <span class="code-label">CODE</span>
         <span class="code-value">{{ offer.code }}</span>
-        <button class="btn-copy" (click)="copyCode(offer.code)">📋</button>
+        <button class="btn-copy" (click)="copyCode(offer.code)" title="Copy code">📋 Copy</button>
       </div>
-      <p class="offer-validity">{{ getValidityDisplay(offer) }}</p>
+      <div class="card-validity" [class.urgent]="getValidityDisplay(offer).includes('today') || getValidityDisplay(offer).includes('tomorrow')">
+        ⏰ {{ getValidityDisplay(offer) }}
+      </div>
     </div>
   </div>
 </div>

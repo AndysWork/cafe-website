@@ -1,104 +1,179 @@
-<div class="orders-container">
-  <div class="page-header">
-    <h1>{{ isAdmin ? 'All Orders' : 'My Orders' }}</h1>
-    <p>{{ isAdmin ? 'Manage customer orders' : 'Track your order history and current orders' }}</p>
+<div class="orders-page">
+  <!-- Hero Header -->
+  <div class="orders-hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <h1>{{ isAdmin ? 'All Orders' : 'My Orders' }}</h1>
+      <p>{{ isAdmin ? 'Manage customer orders' : 'Track your orders in real-time' }}</p>
+    </div>
+    <div class="hero-wave">
+      <svg viewBox="0 0 1440 100" preserveAspectRatio="none">
+        <path d="M0,60L60,55C120,50,240,40,360,42C480,44,600,58,720,62C840,66,960,60,1080,52C1200,44,1320,36,1380,32L1440,28L1440,100L0,100Z" fill="#f8f9fb"/>
+      </svg>
+    </div>
   </div>
 
-  <!-- Success Message -->
-  <div *ngIf="successMessage" class="success-message">
-    {{ successMessage }}
+  <!-- Success Toast -->
+  <div *ngIf="successMessage" class="success-toast">
+    <span class="toast-icon">✅</span>
+    <span>{{ successMessage }}</span>
   </div>
 
-  <!-- Loading State -->
-  <div *ngIf="isLoading" class="loading-state">
-    <p>Loading orders...</p>
-  </div>
+  <div class="orders-content">
+    <!-- Filter Tabs -->
+    <div *ngIf="orders.length > 0" class="filter-tabs">
+      <button
+        *ngFor="let f of statusFilters"
+        class="tab"
+        [class.active]="activeFilter === f.key"
+        (click)="activeFilter = f.key">
+        {{ f.label }}
+        <span class="tab-count">{{ getFilterCount(f.key) }}</span>
+      </button>
+    </div>
 
-  <!-- Error State -->
-  <div *ngIf="errorMessage && !isLoading" class="error-state">
-    <p class="error-message">{{ errorMessage }}</p>
-    <button class="btn-retry" (click)="loadOrders()">Retry</button>
-  </div>
-
-  <!-- Empty State -->
-  <div *ngIf="!isLoading && !errorMessage && orders.length === 0" class="empty-state">
-    <div class="empty-icon">📦</div>
-    <h3>{{ isAdmin ? 'No Orders Yet' : 'No Orders Found' }}</h3>
-    <p>{{ isAdmin ? 'Customer orders will appear here once they start placing orders.' : 'You haven\'t placed any orders yet. Start exploring our delicious menu!' }}</p>
-    <a *ngIf="!isAdmin" routerLink="/menu" class="btn-browse">Browse Menu</a>
-  </div>
-
-  <!-- Orders List -->
-  <div *ngIf="!isLoading && !errorMessage && orders.length > 0" class="orders-list">
-    <div *ngFor="let order of orders" class="order-card">
-      <div class="order-header">
-        <div>
-          <h3>#{{ order.id }}</h3>
-          <p class="order-date">{{ formatDate(order.createdAt) }}</p>
-          <p *ngIf="isAdmin" class="order-customer">Customer: {{ order.username }}</p>
+    <!-- Loading Skeleton -->
+    <div *ngIf="isLoading" class="skeleton-list">
+      <div class="skeleton-card" *ngFor="let s of [1,2,3]">
+        <div class="skel-row">
+          <div class="skel-circle shimmer"></div>
+          <div class="skel-lines">
+            <div class="skel-line wide shimmer"></div>
+            <div class="skel-line medium shimmer"></div>
+          </div>
+          <div class="skel-badge shimmer"></div>
         </div>
-        <span class="order-status"
-              [ngClass]="getStatusColorClass(order.status)">
-          {{ getStatusDisplayText(order.status) }}
-        </span>
+        <div class="skel-bar shimmer"></div>
       </div>
+    </div>
 
-      <div class="order-body">
-        <div class="order-items">
-          <h4>Items:</h4>
-          <ul>
-            <li *ngFor="let item of order.items">
-              {{ item.name }} × {{ item.quantity }} - ₹{{ item.total }}
-            </li>
-          </ul>
-        </div>
+    <!-- Error State -->
+    <div *ngIf="errorMessage && !isLoading" class="error-state">
+      <div class="error-icon">😔</div>
+      <h3>Couldn't load your orders</h3>
+      <p>{{ errorMessage }}</p>
+      <button class="btn-retry" (click)="loadOrders()">🔄 Retry</button>
+    </div>
 
-        <div class="order-summary">
-          <div class="summary-row">
-            <span>Subtotal:</span>
-            <span>₹{{ order.subtotal }}</span>
+    <!-- Empty State -->
+    <div *ngIf="!isLoading && !errorMessage && orders.length === 0" class="empty-state">
+      <div class="empty-illustration">🛒</div>
+      <h3>{{ isAdmin ? 'No orders yet' : 'No orders found' }}</h3>
+      <p>{{ isAdmin ? 'Customer orders will appear here.' : 'You haven\'t placed any orders yet. Let\'s fix that!' }}</p>
+      <a *ngIf="!isAdmin" routerLink="/menu" class="btn-browse">
+        🍽️ Browse Menu
+      </a>
+    </div>
+
+    <!-- Filtered Empty State -->
+    <div *ngIf="!isLoading && !errorMessage && orders.length > 0 && filteredOrders.length === 0" class="empty-state small">
+      <p>No {{ activeFilter }} orders found</p>
+      <button class="btn-link" (click)="activeFilter = 'all'">View all orders</button>
+    </div>
+
+    <!-- Orders List -->
+    <div *ngIf="!isLoading && !errorMessage && filteredOrders.length > 0" class="orders-list">
+      <div
+        *ngFor="let order of filteredOrders"
+        class="order-card"
+        [class.expanded]="isExpanded(order.id)"
+        [class.status-delivered]="order.status === 'delivered'"
+        [class.status-cancelled]="order.status === 'cancelled'"
+        [class.status-active]="!['delivered','cancelled'].includes(order.status)">
+
+        <!-- Collapsed Header — always visible -->
+        <div class="card-header" (click)="toggleExpand(order.id)">
+          <div class="header-left">
+            <span class="status-dot" [ngClass]="order.status"></span>
+            <div class="header-info">
+              <div class="order-id">#{{ order.id | slice:-6 }}</div>
+              <div class="order-meta">
+                <span class="meta-date">{{ formatDate(order.createdAt) }}</span>
+                <span *ngIf="isAdmin" class="meta-user">· {{ order.username }}</span>
+              </div>
+            </div>
           </div>
-          <div class="summary-row">
-            <span>Tax (10%):</span>
-            <span>₹{{ order.tax }}</span>
+          <div class="header-right">
+            <div class="header-summary">
+              <span class="order-total-badge">₹{{ order.total }}</span>
+              <span class="status-chip" [ngClass]="order.status">
+                {{ getStatusIcon(order.status) }} {{ getStatusDisplayText(order.status) }}
+              </span>
+            </div>
+            <span class="expand-arrow" [class.open]="isExpanded(order.id)">▾</span>
           </div>
-          <div class="summary-row total">
-            <span>Total:</span>
-            <span>₹{{ order.total }}</span>
+        </div>
+
+        <!-- Expanded Body -->
+        <div class="card-body" *ngIf="isExpanded(order.id)">
+          <!-- Items Table -->
+          <div class="items-section">
+            <div class="items-header">Items Ordered</div>
+            <div class="item-row" *ngFor="let item of order.items">
+              <div class="item-info">
+                <span class="item-name">{{ item.name }}</span>
+                <span class="item-qty">× {{ item.quantity }}</span>
+              </div>
+              <span class="item-total">₹{{ item.total }}</span>
+            </div>
           </div>
-        </div>
 
-        <div *ngIf="order.deliveryAddress" class="order-details">
-          <p><strong>Delivery Address:</strong> {{ order.deliveryAddress }}</p>
-        </div>
-        <div *ngIf="order.phoneNumber" class="order-details">
-          <p><strong>Phone:</strong> {{ order.phoneNumber }}</p>
-        </div>
-        <div *ngIf="order.notes" class="order-details">
-          <p><strong>Notes:</strong> {{ order.notes }}</p>
-        </div>
-      </div>
+          <!-- Price Summary -->
+          <div class="price-summary">
+            <div class="price-row">
+              <span>Subtotal</span>
+              <span>₹{{ order.subtotal }}</span>
+            </div>
+            <div class="price-row">
+              <span>Tax (10%)</span>
+              <span>₹{{ order.tax }}</span>
+            </div>
+            <div class="price-row grand-total">
+              <span>Total</span>
+              <span>₹{{ order.total }}</span>
+            </div>
+          </div>
 
-      <div class="order-actions">
-        <!-- User Actions -->
-        <button *ngIf="!isAdmin && canCancelOrder(order)"
-                class="btn-cancel"
-                (click)="cancelOrder(order.id)">
-          Cancel Order
-        </button>
+          <!-- Delivery Info -->
+          <div class="delivery-info" *ngIf="order.deliveryAddress || order.phoneNumber || order.notes">
+            <div *ngIf="order.deliveryAddress" class="info-chip">
+              <span class="info-label">📍 Address</span>
+              <span>{{ order.deliveryAddress }}</span>
+            </div>
+            <div *ngIf="order.phoneNumber" class="info-chip">
+              <span class="info-label">📞 Phone</span>
+              <span>{{ order.phoneNumber }}</span>
+            </div>
+            <div *ngIf="order.notes" class="info-chip">
+              <span class="info-label">📝 Notes</span>
+              <span>{{ order.notes }}</span>
+            </div>
+          </div>
 
-        <!-- Admin Actions -->
-        <div *ngIf="isAdmin" class="admin-actions">
-          <select (change)="updateOrderStatus(order.id, $any($event.target).value)"
-                  [value]="order.status"
-                  class="status-select">
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="preparing">Preparing</option>
-            <option value="ready">Ready</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <!-- Actions -->
+          <div class="card-actions">
+            <button *ngIf="!isAdmin && canCancelOrder(order)"
+                    class="btn-cancel"
+                    (click)="cancelOrder(order.id); $event.stopPropagation()">
+              ✕ Cancel Order
+            </button>
+
+            <div *ngIf="isAdmin" class="admin-controls">
+              <label class="select-label">Update Status:</label>
+              <select
+                (change)="updateOrderStatus(order.id, $any($event.target).value); $event.stopPropagation()"
+                [value]="order.status"
+                class="status-select"
+                (click)="$event.stopPropagation()">
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="preparing">Preparing</option>
+                <option value="ready">Ready</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
     </div>

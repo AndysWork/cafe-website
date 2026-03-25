@@ -16,7 +16,7 @@ export class CheckoutComponent implements OnInit {
   cart: Cart = {
     items: [],
     subtotal: 0,
-    tax: 0,
+    packagingCharges: 0,
     total: 0,
     itemCount: 0
   };

@@ -1,44 +1,25 @@
-<div class="checkout-container">
-  <div class="page-header">
-    <h1>Checkout</h1>
-    <p>Complete your order</p>
+﻿<div class="checkout-page">
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-pattern"></div>
+    <div class="hero-content">
+      <span class="hero-badge">🛒 Checkout</span>
+      <h1>Complete Your Order</h1>
+      <p>You're just one step away from deliciousness!</p>
+    </div>
+    <div class="hero-wave">
+      <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path d="M0,64L60,69.3C120,75,240,85,360,80C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90L1440,96L1440,120L0,120Z" fill="#fafafa"/></svg>
+    </div>
   </div>
 
+  <!-- Content -->
   <div class="checkout-content">
-    <!-- Order Summary -->
-    <div class="order-summary-section">
-      <h2>Order Summary</h2>
-
-      <div class="summary-items">
-        <div *ngFor="let item of cart.items" class="summary-item">
-          <div class="item-info">
-            <span class="item-name">{{ item.name }}</span>
-            <span class="item-qty">× {{ item.quantity }}</span>
-          </div>
-          <span class="item-price">₹{{ item.price * item.quantity }}</span>
-        </div>
-      </div>
-
-      <div class="summary-totals">
-        <div class="total-row">
-          <span>Subtotal:</span>
-          <span>₹{{ cart.subtotal }}</span>
-        </div>
-        <div class="total-row">
-          <span>Tax (10%):</span>
-          <span>₹{{ cart.tax }}</span>
-        </div>
-        <div class="total-divider"></div>
-        <div class="total-row final">
-          <span>Total:</span>
-          <span>₹{{ cart.total }}</span>
-        </div>
-      </div>
-    </div>
-
     <!-- Delivery Form -->
-    <div class="delivery-form-section">
-      <h2>Delivery Details</h2>
+    <div class="form-card">
+      <div class="card-header">
+        <span class="card-icon">📍</span>
+        <h2>Delivery Details</h2>
+      </div>
 
       <form (ngSubmit)="placeOrder()" #checkoutForm="ngForm">
         <div class="form-group">
@@ -63,7 +44,7 @@
             placeholder="Enter your 10-digit phone number"
             pattern="[0-9]{10}"
             required
-            [disabled]="isSubmitting">
+            [disabled]="isSubmitting" />
           <small>Enter 10 digits without spaces or special characters</small>
         </div>
 
@@ -79,31 +60,66 @@
         </div>
 
         <!-- Error Message -->
-        <div *ngIf="errorMessage" class="error-message">
-          {{ errorMessage }}
+        <div *ngIf="errorMessage" class="error-msg">
+          ❌ {{ errorMessage }}
+        </div>
+
+        <!-- Payment Badge -->
+        <div class="payment-badge">
+          <span class="badge-icon">💵</span>
+          <div>
+            <strong>Cash on Delivery</strong>
+            <p>Pay when your order arrives</p>
+          </div>
         </div>
 
         <!-- Action Buttons -->
         <div class="form-actions">
-          <button
-            type="button"
-            class="btn-secondary"
-            (click)="goBackToCart()"
-            [disabled]="isSubmitting">
-            Back to Cart
+          <button type="button" class="btn-back" (click)="goBackToCart()" [disabled]="isSubmitting">
+            ← Back to Cart
           </button>
-          <button
-            type="submit"
-            class="btn-primary"
-            [disabled]="!checkoutForm.valid || isSubmitting">
-            {{ isSubmitting ? 'Placing Order...' : 'Place Order' }}
+          <button type="submit" class="btn-place" [disabled]="!checkoutForm.valid || isSubmitting">
+            {{ isSubmitting ? '⏳ Placing Order...' : '🎉 Place Order' }}
           </button>
         </div>
       </form>
+    </div>
 
-      <div class="payment-info">
-        <p><strong>Payment:</strong> Cash on Delivery</p>
-        <p class="info-text">You can pay when your order is delivered</p>
+    <!-- Order Summary -->
+    <div class="summary-card">
+      <div class="card-header">
+        <span class="card-icon">📋</span>
+        <h2>Order Summary</h2>
+      </div>
+
+      <div class="summary-items">
+        <div *ngFor="let item of cart.items" class="s-item">
+          <div class="s-item-left">
+            <span class="s-item-qty">{{ item.quantity }}×</span>
+            <span class="s-item-name">{{ item.name }}</span>
+          </div>
+          <span class="s-item-price">₹{{ item.price * item.quantity }}</span>
+        </div>
+      </div>
+
+      <div class="summary-totals">
+        <div class="t-row">
+          <span>Subtotal</span>
+          <span>₹{{ cart.subtotal }}</span>
+        </div>
+        <div class="t-row">
+          <span>Packaging Charges</span>
+          <span>₹{{ cart.packagingCharges }}</span>
+        </div>
+        <div class="t-divider"></div>
+        <div class="t-row t-final">
+          <span>Total</span>
+          <span>₹{{ cart.total }}</span>
+        </div>
+      </div>
+
+      <div class="item-count-badge">
+        {{ cart.itemCount }} {{ cart.itemCount === 1 ? 'item' : 'items' }} in your order
       </div>
     </div>
   </div>

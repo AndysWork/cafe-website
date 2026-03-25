@@ -1,163 +1,88 @@
-<div class="profile-container">
-  <div class="profile-box">
-    <div class="header">
-      <div class="logo">👤</div>
-      <h1>My Profile</h1>
-      <p>Manage your account settings</p>
+﻿<div class="profile-page">
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-pattern"></div>
+    <div class="hero-content">
+      <div class="avatar">{{ (user?.firstName || user?.username || '?')[0] | uppercase }}</div>
+      <h1>{{ user?.firstName ? (user?.firstName + ' ' + (user?.lastName || '')) : user?.username }}</h1>
+      <p>{{ user?.email }}</p>
     </div>
+    <div class="hero-wave">
+      <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path d="M0,64L60,69.3C120,75,240,85,360,80C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90L1440,96L1440,120L0,120Z" fill="#fafafa"/></svg>
+    </div>
+  </div>
 
+  <!-- Content -->
+  <div class="profile-content">
+    <!-- Tabs -->
     <div class="tabs">
-      <button
-        [class.active]="activeTab === 'profile'"
-        (click)="switchTab('profile')"
-        class="tab-button">
-        Profile Info
-      </button>
-      <button
-        [class.active]="activeTab === 'password'"
-        (click)="switchTab('password')"
-        class="tab-button">
-        Change Password
-      </button>
+      <button class="tab" [class.active]="activeTab === 'profile'" (click)="switchTab('profile')">👤 Profile Info</button>
+      <button class="tab" [class.active]="activeTab === 'password'" (click)="switchTab('password')">🔒 Change Password</button>
     </div>
 
-    <!-- Profile Update Tab -->
-    <div *ngIf="activeTab === 'profile'" class="tab-content">
-      <form (ngSubmit)="updateProfile()" class="profile-form">
-        <div class="form-group">
-          <label for="username">Username</label>
-          <input
-            type="text"
-            id="username"
-            [value]="user?.username"
-            disabled
-            class="disabled-input"
-          />
-          <small>Username cannot be changed</small>
-        </div>
+    <!-- Profile Tab -->
+    <div class="tab-body" *ngIf="activeTab === 'profile'">
+      <div class="form-card">
+        <!-- Success/Error Messages -->
+        <div class="msg msg-success" *ngIf="profileMessage">✅ {{ profileMessage }}</div>
+        <div class="msg msg-error" *ngIf="profileError">❌ {{ profileError }}</div>
 
         <div class="form-group">
-          <label for="email">Email</label>
-          <input
-            type="email"
-            id="email"
-            [value]="user?.email"
-            disabled
-            class="disabled-input"
-          />
-          <small>Email cannot be changed</small>
+          <label>Username</label>
+          <input type="text" [value]="user?.username" disabled class="input-disabled" />
         </div>
-
         <div class="form-group">
-          <label for="firstName">First Name</label>
-          <input
-            type="text"
-            id="firstName"
-            [(ngModel)]="firstName"
-            name="firstName"
-            placeholder="Enter your first name"
-          />
+          <label>Email</label>
+          <input type="email" [value]="user?.email" disabled class="input-disabled" />
         </div>
-
+        <div class="form-row">
+          <div class="form-group">
+            <label>First Name</label>
+            <input type="text" [(ngModel)]="firstName" placeholder="Enter first name" />
+          </div>
+          <div class="form-group">
+            <label>Last Name</label>
+            <input type="text" [(ngModel)]="lastName" placeholder="Enter last name" />
+          </div>
+        </div>
         <div class="form-group">
-          <label for="lastName">Last Name</label>
-          <input
-            type="text"
-            id="lastName"
-            [(ngModel)]="lastName"
-            name="lastName"
-            placeholder="Enter your last name"
-          />
+          <label>Phone Number</label>
+          <input type="tel" [(ngModel)]="phoneNumber" placeholder="Enter phone number" />
         </div>
-
-        <div class="form-group">
-          <label for="phoneNumber">Phone Number</label>
-          <input
-            type="tel"
-            id="phoneNumber"
-            [(ngModel)]="phoneNumber"
-            name="phoneNumber"
-            placeholder="Enter your phone number"
-          />
-        </div>
-
-        <div *ngIf="profileMessage" class="success-message">
-          {{ profileMessage }}
-        </div>
-
-        <div *ngIf="profileError" class="error-message">
-          {{ profileError }}
-        </div>
-
-        <button type="submit" class="btn-primary" [disabled]="isUpdatingProfile">
-          <span *ngIf="!isUpdatingProfile">Update Profile</span>
-          <span *ngIf="isUpdatingProfile">Updating...</span>
+        <button class="btn-submit" (click)="updateProfile()" [disabled]="isUpdatingProfile">
+          {{ isUpdatingProfile ? 'Saving...' : '💾 Save Changes' }}
         </button>
-      </form>
+      </div>
     </div>
 
-    <!-- Change Password Tab -->
-    <div *ngIf="activeTab === 'password'" class="tab-content">
-      <form (ngSubmit)="changePassword()" class="password-form">
-        <div class="form-group">
-          <label for="currentPassword">Current Password</label>
-          <input
-            type="password"
-            id="currentPassword"
-            [(ngModel)]="currentPassword"
-            name="currentPassword"
-            placeholder="Enter current password"
-            required
-            autocomplete="current-password"
-          />
-        </div>
+    <!-- Password Tab -->
+    <div class="tab-body" *ngIf="activeTab === 'password'">
+      <div class="form-card">
+        <!-- Success/Error Messages -->
+        <div class="msg msg-success" *ngIf="passwordMessage">✅ {{ passwordMessage }}</div>
+        <div class="msg msg-error" *ngIf="passwordError">❌ {{ passwordError }}</div>
 
         <div class="form-group">
-          <label for="newPassword">New Password</label>
-          <input
-            type="password"
-            id="newPassword"
-            [(ngModel)]="newPassword"
-            name="newPassword"
-            placeholder="Enter new password"
-            required
-            minlength="6"
-            autocomplete="new-password"
-          />
-          <small>Minimum 6 characters</small>
+          <label>Current Password</label>
+          <input type="password" [(ngModel)]="currentPassword" placeholder="Enter current password" />
         </div>
-
         <div class="form-group">
-          <label for="confirmPassword">Confirm New Password</label>
-          <input
-            type="password"
-            id="confirmPassword"
-            [(ngModel)]="confirmPassword"
-            name="confirmPassword"
-            placeholder="Confirm new password"
-            required
-            autocomplete="new-password"
-          />
+          <label>New Password</label>
+          <input type="password" [(ngModel)]="newPassword" placeholder="Enter new password" />
         </div>
-
-        <div *ngIf="passwordMessage" class="success-message">
-          {{ passwordMessage }}
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input type="password" [(ngModel)]="confirmPassword" placeholder="Confirm new password" />
         </div>
-
-        <div *ngIf="passwordError" class="error-message">
-          {{ passwordError }}
-        </div>
-
-        <button type="submit" class="btn-primary" [disabled]="isChangingPassword || !currentPassword || !newPassword || !confirmPassword">
-          <span *ngIf="!isChangingPassword">Change Password</span>
-          <span *ngIf="isChangingPassword">Changing...</span>
+        <button class="btn-submit" (click)="changePassword()" [disabled]="isChangingPassword">
+          {{ isChangingPassword ? 'Changing...' : '🔐 Change Password' }}
         </button>
-      </form>
+      </div>
     </div>
 
+    <!-- Back Link -->
     <div class="back-link">
       <a routerLink="/menu">← Back to Menu</a>
     </div>
   </div>
 </div>
-

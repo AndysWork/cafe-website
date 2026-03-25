@@ -18,6 +18,15 @@ export class OrdersComponent implements OnInit {
   errorMessage = '';
   isAdmin = false;
   successMessage = '';
+  expandedOrderId: string | null = null;
+  activeFilter: string = 'all';
+
+  statusFilters = [
+    { key: 'all', label: 'All' },
+    { key: 'active', label: 'Active' },
+    { key: 'delivered', label: 'Delivered' },
+    { key: 'cancelled', label: 'Cancelled' }
+  ];
 
   constructor(
     private orderService: OrderService,
@@ -28,13 +37,10 @@ export class OrdersComponent implements OnInit {
   }
 
   ngOnInit() {
-    // Check for success message from checkout
     this.route.queryParams.subscribe(params => {
       if (params['orderPlaced'] === 'true') {
         this.successMessage = 'Order placed successfully! Your order is being processed.';
-        setTimeout(() => {
-          this.successMessage = '';
-        }, 5000);
+        setTimeout(() => this.successMessage = '', 5000);
       }
     });
 
@@ -62,14 +68,35 @@ export class OrdersComponent implements OnInit {
     });
   }
 
-  cancelOrder(orderId: string) {
-    if (!confirm('Are you sure you want to cancel this order?')) {
-      return;
+  get filteredOrders(): Order[] {
+    if (this.activeFilter === 'all') return this.orders;
+    if (this.activeFilter === 'active') {
+      return this.orders.filter(o => !['delivered', 'cancelled'].includes(o.status));
     }
+    return this.orders.filter(o => o.status === this.activeFilter);
+  }
+
+  getFilterCount(key: string): number {
+    if (key === 'all') return this.orders.length;
+    if (key === 'active') return this.orders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length;
+    return this.orders.filter(o => o.status === key).length;
+  }
+
+  toggleExpand(orderId: string) {
+    this.expandedOrderId = this.expandedOrderId === orderId ? null : orderId;
+  }
+
+  isExpanded(orderId: string): boolean {
+    return this.expandedOrderId === orderId;
+  }
+
+  cancelOrder(orderId: string) {
+    if (!confirm('Are you sure you want to cancel this order?')) return;
 
     this.orderService.cancelOrder(orderId).subscribe({
       next: () => {
-        alert('Order cancelled successfully');
+        this.successMessage = 'Order cancelled successfully';
+        setTimeout(() => this.successMessage = '', 3000);
         this.loadOrders();
       },
       error: (error) => {
@@ -82,7 +109,8 @@ export class OrdersComponent implements OnInit {
   updateOrderStatus(orderId: string, newStatus: string) {
     this.orderService.updateOrderStatus(orderId, newStatus).subscribe({
       next: () => {
-        alert(`Order status updated to ${newStatus}`);
+        this.successMessage = `Order status updated to ${newStatus}`;
+        setTimeout(() => this.successMessage = '', 3000);
         this.loadOrders();
       },
       error: (error) => {
@@ -96,10 +124,6 @@ export class OrdersComponent implements OnInit {
     return this.orderService.getStatusDisplayText(status);
   }
 
-  getStatusColorClass(status: string): string {
-    return this.orderService.getStatusColorClass(status);
-  }
-
   canCancelOrder(order: Order): boolean {
     return this.orderService.canCancelOrder(order.status);
   }
@@ -108,7 +132,15 @@ export class OrdersComponent implements OnInit {
     return formatIstDateTime(new Date(dateString));
   }
 
-  getOrderItemsSummary(order: Order): string {
-    return order.items.map(item => `${item.name} (${item.quantity})`).join(', ');
+  getStatusIcon(status: string): string {
+    const icons: Record<string, string> = {
+      pending: '⏳', confirmed: '✅', preparing: '👨‍🍳',
+      ready: '🔔', delivered: '🎉', cancelled: '❌'
+    };
+    return icons[status] || '📦';
+  }
+
+  getOrderTotal(order: Order): number {
+    return order.total;
   }
 }

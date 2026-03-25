@@ -1,86 +1,72 @@
-<div class="cart-container">
-  <div class="page-header">
-    <h1>Shopping Cart</h1>
-    <p *ngIf="cart.itemCount > 0">{{ cart.itemCount }} item{{ cart.itemCount !== 1 ? 's' : '' }} in your cart</p>
+﻿<div class="cart-page">
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-pattern"></div>
+    <div class="hero-content">
+      <span class="hero-badge">🛒 Your Cart</span>
+      <h1>{{ cart.itemCount }} {{ cart.itemCount === 1 ? 'Item' : 'Items' }}</h1>
+      <p *ngIf="cart.itemCount > 0">Review your selections before checkout</p>
+      <p *ngIf="cart.itemCount === 0">Your cart is empty</p>
+    </div>
+    <div class="hero-wave">
+      <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path d="M0,64L60,69.3C120,75,240,85,360,80C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90L1440,96L1440,120L0,120Z" fill="#fafafa"/></svg>
+    </div>
   </div>
 
-  <!-- Empty Cart State -->
-  <div *ngIf="cart.items.length === 0" class="empty-cart">
+  <!-- Empty State -->
+  <div *ngIf="cart.itemCount === 0" class="empty-state">
     <div class="empty-icon">🛒</div>
     <h2>Your cart is empty</h2>
-    <p>Add some delicious items from our menu!</p>
-    <button class="btn-primary" (click)="continueShopping()">Browse Menu</button>
+    <p>Looks like you haven't added anything yet. Explore our delicious menu!</p>
+    <button class="btn-action" (click)="continueShopping()">🍽️ Browse Menu</button>
   </div>
 
   <!-- Cart Content -->
-  <div *ngIf="cart.items.length > 0" class="cart-content">
-    <div class="cart-items">
-      <div class="cart-header">
-        <h2>Items</h2>
-        <button class="btn-clear" (click)="clearCart()">Clear Cart</button>
+  <div *ngIf="cart.itemCount > 0" class="cart-content">
+    <!-- Items List -->
+    <div class="items-section">
+      <div class="items-header">
+        <h2>Order Items</h2>
+        <button class="btn-clear" (click)="clearCart()">🗑️ Clear All</button>
       </div>
 
-      <div class="cart-item" *ngFor="let item of cart.items">
+      <div *ngFor="let item of cart.items" class="cart-item">
         <div class="item-image" *ngIf="item.imageUrl">
-          <img [src]="item.imageUrl" [alt]="item.name">
+          <img [src]="item.imageUrl" [alt]="item.name" />
         </div>
-        <div class="item-image-placeholder" *ngIf="!item.imageUrl">
-          <span>📷</span>
-        </div>
-
+        <div class="item-placeholder" *ngIf="!item.imageUrl">🍽️</div>
         <div class="item-details">
-          <h3>{{ item.name }}</h3>
-          <p class="item-description" *ngIf="item.description">{{ item.description }}</p>
-          <span class="item-category" *ngIf="item.categoryName">{{ item.categoryName }}</span>
-          <p class="item-price">₹{{ item.price }} each</p>
+          <h3 class="item-name">{{ item.name }}</h3>
+          <div class="item-price">₹{{ item.price }}</div>
         </div>
-
-        <div class="item-quantity">
-          <button class="qty-btn" (click)="decreaseQuantity(item)">−</button>
-          <input
-            type="number"
-            [value]="item.quantity"
-            (change)="updateQuantity(item, +$any($event.target).value)"
-            min="1"
-            class="qty-input">
+        <div class="item-qty">
+          <button class="qty-btn" (click)="decreaseQuantity(item)" [disabled]="item.quantity <= 1">−</button>
+          <span class="qty-num">{{ item.quantity }}</span>
           <button class="qty-btn" (click)="increaseQuantity(item)">+</button>
         </div>
-
-        <div class="item-total">
-          <p class="total-price">₹{{ getItemTotal(item) }}</p>
-          <button class="btn-remove" (click)="removeItem(item)">Remove</button>
-        </div>
+        <div class="item-total">₹{{ getItemTotal(item) }}</div>
+        <button class="btn-remove" (click)="removeItem(item)">✕</button>
       </div>
     </div>
 
-    <!-- Cart Summary -->
-    <div class="cart-summary">
-      <h2>Order Summary</h2>
-
-      <div class="summary-row">
-        <span>Subtotal:</span>
-        <span>₹{{ cart.subtotal }}</span>
-      </div>
-
-      <div class="summary-row">
-        <span>Tax (10%):</span>
-        <span>₹{{ cart.tax }}</span>
-      </div>
-
-      <div class="summary-divider"></div>
-
-      <div class="summary-row total">
-        <span>Total:</span>
-        <span>₹{{ cart.total }}</span>
-      </div>
-
-      <div class="summary-actions">
-        <button class="btn-secondary" (click)="continueShopping()">
-          Continue Shopping
-        </button>
-        <button class="btn-primary" (click)="proceedToCheckout()">
-          Proceed to Checkout
-        </button>
+    <!-- Summary -->
+    <div class="summary-section">
+      <div class="summary-card">
+        <h3>Order Summary</h3>
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span>₹{{ cart.subtotal }}</span>
+        </div>
+        <div class="summary-row">
+          <span>Packaging Charges</span>
+          <span>₹{{ cart.packagingCharges }}</span>
+        </div>
+        <div class="summary-row total">
+          <span>Total</span>
+          <span>₹{{ cart.total }}</span>
+        </div>
+        <button class="btn-checkout" (click)="proceedToCheckout()">🛒 Proceed to Checkout</button>
+        <button class="btn-continue" (click)="continueShopping()">← Continue Shopping</button>
       </div>
     </div>
   </div>

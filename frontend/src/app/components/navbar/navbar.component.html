@@ -1,19 +1,23 @@
 <!-- Mobile Overlay -->
-<div class="mobile-overlay"
-     [class.active]="isMobileMenuOpen"
-     (click)="closeMobileMenu()"></div>
+<div
+  class="mobile-overlay"
+  [class.active]="isMobileMenuOpen"
+  (click)="closeMobileMenu()"
+></div>
 
 <nav class="navbar" [class.mobile-open]="isMobileMenuOpen">
   <div class="navbar-container">
     <!-- Logo -->
     <a routerLink="/" class="navbar-brand" (click)="closeMobileMenu()">
-      <img src="/Logo.jpg" alt="Maa Tara Cafe Logo" class="brand-logo">
+      <img src="/Logo.jpg" alt="Maa Tara Cafe Logo" class="brand-logo" />
     </a>
 
     <!-- Mobile Menu Toggle -->
-    <button class="mobile-menu-toggle"
-            [class.active]="isMobileMenuOpen"
-            (click)="toggleMobileMenu()">
+    <button
+      class="mobile-menu-toggle"
+      [class.active]="isMobileMenuOpen"
+      (click)="toggleMobileMenu()"
+    >
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
@@ -24,31 +28,68 @@
       <ul class="navbar-nav">
         <!-- Menu (Users Only) -->
         <li class="nav-item" *ngIf="isUser">
-          <a routerLink="/menu" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+          <a
+            routerLink="/menu"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
             <span class="nav-icon">🍽️</span>
             Menu
           </a>
         </li>
 
-        <!-- Regular User: Orders -->
-        <li class="nav-item" *ngIf="isUser">
-          <a routerLink="/orders" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
-            <span class="nav-icon">🛒</span>
-            Orders
-          </a>
-        </li>
-
         <!-- Regular User: Offers -->
         <li class="nav-item" *ngIf="isUser">
-          <a routerLink="/offers" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+          <a
+            routerLink="/offers"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
             <span class="nav-icon">🎁</span>
             Offers
           </a>
         </li>
 
+        <!-- Cart (Users Only) -->
+        <li class="nav-item cart-item" *ngIf="isUser">
+          <a
+            routerLink="/cart"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon cart-icon">
+              🛒
+              <span class="cart-badge" *ngIf="cartItemCount > 0">{{
+                cartItemCount
+              }}</span>
+            </span>
+            Cart
+          </a>
+        </li>
+        <!-- Regular User: Orders -->
+        <li class="nav-item" *ngIf="isUser">
+          <a
+            routerLink="/orders"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">🛒</span>
+            Orders
+          </a>
+        </li>
+
         <!-- Regular User: Loyalty Points -->
         <li class="nav-item" *ngIf="isUser">
-          <a routerLink="/loyalty" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+          <a
+            routerLink="/loyalty"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
             <span class="nav-icon">⭐</span>
             Loyalty Points
           </a>
@@ -56,20 +97,14 @@
 
         <!-- Profile (Users Only) -->
         <li class="nav-item" *ngIf="isUser">
-          <a routerLink="/profile" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
+          <a
+            routerLink="/profile"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
             <span class="nav-icon">👤</span>
             Profile
-          </a>
-        </li>
-
-        <!-- Cart (Users Only) -->
-        <li class="nav-item cart-item" *ngIf="isUser">
-          <a routerLink="/cart" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()">
-            <span class="nav-icon cart-icon">
-              🛒
-              <span class="cart-badge" *ngIf="cartItemCount > 0">{{ cartItemCount }}</span>
-            </span>
-            Cart
           </a>
         </li>
       </ul>
@@ -82,26 +117,34 @@
         </button>
 
         <!-- Admin Profile Dropdown -->
-        <div *ngIf="isLoggedIn && isAdmin" class="profile-dropdown"
-             [class.active]="activeDropdown === 'profile'"
-             (mouseenter)="openDropdown('profile')"
-             (mouseleave)="scheduleCloseDropdown()">
-          <button class="profile-badge"
-                  (click)="toggleDropdown('profile')">
+        <div
+          *ngIf="isLoggedIn && isAdmin"
+          class="profile-dropdown"
+          [class.active]="activeDropdown === 'profile'"
+          (mouseenter)="openDropdown('profile')"
+          (mouseleave)="scheduleCloseDropdown()"
+        >
+          <button class="profile-badge" (click)="toggleDropdown('profile')">
             <span class="profile-icon">👤</span>
             <span class="username">{{ displayName }}</span>
-            <span class="arrow" [class.open]="activeDropdown === 'profile'">▼</span>
+            <span class="arrow" [class.open]="activeDropdown === 'profile'"
+              >▼</span
+            >
           </button>
 
-          <ul class="dropdown-menu profile-menu"
-              [class.show]="activeDropdown === 'profile'"
-              (mouseenter)="cancelCloseDropdown()"
-              (mouseleave)="scheduleCloseDropdown()">
+          <ul
+            class="dropdown-menu profile-menu"
+            [class.show]="activeDropdown === 'profile'"
+            (mouseenter)="cancelCloseDropdown()"
+            (mouseleave)="scheduleCloseDropdown()"
+          >
             <li>
-              <a routerLink="/profile"
-                 routerLinkActive="active"
-                 class="dropdown-item"
-                 (click)="closeMobileMenu()">
+              <a
+                routerLink="/profile"
+                routerLinkActive="active"
+                class="dropdown-item"
+                (click)="closeMobileMenu()"
+              >
                 <span class="dropdown-icon">✏️</span>
                 <div class="dropdown-content">
                   <span class="dropdown-title">Edit Profile</span>
@@ -109,10 +152,12 @@
               </a>
             </li>
             <li>
-              <a routerLink="/admin/outlets"
-                 routerLinkActive="active"
-                 class="dropdown-item"
-                 (click)="closeMobileMenu()">
+              <a
+                routerLink="/admin/outlets"
+                routerLinkActive="active"
+                class="dropdown-item"
+                (click)="closeMobileMenu()"
+              >
                 <span class="dropdown-icon">🏪</span>
                 <div class="dropdown-content">
                   <span class="dropdown-title">Outlets</span>

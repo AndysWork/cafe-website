@@ -21,7 +21,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   isLoading = false;
   errorMessage = '';
   searchQuery = '';
-  cart: Cart = { items: [], subtotal: 0, tax: 0, total: 0, itemCount: 0 };
+  cart: Cart = { items: [], subtotal: 0, packagingCharges: 0, total: 0, itemCount: 0 };
 
   // Track which items just got added (for animation)
   recentlyAdded: Set<string> = new Set();
@@ -120,7 +120,8 @@ export class MenuComponent implements OnInit, OnDestroy {
       description: item.description,
       categoryName: item.categoryName,
       price: item.onlinePrice,
-      imageUrl: item.imageUrl
+      imageUrl: item.imageUrl,
+      packagingCharge: item.packagingCharge || 0
     }, 1);
 
     // Trigger animation

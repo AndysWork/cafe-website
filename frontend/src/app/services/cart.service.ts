@@ -10,12 +10,13 @@ export interface CartItem {
   price: number;
   quantity: number;
   imageUrl?: string;
+  packagingCharge?: number;
 }
 
 export interface Cart {
   items: CartItem[];
   subtotal: number;
-  tax: number;
+  packagingCharges: number;
   total: number;
   itemCount: number;
 }
@@ -37,7 +38,7 @@ export class CartService {
     return {
       items: [],
       subtotal: 0,
-      tax: 0,
+      packagingCharges: 0,
       total: 0,
       itemCount: 0
     };
@@ -61,14 +62,14 @@ export class CartService {
 
   private calculateTotals(items: CartItem[]): Cart {
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const tax = subtotal * 0.10; // 10% tax
-    const total = subtotal + tax;
+    const packagingCharges = items.reduce((sum, item) => sum + ((item.packagingCharge || 0) * item.quantity), 0);
+    const total = subtotal + packagingCharges;
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
     return {
       items,
       subtotal: Math.round(subtotal * 100) / 100,
-      tax: Math.round(tax * 100) / 100,
+      packagingCharges: Math.round(packagingCharges * 100) / 100,
       total: Math.round(total * 100) / 100,
       itemCount
     };
