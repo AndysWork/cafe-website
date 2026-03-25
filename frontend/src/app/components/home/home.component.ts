@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -8,6 +8,8 @@ import { OutletService } from '../../services/outlet.service';
 import { AuthService } from '../../services/auth.service';
 import { Outlet } from '../../models/outlet.model';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
+
+declare const L: any;
 
 interface Category {
   id: string;
@@ -34,7 +36,8 @@ interface MenuItem {
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.scss']
 })
-export class HomeComponent implements OnInit {
+export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild('cafeMap', { static: false }) mapElementRef!: ElementRef<HTMLDivElement>;
   latestMenuItems: any[] = [];
   outlets: Outlet[] = [];
   currentYear = new Date().getFullYear();
@@ -137,6 +140,95 @@ export class HomeComponent implements OnInit {
     }
     // Load real stats from public API
     this.loadPublicStats();
+  }
+
+  ngAfterViewInit() {
+    setTimeout(() => this.initMap(), 300);
+  }
+
+  ngOnDestroy() {
+    if (this.map) {
+      this.map.remove();
+      this.map = undefined;
+    }
+  }
+
+  private map: any;
+
+  private initMap() {
+    try {
+      if (this.map) return;
+
+      if (typeof L === 'undefined') {
+        console.error('Leaflet: L is not defined. CDN script may not have loaded.');
+        return;
+      }
+
+      const mapEl = this.mapElementRef?.nativeElement;
+      if (!mapEl) {
+        console.error('Leaflet: Map container element not found');
+        return;
+      }
+
+      console.log('Leaflet: Initializing map, container dimensions:', mapEl.offsetWidth, mapEl.offsetHeight);
+
+      // Kanchrapara, West Bengal center (midpoint of both outlets)
+      const center = [22.9424, 88.4489];
+
+      // Fix Leaflet default marker icon path issue with bundlers
+      const iconDefault = L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      });
+
+      this.map = L.map(mapEl, {
+        center,
+        zoom: 15,
+        scrollWheelZoom: false
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19
+      }).addTo(this.map);
+
+      // Outlet 1 — 107 KGR Path, Kanchrapara
+      L.marker([22.947899914909794, 88.44490344042521], { icon: iconDefault })
+        .addTo(this.map)
+        .bindPopup(`
+          <strong>🏪 Maa Tara Cafe</strong><br>
+          📍 107 KGR Path, Kanchrapara<br>
+          🕐 9:00 AM – 10:30 PM<br>
+          📞 <a href="tel:+918240443533">+91-8240443533</a>
+        `);
+
+      // Outlet 2 — Bongaon Road, Kanchrapara
+      L.marker([22.936861432289902, 88.45279946741576], { icon: iconDefault })
+        .addTo(this.map)
+        .bindPopup(`
+          <strong>🏪 Maa Tara Cafe</strong><br>
+          📍 Bongaon Road, Kanchrapara<br>
+          🕐 9:00 AM – 10:00 PM<br>
+          📞 <a href="tel:+918240443533">+91-8240443533</a>
+        `);
+
+      // Force Leaflet to recalculate container size
+      setTimeout(() => {
+        if (this.map) {
+          this.map.invalidateSize();
+          console.log('Leaflet: Map invalidated, size recalculated');
+        }
+      }, 500);
+
+      console.log('Leaflet: Map initialized successfully');
+    } catch (error) {
+      console.error('Leaflet: Error initializing map:', error);
+    }
   }
 
   loadOutlets() {
