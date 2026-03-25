@@ -22,7 +22,7 @@ public interface IEmailService
     /// <summary>
     /// Sends an order confirmation email
     /// </summary>
-    Task<bool> SendOrderConfirmationEmailAsync(string toEmail, string userName, string orderId, decimal total);
+    Task<bool> SendOrderConfirmationEmailAsync(string toEmail, string userName, string orderId, decimal total, List<Models.OrderItem> items);
 
     /// <summary>
     /// Sends an order status update email

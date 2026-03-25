@@ -18,12 +18,14 @@ public class OrderFunction
     private readonly AuthService _auth;
     private readonly ILogger _log;
     private readonly IWhatsAppService _whatsApp;
+    private readonly IEmailService _emailService;
 
-    public OrderFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, ILoggerFactory loggerFactory)
+    public OrderFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, IEmailService emailService, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
         _whatsApp = whatsApp;
+        _emailService = emailService;
         _log = loggerFactory.CreateLogger<OrderFunction>();
     }
 
@@ -191,6 +193,42 @@ public class OrderFunction
                     _log.LogWarning(whatsAppEx, "Failed to send WhatsApp notification for order {OrderId}", createdOrder.Id);
                     // Don't fail the order creation if WhatsApp sending fails
                 }
+            }
+
+            // Send order confirmation email to customer
+            if (!string.IsNullOrEmpty(user?.Email))
+            {
+                try
+                {
+                    var customerName = user.FirstName ?? username;
+                    await _emailService.SendOrderConfirmationEmailAsync(
+                        user.Email,
+                        customerName,
+                        createdOrder.Id!,
+                        total,
+                        orderItems
+                    );
+                }
+                catch (Exception emailEx)
+                {
+                    _log.LogWarning(emailEx, "Failed to send order confirmation email for order {OrderId}", createdOrder.Id);
+                }
+            }
+
+            // Send order notification email to admin
+            try
+            {
+                await _emailService.SendOrderConfirmationEmailAsync(
+                    "maataracafekpa@gmail.com",
+                    $"Admin (Order by {username})",
+                    createdOrder.Id!,
+                    total,
+                    orderItems
+                );
+            }
+            catch (Exception adminEmailEx)
+            {
+                _log.LogWarning(adminEmailEx, "Failed to send admin order notification email for order {OrderId}", createdOrder.Id);
             }
 
             var response = req.CreateResponse(HttpStatusCode.Created);

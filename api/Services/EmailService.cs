@@ -144,7 +144,7 @@ Maa Tara Cafe Team
         return await SendEmailAsync(toEmail, subject, htmlContent, plainTextContent);
     }
 
-    public async Task<bool> SendOrderConfirmationEmailAsync(string toEmail, string userName, string orderId, decimal total)
+    public async Task<bool> SendOrderConfirmationEmailAsync(string toEmail, string userName, string orderId, decimal total, List<Models.OrderItem> items)
     {
         if (!_isEnabled)
         {
@@ -154,11 +154,16 @@ Maa Tara Cafe Team
 
         var subject = $"Order Confirmed #{orderId} - Maa Tara Cafe";
         
-        var htmlContent = GetOrderConfirmationTemplate(userName, orderId, total);
+        var htmlContent = GetOrderConfirmationTemplate(userName, orderId, total, items);
+
+        var itemLines = string.Join("\n", items.Select(i => $"  - {i.Name} x{i.Quantity}  ₹{i.Total:N2}"));
         var plainTextContent = $@"
 Hi {userName},
 
 Your order #{orderId} has been confirmed!
+
+Items:
+{itemLines}
 
 Total: ₹{total:N2}
 
@@ -424,8 +429,19 @@ Maa Tara Cafe Team
 </html>";
     }
 
-    private string GetOrderConfirmationTemplate(string userName, string orderId, decimal total)
+    private string GetOrderConfirmationTemplate(string userName, string orderId, decimal total, List<Models.OrderItem> items)
     {
+        var itemRowsHtml = string.Join("\n", items.Select(i => $@"
+            <tr>
+                <td style='padding: 10px 12px; border-bottom: 1px solid #eee;'>{i.Name}</td>
+                <td style='padding: 10px 12px; border-bottom: 1px solid #eee; text-align: center;'>{i.Quantity}</td>
+                <td style='padding: 10px 12px; border-bottom: 1px solid #eee; text-align: center;'>₹{i.Price:N2}</td>
+                <td style='padding: 10px 12px; border-bottom: 1px solid #eee; text-align: right;'>₹{i.Total:N2}</td>
+            </tr>"));
+
+        var subtotal = items.Sum(i => i.Total);
+        var tax = total - subtotal;
+
         return $@"
 <!DOCTYPE html>
 <html lang='en'>
@@ -439,7 +455,12 @@ Maa Tara Cafe Team
         .header {{ background-color: #8B4513; color: white; padding: 20px; border-radius: 10px 10px 0 0; text-align: center; }}
         .content {{ background-color: white; padding: 30px; border-radius: 0 0 10px 10px; }}
         .order-box {{ background-color: #f8f9fa; border: 2px solid #8B4513; border-radius: 8px; padding: 20px; margin: 20px 0; }}
-        .total {{ font-size: 24px; color: #8B4513; font-weight: bold; text-align: center; margin: 20px 0; }}
+        .items-table {{ width: 100%; border-collapse: collapse; margin: 16px 0; }}
+        .items-table th {{ background-color: #8B4513; color: white; padding: 10px 12px; text-align: left; }}
+        .items-table th:nth-child(2), .items-table th:nth-child(3) {{ text-align: center; }}
+        .items-table th:last-child {{ text-align: right; }}
+        .summary-row td {{ padding: 8px 12px; font-weight: bold; }}
+        .total-row td {{ font-size: 18px; color: #8B4513; padding-top: 12px; border-top: 2px solid #8B4513; }}
         .footer {{ margin-top: 30px; text-align: center; color: #666; font-size: 12px; }}
     </style>
 </head>
@@ -455,7 +476,34 @@ Maa Tara Cafe Team
             
             <div class='order-box'>
                 <p><strong>Order Number:</strong> #{orderId}</p>
-                <p class='total'>Total: ₹{total:N2}</p>
+                
+                <table class='items-table'>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Price</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {itemRowsHtml}
+                    </tbody>
+                    <tfoot>
+                        <tr class='summary-row'>
+                            <td colspan='3' style='text-align: right; padding-top: 12px;'>Subtotal:</td>
+                            <td style='text-align: right; padding-top: 12px;'>₹{subtotal:N2}</td>
+                        </tr>
+                        <tr class='summary-row'>
+                            <td colspan='3' style='text-align: right;'>Tax:</td>
+                            <td style='text-align: right;'>₹{tax:N2}</td>
+                        </tr>
+                        <tr class='summary-row total-row'>
+                            <td colspan='3' style='text-align: right;'>Total:</td>
+                            <td style='text-align: right;'>₹{total:N2}</td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
             
             <p>We'll notify you when your order status changes.</p>
