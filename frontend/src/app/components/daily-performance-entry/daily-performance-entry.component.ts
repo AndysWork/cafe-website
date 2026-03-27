@@ -15,6 +15,7 @@ interface StaffPerformanceRow {
   staff: Staff;
   entry: DailyPerformanceEntry;
   isEdited: boolean;
+  isOnLeave: boolean;
   currentShifts: PerformanceShift[];
 }
 
@@ -110,10 +111,12 @@ export class DailyPerformanceEntryComponent implements OnInit {
         (p: DailyPerformanceEntry) => p.staffId === s.id,
       );
 
+      const entry = existingEntry || this.createEmptyEntry(s.id || '');
       return {
         staff: s,
-        entry: existingEntry || this.createEmptyEntry(s.id || ''),
+        entry,
         isEdited: false,
+        isOnLeave: (entry.leaveHours || 0) > 0,
         currentShifts: existingEntry?.shifts ? [...existingEntry.shifts] : [],
       };
     });
@@ -133,6 +136,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
       badOrdersCount: 0,
       refundAmountRecovery: 0,
       workingHours: 0,
+      leaveHours: 0,
       notes: '',
     };
   }
@@ -175,6 +179,46 @@ export class DailyPerformanceEntryComponent implements OnInit {
     this.calculateWorkingHours(row.entry);
   }
 
+  onLeaveToggle(row: StaffPerformanceRow): void {
+    if (row.isOnLeave) {
+      row.entry.leaveHours = this.getStaffDailyHours(row.staff);
+    } else {
+      row.entry.leaveHours = 0;
+    }
+    this.markAsEdited(row);
+  }
+
+  getStaffDailyHours(staff: Staff): number {
+    if (!staff.shifts || staff.shifts.length === 0) return 8; // fallback
+
+    const selectedDay = this.getDayOfWeek(new Date(this.selectedDate));
+    let totalHours = 0;
+
+    staff.shifts.forEach(shift => {
+      if (shift.isActive && shift.dayOfWeek === selectedDay) {
+        const hours = this.calculateShiftHours(shift.startTime, shift.endTime);
+        totalHours += Math.max(0, hours - (shift.breakDuration / 60));
+      }
+    });
+
+    return totalHours > 0 ? Math.round(totalHours * 100) / 100 : 8; // fallback to 8 if no shifts configured for the day
+  }
+
+  private getDayOfWeek(date: Date): string {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[date.getDay()];
+  }
+
+  private calculateShiftHours(inTime: string, outTime: string): number {
+    if (!inTime || !outTime) return 0;
+    const [inH, inM] = inTime.split(':').map(Number);
+    const [outH, outM] = outTime.split(':').map(Number);
+    let inMin = inH * 60 + inM;
+    let outMin = outH * 60 + outM;
+    if (outMin < inMin) outMin += 24 * 60;
+    return (outMin - inMin) / 60;
+  }
+
   calculateWorkingHours(entry: DailyPerformanceEntry): void {
     if (entry.inTime && entry.outTime) {
       const [inHours, inMinutes] = entry.inTime.split(':').map(Number);
@@ -214,6 +258,11 @@ export class DailyPerformanceEntryComponent implements OnInit {
   }
 
   validateRow(row: StaffPerformanceRow): boolean {
+    // If on leave, always valid (leave hours are auto-calculated)
+    if (row.isOnLeave) {
+      return true;
+    }
+
     // If the row has shifts, validate shifts instead of legacy fields
     if (row.currentShifts && row.currentShifts.length > 0) {
       // Shifts are present, no need to validate legacy fields
@@ -272,6 +321,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
         badOrdersCount: row.entry.badOrdersCount || 0,
         refundAmountRecovery: row.entry.refundAmountRecovery || 0,
         notes: row.entry.notes,
+        leaveHours: row.entry.leaveHours || 0,
         shifts: this.cleanShiftsForSave(row.currentShifts),
       })),
     };
@@ -319,6 +369,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
       badOrdersCount: row.entry.badOrdersCount || 0,
       refundAmountRecovery: row.entry.refundAmountRecovery || 0,
       notes: row.entry.notes,
+      leaveHours: row.entry.leaveHours || 0,
       shifts: this.cleanShiftsForSave(row.currentShifts),
     };
 
@@ -360,6 +411,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
           row.entry = this.createEmptyEntry(row.staff.id || '');
           row.currentShifts = [];
           row.isEdited = false;
+          row.isOnLeave = false;
           this.successMessage = 'Performance entry deleted successfully';
           setTimeout(() => this.clearMessages(), 3000);
         },
@@ -375,6 +427,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
       row.entry = this.createEmptyEntry(row.staff.id || '');
       row.currentShifts = [];
       row.isEdited = false;
+      row.isOnLeave = false;
       this.successMessage = 'Row cleared successfully';
       setTimeout(() => this.clearMessages(), 3000);
     }
@@ -407,6 +460,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
       'In Time',
       'Out Time',
       'Working Hours',
+      'Leave Hours',
       'Total Orders',
       'Good Orders',
       'Bad Orders',
@@ -422,6 +476,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
       row.entry.inTime || '',
       row.entry.outTime || '',
       row.entry.workingHours || 0,
+      row.entry.leaveHours || 0,
       row.entry.totalOrdersPrepared || 0,
       row.entry.goodOrdersCount || 0,
       row.entry.badOrdersCount || 0,

@@ -6,6 +6,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Cafe.Api.Models
 {
+    [BsonIgnoreExtraElements]
     public class PerformanceShift
     {
         // Note: Shifts are embedded documents, not root documents, so no [BsonId] needed
@@ -34,6 +35,7 @@ namespace Cafe.Api.Models
         public string? Notes { get; set; }
     }
 
+    [BsonIgnoreExtraElements]
     public class DailyPerformanceEntry
     {
         [BsonId]
@@ -68,6 +70,10 @@ namespace Cafe.Api.Models
 
         public string? Notes { get; set; }
 
+        // Leave tracking
+        [BsonElement("leaveHours")]
+        public double LeaveHours { get; set; }
+
         // New multi-shift support
         public List<PerformanceShift> Shifts { get; set; } = new List<PerformanceShift>();
 
@@ -99,6 +105,8 @@ namespace Cafe.Api.Models
         public decimal RefundAmountRecovery { get; set; }
 
         public string? Notes { get; set; }
+
+        public double LeaveHours { get; set; }
 
         public List<PerformanceShift>? Shifts { get; set; }
     }
@@ -132,6 +140,8 @@ namespace Cafe.Api.Models
         public decimal RefundAmountRecovery { get; set; }
 
         public string? Notes { get; set; }
+
+        public double LeaveHours { get; set; }
 
         public List<PerformanceShift>? Shifts { get; set; }
     }

@@ -197,8 +197,23 @@
             <div class="metric-card">
               <span class="metric-icon">📅</span>
               <div class="metric-content">
-                <span class="metric-label">Expected Hours</span>
+                <span class="metric-label">Total Expected Hours</span>
                 <span class="metric-value">{{ calculatedMetrics.expectedHours.toFixed(2) }} hrs</span>
+              </div>
+            </div>
+            <div class="metric-card" *ngIf="calculatedMetrics.totalLeaveHours > 0">
+              <span class="metric-icon">🏖️</span>
+              <div class="metric-content">
+                <span class="metric-label">Total Leave Hours</span>
+                <span class="metric-value leave-value">{{ calculatedMetrics.totalLeaveHours.toFixed(2) }} hrs</span>
+              </div>
+            </div>
+            <div class="metric-card highlight-card">
+              <span class="metric-icon">🎯</span>
+              <div class="metric-content">
+                <span class="metric-label">Adjusted Expected Hours</span>
+                <span class="metric-value">{{ calculatedMetrics.adjustedExpectedHours.toFixed(2) }} hrs</span>
+                <small class="metric-help" *ngIf="calculatedMetrics.totalLeaveHours > 0">{{ calculatedMetrics.expectedHours.toFixed(2) }} - {{ calculatedMetrics.totalLeaveHours.toFixed(2) }} leave</small>
               </div>
             </div>
             <div class="metric-card">

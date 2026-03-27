@@ -84,6 +84,7 @@
             <th>Position</th>
             <th>Shifts</th>
             <th>Total Hours</th>
+            <th>Leave</th>
             <th>Total Orders</th>
             <th>Actions</th>
           </tr>
@@ -186,6 +187,20 @@
                 {{ getTotalShiftHours(row).toFixed(2) }} hrs
               </span>
               <span class="hours-badge empty" *ngIf="getTotalShiftHours(row) === 0">-</span>
+            </td>
+
+            <!-- Leave -->
+            <td class="leave-cell">
+              <label class="leave-toggle">
+                <input
+                  type="checkbox"
+                  [(ngModel)]="row.isOnLeave"
+                  (ngModelChange)="onLeaveToggle(row)"
+                  class="leave-checkbox">
+                <span class="leave-label" [class.on-leave]="row.isOnLeave">
+                  {{ row.isOnLeave ? (row.entry.leaveHours || 0) + 'h' : 'No' }}
+                </span>
+              </label>
             </td>
 
             <!-- Total Orders (sum of all shifts) -->

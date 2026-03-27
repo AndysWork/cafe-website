@@ -61,6 +61,8 @@ export class BonusCalculationComponent implements OnInit {
     workedHours: 0,         // Actual worked hours from shift entries
     overtimeHours: 0,       // Positive difference (worked - expected)
     undertimeHours: 0,      // Negative difference (expected - worked)
+    totalLeaveHours: 0,     // Total leave hours in the period
+    adjustedExpectedHours: 0, // Expected hours after deducting leave hours
     totalOrdersPrepared: 0,
     goodOrdersCount: 0,
     badOrdersCount: 0,
@@ -232,8 +234,12 @@ export class BonusCalculationComponent implements OnInit {
     let goodOrdersCount = 0;
     let badOrdersCount = 0;
     let totalRefundAmount = 0;
+    let totalLeaveHours = 0;
 
     this.performanceData.forEach(entry => {
+      // Accumulate leave hours
+      totalLeaveHours += entry.leaveHours || 0;
+
       // Sum up shift data if available, otherwise use legacy fields
       if (entry.shifts && entry.shifts.length > 0) {
         entry.shifts.forEach(shift => {
@@ -254,10 +260,13 @@ export class BonusCalculationComponent implements OnInit {
       }
     });
 
-    // Calculate overtime and undertime based on worked vs expected hours
-    // If worked > expected: overtime (positive difference)
-    // If worked < expected: undertime (positive difference)
-    const hoursDifference = workedHours - expectedHours;
+    // Calculate adjusted expected hours (expected - leave hours)
+    const adjustedExpectedHours = Math.max(0, expectedHours - totalLeaveHours);
+
+    // Calculate overtime and undertime based on worked vs adjusted expected hours
+    // If worked > adjustedExpected: overtime (positive difference)
+    // If worked < adjustedExpected: undertime (positive difference)
+    const hoursDifference = workedHours - adjustedExpectedHours;
     // Subtract buffer hours from overtime - only hours beyond buffer are eligible for bonus
     const overtimeHours = Math.max(0, hoursDifference - this.bufferHours);
     const undertimeHours = Math.max(0, -hoursDifference);
@@ -267,6 +276,8 @@ export class BonusCalculationComponent implements OnInit {
       workedHours: Math.round(workedHours * 100) / 100,
       overtimeHours: Math.round(overtimeHours * 100) / 100,
       undertimeHours: Math.round(undertimeHours * 100) / 100,
+      totalLeaveHours: Math.round(totalLeaveHours * 100) / 100,
+      adjustedExpectedHours: Math.round(adjustedExpectedHours * 100) / 100,
       totalOrdersPrepared,
       goodOrdersCount,
       badOrdersCount,
@@ -397,6 +408,8 @@ export class BonusCalculationComponent implements OnInit {
       workedHours: 0,
       overtimeHours: 0,
       undertimeHours: 0,
+      totalLeaveHours: 0,
+      adjustedExpectedHours: 0,
       totalOrdersPrepared: 0,
       goodOrdersCount: 0,
       badOrdersCount: 0,
@@ -554,7 +567,7 @@ export class BonusCalculationComponent implements OnInit {
           }
 
           amount = overtimeHours * rate;
-          const rawOvertime = this.calculatedMetrics.workedHours - this.calculatedMetrics.expectedHours;
+          const rawOvertime = this.calculatedMetrics.workedHours - this.calculatedMetrics.adjustedExpectedHours;
           calculation = `(${rawOvertime.toFixed(2)} - ${this.bufferHours} buffer) = ${overtimeHours.toFixed(2)} hrs × ₹${rate.toFixed(2)}`;
 
           console.log('OvertimeHours calculation:', {
@@ -567,6 +580,8 @@ export class BonusCalculationComponent implements OnInit {
             rateMultiplier: rule.rateMultiplier,
             finalRate: rate,
             bonusAmount: amount,
+            totalLeaveHours: this.calculatedMetrics.totalLeaveHours,
+            adjustedExpectedHours: this.calculatedMetrics.adjustedExpectedHours,
             formula: `(${rawOvertime.toFixed(2)} - ${this.bufferHours}) × ${rate.toFixed(2)} = ${amount.toFixed(2)}`
           });
 

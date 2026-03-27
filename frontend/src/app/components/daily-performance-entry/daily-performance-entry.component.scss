@@ -797,6 +797,40 @@
   }
 }
 
+.leave-cell {
+  text-align: center;
+  min-width: 90px;
+
+  .leave-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+
+    .leave-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #ff9800;
+    }
+
+    .leave-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+
+      &.on-leave {
+        color: #e65100;
+        background: #fff3e0;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+    }
+  }
+}
+
 // Shift Modal Styles
 .modal-overlay {
   position: fixed;

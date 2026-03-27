@@ -195,12 +195,20 @@ public class DailyPerformanceFunction
 
             // Validate request
             if (string.IsNullOrEmpty(request.StaffId) ||
-                string.IsNullOrEmpty(request.Date) ||
-                string.IsNullOrEmpty(request.InTime) ||
-                string.IsNullOrEmpty(request.OutTime))
+                string.IsNullOrEmpty(request.Date))
             {
                 var validationRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await validationRes.WriteAsJsonAsync(new { success = false, error = "Staff ID, date, in time, and out time are required" });
+                await validationRes.WriteAsJsonAsync(new { success = false, error = "Staff ID and date are required" });
+                return validationRes;
+            }
+
+            // InTime/OutTime required unless it's a leave-only entry
+            if (request.LeaveHours <= 0 &&
+                (request.Shifts == null || !request.Shifts.Any()) &&
+                (string.IsNullOrEmpty(request.InTime) || string.IsNullOrEmpty(request.OutTime)))
+            {
+                var validationRes = req.CreateResponse(HttpStatusCode.BadRequest);
+                await validationRes.WriteAsJsonAsync(new { success = false, error = "In time and out time are required unless marking leave" });
                 return validationRes;
             }
 

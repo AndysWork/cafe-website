@@ -111,7 +111,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> GetStaffById(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "staff/{staffId}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "staff/{staffId:length(24)}")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -364,7 +364,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> UpdateStaff(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "staff/{staffId}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "staff/{staffId:length(24)}")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -456,7 +456,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> DeactivateStaff(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId}/deactivate")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId:length(24)}/deactivate")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -509,7 +509,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> ActivateStaff(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId}/activate")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId:length(24)}/activate")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -562,7 +562,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> DeleteStaff(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "staff/{staffId}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "staff/{staffId:length(24)}")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -617,7 +617,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> UpdateStaffSalary(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "staff/{staffId}/salary")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "staff/{staffId:length(24)}/salary")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -680,7 +680,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> UpdateStaffPerformanceRating(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "staff/{staffId}/performance")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "staff/{staffId:length(24)}/performance")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -743,7 +743,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> UpdateStaffLeaveBalances(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "staff/{staffId}/leave-balances")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "staff/{staffId:length(24)}/leave-balances")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -822,7 +822,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
     public async Task<HttpResponseData> AddStaffShift(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId}/shifts")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId:length(24)}/shifts")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -918,7 +918,7 @@ public class StaffFunction
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(StaffShift), Description = "Shift updated successfully")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member or shift not found")]
     public async Task<HttpResponseData> UpdateStaffShift(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "staff/{staffId}/shifts/{shiftId}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "staff/{staffId:length(24)}/shifts/{shiftId}")] HttpRequestData req,
         string staffId,
         string shiftId)
     {
@@ -1004,7 +1004,7 @@ public class StaffFunction
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Shift deleted successfully")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member or shift not found")]
     public async Task<HttpResponseData> DeleteStaffShift(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "staff/{staffId}/shifts/{shiftId}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "staff/{staffId:length(24)}/shifts/{shiftId}")] HttpRequestData req,
         string staffId,
         string shiftId)
     {
@@ -1072,7 +1072,7 @@ public class StaffFunction
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<StaffShift>), Description = "Successfully retrieved shifts")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member not found")]
     public async Task<HttpResponseData> GetStaffShifts(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "staff/{staffId}/shifts")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "staff/{staffId:length(24)}/shifts")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
@@ -1113,7 +1113,7 @@ public class StaffFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Staff member not found")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid request")]
     public async Task<HttpResponseData> SendStaffEmail(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId}/send-email")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "staff/{staffId:length(24)}/send-email")] HttpRequestData req,
         string staffId)
     {
         var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);

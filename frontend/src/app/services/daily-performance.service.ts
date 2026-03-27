@@ -30,6 +30,7 @@ export interface DailyPerformanceEntry {
   refundAmountRecovery: number; // legacy
   workingHours?: number; // legacy
   notes?: string; // legacy
+  leaveHours?: number; // Leave hours for the day
   shifts?: PerformanceShift[]; // Multiple shifts per day
   createdAt?: string;
   updatedAt?: string;
@@ -45,6 +46,7 @@ export interface UpsertDailyPerformanceRequest {
   badOrdersCount: number;
   refundAmountRecovery: number;
   notes?: string;
+  leaveHours?: number;
   shifts?: PerformanceShift[];
 }
 
@@ -59,6 +61,7 @@ export interface BulkDailyPerformanceRequest {
     badOrdersCount: number;
     refundAmountRecovery: number;
     notes?: string;
+    leaveHours?: number;
     shifts?: PerformanceShift[];
   }[];
 }

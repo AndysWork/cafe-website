@@ -161,6 +161,7 @@ public partial class MongoService
             existingEntry.BadOrdersCount = request.BadOrdersCount;
             existingEntry.RefundAmountRecovery = request.RefundAmountRecovery;
             existingEntry.Notes = request.Notes;
+            existingEntry.LeaveHours = request.LeaveHours;
             existingEntry.UpdatedAt = DateTime.UtcNow;
             
             // Update shifts if provided (including empty array to clear all shifts)
@@ -193,6 +194,7 @@ public partial class MongoService
                 BadOrdersCount = request.BadOrdersCount,
                 RefundAmountRecovery = request.RefundAmountRecovery,
                 Notes = request.Notes,
+                LeaveHours = request.LeaveHours,
                 Shifts = request.Shifts ?? new List<PerformanceShift>(),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -223,6 +225,7 @@ public partial class MongoService
                 BadOrdersCount = entryRequest.BadOrdersCount,
                 RefundAmountRecovery = entryRequest.RefundAmountRecovery,
                 Notes = entryRequest.Notes,
+                LeaveHours = entryRequest.LeaveHours,
                 Shifts = entryRequest.Shifts
             };
 
