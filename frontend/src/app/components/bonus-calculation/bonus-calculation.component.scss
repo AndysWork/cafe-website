@@ -2,6 +2,7 @@
   padding: 2rem;
   max-width: 1600px;
   margin: 0 auto;
+  overflow-x: hidden;
 
   .page-header {
     margin-bottom: 2rem;
@@ -123,7 +124,7 @@
   // Dashboard Overview Cards
   .dashboard-overview {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
     gap: 1.5rem;
     margin-bottom: 2rem;
 
@@ -370,7 +371,7 @@
 
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
       gap: 1rem;
     }
 
@@ -1273,7 +1274,7 @@
 
   .metrics-summary {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
     gap: 1rem;
     margin: 1.5rem 0;
 
@@ -1447,7 +1448,7 @@
 
   .summary-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
     gap: 1rem;
     margin-top: 1.5rem;
 
@@ -1648,7 +1649,7 @@
 
     .payslip-summary {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
       gap: 1rem;
       margin-top: 2rem;
       padding-top: 2rem;

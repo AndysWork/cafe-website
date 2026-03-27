@@ -512,6 +512,9 @@
   flex: 1;
   padding: 30px;
   overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
 }
 
 // Responsive Design
@@ -542,136 +545,139 @@
     gap: 10px;
     font-size: 1.2rem;
   }
+}
 
+@media (max-width: 1024px) {
+  .admin-navbar {
+    padding: 0 20px;
+  }
 
-  @media (max-width: 1024px) {
-    .admin-navbar {
-      padding: 0 20px;
+  .user-details {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-navbar {
+    padding: 0 15px;
+    height: 65px;
+  }
+
+  .navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    display: none;
+  }
+
+  .navbar-menu {
+    position: fixed;
+    top: 65px;
+    left: 0;
+    right: 0;
+    background: white;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 999;
+    max-height: calc(100vh - 65px);
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    display: flex !important;
+
+    &.active {
+      transform: translateX(0);
     }
+  }
 
-    .user-details {
+  .nav-item {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 12px 16px;
+
+    &.active::after {
       display: none;
     }
   }
 
-  @media (max-width: 768px) {
-    .admin-navbar {
-      padding: 0 15px;
-      height: 65px;
-    }
+  .nav-item-dropdown {
+    width: 100%;
+  }
 
-    .navbar-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
-    }
+  .dropdown-menu {
+    position: static !important;
+    margin-top: 8px;
+    box-shadow: none;
+    border-left: 3px solid #ff6b6b;
+    background: #f7fafc !important;
+    border: none !important;
+    border-left: 3px solid #ff6b6b !important;
+    border-radius: 0;
+    transform: none !important;
+  }
 
-    .logo-text {
+  .dropdown-item {
+    padding: 10px 16px 10px 30px;
+  }
+
+  .profile-dropdown-container {
+    order: 1;
+  }
+
+  .mobile-menu-toggle {
+    display: flex !important;
+    order: 2;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .btn-notification {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+
+  .user-section {
+    display: none;
+  }
+
+  .btn-logout {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+
+    .logout-text {
       display: none;
-    }
-
-    .navbar-menu {
-      position: fixed;
-      top: 65px;
-      left: 0;
-      right: 0;
-      background: white;
-      flex-direction: column;
-      align-items: stretch;
-      padding: 20px;
-      gap: 10px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      transform: translateX(-100%);
-      transition: transform 0.3s ease;
-      z-index: 999;
-      max-height: calc(100vh - 65px);
-      overflow-y: auto !important;
-      overflow-x: hidden;
-      display: flex !important;
-
-      &.active {
-        transform: translateX(0);
-      }
-    }
-
-    .nav-item {
-      width: 100%;
-      justify-content: flex-start;
-      padding: 12px 16px;
-
-      &.active::after {
-        display: none;
-      }
-    }
-
-    .nav-item-dropdown {
-      width: 100%;
-    }
-
-    .dropdown-menu {
-      position: static;
-      margin-top: 8px;
-      box-shadow: none;
-      border-left: 3px solid #ff6b6b;
-      background: #f7fafc;
-    }
-
-    .dropdown-item {
-      padding: 10px 16px 10px 30px;
-    }
-
-    .profile-dropdown-container {
-      order: 1;
-    }
-
-    .mobile-menu-toggle {
-      display: flex !important;
-      order: 2;
-      margin-left: auto;
-      flex-shrink: 0;
-    }
-
-    .btn-notification {
-      width: 40px;
-      height: 40px;
-      font-size: 1.2rem;
-    }
-
-    .user-section {
-      display: none;
-    }
-
-    .btn-logout {
-      padding: 8px 12px;
-      font-size: 0.85rem;
-
-      .logout-text {
-        display: none;
-      }
-    }
-
-    .admin-main {
-      padding: 20px 15px;
     }
   }
 
-  @media (max-width: 480px) {
-    .admin-navbar {
-      padding: 0 10px;
-    }
+  .admin-main {
+    padding: 20px 15px;
+  }
+}
 
-    .logo-img {
-      width: 35px;
-      height: 35px;
-    }
+@media (max-width: 480px) {
+  .admin-navbar {
+    padding: 0 10px;
+  }
 
-    .btn-logout .logout-icon {
-      font-size: 1rem;
-    }
+  .logo-img {
+    width: 35px;
+    height: 35px;
+  }
 
-    .admin-main {
-      padding: 15px 10px;
-    }
+  .btn-logout .logout-icon {
+    font-size: 1rem;
+  }
+
+  .admin-main {
+    padding: 15px 10px;
   }
 }

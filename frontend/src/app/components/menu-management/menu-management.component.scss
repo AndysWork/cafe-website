@@ -2,6 +2,7 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 40px 20px;
+  overflow-x: hidden;
 }
 
 .header {
@@ -139,7 +140,7 @@
 .search-box {
   position: relative;
   flex: 1;
-  min-width: 300px;
+  min-width: min(300px, 100%);
 
   .search-icon {
     position: absolute;
@@ -1057,6 +1058,10 @@
 }
 
 @media (max-width: 768px) {
+  .menu-management-container {
+    padding: 20px 10px;
+  }
+
   .header {
     flex-direction: column;
     align-items: flex-start;

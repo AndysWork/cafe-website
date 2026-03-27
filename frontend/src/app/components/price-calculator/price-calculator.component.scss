@@ -2,6 +2,7 @@
   padding: 2rem;
   background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
   min-height: 100vh;
+  overflow-x: hidden;
 
   // ===== HEADER =====
   .calculator-header {
@@ -207,7 +208,7 @@
 
     .overhead-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
       gap: 1rem;
     }
 
@@ -485,7 +486,7 @@
 
       .forecast-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
         gap: 1rem;
       }
     }
@@ -493,7 +494,7 @@
     .profit-comparison {
       .profit-cards {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
         gap: 1rem;
         margin-bottom: 1.5rem;
 
@@ -621,7 +622,7 @@
 
     .ingredients-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
       gap: 1.5rem;
     }
   }
@@ -831,7 +832,7 @@
   .recipes-management {
     .recipes-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(350px, 100%), 1fr));
       gap: 1.5rem;
     }
   }
@@ -1764,7 +1765,7 @@
 
     .overhead-costs-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr));
       gap: 1.5rem;
       margin-top: 2rem;
 
@@ -2328,7 +2329,7 @@
 
     .frozen-items-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr));
       gap: 1.5rem;
 
       .frozen-item-card {
@@ -2534,7 +2535,7 @@
 
     .prices-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
       gap: 1rem;
     }
   }
@@ -2764,5 +2765,18 @@
         }
       }
     }
+  }
+
+  // Mobile responsive
+  @media (max-width: 768px) {
+    padding: 1rem;
+
+    .calculator-header {
+      padding: 1.5rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.75rem;
   }
 }
