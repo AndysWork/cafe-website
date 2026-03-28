@@ -97,12 +97,31 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           customerPhone: this.phoneNumber,
           description: `Order - ${this.cart.itemCount} item(s)`
         }).then((result) => {
-          // Step 3: Payment successful — create order with Razorpay details
-          this.submitOrder(
-            result.razorpay_payment_id,
-            result.razorpay_order_id,
-            result.razorpay_signature
-          );
+          // Step 3: Verify payment signature on server
+          this.paymentService.verifyPayment({
+            razorpayOrderId: result.razorpay_order_id,
+            razorpayPaymentId: result.razorpay_payment_id,
+            razorpaySignature: result.razorpay_signature
+          }).subscribe({
+            next: (verification) => {
+              if (verification.success) {
+                // Step 4: Payment verified — create order with Razorpay details
+                this.submitOrder(
+                  result.razorpay_payment_id,
+                  result.razorpay_order_id,
+                  result.razorpay_signature
+                );
+              } else {
+                this.errorMessage = 'Payment verification failed. Please contact support.';
+                this.isSubmitting = false;
+              }
+            },
+            error: (error) => {
+              console.error('Payment verification failed:', error);
+              this.errorMessage = 'Payment verification failed. Your payment will be refunded if charged.';
+              this.isSubmitting = false;
+            }
+          });
         }).catch((error) => {
           this.errorMessage = error.message || 'Payment was cancelled or failed';
           this.isSubmitting = false;

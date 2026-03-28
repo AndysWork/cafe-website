@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { OrderService, Order } from '../../services/order.service';
+import { PaymentService } from '../../services/payment.service';
 import { AuthService } from '../../services/auth.service';
 import { formatIstDateTime } from '../../utils/date-utils';
 import { Subscription } from 'rxjs';
@@ -34,6 +35,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   constructor(
     private orderService: OrderService,
     private authService: AuthService,
+    private paymentService: PaymentService,
     private route: ActivatedRoute
   ) {
     this.isAdmin = this.authService.isAdmin();
@@ -150,6 +152,34 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   getOrderTotal(order: Order): number {
     return order.total;
+  }
+
+  canRefundOrder(order: Order): boolean {
+    return this.isAdmin && order.paymentMethod === 'razorpay' && order.paymentStatus === 'paid';
+  }
+
+  refundOrder(orderId: string) {
+    const reason = prompt('Refund reason (optional):');
+    if (reason === null) return; // User cancelled prompt
+
+    this.paymentService.refundPayment({ orderId, reason: reason || undefined }).subscribe({
+      next: (result) => {
+        this.successMessage = `Refund of ₹${result.amount} processed successfully (ID: ${result.refundId})`;
+        setTimeout(() => this.successMessage = '', 5000);
+        this.loadOrders();
+      },
+      error: (error) => {
+        console.error('Error processing refund:', error);
+        alert(error.error?.error || 'Failed to process refund');
+      }
+    });
+  }
+
+  getPaymentStatusIcon(status: string): string {
+    const icons: Record<string, string> = {
+      paid: '✅', pending: '⏳', refunded: '↩️'
+    };
+    return icons[status] || '❓';
   }
 
   trackByKey(index: number, item: any): string { return item.key; }

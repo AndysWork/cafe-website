@@ -26,6 +26,20 @@ export interface VerifyPaymentRequest {
   orderId?: string;
 }
 
+export interface RefundPaymentRequest {
+  orderId: string;
+  amount?: number;
+  reason?: string;
+}
+
+export interface RefundPaymentResponse {
+  success: boolean;
+  refundId: string;
+  amount: number;
+  status: string;
+  message: string;
+}
+
 export interface RazorpayPaymentResult {
   razorpay_order_id: string;
   razorpay_payment_id: string;
@@ -53,6 +67,13 @@ export class PaymentService {
   verifyPayment(request: VerifyPaymentRequest): Observable<{ success: boolean; message: string }> {
     return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/payments/verify`, request).pipe(
       catchError(handleServiceError('PaymentService.verifyPayment'))
+    );
+  }
+
+  // Refund a Razorpay payment (admin only)
+  refundPayment(request: RefundPaymentRequest): Observable<RefundPaymentResponse> {
+    return this.http.post<RefundPaymentResponse>(`${this.apiUrl}/payments/refund`, request).pipe(
+      catchError(handleServiceError('PaymentService.refundPayment'))
     );
   }
 

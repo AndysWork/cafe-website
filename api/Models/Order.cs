@@ -55,6 +55,9 @@ public class Order
     [BsonElement("razorpaySignature")]
     public string? RazorpaySignature { get; set; }
 
+    [BsonElement("razorpayRefundId")]
+    public string? RazorpayRefundId { get; set; }
+
     [BsonElement("deliveryAddress")]
     public string? DeliveryAddress { get; set; }
 

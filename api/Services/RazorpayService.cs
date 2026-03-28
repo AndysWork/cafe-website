@@ -76,4 +76,39 @@ public class RazorpayService : IRazorpayService
             Encoding.UTF8.GetBytes(computedSignature),
             Encoding.UTF8.GetBytes(signature?.ToLowerInvariant() ?? ""));
     }
+
+    public async Task<RazorpayRefundResponse> RefundPaymentAsync(string paymentId, decimal amount, string? reason = null)
+    {
+        var amountInPaise = (long)(amount * 100);
+
+        var payload = new Dictionary<string, object>
+        {
+            { "amount", amountInPaise }
+        };
+
+        if (!string.IsNullOrEmpty(reason))
+            payload["notes"] = new Dictionary<string, string> { { "reason", reason } };
+
+        var json = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.PostAsync($"{RazorpayBaseUrl}/payments/{paymentId}/refund", content);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Razorpay refund failed: {StatusCode} - {Body}", response.StatusCode, responseBody);
+            throw new Exception($"Failed to process refund: {responseBody}");
+        }
+
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var refundResponse = JsonSerializer.Deserialize<RazorpayRefundResponse>(responseBody, options);
+
+        if (refundResponse == null)
+            throw new Exception("Failed to deserialize Razorpay refund response");
+
+        _logger.LogInformation("Razorpay refund processed: {RefundId} for payment {PaymentId}, amount {Amount} paise",
+            refundResponse.Id, paymentId, amountInPaise);
+        return refundResponse;
+    }
 }

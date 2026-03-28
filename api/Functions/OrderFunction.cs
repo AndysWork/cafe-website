@@ -535,6 +535,24 @@ public class OrderFunction
                 }
             }
 
+            // Send email notification to customer about status update
+            if (order != null && !string.IsNullOrEmpty(order.UserEmail))
+            {
+                try
+                {
+                    await _emailService.SendOrderStatusUpdateEmailAsync(
+                        order.UserEmail,
+                        order.Username ?? "Customer",
+                        order.Id!,
+                        statusRequest.Status
+                    );
+                }
+                catch (Exception emailEx)
+                {
+                    _log.LogWarning(emailEx, "Failed to send order status email for order {OrderId}", id);
+                }
+            }
+
             // Award loyalty points when order is delivered
             if (statusRequest.Status.ToLower() == "delivered" && order != null)
             {

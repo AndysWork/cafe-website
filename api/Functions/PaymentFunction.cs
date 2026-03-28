@@ -168,6 +168,115 @@ public class PaymentFunction
             return res;
         }
     }
+
+    /// <summary>
+    /// Processes a refund for a Razorpay payment (admin only)
+    /// </summary>
+    [Function("RefundPayment")]
+    [OpenApiOperation(operationId: "RefundPayment", tags: new[] { "Payments" }, Summary = "Refund a Razorpay payment")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(RefundPaymentRequest), Required = true)]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Refund processed")]
+    public async Task<HttpResponseData> RefundPayment(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "payments/refund")] HttpRequestData req)
+    {
+        try
+        {
+            // Validate admin authentication
+            var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Authentication required" });
+                return unauthorized;
+            }
+
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            var principal = _auth.ValidateToken(token);
+
+            if (principal == null)
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid or expired token" });
+                return unauthorized;
+            }
+
+            // Admin check
+            var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            if (role != "admin")
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Admin access required" });
+                return forbidden;
+            }
+
+            var request = await req.ReadFromJsonAsync<RefundPaymentRequest>();
+            if (request == null || string.IsNullOrEmpty(request.OrderId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Order ID is required" });
+                return badRequest;
+            }
+
+            // Get the order
+            var order = await _mongo.GetOrderByIdAsync(request.OrderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (order.PaymentMethod != "razorpay" || string.IsNullOrEmpty(order.RazorpayPaymentId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "This order was not paid via Razorpay" });
+                return badRequest;
+            }
+
+            if (order.PaymentStatus == "refunded")
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "This order has already been refunded" });
+                return badRequest;
+            }
+
+            // Process refund via Razorpay
+            var refundAmount = request.Amount > 0 ? request.Amount : order.Total;
+            var refundResult = await _razorpay.RefundPaymentAsync(
+                order.RazorpayPaymentId,
+                refundAmount,
+                request.Reason
+            );
+
+            // Update order payment status to refunded
+            await _mongo.UpdatePaymentStatusAsync(request.OrderId, "refunded");
+
+            // Store refund ID
+            await _mongo.UpdateRefundIdAsync(request.OrderId, refundResult.Id);
+
+            _log.LogInformation("Refund {RefundId} processed for order {OrderId}, amount ₹{Amount}",
+                refundResult.Id, request.OrderId, refundAmount);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                refundId = refundResult.Id,
+                amount = refundAmount,
+                status = refundResult.Status,
+                message = "Refund processed successfully"
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error processing refund");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "Failed to process refund" });
+            return res;
+        }
+    }
 }
 
 // DTOs for Payment endpoints
@@ -196,4 +305,12 @@ public class VerifyPaymentRequest
     [Required]
     public string RazorpaySignature { get; set; } = string.Empty;
     public string? OrderId { get; set; }
+}
+
+public class RefundPaymentRequest
+{
+    [Required]
+    public string OrderId { get; set; } = string.Empty;
+    public decimal Amount { get; set; } // 0 = full refund
+    public string? Reason { get; set; }
 }

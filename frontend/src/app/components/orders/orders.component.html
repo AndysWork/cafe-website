@@ -150,10 +150,12 @@
             </div>
             <div class="info-chip">
               <span class="info-label">💳 Payment</span>
-              <span [class.payment-paid]="order.paymentStatus === 'paid'" [class.payment-pending]="order.paymentStatus === 'pending'">
+              <span class="payment-badge"
+                [class.payment-paid]="order.paymentStatus === 'paid'"
+                [class.payment-pending]="order.paymentStatus === 'pending'"
+                [class.payment-refunded]="order.paymentStatus === 'refunded'">
                 {{ order.paymentMethod === 'razorpay' ? '🔒 Online' : '💵 Cash on Delivery' }}
-                <small *ngIf="order.paymentStatus === 'paid'">(Paid)</small>
-                <small *ngIf="order.paymentStatus === 'pending'">(Pending)</small>
+                — {{ getPaymentStatusIcon(order.paymentStatus) }} {{ order.paymentStatus | titlecase }}
               </span>
             </div>
           </div>
@@ -180,6 +182,11 @@
                 <option value="delivered">Delivered</option>
                 <option value="cancelled">Cancelled</option>
               </select>
+              <button *ngIf="canRefundOrder(order)"
+                      class="btn-refund"
+                      (click)="refundOrder(order.id); $event.stopPropagation()">
+                ↩️ Refund Payment
+              </button>
             </div>
           </div>
         </div>

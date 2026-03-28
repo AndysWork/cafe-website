@@ -1343,6 +1343,17 @@ public partial class MongoService
         return result.ModifiedCount > 0;
     }
 
+    // Store Razorpay refund ID on order
+    public async Task<bool> UpdateRefundIdAsync(string orderId, string refundId)
+    {
+        var update = Builders<Order>.Update
+            .Set(x => x.RazorpayRefundId, refundId)
+            .Set(x => x.UpdatedAt, GetIstNow());
+
+        var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
+        return result.ModifiedCount > 0;
+    }
+
     #endregion
 
     #region Loyalty Operations
