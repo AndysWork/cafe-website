@@ -121,6 +121,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   ];
 
   currentTestimonialIndex = 0;
+  private testimonialIntervalId: ReturnType<typeof setInterval> | null = null;
 
   private analyticsTracking = inject(AnalyticsTrackingService);
 
@@ -147,6 +148,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    if (this.testimonialIntervalId) {
+      clearInterval(this.testimonialIntervalId);
+    }
     if (this.map) {
       this.map.remove();
       this.map = undefined;
@@ -170,7 +174,6 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
 
-      console.log('Leaflet: Initializing map, container dimensions:', mapEl.offsetWidth, mapEl.offsetHeight);
 
       // Kanchrapara, West Bengal center (midpoint of both outlets)
       const center = [22.9424, 88.4489];
@@ -221,21 +224,17 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       setTimeout(() => {
         if (this.map) {
           this.map.invalidateSize();
-          console.log('Leaflet: Map invalidated, size recalculated');
         }
       }, 500);
 
-      console.log('Leaflet: Map initialized successfully');
     } catch (error) {
       console.error('Leaflet: Error initializing map:', error);
     }
   }
 
   loadOutlets() {
-    console.log('Loading outlets from API');
     this.outletService.getActiveOutlets().subscribe({
       next: (data) => {
-        console.log('Outlets loaded:', data);
         this.outlets = data || [];
       },
       error: (error) => {
@@ -245,12 +244,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadCategories() {
-    console.log('Loading categories from:', `${environment.apiUrl}/categories`);
     this.http.get<Category[]>(`${environment.apiUrl}/categories`).subscribe({
       next: (data) => {
-        console.log('Categories API response:', data);
         this.categories = data || [];
-        console.log('Categories loaded for home page:', this.categories.length, 'categories');
         // Load menu items after categories are loaded
         this.loadMenuItems();
       },
@@ -264,10 +260,8 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadMenuItems() {
-    console.log('Loading menu items from:', `${environment.apiUrl}/menu`);
     this.http.get<any>(`${environment.apiUrl}/menu`).subscribe({
       next: (data) => {
-        console.log('Menu items API response:', data);
         const allItems = data || [];
         // Deduplicate menu items by name across outlets
         const seen = new Set<string>();
@@ -277,7 +271,6 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
           seen.add(name);
           return true;
         });
-        console.log('Unique menu items for home page:', this.menuItems.length, 'of', allItems.length, 'total');
 
         // Update stats after menu items are loaded
         this.loadStats();
@@ -285,7 +278,6 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
         // Get latest 6 menu items with real data
         if (this.menuItems && this.menuItems.length > 0) {
           const latestItems = this.menuItems.slice(0, 6);
-          console.log('Processing latest items:', latestItems);
           this.latestMenuItems = latestItems.map((item: any, index: number) => {
             const categoryName = this.getCategoryNameById(item.categoryId);
             const tags = ['NEW', 'POPULAR', 'BESTSELLER', 'CHEF SPECIAL', 'TRENDING', 'HOT'];
@@ -296,12 +288,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
               image: this.getCategoryIcon(categoryName),
               tag: tags[index % tags.length]
             };
-            console.log('Processed item:', processedItem);
             return processedItem;
           });
-          console.log('Latest menu items ready:', this.latestMenuItems);
         } else {
-          console.warn('No menu items available');
         }
       },
       error: (error) => {
@@ -389,7 +378,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   startTestimonialRotation() {
-    setInterval(() => {
+    this.testimonialIntervalId = setInterval(() => {
       this.currentTestimonialIndex = (this.currentTestimonialIndex + 1) % this.testimonials.length;
     }, 5000);
   }
@@ -429,4 +418,12 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     const parts = [outlet.address, outlet.city, outlet.state].filter(p => p);
     return parts.join(', ');
   }
+
+  trackByIndex(index: number): number { return index; }
+
+  trackById(index: number, item: any): string { return item._id; }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+
+  trackByName(index: number, item: any): string { return item.name; }
 }

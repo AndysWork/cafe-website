@@ -27,7 +27,7 @@
     </button>
 
     <div class="reviews-grid">
-      <div *ngFor="let review of visibleReviews" class="review-card">
+      <div *ngFor="let review of visibleReviews; trackBy: trackByIndex" class="review-card">
         <div class="review-header">
           <div class="customer-info">
             <div class="avatar">{{ (review.customerName || 'Anonymous')[0].toUpperCase() }}</div>

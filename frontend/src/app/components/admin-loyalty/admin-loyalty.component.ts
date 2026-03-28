@@ -247,4 +247,8 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
   getAbsolutePoints(points: number): number {
     return Math.abs(points);
   }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+  trackByName(index: number, item: any): string { return item.name; }
+  trackByIndex(index: number): number { return index; }
 }

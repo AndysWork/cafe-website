@@ -30,7 +30,7 @@
 
     <!-- Year Grouped View -->
     <div *ngIf="!loading && expenses.length > 0" class="grouped-expenses">
-      <div *ngFor="let year of getYears()" class="year-group">
+      <div *ngFor="let year of getYears(); trackBy: trackByIndex" class="year-group">
         <!-- Year Header -->
         <div class="year-header" (click)="toggleYear(year)">
           <div class="year-info">
@@ -46,7 +46,7 @@
         <!-- Year Content -->
         <div *ngIf="isYearExpanded(year)" class="year-content">
           <div class="expense-cards">
-            <div *ngFor="let expense of groupedExpenses[year]" class="expense-card">
+            <div *ngFor="let expense of groupedExpenses[year]; trackBy: trackByObjId" class="expense-card">
               <div class="expense-header">
                 <div class="expense-month">
                   📆 {{ getMonthName(expense.month) }} {{ expense.year }}
@@ -121,7 +121,7 @@
             <div class="form-group">
               <label>Month *</label>
               <select [(ngModel)]="formData.month" name="month" [disabled]="isEditMode" (change)="calculateRent()" required>
-                <option *ngFor="let month of months" [value]="month.value">{{ month.name }}</option>
+                <option *ngFor="let month of months; trackBy: trackByIndex" [value]="month.value">{{ month.name }}</option>
               </select>
             </div>
             <div class="form-group">

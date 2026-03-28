@@ -67,7 +67,7 @@
       <div class="card-icon">⏱️</div>
       <div class="card-content">
         <h3>Avg Preparation</h3>
-        <p class="card-value">{{ summary.averageKptAllOrders.toFixed(1) }} min</p>
+        <p class="card-value">{{ summary.averageKptAllOrders | number:'1.1-1' }} min</p>
         <span class="card-subtext">Average across all orders</span>
       </div>
     </div>
@@ -76,7 +76,7 @@
       <div class="card-icon">⚡</div>
       <div class="card-content">
         <h3>Time Range</h3>
-        <p class="card-value">{{ summary.minKptAllOrders.toFixed(1) }} - {{ summary.maxKptAllOrders.toFixed(1) }}</p>
+        <p class="card-value">{{ summary.minKptAllOrders | number:'1.1-1' }} - {{ summary.maxKptAllOrders | number:'1.1-1' }}</p>
         <span class="card-subtext">Min to Max (minutes)</span>
       </div>
     </div>
@@ -178,19 +178,19 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let item of paginatedItems" [class.fast]="getTimeCategory(item.avgPreparationTime) === 'fast'"
+          <tr *ngFor="let item of paginatedItems; trackBy: trackByIndex" [class.fast]="getTimeCategory(item.avgPreparationTime) === 'fast'"
               [class.medium]="getTimeCategory(item.avgPreparationTime) === 'medium'"
               [class.slow]="getTimeCategory(item.avgPreparationTime) === 'slow'">
             <td class="item-name">{{ item.itemName }}</td>
             <td class="numeric">{{ item.orderCount }}</td>
             <td class="numeric">{{ item.totalQuantity }}</td>
             <td class="numeric avg-time">
-              <strong>{{ item.avgPreparationTime.toFixed(1) }}</strong> min
+              <strong>{{ item.avgPreparationTime | number:'1.1-1' }}</strong> min
             </td>
-            <td class="numeric">{{ item.minPreparationTime.toFixed(1) }} min</td>
-            <td class="numeric">{{ item.maxPreparationTime.toFixed(1) }} min</td>
-            <td class="numeric">{{ item.medianPreparationTime.toFixed(1) }} min</td>
-            <td class="numeric">{{ item.stdDeviation.toFixed(2) }}</td>
+            <td class="numeric">{{ item.minPreparationTime | number:'1.1-1' }} min</td>
+            <td class="numeric">{{ item.maxPreparationTime | number:'1.1-1' }} min</td>
+            <td class="numeric">{{ item.medianPreparationTime | number:'1.1-1' }} min</td>
+            <td class="numeric">{{ item.stdDeviation | number:'1.2-2' }}</td>
             <td>
               <span class="category-badge" [style.background-color]="getTimeCategoryColor(item.avgPreparationTime)">
                 {{ getTimeCategory(item.avgPreparationTime).toUpperCase() }}
@@ -203,7 +203,7 @@
 
     <!-- Card View -->
     <div class="cards-grid" *ngIf="viewMode === 'cards'">
-      <div class="kpt-card" *ngFor="let item of paginatedItems"
+      <div class="kpt-card" *ngFor="let item of paginatedItems; trackBy: trackByIndex"
            [class.fast]="getTimeCategory(item.avgPreparationTime) === 'fast'"
            [class.medium]="getTimeCategory(item.avgPreparationTime) === 'medium'"
            [class.slow]="getTimeCategory(item.avgPreparationTime) === 'slow'">
@@ -225,23 +225,23 @@
           </div>
           <div class="stat-row highlight">
             <span class="stat-label">⏱️ Avg Time:</span>
-            <span class="stat-value">{{ item.avgPreparationTime.toFixed(1) }} min</span>
+            <span class="stat-value">{{ item.avgPreparationTime | number:'1.1-1' }} min</span>
           </div>
           <div class="stat-row">
             <span class="stat-label">⚡ Min Time:</span>
-            <span class="stat-value">{{ item.minPreparationTime.toFixed(1) }} min</span>
+            <span class="stat-value">{{ item.minPreparationTime | number:'1.1-1' }} min</span>
           </div>
           <div class="stat-row">
             <span class="stat-label">🔥 Max Time:</span>
-            <span class="stat-value">{{ item.maxPreparationTime.toFixed(1) }} min</span>
+            <span class="stat-value">{{ item.maxPreparationTime | number:'1.1-1' }} min</span>
           </div>
           <div class="stat-row">
             <span class="stat-label">📊 Median:</span>
-            <span class="stat-value">{{ item.medianPreparationTime.toFixed(1) }} min</span>
+            <span class="stat-value">{{ item.medianPreparationTime | number:'1.1-1' }} min</span>
           </div>
           <div class="stat-row">
             <span class="stat-label">📈 Std Dev:</span>
-            <span class="stat-value">{{ item.stdDeviation.toFixed(2) }}</span>
+            <span class="stat-value">{{ item.stdDeviation | number:'1.2-2' }}</span>
           </div>
         </div>
 

@@ -113,7 +113,7 @@
       </div>
 
       <div class="summary-items">
-        <div *ngFor="let item of cart.items" class="s-item">
+        <div *ngFor="let item of cart.items; trackBy: trackByName" class="s-item">
           <div class="s-item-left">
             <span class="s-item-qty">{{ item.quantity }}×</span>
             <span class="s-item-name">{{ item.name }}</span>

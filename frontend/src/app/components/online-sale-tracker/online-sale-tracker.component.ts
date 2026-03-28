@@ -318,11 +318,6 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
         endDate: this.endDate,
       });
 
-      console.log('Loading sales with params:', {
-        platform: this.selectedPlatform,
-        startDate: this.startDate,
-        endDate: this.endDate,
-      });
 
       const response: any = await this.http
         .get(
@@ -333,7 +328,6 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
       if (response.success) {
         this.sales = response.data || [];
         this.currentPage = 1; // Reset to first page
-        console.log(`Loaded ${this.sales.length} sales records`);
       } else {
         this.errorMessage = response.message || 'Failed to load sales';
       }
@@ -591,10 +585,8 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
 
   startEditingCustomerName(sale: OnlineSale): void {
     const saleId = sale._id || sale.id;
-    console.log('Starting edit for sale:', saleId, sale);
     this.editingCustomerNameId = saleId || null;
     this.editingCustomerNameValue = sale.customerName || '';
-    console.log('Editing state:', this.editingCustomerNameId, this.editingCustomerNameValue);
   }
 
   cancelEditingCustomerName(): void {
@@ -621,7 +613,6 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
         sale.customerName = this.editingCustomerNameValue;
         this.editingCustomerNameId = null;
         this.editingCustomerNameValue = '';
-        console.log('Customer name updated successfully');
       } else {
         alert('Failed to update customer name: ' + response.message);
       }
@@ -837,4 +828,12 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
       },
     });
   }
+
+  trackById(index: number, item: any): string { return item._id; }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+
+  trackByIndex(index: number): number { return index; }
+
+  trackByKey(index: number, item: any): string { return item.key; }
 }

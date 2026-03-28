@@ -456,4 +456,6 @@ ${new Date().toISOString().split('T')[0]},0,0,0,Sample note
     this.viewMode = 'daily';
     this.loadSalesSummary();
   }
+
+  trackByIndex(index: number): number { return index; }
 }

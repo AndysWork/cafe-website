@@ -288,4 +288,6 @@ ${this.expenseCategories.map(cat =>
     const profitPerSale = this.profitData.grossProfit / totalSales;
     return profitPerSale.toFixed(2);
   }
+
+  trackByIndex(index: number): number { return index; }
 }

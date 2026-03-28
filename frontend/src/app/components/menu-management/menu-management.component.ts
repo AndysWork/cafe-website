@@ -123,7 +123,6 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     // Subscribe to menu refresh notifications
     this.menuRefreshSubscription = this.menuService.menuItemsRefresh$.subscribe((refresh) => {
       if (refresh) {
-        console.log('Menu items updated, refreshing list...');
         this.loadMenuItems();
       }
     });
@@ -142,22 +141,14 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   }
 
   refreshMenuItems(): void {
-    console.log('Refreshing menu items...');
     this.loadMenuItems();
   }
 
   loadMenuItems(): void {
     this.loading = true;
-    console.log('Loading menu items from:', `${environment.apiUrl}/menu`);
     this.http.get<MenuItem[]>(`${environment.apiUrl}/menu`)
       .subscribe({
         next: (data) => {
-          console.log('Menu items loaded successfully:', data.length, 'items');
-          console.log('First item sample:', data[0]);
-          console.log('Future prices in first item:', {
-            futureShopPrice: data[0]?.futureShopPrice,
-            futureOnlinePrice: data[0]?.futureOnlinePrice
-          });
           this.menuItems = data;
           this.loading = false;
         },
@@ -500,4 +491,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     a.click();
     window.URL.revokeObjectURL(url);
   }
+
+  trackByIndex(index: number): number { return index; }
+  trackByObjId(index: number, item: any): string { return item.id; }
 }

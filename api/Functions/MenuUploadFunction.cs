@@ -70,6 +70,15 @@ public class MenuUploadFunction
                 return badRequest;
             }
 
+            // Validate file size (max 10MB)
+            const int MaxFileSizeBytes = 10 * 1024 * 1024;
+            if (fileBytes.Length > MaxFileSizeBytes)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "File size exceeds the maximum allowed size of 10MB" });
+                return badRequest;
+            }
+
             // Try to find the Excel file data in the multipart content
             var excelData = ExtractExcelFromMultipart(fileBytes);
             

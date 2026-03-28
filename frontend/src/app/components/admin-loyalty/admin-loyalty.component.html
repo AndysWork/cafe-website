@@ -41,7 +41,7 @@
     </div>
 
     <div class="rewards-grid">
-      <div *ngFor="let reward of rewards" class="reward-card">
+      <div *ngFor="let reward of rewards; trackBy: trackByObjId" class="reward-card">
         <div class="reward-icon">{{ reward.icon }}</div>
         <div class="reward-status">
           <button
@@ -81,7 +81,7 @@
         <div class="stat-value">{{ getAccountStats().totalPoints }}</div>
         <div class="stat-label">Active Points</div>
       </div>
-      <div class="stat-card" *ngFor="let tier of tierConfig">
+      <div class="stat-card" *ngFor="let tier of tierConfig; trackBy: trackByName">
         <div class="stat-icon" [style.color]="tier.color">🏆</div>
         <div class="stat-value">{{ getAccountStats().byTier[tier.name] || 0 }}</div>
         <div class="stat-label">{{ tier.name }}</div>
@@ -91,7 +91,7 @@
     <div class="tier-config-section">
       <h2>Tier Configuration</h2>
       <div class="tier-grid">
-        <div *ngFor="let tier of tierConfig" class="tier-card" [style.border-color]="tier.color">
+        <div *ngFor="let tier of tierConfig; trackBy: trackByName" class="tier-card" [style.border-color]="tier.color">
           <div class="tier-header" [style.background]="tier.color">
             <span class="tier-name">{{ tier.name }}</span>
           </div>
@@ -117,7 +117,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let account of loyaltyAccounts">
+          <tr *ngFor="let account of loyaltyAccounts; trackBy: trackByIndex">
             <td>{{ account.username }}</td>
             <td>
               <span class="tier-badge" [ngClass]="getTierBadgeClass(account.tier)">
@@ -161,7 +161,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let redemption of redemptions">
+          <tr *ngFor="let redemption of redemptions; trackBy: trackByIndex">
             <td>{{ formatDateTime(redemption.createdAt) }}</td>
             <td class="user-id">{{ redemption.userId }}</td>
             <td>{{ redemption.description }}</td>

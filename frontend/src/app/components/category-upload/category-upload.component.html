@@ -109,7 +109,7 @@
       <div *ngIf="uploadResult.Errors && uploadResult.Errors.length > 0" class="error-list">
         <h4>Errors:</h4>
         <ul>
-          <li *ngFor="let error of uploadResult.Errors">{{ error }}</li>
+          <li *ngFor="let error of uploadResult.Errors; trackBy: trackByIndex">{{ error }}</li>
         </ul>
       </div>
     </div>

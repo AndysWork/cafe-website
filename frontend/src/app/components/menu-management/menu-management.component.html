@@ -34,7 +34,7 @@
       <label>Filter by Category:</label>
       <select [(ngModel)]="filterCategory" class="filter-select">
         <option value="">All Categories</option>
-        <option *ngFor="let cat of categories" [value]="cat.id">{{ cat.name }}</option>
+        <option *ngFor="let cat of categories; trackBy: trackByObjId" [value]="cat.id">{{ cat.name }}</option>
       </select>
     </div>
   </div>
@@ -64,7 +64,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let item of filteredMenuItems" class="menu-row">
+        <tr *ngFor="let item of filteredMenuItems; trackBy: trackByObjId" class="menu-row">
           <td class="item-name">
             <div class="name-cell">
               <span class="name">{{ item.name }}</span>
@@ -85,7 +85,7 @@
                 {{ item.variants.length }} variant(s)
               </span>
               <div class="variant-list" *ngIf="item.variants && item.variants.length > 0">
-                <div class="variant-item" *ngFor="let variant of item.variants">
+                <div class="variant-item" *ngFor="let variant of item.variants; trackBy: trackByIndex">
                   <span class="variant-name">{{ variant.variantName }}</span>
                   <span class="variant-price">₹{{ variant.price }}</span>
                   <span class="variant-qty" *ngIf="variant.quantity">({{ variant.quantity }})</span>
@@ -183,14 +183,14 @@
               <label>Category *</label>
               <select [(ngModel)]="formData.categoryId" name="categoryId" (change)="onCategoryChange(formData.categoryId!)" required>
                 <option value="">Select Category</option>
-                <option *ngFor="let cat of categories" [value]="cat.id">{{ cat.name }}</option>
+                <option *ngFor="let cat of categories; trackBy: trackByObjId" [value]="cat.id">{{ cat.name }}</option>
               </select>
             </div>
             <div class="form-group">
               <label>Sub Category</label>
               <select [(ngModel)]="formData.subCategoryId" name="subCategoryId" [disabled]="!formData.categoryId">
                 <option [value]="undefined">Select Sub Category</option>
-                <option *ngFor="let subCat of filteredSubCategories" [value]="subCat.id">{{ subCat.name }}</option>
+                <option *ngFor="let subCat of filteredSubCategories; trackBy: trackByObjId" [value]="subCat.id">{{ subCat.name }}</option>
               </select>
             </div>
           </div>
@@ -266,7 +266,7 @@
             </div>
 
             <div class="variants-list" *ngIf="formData.variants && formData.variants.length > 0">
-              <div class="variant-chip" *ngFor="let variant of formData.variants; let i = index">
+              <div class="variant-chip" *ngFor="let variant of formData.variants; let i = index; trackBy: trackByIndex">
                 <span class="variant-info">
                   <strong>{{ variant.variantName }}</strong> - ₹{{ variant.price }}
                   <span *ngIf="variant.quantity"> ({{ variant.quantity }})</span>
@@ -400,7 +400,7 @@
           <div class="errors-section" *ngIf="uploadResult.errors && uploadResult.errors.length > 0">
             <h4>⚠️ Errors ({{ uploadResult.errors.length }})</h4>
             <div class="error-list">
-              <div class="error-item" *ngFor="let err of uploadResult.errors">
+              <div class="error-item" *ngFor="let err of uploadResult.errors; trackBy: trackByIndex">
                 {{ err }}
               </div>
             </div>

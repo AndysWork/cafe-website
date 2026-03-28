@@ -246,4 +246,6 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
         });
     }
   }
+
+  trackByIndex(index: number): number { return index; }
 }

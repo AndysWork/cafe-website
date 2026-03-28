@@ -23,7 +23,7 @@
     <!-- Filter Tabs -->
     <div *ngIf="orders.length > 0" class="filter-tabs">
       <button
-        *ngFor="let f of statusFilters"
+        *ngFor="let f of statusFilters; trackBy: trackByKey"
         class="tab"
         [class.active]="activeFilter === f.key"
         (click)="activeFilter = f.key">
@@ -34,7 +34,7 @@
 
     <!-- Loading Skeleton -->
     <div *ngIf="isLoading" class="skeleton-list">
-      <div class="skeleton-card" *ngFor="let s of [1,2,3]">
+      <div class="skeleton-card" *ngFor="let s of [1,2,3]; trackBy: trackByIndex">
         <div class="skel-row">
           <div class="skel-circle shimmer"></div>
           <div class="skel-lines">
@@ -74,7 +74,7 @@
     <!-- Orders List -->
     <div *ngIf="!isLoading && !errorMessage && filteredOrders.length > 0" class="orders-list">
       <div
-        *ngFor="let order of filteredOrders"
+        *ngFor="let order of filteredOrders; trackBy: trackByObjId"
         class="order-card"
         [class.expanded]="isExpanded(order.id)"
         [class.status-delivered]="order.status === 'delivered'"
@@ -109,7 +109,7 @@
           <!-- Items Table -->
           <div class="items-section">
             <div class="items-header">Items Ordered</div>
-            <div class="item-row" *ngFor="let item of order.items">
+            <div class="item-row" *ngFor="let item of order.items; trackBy: trackByName">
               <div class="item-info">
                 <span class="item-name">{{ item.name }}</span>
                 <span class="item-qty">× {{ item.quantity }}</span>

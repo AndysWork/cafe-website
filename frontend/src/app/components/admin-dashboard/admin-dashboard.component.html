@@ -24,7 +24,7 @@
     <div class="stats-grid">
       <div
         class="stat-card"
-        *ngFor="let stat of stats"
+        *ngFor="let stat of stats; trackBy: trackByIndex"
         [style.border-left-color]="stat.color"
       >
         <div class="stat-icon" [style.background]="stat.color">
@@ -99,55 +99,55 @@
 
               <!-- Data points for Offline -->
               <circle
-                *ngFor="let trend of monthlyTrends; let i = index"
+                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
                 [attr.cx]="getXPosition(i)"
                 [attr.cy]="getYPosition(trend.offlineSales)"
                 r="5"
                 fill="#6c5ce7"
                 class="data-point"
               >
-                <title>{{trend.month}}: Offline ₹{{trend.offlineSales.toLocaleString('en-IN')}}</title>
+                <title>{{trend.month}}: Offline ₹{{trend.offlineSales | number}}</title>
               </circle>
 
               <!-- Data points for Zomato -->
               <circle
-                *ngFor="let trend of monthlyTrends; let i = index"
+                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
                 [attr.cx]="getXPosition(i)"
                 [attr.cy]="getYPosition(trend.zomatoSales)"
                 r="5"
                 fill="#e74c3c"
                 class="data-point"
               >
-                <title>{{trend.month}}: Zomato ₹{{trend.zomatoSales.toLocaleString('en-IN')}}</title>
+                <title>{{trend.month}}: Zomato ₹{{trend.zomatoSales | number}}</title>
               </circle>
 
               <!-- Data points for Swiggy -->
               <circle
-                *ngFor="let trend of monthlyTrends; let i = index"
+                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
                 [attr.cx]="getXPosition(i)"
                 [attr.cy]="getYPosition(trend.swiggySales)"
                 r="5"
                 fill="#f39c12"
                 class="data-point"
               >
-                <title>{{trend.month}}: Swiggy ₹{{trend.swiggySales.toLocaleString('en-IN')}}</title>
+                <title>{{trend.month}}: Swiggy ₹{{trend.swiggySales | number}}</title>
               </circle>
 
               <!-- Data points for Total -->
               <circle
-                *ngFor="let trend of monthlyTrends; let i = index"
+                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
                 [attr.cx]="getXPosition(i)"
                 [attr.cy]="getYPosition(trend.totalSales)"
                 r="6"
                 fill="#2ecc71"
                 class="data-point"
               >
-                <title>{{trend.month}}: Total ₹{{trend.totalSales.toLocaleString('en-IN')}}</title>
+                <title>{{trend.month}}: Total ₹{{trend.totalSales | number}}</title>
               </circle>
 
               <!-- X-axis labels -->
               <text
-                *ngFor="let trend of monthlyTrends; let i = index"
+                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
                 [attr.x]="getXPosition(i)"
                 y="320"
                 text-anchor="middle"
@@ -190,21 +190,21 @@
         <div class="stat-icon" style="background: #e74c3c;">📦</div>
         <div class="stat-info">
           <div class="stat-label">Total Online Orders</div>
-          <div class="stat-value">{{ onlineStats.totalOrders.toLocaleString() }}</div>
+          <div class="stat-value">{{ onlineStats.totalOrders | number }}</div>
         </div>
       </div>
       <div class="stat-card" style="border-left-color: #3498db;">
         <div class="stat-icon" style="background: #3498db;">💰</div>
         <div class="stat-info">
           <div class="stat-label">Online Revenue</div>
-          <div class="stat-value">₹{{ onlineStats.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+          <div class="stat-value">₹{{ onlineStats.totalRevenue | number:'1.0-0' }}</div>
         </div>
       </div>
       <div class="stat-card" style="border-left-color: #2ecc71;">
         <div class="stat-icon" style="background: #2ecc71;">📊</div>
         <div class="stat-info">
           <div class="stat-label">Daily Avg Payout</div>
-          <div class="stat-value">₹{{ onlineStats.dailyAvgPayout.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+          <div class="stat-value">₹{{ onlineStats.dailyAvgPayout | number:'1.0-0' }}</div>
         </div>
       </div>
       <div class="stat-card" style="border-left-color: #ffd93d;">
@@ -236,11 +236,11 @@
         </div>
 
         <div *ngIf="onlineMostOrderedItems.length > 0" class="list-container">
-          <div class="list-item" *ngFor="let item of onlineMostOrderedItems; let i = index">
+          <div class="list-item" *ngFor="let item of onlineMostOrderedItems; let i = index; trackBy: trackByIndex">
             <div class="item-rank">{{ i + 1 }}</div>
             <div class="item-info">
               <div class="item-name">{{ item.itemName }}</div>
-              <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+              <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue | number:'1.0-0' }}</div>
             </div>
             <div class="item-badge">{{ item.quantity }}</div>
           </div>
@@ -258,13 +258,13 @@
         </div>
 
         <div *ngIf="topCustomers.length > 0" class="list-container">
-          <div class="list-item" *ngFor="let customer of topCustomers; let i = index">
+          <div class="list-item" *ngFor="let customer of topCustomers; let i = index; trackBy: trackByIndex">
             <div class="item-rank">{{ i + 1 }}</div>
             <div class="item-info">
               <div class="item-name">{{ customer.customerName }}</div>
               <div class="item-detail">{{ customer.totalOrders }} orders</div>
             </div>
-            <div class="item-badge customer-badge">₹{{ customer.totalSpent.toLocaleString('en-IN') }}</div>
+            <div class="item-badge customer-badge">₹{{ customer.totalSpent | number }}</div>
           </div>
         </div>
       </div>
@@ -281,28 +281,28 @@
         <div class="stat-icon" style="background: #9b59b6;">📦</div>
         <div class="stat-info">
           <div class="stat-label">Total Offline Orders</div>
-          <div class="stat-value">{{ offlineStats.totalOrders.toLocaleString() }}</div>
+          <div class="stat-value">{{ offlineStats.totalOrders | number }}</div>
         </div>
       </div>
       <div class="stat-card" style="border-left-color: #16a085;">
         <div class="stat-icon" style="background: #16a085;">💰</div>
         <div class="stat-info">
           <div class="stat-label">Offline Revenue</div>
-          <div class="stat-value">₹{{ offlineStats.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+          <div class="stat-value">₹{{ offlineStats.totalRevenue | number:'1.0-0' }}</div>
         </div>
       </div>
       <div class="stat-card" style="border-left-color: #e67e22;">
         <div class="stat-icon" style="background: #e67e22;">📊</div>
         <div class="stat-info">
           <div class="stat-label">Daily Avg Sales</div>
-          <div class="stat-value">₹{{ offlineStats.dailyAvgSales.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+          <div class="stat-value">₹{{ offlineStats.dailyAvgSales | number:'1.0-0' }}</div>
         </div>
       </div>
       <div class="stat-card" style="border-left-color: #34495e;">
         <div class="stat-icon" style="background: #34495e;">💸</div>
         <div class="stat-info">
           <div class="stat-label">Daily Avg Expenses</div>
-          <div class="stat-value">₹{{ offlineStats.dailyAvgExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+          <div class="stat-value">₹{{ offlineStats.dailyAvgExpenses | number:'1.0-0' }}</div>
         </div>
       </div>
     </div>
@@ -318,11 +318,11 @@
       </div>
 
       <div *ngIf="offlineMostOrderedItems.length > 0" class="list-container">
-        <div class="list-item" *ngFor="let item of offlineMostOrderedItems; let i = index">
+        <div class="list-item" *ngFor="let item of offlineMostOrderedItems; let i = index; trackBy: trackByIndex">
           <div class="item-rank">{{ i + 1 }}</div>
           <div class="item-info">
             <div class="item-name">{{ item.itemName }}</div>
-            <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</div>
+            <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue | number:'1.0-0' }}</div>
           </div>
           <div class="item-badge offline-badge">{{ item.quantity }}</div>
         </div>

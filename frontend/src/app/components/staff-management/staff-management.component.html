@@ -91,7 +91,7 @@
 
   <!-- Staff Cards -->
   <div class="staff-cards-container" *ngIf="!isLoading">
-    <div class="staff-card" *ngFor="let staffMember of staff">
+    <div class="staff-card" *ngFor="let staffMember of staff; trackBy: trackById">
       <!-- Card Header -->
       <div class="card-header">
         <div class="staff-avatar">
@@ -351,7 +351,7 @@
               class="form-control"
               [disabled]="modalMode === 'view'">
               <option value="">Select Gender</option>
-              <option *ngFor="let gender of genders" [value]="gender">{{ gender }}</option>
+              <option *ngFor="let gender of genders; trackBy: trackByIndex" [value]="gender">{{ gender }}</option>
             </select>
           </div>
         </div>
@@ -453,7 +453,7 @@
               class="form-control"
               [disabled]="modalMode === 'view'">
               <option value="">Select Position</option>
-              <option *ngFor="let position of positions" [value]="position">{{ position }}</option>
+              <option *ngFor="let position of positions; trackBy: trackByIndex" [value]="position">{{ position }}</option>
             </select>
           </div>
 
@@ -464,7 +464,7 @@
               class="form-control"
               [disabled]="modalMode === 'view'">
               <option value="">Select Department</option>
-              <option *ngFor="let dept of departments" [value]="dept">{{ dept }}</option>
+              <option *ngFor="let dept of departments; trackBy: trackByIndex" [value]="dept">{{ dept }}</option>
             </select>
           </div>
 
@@ -474,7 +474,7 @@
               [(ngModel)]="staffForm.employmentType"
               class="form-control"
               [disabled]="modalMode === 'view'">
-              <option *ngFor="let type of employmentTypes" [value]="type">{{ type }}</option>
+              <option *ngFor="let type of employmentTypes; trackBy: trackByIndex" [value]="type">{{ type }}</option>
             </select>
           </div>
 
@@ -499,7 +499,7 @@
           <div class="form-group full-width">
             <label>Assigned Outlets (Select multiple)</label>
             <div class="outlet-selection-grid">
-              <label *ngFor="let outlet of outlets" class="outlet-checkbox">
+              <label *ngFor="let outlet of outlets; trackBy: trackByIndex" class="outlet-checkbox">
                 <input
                   type="checkbox"
                   [checked]="isOutletSelected(outlet.id || outlet._id || '')"
@@ -542,7 +542,7 @@
               [(ngModel)]="staffForm.salaryType"
               class="form-control"
               [disabled]="modalMode === 'view'">
-              <option *ngFor="let type of salaryTypes" [value]="type">{{ type }}</option>
+              <option *ngFor="let type of salaryTypes; trackBy: trackByIndex" [value]="type">{{ type }}</option>
             </select>
           </div>
         </div>
@@ -622,7 +622,7 @@
           </div>
 
           <div *ngIf="currentShifts.length > 0" class="shifts-list">
-            <div *ngFor="let shift of currentShifts; let i = index" class="shift-card" [class.inactive]="!shift.isActive">
+            <div *ngFor="let shift of currentShifts; let i = index; trackBy: trackByIndex" class="shift-card" [class.inactive]="!shift.isActive">
               <div class="shift-info">
                 <div class="shift-header">
                   <h4>{{ shift.shiftName }}</h4>
@@ -672,7 +672,7 @@
         <h3>Working Days</h3>
         <div class="working-days">
           <label
-            *ngFor="let day of daysOfWeek"
+            *ngFor="let day of daysOfWeek; trackBy: trackByIndex"
             class="day-checkbox"
             [class.disabled]="modalMode === 'view'">
             <input
@@ -796,7 +796,7 @@
         <div class="form-group full-width" *ngIf="shiftModalMode === 'create'">
           <label>Working Days <span class="required">*</span></label>
           <div class="days-selection">
-            <label *ngFor="let day of daysOfWeek" class="day-checkbox">
+            <label *ngFor="let day of daysOfWeek; trackBy: trackByIndex" class="day-checkbox">
               <input
                 type="checkbox"
                 [checked]="selectedWorkingDays.includes(day)"
@@ -863,7 +863,7 @@
             <label>Outlet (Optional)</label>
             <select [(ngModel)]="shiftForm.outletId" class="form-control">
               <option value="">All Outlets</option>
-              <option *ngFor="let outlet of outlets" [value]="outlet.id || outlet._id">
+              <option *ngFor="let outlet of outlets; trackBy: trackByIndex" [value]="outlet.id || outlet._id">
                 {{ outlet.outletName }}
               </option>
             </select>

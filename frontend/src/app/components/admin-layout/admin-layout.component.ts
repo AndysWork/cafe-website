@@ -1,4 +1,4 @@
-import { Component, NgZone } from '@angular/core';
+import { Component, NgZone, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -12,7 +12,7 @@ import { OutletSelectorComponent } from '../outlet-selector/outlet-selector.comp
   templateUrl: './admin-layout.component.html',
   styleUrls: ['./admin-layout.component.scss']
 })
-export class AdminLayoutComponent {
+export class AdminLayoutComponent implements OnDestroy {
   currentUser$;
   selectedOutlet$;
   isMobileMenuOpen = false;
@@ -162,6 +162,7 @@ export class AdminLayoutComponent {
 
   // Profile dropdown state
   isProfileDropdownOpen = false;
+  private clickHandler: ((event: Event) => void) | null = null;
 
   constructor(
     private authService: AuthService,
@@ -174,7 +175,7 @@ export class AdminLayoutComponent {
 
     // Close dropdowns when clicking outside
     if (typeof document !== 'undefined') {
-      document.addEventListener('click', (event) => {
+      this.clickHandler = (event: Event) => {
         const target = event.target as HTMLElement;
         // Don't close if clicking on dropdown button or inside dropdown
         if (!target.closest('.nav-item-dropdown') && !target.closest('.profile-dropdown-container')) {
@@ -183,7 +184,14 @@ export class AdminLayoutComponent {
             this.closeProfileDropdown();
           });
         }
-      });
+      };
+      document.addEventListener('click', this.clickHandler);
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.clickHandler) {
+      document.removeEventListener('click', this.clickHandler);
     }
   }
 
@@ -229,4 +237,6 @@ export class AdminLayoutComponent {
   closeProfileDropdown(): void {
     this.isProfileDropdownOpen = false;
   }
+
+  trackByIndex(index: number): number { return index; }
 }

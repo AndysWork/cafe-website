@@ -84,6 +84,7 @@ public class UpdatePlatformChargeRequest
 public class PlatformChargeResponse
 {
     public string Id { get; set; } = string.Empty;
+    public string? OutletId { get; set; }
     public string Platform { get; set; } = string.Empty;
     public int Month { get; set; }
     public int Year { get; set; }

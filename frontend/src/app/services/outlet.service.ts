@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap, catchError, of } from 'rxjs';
+import { BehaviorSubject, Observable, tap, catchError, of, shareReplay } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Outlet } from '../models/outlet.model';
 
@@ -54,7 +54,8 @@ export class OutletService {
       catchError(error => {
         console.error('Error fetching outlets:', error);
         return of([]);
-      })
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
@@ -74,7 +75,8 @@ export class OutletService {
       catchError(error => {
         console.error('Error fetching active outlets:', error);
         return of([]);
-      })
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
@@ -125,13 +127,11 @@ export class OutletService {
    */
   selectOutlet(outlet: Outlet): void {
     const outletId = outlet._id || outlet.id || '';
-    console.log(`[OutletService] Selecting outlet: ${outlet.outletName} (ID: ${outletId})`);
 
     this.selectedOutletSubject.next(outlet);
     localStorage.setItem('selectedOutletId', outletId);
     localStorage.setItem('selectedOutlet', JSON.stringify(outlet));
 
-    console.log(`[OutletService] Outlet selected. Components subscribed to selectedOutlet$ will reload data.`);
   }
 
   /**

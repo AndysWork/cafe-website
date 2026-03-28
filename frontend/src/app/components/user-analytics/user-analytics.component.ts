@@ -129,4 +129,6 @@ export class UserAnalyticsComponent implements OnInit, OnDestroy {
     if (stat.totalCalls === 0) return '0%';
     return ((stat.errorCount / stat.totalCalls) * 100).toFixed(1) + '%';
   }
+
+  trackByIndex(index: number): number { return index; }
 }

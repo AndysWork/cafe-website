@@ -79,7 +79,7 @@
               (change)="onStaffSelect($event)"
               [value]="selectedStaff?.id || selectedStaff?._id || ''">
               <option value="">-- Select Staff --</option>
-              <option *ngFor="let member of staff" [value]="member.id || member._id">
+              <option *ngFor="let member of staff; trackBy: trackByObjId" [value]="member.id || member._id">
                 {{ member.employeeId }} - {{ member.firstName }} {{ member.lastName }} ({{ member.position }})
               </option>
             </select>
@@ -92,7 +92,7 @@
               class="form-control"
               [(ngModel)]="selectedConfiguration">
               <option [ngValue]="null">-- Select Configuration --</option>
-              <option *ngFor="let config of bonusConfigurations" [ngValue]="config">
+              <option *ngFor="let config of bonusConfigurations; trackBy: trackByIndex" [ngValue]="config">
                 {{ config.configurationName }} ({{ config.applicablePositions.length }} positions)
               </option>
             </select>
@@ -127,7 +127,7 @@
                     <span class="label">Base Salary</span>
                     <div class="salary-editor">
                       <span class="value" *ngIf="!editingSalary" (click)="startEditingSalary()" style="cursor: pointer;">
-                        ₹{{ selectedStaff.salary.toLocaleString() }} <span class="edit-icon">✏️</span>
+                        ₹{{ selectedStaff.salary | number }} <span class="edit-icon">✏️</span>
                       </span>
                       <div class="salary-edit-controls" *ngIf="editingSalary">
                         <input
@@ -198,36 +198,36 @@
               <span class="metric-icon">📅</span>
               <div class="metric-content">
                 <span class="metric-label">Total Expected Hours</span>
-                <span class="metric-value">{{ calculatedMetrics.expectedHours.toFixed(2) }} hrs</span>
+                <span class="metric-value">{{ calculatedMetrics.expectedHours | number:'1.2-2' }} hrs</span>
               </div>
             </div>
             <div class="metric-card" *ngIf="calculatedMetrics.totalLeaveHours > 0">
               <span class="metric-icon">🏖️</span>
               <div class="metric-content">
                 <span class="metric-label">Total Leave Hours</span>
-                <span class="metric-value leave-value">{{ calculatedMetrics.totalLeaveHours.toFixed(2) }} hrs</span>
+                <span class="metric-value leave-value">{{ calculatedMetrics.totalLeaveHours | number:'1.2-2' }} hrs</span>
               </div>
             </div>
             <div class="metric-card highlight-card">
               <span class="metric-icon">🎯</span>
               <div class="metric-content">
                 <span class="metric-label">Adjusted Expected Hours</span>
-                <span class="metric-value">{{ calculatedMetrics.adjustedExpectedHours.toFixed(2) }} hrs</span>
-                <small class="metric-help" *ngIf="calculatedMetrics.totalLeaveHours > 0">{{ calculatedMetrics.expectedHours.toFixed(2) }} - {{ calculatedMetrics.totalLeaveHours.toFixed(2) }} leave</small>
+                <span class="metric-value">{{ calculatedMetrics.adjustedExpectedHours | number:'1.2-2' }} hrs</span>
+                <small class="metric-help" *ngIf="calculatedMetrics.totalLeaveHours > 0">{{ calculatedMetrics.expectedHours | number:'1.2-2' }} - {{ calculatedMetrics.totalLeaveHours | number:'1.2-2' }} leave</small>
               </div>
             </div>
             <div class="metric-card">
               <span class="metric-icon">⏰</span>
               <div class="metric-content">
                 <span class="metric-label">Worked Hours</span>
-                <span class="metric-value">{{ calculatedMetrics.workedHours.toFixed(2) }} hrs</span>
+                <span class="metric-value">{{ calculatedMetrics.workedHours | number:'1.2-2' }} hrs</span>
               </div>
             </div>
             <div class="metric-card">
               <span class="metric-icon">⚡</span>
               <div class="metric-content">
                 <span class="metric-label">Overtime Hours (Bonus Eligible)</span>
-                <span class="metric-value">{{ calculatedMetrics.overtimeHours.toFixed(2) }} hrs</span>
+                <span class="metric-value">{{ calculatedMetrics.overtimeHours | number:'1.2-2' }} hrs</span>
                 <small class="metric-help" *ngIf="calculatedMetrics.overtimeHours > 0">After {{ bufferHours }}hr buffer deduction</small>
               </div>
             </div>
@@ -235,7 +235,7 @@
               <span class="metric-icon">⏳</span>
               <div class="metric-content">
                 <span class="metric-label">Undertime Hours</span>
-                <span class="metric-value">{{ calculatedMetrics.undertimeHours.toFixed(2) }} hrs</span>
+                <span class="metric-value">{{ calculatedMetrics.undertimeHours | number:'1.2-2' }} hrs</span>
               </div>
             </div>
             <div class="metric-card">
@@ -263,7 +263,7 @@
               <span class="metric-icon">💸</span>
               <div class="metric-content">
                 <span class="metric-label">Refund Amount</span>
-                <span class="metric-value">₹{{ calculatedMetrics.totalRefundAmount.toFixed(2) }}</span>
+                <span class="metric-value">₹{{ calculatedMetrics.totalRefundAmount | number:'1.2-2' }}</span>
               </div>
             </div>
           </div>
@@ -523,7 +523,7 @@
           <!-- Base Salary Display -->
           <div class="salary-section">
             <div class="salary-label">Base Salary</div>
-            <div class="salary-amount">₹{{ calculationResult.baseSalary.toLocaleString() }}</div>
+            <div class="salary-amount">₹{{ calculationResult.baseSalary | number }}</div>
           </div>
 
           <!-- Bonus Breakdown by Rule (Only non-zero values) -->
@@ -535,11 +535,11 @@
                 <span class="col-calc">Calculation</span>
                 <span class="col-amount">Amount</span>
               </div>
-              <div class="breakdown-row" *ngFor="let item of filteredBonusBreakdown" [ngClass]="{'is-deduction': !item.isBonus}">
+              <div class="breakdown-row" *ngFor="let item of filteredBonusBreakdown; trackBy: trackByIndex" [ngClass]="{'is-deduction': !item.isBonus}">
                 <span class="col-rule">{{ item.ruleName }}</span>
                 <span class="col-calc">{{ item.calculation }}</span>
                 <span class="col-amount" [ngClass]="{'text-danger': !item.isBonus, 'text-success': item.isBonus}">
-                  {{ item.isBonus ? '+' : '-' }}₹{{ item.amount.toFixed(2) }}
+                  {{ item.isBonus ? '+' : '-' }}₹{{ item.amount | number:'1.2-2' }}
                 </span>
               </div>
             </div>
@@ -548,7 +548,7 @@
           <!-- Net Pay Total -->
           <div class="net-pay-section">
             <div class="net-pay-label">Net Pay</div>
-            <div class="net-pay-amount">₹{{ (calculationResult.baseSalary + calculationResult.bonusAmount).toLocaleString() }}</div>
+            <div class="net-pay-amount">₹{{ calculationResult.baseSalary + calculationResult.bonusAmount | number }}</div>
           </div>
 
           <!-- Summary Stats -->
@@ -557,14 +557,14 @@
               <div class="stat-icon">⏰</div>
               <div class="stat-content">
                 <div class="stat-label">Expected Hours</div>
-                <div class="stat-value">{{ calculatedMetrics.expectedHours.toFixed(1) }} hrs</div>
+                <div class="stat-value">{{ calculatedMetrics.expectedHours | number:'1.1-1' }} hrs</div>
               </div>
             </div>
             <div class="stat-card">
               <div class="stat-icon">⏱️</div>
               <div class="stat-content">
                 <div class="stat-label">Worked Hours</div>
-                <div class="stat-value">{{ calculatedMetrics.workedHours.toFixed(1) }} hrs</div>
+                <div class="stat-value">{{ calculatedMetrics.workedHours | number:'1.1-1' }} hrs</div>
               </div>
             </div>
             <div class="stat-card">
@@ -616,7 +616,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let calc of calculatedBonuses; let i = index">
+            <tr *ngFor="let calc of calculatedBonuses; let i = index; trackBy: trackByIndex">
               <td>{{ calc.employeeId }}</td>
               <td>{{ calc.staffName }}</td>
               <td>{{ calc.position }}</td>
@@ -626,11 +626,11 @@
               </td>
               <td>
                 <span class="score-badge" [ngClass]="getTierClass(calc.totalScore)">
-                  {{ calc.totalScore.toFixed(1) }}
+                  {{ calc.totalScore | number:'1.1-1' }}
                 </span>
               </td>
               <td>{{ calc.bonusPercentage }}%</td>
-              <td>₹{{ calc.bonusAmount.toLocaleString() }}</td>
+              <td>₹{{ calc.bonusAmount | number }}</td>
               <td>
                 <button class="btn-icon btn-danger" (click)="deleteCalculation(i)" title="Delete">
                   🗑️

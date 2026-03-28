@@ -13,9 +13,26 @@ public class AuthService
 
     public AuthService()
     {
-        // Get JWT settings from environment or use defaults
-        _jwtSecret = Environment.GetEnvironmentVariable("Jwt__Secret") 
-            ?? "CafeWebsite_SuperSecretKey_2024_MinimumLength32Characters_Required!";
+        // Get JWT settings from environment — fail fast if secret is not configured in production
+        var secret = Environment.GetEnvironmentVariable("Jwt__Secret");
+        if (string.IsNullOrEmpty(secret))
+        {
+            var env = Environment.GetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT")
+                ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                ?? "Production";
+
+            if (env.Equals("Development", StringComparison.OrdinalIgnoreCase))
+            {
+                secret = "CafeWebsite_DevOnly_SecretKey_2024_MinimumLength32Characters_Required!";
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "JWT secret (Jwt__Secret) must be configured in production environment variables.");
+            }
+        }
+
+        _jwtSecret = secret;
         _jwtExpiryMinutes = int.TryParse(Environment.GetEnvironmentVariable("Jwt__ExpiryMinutes"), out var expiry) 
             ? expiry : 1440; // 24 hours default
     }
@@ -56,7 +73,8 @@ public class AuthService
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
-            Expires = MongoService.GetIstNow().AddMinutes(_jwtExpiryMinutes),
+            // Use UTC for token expiry (IST conversion was incorrect for cloud environments)
+            Expires = DateTime.UtcNow.AddMinutes(_jwtExpiryMinutes),
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(key), 
                 SecurityAlgorithms.HmacSha256Signature)

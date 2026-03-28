@@ -11,13 +11,24 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  // If token exists, clone the request and add Authorization header
+  // Build headers: auth token + CSRF token for mutating requests
+  const headers: Record<string, string> = {};
+
   if (token) {
-    const clonedRequest = req.clone({
-      setHeaders: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Attach CSRF token for state-changing requests
+  const mutatingMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
+  if (mutatingMethods.includes(req.method.toUpperCase())) {
+    const csrfToken = localStorage.getItem('csrfToken');
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+
+  if (Object.keys(headers).length > 0) {
+    const clonedRequest = req.clone({ setHeaders: headers });
     return next(clonedRequest);
   }
 

@@ -258,9 +258,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
     this.salesItemTypeService.getActiveSalesItemTypes().subscribe({
       next: (items) => {
         this.salesItemTypes = items;
-        console.log('Loaded sales item types:', items);
         if (items.length === 0) {
-          console.warn('No sales item types found. You may need to initialize them.');
         }
       },
       error: (err) => {
@@ -313,7 +311,6 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
       unitPrice: itemType.defaultPrice
     }));
 
-    console.log('Pre-filled items:', preFilledItems); // Debug log
 
     this.formData = {
       date: getIstDateString(),
@@ -590,4 +587,8 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
       }
     });
   }
+
+  trackByKey(index: number, item: any): string { return item.key; }
+  trackByIndex(index: number): number { return index; }
+  trackByObjId(index: number, item: any): string { return item.id; }
 }

@@ -87,7 +87,6 @@ export class OutletManagementComponent implements OnInit {
       outlet._id = outlet.id;
     }
     this.outletForm = { ...outlet };
-    console.log('Editing outlet:', this.selectedOutlet);
     this.showModal = true;
   }
 
@@ -106,11 +105,9 @@ export class OutletManagementComponent implements OnInit {
   }
 
   private createOutlet(): void {
-    console.log('Creating outlet with data:', this.outletForm);
     this.isLoading = true;
     this.outletService.createOutlet(this.outletForm).subscribe({
       next: (response) => {
-        console.log('Create response:', response);
         this.successMessage = 'Outlet created successfully';
         this.isLoading = false;
         this.closeModal();
@@ -135,11 +132,9 @@ export class OutletManagementComponent implements OnInit {
       return;
     }
 
-    console.log('Updating outlet with ID:', outletId, 'Data:', this.outletForm);
     this.isLoading = true;
     this.outletService.updateOutlet(outletId, this.outletForm).subscribe({
       next: (response) => {
-        console.log('Update response:', response);
         this.successMessage = 'Outlet updated successfully';
         this.isLoading = false;
         this.closeModal();
@@ -200,6 +195,7 @@ export class OutletManagementComponent implements OnInit {
 
   viewOutletDetails(outlet: Outlet): void {
     // Navigate to outlet details page or show in modal
-    console.log('View outlet details:', outlet);
   }
+
+  trackById(index: number, item: any): string { return item._id; }
 }

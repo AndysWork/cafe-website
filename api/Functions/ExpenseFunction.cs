@@ -9,6 +9,7 @@ using OfficeOpenXml;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
+using MongoDB.Bson;
 
 namespace Cafe.Api.Functions;
 
@@ -46,10 +47,16 @@ public class ExpenseFunction
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             _log.LogInformation("Fetching all expenses from database...");
-            var expenses = await _mongo.GetAllExpensesAsync(outletId);
+            var (page, pageSize) = PaginationHelper.ParsePagination(req);
+            var expenses = await _mongo.GetAllExpensesAsync(outletId, page, pageSize);
             _log.LogInformation($"Successfully fetched {expenses.Count} expenses");
 
             var response = req.CreateResponse(HttpStatusCode.OK);
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await _mongo.GetAllExpensesCountAsync(outletId);
+                PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
+            }
             await response.WriteAsJsonAsync(expenses);
             return response;
         }
@@ -147,9 +154,15 @@ public class ExpenseFunction
             endDate = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, 999, DateTimeKind.Unspecified);
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var expenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate, outletId);
+            var (page, pageSize) = PaginationHelper.ParsePagination(req);
+            var expenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate, outletId, page, pageSize);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await _mongo.GetExpensesByDateRangeCountAsync(startDate, endDate, outletId);
+                PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
+            }
             await response.WriteAsJsonAsync(expenses);
             return response;
         }
@@ -301,147 +314,138 @@ public class ExpenseFunction
                 : DateTime.Parse(endDateStr);
 
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
-            var allExpenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate, outletId);
 
-            // Filter by source
-            var expenses = source == "All" 
-                ? allExpenses 
-                : allExpenses.Where(e => e.ExpenseSource == source).ToList();
+            // Single MongoDB $facet aggregation — all breakdowns computed server-side
+            var facetResult = await _mongo.GetExpenseAnalyticsAggregationAsync(startDate, endDate, source, outletId);
 
-            // Calculate analytics
-            var totalExpenses = expenses.Sum(e => e.Amount);
-            var expenseCount = expenses.Count;
-            var averageExpense = expenseCount > 0 ? totalExpenses / expenseCount : 0;
+            var summaryDoc = facetResult?["summary"].AsBsonArray.FirstOrDefault()?.AsBsonDocument;
+            var totalExpenses = summaryDoc?["total"].ToDecimal() ?? 0;
+            var expenseCount = summaryDoc?["count"].ToInt32() ?? 0;
+            var averageExpense = summaryDoc?["avg"].ToDecimal() ?? 0;
 
-            // Top expense types
-            var topExpenseTypes = expenses
-                .GroupBy(e => e.ExpenseType)
-                .Select(g => new
+            // Top expense types (from DB aggregation)
+            var topExpenseTypes = (facetResult?["byType"].AsBsonArray ?? new BsonArray())
+                .Select(b => b.AsBsonDocument)
+                .Where(b => b["_id"] != BsonNull.Value)
+                .Select(b => new
                 {
-                    ExpenseType = g.Key,
-                    TotalAmount = g.Sum(e => e.Amount),
-                    Count = g.Count(),
-                    AverageAmount = g.Average(e => e.Amount),
-                    Percentage = totalExpenses > 0 ? (g.Sum(e => e.Amount) / totalExpenses) * 100 : 0
+                    ExpenseType = b["_id"].AsString,
+                    TotalAmount = b["total"].ToDecimal(),
+                    Count = b["count"].ToInt32(),
+                    AverageAmount = b["avg"].ToDecimal(),
+                    Percentage = totalExpenses > 0 ? (b["total"].ToDecimal() / totalExpenses) * 100 : 0
                 })
-                .OrderByDescending(x => x.TotalAmount)
-                .Take(10)
                 .ToList();
 
-            // Payment method breakdown
-            var paymentMethodBreakdown = expenses
-                .GroupBy(e => e.PaymentMethod)
-                .Select(g => new
+            // Payment method breakdown (from DB aggregation)
+            var paymentMethodBreakdown = (facetResult?["byPayment"].AsBsonArray ?? new BsonArray())
+                .Select(b => b.AsBsonDocument)
+                .Where(b => b["_id"] != BsonNull.Value)
+                .Select(b => new
                 {
-                    PaymentMethod = g.Key,
-                    TotalAmount = g.Sum(e => e.Amount),
-                    Count = g.Count(),
-                    Percentage = totalExpenses > 0 ? (g.Sum(e => e.Amount) / totalExpenses) * 100 : 0
+                    PaymentMethod = b["_id"].AsString,
+                    TotalAmount = b["total"].ToDecimal(),
+                    Count = b["count"].ToInt32(),
+                    Percentage = totalExpenses > 0 ? (b["total"].ToDecimal() / totalExpenses) * 100 : 0
                 })
-                .OrderByDescending(x => x.TotalAmount)
                 .ToList();
 
-            // Source breakdown (if All)
-            var sourceBreakdown = expenses
-                .GroupBy(e => e.ExpenseSource)
-                .Select(g => new
+            // Source breakdown (from DB aggregation)
+            var sourceBreakdown = (facetResult?["bySource"].AsBsonArray ?? new BsonArray())
+                .Select(b => b.AsBsonDocument)
+                .Where(b => b["_id"] != BsonNull.Value)
+                .Select(b => new
                 {
-                    Source = g.Key,
-                    TotalAmount = g.Sum(e => e.Amount),
-                    Count = g.Count(),
-                    Percentage = totalExpenses > 0 ? (g.Sum(e => e.Amount) / totalExpenses) * 100 : 0
+                    Source = b["_id"].AsString,
+                    TotalAmount = b["total"].ToDecimal(),
+                    Count = b["count"].ToInt32(),
+                    Percentage = totalExpenses > 0 ? (b["total"].ToDecimal() / totalExpenses) * 100 : 0
                 })
-                .OrderByDescending(x => x.TotalAmount)
                 .ToList();
 
             // Daily average
             var dateRange = (endDate - startDate).Days + 1;
             var dailyAverage = totalExpenses / Math.Max(dateRange, 1);
 
-            // Weekly trend (last 8 weeks)
-            var weeklyTrend = expenses
-                .GroupBy(e => GetWeekStartDate(e.Date))
-                .Select(g => new
+            // Weekly trend (from DB aggregation using $isoWeek)
+            var weeklyTrend = (facetResult?["byWeek"].AsBsonArray ?? new BsonArray())
+                .Select(b => b.AsBsonDocument)
+                .Select(b =>
                 {
-                    WeekStartDate = g.Key,
-                    WeekStart = g.Key.ToString("MMM dd, yyyy"),
-                    TotalAmount = g.Sum(e => e.Amount),
-                    Count = g.Count()
+                    var year = b["_id"].AsBsonDocument["year"].ToInt32();
+                    var week = b["_id"].AsBsonDocument["week"].ToInt32();
+                    // Calculate week start date from ISO year/week
+                    var jan4 = new DateTime(year, 1, 4);
+                    var dayOfWeek = (int)jan4.DayOfWeek;
+                    var mondayOfWeek1 = jan4.AddDays(1 - (dayOfWeek == 0 ? 7 : dayOfWeek));
+                    var weekStart = mondayOfWeek1.AddDays((week - 1) * 7);
+                    return new
+                    {
+                        WeekStartDate = weekStart,
+                        WeekStart = weekStart.ToString("MMM dd, yyyy"),
+                        TotalAmount = b["total"].ToDecimal(),
+                        Count = b["count"].ToInt32()
+                    };
                 })
-                .OrderByDescending(x => x.WeekStartDate)
-                .Take(8)
                 .OrderBy(x => x.WeekStartDate)
-                .Select(x => new
-                {
-                    x.WeekStart,
-                    x.TotalAmount,
-                    x.Count
-                })
+                .Select(x => new { x.WeekStart, x.TotalAmount, x.Count })
                 .ToList();
 
-            // Monthly comparison (last 12 months)
-            var monthlyComparison = expenses
-                .GroupBy(e => new { Year = e.Date.Year, Month = e.Date.Month })
-                .Select(g => new
+            // Monthly comparison (from DB aggregation)
+            var monthlyComparison = (facetResult?["byMonth"].AsBsonArray ?? new BsonArray())
+                .Select(b => b.AsBsonDocument)
+                .Select(b => new
                 {
-                    Year = g.Key.Year,
-                    Month = g.Key.Month,
-                    MonthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
-                    TotalAmount = g.Sum(e => e.Amount),
-                    Count = g.Count(),
-                    AverageExpense = g.Average(e => e.Amount)
+                    Year = b["_id"].AsBsonDocument["year"].ToInt32(),
+                    Month = b["_id"].AsBsonDocument["month"].ToInt32(),
+                    MonthName = new DateTime(b["_id"].AsBsonDocument["year"].ToInt32(), b["_id"].AsBsonDocument["month"].ToInt32(), 1).ToString("MMM yyyy"),
+                    TotalAmount = b["total"].ToDecimal(),
+                    Count = b["count"].ToInt32(),
+                    AverageExpense = b["avg"].ToDecimal()
                 })
-                .OrderByDescending(x => x.Year)
-                .ThenByDescending(x => x.Month)
-                .Take(12)
                 .OrderBy(x => x.Year)
                 .ThenBy(x => x.Month)
                 .ToList();
 
-            // Peak expense days
-            var peakExpenseDays = expenses
-                .GroupBy(e => e.Date.Date)
-                .Select(g => new
+            // Peak expense days (from DB aggregation)
+            var peakExpenseDays = (facetResult?["byDay"].AsBsonArray ?? new BsonArray())
+                .Select(b => b.AsBsonDocument)
+                .Select(b => new
                 {
-                    Date = g.Key.ToString("MMM dd, yyyy"),
-                    TotalAmount = g.Sum(e => e.Amount),
-                    Count = g.Count()
+                    Date = DateTime.Parse(b["_id"].AsString).ToString("MMM dd, yyyy"),
+                    TotalAmount = b["total"].ToDecimal(),
+                    Count = b["count"].ToInt32()
                 })
-                .OrderByDescending(x => x.TotalAmount)
-                .Take(10)
                 .ToList();
 
-            // Growth rate calculation - compare with same date range from previous month
+            // Growth rate — previous period aggregation (single additional DB query)
             var daysDiff = (endDate - startDate).Days;
             var prevStartDate = startDate.AddMonths(-1);
             var prevEndDate = prevStartDate.AddDays(daysDiff);
             
-            var prevPeriodExpenses = await _mongo.GetExpensesByDateRangeAsync(prevStartDate, prevEndDate);
-            var prevPeriodFiltered = source == "All" 
-                ? prevPeriodExpenses 
-                : prevPeriodExpenses.Where(e => e.ExpenseSource == source).ToList();
-            
-            var prevPeriodTotal = prevPeriodFiltered.Sum(e => e.Amount);
+            var prevFacet = await _mongo.GetExpenseAnalyticsAggregationAsync(prevStartDate, prevEndDate, source, outletId);
+            var prevSummary = prevFacet?["summary"].AsBsonArray.FirstOrDefault()?.AsBsonDocument;
+            var prevPeriodTotal = prevSummary?["total"].ToDecimal() ?? 0;
             var currentPeriodTotal = totalExpenses;
             
             var growthRate = prevPeriodTotal > 0 
                 ? ((currentPeriodTotal - prevPeriodTotal) / prevPeriodTotal) * 100 
                 : (currentPeriodTotal > 0 ? 100 : 0);
 
-            // Expense trends by type over time
-            var expenseTypesTrend = expenses
-                .GroupBy(e => e.ExpenseType)
+            // Expense trends by type (from DB aggregation)
+            var expenseTypesTrend = (facetResult?["byTypeTrend"].AsBsonArray ?? new BsonArray())
+                .Select(b => b.AsBsonDocument)
+                .Where(b => b["_id"].AsBsonDocument["type"] != BsonNull.Value)
+                .GroupBy(b => b["_id"].AsBsonDocument["type"].AsString)
                 .Select(typeGroup => new
                 {
                     ExpenseType = typeGroup.Key,
                     MonthlyTrend = typeGroup
-                        .GroupBy(e => new { Year = e.Date.Year, Month = e.Date.Month })
-                        .Select(g => new
+                        .Select(b => new
                         {
-                            MonthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
-                            TotalAmount = g.Sum(e => e.Amount)
+                            MonthName = new DateTime(b["_id"].AsBsonDocument["year"].ToInt32(), b["_id"].AsBsonDocument["month"].ToInt32(), 1).ToString("MMM yyyy"),
+                            TotalAmount = b["total"].ToDecimal()
                         })
-                        .OrderBy(x => x.MonthName)
                         .ToList()
                 })
                 .Where(x => x.MonthlyTrend.Count > 0)

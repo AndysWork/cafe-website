@@ -570,20 +570,6 @@ export class BonusCalculationComponent implements OnInit {
           const rawOvertime = this.calculatedMetrics.workedHours - this.calculatedMetrics.adjustedExpectedHours;
           calculation = `(${rawOvertime.toFixed(2)} - ${this.bufferHours} buffer) = ${overtimeHours.toFixed(2)} hrs × ₹${rate.toFixed(2)}`;
 
-          console.log('OvertimeHours calculation:', {
-            rawOvertimeHours: rawOvertime,
-            bufferHours: this.bufferHours,
-            eligibleOvertimeHours: overtimeHours,
-            hourlyRate: hourlyRate,
-            useDynamicRate: rule.useDynamicRate,
-            rateAmount: rule.rateAmount,
-            rateMultiplier: rule.rateMultiplier,
-            finalRate: rate,
-            bonusAmount: amount,
-            totalLeaveHours: this.calculatedMetrics.totalLeaveHours,
-            adjustedExpectedHours: this.calculatedMetrics.adjustedExpectedHours,
-            formula: `(${rawOvertime.toFixed(2)} - ${this.bufferHours}) × ${rate.toFixed(2)} = ${amount.toFixed(2)}`
-          });
 
           if (rule.maxAmount && amount > rule.maxAmount) {
             amount = rule.maxAmount;
@@ -684,15 +670,6 @@ export class BonusCalculationComponent implements OnInit {
       }
     }
 
-    console.log('getHourlyRate:', {
-      staffId: staff.id,
-      salary: staff.salary,
-      salaryType: staff.salaryType,
-      dailyHours: dailyHours,
-      hourlyRate: hourlyRate,
-      calculation: staff.salaryType === 'Monthly' ? `${staff.salary} / (30 × ${dailyHours.toFixed(2)})` :
-                   staff.salaryType === 'Daily' ? `${staff.salary} / ${dailyHours.toFixed(2)}` : 'direct'
-    });
 
     return hourlyRate;
   }
@@ -735,14 +712,6 @@ export class BonusCalculationComponent implements OnInit {
 
     // Return average hours per working day
     const avgHours = totalDays > 0 ? totalHours / totalDays : 0;
-    console.log('getAverageDailyWorkingHours:', {
-      staffId: staff.id,
-      shiftsCount: staff.shifts?.length,
-      activeDays: totalDays,
-      totalHours: totalHours,
-      avgHours: avgHours,
-      dayMap: Array.from(dayMap.entries())
-    });
     return avgHours;
   }
 
@@ -1302,4 +1271,7 @@ export class BonusCalculationComponent implements OnInit {
     );
     return topPerformer.staffName;
   }
+
+  trackByIndex(index: number): number { return index; }
+  trackByObjId(index: number, item: any): string { return item.id; }
 }

@@ -22,7 +22,7 @@
 
   <!-- Outlets Grid -->
   <div class="outlets-grid" *ngIf="!isLoading || outlets.length > 0">
-    <div class="outlet-card" *ngFor="let outlet of outlets">
+    <div class="outlet-card" *ngFor="let outlet of outlets; trackBy: trackById">
       <div class="outlet-header">
         <div class="outlet-info">
           <h3>{{ outlet.outletName }}</h3>

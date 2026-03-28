@@ -48,9 +48,15 @@ public class SalesFunction
             // Extract outlet ID from request (optional for admin)
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
-            var sales = await _mongo.GetAllSalesAsync(outletId);
+            var (page, pageSize) = PaginationHelper.ParsePagination(req);
+            var sales = await _mongo.GetAllSalesAsync(outletId, page, pageSize);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await _mongo.GetAllSalesCountAsync(outletId);
+                PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
+            }
             await response.WriteAsJsonAsync(sales);
             return response;
         }

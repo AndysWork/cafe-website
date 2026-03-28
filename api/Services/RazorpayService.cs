@@ -18,7 +18,7 @@ public class RazorpayService : IRazorpayService
 
     public RazorpayService(IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<RazorpayService> logger)
     {
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = httpClientFactory.CreateClient("Razorpay");
         _keyId = config["Razorpay__KeyId"] ?? throw new InvalidOperationException("Razorpay__KeyId not configured");
         _keySecret = config["Razorpay__KeySecret"] ?? throw new InvalidOperationException("Razorpay__KeySecret not configured");
         _logger = logger;
@@ -71,6 +71,9 @@ public class RazorpayService : IRazorpayService
         var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
         var computedSignature = BitConverter.ToString(computedHash).Replace("-", "").ToLowerInvariant();
 
-        return string.Equals(computedSignature, signature, StringComparison.OrdinalIgnoreCase);
+        // Use constant-time comparison to prevent timing attacks
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(computedSignature),
+            Encoding.UTF8.GetBytes(signature?.ToLowerInvariant() ?? ""));
     }
 }

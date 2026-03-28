@@ -10,6 +10,8 @@ namespace Cafe.Api.Helpers;
 public class CsrfTokenManager
 {
     private static readonly ConcurrentDictionary<string, CsrfToken> _tokens = new();
+    private static DateTime _lastGlobalCleanup = DateTime.UtcNow;
+    private static readonly TimeSpan GlobalCleanupInterval = TimeSpan.FromMinutes(30);
     private const int TokenExpiryMinutes = 60;
     private const int MaxTokensPerUser = 10;
 
@@ -39,6 +41,13 @@ public class CsrfTokenManager
 
         // Cleanup old tokens for this user
         CleanupUserTokens(userId);
+
+        // Periodic global cleanup of expired tokens
+        if (DateTime.UtcNow - _lastGlobalCleanup > GlobalCleanupInterval)
+        {
+            _lastGlobalCleanup = DateTime.UtcNow;
+            CleanupExpiredTokens();
+        }
 
         return token;
     }

@@ -4,6 +4,9 @@ using MimeKit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Models;
+using Polly;
+using Polly.Retry;
+using System.Net.Sockets;
 
 namespace Cafe.Api.Services;
 
@@ -21,6 +24,11 @@ public class EmailService : IEmailService
     private readonly string _baseUrl;
     private readonly bool _useSsl;
     private readonly bool _isEnabled;
+    private readonly AsyncRetryPolicy _smtpRetryPolicy;
+    private int _consecutiveFailures;
+    private DateTime _circuitOpenUntil = DateTime.MinValue;
+    private static readonly int CircuitBreakerThreshold = 5;
+    private static readonly TimeSpan CircuitBreakerDuration = TimeSpan.FromMinutes(2);
 
     public EmailService(IConfiguration config, ILogger<EmailService> logger, MongoService mongo)
     {
@@ -50,6 +58,23 @@ public class EmailService : IEmailService
         {
             _logger.LogWarning("Email service is disabled. Configure SMTP credentials in local.settings.json to enable.");
         }
+
+        // Polly retry policy for transient SMTP failures (3 retries with exponential backoff)
+        _smtpRetryPolicy = Policy
+            .Handle<SocketException>()
+            .Or<IOException>()
+            .Or<TimeoutException>()
+            .Or<SmtpCommandException>(ex => ex.StatusCode == SmtpStatusCode.ServiceNotAvailable 
+                || ex.StatusCode == SmtpStatusCode.ServiceClosingTransmissionChannel
+                || ex.StatusCode == SmtpStatusCode.InsufficientStorage)
+            .Or<SmtpProtocolException>()
+            .WaitAndRetryAsync(3,
+                retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                (exception, timeSpan, retryCount, _) =>
+                {
+                    _logger.LogWarning(exception, "SMTP transient failure (attempt {RetryCount}/3). Retrying in {Delay}s",
+                        retryCount, timeSpan.TotalSeconds);
+                });
     }
 
     private static string ExtractEmailAddress(string emailConfig)
@@ -247,6 +272,14 @@ Maa Tara Cafe Team
 
     private async Task<bool> SendEmailAsync(string toEmail, string subject, string htmlContent, string plainTextContent)
     {
+        // Circuit breaker check — skip if too many recent failures
+        if (_consecutiveFailures >= CircuitBreakerThreshold && DateTime.UtcNow < _circuitOpenUntil)
+        {
+            _logger.LogWarning("SMTP circuit breaker OPEN — skipping email to {ToEmail}. Resets at {ResetTime:HH:mm:ss}",
+                toEmail, _circuitOpenUntil);
+            return false;
+        }
+
         try
         {
             var message = new MimeMessage();
@@ -261,26 +294,37 @@ Maa Tara Cafe Team
             };
             message.Body = bodyBuilder.ToMessageBody();
 
-            using var client = new SmtpClient();
-            
-            // Connect to SMTP server
-            await client.ConnectAsync(_smtpHost, _smtpPort, _useSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto);
-            
-            // Authenticate
-            await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
-            
-            // Send email
-            await client.SendAsync(message);
-            
-            // Disconnect
-            await client.DisconnectAsync(true);
+            // Retry transient SMTP failures with Polly (3 retries, exponential backoff: 2s, 4s, 8s)
+            await _smtpRetryPolicy.ExecuteAsync(async () =>
+            {
+                using var client = new SmtpClient();
+                client.Timeout = 30000; // 30 second timeout
+                
+                await client.ConnectAsync(_smtpHost, _smtpPort, _useSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto);
+                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+            });
 
-            _logger.LogInformation($"Email sent successfully to {toEmail}: {subject}");
+            // Reset circuit breaker on success
+            _consecutiveFailures = 0;
+            _logger.LogInformation("Email sent successfully to {ToEmail}: {Subject}", toEmail, subject);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"Error sending email to {toEmail}: {subject}");
+            _consecutiveFailures++;
+            if (_consecutiveFailures >= CircuitBreakerThreshold)
+            {
+                _circuitOpenUntil = DateTime.UtcNow.Add(CircuitBreakerDuration);
+                _logger.LogError(ex, "SMTP circuit breaker OPENED after {Failures} consecutive failures. Email to {ToEmail} failed. Breaker resets in {Duration}min",
+                    _consecutiveFailures, toEmail, CircuitBreakerDuration.TotalMinutes);
+            }
+            else
+            {
+                _logger.LogError(ex, "Error sending email to {ToEmail}: {Subject} (failure {Count}/{Threshold})",
+                    toEmail, subject, _consecutiveFailures, CircuitBreakerThreshold);
+            }
             return false;
         }
     }

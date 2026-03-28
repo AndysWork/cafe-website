@@ -274,4 +274,8 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
     return this.calculatedRent + this.formData.cookSalary + this.formData.helperSalary +
            this.formData.electricity + this.formData.machineMaintenance + this.formData.misc;
   }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+
+  trackByIndex(index: number): number { return index; }
 }

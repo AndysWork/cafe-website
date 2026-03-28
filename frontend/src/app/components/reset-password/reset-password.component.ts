@@ -1,8 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-reset-password',
@@ -10,7 +11,7 @@ import { AuthService } from '../../services/auth.service';
   templateUrl: './reset-password.component.html',
   styleUrl: './reset-password.component.scss'
 })
-export class ResetPasswordComponent implements OnInit {
+export class ResetPasswordComponent implements OnInit, OnDestroy {
   token = '';
   newPassword = '';
   confirmPassword = '';
@@ -18,6 +19,7 @@ export class ResetPasswordComponent implements OnInit {
   errorMessage = '';
   isLoading = false;
   passwordReset = false;
+  private routeSub?: Subscription;
 
   constructor(
     private authService: AuthService,
@@ -26,9 +28,13 @@ export class ResetPasswordComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.route.queryParams.subscribe(params => {
+    this.routeSub = this.route.queryParams.subscribe(params => {
       this.token = params['token'] || '';
     });
+  }
+
+  ngOnDestroy(): void {
+    this.routeSub?.unsubscribe();
   }
 
   onSubmit(): void {

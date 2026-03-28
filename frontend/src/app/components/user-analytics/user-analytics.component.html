@@ -124,7 +124,7 @@
       <div class="chart-card" *ngIf="dashboard.dailyActiveUsers.length > 0">
         <h3>📈 Daily Active Users (Last 30 Days)</h3>
         <div class="bar-chart horizontal-chart">
-          <div class="chart-row" *ngFor="let day of dashboard.dailyActiveUsers">
+          <div class="chart-row" *ngFor="let day of dashboard.dailyActiveUsers; trackBy: trackByIndex">
             <span class="chart-label">{{ day.date | date:'MMM d' }}</span>
             <div class="chart-bar-container">
               <div class="chart-bar accent-blue-bar"
@@ -140,7 +140,7 @@
       <div class="chart-card" *ngIf="dashboard.hourlyActivity.length > 0">
         <h3>⏰ Today's Activity by Hour</h3>
         <div class="hourly-chart">
-          <div class="hourly-bar-group" *ngFor="let h of dashboard.hourlyActivity">
+          <div class="hourly-bar-group" *ngFor="let h of dashboard.hourlyActivity; trackBy: trackByIndex">
             <div class="hourly-bar"
                  [style.height]="getBarWidth(h.eventCount, maxHourlyEvents)"
                  [title]="h.eventCount + ' events'">
@@ -173,7 +173,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let session of dashboard.recentSessions"
+            <tr *ngFor="let session of dashboard.recentSessions; trackBy: trackByIndex"
                 [class.active-row]="session.isActive">
               <td>
                 <span class="status-dot" [class.online]="session.isActive" [class.offline]="!session.isActive"></span>
@@ -211,7 +211,7 @@
       </div>
 
       <div class="features-list" *ngIf="dashboard.topFeatures.length > 0">
-        <div class="feature-item" *ngFor="let feature of dashboard.topFeatures; let i = index">
+        <div class="feature-item" *ngFor="let feature of dashboard.topFeatures; let i = index; trackBy: trackByIndex">
           <div class="feature-rank" [class.top3]="i < 3">{{ i + 1 }}</div>
           <div class="feature-info">
             <div class="feature-name">{{ feature.featureName }}</div>
@@ -254,7 +254,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let api of dashboard.apiPerformance">
+            <tr *ngFor="let api of dashboard.apiPerformance; trackBy: trackByIndex">
               <td class="endpoint-cell">
                 <code>{{ api.endpoint }}</code>
               </td>
@@ -354,7 +354,7 @@
       <div class="stat-card" *ngIf="dashboard.cartAnalytics.topCartedItems.length > 0">
         <h3>🏆 Most Added to Cart</h3>
         <div class="top-items">
-          <div class="top-item" *ngFor="let item of dashboard.cartAnalytics.topCartedItems; let i = index">
+          <div class="top-item" *ngFor="let item of dashboard.cartAnalytics.topCartedItems; let i = index; trackBy: trackByIndex">
             <span class="item-rank" [class.gold]="i === 0" [class.silver]="i === 1" [class.bronze]="i === 2">
               {{ i + 1 }}
             </span>

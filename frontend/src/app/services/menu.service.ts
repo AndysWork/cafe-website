@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { tap, shareReplay } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface MenuSubCategory {
@@ -58,9 +58,10 @@ export class MenuService {
     this.menuItemsUpdated$.next(true);
   }
 
-  // Get all categories
   getCategories(): Observable<MenuCategory[]> {
-    return this.http.get<MenuCategory[]>(`${this.apiUrl}/categories`);
+    return this.http.get<MenuCategory[]>(`${this.apiUrl}/categories`).pipe(
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
   // Get category by ID
@@ -68,9 +69,10 @@ export class MenuService {
     return this.http.get<MenuCategory>(`${this.apiUrl}/categories/${id}`);
   }
 
-  // Get all menu items
   getMenuItems(): Observable<MenuItem[]> {
-    return this.http.get<MenuItem[]>(`${this.apiUrl}/menu`);
+    return this.http.get<MenuItem[]>(`${this.apiUrl}/menu`).pipe(
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
   // Get menu item by ID

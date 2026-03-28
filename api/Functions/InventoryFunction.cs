@@ -43,9 +43,19 @@ public class InventoryFunction
         try
         {
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
-            var inventory = await _mongoService.GetAllInventoryAsync(outletId);
+            var (page, pageSize) = Helpers.PaginationHelper.ParsePagination(req);
+            var inventory = await _mongoService.GetAllInventoryAsync(outletId, page, pageSize);
+            
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(inventory);
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var total = await _mongoService.GetAllInventoryCountAsync(outletId);
+                await response.WriteAsJsonAsync(new { items = inventory, total, page, pageSize });
+            }
+            else
+            {
+                await response.WriteAsJsonAsync(inventory);
+            }
             return response;
         }
         catch (Exception ex)
@@ -69,7 +79,8 @@ public class InventoryFunction
         try
         {
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
-            var inventory = await _mongoService.GetActiveInventoryAsync(outletId);
+            var (page, pageSize) = Helpers.PaginationHelper.ParsePagination(req);
+            var inventory = await _mongoService.GetActiveInventoryAsync(outletId, page, pageSize);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(inventory);
             return response;

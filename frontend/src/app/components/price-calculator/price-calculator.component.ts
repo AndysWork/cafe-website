@@ -219,7 +219,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (recipes) => {
           this.recipes = recipes;
-          console.log('Loaded recipes:', recipes);
         },
         error: (err) => {
           console.error('Error loading recipes:', err);
@@ -237,16 +236,13 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   loadOverheadCosts(): void {
-    console.log('[Price Calculator] Loading overhead costs...');
     this.overheadCostService.getAllOverheadCosts()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (costs) => {
-          console.log('[Price Calculator] Received overhead costs:', costs);
           this.overheadCosts = costs;
           // Trigger change detection
           setTimeout(() => {
-            console.log('[Price Calculator] Overhead costs updated in UI:', this.overheadCosts);
           }, 0);
         },
         error: (err) => {
@@ -814,7 +810,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     // Load preparation time if available
     if (recipe.preparationTimeMinutes !== undefined && recipe.preparationTimeMinutes !== null) {
       this.preparationTimeMinutes = recipe.preparationTimeMinutes;
-      console.log('Loaded preparation time:', recipe.preparationTimeMinutes);
     } else {
       this.preparationTimeMinutes = 0;
     }
@@ -827,7 +822,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       this.oilUsageDays = recipe.oilUsage.oilUsageDays || 7;
       this.oilUsageHoursPerDay = recipe.oilUsage.oilUsageHoursPerDay || 9;
       this.calculatedOilCost = recipe.oilUsage.calculatedOilCost || 0;
-      console.log('Loaded oil usage data:', recipe.oilUsage);
     } else {
       // Reset oil usage to defaults
       this.fryingTimeMinutes = 0;
@@ -841,7 +835,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     // Load price forecast data if available
     if (recipe.priceForecast) {
       this.priceForecast = { ...recipe.priceForecast };
-      console.log('Loaded price forecast data:', recipe.priceForecast);
     } else {
       // Initialize price forecast if not present
       this.initializePriceForecast();
@@ -850,7 +843,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     // Load KPT data if available
     if (recipe.kptAnalysis) {
       this.kptData = { ...recipe.kptAnalysis };
-      console.log('Loaded KPT analysis data:', recipe.kptAnalysis);
     }
 
     this.calculatePrice();
@@ -1238,13 +1230,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     const costPerMinute = totalOilCost / totalUsageMinutes;
     this.calculatedOilCost = costPerMinute * this.fryingTimeMinutes;
 
-    console.log('Oil Cost Calculation:', {
-      totalOilCost: totalOilCost.toFixed(2),
-      totalUsageMinutes,
-      costPerMinute: costPerMinute.toFixed(4),
-      fryingTimeMinutes: this.fryingTimeMinutes,
-      calculatedOilCost: this.calculatedOilCost.toFixed(2)
-    });
   }
 
   loadPriceForecastForMenuItem(): void {
@@ -1435,7 +1420,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     if (!menuItem || !menuItem.id) {
       // Menu item doesn't exist, create it
-      console.log('Menu item not found, creating new menu item from forecast');
 
       // Set default category if available
       if (this.menuItems.length > 0 && this.menuItems[0].categoryId) {
@@ -1449,7 +1433,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (created) => {
-            console.log('Menu item created successfully:', created);
             // Add to local menu items array
             this.menuItems.push(created);
             this.showAlert('Menu item created and prices synced!', 'success');
@@ -1481,7 +1464,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (updated) => {
-          console.log('Menu item prices updated from forecast:', updated);
           // Update local menu items array with server response
           const index = this.menuItems.findIndex(m => m.id === menuItem.id);
           if (index !== -1) {
@@ -1521,7 +1503,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.log('Saving recipe:', this.currentRecipe);
 
     // Set menuItemId if the menu item exists
     const matchingMenuItem = this.menuItems.find(m =>
@@ -1529,11 +1510,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     );
     if (matchingMenuItem) {
       this.currentRecipe.menuItemId = matchingMenuItem.id;
-      console.log('Linked to menu item ID:', matchingMenuItem.id);
     } else {
       // Clear menuItemId if no matching menu item
       this.currentRecipe.menuItemId = undefined;
-      console.log('No matching menu item found, menuItemId cleared');
     }
 
     // Add oil usage data to recipe if frying time is specified
@@ -1546,7 +1525,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         oilUsageHoursPerDay: this.oilUsageHoursPerDay,
         calculatedOilCost: this.calculatedOilCost
       };
-      console.log('Oil usage data added:', this.currentRecipe.oilUsage);
     } else {
       // Clear oil usage if frying time is 0
       this.currentRecipe.oilUsage = undefined;
@@ -1554,7 +1532,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     // Add preparation time to recipe
     this.currentRecipe.preparationTimeMinutes = this.preparationTimeMinutes;
-    console.log('Preparation time added:', this.preparationTimeMinutes);
 
     // Add price forecast data to recipe if available
     if (this.priceForecast) {
@@ -1574,7 +1551,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         futureShopProfit: this.priceForecast.futureShopProfit,
         futureOnlineProfit: this.priceForecast.futureOnlineProfit
       };
-      console.log('Price forecast data added:', this.currentRecipe.priceForecast);
     }
 
     // Add KPT data if available
@@ -1587,16 +1563,13 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         stdDeviation: this.kptData.stdDeviation,
         orderCount: this.kptData.orderCount
       };
-      console.log('KPT analysis data added:', this.currentRecipe.kptAnalysis);
     }
 
-    console.log('Final recipe to save:', JSON.stringify(this.currentRecipe, null, 2));
 
     this.priceCalculatorService.saveRecipe(this.currentRecipe)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (savedRecipe) => {
-          console.log('Recipe saved successfully:', savedRecipe);
           this.currentRecipe = savedRecipe;
 
           // Reload recipes to update the list
@@ -1639,7 +1612,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     if (!menuItem || !menuItem.id) {
       // Menu item doesn't exist, create it
-      console.log('Menu item not found, creating new menu item');
 
       // Set default category if available
       if (this.menuItems.length > 0 && this.menuItems[0].categoryId) {
@@ -1653,7 +1625,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (created) => {
-            console.log('Menu item created successfully:', created);
             // Add to local menu items array
             this.menuItems.push(created);
             this.showAlert('Menu item created and prices set!', 'success');
@@ -1682,7 +1653,6 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (updated) => {
-          console.log('Menu item prices updated successfully:', updated);
           // Update local menu items array with server response
           const index = this.menuItems.findIndex(m => m.id === menuItem.id);
           if (index !== -1) {
@@ -1763,11 +1733,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   onIngredientSelect(event: Event): void {
     const selectElement = event.target as HTMLSelectElement;
     const ingredientId = selectElement.value;
-    console.log('Ingredient selected:', ingredientId);
-    console.log('Filtered ingredients:', this.filteredIngredients.map(i => ({ id: i.id, name: i.name })));
     // Search in both regular ingredients and frozen items (converted to ingredients)
     this.selectedIngredient = this.filteredIngredients.find(ing => ing.id === ingredientId) || null;
-    console.log('Selected ingredient object:', this.selectedIngredient);
 
     // Auto-set unit based on ingredient
     if (this.selectedIngredient) {
@@ -2094,4 +2061,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     const outlet = this.availableOutlets.find(o => o.id === outletId);
     return outlet?.outletName || outletId;
   }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+
+  trackByIndex(index: number): number { return index; }
 }

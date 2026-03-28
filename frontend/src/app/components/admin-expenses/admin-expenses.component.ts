@@ -219,9 +219,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     this.offlineExpenseTypeService.getActiveOfflineExpenseTypes().subscribe({
       next: (types) => {
         this.offlineExpenseTypes = types;
-        console.log('Loaded offline expense types:', types);
         if (types.length === 0) {
-          console.warn('No offline expense types found. You may need to initialize them.');
         }
       },
       error: (err) => {
@@ -235,9 +233,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     this.onlineExpenseTypeService.getActiveOnlineExpenseTypes().subscribe({
       next: (types) => {
         this.onlineExpenseTypes = types;
-        console.log('Loaded online expense types:', types);
         if (types.length === 0) {
-          console.warn('No online expense types found. You may need to initialize them.');
         }
       },
       error: (err) => {
@@ -936,4 +932,8 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     return this.calculatedRent + this.operationalFormData.cookSalary + this.operationalFormData.helperSalary +
            this.operationalFormData.electricity + this.operationalFormData.machineMaintenance + this.operationalFormData.misc;
   }
+
+  trackByKey(index: number, item: any): string { return item.key; }
+  trackByIndex(index: number): number { return index; }
+  trackByObjId(index: number, item: any): string { return item.id; }
 }

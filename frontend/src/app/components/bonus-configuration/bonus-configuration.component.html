@@ -39,7 +39,7 @@
 
   <!-- Configurations List -->
   <div *ngIf="!isLoading" class="configurations-grid">
-    <div *ngFor="let config of filteredConfigurations" class="config-card" [class.inactive]="!config.isActive">
+    <div *ngFor="let config of filteredConfigurations; trackBy: trackByIndex" class="config-card" [class.inactive]="!config.isActive">
       <div class="card-header">
         <h3>{{ config.configurationName }}</h3>
         <div class="card-actions">
@@ -71,7 +71,7 @@
           <div class="info-row">
             <strong>Positions:</strong>
             <span class="position-tags">
-              <span *ngFor="let pos of config.applicablePositions" class="tag">{{ pos }}</span>
+              <span *ngFor="let pos of config.applicablePositions; trackBy: trackByIndex" class="tag">{{ pos }}</span>
             </span>
           </div>
           <div class="info-row">
@@ -145,7 +145,7 @@
               class="form-control"
               [disabled]="modalMode === 'view'"
               required>
-              <option *ngFor="let period of calculationPeriods" [value]="period">{{ period }}</option>
+              <option *ngFor="let period of calculationPeriods; trackBy: trackByIndex" [value]="period">{{ period }}</option>
             </select>
           </div>
 
@@ -165,7 +165,7 @@
             <button type="button" class="btn btn-sm btn-secondary" (click)="clearAllPositions()">Clear All</button>
           </div>
           <div class="checkbox-grid">
-            <label *ngFor="let position of positions" class="checkbox-label">
+            <label *ngFor="let position of positions; trackBy: trackByIndex" class="checkbox-label">
               <input
                 type="checkbox"
                 [checked]="isPositionSelected(position)"
@@ -197,11 +197,11 @@
               <div class="form-group">
                 <label>Rule Type <span class="required">*</span></label>
                 <select [(ngModel)]="ruleForm.ruleType" name="ruleType" class="form-control" required>
-                  <option *ngFor="let type of ruleTypes" [value]="type.value">
+                  <option *ngFor="let type of ruleTypes; trackBy: trackByIndex" [value]="type.value">
                     {{ type.label }}
                   </option>
                 </select>
-                <small class="form-text" *ngFor="let type of ruleTypes">
+                <small class="form-text" *ngFor="let type of ruleTypes; trackBy: trackByIndex">
                   <span *ngIf="type.value === ruleForm.ruleType">{{ type.description }}</span>
                 </small>
               </div>
@@ -209,7 +209,7 @@
               <div class="form-group">
                 <label>Calculation Type <span class="required">*</span></label>
                 <select [(ngModel)]="ruleForm.calculationType" name="calculationType" class="form-control" required>
-                  <option *ngFor="let type of calculationTypes" [value]="type.value">
+                  <option *ngFor="let type of calculationTypes; trackBy: trackByIndex" [value]="type.value">
                     {{ type.label }}
                   </option>
                 </select>
@@ -342,7 +342,7 @@
 
           <!-- Rules List -->
           <div class="rules-list" *ngIf="configForm.rules.length > 0">
-            <div *ngFor="let rule of configForm.rules; let i = index" class="rule-item">
+            <div *ngFor="let rule of configForm.rules; let i = index; trackBy: trackByIndex" class="rule-item">
               <div class="rule-info">
                 <div class="rule-type">
                   <span class="badge" [class.badge-bonus]="rule.isBonus" [class.badge-deduction]="!rule.isBonus">
@@ -452,7 +452,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let staff of applicableStaff">
+            <tr *ngFor="let staff of applicableStaff; trackBy: trackByObjId">
               <td>
                 <strong>{{ staff.firstName }} {{ staff.lastName }}</strong>
                 <br>

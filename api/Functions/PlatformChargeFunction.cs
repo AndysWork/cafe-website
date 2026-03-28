@@ -47,6 +47,7 @@ public class PlatformChargeFunction
                 data = charges.Select(c => new PlatformChargeResponse
                 {
                     Id = c.Id!,
+                    OutletId = c.OutletId,
                     Platform = c.Platform,
                     Month = c.Month,
                     Year = c.Year,
@@ -102,6 +103,7 @@ public class PlatformChargeFunction
                 data = new PlatformChargeResponse
                 {
                     Id = charge.Id!,
+                    OutletId = charge.OutletId,
                     Platform = charge.Platform,
                     Month = charge.Month,
                     Year = charge.Year,
@@ -145,6 +147,7 @@ public class PlatformChargeFunction
                 data = charges.Select(c => new PlatformChargeResponse
                 {
                     Id = c.Id!,
+                    OutletId = c.OutletId,
                     Platform = c.Platform,
                     Month = c.Month,
                     Year = c.Year,
@@ -238,6 +241,7 @@ public class PlatformChargeFunction
                 data = new PlatformChargeResponse
                 {
                     Id = charge.Id!,
+                    OutletId = charge.OutletId,
                     Platform = charge.Platform,
                     Month = charge.Month,
                     Year = charge.Year,

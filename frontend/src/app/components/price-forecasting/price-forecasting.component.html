@@ -33,7 +33,7 @@
     </div>
 
     <div *ngIf="!loading && forecasts.length > 0" class="forecasts-grid">
-      <div class="forecast-card" *ngFor="let forecast of forecasts">
+      <div class="forecast-card" *ngFor="let forecast of forecasts; trackBy: trackByObjId">
         <div class="card-header">
           <h3>{{ forecast.menuItemName }}</h3>
           <span class="badge" [ngClass]="getStatusBadgeClass(forecast.isFinalized)">
@@ -46,11 +46,11 @@
             <h4>Cost & Make Price</h4>
             <div class="price-row">
               <span class="label">Make Price:</span>
-              <span class="value">₹{{ forecast.makePrice.toFixed(2) }}</span>
+              <span class="value">₹{{ forecast.makePrice | number:'1.2-2' }}</span>
             </div>
             <div class="price-row">
               <span class="label">Packaging Cost:</span>
-              <span class="value">₹{{ forecast.packagingCost.toFixed(2) }}</span>
+              <span class="value">₹{{ forecast.packagingCost | number:'1.2-2' }}</span>
             </div>
           </div>
 
@@ -58,11 +58,11 @@
             <h4>Shop Pricing</h4>
             <div class="price-row">
               <span class="label">Shop Price:</span>
-              <span class="value">₹{{ forecast.shopPrice.toFixed(2) }}</span>
+              <span class="value">₹{{ forecast.shopPrice | number:'1.2-2' }}</span>
             </div>
             <div class="price-row">
               <span class="label">Takeaway Price:</span>
-              <span class="value">₹{{ forecast.shopDeliveryPrice.toFixed(2) }}</span>
+              <span class="value">₹{{ forecast.shopDeliveryPrice | number:'1.2-2' }}</span>
             </div>
           </div>
 
@@ -70,7 +70,7 @@
             <h4>Online Pricing</h4>
             <div class="price-row">
               <span class="label">Online Price:</span>
-              <span class="value">₹{{ forecast.onlinePrice.toFixed(2) }}</span>
+              <span class="value">₹{{ forecast.onlinePrice | number:'1.2-2' }}</span>
             </div>
             <div class="price-row">
               <span class="label">Online Deduction:</span>
@@ -78,7 +78,7 @@
             </div>
             <div class="price-row">
               <span class="label">Online Discount:</span>
-              <span class="value">₹{{ forecast.onlineDiscount.toFixed(2) || '0.00' }}</span>
+              <span class="value">₹{{ forecast.onlineDiscount | number:'1.2-2' }}</span>
             </div>
           </div>
 
@@ -86,19 +86,19 @@
             <h4>Profit Analysis</h4>
             <div class="price-row">
               <span class="label"><strong>Online Payout:</strong></span>
-              <span class="value"><strong>₹{{ forecast.onlinePayout.toFixed(2) }}</strong></span>
+              <span class="value"><strong>₹{{ forecast.onlinePayout | number:'1.2-2' }}</strong></span>
             </div>
             <div class="price-row">
               <span class="label"><strong>Online Profit:</strong></span>
-              <span class="value"><strong>₹{{ forecast.onlineProfit.toFixed(2) }}</strong></span>
+              <span class="value"><strong>₹{{ forecast.onlineProfit | number:'1.2-2' }}</strong></span>
             </div>
             <div class="price-row">
               <span class="label"><strong>Offline Profit:</strong></span>
-              <span class="value"><strong>₹{{ forecast.offlineProfit.toFixed(2) }}</strong></span>
+              <span class="value"><strong>₹{{ forecast.offlineProfit | number:'1.2-2' }}</strong></span>
             </div>
             <div class="price-row">
               <span class="label"><strong>Takeaway Profit:</strong></span>
-              <span class="value"><strong>₹{{ forecast.takeawayProfit.toFixed(2) }}</strong></span>
+              <span class="value"><strong>₹{{ forecast.takeawayProfit | number:'1.2-2' }}</strong></span>
             </div>
           </div>
 
@@ -143,7 +143,7 @@
           <select id="menuItem" [(ngModel)]="forecastForm.menuItemId" name="menuItemId"
                   (change)="onMenuItemChange()" [disabled]="isEditMode" required>
             <option value="">Select a menu item</option>
-            <option *ngFor="let item of menuItems" [value]="item.id">{{ item.name }}</option>
+            <option *ngFor="let item of menuItems; trackBy: trackByObjId" [value]="item.id">{{ item.name }}</option>
           </select>
         </div>
 
@@ -211,15 +211,15 @@
             <select id="onlineDiscount" [(ngModel)]="selectedCouponId"
                    name="selectedCouponId" (change)="onDiscountCouponChange()" class="discount-dropdown">
               <option value="none">No Discount</option>
-              <option *ngFor="let coupon of activeCoupons" [value]="coupon.id">
+              <option *ngFor="let coupon of activeCoupons; trackBy: trackByObjId" [value]="coupon.id">
                 {{ coupon.couponCode }} - {{ coupon.platform }}
                 <ng-container *ngIf="coupon.discountPercentage">({{ coupon.discountPercentage }}%</ng-container>
-                <ng-container *ngIf="!coupon.discountPercentage">(Avg: ₹{{ coupon.averageDiscountAmount.toFixed(2) || '0.00' }}</ng-container>
+                <ng-container *ngIf="!coupon.discountPercentage">(Avg: ₹{{ coupon.averageDiscountAmount | number:'1.2-2' }}</ng-container>
                 <ng-container *ngIf="coupon.maxValue">, Max: ₹{{ coupon.maxValue }}</ng-container>)
               </option>
             </select>
             <div *ngIf="forecastForm.onlineDiscount && forecastForm.onlineDiscount > 0" class="discount-info">
-              Applied Discount: {{ forecastForm.onlineDiscount.toFixed(2) }}%
+              Applied Discount: {{ forecastForm.onlineDiscount | number:'1.2-2' }}%
             </div>
             <div *ngIf="discountWarning" class="discount-warning"
                  [class.warning]="discountWarning.includes('⚠️')"
@@ -234,19 +234,19 @@
           <div class="profit-grid">
             <div class="profit-item">
               <span class="profit-label">Online Payout</span>
-              <span class="profit-value">₹{{ forecastForm.onlinePayout?.toFixed(2) || '0.00' }}</span>
+              <span class="profit-value">₹{{ (forecastForm.onlinePayout || 0) | number:'1.2-2' }}</span>
             </div>
             <div class="profit-item">
               <span class="profit-label">Online Profit</span>
-              <span class="profit-value">₹{{ forecastForm.onlineProfit?.toFixed(2) || '0.00' }}</span>
+              <span class="profit-value">₹{{ (forecastForm.onlineProfit || 0) | number:'1.2-2' }}</span>
             </div>
             <div class="profit-item">
               <span class="profit-label">Offline Profit</span>
-              <span class="profit-value">₹{{ forecastForm.offlineProfit?.toFixed(2) || '0.00' }}</span>
+              <span class="profit-value">₹{{ (forecastForm.offlineProfit || 0) | number:'1.2-2' }}</span>
             </div>
             <div class="profit-item">
               <span class="profit-label">Takeaway Profit</span>
-              <span class="profit-value">₹{{ forecastForm.takeawayProfit?.toFixed(2) || '0.00' }}</span>
+              <span class="profit-value">₹{{ (forecastForm.takeawayProfit || 0) | number:'1.2-2' }}</span>
             </div>
           </div>
           <small class="help-text">
@@ -275,50 +275,50 @@
     </div>
     <div class="modal-body">
       <div class="history-timeline">
-        <div class="history-entry" *ngFor="let entry of selectedHistory">
+        <div class="history-entry" *ngFor="let entry of selectedHistory; trackBy: trackByIndex">
           <div class="history-header">
             <strong>{{ formatDate(entry.changeDate) }}</strong>
             <span>by {{ entry.changedBy }}</span>
           </div>
           <div class="history-details">
             <div class="detail-row">
-              <span>Make Price:</span> <span>₹{{ entry.makePrice.toFixed(2) }}</span>
+              <span>Make Price:</span> <span>₹{{ entry.makePrice | number:'1.2-2' }}</span>
             </div>
             <div class="detail-row">
-              <span>Packaging Cost:</span> <span>₹{{ entry.packagingCost.toFixed(2) }}</span>
+              <span>Packaging Cost:</span> <span>₹{{ entry.packagingCost | number:'1.2-2' }}</span>
             </div>
             <div class="detail-row">
-              <span>Shop Price:</span> <span>₹{{ entry.shopPrice.toFixed(2) }}</span>
+              <span>Shop Price:</span> <span>₹{{ entry.shopPrice | number:'1.2-2' }}</span>
             </div>
             <div class="detail-row">
-              <span>Takeaway Price:</span> <span>₹{{ entry.shopDeliveryPrice.toFixed(2) }}</span>
+              <span>Takeaway Price:</span> <span>₹{{ entry.shopDeliveryPrice | number:'1.2-2' }}</span>
             </div>
             <div class="detail-row">
-              <span>Online Price:</span> <span>₹{{ entry.onlinePrice.toFixed(2) }}</span>
+              <span>Online Price:</span> <span>₹{{ entry.onlinePrice | number:'1.2-2' }}</span>
             </div>
             <div class="detail-row" *ngIf="entry.updatedShopPrice > 0">
-              <span>Updated Shop Price:</span> <span>₹{{ entry.updatedShopPrice.toFixed(2) }}</span>
+              <span>Updated Shop Price:</span> <span>₹{{ entry.updatedShopPrice | number:'1.2-2' }}</span>
             </div>
             <div class="detail-row" *ngIf="entry.updatedOnlinePrice > 0">
-              <span>Updated Online Price:</span> <span>₹{{ entry.updatedOnlinePrice.toFixed(2) }}</span>
+              <span>Updated Online Price:</span> <span>₹{{ entry.updatedOnlinePrice | number:'1.2-2' }}</span>
             </div>
             <div class="detail-row">
               <span>Online Deduction:</span> <span>{{ entry.onlineDeduction }}%</span>
             </div>
             <div class="detail-row">
-              <span>Online Discount:</span> <span>₹{{ entry.onlineDiscount.toFixed(2) || '0.00' }}</span>
+              <span>Online Discount:</span> <span>₹{{ entry.onlineDiscount | number:'1.2-2' }}</span>
             </div>
             <div class="detail-row highlight">
-              <span><strong>Online Payout:</strong></span> <span><strong>₹{{ entry.onlinePayout.toFixed(2) }}</strong></span>
+              <span><strong>Online Payout:</strong></span> <span><strong>₹{{ entry.onlinePayout | number:'1.2-2' }}</strong></span>
             </div>
             <div class="detail-row highlight">
-              <span><strong>Online Profit:</strong></span> <span><strong>₹{{ entry.onlineProfit.toFixed(2) }}</strong></span>
+              <span><strong>Online Profit:</strong></span> <span><strong>₹{{ entry.onlineProfit | number:'1.2-2' }}</strong></span>
             </div>
             <div class="detail-row highlight">
-              <span><strong>Offline Profit:</strong></span> <span><strong>₹{{ entry.offlineProfit.toFixed(2) }}</strong></span>
+              <span><strong>Offline Profit:</strong></span> <span><strong>₹{{ entry.offlineProfit | number:'1.2-2' }}</strong></span>
             </div>
             <div class="detail-row highlight">
-              <span><strong>Takeaway Profit:</strong></span> <span><strong>₹{{ entry.takeawayProfit.toFixed(2) }}</strong></span>
+              <span><strong>Takeaway Profit:</strong></span> <span><strong>₹{{ entry.takeawayProfit | number:'1.2-2' }}</strong></span>
             </div>
             <div class="detail-row" *ngIf="entry.changeReason">
               <span>Reason:</span> <span>{{ entry.changeReason }}</span>

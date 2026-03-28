@@ -1,9 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { OutletService } from '../../services/outlet.service';
 import { AuthService } from '../../services/auth.service';
 import { Outlet } from '../../models/outlet.model';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-outlet-selector',
@@ -22,7 +23,7 @@ import { Outlet } from '../../models/outlet.model';
         [disabled]="outlets.length <= 1">
         <option [value]="''" disabled>Select an outlet</option>
         <option
-          *ngFor="let outlet of outlets"
+          *ngFor="let outlet of outlets; trackBy: trackById"
           [value]="outlet._id || outlet.id">
           {{ outlet.outletCode }} - {{ outlet.outletName }}
         </option>
@@ -97,9 +98,10 @@ import { Outlet } from '../../models/outlet.model';
     }
   `]
 })
-export class OutletSelectorComponent implements OnInit {
+export class OutletSelectorComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
   private authService = inject(AuthService);
+  private subscriptions: Subscription[] = [];
 
   outlets: Outlet[] = [];
   selectedOutletId: string = '';
@@ -107,26 +109,36 @@ export class OutletSelectorComponent implements OnInit {
 
   ngOnInit(): void {
     // Only show selector if user is logged in
-    this.authService.currentUser$.subscribe(user => {
-      this.isVisible = !!user;
-      if (user && user.assignedOutlets && user.assignedOutlets.length > 0) {
-        // Initialize outlets from user data
-        this.outletService.initializeOutlets(user.assignedOutlets);
-        this.loadOutlets();
-      }
-    });
+    this.subscriptions.push(
+      this.authService.currentUser$.subscribe(user => {
+        this.isVisible = !!user;
+        if (user && user.assignedOutlets && user.assignedOutlets.length > 0) {
+          // Initialize outlets from user data
+          this.outletService.initializeOutlets(user.assignedOutlets);
+          this.loadOutlets();
+        }
+      })
+    );
 
     // Subscribe to available outlets
-    this.outletService.availableOutlets$.subscribe(outlets => {
-      this.outlets = outlets;
-    });
+    this.subscriptions.push(
+      this.outletService.availableOutlets$.subscribe(outlets => {
+        this.outlets = outlets;
+      })
+    );
 
     // Subscribe to selected outlet
-    this.outletService.selectedOutlet$.subscribe(outlet => {
-      if (outlet) {
-        this.selectedOutletId = outlet._id || outlet.id || '';
-      }
-    });
+    this.subscriptions.push(
+      this.outletService.selectedOutlet$.subscribe(outlet => {
+        if (outlet) {
+          this.selectedOutletId = outlet._id || outlet.id || '';
+        }
+      })
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
   }
 
   private loadOutlets(): void {
@@ -155,4 +167,6 @@ export class OutletSelectorComponent implements OnInit {
       // Removed page reload for better UX
     }
   }
+
+  trackById(index: number, item: any): string { return item._id; }
 }

@@ -96,7 +96,6 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
     this.inventoryService.getInventoryReport().subscribe({
       next: (report) => {
         this.report = report;
-        console.log('Dashboard report loaded:', report);
       },
       error: (error) => {
         console.error('Error loading dashboard report:', error);

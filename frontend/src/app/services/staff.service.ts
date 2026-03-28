@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, map, shareReplay } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
   Staff,
@@ -30,7 +30,8 @@ export class StaffService {
   getAllStaff(activeOnly: boolean = false): Observable<Staff[]> {
     const url = activeOnly ? `${this.apiUrl}?activeOnly=true` : this.apiUrl;
     return this.http.get<ApiResponse<Staff[]>>(url).pipe(
-      map(response => response.data)
+      map(response => response.data),
+      shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 

@@ -155,4 +155,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   trackByItemId(index: number, item: MenuItem): string {
     return item.id;
   }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+
+  trackByIndex(index: number): number { return index; }
 }

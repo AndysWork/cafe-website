@@ -137,7 +137,7 @@
         <h2>🏆 Top Selling Items</h2>
         <div class="top-items-grid">
           <div
-            *ngFor="let item of insights.topSellingItems; let i = index"
+            *ngFor="let item of insights.topSellingItems; let i = index; trackBy: trackByName"
             class="top-item-card"
             [class.top-1]="i === 0"
             [class.top-2]="i === 1"
@@ -158,7 +158,7 @@
         <h2>💳 Payment Method Breakdown</h2>
         <div class="payment-breakdown">
           <div
-            *ngFor="let payment of insights.paymentMethodBreakdown"
+            *ngFor="let payment of insights.paymentMethodBreakdown; trackBy: trackByIndex"
             class="payment-card"
           >
             <div class="payment-header">
@@ -177,7 +177,7 @@
               ></div>
             </div>
             <span class="payment-percentage"
-              >{{ ((payment.total / insights.totalRevenue) * 100).toFixed(1) }}%
+              >{{ (payment.total / insights.totalRevenue) * 100 | number:'1.1-1' }}%
               of total</span
             >
           </div>
@@ -189,7 +189,7 @@
         <h2>🍽️ Sales by Category</h2>
         <div class="category-breakdown">
           <div
-            *ngFor="let category of insights.itemCategoryBreakdown"
+            *ngFor="let category of insights.itemCategoryBreakdown; trackBy: trackByIndex"
             class="category-card"
           >
             <div class="category-icon">
@@ -204,7 +204,7 @@
             </div>
             <div class="category-percentage">
               {{
-                ((category.revenue / insights.totalRevenue) * 100).toFixed(1)
+                (category.revenue / insights.totalRevenue) * 100 | number:'1.1-1'
               }}%
             </div>
           </div>
@@ -216,7 +216,7 @@
         <h2>📊 Weekly Trend (Last 4 Weeks)</h2>
         <div class="trend-chart">
           <div
-            *ngFor="let week of insights.weeklyTrend"
+            *ngFor="let week of insights.weeklyTrend; trackBy: trackByIndex"
             class="trend-bar-container"
           >
             <div
@@ -235,7 +235,7 @@
         <h2>📈 Monthly Comparison (Last 6 Months)</h2>
         <div class="monthly-chart">
           <div
-            *ngFor="let month of insights.monthlyComparison"
+            *ngFor="let month of insights.monthlyComparison; trackBy: trackByIndex"
             class="monthly-bar-container"
           >
             <div
@@ -259,7 +259,7 @@
         <h2>🔥 Top 5 Peak Sales Days</h2>
         <div class="peak-days-list">
           <div
-            *ngFor="let day of insights.peakSalesDays; let i = index"
+            *ngFor="let day of insights.peakSalesDays; let i = index; trackBy: trackByIndex"
             class="peak-day-card"
           >
             <div class="peak-rank">{{ i + 1 }}</div>
@@ -374,7 +374,7 @@
         <h2>🏆 Top Expense Categories</h2>
         <div class="top-items-grid">
           <div
-            *ngFor="let item of expenseAnalytics.topExpenseTypes; let i = index"
+            *ngFor="let item of expenseAnalytics.topExpenseTypes; let i = index; trackBy: trackByIndex"
             class="top-item-card"
             [class.top-1]="i === 0"
             [class.top-2]="i === 1"
@@ -386,7 +386,7 @@
                 {{ getExpenseTypeIcon(item.expenseType) }}
                 {{ item.expenseType }}
               </h4>
-              <p>Count: {{ item.count }} ({{ item.percentage.toFixed(1) }}%)</p>
+              <p>Count: {{ item.count }} ({{ item.percentage | number:'1.1-1' }}%)</p>
               <p>Avg: {{ formatCurrency(item.averageAmount) }}</p>
               <p class="item-revenue">{{ formatCurrency(item.totalAmount) }}</p>
             </div>
@@ -404,7 +404,7 @@
         <h2>📍 Expense Source Breakdown</h2>
         <div class="payment-breakdown">
           <div
-            *ngFor="let source of expenseAnalytics.sourceBreakdown"
+            *ngFor="let source of expenseAnalytics.sourceBreakdown; trackBy: trackByIndex"
             class="payment-card"
           >
             <div class="payment-header">
@@ -424,7 +424,7 @@
               ></div>
             </div>
             <span class="payment-percentage"
-              >{{ source.percentage.toFixed(1) }}% of total</span
+              >{{ source.percentage | number:'1.1-1' }}% of total</span
             >
           </div>
         </div>
@@ -435,7 +435,7 @@
         <h2>💳 Payment Method Breakdown</h2>
         <div class="payment-breakdown">
           <div
-            *ngFor="let payment of expenseAnalytics.paymentMethodBreakdown"
+            *ngFor="let payment of expenseAnalytics.paymentMethodBreakdown; trackBy: trackByIndex"
             class="payment-card"
           >
             <div class="payment-header">
@@ -454,7 +454,7 @@
               ></div>
             </div>
             <span class="payment-percentage"
-              >{{ payment.percentage.toFixed(1) }}% of total</span
+              >{{ payment.percentage | number:'1.1-1' }}% of total</span
             >
           </div>
         </div>
@@ -465,7 +465,7 @@
         <h2>📊 Weekly Expense Trend</h2>
         <div class="trend-chart">
           <div
-            *ngFor="let week of expenseAnalytics.weeklyTrend"
+            *ngFor="let week of expenseAnalytics.weeklyTrend; trackBy: trackByIndex"
             class="trend-bar-container"
           >
             <div
@@ -488,7 +488,7 @@
         <h2>📈 Monthly Expense Comparison</h2>
         <div class="monthly-chart">
           <div
-            *ngFor="let month of expenseAnalytics.monthlyComparison"
+            *ngFor="let month of expenseAnalytics.monthlyComparison; trackBy: trackByIndex"
             class="monthly-bar-container"
           >
             <div
@@ -514,7 +514,7 @@
         <h2>🔥 Top 10 Highest Expense Days</h2>
         <div class="peak-days-list">
           <div
-            *ngFor="let day of expenseAnalytics.peakExpenseDays; let i = index"
+            *ngFor="let day of expenseAnalytics.peakExpenseDays; let i = index; trackBy: trackByIndex"
             class="peak-day-card"
           >
             <div class="peak-rank">{{ i + 1 }}</div>
@@ -595,7 +595,7 @@
             <div class="card-content">
               <h3 style="color: #666 !important">Profit Margin</h3>
               <p class="card-value" style="color: #333 !important">
-                {{ (earningsData?.profitMargin || 0).toFixed(2) }}%
+                {{ (earningsData?.profitMargin || 0) | number:'1.2-2' }}%
               </p>
               <span
                 class="card-subtext"
@@ -605,7 +605,7 @@
                 style="color: inherit !important"
               >
                 {{ (earningsData?.profitMarginGrowth || 0) >= 0 ? "+" : ""
-                }}{{ (earningsData?.profitMarginGrowth || 0).toFixed(1) }}% vs.
+                }}{{ (earningsData?.profitMarginGrowth || 0) | number:'1.1-1' }}% vs.
                 last month
               </span>
               <span
@@ -876,7 +876,7 @@
               {{ formatCurrency(getActivePlatformData().totalPackaging) }}
             </p>
             <span class="card-subtext"
-              >{{ getActivePlatformData().packagingUsagePercent.toFixed(1) }}%
+              >{{ getActivePlatformData().packagingUsagePercent | number:'1.1-1' }}%
               usage</span
             >
           </div>
@@ -946,7 +946,7 @@
           <div class="card-content">
             <h3>Average Rating</h3>
             <p class="card-value">
-              {{ getActivePlatformData().avgRating.toFixed(1) }} ⭐
+              {{ getActivePlatformData().avgRating | number:'1.1-1' }} ⭐
             </p>
             <span class="card-subtext">Customer satisfaction</span>
           </div>
@@ -979,14 +979,14 @@
               <div class="stat-row">
                 <span>Rating:</span>
                 <strong
-                  >{{ onlineAnalytics.zomato.avgRating.toFixed(1) }} ⭐</strong
+                  >{{ onlineAnalytics.zomato.avgRating | number:'1.1-1' }} ⭐</strong
                 >
               </div>
               <div class="stat-row">
                 <span>Deduction %:</span>
                 <strong
                   >{{
-                    onlineAnalytics.zomato.avgDeductionPercent.toFixed(1)
+                    onlineAnalytics.zomato.avgDeductionPercent | number:'1.1-1'
                   }}%</strong
                 >
               </div>
@@ -1033,14 +1033,14 @@
               <div class="stat-row">
                 <span>Rating:</span>
                 <strong
-                  >{{ onlineAnalytics.swiggy.avgRating.toFixed(1) }} ⭐</strong
+                  >{{ onlineAnalytics.swiggy.avgRating | number:'1.1-1' }} ⭐</strong
                 >
               </div>
               <div class="stat-row">
                 <span>Deduction %:</span>
                 <strong
                   >{{
-                    onlineAnalytics.swiggy.avgDeductionPercent.toFixed(1)
+                    onlineAnalytics.swiggy.avgDeductionPercent | number:'1.1-1'
                   }}%</strong
                 >
               </div>
@@ -1072,7 +1072,7 @@
         <h2>🏆 Top Ordered Items</h2>
         <div class="top-items-grid">
           <div
-            *ngFor="let item of getActivePlatformData().topItems; let i = index"
+            *ngFor="let item of getActivePlatformData().topItems; let i = index; trackBy: trackByName"
             class="top-item-card"
             [class.top-1]="i === 0"
             [class.top-2]="i === 1"
@@ -1093,7 +1093,7 @@
         <h2>📈 Daily Income Trend</h2>
         <div class="trend-chart">
           <div
-            *ngFor="let day of getActivePlatformData().dailyTrend"
+            *ngFor="let day of getActivePlatformData().dailyTrend; trackBy: trackByIndex"
             class="trend-bar"
           >
             <div class="bar-container">
@@ -1116,7 +1116,7 @@
         <h2>⏰ Peak Days Analysis</h2>
         <div class="peak-hours-grid">
           <div
-            *ngFor="let peak of getActivePlatformData().peakDays"
+            *ngFor="let peak of getActivePlatformData().peakDays; trackBy: trackByIndex"
             class="peak-card"
           >
             <div class="peak-day">{{ peak.dayName }}</div>
@@ -1135,19 +1135,19 @@
           <div class="distance-card">
             <h4>Min Distance</h4>
             <p class="distance-value">
-              {{ getActivePlatformData().minDistance.toFixed(1) }} km
+              {{ getActivePlatformData().minDistance | number:'1.1-1' }} km
             </p>
           </div>
           <div class="distance-card">
             <h4>Max Distance</h4>
             <p class="distance-value">
-              {{ getActivePlatformData().maxDistance.toFixed(1) }} km
+              {{ getActivePlatformData().maxDistance | number:'1.1-1' }} km
             </p>
           </div>
           <div class="distance-card">
             <h4>Avg Distance</h4>
             <p class="distance-value">
-              {{ getActivePlatformData().avgDistance.toFixed(1) }} km
+              {{ getActivePlatformData().avgDistance | number:'1.1-1' }} km
             </p>
           </div>
           <div class="distance-card">
@@ -1164,7 +1164,7 @@
         <h2>⭐ Rating Distribution</h2>
         <div class="rating-distribution">
           <div
-            *ngFor="let rating of getActivePlatformData().ratingDistribution"
+            *ngFor="let rating of getActivePlatformData().ratingDistribution; trackBy: trackByIndex"
             class="rating-bar"
           >
             <div class="rating-label">{{ rating.stars }} ⭐</div>
@@ -1175,7 +1175,7 @@
               ></div>
             </div>
             <div class="rating-count">
-              {{ rating.count }} orders ({{ rating.percentage.toFixed(1) }}%)
+              {{ rating.count }} orders ({{ rating.percentage | number:'1.1-1' }}%)
             </div>
           </div>
         </div>
@@ -1186,7 +1186,7 @@
         <h2>📊 Monthly Performance</h2>
         <div class="monthly-comparison">
           <div
-            *ngFor="let month of getActivePlatformData().monthlyData"
+            *ngFor="let month of getActivePlatformData().monthlyData; trackBy: trackByIndex"
             class="month-card"
           >
             <h4>{{ month.month }}</h4>
@@ -1201,7 +1201,7 @@
               </div>
               <div class="stat">
                 <span>Avg Rating:</span>
-                <strong>{{ month.avgRating.toFixed(1) }} ⭐</strong>
+                <strong>{{ month.avgRating | number:'1.1-1' }} ⭐</strong>
               </div>
             </div>
           </div>
@@ -1243,7 +1243,7 @@
             <p class="card-value">{{ customerAnalytics.totalOrders }}</p>
             <span class="card-subtext"
               >{{
-                customerAnalytics.avgOrdersPerCustomer.toFixed(1)
+                customerAnalytics.avgOrdersPerCustomer | number:'1.1-1'
               }}
               avg/customer</span
             >
@@ -1256,7 +1256,7 @@
             <h3>Repeat Customers</h3>
             <p class="card-value">{{ customerAnalytics.repeatCustomers }}</p>
             <span class="card-subtext"
-              >{{ customerAnalytics.repeatRate.toFixed(1) }}% repeat rate</span
+              >{{ customerAnalytics.repeatRate | number:'1.1-1' }}% repeat rate</span
             >
           </div>
         </div>
@@ -1329,7 +1329,8 @@
               <tr
                 *ngFor="
                   let customer of customerAnalytics.topCustomersBySpending;
-                  let i = index
+                  let i = index;
+                  trackBy: trackByName
                 "
               >
                 <td class="rank">{{ i + 1 }}</td>
@@ -1343,7 +1344,7 @@
                 </td>
                 <td class="text-center">
                   <span *ngIf="customer.avgRating > 0" class="rating"
-                    >{{ customer.avgRating.toFixed(1) }} ⭐</span
+                    >{{ customer.avgRating | number:'1.1-1' }} ⭐</span
                   >
                   <span *ngIf="customer.avgRating === 0" class="no-rating"
                     >N/A</span
@@ -1351,7 +1352,7 @@
                 </td>
                 <td>
                   <span
-                    *ngFor="let platform of customer.platforms"
+                    *ngFor="let platform of customer.platforms; trackBy: trackByIndex"
                     [class]="'platform-badge ' + platform.toLowerCase()"
                   >
                     {{ platform }}
@@ -1386,7 +1387,8 @@
               <tr
                 *ngFor="
                   let customer of customerAnalytics.topCustomersByOrders;
-                  let i = index
+                  let i = index;
+                  trackBy: trackByName
                 "
               >
                 <td class="rank">{{ i + 1 }}</td>
@@ -1430,21 +1432,22 @@
               <tr
                 *ngFor="
                   let customer of customerAnalytics.topRatedCustomers;
-                  let i = index
+                  let i = index;
+                  trackBy: trackByName
                 "
               >
                 <td class="rank">{{ i + 1 }}</td>
                 <td class="customer-name">{{ customer.name }}</td>
                 <td class="text-center">{{ customer.orders }}</td>
                 <td class="text-center rating-highlight">
-                  {{ customer.avgRating.toFixed(1) }} ⭐
+                  {{ customer.avgRating | number:'1.1-1' }} ⭐
                 </td>
                 <td class="amount">
                   {{ formatCurrency(customer.totalSpent) }}
                 </td>
                 <td>
                   <span
-                    *ngFor="let platform of customer.platforms"
+                    *ngFor="let platform of customer.platforms; trackBy: trackByIndex"
                     [class]="'platform-badge ' + platform.toLowerCase()"
                   >
                     {{ platform }}
@@ -1474,7 +1477,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let customer of getRepeatCustomers(); let i = index">
+              <tr *ngFor="let customer of getRepeatCustomers(); let i = index; trackBy: trackByName">
                 <td class="rank">{{ i + 1 }}</td>
                 <td class="customer-name">{{ customer.name }}</td>
                 <td class="text-center highlight">{{ customer.orders }}</td>
@@ -1486,7 +1489,7 @@
                 </td>
                 <td class="text-center">
                   <span *ngIf="customer.avgRating > 0" class="rating"
-                    >{{ customer.avgRating.toFixed(1) }} ⭐</span
+                    >{{ customer.avgRating | number:'1.1-1' }} ⭐</span
                   >
                   <span *ngIf="customer.avgRating === 0" class="no-rating"
                     >N/A</span
@@ -1494,7 +1497,7 @@
                 </td>
                 <td>
                   <span
-                    *ngFor="let platform of customer.platforms"
+                    *ngFor="let platform of customer.platforms; trackBy: trackByIndex"
                     [class]="'platform-badge ' + platform.toLowerCase()"
                   >
                     {{ platform }}
@@ -1569,7 +1572,7 @@
             </thead>
             <tbody>
               <tr
-                *ngFor="let customer of getFilteredCustomers(); let i = index"
+                *ngFor="let customer of getFilteredCustomers(); let i = index; trackBy: trackByIndex"
               >
                 <td class="rank">{{ i + 1 }}</td>
                 <td class="customer-name">{{ customer.name }}</td>
@@ -1584,7 +1587,7 @@
                 </td>
                 <td class="text-center">
                   <span *ngIf="customer.avgRating > 0" class="rating"
-                    >{{ customer.avgRating.toFixed(1) }} ⭐</span
+                    >{{ customer.avgRating | number:'1.1-1' }} ⭐</span
                   >
                   <span *ngIf="customer.avgRating === 0" class="no-rating"
                     >N/A</span
@@ -1592,7 +1595,7 @@
                 </td>
                 <td>
                   <span
-                    *ngFor="let platform of customer.platforms"
+                    *ngFor="let platform of customer.platforms; trackBy: trackByIndex"
                     [class]="'platform-badge ' + platform.toLowerCase()"
                   >
                     {{ platform }}
@@ -1657,7 +1660,7 @@
               {{ formatCurrency(outletsOverview.netProfit) }}
             </p>
             <span class="card-subtext"
-              >Margin: {{ outletsOverview.profitMargin.toFixed(2) }}%</span
+              >Margin: {{ outletsOverview.profitMargin | number:'1.2-2' }}%</span
             >
           </div>
         </div>
@@ -1747,7 +1750,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let outlet of outletEarningsBreakdown; let i = index">
+              <tr *ngFor="let outlet of outletEarningsBreakdown; let i = index; trackBy: trackByIndex">
                 <td class="outlet-name">
                   <span>{{ outlet.outletName }}</span>
                 </td>
@@ -1768,7 +1771,7 @@
                   <span style="font-size: 1.05rem;">{{ formatCurrency(outlet.netProfit) }}</span>
                 </td>
                 <td class="text-center" [class.profit-positive]="outlet.profitMargin >= 0" [class.profit-negative]="outlet.profitMargin < 0">
-                  <strong style="font-size: 1rem;">{{ outlet.profitMargin.toFixed(1) }}%</strong>
+                  <strong style="font-size: 1rem;">{{ outlet.profitMargin | number:'1.1-1' }}%</strong>
                 </td>
               </tr>
               <!-- Summary Row -->
@@ -1794,7 +1797,7 @@
                 </td>
                 <td class="text-center" [class.profit-positive]="outletsOverview.profitMargin >= 0" [class.profit-negative]="outletsOverview.profitMargin < 0"
                     style="font-weight: 800; font-size: 1.1rem;">
-                  {{ outletsOverview.profitMargin.toFixed(1) }}%
+                  {{ outletsOverview.profitMargin | number:'1.1-1' }}%
                 </td>
               </tr>
             </tbody>

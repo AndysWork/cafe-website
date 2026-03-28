@@ -44,7 +44,7 @@
         (ngModelChange)="onFilterChange()"
         class="form-control">
         <option value="">All Positions</option>
-        <option *ngFor="let position of positions" [value]="position">{{ position }}</option>
+        <option *ngFor="let position of positions; trackBy: trackByIndex" [value]="position">{{ position }}</option>
       </select>
     </div>
 
@@ -90,7 +90,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let row of staffPerformanceRows" [class.edited]="row.isEdited" [class.has-data]="row.entry.id">
+          <tr *ngFor="let row of staffPerformanceRows; trackBy: trackByIndex" [class.edited]="row.isEdited" [class.has-data]="row.entry.id">
             <!-- Staff Info -->
             <td class="sticky-col staff-info">
               <div class="staff-details">
@@ -122,7 +122,7 @@
 
               <!-- Shifts List -->
               <div *ngIf="row.currentShifts.length > 0" class="shifts-list">
-                <div *ngFor="let shift of row.currentShifts; let i = index" class="shift-card">
+                <div *ngFor="let shift of row.currentShifts; let i = index; trackBy: trackByIndex" class="shift-card">
                   <div class="shift-header-row">
                     <div class="shift-name">
                       <i class="fas fa-briefcase"></i>

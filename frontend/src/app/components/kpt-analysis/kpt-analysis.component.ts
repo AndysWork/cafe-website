@@ -112,7 +112,6 @@ export class KptAnalysisComponent implements OnInit, OnDestroy {
       params.append('endDate', this.endDate);
 
       const url = `${environment.apiUrl}/online-sales/kpt-analysis?${params.toString()}`;
-      console.log('Loading KPT analysis from:', url);
 
       const response: any = await this.http.get(url).toPromise();
 
@@ -244,4 +243,6 @@ export class KptAnalysisComponent implements OnInit, OnDestroy {
     link.click();
     document.body.removeChild(link);
   }
+
+  trackByIndex(index: number): number { return index; }
 }

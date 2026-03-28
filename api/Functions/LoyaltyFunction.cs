@@ -316,7 +316,8 @@ public class LoyaltyFunction
                 return errorResponse!;
 
             // Get all accounts
-            var accounts = await _mongo.GetAllLoyaltyAccountsAsync();
+            var (page, pageSize) = Helpers.PaginationHelper.ParsePagination(req);
+            var accounts = await _mongo.GetAllLoyaltyAccountsAsync(page, pageSize);
 
             var accountResponses = accounts.Select(a =>
             {

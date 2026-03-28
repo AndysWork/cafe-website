@@ -1,9 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { OrderService, Order } from '../../services/order.service';
 import { AuthService } from '../../services/auth.service';
 import { formatIstDateTime } from '../../utils/date-utils';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-orders',
@@ -12,7 +13,7 @@ import { formatIstDateTime } from '../../utils/date-utils';
   templateUrl: './orders.component.html',
   styleUrls: ['./orders.component.scss']
 })
-export class OrdersComponent implements OnInit {
+export class OrdersComponent implements OnInit, OnDestroy {
   orders: Order[] = [];
   isLoading = false;
   errorMessage = '';
@@ -20,6 +21,8 @@ export class OrdersComponent implements OnInit {
   successMessage = '';
   expandedOrderId: string | null = null;
   activeFilter: string = 'all';
+  private routeSub?: Subscription;
+  private successTimeout?: ReturnType<typeof setTimeout>;
 
   statusFilters = [
     { key: 'all', label: 'All' },
@@ -37,14 +40,19 @@ export class OrdersComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.route.queryParams.subscribe(params => {
+    this.routeSub = this.route.queryParams.subscribe(params => {
       if (params['orderPlaced'] === 'true') {
         this.successMessage = 'Order placed successfully! Your order is being processed.';
-        setTimeout(() => this.successMessage = '', 5000);
+        this.successTimeout = setTimeout(() => this.successMessage = '', 5000);
       }
     });
 
     this.loadOrders();
+  }
+
+  ngOnDestroy() {
+    this.routeSub?.unsubscribe();
+    if (this.successTimeout) clearTimeout(this.successTimeout);
   }
 
   loadOrders() {
@@ -143,4 +151,12 @@ export class OrdersComponent implements OnInit {
   getOrderTotal(order: Order): number {
     return order.total;
   }
+
+  trackByKey(index: number, item: any): string { return item.key; }
+
+  trackByIndex(index: number): number { return index; }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+
+  trackByName(index: number, item: any): string { return item.name; }
 }

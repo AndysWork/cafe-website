@@ -85,17 +85,11 @@ export class CategoryCrudComponent implements OnInit {
 
   // Load Data
   loadCategories() {
-    console.log('Loading categories from:', `${this.apiUrl}/categories`);
     this.loading.categories = true;
     this.http.get<Category[]>(`${this.apiUrl}/categories`).subscribe({
       next: (data) => {
-        console.log('Categories loaded - raw data:', data);
-        console.log('Categories count:', data?.length);
-        console.log('First category:', data?.[0]);
         this.categories = data.map((c) => ({ ...c, isEditing: false }));
         this.loading.categories = false;
-        console.log('Mapped categories:', this.categories);
-        console.log('Categories array length:', this.categories.length);
       },
       error: (error) => {
         console.error('Error loading categories:', error);
@@ -107,18 +101,12 @@ export class CategoryCrudComponent implements OnInit {
   }
 
   loadSubCategories() {
-    console.log('Loading subcategories from:', `${this.apiUrl}/subcategories`);
     this.loading.subCategories = true;
     this.http.get<SubCategory[]>(`${this.apiUrl}/subcategories`).subscribe({
       next: (data) => {
-        console.log('SubCategories loaded - raw data:', data);
-        console.log('SubCategories count:', data?.length);
-        console.log('First subcategory:', data?.[0]);
         this.subCategories = data.map((sc) => ({ ...sc, isEditing: false }));
         this.filteredSubCategories = this.subCategories;
         this.loading.subCategories = false;
-        console.log('Mapped subcategories:', this.subCategories);
-        console.log('SubCategories array length:', this.subCategories.length);
       },
       error: (error) => {
         console.error('Error loading subcategories:', error);
@@ -457,4 +445,7 @@ export class CategoryCrudComponent implements OnInit {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+  trackByIndex(index: number): number { return index; }
 }

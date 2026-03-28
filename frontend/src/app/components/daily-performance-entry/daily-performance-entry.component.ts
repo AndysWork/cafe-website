@@ -612,4 +612,6 @@ export class DailyPerformanceEntryComponent implements OnInit {
       0,
     );
   }
+
+  trackByIndex(index: number): number { return index; }
 }

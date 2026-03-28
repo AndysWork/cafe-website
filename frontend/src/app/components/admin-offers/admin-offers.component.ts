@@ -177,4 +177,6 @@ export class AdminOffersComponent implements OnInit, OnDestroy {
   formatDate(date: Date): string {
     return formatIstDate(date);
   }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
 }

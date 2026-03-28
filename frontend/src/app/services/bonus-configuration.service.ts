@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, shareReplay } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export type BonusRuleType = 'OvertimeHours' | 'UndertimeHours' | 'SnacksPreparation' | 'BadOrders' | 'GoodRatings' | 'RefundDeduction';
@@ -87,7 +87,7 @@ export class BonusConfigurationService {
 
   getBonusConfigurations(): Observable<BonusConfiguration[]> {
     return this.http.get<{ success: boolean; data: BonusConfiguration[] }>(this.apiUrl, { headers: this.getHeaders() })
-      .pipe(map(response => response.data));
+      .pipe(map(response => response.data), shareReplay({ bufferSize: 1, refCount: true }));
   }
 
   getBonusConfigurationById(id: string): Observable<BonusConfiguration> {

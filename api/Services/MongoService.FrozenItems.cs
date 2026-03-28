@@ -1,5 +1,6 @@
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 using Cafe.Api.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
 
@@ -272,7 +273,7 @@ public partial class MongoService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error syncing {item.ItemName} to inventory: {ex.Message}");
+                _logger.LogDebug($"Error syncing {item.ItemName} to inventory: {ex.Message}");
             }
         }
 

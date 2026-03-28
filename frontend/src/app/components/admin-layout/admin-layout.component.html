@@ -9,7 +9,7 @@
     </div>
 
     <nav class="navbar-menu" [class.active]="isMobileMenuOpen">
-      <ng-container *ngFor="let item of menuItems; let i = index">
+      <ng-container *ngFor="let item of menuItems; let i = index; trackBy: trackByIndex">
         <!-- Menu item with dropdown -->
         <div
           *ngIf="item.children"
@@ -35,7 +35,7 @@
             (click)="$event.stopPropagation()"
           >
             <a
-              *ngFor="let child of item.children"
+              *ngFor="let child of item.children; trackBy: trackByIndex"
               [routerLink]="child.route"
               routerLinkActive="active"
               class="dropdown-item"

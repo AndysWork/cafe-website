@@ -116,35 +116,35 @@
         <div class="summary-grid">
           <div class="summary-item">
             <span class="label">Cash Sales:</span>
-            <span class="value">₹{{ salesSummary.cashSales.toFixed(2) || '0.00' }}</span>
+            <span class="value">₹{{ salesSummary.cashSales | number:'1.2-2' }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Cash Expenses:</span>
-            <span class="value expense">-₹{{ (salesSummary.cashExpenses || 0).toFixed(2) }}</span>
+            <span class="value expense">-₹{{ (salesSummary.cashExpenses || 0) | number:'1.2-2' }}</span>
           </div>
           <div class="summary-item highlight">
             <span class="label">Net Cash:</span>
-            <span class="value">₹{{ (salesSummary.netCash || 0).toFixed(2) }}</span>
+            <span class="value">₹{{ (salesSummary.netCash || 0) | number:'1.2-2' }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Card/UPI Sales:</span>
-            <span class="value">₹{{ salesSummary.cardSales.toFixed(2) || '0.00' }}</span>
+            <span class="value">₹{{ salesSummary.cardSales | number:'1.2-2' }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Online Orders:</span>
-            <span class="value">₹{{ salesSummary.onlineOrderTotal.toFixed(2) || '0.00' }}</span>
+            <span class="value">₹{{ salesSummary.onlineOrderTotal | number:'1.2-2' }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Online Expenses:</span>
-            <span class="value expense">-₹{{ (salesSummary.onlineExpenses || 0).toFixed(2) }}</span>
+            <span class="value expense">-₹{{ (salesSummary.onlineExpenses || 0) | number:'1.2-2' }}</span>
           </div>
           <div class="summary-item highlight">
             <span class="label">Net Online:</span>
-            <span class="value">₹{{ (salesSummary.netOnline || 0).toFixed(2) }}</span>
+            <span class="value">₹{{ (salesSummary.netOnline || 0) | number:'1.2-2' }}</span>
           </div>
           <div class="summary-item total">
             <span class="label">Total Sales:</span>
-            <span class="value">₹{{ salesSummary.totalWithOrders.toFixed(2) || '0.00' }}</span>
+            <span class="value">₹{{ salesSummary.totalWithOrders | number:'1.2-2' }}</span>
           </div>
         </div>
       </div>
@@ -183,7 +183,7 @@
           <!-- Expected Online removed - users manually track actual online instead -->
           <div class="total-display">
             <span class="label">Expected Total:</span>
-            <span class="value">₹{{ reconciliation.expectedTotal.toFixed(2) }}</span>
+            <span class="value">₹{{ reconciliation.expectedTotal | number:'1.2-2' }}</span>
           </div>
         </div>
 
@@ -231,7 +231,7 @@
           </div>
           <div class="total-display">
             <span class="label">Collected Total:</span>
-            <span class="value">₹{{ reconciliation.countedTotal.toFixed(2) }}</span>
+            <span class="value">₹{{ reconciliation.countedTotal | number:'1.2-2' }}</span>
           </div>
         </div>
       </div>
@@ -244,15 +244,15 @@
             <h4>Opening Balances</h4>
             <div class="balance-item">
               <span class="label">Cash:</span>
-              <span class="value">₹{{ reconciliation.openingCashBalance.toFixed(2) }}</span>
+              <span class="value">₹{{ reconciliation.openingCashBalance | number:'1.2-2' }}</span>
             </div>
             <div class="balance-item">
               <span class="label">Coins:</span>
-              <span class="value">₹{{ reconciliation.openingCoinBalance.toFixed(2) }}</span>
+              <span class="value">₹{{ reconciliation.openingCoinBalance | number:'1.2-2' }}</span>
             </div>
             <div class="balance-item">
               <span class="label">Online:</span>
-              <span class="value">₹{{ reconciliation.openingOnlineBalance.toFixed(2) }}</span>
+              <span class="value">₹{{ reconciliation.openingOnlineBalance | number:'1.2-2' }}</span>
             </div>
           </div>
 
@@ -260,15 +260,15 @@
             <h4>Closing Balances</h4>
             <div class="balance-item highlight">
               <span class="label">Cash:</span>
-              <span class="value">₹{{ reconciliation.closingCashBalance.toFixed(2) }}</span>
+              <span class="value">₹{{ reconciliation.closingCashBalance | number:'1.2-2' }}</span>
             </div>
             <div class="balance-item highlight">
               <span class="label">Coins:</span>
-              <span class="value">₹{{ reconciliation.closingCoinBalance.toFixed(2) }}</span>
+              <span class="value">₹{{ reconciliation.closingCoinBalance | number:'1.2-2' }}</span>
             </div>
             <div class="balance-item highlight">
               <span class="label">Online:</span>
-              <span class="value">₹{{ reconciliation.closingOnlineBalance.toFixed(2) }}</span>
+              <span class="value">₹{{ reconciliation.closingOnlineBalance | number:'1.2-2' }}</span>
             </div>
           </div>
         </div>
@@ -345,10 +345,10 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let rec of recentReconciliations">
+            <tr *ngFor="let rec of recentReconciliations; trackBy: trackByIndex">
               <td>{{ formatDate(rec.date) }}</td>
-              <td>₹{{ rec.expectedTotal.toFixed(2) }}</td>
-              <td>₹{{ rec.countedTotal.toFixed(2) }}</td>
+              <td>₹{{ rec.expectedTotal | number:'1.2-2' }}</td>
+              <td>₹{{ rec.countedTotal | number:'1.2-2' }}</td>
               <td [ngClass]="getDeficitClass(rec.totalDeficit)">
                 {{ rec.totalDeficit > 0 ? '-' : '+' }}{{ formatCurrency(rec.totalDeficit) }}
               </td>

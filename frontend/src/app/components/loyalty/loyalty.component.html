@@ -59,7 +59,7 @@
         <p>New rewards are coming soon! Keep earning points.</p>
       </div>
       <div class="rewards-grid" *ngIf="availableRewards.length > 0">
-        <div *ngFor="let reward of availableRewards" class="reward-card" [class.can-redeem]="reward.canRedeem">
+        <div *ngFor="let reward of availableRewards; trackBy: trackByName" class="reward-card" [class.can-redeem]="reward.canRedeem">
           <div class="reward-emoji">{{ reward.icon }}</div>
           <h3 class="reward-name">{{ reward.name }}</h3>
           <p class="reward-desc" *ngIf="reward.description">{{ reward.description }}</p>
@@ -83,7 +83,7 @@
         <a routerLink="/menu" class="btn-action">🍽️ Start Earning</a>
       </div>
       <div class="history-card" *ngIf="rewardsHistory.length > 0">
-        <div *ngFor="let h of rewardsHistory" class="history-row">
+        <div *ngFor="let h of rewardsHistory; trackBy: trackByIndex" class="history-row">
           <div class="history-left">
             <span class="history-dot" [class.earned]="h.type === 'earned'" [class.redeemed]="h.type === 'redeemed'"></span>
             <div class="history-info">

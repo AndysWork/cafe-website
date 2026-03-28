@@ -59,6 +59,16 @@ public class FileUploadFunction
 
             var fileData = parts["file"];
             var fileName = fileData.FileName?.ToLower() ?? "";
+
+            // Validate file size (max 10MB)
+            const int MaxFileSizeBytes = 10 * 1024 * 1024;
+            if (fileData.Data!.Length > MaxFileSizeBytes)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "File size exceeds the maximum allowed size of 10MB" });
+                return badRequest;
+            }
+
             var uploadedBy = parts.ContainsKey("uploadedBy") && parts["uploadedBy"].Text != null
                 ? parts["uploadedBy"].Text
                 : "Unknown";

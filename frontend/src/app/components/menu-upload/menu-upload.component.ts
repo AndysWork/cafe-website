@@ -124,4 +124,6 @@ export class MenuUploadComponent {
     a.click();
     window.URL.revokeObjectURL(url);
   }
+
+  trackByIndex(index: number): number { return index; }
 }

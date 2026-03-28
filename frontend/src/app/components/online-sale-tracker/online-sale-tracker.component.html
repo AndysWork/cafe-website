@@ -97,7 +97,7 @@
     </div>
     <div class="stat-card">
       <div class="stat-label">⭐ Average Rating</div>
-      <div class="stat-value">{{ averageRating.toFixed(1) }} ⭐</div>
+      <div class="stat-value">{{ averageRating | number:'1.1-1' }} ⭐</div>
     </div>
   </div>
 
@@ -202,7 +202,7 @@
         <p>No charges recorded for {{ selectedPlatform }}</p>
       </div>
       <div class="charges-grid">
-        <div *ngFor="let charge of getChargesByPlatform()" class="charge-card">
+        <div *ngFor="let charge of getChargesByPlatform(); trackBy: trackByObjId" class="charge-card">
           <div class="charge-header">
             <div class="charge-month">
               <span class="month-icon">📅</span>
@@ -254,7 +254,7 @@
       <span class="toggle-icon">{{ showDailyIncome ? '▼' : '▶' }}</span>
     </div>
     <div class="cascading-container" *ngIf="showDailyIncome">
-      <div *ngFor="let monthGroup of getGroupedDailyIncome() | keyvalue" class="month-group">
+      <div *ngFor="let monthGroup of getGroupedDailyIncome() | keyvalue; trackBy: trackByKey" class="month-group">
         <div class="month-header" (click)="toggleMonth(monthGroup.key)">
           <div class="month-title">
             <span class="toggle-icon-small">{{ isMonthCollapsed(monthGroup.key) ? '▶' : '▼' }}</span>
@@ -293,7 +293,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let income of monthGroup.value" [class.zomato-row]="income.platform === 'Zomato'" [class.swiggy-row]="income.platform === 'Swiggy'">
+              <tr *ngFor="let income of monthGroup.value; trackBy: trackByIndex" [class.zomato-row]="income.platform === 'Zomato'" [class.swiggy-row]="income.platform === 'Swiggy'">
                 <td class="date-cell">{{ formatDate(income.date) }}</td>
                 <td>
                   <span [class]="'platform-badge ' + income.platform.toLowerCase()">
@@ -342,7 +342,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let sale of paginatedSales" [class.zomato-row]="sale.platform === 'Zomato'" [class.swiggy-row]="sale.platform === 'Swiggy'">
+          <tr *ngFor="let sale of paginatedSales; trackBy: trackById" [class.zomato-row]="sale.platform === 'Zomato'" [class.swiggy-row]="sale.platform === 'Swiggy'">
             <td class="date-cell">{{ formatDate(sale.orderAt) }}</td>
             <td>
               <span [class]="'platform-badge ' + sale.platform.toLowerCase()">
@@ -400,7 +400,7 @@
         </button>
         <div class="page-numbers">
           <button
-            *ngFor="let page of [].constructor(totalPages); let i = index"
+            *ngFor="let page of [].constructor(totalPages); let i = index; trackBy: trackByIndex"
             class="btn btn-page"
             [class.active]="currentPage === i + 1"
             (click)="goToPage(i + 1)"
@@ -457,7 +457,7 @@
                 [disabled]="isEditingCharge"
                 required
               >
-                <option *ngFor="let month of months" [value]="month.value">
+                <option *ngFor="let month of months; trackBy: trackByIndex" [value]="month.value">
                   {{ month.name }}
                 </option>
               </select>

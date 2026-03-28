@@ -77,4 +77,8 @@ export class OffersComponent implements OnInit {
       return `Valid till ${formatIstDate(validTill)}`;
     }
   }
+
+  trackByIndex(index: number): number { return index; }
+
+  trackById(index: number, item: any): string { return item._id; }
 }

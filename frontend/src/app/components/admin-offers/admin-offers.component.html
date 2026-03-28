@@ -35,7 +35,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let offer of offers">
+        <tr *ngFor="let offer of offers; trackBy: trackByObjId">
           <td class="icon-cell">{{ offer.icon }}</td>
           <td class="title-cell">
             <div class="title">{{ offer.title }}</div>

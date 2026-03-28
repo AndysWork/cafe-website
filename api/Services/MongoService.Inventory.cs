@@ -10,20 +10,29 @@ public partial class MongoService
 
     // ==== INVENTORY CRUD ====
 
-    public async Task<List<Inventory>> GetAllInventoryAsync(string? outletId = null)
+    public async Task<List<Inventory>> GetAllInventoryAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
         // If no outlet is selected, return empty list instead of all data
         if (outletId == null)
             return new List<Inventory>();
         
         var filter = Builders<Inventory>.Filter.Eq(i => i.OutletId, outletId);
+        var fluent = _inventory.Find(filter).SortBy(i => i.IngredientName);
         
-        return await _inventory.Find(filter)
-            .SortBy(i => i.IngredientName)
-            .ToListAsync();
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+        
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
     }
 
-    public async Task<List<Inventory>> GetActiveInventoryAsync(string? outletId = null)
+    public async Task<long> GetAllInventoryCountAsync(string? outletId = null)
+    {
+        if (outletId == null) return 0;
+        var filter = Builders<Inventory>.Filter.Eq(i => i.OutletId, outletId);
+        return await _inventory.CountDocumentsAsync(filter);
+    }
+
+    public async Task<List<Inventory>> GetActiveInventoryAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
         var filterBuilder = Builders<Inventory>.Filter;
         var filters = new List<FilterDefinition<Inventory>>
@@ -37,10 +46,12 @@ public partial class MongoService
         }
 
         var filter = filterBuilder.And(filters);
+        var fluent = _inventory.Find(filter).SortBy(i => i.IngredientName);
         
-        return await _inventory.Find(filter)
-            .SortBy(i => i.IngredientName)
-            .ToListAsync();
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+        
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
     }
 
     public async Task<Inventory?> GetInventoryByIdAsync(string id)
@@ -308,6 +319,7 @@ public partial class MongoService
         
         return await _inventoryTransactions.Find(filter)
             .SortByDescending(t => t.TransactionDate)
+            .Limit(Helpers.PaginationHelper.SafetyLimit)
             .ToListAsync();
     }
 
@@ -321,9 +333,16 @@ public partial class MongoService
 
     public async Task<List<InventoryTransaction>> GetTransactionsByDateRangeAsync(DateTime startDate, DateTime endDate)
     {
+        // Enforce maximum date range of 1 year
+        if ((endDate - startDate).TotalDays > 366)
+        {
+            endDate = startDate.AddDays(366);
+        }
+        
         return await _inventoryTransactions.Find(t =>
             t.TransactionDate >= startDate && t.TransactionDate <= endDate)
             .SortByDescending(t => t.TransactionDate)
+            .Limit(Helpers.PaginationHelper.SafetyLimit)
             .ToListAsync();
     }
 

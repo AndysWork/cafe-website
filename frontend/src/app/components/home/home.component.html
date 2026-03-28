@@ -20,7 +20,7 @@
   <!-- Stats Bar -->
   <section class="stats-bar">
     <div class="stats-bar-inner">
-      <div *ngFor="let stat of stats" class="stat-chip">
+      <div *ngFor="let stat of stats; trackBy: trackByIndex" class="stat-chip">
         <span class="stat-chip-icon">{{ stat.icon }}</span>
         <span class="stat-chip-value">{{ stat.value }}</span>
         <span class="stat-chip-label">{{ stat.label }}</span>
@@ -35,7 +35,7 @@
     </div>
     <div class="outlets-grid">
       <!-- Real Outlets -->
-      <div *ngFor="let outlet of outlets" class="outlet-card">
+      <div *ngFor="let outlet of outlets; trackBy: trackById" class="outlet-card">
         <div class="outlet-name-row">
           <span class="outlet-badge">{{ outlet.outletCode }}</span>
           <h3>{{ outlet.outletName }}</h3>
@@ -145,7 +145,7 @@
     </div>
     <div class="categories-grid">
       <div
-        *ngFor="let category of categories; let i = index"
+        *ngFor="let category of categories; let i = index; trackBy: trackByObjId"
         class="category-card"
         [style.--accent]="getCategoryColor(i)"
         (click)="trackCategoryClick(category.name)"
@@ -166,7 +166,7 @@
       <p>Our latest menu items</p>
     </div>
     <div class="menu-grid">
-      <div *ngFor="let item of latestMenuItems" class="menu-card" (click)="trackMenuItemClick(item.name)">
+      <div *ngFor="let item of latestMenuItems; trackBy: trackByName" class="menu-card" (click)="trackMenuItemClick(item.name)">
         <span class="menu-tag">{{ item.tag }}</span>
         <div class="menu-icon">{{ item.image }}</div>
         <h3>{{ item.name }}</h3>

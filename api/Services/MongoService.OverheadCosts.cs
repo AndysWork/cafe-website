@@ -1,5 +1,6 @@
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 using Cafe.Api.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
 
@@ -35,7 +36,7 @@ public partial class MongoService
         // If outlet has specific costs, return only those (don't include shared costs)
         if (outletCosts.Any())
         {
-            Console.WriteLine($"[Overhead Costs] GetAll: Returning {outletCosts.Count} outlet-specific costs for outlet {outletId}");
+            _logger.LogDebug($"[Overhead Costs] GetAll: Returning {outletCosts.Count} outlet-specific costs for outlet {outletId}");
             foreach (var cost in outletCosts)
             {
                 EnsureOverheadCostDefaults(cost);
@@ -44,7 +45,7 @@ public partial class MongoService
         }
         
         // Only if outlet has NO specific overhead costs, return shared costs (null OutletId)
-        Console.WriteLine($"[Overhead Costs] GetAll: No outlet-specific costs, returning shared costs");
+        _logger.LogDebug($"[Overhead Costs] GetAll: No outlet-specific costs, returning shared costs");
         var sharedFilter = Builders<OverheadCost>.Filter.Eq(o => o.OutletId, null);
         var overheadCosts = await _overheadCosts.Find(sharedFilter).ToListAsync();
         
@@ -75,12 +76,12 @@ public partial class MongoService
             // If outlet has its own overhead costs, use only those (don't mix with shared costs)
             if (overheadCosts.Any())
             {
-                Console.WriteLine($"[Overhead Costs] Found {overheadCosts.Count} outlet-specific overhead costs for outlet {outletId}");
+                _logger.LogDebug($"[Overhead Costs] Found {overheadCosts.Count} outlet-specific overhead costs for outlet {outletId}");
             }
             else
             {
                 // Only if outlet has NO specific overhead costs, fall back to shared costs
-                Console.WriteLine($"[Overhead Costs] No outlet-specific costs found for outlet {outletId}, using shared costs");
+                _logger.LogDebug($"[Overhead Costs] No outlet-specific costs found for outlet {outletId}, using shared costs");
                 var sharedFilter = filterBuilder.And(
                     filterBuilder.Eq(o => o.IsActive, true),
                     filterBuilder.Eq(o => o.OutletId, null)
@@ -129,7 +130,7 @@ public partial class MongoService
         overheadCost.CreatedAt = DateTime.UtcNow;
         overheadCost.UpdatedAt = DateTime.UtcNow;
         
-        Console.WriteLine($"[Overhead Cost] Creating: {overheadCost.CostType}, Monthly: ₹{overheadCost.MonthlyCost}, PerMin: ₹{overheadCost.CostPerMinute:F4}, OutletId: {overheadCost.OutletId ?? "SHARED"}");
+        _logger.LogDebug($"[Overhead Cost] Creating: {overheadCost.CostType}, Monthly: ₹{overheadCost.MonthlyCost}, PerMin: ₹{overheadCost.CostPerMinute:F4}, OutletId: {overheadCost.OutletId ?? "SHARED"}");
         
         await _overheadCosts.InsertOneAsync(overheadCost);
         return overheadCost;
@@ -142,7 +143,7 @@ public partial class MongoService
         
         overheadCost.UpdatedAt = DateTime.UtcNow;
         
-        Console.WriteLine($"[Overhead Cost] Updating: {overheadCost.CostType}, Monthly: ₹{overheadCost.MonthlyCost}, PerMin: ₹{overheadCost.CostPerMinute:F4}, OutletId: {overheadCost.OutletId ?? "SHARED"}");
+        _logger.LogDebug($"[Overhead Cost] Updating: {overheadCost.CostType}, Monthly: ₹{overheadCost.MonthlyCost}, PerMin: ₹{overheadCost.CostPerMinute:F4}, OutletId: {overheadCost.OutletId ?? "SHARED"}");
         
         var result = await _overheadCosts.ReplaceOneAsync(
             o => o.Id == id,
@@ -162,14 +163,14 @@ public partial class MongoService
 
     public async Task<OverheadAllocation> CalculateOverheadAllocationAsync(int preparationTimeMinutes, string? outletId = null)
     {
-        Console.WriteLine($"[Overhead Calculation] Starting calculation for {preparationTimeMinutes} minutes, OutletId: {outletId ?? "NULL"}");
+        _logger.LogDebug($"[Overhead Calculation] Starting calculation for {preparationTimeMinutes} minutes, OutletId: {outletId ?? "NULL"}");
         
         var activeOverheads = await GetActiveOverheadCostsAsync(outletId);
         
-        Console.WriteLine($"[Overhead Calculation] Retrieved {activeOverheads.Count} active overhead costs");
+        _logger.LogDebug($"[Overhead Calculation] Retrieved {activeOverheads.Count} active overhead costs");
         foreach (var oh in activeOverheads)
         {
-            Console.WriteLine($"[Overhead Calculation]   - {oh.CostType}: Monthly=₹{oh.MonthlyCost}, PerMin=₹{oh.CostPerMinute:F4}, OutletId={oh.OutletId ?? "SHARED"}");
+            _logger.LogDebug($"[Overhead Calculation]   - {oh.CostType}: Monthly=₹{oh.MonthlyCost}, PerMin=₹{oh.CostPerMinute:F4}, OutletId={oh.OutletId ?? "SHARED"}");
         }
         
         var allocation = new OverheadAllocation
@@ -197,8 +198,8 @@ public partial class MongoService
             allocation.Costs.Sum(c => c.AllocatedCost), 2
         );
 
-        Console.WriteLine($"[Overhead Calculation] Total overhead cost: ₹{allocation.TotalOverheadCost:F2}");
-        Console.WriteLine($"[Overhead Calculation] Breakdown: {string.Join(", ", allocation.Costs.Select(c => $"{c.CostType}=₹{c.AllocatedCost:F2}"))}");
+        _logger.LogDebug($"[Overhead Calculation] Total overhead cost: ₹{allocation.TotalOverheadCost:F2}");
+        _logger.LogDebug($"[Overhead Calculation] Breakdown: {string.Join(", ", allocation.Costs.Select(c => $"{c.CostType}=₹{c.AllocatedCost:F2}"))}");
 
         return allocation;
     }

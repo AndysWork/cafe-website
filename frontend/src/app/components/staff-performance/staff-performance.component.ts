@@ -321,4 +321,8 @@ export class StaffPerformanceComponent implements OnInit {
     link.click();
     window.URL.revokeObjectURL(url);
   }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+
+  trackByIndex(index: number): number { return index; }
 }

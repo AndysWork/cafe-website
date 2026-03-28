@@ -1,5 +1,6 @@
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 using Cafe.Api.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
 
@@ -102,13 +103,15 @@ public partial class MongoService
     // Delete outlet
     public async Task<bool> DeleteOutletAsync(string id)
     {
-        // Check if outlet has any associated data
-        var hasSales = await _sales.Find(s => s.OutletId == id).AnyAsync();
-        var hasExpenses = await _expenses.Find(e => e.OutletId == id).AnyAsync();
-        var hasOrders = await _orders.Find(o => o.OutletId == id).AnyAsync();
-        var hasInventory = await _inventory.Find(i => i.OutletId == id).AnyAsync();
+        // Check if outlet has any associated data (parallel queries)
+        var hasSalesTask = _sales.Find(s => s.OutletId == id).AnyAsync();
+        var hasExpensesTask = _expenses.Find(e => e.OutletId == id).AnyAsync();
+        var hasOrdersTask = _orders.Find(o => o.OutletId == id).AnyAsync();
+        var hasInventoryTask = _inventory.Find(i => i.OutletId == id).AnyAsync();
 
-        if (hasSales || hasExpenses || hasOrders || hasInventory)
+        await Task.WhenAll(hasSalesTask, hasExpensesTask, hasOrdersTask, hasInventoryTask);
+
+        if (hasSalesTask.Result || hasExpensesTask.Result || hasOrdersTask.Result || hasInventoryTask.Result)
         {
             throw new InvalidOperationException("Cannot delete outlet with associated data. Deactivate it instead.");
         }
@@ -154,7 +157,7 @@ public partial class MongoService
             };
 
             await _outlets.InsertOneAsync(defaultOutlet);
-            Console.WriteLine($"✓ Default outlet created: {defaultOutlet.OutletName} ({defaultOutlet.OutletCode})");
+            _logger.LogDebug($"✓ Default outlet created: {defaultOutlet.OutletName} ({defaultOutlet.OutletCode})");
         }
     }
 

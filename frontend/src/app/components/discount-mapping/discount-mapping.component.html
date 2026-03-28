@@ -43,7 +43,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let coupon of zomatoCoupons">
+              <tr *ngFor="let coupon of zomatoCoupons; trackBy: trackByIndex">
                 <td class="coupon-code">{{ coupon.couponCode }}</td>
                 <td class="text-center">{{ coupon.usageCount }}</td>
                 <td class="text-right amount">{{ formatCurrency(coupon.totalDiscountAmount) }}</td>
@@ -109,7 +109,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let coupon of swiggyCoupons">
+              <tr *ngFor="let coupon of swiggyCoupons; trackBy: trackByIndex">
                 <td class="coupon-code">{{ coupon.couponCode }}</td>
                 <td class="text-center">{{ coupon.usageCount }}</td>
                 <td class="text-right amount">{{ formatCurrency(coupon.totalDiscountAmount) }}</td>

@@ -100,7 +100,7 @@
     <div class="expense-breakdown">
       <h3>Expense Type Breakdown</h3>
       <div
-        *ngFor="let type of summary.expenseTypeBreakdown | keyvalue"
+        *ngFor="let type of summary.expenseTypeBreakdown | keyvalue; trackBy: trackByKey"
         class="breakdown-item"
       >
         <span>{{ getExpenseTypeIcon(type.key) }} {{ type.key }}:</span>
@@ -126,7 +126,7 @@
       *ngIf="!loading && filteredExpenses.length > 0"
       class="grouped-expenses"
     >
-      <div *ngFor="let year of getYears()" class="year-group">
+      <div *ngFor="let year of getYears(); trackBy: trackByIndex" class="year-group">
         <!-- Year Header -->
         <div class="year-header" (click)="toggleYear(year)">
           <div class="year-title">
@@ -143,7 +143,7 @@
 
         <!-- Months Container -->
         <div *ngIf="isYearExpanded(year)" class="months-container">
-          <div *ngFor="let month of getMonths(year)" class="month-group">
+          <div *ngFor="let month of getMonths(year); trackBy: trackByIndex" class="month-group">
             <!-- Month Header -->
             <div class="month-header" (click)="toggleMonth(year, month)">
               <div class="month-title">
@@ -163,7 +163,7 @@
             <!-- Weeks Container -->
             <div *ngIf="isMonthExpanded(year, month)" class="weeks-container">
               <div
-                *ngFor="let week of getWeeks(year, month)"
+                *ngFor="let week of getWeeks(year, month); trackBy: trackByIndex"
                 class="week-group"
               >
                 <!-- Week Header -->
@@ -194,7 +194,7 @@
                   class="expense-cards"
                 >
                   <div
-                    *ngFor="let expense of groupedExpenses[year][month][week]"
+                    *ngFor="let expense of groupedExpenses[year][month][week]; trackBy: trackByObjId"
                     class="expense-card"
                   >
                     <div class="expense-header">
@@ -289,7 +289,7 @@
       *ngIf="!loading && operationalExpenses.length > 0"
       class="operational-timeline"
     >
-      <div *ngFor="let year of getOperationalYears()" class="year-section">
+      <div *ngFor="let year of getOperationalYears(); trackBy: trackByIndex" class="year-section">
         <div class="year-header-bar" (click)="toggleOperationalYear(year)">
           <div class="year-left">
             <span class="expand-icon" [class.expanded]="isOperationalYearExpanded(year)">▶</span>
@@ -305,7 +305,7 @@
         <div *ngIf="isOperationalYearExpanded(year)" class="year-expenses">
           <div class="expense-cards-grid">
             <div
-              *ngFor="let expense of groupedOperationalExpenses[year]"
+              *ngFor="let expense of groupedOperationalExpenses[year]; trackBy: trackByObjId"
               class="expense-card-modern"
             >
               <div class="card-header-modern">
@@ -412,7 +412,7 @@
             <select [(ngModel)]="formData.expenseType" required>
               <option value="">-- Select Expense Type --</option>
               <option
-                *ngFor="let type of currentExpenseTypes"
+                *ngFor="let type of currentExpenseTypes; trackBy: trackByIndex"
                 [value]="type.expenseType"
               >
                 {{ type.expenseType }}
@@ -436,7 +436,7 @@
           <div class="form-group">
             <label>Payment Method *</label>
             <select [(ngModel)]="formData.paymentMethod" required>
-              <option *ngFor="let method of paymentMethods" [value]="method">
+              <option *ngFor="let method of paymentMethods; trackBy: trackByIndex" [value]="method">
                 {{ method }}
               </option>
             </select>
@@ -561,7 +561,7 @@
                 (change)="calculateRent()"
                 required
               >
-                <option *ngFor="let month of months" [value]="month.value">
+                <option *ngFor="let month of months; trackBy: trackByIndex" [value]="month.value">
                   {{ month.name }}
                 </option>
               </select>
@@ -736,7 +736,7 @@
         <div class="expense-types-list">
           <h3>Existing {{ currentExpenseSource }} Expense Types ({{ currentExpenseTypes.length }})</h3>
           <div class="types-grid">
-            <div *ngFor="let type of currentExpenseTypes" class="expense-type-card">
+            <div *ngFor="let type of currentExpenseTypes; trackBy: trackByIndex" class="expense-type-card">
               <div class="type-info">
                 <strong>{{ type.expenseType }}</strong>
                 <span class="status-badge" [class.inactive]="!type.isActive">

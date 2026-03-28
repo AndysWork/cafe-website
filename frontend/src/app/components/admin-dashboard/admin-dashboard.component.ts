@@ -395,4 +395,5 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       .join(' ');
   }
 
+  trackByIndex(index: number): number { return index; }
 }

@@ -25,7 +25,7 @@
     </div>
     <div class="payment-breakdown">
       <h3>Payment Method Breakdown</h3>
-      <div *ngFor="let method of summary.paymentMethodBreakdown | keyvalue" class="breakdown-item">
+      <div *ngFor="let method of summary.paymentMethodBreakdown | keyvalue; trackBy: trackByKey" class="breakdown-item">
         <span>{{ method.key }}:</span>
         <span>{{ formatCurrency(+(method.value || 0)) }}</span>
       </div>
@@ -46,7 +46,7 @@
 
     <!-- Year-Month Grouped View -->
     <div *ngIf="!loading && sales.length > 0" class="grouped-sales">
-      <div *ngFor="let year of getYears()" class="year-group">
+      <div *ngFor="let year of getYears(); trackBy: trackByIndex" class="year-group">
         <!-- Year Header -->
         <div class="year-header" (click)="toggleYear(year)">
           <div class="year-title">
@@ -61,7 +61,7 @@
 
         <!-- Months Container -->
         <div *ngIf="isYearExpanded(year)" class="months-container">
-          <div *ngFor="let month of getMonths(year)" class="month-group">
+          <div *ngFor="let month of getMonths(year); trackBy: trackByIndex" class="month-group">
             <!-- Month Header -->
             <div class="month-header" (click)="toggleMonth(year, month)">
               <div class="month-title">
@@ -76,7 +76,7 @@
 
             <!-- Weeks Container -->
             <div *ngIf="isMonthExpanded(year, month)" class="weeks-container">
-              <div *ngFor="let week of getWeeks(year, month)" class="week-group">
+              <div *ngFor="let week of getWeeks(year, month); trackBy: trackByIndex" class="week-group">
                 <!-- Week Header -->
                 <div class="week-header" (click)="toggleWeek(year, month, week)">
                   <div class="week-title">
@@ -91,7 +91,7 @@
 
                 <!-- Sales Cards -->
                 <div *ngIf="isWeekExpanded(year, month, week)" class="sales-cards">
-                  <div *ngFor="let sale of groupedSales[year][month][week]" class="sales-card">
+                  <div *ngFor="let sale of groupedSales[year][month][week]; trackBy: trackByObjId" class="sales-card">
                     <div class="sales-header">
                       <div class="sales-date">
                         <strong>📅 {{ formatDate(sale.date) }}</strong>
@@ -102,7 +102,7 @@
                     </div>
 
                     <div class="sales-items">
-                      <div *ngFor="let item of sale.items" class="item-row">
+                      <div *ngFor="let item of sale.items; trackBy: trackByIndex" class="item-row">
                         <span class="item-name">{{ item.itemName }}</span>
                         <span class="item-qty">× {{ item.quantity }}</span>
                         <span class="item-price">{{ formatCurrency(item.totalPrice) }}</span>
@@ -150,7 +150,7 @@
         <div class="form-group">
           <label>Payment Method *</label>
           <select [(ngModel)]="formData.paymentMethod" required>
-            <option *ngFor="let method of paymentMethods" [value]="method">{{ method }}</option>
+            <option *ngFor="let method of paymentMethods; trackBy: trackByIndex" [value]="method">{{ method }}</option>
           </select>
         </div>
 
@@ -160,7 +160,7 @@
 
           <!-- Items List -->
           <div *ngIf="formData.items.length > 0" class="items-list">
-            <div *ngFor="let item of formData.items; let i = index" class="item-card editable">
+            <div *ngFor="let item of formData.items; let i = index; trackBy: trackByIndex" class="item-card editable">
               <div class="item-info">
                 <strong>{{ item.itemName }}</strong>
               </div>
@@ -280,7 +280,7 @@
         <div class="item-types-list">
           <h3>Existing Item Types ({{ salesItemTypes.length }})</h3>
           <div class="items-grid">
-            <div *ngFor="let itemType of salesItemTypes" class="item-type-card">
+            <div *ngFor="let itemType of salesItemTypes; trackBy: trackByIndex" class="item-type-card">
               <div class="item-info">
                 <strong>{{ itemType.itemName }}</strong>
                 <span class="price-badge">₹{{ itemType.defaultPrice }}</span>

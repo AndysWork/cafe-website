@@ -74,7 +74,6 @@ export class AuthService {
             this.currentUserSubject.next(user);
           } else {
             // Token mismatch, clear stale data
-            console.warn('Token mismatch detected, clearing auth data');
             this.clearAuthData();
           }
         } else {
@@ -88,7 +87,6 @@ export class AuthService {
       }
     } else if (token || userJson) {
       // Partial data exists (token without user or vice versa), clear everything
-      console.warn('Incomplete auth data detected, clearing all');
       this.clearAuthData();
     }
   }

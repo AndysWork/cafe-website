@@ -853,4 +853,7 @@ export class StaffManagementComponent implements OnInit {
       }
     });
   }
+
+  trackByIndex(index: number): number { return index; }
+  trackById(index: number, item: any): string { return item._id; }
 }

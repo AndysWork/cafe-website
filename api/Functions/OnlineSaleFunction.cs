@@ -46,9 +46,15 @@ public class OnlineSaleFunction
             var platform = query["platform"]; // Optional: "Zomato" or "Swiggy"
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var sales = await _mongo.GetOnlineSalesAsync(platform, outletId);
+            var (page, pageSize) = PaginationHelper.ParsePagination(req);
+            var sales = await _mongo.GetOnlineSalesAsync(platform, outletId, page, pageSize);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await _mongo.GetOnlineSalesCountAsync(platform, outletId);
+                PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
+            }
             await response.WriteAsJsonAsync(new { success = true, data = sales });
             return response;
         }

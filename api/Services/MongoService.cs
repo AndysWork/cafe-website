@@ -1,11 +1,17 @@
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
+using MongoDB.Bson;
 using Cafe.Api.Models;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Cafe.Api.Services;
 
 public partial class MongoService
 {
+    private readonly ILogger<MongoService> _logger;
+    private readonly IMemoryCache _cache;
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
     private static readonly TimeZoneInfo IstTimeZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
     
     // Helper method to get current IST time
@@ -67,8 +73,10 @@ public partial class MongoService
     // Public property to expose database for dependency injection
     public IMongoDatabase Database => _database;
     
-    public MongoService(IConfiguration config)
+    public MongoService(IConfiguration config, ILogger<MongoService> logger, IMemoryCache cache)
     {
+        _logger = logger;
+        _cache = cache;
         // Azure Functions loads from local.settings.json Values section as environment variables
         var cs = Environment.GetEnvironmentVariable("Mongo__ConnectionString");
         var dbName = Environment.GetEnvironmentVariable("Mongo__Database");
@@ -83,7 +91,16 @@ public partial class MongoService
             throw new InvalidOperationException("MongoDB database name not found in environment variables. Please check local.settings.json");
         }
         
-        var client = new MongoClient(cs);
+        // Configure MongoDB connection pool settings
+        var settings = MongoClientSettings.FromConnectionString(cs);
+        settings.MinConnectionPoolSize = 5;
+        settings.MaxConnectionPoolSize = 100;
+        settings.MaxConnectionIdleTime = TimeSpan.FromMinutes(2);
+        settings.ConnectTimeout = TimeSpan.FromSeconds(10);
+        settings.ServerSelectionTimeout = TimeSpan.FromSeconds(10);
+        settings.SocketTimeout = TimeSpan.FromSeconds(30);
+        
+        var client = new MongoClient(settings);
         _database = client.GetDatabase(dbName); // Store database reference
         var db = _database;
         _menu = db.GetCollection<CafeMenuItem>("CafeMenu");
@@ -121,65 +138,111 @@ public partial class MongoService
         _bonusConfigurations = db.GetCollection<BonusConfiguration>("BonusConfigurations");
         _staffPerformanceRecords = db.GetCollection<StaffPerformanceRecord>("StaffPerformanceRecords");
         _dailyPerformanceEntries = db.GetCollection<DailyPerformanceEntry>("DailyPerformanceEntries");
+    }
 
-        // Ensure default admin user exists
+    /// <summary>
+    /// Async initialization method called by MongoInitializationService at startup.
+    /// Replaces the previous blocking .Wait() calls that caused thread starvation.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
         try
         {
-            EnsureDefaultAdminAsync().Wait();
-            Console.WriteLine("✓ Default admin user check completed");
+            await EnsureDefaultAdminAsync();
+            _logger.LogInformation("Default admin user check completed");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"✗ Error ensuring default admin: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "Error ensuring default admin");
         }
 
-        // Ensure indexes for loyalty collections
         try
         {
-            EnsureIndexesAsync().Wait();
-            Console.WriteLine("✓ Database indexes check completed");
+            await EnsureIndexesAsync();
+            _logger.LogInformation("Database indexes check completed");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"✗ Error ensuring indexes: {ex.Message}");
+            _logger.LogError(ex, "Error ensuring indexes");
         }
 
-        // Ensure default rewards exist
         try
         {
-            EnsureDefaultRewardsAsync().Wait();
-            Console.WriteLine("✓ Default rewards check completed");
+            await EnsureDefaultRewardsAsync();
+            _logger.LogInformation("Default rewards check completed");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"✗ Error ensuring default rewards: {ex.Message}");
+            _logger.LogError(ex, "Error ensuring default rewards");
         }
 
-        // Ensure default overhead costs exist
         try
         {
-            InitializeDefaultOverheadCostsAsync().Wait();
-            Console.WriteLine("✓ Default overhead costs check completed");
+            await InitializeDefaultOverheadCostsAsync();
+            _logger.LogInformation("Default overhead costs check completed");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"✗ Error ensuring default overhead costs: {ex.Message}");
+            _logger.LogError(ex, "Error ensuring default overhead costs");
         }
 
-        // Ensure default outlet exists
         try
         {
-            EnsureDefaultOutletAsync().Wait();
-            Console.WriteLine("✓ Default outlet check completed");
+            await EnsureDefaultOutletAsync();
+            _logger.LogInformation("Default outlet check completed");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"✗ Error ensuring default outlet: {ex.Message}");
+            _logger.LogError(ex, "Error ensuring default outlet");
         }
     }
 
     #region CafeMenuItem Operations
+
+    // Helper: Get latest active forecast per MenuItemId using MongoDB aggregation ($sort + $group + $first)
+    private async Task PopulateFuturePricesAsync(List<CafeMenuItem> menuItems)
+    {
+        if (menuItems.Count == 0) return;
+
+        var menuItemIds = menuItems
+            .Where(m => !string.IsNullOrEmpty(m.Id) && MongoDB.Bson.ObjectId.TryParse(m.Id, out _))
+            .Select(m => m.Id!)
+            .ToList();
+        if (menuItemIds.Count == 0) return;
+
+        var forecastsFilter = Builders<PriceForecast>.Filter.And(
+            Builders<PriceForecast>.Filter.In(p => p.MenuItemId, menuItemIds),
+            Builders<PriceForecast>.Filter.Eq(p => p.IsFinalized, false)
+        );
+
+        // MongoDB aggregation: $match → $sort → $group (get latest per MenuItemId)
+        var groupStage = new BsonDocument("$group", new BsonDocument
+        {
+            { "_id", "$MenuItemId" },
+            { "FutureShopPrice", new BsonDocument("$first", "$FutureShopPrice") },
+            { "FutureOnlinePrice", new BsonDocument("$first", "$FutureOnlinePrice") }
+        });
+
+        var results = await _priceForecasts.Aggregate()
+            .Match(forecastsFilter)
+            .SortByDescending(f => f.CreatedDate)
+            .AppendStage<BsonDocument>(groupStage)
+            .ToListAsync();
+
+        var latestForecasts = results.ToDictionary(
+            r => r["_id"].ToString()!,
+            r => new { FutureShopPrice = r["FutureShopPrice"].ToDecimal(), FutureOnlinePrice = r["FutureOnlinePrice"].ToDecimal() }
+        );
+
+        foreach (var item in menuItems)
+        {
+            if (!string.IsNullOrEmpty(item.Id) && latestForecasts.TryGetValue(item.Id, out var forecast))
+            {
+                item.FutureShopPrice = forecast.FutureShopPrice;
+                item.FutureOnlinePrice = forecast.FutureOnlinePrice;
+            }
+        }
+    }
     
     // Get all menu items
     public async Task<List<CafeMenuItem>> GetMenuAsync(string? outletId = null)
@@ -190,37 +253,7 @@ public partial class MongoService
         
         var menuItems = await _menu.Find(filter).ToListAsync();
         
-        if (menuItems.Count == 0)
-            return menuItems;
-        
-        // Get all menu item IDs
-        var menuItemIds = menuItems.Where(m => !string.IsNullOrEmpty(m.Id)).Select(m => m.Id!).ToList();
-        
-        // Fetch all active price forecasts in one query
-        var forecastsFilter = Builders<PriceForecast>.Filter.And(
-            Builders<PriceForecast>.Filter.In(p => p.MenuItemId, menuItemIds),
-            Builders<PriceForecast>.Filter.Eq(p => p.IsFinalized, false)
-        );
-        
-        var allForecasts = await _priceForecasts.Find(forecastsFilter)
-            .SortByDescending(p => p.CreatedDate)
-            .ToListAsync();
-        
-        // Group forecasts by MenuItemId and get the latest one for each
-        var latestForecasts = allForecasts
-            .Where(f => !string.IsNullOrEmpty(f.MenuItemId))
-            .GroupBy(f => f.MenuItemId!)
-            .ToDictionary(g => g.Key, g => g.First());
-        
-        // Populate future prices from latest active price forecasts
-        foreach (var item in menuItems)
-        {
-            if (!string.IsNullOrEmpty(item.Id) && latestForecasts.TryGetValue(item.Id, out var forecast))
-            {
-                item.FutureShopPrice = forecast.FutureShopPrice;
-                item.FutureOnlinePrice = forecast.FutureOnlinePrice;
-            }
-        }
+        await PopulateFuturePricesAsync(menuItems);
         
         return menuItems;
     }
@@ -239,37 +272,7 @@ public partial class MongoService
         
         var menuItems = await _menu.Find(filter).ToListAsync();
         
-        if (menuItems.Count == 0)
-            return menuItems;
-        
-        // Get all menu item IDs
-        var menuItemIds = menuItems.Where(m => !string.IsNullOrEmpty(m.Id)).Select(m => m.Id!).ToList();
-        
-        // Fetch all active price forecasts in one query
-        var forecastsFilter = Builders<PriceForecast>.Filter.And(
-            Builders<PriceForecast>.Filter.In(p => p.MenuItemId, menuItemIds),
-            Builders<PriceForecast>.Filter.Eq(p => p.IsFinalized, false)
-        );
-        
-        var allForecasts = await _priceForecasts.Find(forecastsFilter)
-            .SortByDescending(p => p.CreatedDate)
-            .ToListAsync();
-        
-        // Group forecasts by MenuItemId and get the latest one for each
-        var latestForecasts = allForecasts
-            .Where(f => !string.IsNullOrEmpty(f.MenuItemId))
-            .GroupBy(f => f.MenuItemId!)
-            .ToDictionary(g => g.Key, g => g.First());
-        
-        // Populate future prices from latest active price forecasts
-        foreach (var item in menuItems)
-        {
-            if (!string.IsNullOrEmpty(item.Id) && latestForecasts.TryGetValue(item.Id, out var forecast))
-            {
-                item.FutureShopPrice = forecast.FutureShopPrice;
-                item.FutureOnlinePrice = forecast.FutureOnlinePrice;
-            }
-        }
+        await PopulateFuturePricesAsync(menuItems);
         
         return menuItems;
     }
@@ -288,37 +291,7 @@ public partial class MongoService
         
         var menuItems = await _menu.Find(filter).ToListAsync();
         
-        if (menuItems.Count == 0)
-            return menuItems;
-        
-        // Get all menu item IDs
-        var menuItemIds = menuItems.Where(m => !string.IsNullOrEmpty(m.Id)).Select(m => m.Id!).ToList();
-        
-        // Fetch all active price forecasts in one query
-        var forecastsFilter = Builders<PriceForecast>.Filter.And(
-            Builders<PriceForecast>.Filter.In(p => p.MenuItemId, menuItemIds),
-            Builders<PriceForecast>.Filter.Eq(p => p.IsFinalized, false)
-        );
-        
-        var allForecasts = await _priceForecasts.Find(forecastsFilter)
-            .SortByDescending(p => p.CreatedDate)
-            .ToListAsync();
-        
-        // Group forecasts by MenuItemId and get the latest one for each
-        var latestForecasts = allForecasts
-            .Where(f => !string.IsNullOrEmpty(f.MenuItemId))
-            .GroupBy(f => f.MenuItemId!)
-            .ToDictionary(g => g.Key, g => g.First());
-        
-        // Populate future prices from latest active price forecasts
-        foreach (var item in menuItems)
-        {
-            if (!string.IsNullOrEmpty(item.Id) && latestForecasts.TryGetValue(item.Id, out var forecast))
-            {
-                item.FutureShopPrice = forecast.FutureShopPrice;
-                item.FutureOnlinePrice = forecast.FutureOnlinePrice;
-            }
-        }
+        await PopulateFuturePricesAsync(menuItems);
         
         return menuItems;
     }
@@ -351,11 +324,45 @@ public partial class MongoService
         return menuItem;
     }
 
+    /// <summary>
+    /// Batch fetch menu items by IDs in a single query (avoids N+1).
+    /// </summary>
+    public async Task<List<CafeMenuItem>> GetMenuItemsByIdsAsync(List<string> ids, string? outletId = null)
+    {
+        var filterBuilder = Builders<CafeMenuItem>.Filter;
+        var filter = filterBuilder.In(x => x.Id, ids);
+
+        if (!string.IsNullOrWhiteSpace(outletId))
+        {
+            filter &= filterBuilder.Eq(x => x.OutletId, outletId);
+        }
+
+        return await _menu.Find(filter).ToListAsync();
+    }
+
+    /// <summary>
+    /// Batch fetch category names by IDs. Returns dictionary of id -> name.
+    /// </summary>
+    public async Task<Dictionary<string, string>> GetCategoriesByIdsAsync(List<string> ids)
+    {
+        var filter = Builders<MenuCategory>.Filter.In(x => x.Id, ids);
+        var categories = await _categories.Find(filter)
+            .Project(Builders<MenuCategory>.Projection
+                .Include(c => c.Id)
+                .Include(c => c.Name))
+            .As<MenuCategory>()
+            .ToListAsync();
+
+        return categories
+            .Where(c => c.Id != null)
+            .ToDictionary(c => c.Id!, c => c.Name);
+    }
+
     public async Task<CafeMenuItem?> GetMenuItemsByNameAndOutletAsync(string menuItemName, string outletId)
     {
         // Trim whitespace from search term
         var trimmedName = menuItemName?.Trim() ?? string.Empty;
-        Console.WriteLine($"[Menu Item Lookup] Searching for: '{trimmedName}' in outlet: {outletId}");
+        _logger.LogDebug("[Menu Item Lookup] Searching for: '{trimmedName}' in outlet: {outletId}");
         
         // Escape special regex characters in the menu item name
         var escapedName = System.Text.RegularExpressions.Regex.Escape(trimmedName);
@@ -371,19 +378,19 @@ public partial class MongoService
         var result = await _menu.Find(filter).FirstOrDefaultAsync();
         if (result != null)
         {
-            Console.WriteLine($"[Menu Item Lookup] FOUND - Name: '{result.Name}', ID: {result.Id}, Outlet: {result.OutletId}");
+            _logger.LogDebug("[Menu Item Lookup] FOUND - Name: '{result.Name}', ID: {result.Id}, Outlet: {result.OutletId}");
         }
         else
         {
-            Console.WriteLine($"[Menu Item Lookup] NOT FOUND - Name: '{trimmedName}', Outlet: {outletId}");
+            _logger.LogDebug("[Menu Item Lookup] NOT FOUND - Name: '{trimmedName}', Outlet: {outletId}");
             
             // Try to find any menu items with similar names for debugging
             var debugFilter = Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId);
             var allItemsInOutlet = await _menu.Find(debugFilter).Limit(100).ToListAsync();
-            Console.WriteLine($"[Menu Item Lookup] Total items in outlet {outletId}: {allItemsInOutlet.Count}");
+            _logger.LogDebug("[Menu Item Lookup] Total items in outlet {outletId}: {allItemsInOutlet.Count}");
             foreach (var item in allItemsInOutlet.Take(5))
             {
-                Console.WriteLine($"  - Existing: '{item.Name}' (ID: {item.Id})");
+                _logger.LogDebug("  - Existing: {Name} (ID: {Id})", item.Name, item.Id);
             }
         }
         
@@ -549,13 +556,19 @@ public partial class MongoService
 
     #region MenuCategory Operations
     
-    // Get all categories
+    // Get all categories (cached)
     public async Task<List<MenuCategory>> GetCategoriesAsync(string? outletId = null)
     {
+        var cacheKey = $"categories_{outletId ?? "all"}";
+        if (_cache.TryGetValue(cacheKey, out List<MenuCategory>? cached) && cached != null)
+            return cached;
+
         var filter = outletId != null 
             ? Builders<MenuCategory>.Filter.Eq(x => x.OutletId, outletId)
             : Builders<MenuCategory>.Filter.Empty;
-        return await _categories.Find(filter).ToListAsync();
+        var result = await _categories.Find(filter).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
     }
 
     // Get single category by ID
@@ -581,6 +594,7 @@ public partial class MongoService
             category.Id = MongoDB.Bson.ObjectId.GenerateNewId().ToString();
         }
         await _categories.InsertOneAsync(category);
+        InvalidateCategoryCache(category.OutletId);
         return category;
     }
 
@@ -596,6 +610,7 @@ public partial class MongoService
         }
         
         var result = await _categories.ReplaceOneAsync(filter, category);
+        InvalidateCategoryCache(outletId);
         return result.ModifiedCount > 0;
     }
 
@@ -611,20 +626,35 @@ public partial class MongoService
         }
         
         var result = await _categories.DeleteOneAsync(filter);
+        InvalidateCategoryCache(outletId);
         return result.DeletedCount > 0;
+    }
+
+    private void InvalidateCategoryCache(string? outletId = null)
+    {
+        _cache.Remove($"categories_{outletId ?? "all"}");
+        _cache.Remove("categories_all");
     }
     
     #endregion
 
     #region MenuSubCategory Operations
     
-    // Get all subcategories
+    // Get all subcategories (cached)
     public async Task<List<MenuSubCategory>> GetSubCategoriesAsync(string? outletId = null)
     {
+        var cacheKey = $"subcategories_{outletId ?? "all"}";
+        if (_cache.TryGetValue(cacheKey, out List<MenuSubCategory>? cached) && cached != null)
+            return cached;
+
+        List<MenuSubCategory> result;
         if (string.IsNullOrEmpty(outletId))
-            return await _subCategories.Find(_ => true).ToListAsync();
-        
-        return await _subCategories.Find(x => x.OutletId == outletId).ToListAsync();
+            result = await _subCategories.Find(_ => true).ToListAsync();
+        else
+            result = await _subCategories.Find(x => x.OutletId == outletId).ToListAsync();
+
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
     }
 
     // Get subcategories by category ID
@@ -654,6 +684,7 @@ public partial class MongoService
             subCategory.Id = MongoDB.Bson.ObjectId.GenerateNewId().ToString();
         }
         await _subCategories.InsertOneAsync(subCategory);
+        InvalidateSubCategoryCache(subCategory.OutletId);
         return subCategory;
     }
 
@@ -670,6 +701,7 @@ public partial class MongoService
             );
         
         var result = await _subCategories.ReplaceOneAsync(filter, subCategory);
+        InvalidateSubCategoryCache(outletId);
         return result.ModifiedCount > 0;
     }
 
@@ -686,7 +718,14 @@ public partial class MongoService
             );
         
         var result = await _subCategories.DeleteOneAsync(filter);
+        InvalidateSubCategoryCache(outletId);
         return result.DeletedCount > 0;
+    }
+
+    private void InvalidateSubCategoryCache(string? outletId = null)
+    {
+        _cache.Remove($"subcategories_{outletId ?? "all"}");
+        _cache.Remove("subcategories_all");
     }
     
     // Clear all categories (for schema migration)
@@ -741,7 +780,7 @@ public partial class MongoService
 
     // Get all users
     public async Task<List<User>> GetAllUsersAsync() =>
-        await _users.Find(_ => true).ToListAsync();
+        await _users.Find(_ => true).Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
 
     // Update user active status
     public async Task<bool> UpdateUserActiveStatusAsync(string userId, bool isActive)
@@ -822,7 +861,7 @@ public partial class MongoService
     // Ensure default admin user exists
     private async Task EnsureDefaultAdminAsync()
     {
-        Console.WriteLine("Checking for default admin user...");
+        _logger.LogInformation("Checking for default admin user...");
         
         // Get default admin credentials from environment or use defaults
         var defaultAdminUsername = Environment.GetEnvironmentVariable("DefaultAdmin__Username") ?? "admin";
@@ -832,7 +871,7 @@ public partial class MongoService
         var adminExists = await _users.Find(x => x.Username == defaultAdminUsername).AnyAsync();
         if (!adminExists)
         {
-            Console.WriteLine($"Admin user '{defaultAdminUsername}' not found. Creating default admin...");
+            _logger.LogInformation("Admin user '{Username}' not found. Creating default admin...", defaultAdminUsername);
             var authService = new AuthService();
             var adminUser = new User
             {
@@ -847,15 +886,11 @@ public partial class MongoService
             };
 
             await _users.InsertOneAsync(adminUser);
-            Console.WriteLine("✓ Default admin user created successfully!");
-            Console.WriteLine($"  Username: {defaultAdminUsername}");
-            Console.WriteLine($"  Email: {defaultAdminEmail}");
-            Console.WriteLine($"  Password: {defaultAdminPassword}");
-            Console.WriteLine("  IMPORTANT: Please change the default password after first login!");
+            _logger.LogInformation("Default admin user created successfully! Username: {Username}", defaultAdminUsername);
         }
         else
         {
-            Console.WriteLine($"✓ Admin user '{defaultAdminUsername}' already exists");
+            _logger.LogInformation("Admin user '{Username}' already exists", defaultAdminUsername);
         }
     }
 
@@ -867,7 +902,7 @@ public partial class MongoService
         
         if (admin == null)
         {
-            Console.WriteLine($"Admin user '{defaultAdminUsername}' not found");
+            _logger.LogWarning("Admin user '{Username}' not found for password reset", defaultAdminUsername);
             return false;
         }
 
@@ -1118,27 +1153,79 @@ public partial class MongoService
             s.OutletIds.Contains(outletId) && s.IsActive);
     }
 
-    // Get staff statistics
+    // Get staff statistics using MongoDB $facet aggregation (all computed server-side)
     public async Task<StaffStatistics> GetStaffStatisticsAsync()
     {
-        var allStaff = await _staff.Find(_ => true).ToListAsync();
-        
+        var pipeline = new BsonDocument[]
+        {
+            new("$facet", new BsonDocument
+            {
+                { "counts", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", BsonNull.Value },
+                            { "total", new BsonDocument("$sum", 1) },
+                            { "active", new BsonDocument("$sum", new BsonDocument("$cond", new BsonArray { "$isActive", 1, 0 })) },
+                            { "inactive", new BsonDocument("$sum", new BsonDocument("$cond", new BsonArray { "$isActive", 0, 1 })) },
+                            { "fullTime", new BsonDocument("$sum", new BsonDocument("$cond", new BsonArray
+                                { new BsonDocument("$and", new BsonArray { new BsonDocument("$eq", new BsonArray { "$isActive", true }), new BsonDocument("$eq", new BsonArray { "$employmentType", "Full-Time" }) }), 1, 0 })) },
+                            { "partTime", new BsonDocument("$sum", new BsonDocument("$cond", new BsonArray
+                                { new BsonDocument("$and", new BsonArray { new BsonDocument("$eq", new BsonArray { "$isActive", true }), new BsonDocument("$eq", new BsonArray { "$employmentType", "Part-Time" }) }), 1, 0 })) },
+                            { "contract", new BsonDocument("$sum", new BsonDocument("$cond", new BsonArray
+                                { new BsonDocument("$and", new BsonArray { new BsonDocument("$eq", new BsonArray { "$isActive", true }), new BsonDocument("$eq", new BsonArray { "$employmentType", "Contract" }) }), 1, 0 })) }
+                        })
+                    }
+                },
+                { "byPosition", new BsonArray
+                    {
+                        new BsonDocument("$match", new BsonDocument("isActive", true)),
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", "$position" },
+                            { "count", new BsonDocument("$sum", 1) }
+                        })
+                    }
+                },
+                { "byDepartment", new BsonArray
+                    {
+                        new BsonDocument("$match", new BsonDocument
+                        {
+                            { "isActive", true },
+                            { "department", new BsonDocument("$nin", new BsonArray { BsonNull.Value, "" }) }
+                        }),
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", "$department" },
+                            { "count", new BsonDocument("$sum", 1) }
+                        })
+                    }
+                }
+            })
+        };
+
+        var result = await _staff.Aggregate<BsonDocument>(pipeline).FirstOrDefaultAsync();
+
+        var counts = result?["counts"].AsBsonArray.FirstOrDefault()?.AsBsonDocument;
+        var byPosition = result?["byPosition"].AsBsonArray ?? new BsonArray();
+        var byDepartment = result?["byDepartment"].AsBsonArray ?? new BsonArray();
+
         return new StaffStatistics
         {
-            TotalStaff = allStaff.Count,
-            ActiveStaff = allStaff.Count(s => s.IsActive),
-            InactiveStaff = allStaff.Count(s => !s.IsActive),
-            FullTimeStaff = allStaff.Count(s => s.EmploymentType == "Full-Time" && s.IsActive),
-            PartTimeStaff = allStaff.Count(s => s.EmploymentType == "Part-Time" && s.IsActive),
-            ContractStaff = allStaff.Count(s => s.EmploymentType == "Contract" && s.IsActive),
-            StaffByPosition = allStaff
-                .Where(s => s.IsActive)
-                .GroupBy(s => s.Position)
-                .ToDictionary(g => g.Key, g => g.Count()),
-            StaffByDepartment = allStaff
-                .Where(s => s.IsActive && !string.IsNullOrEmpty(s.Department))
-                .GroupBy(s => s.Department!)
-                .ToDictionary(g => g.Key, g => g.Count())
+            TotalStaff = counts?["total"].ToInt32() ?? 0,
+            ActiveStaff = counts?["active"].ToInt32() ?? 0,
+            InactiveStaff = counts?["inactive"].ToInt32() ?? 0,
+            FullTimeStaff = counts?["fullTime"].ToInt32() ?? 0,
+            PartTimeStaff = counts?["partTime"].ToInt32() ?? 0,
+            ContractStaff = counts?["contract"].ToInt32() ?? 0,
+            StaffByPosition = byPosition
+                .Select(b => b.AsBsonDocument)
+                .Where(b => b["_id"] != BsonNull.Value)
+                .ToDictionary(b => b["_id"].AsString, b => b["count"].ToInt32()),
+            StaffByDepartment = byDepartment
+                .Select(b => b.AsBsonDocument)
+                .Where(b => b["_id"] != BsonNull.Value)
+                .ToDictionary(b => b["_id"].AsString, b => b["count"].ToInt32())
         };
     }
 
@@ -1154,27 +1241,43 @@ public partial class MongoService
     }
 
     // Get user's orders
-    public async Task<List<Order>> GetUserOrdersAsync(string userId)
+    public async Task<List<Order>> GetUserOrdersAsync(string userId, int? page = null, int? pageSize = null)
     {
-        return await _orders
+        var fluent = _orders
             .Find(x => x.UserId == userId)
-            .SortByDescending(x => x.CreatedAt)
-            .ToListAsync();
+            .SortByDescending(x => x.CreatedAt);
+
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetUserOrdersCountAsync(string userId)
+    {
+        return await _orders.CountDocumentsAsync(x => x.UserId == userId);
     }
 
     // Get all orders (admin) - optionally filtered by outlet
-    public async Task<List<Order>> GetAllOrdersAsync(string? outletId = null)
+    public async Task<List<Order>> GetAllOrdersAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
-        // If no outlet is selected, return empty list instead of all data
-        if (outletId == null)
-            return new List<Order>();
-        
-        var filter = Builders<Order>.Filter.Eq(o => o.OutletId, outletId);
-        
-        return await _orders
-            .Find(filter)
-            .SortByDescending(x => x.CreatedAt)
-            .ToListAsync();
+        var filter = outletId != null
+            ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId)
+            : Builders<Order>.Filter.Empty;
+        var fluent = _orders.Find(filter).SortByDescending(x => x.CreatedAt);
+
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetAllOrdersCountAsync(string? outletId = null)
+    {
+        var filter = outletId != null
+            ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId)
+            : Builders<Order>.Filter.Empty;
+        return await _orders.CountDocumentsAsync(filter);
     }
 
     // Get order by ID
@@ -1251,12 +1354,21 @@ public partial class MongoService
     }
 
     // Get all loyalty accounts (admin)
-    public async Task<List<LoyaltyAccount>> GetAllLoyaltyAccountsAsync()
+    public async Task<List<LoyaltyAccount>> GetAllLoyaltyAccountsAsync(int? page = null, int? pageSize = null)
     {
-        return await _loyaltyAccounts
+        var fluent = _loyaltyAccounts
             .Find(_ => true)
-            .SortByDescending(x => x.CurrentPoints)
-            .ToListAsync();
+            .SortByDescending(x => x.CurrentPoints);
+        
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+        
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetAllLoyaltyAccountsCountAsync()
+    {
+        return await _loyaltyAccounts.CountDocumentsAsync(_ => true);
     }
 
     // Award points to user
@@ -1347,14 +1459,20 @@ public partial class MongoService
             .ToListAsync();
     }
 
-    // Get all available rewards
+    // Get all available rewards (cached)
     public async Task<List<Reward>> GetActiveRewardsAsync()
     {
+        const string cacheKey = "active_rewards";
+        if (_cache.TryGetValue(cacheKey, out List<Reward>? cached) && cached != null)
+            return cached;
+
         var now = GetIstNow();
-        return await _rewards
+        var result = await _rewards
             .Find(x => x.IsActive && (!x.ExpiresAt.HasValue || x.ExpiresAt.Value > now))
             .SortBy(x => x.PointsCost)
             .ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
     }
 
     // Get all rewards (admin)
@@ -1371,6 +1489,7 @@ public partial class MongoService
     {
         reward.CreatedAt = GetIstNow();
         await _rewards.InsertOneAsync(reward);
+        _cache.Remove("active_rewards");
         return reward;
     }
 
@@ -1378,6 +1497,7 @@ public partial class MongoService
     public async Task<bool> UpdateRewardAsync(string id, Reward reward)
     {
         var result = await _rewards.ReplaceOneAsync(x => x.Id == id, reward);
+        _cache.Remove("active_rewards");
         return result.ModifiedCount > 0;
     }
 
@@ -1385,6 +1505,7 @@ public partial class MongoService
     public async Task<bool> DeleteRewardAsync(string id)
     {
         var result = await _rewards.DeleteOneAsync(x => x.Id == id);
+        _cache.Remove("active_rewards");
         return result.DeletedCount > 0;
     }
 
@@ -1400,7 +1521,7 @@ public partial class MongoService
     // Ensure database indexes for performance
     private async Task EnsureIndexesAsync()
     {
-        Console.WriteLine("Creating database indexes for performance optimization...");
+        _logger.LogInformation("Creating database indexes for performance optimization...");
         var indexCount = 0;
 
         // ========== Users Collection ==========
@@ -1434,11 +1555,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ Users indexes: username, email, phoneNumber, role");
+            _logger.LogInformation("  âœ“ Users indexes: username, email, phoneNumber, role");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ Users indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  Users indexes warning: {ex.Message}");
         }
 
         // ========== Orders Collection ==========
@@ -1472,11 +1593,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ Orders indexes: userId+createdAt, status, createdAt, paymentStatus");
+            _logger.LogInformation("  âœ“ Orders indexes: userId+createdAt, status, createdAt, paymentStatus");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ Orders indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  Orders indexes warning: {ex.Message}");
         }
 
         // ========== CafeMenu Collection ==========
@@ -1510,11 +1631,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ CafeMenu indexes: categoryId, subCategoryId, text search, onlinePrice");
+            _logger.LogInformation("  âœ“ CafeMenu indexes: categoryId, subCategoryId, text search, onlinePrice");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ CafeMenu indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  CafeMenu indexes warning: {ex.Message}");
         }
 
         // ========== LoyaltyAccounts Collection ==========
@@ -1541,11 +1662,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ LoyaltyAccounts indexes: userId, tier, currentPoints");
+            _logger.LogInformation("  âœ“ LoyaltyAccounts indexes: userId, tier, currentPoints");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ LoyaltyAccounts indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  LoyaltyAccounts indexes warning: {ex.Message}");
         }
 
         // ========== Offers Collection ==========
@@ -1572,11 +1693,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ Offers indexes: code, isActive+validTill, validFrom+validTill");
+            _logger.LogInformation("  âœ“ Offers indexes: code, isActive+validTill, validFrom+validTill");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ Offers indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  Offers indexes warning: {ex.Message}");
         }
 
         // ========== Sales Collection ==========
@@ -1603,11 +1724,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ Sales indexes: date, recordedBy, paymentMethod");
+            _logger.LogInformation("  âœ“ Sales indexes: date, recordedBy, paymentMethod");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ Sales indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  Sales indexes warning: {ex.Message}");
         }
 
         // ========== Expenses Collection ==========
@@ -1641,11 +1762,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ Expenses indexes: date, expenseType, expenseSource, recordedBy");
+            _logger.LogInformation("  âœ“ Expenses indexes: date, expenseType, expenseSource, recordedBy");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ Expenses indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  Expenses indexes warning: {ex.Message}");
         }
 
         // ========== PointsTransactions Collection ==========
@@ -1665,11 +1786,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ PointsTransactions indexes: userId+createdAt, type");
+            _logger.LogInformation("  âœ“ PointsTransactions indexes: userId+createdAt, type");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ PointsTransactions indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  PointsTransactions indexes warning: {ex.Message}");
         }
 
         // ========== Rewards Collection ==========
@@ -1682,11 +1803,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ Rewards indexes: isActive");
+            _logger.LogInformation("  âœ“ Rewards indexes: isActive");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ Rewards indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  Rewards indexes warning: {ex.Message}");
         }
 
         // ========== PasswordResetTokens Collection ==========
@@ -1713,11 +1834,11 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ PasswordResetTokens indexes: token (unique), userId, expiresAt");
+            _logger.LogInformation("  âœ“ PasswordResetTokens indexes: token (unique), userId, expiresAt");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ PasswordResetTokens indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  PasswordResetTokens indexes warning: {ex.Message}");
         }
 
         // ========== OnlineSales Collection ==========
@@ -1751,15 +1872,230 @@ public partial class MongoService
             ));
             indexCount++;
 
-            Console.WriteLine("  ✓ OnlineSales indexes: platform, orderAt, platform+orderAt compound, orderId");
+            _logger.LogInformation("  âœ“ OnlineSales indexes: platform, orderAt, platform+orderAt compound, orderId");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ OnlineSales indexes warning: {ex.Message}");
+            _logger.LogInformation($"  âš  OnlineSales indexes warning: {ex.Message}");
         }
 
-        Console.WriteLine($"✓ Database indexing completed! Created {indexCount} indexes across 10 collections");
-        Console.WriteLine("  Expected performance improvement: 50-70% for most queries");
+        _logger.LogInformation($"âœ“ Database indexing completed! Created {indexCount} indexes across 10 collections");
+        _logger.LogInformation("Expected performance improvement: 50-70% for most queries");
+
+        // ========== DailyPerformanceEntries Collection (CRITICAL for performance) ==========
+        try
+        {
+            await _dailyPerformanceEntries.Indexes.CreateOneAsync(new CreateIndexModel<DailyPerformanceEntry>(
+                Builders<DailyPerformanceEntry>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.Date),
+                new CreateIndexOptions { Name = "outletId_1_date_1", Background = true }
+            ));
+            indexCount++;
+
+            await _dailyPerformanceEntries.Indexes.CreateOneAsync(new CreateIndexModel<DailyPerformanceEntry>(
+                Builders<DailyPerformanceEntry>.IndexKeys.Ascending(x => x.StaffId).Ascending(x => x.Date),
+                new CreateIndexOptions { Name = "staffId_1_date_1", Background = true }
+            ));
+            indexCount++;
+
+            await _dailyPerformanceEntries.Indexes.CreateOneAsync(new CreateIndexModel<DailyPerformanceEntry>(
+                Builders<DailyPerformanceEntry>.IndexKeys
+                    .Ascending(x => x.StaffId)
+                    .Ascending(x => x.Date)
+                    .Ascending(x => x.OutletId),
+                new CreateIndexOptions { Name = "staffId_1_date_1_outletId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("DailyPerformanceEntries indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DailyPerformanceEntries indexes warning");
+        }
+
+        // ========== Inventory Collection ==========
+        try
+        {
+            await _inventory.Indexes.CreateOneAsync(new CreateIndexModel<Inventory>(
+                Builders<Inventory>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.IsActive),
+                new CreateIndexOptions { Name = "outletId_1_isActive_1", Background = true }
+            ));
+            indexCount++;
+
+            await _inventory.Indexes.CreateOneAsync(new CreateIndexModel<Inventory>(
+                Builders<Inventory>.IndexKeys.Ascending(x => x.Category),
+                new CreateIndexOptions { Name = "category_1", Background = true }
+            ));
+            indexCount++;
+
+            await _inventory.Indexes.CreateOneAsync(new CreateIndexModel<Inventory>(
+                Builders<Inventory>.IndexKeys.Ascending(x => x.Status),
+                new CreateIndexOptions { Name = "status_1", Background = true }
+            ));
+            indexCount++;
+
+            await _inventory.Indexes.CreateOneAsync(new CreateIndexModel<Inventory>(
+                Builders<Inventory>.IndexKeys.Ascending(x => x.IngredientId),
+                new CreateIndexOptions { Name = "ingredientId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Inventory indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Inventory indexes warning");
+        }
+
+        // ========== FrozenItems Collection ==========
+        try
+        {
+            await _frozenItems.Indexes.CreateOneAsync(new CreateIndexModel<FrozenItem>(
+                Builders<FrozenItem>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.IsActive),
+                new CreateIndexOptions { Name = "outletId_1_isActive_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("FrozenItems indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "FrozenItems indexes warning");
+        }
+
+        // ========== Staff Collection ==========
+        try
+        {
+            await _staff.Indexes.CreateOneAsync(new CreateIndexModel<Staff>(
+                Builders<Staff>.IndexKeys.Ascending(x => x.IsActive),
+                new CreateIndexOptions { Name = "isActive_1", Background = true }
+            ));
+            indexCount++;
+
+            await _staff.Indexes.CreateOneAsync(new CreateIndexModel<Staff>(
+                Builders<Staff>.IndexKeys.Ascending(x => x.OutletIds),
+                new CreateIndexOptions { Name = "outletIds_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Staff indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Staff indexes warning");
+        }
+
+        // ========== Sales - OutletId compound ==========
+        try
+        {
+            await _sales.Indexes.CreateOneAsync(new CreateIndexModel<Sales>(
+                Builders<Sales>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.Date),
+                new CreateIndexOptions { Name = "outletId_1_date_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Sales outletId+date index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Sales OutletId+Date index warning");
+        }
+
+        // ========== Expenses - OutletId compound ==========
+        try
+        {
+            await _expenses.Indexes.CreateOneAsync(new CreateIndexModel<Expense>(
+                Builders<Expense>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.Date),
+                new CreateIndexOptions { Name = "outletId_1_date_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Expenses outletId+date index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Expenses OutletId+Date index warning");
+        }
+
+        // ========== Orders - OutletId compound ==========
+        try
+        {
+            await _orders.Indexes.CreateOneAsync(new CreateIndexModel<Order>(
+                Builders<Order>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.CreatedAt),
+                new CreateIndexOptions { Name = "outletId_1_createdAt_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Orders outletId+createdAt index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Orders OutletId+CreatedAt index warning");
+        }
+
+        // ========== CafeMenu - OutletId ==========
+        try
+        {
+            await _menu.Indexes.CreateOneAsync(new CreateIndexModel<CafeMenuItem>(
+                Builders<CafeMenuItem>.IndexKeys.Ascending(x => x.OutletId),
+                new CreateIndexOptions { Name = "outletId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("CafeMenu outletId index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CafeMenu OutletId index warning");
+        }
+
+        // ========== OverheadCosts ==========
+        try
+        {
+            await _overheadCosts.Indexes.CreateOneAsync(new CreateIndexModel<OverheadCost>(
+                Builders<OverheadCost>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.IsActive),
+                new CreateIndexOptions { Name = "outletId_1_isActive_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("OverheadCosts outletId+isActive index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "OverheadCosts indexes warning");
+        }
+
+        // ========== BonusConfigurations ==========
+        try
+        {
+            await _bonusConfigurations.Indexes.CreateOneAsync(new CreateIndexModel<BonusConfiguration>(
+                Builders<BonusConfiguration>.IndexKeys.Ascending(x => x.OutletId),
+                new CreateIndexOptions { Name = "outletId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("BonusConfigurations outletId index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "BonusConfigurations indexes warning");
+        }
+
+        // ========== PriceForecasts ==========
+        try
+        {
+            await _priceForecasts.Indexes.CreateOneAsync(new CreateIndexModel<PriceForecast>(
+                Builders<PriceForecast>.IndexKeys.Ascending(x => x.MenuItemId).Descending(x => x.CreatedDate),
+                new CreateIndexOptions { Name = "menuItemId_1_createdDate_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("PriceForecasts menuItemId+createdDate index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PriceForecasts indexes warning");
+        }
     }
 
     // Ensure default rewards exist in database
@@ -1775,7 +2111,7 @@ public partial class MongoService
                 Name = "Free Coffee",
                 Description = "Enjoy a complimentary coffee of your choice",
                 PointsCost = 100,
-                Icon = "☕",
+                Icon = "â˜•",
                 IsActive = true
             },
             new Reward
@@ -1783,7 +2119,7 @@ public partial class MongoService
                 Name = "10% Off Next Order",
                 Description = "Get 10% discount on your next order",
                 PointsCost = 150,
-                Icon = "🎁",
+                Icon = "ðŸŽ",
                 IsActive = true
             },
             new Reward
@@ -1791,7 +2127,7 @@ public partial class MongoService
                 Name = "Free Dessert",
                 Description = "Choose any dessert from our menu",
                 PointsCost = 120,
-                Icon = "🍰",
+                Icon = "ðŸ°",
                 IsActive = true
             },
             new Reward
@@ -1799,7 +2135,7 @@ public partial class MongoService
                 Name = "Free Burger",
                 Description = "Get a burger of your choice on the house",
                 PointsCost = 200,
-                Icon = "🍔",
+                Icon = "ðŸ”",
                 IsActive = true
             },
             new Reward
@@ -1807,13 +2143,13 @@ public partial class MongoService
                 Name = "20% Off Next Order",
                 Description = "Save 20% on your next order",
                 PointsCost = 300,
-                Icon = "💰",
+                Icon = "ðŸ’°",
                 IsActive = true
             }
         };
 
         await _rewards.InsertManyAsync(defaultRewards);
-        Console.WriteLine($"✓ Inserted {defaultRewards.Count} default rewards");
+        _logger.LogInformation($"âœ“ Inserted {defaultRewards.Count} default rewards");
     }
 
     #endregion
@@ -1931,7 +2267,7 @@ public partial class MongoService
             return new OfferValidationResponse
             {
                 IsValid = false,
-                Message = $"Minimum order amount of ₹{offer.MinOrderAmount.Value} required"
+                Message = $"Minimum order amount of â‚¹{offer.MinOrderAmount.Value} required"
             };
         }
 
@@ -1976,20 +2312,36 @@ public partial class MongoService
     #region Sales Operations
 
     // Get all sales records
-    public async Task<List<Sales>> GetAllSalesAsync(string? outletId = null)
+    public async Task<List<Sales>> GetAllSalesAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
-        // If no outlet is selected, return empty list instead of all data
-        if (outletId == null)
-            return new List<Sales>();
-        
-        var filter = Builders<Sales>.Filter.Eq(s => s.OutletId, outletId);
-        
-        return await _sales.Find(filter).SortByDescending(s => s.Date).ToListAsync();
+        var filter = outletId != null
+            ? Builders<Sales>.Filter.Eq(s => s.OutletId, outletId)
+            : Builders<Sales>.Filter.Empty;
+        var fluent = _sales.Find(filter).SortByDescending(s => s.Date);
+
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetAllSalesCountAsync(string? outletId = null)
+    {
+        var filter = outletId != null
+            ? Builders<Sales>.Filter.Eq(s => s.OutletId, outletId)
+            : Builders<Sales>.Filter.Empty;
+        return await _sales.CountDocumentsAsync(filter);
     }
 
     // Get sales by date range
     public async Task<List<Sales>> GetSalesByDateRangeAsync(DateTime startDate, DateTime endDate, string? outletId = null)
     {
+        // Enforce maximum date range of 1 year
+        if ((endDate - startDate).TotalDays > 366)
+        {
+            endDate = startDate.AddDays(366);
+        }
+        
         var filterBuilder = Builders<Sales>.Filter;
         var filters = new List<FilterDefinition<Sales>>
         {
@@ -2005,6 +2357,7 @@ public partial class MongoService
         var combinedFilter = filterBuilder.And(filters);
         return await _sales.Find(combinedFilter)
             .SortByDescending(s => s.Date)
+            .Limit(Helpers.PaginationHelper.SafetyLimit)
             .ToListAsync();
     }
 
@@ -2053,19 +2406,47 @@ public partial class MongoService
             filter = builder.And(filter, builder.Eq(s => s.OutletId, outletId));
         }
 
-        var salesRecords = await _sales.Find(filter).ToListAsync();
+        // MongoDB aggregation: $match → $facet (summary + payment breakdown)
+        var facetStage = new BsonDocument("$facet", new BsonDocument
+        {
+            { "summary", new BsonArray
+                {
+                    new BsonDocument("$group", new BsonDocument
+                    {
+                        { "_id", BsonNull.Value },
+                        { "totalSales", new BsonDocument("$sum", "$totalAmount") },
+                        { "totalTransactions", new BsonDocument("$sum", 1) }
+                    })
+                }
+            },
+            { "byPayment", new BsonArray
+                {
+                    new BsonDocument("$group", new BsonDocument
+                    {
+                        { "_id", "$paymentMethod" },
+                        { "total", new BsonDocument("$sum", "$totalAmount") }
+                    })
+                }
+            }
+        });
 
-        var summary = new SalesSummary
+        var result = await _sales.Aggregate()
+            .Match(filter)
+            .AppendStage<BsonDocument>(facetStage)
+            .FirstOrDefaultAsync();
+        var summaryDoc = result?["summary"].AsBsonArray.FirstOrDefault()?.AsBsonDocument;
+        var byPayment = result?["byPayment"].AsBsonArray ?? new BsonArray();
+
+        return new SalesSummary
         {
             Date = date,
-            TotalSales = salesRecords.Sum(s => s.TotalAmount),
-            TotalTransactions = salesRecords.Count,
-            PaymentMethodBreakdown = salesRecords
-                .GroupBy(s => s.PaymentMethod)
-                .ToDictionary(g => g.Key, g => g.Sum(s => s.TotalAmount))
+            TotalSales = summaryDoc?["totalSales"].ToDecimal() ?? 0,
+            TotalTransactions = summaryDoc?["totalTransactions"].ToInt32() ?? 0,
+            PaymentMethodBreakdown = byPayment
+                .Select(b => b.AsBsonDocument)
+                .Where(b => b["_id"] != BsonNull.Value)
+                .ToDictionary(b => b["_id"].AsString, b => b["total"].ToDecimal())
         };
-
-        return summary;
     }
 
     #endregion
@@ -2073,19 +2454,29 @@ public partial class MongoService
     #region Expense Operations
 
     // Get all expenses (optionally filtered by outlet)
-    public async Task<List<Expense>> GetAllExpensesAsync(string? outletId = null)
+    public async Task<List<Expense>> GetAllExpensesAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
-        // If no outlet is selected, return empty list instead of all data
-        if (outletId == null)
-            return new List<Expense>();
-        
-        var filter = Builders<Expense>.Filter.Eq(e => e.OutletId, outletId);
-        
-        return await _expenses.Find(filter).SortByDescending(e => e.Date).ToListAsync();
+        var filter = outletId != null 
+            ? Builders<Expense>.Filter.Eq(e => e.OutletId, outletId)
+            : Builders<Expense>.Filter.Empty;
+        var fluent = _expenses.Find(filter).SortByDescending(e => e.Date);
+
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetAllExpensesCountAsync(string? outletId = null)
+    {
+        var filter = outletId != null 
+            ? Builders<Expense>.Filter.Eq(e => e.OutletId, outletId) 
+            : Builders<Expense>.Filter.Empty;
+        return await _expenses.CountDocumentsAsync(filter);
     }
 
     // Get expenses by date range (optionally filtered by outlet)
-    public async Task<List<Expense>> GetExpensesByDateRangeAsync(DateTime startDate, DateTime endDate, string? outletId = null)
+    public async Task<List<Expense>> GetExpensesByDateRangeAsync(DateTime startDate, DateTime endDate, string? outletId = null, int? page = null, int? pageSize = null)
     {
         var builder = Builders<Expense>.Filter;
         var filter = builder.And(
@@ -2098,7 +2489,24 @@ public partial class MongoService
             filter = builder.And(filter, builder.Eq(e => e.OutletId, outletId));
         }
         
-        return await _expenses.Find(filter).SortByDescending(e => e.Date).ToListAsync();
+        var fluent = _expenses.Find(filter).SortByDescending(e => e.Date);
+
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetExpensesByDateRangeCountAsync(DateTime startDate, DateTime endDate, string? outletId = null)
+    {
+        var builder = Builders<Expense>.Filter;
+        var filter = builder.And(
+            builder.Gte(e => e.Date, startDate),
+            builder.Lte(e => e.Date, endDate)
+        );
+        if (outletId != null)
+            filter = builder.And(filter, builder.Eq(e => e.OutletId, outletId));
+        return await _expenses.CountDocumentsAsync(filter);
     }
 
     // Get expense by ID
@@ -2129,25 +2537,173 @@ public partial class MongoService
         return result.DeletedCount > 0;
     }
 
-    // Get expense summary by date
+    // Get expense summary by date using MongoDB aggregation
     public async Task<ExpenseSummary> GetExpenseSummaryByDateAsync(DateTime date)
     {
         var startOfDay = date.Date;
         var endOfDay = startOfDay.AddDays(1);
 
-        var expenses = await _expenses.Find(e => e.Date >= startOfDay && e.Date < endOfDay).ToListAsync();
+        var filter = Builders<Expense>.Filter.And(
+            Builders<Expense>.Filter.Gte(e => e.Date, startOfDay),
+            Builders<Expense>.Filter.Lt(e => e.Date, endOfDay)
+        );
 
-        var summary = new ExpenseSummary
+        // MongoDB aggregation: $match → $facet (total + type breakdown)
+        var facetStage = new BsonDocument("$facet", new BsonDocument
+        {
+            { "summary", new BsonArray
+                {
+                    new BsonDocument("$group", new BsonDocument
+                    {
+                        { "_id", BsonNull.Value },
+                        { "totalExpenses", new BsonDocument("$sum", "$amount") }
+                    })
+                }
+            },
+            { "byType", new BsonArray
+                {
+                    new BsonDocument("$match", new BsonDocument("expenseType", new BsonDocument("$nin", new BsonArray { BsonNull.Value, "" }))),
+                    new BsonDocument("$group", new BsonDocument
+                    {
+                        { "_id", "$expenseType" },
+                        { "total", new BsonDocument("$sum", "$amount") }
+                    })
+                }
+            }
+        });
+
+        var result = await _expenses.Aggregate()
+            .Match(filter)
+            .AppendStage<BsonDocument>(facetStage)
+            .FirstOrDefaultAsync();
+        var summaryDoc = result?["summary"].AsBsonArray.FirstOrDefault()?.AsBsonDocument;
+        var byType = result?["byType"].AsBsonArray ?? new BsonArray();
+
+        return new ExpenseSummary
         {
             Date = date,
-            TotalExpenses = expenses.Sum(e => e.Amount),
-            ExpenseTypeBreakdown = expenses
-                .Where(e => !string.IsNullOrEmpty(e.ExpenseType))
-                .GroupBy(e => e.ExpenseType)
-                .ToDictionary(g => g.Key, g => g.Sum(e => e.Amount))
+            TotalExpenses = summaryDoc?["totalExpenses"].ToDecimal() ?? 0,
+            ExpenseTypeBreakdown = byType
+                .Select(b => b.AsBsonDocument)
+                .Where(b => b["_id"] != BsonNull.Value)
+                .ToDictionary(b => b["_id"].AsString, b => b["total"].ToDecimal())
+        };
+    }
+
+    // Get expense analytics using MongoDB $facet aggregation (all breakdowns in single query)
+    public async Task<BsonDocument?> GetExpenseAnalyticsAggregationAsync(DateTime startDate, DateTime endDate, string? source, string? outletId)
+    {
+        var filterDoc = new BsonDocument
+        {
+            { "date", new BsonDocument { { "$gte", startDate }, { "$lte", endDate } } }
+        };
+        if (outletId != null)
+            filterDoc.Add("outletId", new ObjectId(outletId));
+        if (source != null && source != "All")
+            filterDoc.Add("expenseSource", source);
+
+        var pipeline = new BsonDocument[]
+        {
+            new("$match", filterDoc),
+            new("$facet", new BsonDocument
+            {
+                { "summary", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", BsonNull.Value },
+                            { "total", new BsonDocument("$sum", "$amount") },
+                            { "count", new BsonDocument("$sum", 1) },
+                            { "avg", new BsonDocument("$avg", "$amount") }
+                        })
+                    }
+                },
+                { "byType", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", "$expenseType" },
+                            { "total", new BsonDocument("$sum", "$amount") },
+                            { "count", new BsonDocument("$sum", 1) },
+                            { "avg", new BsonDocument("$avg", "$amount") }
+                        }),
+                        new BsonDocument("$sort", new BsonDocument("total", -1)),
+                        new BsonDocument("$limit", 10)
+                    }
+                },
+                { "byPayment", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", "$paymentMethod" },
+                            { "total", new BsonDocument("$sum", "$amount") },
+                            { "count", new BsonDocument("$sum", 1) }
+                        }),
+                        new BsonDocument("$sort", new BsonDocument("total", -1))
+                    }
+                },
+                { "bySource", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", "$expenseSource" },
+                            { "total", new BsonDocument("$sum", "$amount") },
+                            { "count", new BsonDocument("$sum", 1) }
+                        }),
+                        new BsonDocument("$sort", new BsonDocument("total", -1))
+                    }
+                },
+                { "byMonth", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", new BsonDocument { { "year", new BsonDocument("$year", "$date") }, { "month", new BsonDocument("$month", "$date") } } },
+                            { "total", new BsonDocument("$sum", "$amount") },
+                            { "count", new BsonDocument("$sum", 1) },
+                            { "avg", new BsonDocument("$avg", "$amount") }
+                        }),
+                        new BsonDocument("$sort", new BsonDocument { { "_id.year", -1 }, { "_id.month", -1 } }),
+                        new BsonDocument("$limit", 12)
+                    }
+                },
+                { "byDay", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", new BsonDocument("$dateToString", new BsonDocument { { "format", "%Y-%m-%d" }, { "date", "$date" } }) },
+                            { "total", new BsonDocument("$sum", "$amount") },
+                            { "count", new BsonDocument("$sum", 1) }
+                        }),
+                        new BsonDocument("$sort", new BsonDocument("total", -1)),
+                        new BsonDocument("$limit", 10)
+                    }
+                },
+                { "byWeek", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", new BsonDocument { { "year", new BsonDocument("$isoWeekYear", "$date") }, { "week", new BsonDocument("$isoWeek", "$date") } } },
+                            { "total", new BsonDocument("$sum", "$amount") },
+                            { "count", new BsonDocument("$sum", 1) }
+                        }),
+                        new BsonDocument("$sort", new BsonDocument { { "_id.year", -1 }, { "_id.week", -1 } }),
+                        new BsonDocument("$limit", 8)
+                    }
+                },
+                { "byTypeTrend", new BsonArray
+                    {
+                        new BsonDocument("$group", new BsonDocument
+                        {
+                            { "_id", new BsonDocument { { "type", "$expenseType" }, { "year", new BsonDocument("$year", "$date") }, { "month", new BsonDocument("$month", "$date") } } },
+                            { "total", new BsonDocument("$sum", "$amount") }
+                        }),
+                        new BsonDocument("$sort", new BsonDocument { { "_id.type", 1 }, { "_id.year", 1 }, { "_id.month", 1 } })
+                    }
+                }
+            })
         };
 
-        return summary;
+        return await _expenses.Aggregate<BsonDocument>(pipeline).FirstOrDefaultAsync();
     }
 
     #endregion
@@ -2157,11 +2713,9 @@ public partial class MongoService
     // Get all operational expenses
     public async Task<List<OperationalExpense>> GetAllOperationalExpensesAsync(string? outletId = null)
     {
-        // If no outlet is selected, return empty list instead of all data
-        if (outletId == null)
-            return new List<OperationalExpense>();
-        
-        var filter = Builders<OperationalExpense>.Filter.Eq(e => e.OutletId, outletId);
+        var filter = outletId != null
+            ? Builders<OperationalExpense>.Filter.Eq(e => e.OutletId, outletId)
+            : Builders<OperationalExpense>.Filter.Empty;
         
         return await _operationalExpenses.Find(filter)
             .SortByDescending(e => e.Year)
@@ -2857,7 +3411,7 @@ public partial class MongoService
 
     #region Online Sales Management
 
-    public async Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null)
+    public async Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null, int? page = null, int? pageSize = null)
     {
         var filterBuilder = Builders<OnlineSale>.Filter;
         var filters = new List<FilterDefinition<OnlineSale>>();
@@ -2872,9 +3426,24 @@ public partial class MongoService
             ? filterBuilder.And(filters) 
             : filterBuilder.Empty;
 
-        return await _onlineSales.Find(filter)
-            .SortByDescending(s => s.OrderAt)
-            .ToListAsync();
+        var fluent = _onlineSales.Find(filter).SortByDescending(s => s.OrderAt);
+
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetOnlineSalesCountAsync(string? platform = null, string? outletId = null)
+    {
+        var filterBuilder = Builders<OnlineSale>.Filter;
+        var filters = new List<FilterDefinition<OnlineSale>>();
+        if (!string.IsNullOrEmpty(platform))
+            filters.Add(filterBuilder.Eq(s => s.Platform, platform));
+        if (!string.IsNullOrEmpty(outletId))
+            filters.Add(filterBuilder.Eq(s => s.OutletId, outletId));
+        var filter = filters.Count > 0 ? filterBuilder.And(filters) : filterBuilder.Empty;
+        return await _onlineSales.CountDocumentsAsync(filter);
     }
 
     public async Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null)
@@ -2917,29 +3486,43 @@ public partial class MongoService
             filter &= Builders<OnlineSale>.Filter.Eq(s => s.OutletId, outletId);
         }
 
-        var sales = await _onlineSales.Find(filter).ToListAsync();
+        // MongoDB aggregation: $match → $group by (date, platform) → $sort
+        var groupStage = new BsonDocument("$group", new BsonDocument
+        {
+            { "_id", new BsonDocument { { "date", new BsonDocument("$dateToString", new BsonDocument { { "format", "%Y-%m-%d" }, { "date", "$orderAt" } }) }, { "platform", "$platform" } } },
+            { "totalPayout", new BsonDocument("$sum", "$payout") },
+            { "totalOrders", new BsonDocument("$sum", 1) },
+            { "totalDeduction", new BsonDocument("$sum", "$platformDeduction") },
+            { "totalDiscount", new BsonDocument("$sum", "$discountAmount") },
+            { "totalPackaging", new BsonDocument("$sum", "$packagingCharges") },
+            { "totalFreebies", new BsonDocument("$sum", "$freebies") },
+            { "ratingSum", new BsonDocument("$sum", new BsonDocument("$ifNull", new BsonArray { "$rating", 0 })) },
+            { "ratingCount", new BsonDocument("$sum", new BsonDocument("$cond", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$rating", false }), 1, 0 })) }
+        });
+        var sortStage = new BsonDocument("$sort", new BsonDocument { { "_id.date", 1 }, { "_id.platform", 1 } });
 
-        // Group by date and platform
-        var grouped = sales.GroupBy(s => new { Date = s.OrderAt.Date, Platform = s.Platform })
-            .Select(g => new DailyOnlineIncomeResponse
+        var results = await _onlineSales.Aggregate()
+            .Match(filter)
+            .AppendStage<BsonDocument>(groupStage)
+            .AppendStage<BsonDocument>(sortStage)
+            .ToListAsync();
+
+        return results.Select(r =>
+        {
+            var ratingCount = r["ratingCount"].ToInt32();
+            return new DailyOnlineIncomeResponse
             {
-                Date = g.Key.Date,
-                Platform = g.Key.Platform,
-                TotalPayout = g.Sum(s => s.Payout),
-                TotalOrders = g.Count(),
-                TotalDeduction = g.Sum(s => s.PlatformDeduction),
-                TotalDiscount = g.Sum(s => s.DiscountAmount),
-                TotalPackaging = g.Sum(s => s.PackagingCharges),
-                TotalFreebies = g.Sum(s => s.Freebies),
-                AverageRating = g.Where(s => s.Rating.HasValue).Any()
-                    ? g.Where(s => s.Rating.HasValue).Average(s => s.Rating!.Value)
-                    : 0
-            })
-            .OrderBy(r => r.Date)
-            .ThenBy(r => r.Platform)
-            .ToList();
-
-        return grouped;
+                Date = DateTime.Parse(r["_id"].AsBsonDocument["date"].AsString),
+                Platform = r["_id"].AsBsonDocument["platform"].AsString,
+                TotalPayout = r["totalPayout"].ToDecimal(),
+                TotalOrders = r["totalOrders"].ToInt32(),
+                TotalDeduction = r["totalDeduction"].ToDecimal(),
+                TotalDiscount = r["totalDiscount"].ToDecimal(),
+                TotalPackaging = r["totalPackaging"].ToDecimal(),
+                TotalFreebies = r["totalFreebies"].ToDecimal(),
+                AverageRating = ratingCount > 0 ? r["ratingSum"].ToDecimal() / ratingCount : 0m
+            };
+        }).ToList();
     }
 
     public async Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10, string? outletId = null)
@@ -3014,39 +3597,47 @@ public partial class MongoService
             filter &= Builders<OnlineSale>.Filter.Eq(s => s.OutletId, outletId);
         }
 
-        var sales = await _onlineSales.Find(filter).ToListAsync();
+        // MongoDB aggregation: $match → $group by (coupon, platform) with stats
+        var groupStage = new BsonDocument("$group", new BsonDocument
+        {
+            { "_id", new BsonDocument { { "coupon", "$discountCoupon" }, { "platform", "$platform" } } },
+            { "usageCount", new BsonDocument("$sum", 1) },
+            { "totalDiscount", new BsonDocument("$sum", "$discountAmount") },
+            { "avgDiscount", new BsonDocument("$avg", "$discountAmount") },
+            { "firstUsed", new BsonDocument("$min", "$orderAt") },
+            { "lastUsed", new BsonDocument("$max", "$orderAt") }
+        });
+        var sortStage = new BsonDocument("$sort", new BsonDocument { { "_id.platform", 1 }, { "usageCount", -1 } });
 
-        // Group by coupon code and platform
-        var grouped = sales
-            .GroupBy(s => new { Coupon = s.DiscountCoupon!, Platform = s.Platform })
-            .Select(g =>
+        var results = await _onlineSales.Aggregate()
+            .Match(filter)
+            .AppendStage<BsonDocument>(groupStage)
+            .AppendStage<BsonDocument>(sortStage)
+            .ToListAsync();
+
+        // Enrich aggregation results with coupon management data (in-memory join)
+        return results.Select(r =>
+        {
+            var coupon = r["_id"].AsBsonDocument["coupon"].AsString;
+            var platform = r["_id"].AsBsonDocument["platform"].AsString;
+            var key = $"{coupon}|{platform}";
+            var hasStatus = couponStatusMap.ContainsKey(key);
+
+            return new DiscountCouponResponse
             {
-                var key = $"{g.Key.Coupon}|{g.Key.Platform}";
-                var isActive = couponStatusMap.ContainsKey(key) ? couponStatusMap[key].IsActive : true;
-                var id = couponStatusMap.ContainsKey(key) ? couponStatusMap[key].Id : null;
-                var maxValue = couponStatusMap.ContainsKey(key) ? couponStatusMap[key].MaxValue : null;
-                var discountPercentage = couponStatusMap.ContainsKey(key) ? couponStatusMap[key].DiscountPercentage : null;
-
-                return new DiscountCouponResponse
-                {
-                    Id = id,
-                    CouponCode = g.Key.Coupon,
-                    Platform = g.Key.Platform,
-                    UsageCount = g.Count(),
-                    TotalDiscountAmount = g.Sum(s => s.DiscountAmount),
-                    AverageDiscountAmount = g.Average(s => s.DiscountAmount),
-                    FirstUsed = g.Min(s => s.OrderAt),
-                    LastUsed = g.Max(s => s.OrderAt),
-                    IsActive = isActive,
-                    MaxValue = maxValue,
-                    DiscountPercentage = discountPercentage
-                };
-            })
-            .OrderBy(c => c.Platform)
-            .ThenByDescending(c => c.UsageCount)
-            .ToList();
-
-        return grouped;
+                Id = hasStatus ? couponStatusMap[key].Id : null,
+                CouponCode = coupon,
+                Platform = platform,
+                UsageCount = r["usageCount"].ToInt32(),
+                TotalDiscountAmount = r["totalDiscount"].ToDecimal(),
+                AverageDiscountAmount = r["avgDiscount"].ToDecimal(),
+                FirstUsed = r["firstUsed"].ToUniversalTime(),
+                LastUsed = r["lastUsed"].ToUniversalTime(),
+                IsActive = hasStatus ? couponStatusMap[key].IsActive : true,
+                MaxValue = hasStatus ? couponStatusMap[key].MaxValue : null,
+                DiscountPercentage = hasStatus ? couponStatusMap[key].DiscountPercentage : null
+            };
+        }).ToList();
     }
 
     public async Task<List<DiscountCouponResponse>> GetActiveDiscountCouponsAsync()
@@ -3272,11 +3863,9 @@ public partial class MongoService
 
     public async Task<List<PlatformCharge>> GetAllPlatformChargesAsync(string? outletId = null)
     {
-        // If no outlet is selected, return empty list instead of all data
-        if (outletId == null)
-            return new List<PlatformCharge>();
-        
-        var filter = Builders<PlatformCharge>.Filter.Eq(c => c.OutletId, outletId);
+        var filter = outletId != null
+            ? Builders<PlatformCharge>.Filter.Eq(c => c.OutletId, outletId)
+            : Builders<PlatformCharge>.Filter.Empty;
         
         return await _platformCharges.Find(filter)
             .SortByDescending(c => c.Year)
@@ -3855,11 +4444,12 @@ public partial class MongoService
     {
         if (string.IsNullOrEmpty(sourceRecipe.MenuItemName) || string.IsNullOrEmpty(sourceRecipe.OutletId))
         {
-            Console.WriteLine($"[Recipe Copy] Skipping copy - MenuItemName: {sourceRecipe.MenuItemName}, OutletId: {sourceRecipe.OutletId}");
+            _logger.LogDebug("[Recipe Copy] Skipping copy - MenuItemName: {sourceRecipe.MenuItemName}, OutletId: {sourceRecipe.OutletId}");
             return;
         }
 
-        Console.WriteLine($"[Recipe Copy] Starting automatic {(isUpdate ? "update" : "copy")} for recipe: {sourceRecipe.MenuItemName} from outlet: {sourceRecipe.OutletId}");
+        _logger.LogDebug("[Recipe Copy] Starting automatic {Action} for recipe: {RecipeName} from outlet: {OutletId}", 
+            isUpdate ? "update" : "copy", sourceRecipe.MenuItemName, sourceRecipe.OutletId);
 
         // Get source menu item to copy its details
         CafeMenuItem? sourceMenuItem = null;
@@ -3874,18 +4464,18 @@ public partial class MongoService
 
         if (sourceMenuItem == null)
         {
-            Console.WriteLine($"[Recipe Copy] Warning: Source menu item not found for recipe: {sourceRecipe.MenuItemName}");
+            _logger.LogDebug("[Recipe Copy] Warning: Source menu item not found for recipe: {sourceRecipe.MenuItemName}");
         }
 
         // Get all active outlets except the source outlet
         var allOutlets = await GetAllOutletsAsync();
         var targetOutlets = allOutlets.Where(o => o.IsActive && o.Id != sourceRecipe.OutletId).ToList();
 
-        Console.WriteLine($"[Recipe Copy] Found {targetOutlets.Count} target outlets to copy to");
+        _logger.LogDebug("[Recipe Copy] Found {targetOutlets.Count} target outlets to copy to");
 
         if (!targetOutlets.Any())
         {
-            Console.WriteLine($"[Recipe Copy] No other active outlets found");
+            _logger.LogDebug("[Recipe Copy] No other active outlets found");
             return;
         }
 
@@ -3896,7 +4486,7 @@ public partial class MongoService
         {
             try
             {
-                Console.WriteLine($"[Recipe Copy] Processing outlet: {outlet.OutletName} (ID: {outlet.Id})");
+                _logger.LogDebug("[Recipe Copy] Processing outlet: {outlet.OutletName} (ID: {outlet.Id})");
                 
                 // Check if menu item exists in target outlet by name
                 var menuItem = await GetMenuItemsByNameAndOutletAsync(sourceRecipe.MenuItemName, outlet.Id!);
@@ -3908,13 +4498,13 @@ public partial class MongoService
                     if (menuItemById != null && menuItemById.OutletId == outlet.Id)
                     {
                         menuItem = menuItemById;
-                        Console.WriteLine($"[Recipe Copy] Found existing menu item by ID in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
+                        _logger.LogDebug("[Recipe Copy] Found existing menu item by ID in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
                     }
                 }
                 
                 if (menuItem == null && sourceMenuItem != null)
                 {
-                    Console.WriteLine($"[Recipe Copy] Menu item '{sourceRecipe.MenuItemName}' not found in {outlet.OutletName}, creating it...");
+                    _logger.LogDebug("[Recipe Copy] Menu item '{sourceRecipe.MenuItemName}' not found in {outlet.OutletName}, creating it...");
                     
                     // Create menu item in target outlet based on source menu item
                     var newMenuItem = new CafeMenuItem
@@ -3941,16 +4531,16 @@ public partial class MongoService
                     };
                     
                     menuItem = await CreateMenuItemAsync(newMenuItem);
-                    Console.WriteLine($"[Recipe Copy] Created menu item in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
+                    _logger.LogDebug("[Recipe Copy] Created menu item in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
                 }
                 else if (menuItem == null)
                 {
-                    Console.WriteLine($"[Recipe Copy] Cannot create menu item - source menu item not found");
+                    _logger.LogDebug("[Recipe Copy] Cannot create menu item - source menu item not found");
                     continue;
                 }
                 else if (menuItem != null)
                 {
-                    Console.WriteLine($"[Recipe Copy] Found existing menu item in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
+                    _logger.LogDebug("[Recipe Copy] Found existing menu item in {outlet.OutletName}, MenuItemId: {menuItem.Id}");
                     
                     // Update existing menu item with latest data from source (except outlet-specific fields)
                     if (sourceMenuItem != null)
@@ -3965,7 +4555,7 @@ public partial class MongoService
                         menuItem.LastUpdated = GetIstNow();
                         
                         await UpdateMenuItemAsync(menuItem.Id, menuItem);
-                        Console.WriteLine($"[Recipe Copy] Updated existing menu item in {outlet.OutletName}");
+                        _logger.LogDebug("[Recipe Copy] Updated existing menu item in {outlet.OutletName}");
                     }
                 }
 
@@ -3978,7 +4568,7 @@ public partial class MongoService
                 
                 if (sourceRecipe.PreparationTimeMinutes.HasValue)
                 {
-                    Console.WriteLine($"[Recipe Copy] Checking overhead costs for outlet {outlet.OutletName} with prep time {sourceRecipe.PreparationTimeMinutes.Value} minutes");
+                    _logger.LogDebug("[Recipe Copy] Checking overhead costs for outlet {outlet.OutletName} with prep time {sourceRecipe.PreparationTimeMinutes.Value} minutes");
                     
                     // Try to get outlet-specific overhead costs
                     var overheadAllocation = await CalculateOverheadAllocationAsync((int)sourceRecipe.PreparationTimeMinutes.Value, outlet.Id);
@@ -3986,15 +4576,15 @@ public partial class MongoService
                     // Check if outlet has configured overhead costs
                     if (overheadAllocation.Costs != null && overheadAllocation.Costs.Any())
                     {
-                        Console.WriteLine($"[Recipe Copy] ✅ Using outlet-specific overhead costs for {outlet.OutletName}");
-                        Console.WriteLine($"[Recipe Copy]    Found {overheadAllocation.Costs.Count} configured overhead cost types");
+                        _logger.LogDebug("[Recipe Copy] âœ… Using outlet-specific overhead costs for {outlet.OutletName}");
+                        _logger.LogDebug("[Recipe Copy]    Found {overheadAllocation.Costs.Count} configured overhead cost types");
                         
                         // Map the overhead allocation to OverheadCosts structure
                         decimal totalLabour = 0, totalRent = 0, totalElectricity = 0, totalMisc = 0;
                         
                         foreach (var cost in overheadAllocation.Costs)
                         {
-                            Console.WriteLine($"[Recipe Copy]    - {cost.CostType}: ₹{cost.AllocatedCost:F2}");
+                            _logger.LogDebug("[Recipe Copy]    - {cost.CostType}: â‚¹{cost.AllocatedCost:F2}");
                             switch (cost.CostType.ToLower())
                             {
                                 case "rent":
@@ -4022,12 +4612,12 @@ public partial class MongoService
                         overheadCosts.OperationalHoursPerDay = sourceRecipe.OverheadCosts.OperationalHoursPerDay;
                         overheadCosts.WorkingDaysPerMonth = sourceRecipe.OverheadCosts.WorkingDaysPerMonth;
                         
-                        Console.WriteLine($"[Recipe Copy]    Total overhead: ₹{totalLabour + totalRent + totalElectricity + totalMisc:F2} (Misc: ₹{overheadCosts.Miscellaneous:F2})");
+                        _logger.LogDebug("[Recipe Copy]    Total overhead: â‚¹{totalLabour + totalRent + totalElectricity + totalMisc:F2} (Misc: â‚¹{overheadCosts.Miscellaneous:F2})");
                     }
                     else
                     {
-                        Console.WriteLine($"[Recipe Copy] ⚠️ No overhead costs configured for outlet {outlet.OutletName}");
-                        Console.WriteLine($"[Recipe Copy] ⚠️ Falling back to source outlet's overhead costs");
+                        _logger.LogDebug("[Recipe Copy] âš ï¸ No overhead costs configured for outlet {outlet.OutletName}");
+                        _logger.LogDebug("[Recipe Copy] âš ï¸ Falling back to source outlet's overhead costs");
                         
                         // Fallback to source overhead costs if target outlet has no configuration
                         overheadCosts = new OverheadCosts
@@ -4041,12 +4631,12 @@ public partial class MongoService
                             WorkingDaysPerMonth = sourceRecipe.OverheadCosts.WorkingDaysPerMonth
                         };
                         
-                        Console.WriteLine($"[Recipe Copy]    Labour: ₹{overheadCosts.LabourCharge:F2}, Rent: ₹{overheadCosts.RentAllocation:F2}, Electricity: ₹{overheadCosts.ElectricityCharge:F2}, Misc: ₹{overheadCosts.Miscellaneous:F2}");
+                        _logger.LogDebug("[Recipe Copy]    Labour: â‚¹{overheadCosts.LabourCharge:F2}, Rent: â‚¹{overheadCosts.RentAllocation:F2}, Electricity: â‚¹{overheadCosts.ElectricityCharge:F2}, Misc: â‚¹{overheadCosts.Miscellaneous:F2}");
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"[Recipe Copy] No preparation time available, using source overhead costs");
+                    _logger.LogDebug("[Recipe Copy] No preparation time available, using source overhead costs");
                     
                     // Create a copy of source overhead costs if no preparation time available
                     overheadCosts = new OverheadCosts
@@ -4071,7 +4661,7 @@ public partial class MongoService
                     
                     if (targetKptData != null)
                     {
-                        Console.WriteLine($"[Recipe Copy] Using target outlet's KPT data for {outlet.OutletName}");
+                        _logger.LogDebug("[Recipe Copy] Using target outlet's KPT data for {outlet.OutletName}");
                         kptAnalysis = targetKptData;
                     }
                     else if (defaultOutlet != null && !string.IsNullOrEmpty(defaultOutlet.Id))
@@ -4083,30 +4673,30 @@ public partial class MongoService
                             var defaultKptData = await GetKptAnalysisForMenuItem(defaultMenuItem.Id, defaultOutlet.Id);
                             if (defaultKptData != null)
                             {
-                                Console.WriteLine($"[Recipe Copy] Using default outlet's KPT data for {outlet.OutletName}");
+                                _logger.LogDebug("[Recipe Copy] Using default outlet's KPT data for {outlet.OutletName}");
                                 kptAnalysis = defaultKptData;
                             }
                             else
                             {
-                                Console.WriteLine($"[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
+                                _logger.LogDebug("[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
                                 kptAnalysis = sourceRecipe.KptAnalysis;
                             }
                         }
                         else
                         {
-                            Console.WriteLine($"[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
+                            _logger.LogDebug("[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
                             kptAnalysis = sourceRecipe.KptAnalysis;
                         }
                     }
                     else
                     {
-                        Console.WriteLine($"[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
+                        _logger.LogDebug("[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
                         kptAnalysis = sourceRecipe.KptAnalysis;
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
+                    _logger.LogDebug("[Recipe Copy] Using source recipe's KPT data (editable) for {outlet.OutletName}");
                     kptAnalysis = sourceRecipe.KptAnalysis;
                 }
 
@@ -4147,8 +4737,8 @@ public partial class MongoService
 
                 if (existingRecipe != null)
                 {
-                    Console.WriteLine($"[Recipe Copy] Updating existing recipe in outlet {outlet.OutletName}");
-                    Console.WriteLine($"[Recipe Copy] Copying {sourceRecipe.Ingredients.Count} ingredients");
+                    _logger.LogDebug("[Recipe Copy] Updating existing recipe in outlet {outlet.OutletName}");
+                    _logger.LogDebug("[Recipe Copy] Copying {sourceRecipe.Ingredients.Count} ingredients");
                     
                     // Update existing recipe with all data from source
                     existingRecipe.Ingredients = sourceRecipe.Ingredients; // Copy all ingredients
@@ -4168,16 +4758,16 @@ public partial class MongoService
 
                     await _recipes.ReplaceOneAsync(r => r.Id == existingRecipe.Id, existingRecipe);
                     
-                    Console.WriteLine($"[Recipe Copy] ✅ Successfully updated recipe in outlet {outlet.OutletName}");
-                    Console.WriteLine($"[Recipe Copy]    - Ingredients: {sourceRecipe.Ingredients.Count}");
-                    Console.WriteLine($"[Recipe Copy]    - Total Making Cost: ₹{totalMakingCost}");
-                    Console.WriteLine($"[Recipe Copy]    - Overhead Costs: ₹{totalOverheadCost}");
+                    _logger.LogDebug("[Recipe Copy] âœ… Successfully updated recipe in outlet {outlet.OutletName}");
+                    _logger.LogDebug("[Recipe Copy]    - Ingredients: {sourceRecipe.Ingredients.Count}");
+                    _logger.LogDebug("[Recipe Copy]    - Total Making Cost: â‚¹{totalMakingCost}");
+                    _logger.LogDebug("[Recipe Copy]    - Overhead Costs: â‚¹{totalOverheadCost}");
                     
                     // Update menu item shop price for this outlet
                     if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem?.Id))
                     {
                         await UpdateMenuItemShopPriceAsync(menuItem.Id!, priceForecast.ShopPrice);
-                        Console.WriteLine($"[Recipe Copy]    - Updated menu item shop price: ₹{priceForecast.ShopPrice}");
+                        _logger.LogDebug("[Recipe Copy]    - Updated menu item shop price: â‚¹{priceForecast.ShopPrice}");
                     }
                 }
                 else
@@ -4185,12 +4775,12 @@ public partial class MongoService
                     // Skip creating new recipes if this is an update operation
                     if (isUpdate)
                     {
-                        Console.WriteLine($"[Recipe Copy] Skipping outlet {outlet.OutletName} - no existing recipe found (update mode)");
+                        _logger.LogDebug("[Recipe Copy] Skipping outlet {outlet.OutletName} - no existing recipe found (update mode)");
                         continue;
                     }
                     
-                    Console.WriteLine($"[Recipe Copy] Creating new recipe in outlet {outlet.OutletName}");
-                    Console.WriteLine($"[Recipe Copy] Copying {sourceRecipe.Ingredients.Count} ingredients");
+                    _logger.LogDebug("[Recipe Copy] Creating new recipe in outlet {outlet.OutletName}");
+                    _logger.LogDebug("[Recipe Copy] Copying {sourceRecipe.Ingredients.Count} ingredients");
                     
                     // Create new recipe for this outlet with all data from source
                     var newRecipe = new MenuItemRecipe
@@ -4217,30 +4807,30 @@ public partial class MongoService
 
                     await _recipes.InsertOneAsync(newRecipe);
                     
-                    Console.WriteLine($"[Recipe Copy] ✅ Successfully created recipe in outlet {outlet.OutletName}");
-                    Console.WriteLine($"[Recipe Copy]    - Ingredients: {sourceRecipe.Ingredients.Count}");
-                    Console.WriteLine($"[Recipe Copy]    - Total Making Cost: ₹{totalMakingCost}");
-                    Console.WriteLine($"[Recipe Copy]    - Overhead Costs: ₹{totalOverheadCost}");
+                    _logger.LogDebug("[Recipe Copy] âœ… Successfully created recipe in outlet {outlet.OutletName}");
+                    _logger.LogDebug("[Recipe Copy]    - Ingredients: {sourceRecipe.Ingredients.Count}");
+                    _logger.LogDebug("[Recipe Copy]    - Total Making Cost: â‚¹{totalMakingCost}");
+                    _logger.LogDebug("[Recipe Copy]    - Overhead Costs: â‚¹{totalOverheadCost}");
                     
                     // Update menu item shop price for this outlet
                     if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem?.Id))
                     {
                         await UpdateMenuItemShopPriceAsync(menuItem.Id!, priceForecast.ShopPrice);
-                        Console.WriteLine($"[Recipe Copy]    - Updated menu item shop price: ₹{priceForecast.ShopPrice}");
+                        _logger.LogDebug("[Recipe Copy]    - Updated menu item shop price: â‚¹{priceForecast.ShopPrice}");
                     }
                 }
             }
             catch (Exception ex)
             {
                 // Log error but continue with other outlets
-                Console.WriteLine($"[Recipe Copy] ❌ ERROR copying recipe to outlet {outlet.OutletName}: {ex.Message}");
-                Console.WriteLine($"[Recipe Copy] Stack trace: {ex.StackTrace}");
+                _logger.LogDebug("[Recipe Copy] âŒ ERROR copying recipe to outlet {outlet.OutletName}: {ex.Message}");
+                _logger.LogDebug("[Recipe Copy] Stack trace: {ex.StackTrace}");
             }
         }
         
-        Console.WriteLine($"[Recipe Copy] ========================================");
-        Console.WriteLine($"[Recipe Copy] Finished automatic copy to all outlets");
-        Console.WriteLine($"[Recipe Copy] ========================================");
+        _logger.LogDebug("[Recipe Copy] ========================================");
+        _logger.LogDebug("[Recipe Copy] Finished automatic copy to all outlets");
+        _logger.LogDebug("[Recipe Copy] ========================================");
     }
 
     // Helper method to get KPT analysis for a menu item from online sales
@@ -4433,7 +5023,7 @@ public partial class MongoService
         // Debug logging
         var totalCount = await _inventoryTransactions.CountDocumentsAsync(filterBuilder.Empty);
         var outletCount = string.IsNullOrEmpty(outletId) ? 0 : await _inventoryTransactions.CountDocumentsAsync(filter);
-        Console.WriteLine($"[GetRecentTransactionsAsync] Total transactions in DB: {totalCount}, For outlet {outletId}: {outletCount}, Returning: {transactions.Count}");
+        _logger.LogInformation($"[GetRecentTransactionsAsync] Total transactions in DB: {totalCount}, For outlet {outletId}: {outletCount}, Returning: {transactions.Count}");
         
         return transactions;
     }
@@ -4506,11 +5096,11 @@ public partial class MongoService
         
         if (transactionsWithoutOutlet.Count == 0)
         {
-            Console.WriteLine("[MigrateInventoryTransactionOutletIds] No transactions need migration");
+            _logger.LogInformation("[MigrateInventoryTransactionOutletIds] No transactions need migration");
             return 0;
         }
         
-        Console.WriteLine($"[MigrateInventoryTransactionOutletIds] Found {transactionsWithoutOutlet.Count} transactions without outlet IDs");
+        _logger.LogInformation($"[MigrateInventoryTransactionOutletIds] Found {transactionsWithoutOutlet.Count} transactions without outlet IDs");
         
         // If no default outlet ID provided, try to get the first outlet from database
         if (string.IsNullOrEmpty(defaultOutletId))
@@ -4519,11 +5109,11 @@ public partial class MongoService
             if (firstOutlet != null)
             {
                 defaultOutletId = firstOutlet.Id;
-                Console.WriteLine($"[MigrateInventoryTransactionOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
+                _logger.LogInformation($"[MigrateInventoryTransactionOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
             }
             else
             {
-                Console.WriteLine("[MigrateInventoryTransactionOutletIds] ERROR: No outlets found in database and no default provided");
+                _logger.LogInformation("[MigrateInventoryTransactionOutletIds] ERROR: No outlets found in database and no default provided");
                 return 0;
             }
         }
@@ -4544,7 +5134,7 @@ public partial class MongoService
             updateCount++;
         }
         
-        Console.WriteLine($"[MigrateInventoryTransactionOutletIds] Updated {updateCount} transactions with outlet ID: {defaultOutletId}");
+        _logger.LogInformation($"[MigrateInventoryTransactionOutletIds] Updated {updateCount} transactions with outlet ID: {defaultOutletId}");
         return updateCount;
     }
 
@@ -4562,11 +5152,11 @@ public partial class MongoService
         
         if (chargesWithoutOutlet.Count == 0)
         {
-            Console.WriteLine("[MigratePlatformChargeOutletIds] No platform charges need migration");
+            _logger.LogInformation("[MigratePlatformChargeOutletIds] No platform charges need migration");
             return 0;
         }
         
-        Console.WriteLine($"[MigratePlatformChargeOutletIds] Found {chargesWithoutOutlet.Count} platform charges without outlet IDs");
+        _logger.LogInformation($"[MigratePlatformChargeOutletIds] Found {chargesWithoutOutlet.Count} platform charges without outlet IDs");
         
         // If no default outlet ID provided, try to get the first outlet from database
         if (string.IsNullOrEmpty(defaultOutletId))
@@ -4575,11 +5165,11 @@ public partial class MongoService
             if (firstOutlet != null)
             {
                 defaultOutletId = firstOutlet.Id;
-                Console.WriteLine($"[MigratePlatformChargeOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
+                _logger.LogInformation($"[MigratePlatformChargeOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
             }
             else
             {
-                Console.WriteLine("[MigratePlatformChargeOutletIds] ERROR: No outlets found in database and no default provided");
+                _logger.LogInformation("[MigratePlatformChargeOutletIds] ERROR: No outlets found in database and no default provided");
                 return 0;
             }
         }
@@ -4600,7 +5190,7 @@ public partial class MongoService
             updateCount++;
         }
         
-        Console.WriteLine($"[MigratePlatformChargeOutletIds] Updated {updateCount} platform charges with outlet ID: {defaultOutletId}");
+        _logger.LogInformation($"[MigratePlatformChargeOutletIds] Updated {updateCount} platform charges with outlet ID: {defaultOutletId}");
         return updateCount;
     }
 
@@ -4618,11 +5208,11 @@ public partial class MongoService
         
         if (recipesWithoutOutlet.Count == 0)
         {
-            Console.WriteLine("[MigrateRecipeOutletIds] No recipes need migration");
+            _logger.LogInformation("[MigrateRecipeOutletIds] No recipes need migration");
             return 0;
         }
         
-        Console.WriteLine($"[MigrateRecipeOutletIds] Found {recipesWithoutOutlet.Count} recipes without outlet IDs");
+        _logger.LogInformation($"[MigrateRecipeOutletIds] Found {recipesWithoutOutlet.Count} recipes without outlet IDs");
         
         // If no default outlet ID provided, try to get the first outlet from database
         if (string.IsNullOrEmpty(defaultOutletId))
@@ -4631,11 +5221,11 @@ public partial class MongoService
             if (firstOutlet != null)
             {
                 defaultOutletId = firstOutlet.Id;
-                Console.WriteLine($"[MigrateRecipeOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
+                _logger.LogInformation($"[MigrateRecipeOutletIds] Using first outlet as default: {firstOutlet.OutletName} ({defaultOutletId})");
             }
             else
             {
-                Console.WriteLine("[MigrateRecipeOutletIds] ERROR: No outlets found in database and no default provided");
+                _logger.LogInformation("[MigrateRecipeOutletIds] ERROR: No outlets found in database and no default provided");
                 return 0;
             }
         }
@@ -4656,7 +5246,7 @@ public partial class MongoService
             updateCount++;
         }
         
-        Console.WriteLine($"[MigrateRecipeOutletIds] Updated {updateCount} recipes with outlet ID: {defaultOutletId}");
+        _logger.LogInformation($"[MigrateRecipeOutletIds] Updated {updateCount} recipes with outlet ID: {defaultOutletId}");
         return updateCount;
     }
 

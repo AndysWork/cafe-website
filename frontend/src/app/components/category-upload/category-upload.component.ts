@@ -85,7 +85,6 @@ export class CategoryUploadComponent {
       return;
     }
 
-    console.log('Starting upload...', this.selectedFile.name);
     this.isUploading = true;
     this.uploadProgress = 0;
     this.uploadResult = null;
@@ -96,10 +95,7 @@ export class CategoryUploadComponent {
     formData.append('uploadedBy', 'Admin'); // You can get this from auth service
 
     const apiUrl = `${environment.apiUrl}/upload/categories`;
-    console.log('Upload URL:', apiUrl);
-    console.log('FormData entries:');
     formData.forEach((value, key) => {
-      console.log(key, ':', value instanceof File ? `File: ${value.name}` : value);
     });
 
     this.http.post<UploadResult>(apiUrl, formData, {
@@ -107,12 +103,9 @@ export class CategoryUploadComponent {
       observe: 'events'
     }).subscribe({
       next: (event) => {
-        console.log('Upload event:', event.type);
         if (event.type === HttpEventType.UploadProgress && event.total) {
           this.uploadProgress = Math.round((100 * event.loaded) / event.total);
-          console.log('Upload progress:', this.uploadProgress);
         } else if (event.type === HttpEventType.Response) {
-          console.log('Upload response:', event.body);
           this.uploadResult = event.body;
           this.isUploading = false;
           this.selectedFile = null;
@@ -154,4 +147,6 @@ export class CategoryUploadComponent {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   }
+
+  trackByIndex(index: number): number { return index; }
 }

@@ -33,9 +33,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.authSubscription = this.authService.currentUser$.subscribe(
       user => {
         this.currentUser = user;
-        console.log('Navbar - Current User:', user);
-        console.log('Navbar - Is Admin:', this.isAdmin);
-        console.log('Navbar - Is Logged In:', this.isLoggedIn);
       }
     );
     this.cartSubscription = this.cartService.cart$.subscribe(

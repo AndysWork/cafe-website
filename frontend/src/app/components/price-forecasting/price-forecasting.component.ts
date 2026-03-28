@@ -367,4 +367,8 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
   getStatusText(isFinalized: boolean): string {
     return isFinalized ? 'Finalized' : 'Draft';
   }
+
+  trackByObjId(index: number, item: any): string { return item.id; }
+
+  trackByIndex(index: number): number { return index; }
 }

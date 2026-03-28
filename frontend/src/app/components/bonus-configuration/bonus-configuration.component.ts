@@ -487,4 +487,7 @@ export class BonusConfigurationComponent implements OnInit {
 
     return `${typeInfo?.description || rule.ruleType} - ${calcType}: ${amount}`;
   }
+
+  trackByIndex(index: number): number { return index; }
+  trackByObjId(index: number, item: any): string { return item.id; }
 }

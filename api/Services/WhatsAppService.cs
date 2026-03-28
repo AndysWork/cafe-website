@@ -29,7 +29,7 @@ public class WhatsAppService : IWhatsAppService
     {
         _config = config;
         _logger = logger;
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = httpClientFactory.CreateClient("WhatsApp");
 
         // Load Twilio configuration
         _accountSid = _config["WhatsAppService:TwilioAccountSid"] ?? string.Empty;

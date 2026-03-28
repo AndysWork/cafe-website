@@ -1,10 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CartService, Cart } from '../../services/cart.service';
 import { OrderService, CreateOrderRequest } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-checkout',
@@ -13,7 +14,7 @@ import { PaymentService } from '../../services/payment.service';
   templateUrl: './checkout.component.html',
   styleUrls: ['./checkout.component.scss']
 })
-export class CheckoutComponent implements OnInit {
+export class CheckoutComponent implements OnInit, OnDestroy {
   cart: Cart = {
     items: [],
     subtotal: 0,
@@ -30,6 +31,7 @@ export class CheckoutComponent implements OnInit {
 
   isSubmitting = false;
   errorMessage = '';
+  private cartSub?: Subscription;
 
   constructor(
     private cartService: CartService,
@@ -39,13 +41,17 @@ export class CheckoutComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.cartService.cart$.subscribe(cart => {
+    this.cartSub = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
       // Redirect to cart if empty
       if (cart.items.length === 0) {
         this.router.navigate(['/cart']);
       }
     });
+  }
+
+  ngOnDestroy() {
+    this.cartSub?.unsubscribe();
   }
 
   placeOrder() {
@@ -146,4 +152,6 @@ export class CheckoutComponent implements OnInit {
   goBackToCart() {
     this.router.navigate(['/cart']);
   }
+
+  trackByName(index: number, item: any): string { return item.name; }
 }

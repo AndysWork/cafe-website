@@ -81,9 +81,9 @@
             class="form-input">
           <datalist id="menuItemsList">
             <!-- Show existing menu items -->
-            <option *ngFor="let item of menuItems" [value]="item.name"></option>
+            <option *ngFor="let item of menuItems; trackBy: trackByObjId" [value]="item.name"></option>
             <!-- Show recipe names that aren't in menu yet -->
-            <ng-container *ngFor="let recipe of recipes">
+            <ng-container *ngFor="let recipe of recipes; trackBy: trackByObjId">
               <option *ngIf="isRecipeNotInMenu(recipe)"
                       [value]="recipe.menuItemName"></option>
             </ng-container>
@@ -109,7 +109,7 @@
                   [(ngModel)]="selectedIngredientId"
                   (change)="onIngredientSelect($event)">
                   <option value="">-- Choose Ingredient --</option>
-                  <option *ngFor="let ing of filteredIngredients" [value]="ing.id">
+                  <option *ngFor="let ing of filteredIngredients; trackBy: trackByObjId" [value]="ing.id">
                     {{ing.name}} (₹{{ing.marketPrice}}/{{ing.unit}})
                   </option>
                 </select>
@@ -126,7 +126,7 @@
               <div class="form-group form-group-small">
                 <label>Unit</label>
                 <select class="form-select" [(ngModel)]="ingredientUnit">
-                  <option *ngFor="let unit of units" [value]="unit.value">
+                  <option *ngFor="let unit of units; trackBy: trackByIndex" [value]="unit.value">
                     {{unit.label}}
                   </option>
                 </select>
@@ -161,7 +161,7 @@
         <div class="ingredients-list" *ngIf="currentRecipe.ingredients.length > 0">
           <h4>📦 Ingredients ({{currentRecipe.ingredients.length}})</h4>
           <div class="ingredient-items">
-            <div class="ingredient-item" *ngFor="let ing of currentRecipe.ingredients; let i = index">
+            <div class="ingredient-item" *ngFor="let ing of currentRecipe.ingredients; let i = index; trackBy: trackByIndex">
               <div class="ingredient-info">
                 <span class="ingredient-name">{{ing.ingredientName}}</span>
                 <span class="ingredient-qty">
@@ -257,7 +257,7 @@
               🤖 Auto-Calculated Overhead Costs
             </h4>
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-              <div *ngFor="let cost of overheadAllocation.costs"
+              <div *ngFor="let cost of overheadAllocation.costs; trackBy: trackByIndex"
                    style="display: flex; justify-content: space-between; font-size: 0.85rem;">
                 <span>{{cost.costType}}: (₹{{cost.monthlyCost}}/month &#64; ₹{{cost.costPerMinute.toFixed(4)}}/min)</span>
                 <strong>₹{{cost.allocatedCost.toFixed(2)}}</strong>
@@ -487,7 +487,7 @@
                 <span class="breakdown-amount">₹{{calculation.breakdown.ingredientSubtotal.toFixed(2)}}</span>
               </div>
               <div class="breakdown-items">
-                <div class="breakdown-item" *ngFor="let ing of calculation.breakdown.ingredients">
+                <div class="breakdown-item" *ngFor="let ing of calculation.breakdown.ingredients; trackBy: trackByIndex">
                   <span class="item-name">{{ing.ingredientName}} ({{ing.quantity}} {{ing.unit}})</span>
                   <span class="item-value">₹{{ing.totalCost.toFixed(2)}}</span>
                 </div>
@@ -859,7 +859,7 @@
             class="search-input">
           <select class="filter-select" [(ngModel)]="selectedCategory">
             <option value="">All Categories</option>
-            <option *ngFor="let cat of categories" [value]="cat.value">
+            <option *ngFor="let cat of categories; trackBy: trackByIndex" [value]="cat.value">
               {{cat.label}}
             </option>
           </select>
@@ -905,7 +905,7 @@
                 <div class="form-group">
                   <label>Unit</label>
                   <select [(ngModel)]="inlineEditForm.unit" class="form-input">
-                    <option *ngFor="let unit of measurementUnits" [value]="unit.value">
+                    <option *ngFor="let unit of measurementUnits; trackBy: trackByIndex" [value]="unit.value">
                       {{unit.label}}
                     </option>
                   </select>
@@ -982,7 +982,7 @@
   <div class="tab-content" *ngIf="activeTab === 'recipes'">
     <div class="recipes-management">
       <div class="recipes-grid">
-        <div class="recipe-card" *ngFor="let recipe of recipes">
+        <div class="recipe-card" *ngFor="let recipe of recipes; trackBy: trackByObjId">
           <div class="card-header">
             <h4>{{recipe.menuItemName}}</h4>
           </div>
@@ -1093,7 +1093,7 @@
         <div class="form-group">
           <label>Category <span class="required">*</span></label>
           <select class="form-select" [(ngModel)]="ingredientForm.category">
-            <option *ngFor="let cat of categories" [value]="cat.value">
+            <option *ngFor="let cat of categories; trackBy: trackByIndex" [value]="cat.value">
               {{cat.label}}
             </option>
           </select>
@@ -1111,7 +1111,7 @@
           <div class="form-group">
             <label>Unit <span class="required">*</span></label>
             <select class="form-select" [(ngModel)]="ingredientForm.unit">
-              <option *ngFor="let unit of units" [value]="unit.value">
+              <option *ngFor="let unit of units; trackBy: trackByIndex" [value]="unit.value">
                 {{unit.label}}
               </option>
             </select>
@@ -1154,7 +1154,7 @@
                     stroke-width="3"
                     stroke-linejoin="round"
                   />
-                  <g *ngFor="let val of getChartData().values; let idx = index">
+                  <g *ngFor="let val of getChartData().values; let idx = index; trackBy: trackByIndex">
                     <circle
                       [attr.cx]="getChartPointX(idx)"
                       [attr.cy]="getChartPointY(val)"
@@ -1188,7 +1188,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let record of priceHistory">
+                <tr *ngFor="let record of priceHistory; trackBy: trackByIndex">
                   <td>{{record.recordedAt | date:'medium'}}</td>
                   <td>₹{{record.price}}/{{record.unit}}</td>
                   <td>
@@ -1253,7 +1253,7 @@
 
       <!-- Overhead Costs List -->
       <div class="overhead-costs-grid">
-        <div class="overhead-cost-card" *ngFor="let cost of overheadCosts">
+        <div class="overhead-cost-card" *ngFor="let cost of overheadCosts; trackBy: trackByObjId">
           <div class="card-header">
             <div class="card-title">
               <span class="cost-type-icon">💼</span>
@@ -1345,7 +1345,7 @@
         <div class="calculation-result" *ngIf="overheadAllocation">
           <h4>Allocation for {{overheadAllocation.preparationTimeMinutes}} minute(s):</h4>
           <div class="result-breakdown">
-            <div class="result-item" *ngFor="let calc of overheadAllocation.costs">
+            <div class="result-item" *ngFor="let calc of overheadAllocation.costs; trackBy: trackByIndex">
               <div class="result-label">
                 <span>{{calc.costType}}</span>
                 <small>(₹{{calc.monthlyCost}}/month &#64; ₹{{calc.costPerMinute.toFixed(4)}}/min)</small>
@@ -1406,14 +1406,14 @@
         <div class="result-errors" *ngIf="uploadResult.errors.length > 0">
           <h4>Errors:</h4>
           <ul>
-            <li *ngFor="let error of uploadResult.errors">{{error}}</li>
+            <li *ngFor="let error of uploadResult.errors; trackBy: trackByIndex">{{error}}</li>
           </ul>
         </div>
       </div>
 
       <!-- Frozen Items Grid -->
       <div class="frozen-items-grid">
-        <div class="frozen-item-card" *ngFor="let item of frozenItems">
+        <div class="frozen-item-card" *ngFor="let item of frozenItems; trackBy: trackByObjId">
           <div class="card-header">
             <div class="card-title">
               <span class="item-icon">🧊</span>
@@ -1684,7 +1684,7 @@
   <!-- Alert Notifications -->
   <div class="alert-container">
     <div class="alert"
-         *ngFor="let alert of priceAlerts"
+         *ngFor="let alert of priceAlerts; trackBy: trackByIndex"
          [ngClass]="'alert-' + alert.type">
       <div class="alert-content">
         <span class="alert-message">{{alert.message}}</span>
@@ -1728,7 +1728,7 @@
           <!-- History Timeline -->
           <h3 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.1rem;">📅 Change History</h3>
           <div class="history-timeline">
-            <div class="history-entry" *ngFor="let entry of savedPriceForecast.history; let i = index">
+            <div class="history-entry" *ngFor="let entry of savedPriceForecast.history; let i = index; trackBy: trackByIndex">
               <div class="history-marker">
                 <div class="history-number">{{savedPriceForecast.history.length - i}}</div>
               </div>
@@ -1849,7 +1849,7 @@
 
         <div class="recipe-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.5rem;">
           <div
-            *ngFor="let recipe of filteredRecipesForCopy"
+            *ngFor="let recipe of filteredRecipesForCopy; trackBy: trackByObjId"
             class="recipe-item"
             [class.selected]="selectedRecipeToCopy?.id === recipe.id"
             (click)="selectedRecipeToCopy = recipe"

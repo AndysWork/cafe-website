@@ -30,7 +30,7 @@
         <button class="btn-clear" (click)="clearCart()">🗑️ Clear All</button>
       </div>
 
-      <div *ngFor="let item of cart.items" class="cart-item">
+      <div *ngFor="let item of cart.items; trackBy: trackByName" class="cart-item">
         <div class="item-image" *ngIf="item.imageUrl">
           <img [src]="item.imageUrl" [alt]="item.name" />
         </div>

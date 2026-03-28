@@ -114,7 +114,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     this.outletService.getAllOutlets().subscribe({
       next: (outlets) => {
         this.outlets = outlets;
-        console.log('Outlets loaded:', outlets.length);
 
         // If user is already on outlets tab, load the data now
         if (this.selectedAnalyticsTab === 'outlets') {
@@ -167,7 +166,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         this.outletService.getAllOutlets().subscribe({
           next: (outlets) => {
             this.outlets = outlets;
-            console.log('Outlets loaded for overview:', outlets.length);
             this.loadOutletsOverview();
           },
           error: (err) => {
@@ -508,18 +506,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       this.platformChargeService.getAllPlatformCharges().toPromise(),
     ])
       .then(([salesResponse, platformCharges]) => {
-        console.log('Online Sales Analytics Response:', salesResponse);
         const sales = salesResponse?.data || [];
-        console.log('Online Sales Data:', sales);
-        console.log('Platform Charges:', platformCharges);
-        console.log(
-          'Zomato Sales:',
-          sales.filter((s: any) => s.platform === 'Zomato')
-        );
-        console.log(
-          'Swiggy Sales:',
-          sales.filter((s: any) => s.platform === 'Swiggy')
-        );
         this.calculateOnlineSalesAnalytics(sales, platformCharges || []);
         this.onlineLoading = false;
       })
@@ -547,11 +534,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       (s) => s.platform?.toLowerCase() === 'swiggy'
     );
 
-    console.log('Online Sales Analytics Platform Filtering:', {
-      totalSales: sales.length,
-      zomatoCount: zomatoSales.length,
-      swiggyCount: swiggySales.length,
-    });
 
     this.onlineAnalytics = {
       all: this.calculatePlatformMetrics(sales, 'All', platformCharges),
@@ -573,11 +555,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     platform: string,
     platformCharges: any[]
   ) {
-    console.log(`Calculating metrics for ${platform}:`, {
-      salesCount: sales.length,
-      sampleSale: sales[0],
-      platformCharges,
-    });
 
     if (sales.length === 0) {
       return {
@@ -691,7 +668,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       })
       .reduce((sum: number, pc: any) => sum + (pc.charges || 0), 0);
 
-    console.log(`${platform} Monthly Charges:`, totalMonthlyCharges);
 
     // Recalculate Total Net Payout = Item Subtotal + Packaging - Discount - Deduction - Monthly Charges
     const totalIncome =
@@ -700,14 +676,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       totalDiscount -
       totalDeduction -
       totalMonthlyCharges;
-    console.log(`${platform} Net Payout Calculation:`, {
-      itemSubtotal,
-      totalPackaging,
-      totalDiscount,
-      totalDeduction,
-      totalMonthlyCharges,
-      totalIncome,
-    });
 
     // Calculate days in range
     const dates = [
@@ -1162,17 +1130,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
           const prevReconciliations = prevReconciliationResponse?.data || [];
           const prevOnlineSales = prevOnlineSalesResponse?.data || [];
 
-          console.log('Earnings Analytics Data:', {
-            salesCount: filteredSales?.length || 0,
-            expensesCount: expensesData?.length || 0,
-            reconciliationsCount: reconciliations?.length || 0,
-            onlineSalesCount: onlineSales?.length || 0,
-            prevSalesCount: prevSales?.length || 0,
-            filteredSales: filteredSales,
-            expenses: expensesData,
-            reconciliations: reconciliations,
-            onlineSales: onlineSales,
-          });
           this.calculateEarningsInsights(
             filteredSales,
             expensesData,
@@ -1202,16 +1159,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     prevReconciliations: any[],
     prevOnlineSales: any[]
   ) {
-    console.log('calculateEarningsInsights called with:', {
-      salesLength: sales?.length,
-      expensesLength: expenses?.length,
-      reconciliationsLength: reconciliations?.length,
-      onlineSalesLength: onlineSales?.length,
-      prevSalesLength: prevSales?.length,
-      prevExpensesLength: prevExpensesData?.length,
-      prevReconciliationsLength: prevReconciliations?.length,
-      prevOnlineSalesLength: prevOnlineSales?.length,
-    });
 
     // Calculate total offline sales
     const totalOfflineSales = sales.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -1263,16 +1210,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       0
     );
 
-    console.log('Zomato/Swiggy Income Calculation:', {
-      totalOnlineSales: onlineSales.length,
-      zomatoSwiggyIncome,
-      zomatoSwiggyOrders,
-      zomatoSwiggyDeductions,
-      zomatoSwiggyDiscount,
-      zomatoSwiggyPackaging,
-      zomatoSwiggyFreebies,
-      sampleSale: onlineSales[0],
-    });
 
     // Breakdown by platform
     const zomatoSales = onlineSales.filter(
@@ -1282,14 +1219,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       (s) => s.platform?.toLowerCase() === 'swiggy'
     );
 
-    console.log('Platform Filtering:', {
-      totalOnlineSales: onlineSales.length,
-      zomatoCount: zomatoSales.length,
-      swiggyCount: swiggySales.length,
-      samplePlatforms: onlineSales
-        .slice(0, 5)
-        .map((s) => ({ id: s.orderId, platform: s.platform })),
-    });
 
     const zomatoIncome = zomatoSales.reduce((sum, s) => {
       const netPayout =
@@ -1308,12 +1237,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       return sum + netPayout;
     }, 0);
 
-    console.log('Platform Breakdown:', {
-      zomatoSalesCount: zomatoSales.length,
-      zomatoIncome,
-      swiggySalesCount: swiggySales.length,
-      swiggyIncome,
-    });
 
     // Calculate total expenses
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -1371,15 +1294,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         const zomatoSwiggyIncomeAfterCharges =
           zomatoIncomeAfterCharges + swiggyIncomeAfterCharges;
 
-        console.log('Platform Charges Breakdown:', {
-          zomatoMonthlyCharges,
-          swiggyMonthlyCharges,
-          totalPlatformCharges: platformChargesTotal,
-          zomatoIncomeBeforeCharges: zomatoIncome,
-          zomatoIncomeAfterCharges,
-          swiggyIncomeBeforeCharges: swiggyIncome,
-          swiggyIncomeAfterCharges,
-        });
 
         // Recalculate revenue after deducting monthly charges from platform income
         const totalRevenueAfterCharges =
@@ -1417,14 +1331,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
           profitMargin,
         };
 
-        console.log(
-          'Earnings Data Updated with Proportional Monthly Expenses:',
-          {
-            operationalExpenses: operationalExpensesTotal,
-            platformCharges: platformChargesTotal,
-            total: this.earningsData,
-          }
-        );
       })
       .catch((err) => {
         console.error('Error loading monthly expenses for analytics:', err);
@@ -1574,11 +1480,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
           100;
       }
 
-      console.log('Profit Margin Growth Calculation:', {
-        currentProfitMargin: profitMargin,
-        prevProfitMargin,
-        profitMarginGrowth,
-      });
     }
 
     this.earningsData = {
@@ -1621,7 +1522,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       profitMarginGrowth,
     };
 
-    console.log('Earnings Data Calculated:', this.earningsData);
   }
 
   /**
@@ -1669,16 +1569,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     // Calculate proportional amount
     const proportionalAmount = (monthlyAmount / daysInMonth) * daysInOverlap;
 
-    console.log('Proportional Calculation:', {
-      month,
-      year,
-      monthlyAmount,
-      daysInMonth,
-      daysInOverlap,
-      proportionalAmount,
-      rangeStart: rangeStart.toISOString().split('T')[0],
-      rangeEnd: rangeEnd.toISOString().split('T')[0],
-    });
 
     return proportionalAmount;
   }
@@ -1782,14 +1672,9 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       customerMap.set(normalizedName, existing);
     });
 
-    console.log('Customer Map Keys:', Array.from(customerMap.keys()));
 
     // Use the end date from the selected range for calculating days since last order
     const referenceDate = new Date(this.dateRange.endDate);
-    console.log(
-      'Reference Date (End of Range):',
-      referenceDate.toISOString().split('T')[0]
-    );
 
     // Convert to array and calculate metrics
     const customers = Array.from(customerMap.entries()).map(
@@ -1814,14 +1699,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       })
     );
 
-    console.log(
-      'Sample Customer Data:',
-      customers.slice(0, 3).map((c) => ({
-        name: c.name,
-        lastOrderDate: c.lastOrderDate.toISOString().split('T')[0],
-        daysSinceLastOrder: c.daysSinceLastOrder,
-      }))
-    );
 
     // Sort by total spent
     customers.sort((a, b) => b.totalSpent - a.totalSpent);
@@ -1861,28 +1738,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       (c) => c.daysSinceLastOrder > 60
     ).length;
 
-    console.log('Customer Classification:', {
-      dateRange: `${this.dateRange.startDate} to ${this.dateRange.endDate}`,
-      totalCustomers: customers.length,
-      recentCustomers: recentCustomers,
-      inactiveCustomers: inactiveCustomers,
-      recentSample: customers
-        .filter((c) => c.daysSinceLastOrder <= 30)
-        .slice(0, 3)
-        .map((c) => ({
-          name: c.name,
-          lastOrder: c.lastOrderDate.toISOString().split('T')[0],
-          daysAgo: c.daysSinceLastOrder,
-        })),
-      inactiveSample: customers
-        .filter((c) => c.daysSinceLastOrder > 60)
-        .slice(0, 3)
-        .map((c) => ({
-          name: c.name,
-          lastOrder: c.lastOrderDate.toISOString().split('T')[0],
-          daysAgo: c.daysSinceLastOrder,
-        })),
-    });
 
     this.customerAnalytics = {
       totalCustomers,
@@ -1902,7 +1757,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     // Initialize filtered list with all customers
     this.filteredCustomersList = [...customers];
 
-    console.log('Customer Analytics:', this.customerAnalytics);
   }
 
   getTopItems(items: string[], limit: number): string[] {
@@ -1983,7 +1837,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
   loadOutletsOverview() {
     // Don't load if outlets haven't been fetched yet
     if (this.outlets.length === 0) {
-      console.log('Outlets not loaded yet, skipping overview load');
       return;
     }
 
@@ -2022,13 +1875,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         .toPromise(),
     ])
       .then(([salesResponse, onlineSalesResponse, expensesResponse, operationalExpensesResponse, platformChargesResponse]) => {
-        console.log('Outlets Overview Data:', {
-          sales: salesResponse,
-          onlineSales: onlineSalesResponse,
-          expenses: expensesResponse,
-          operationalExpenses: operationalExpensesResponse,
-          platformCharges: platformChargesResponse
-        });
 
         // Sales endpoint returns data directly (not wrapped)
         const allSales = Array.isArray(salesResponse) ? salesResponse : [];
@@ -2041,13 +1887,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         // Platform charges wraps in { success, data }
         const allPlatformCharges = Array.isArray(platformChargesResponse?.data) ? platformChargesResponse.data : [];
 
-        console.log('Parsed Data:', {
-          salesCount: allSales.length,
-          onlineSalesCount: allOnlineSales.length,
-          expensesCount: allExpenses.length,
-          operationalExpensesCount: allOperationalExpenses.length,
-          platformChargesCount: allPlatformCharges.length
-        });
 
         // Debug: Check unique outlet IDs in the data
         const salesOutletIds = [...new Set(allSales.map((s: any) => s.outletId || s.OutletId))];
@@ -2056,15 +1895,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         const operationalExpensesOutletIds = [...new Set(allOperationalExpenses.map((e: any) => e.OutletId || e.outletId))];
         const platformChargesOutletIds = [...new Set(allPlatformCharges.map((p: any) => p.OutletId || p.outletId))];
 
-        console.log('Unique Outlet IDs in fetched data:', {
-          sales: salesOutletIds,
-          onlineSales: onlineSalesOutletIds,
-          expenses: expensesOutletIds,
-          operationalExpenses: operationalExpensesOutletIds,
-          platformCharges: platformChargesOutletIds,
-          totalOutlets: this.outlets.length,
-          outletsList: this.outlets.map((o: any) => ({ id: o._id, name: o.name }))
-        });
 
         // Filter data by date range
         const startDate = getIstStartOfDay(this.dateRange.startDate);
@@ -2096,18 +1926,13 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
 
         // Platform charges are monthly, so filter by month/year range
         const filteredPlatformCharges = allPlatformCharges.filter((p: any) => {
-          if (!p.Year || !p.Month) return false;
-          const chargeDate = new Date(p.Year, p.Month - 1, 1); // First day of the month
+          const year = p.year || p.Year;
+          const month = p.month || p.Month;
+          if (!year || !month) return false;
+          const chargeDate = new Date(year, month - 1, 1); // First day of the month
           return chargeDate >= startDate && chargeDate <= endDate;
         });
 
-        console.log('Filtered Data:', {
-          salesCount: filteredSales.length,
-          onlineSalesCount: filteredOnlineSales.length,
-          expensesCount: filteredExpenses.length,
-          operationalExpensesCount: filteredOperationalExpenses.length,
-          platformChargesCount: filteredPlatformCharges.length
-        });
 
         // Calculate totals across all outlets
         this.calculateOutletsOverview(
@@ -2133,13 +1958,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     operationalExpenses: any[],
     platformCharges: any[]
   ) {
-    console.log('Calculating outlets overview with:', {
-      salesCount: sales.length,
-      onlineSalesCount: onlineSales.length,
-      expensesCount: expenses.length,
-      operationalExpensesCount: operationalExpenses.length,
-      platformChargesCount: platformCharges.length
-    });
 
     // Calculate offline sales total
     const offlineSalesTotal = sales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
@@ -2181,18 +1999,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     const netProfit = totalRevenue - totalExpenses;
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-    console.log('Calculated totals:', {
-      offlineSalesTotal,
-      onlineSalesTotal,
-      totalRevenue,
-      offlineExpensesTotal,
-      operationalExpensesTotal,
-      platformChargesTotal,
-      totalExpenses,
-      netProfit,
-      profitMargin,
-      outletCount: this.outlets.length
-    });
 
     // Calculate breakdown by outlet
     const outletBreakdown = this.calculateOutletBreakdown(
@@ -2219,8 +2025,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
 
     this.outletEarningsBreakdown = outletBreakdown;
 
-    console.log('Outlets Overview Result:', this.outletsOverview);
-    console.log('Outlet Breakdown:', outletBreakdown);
   }
 
   calculateOutletBreakdown(
@@ -2230,19 +2034,14 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     operationalExpenses: any[],
     platformCharges: any[]
   ): any[] {
-    console.log('Calculating outlet breakdown...');
-    console.log('Available outlets:', this.outlets);
-    console.log('Outlet properties:', this.outlets.length > 0 ? Object.keys(this.outlets[0]) : 'No outlets');
 
     const breakdown = this.outlets.map((outlet) => {
-      console.log(`\nProcessing outlet:`, outlet);
 
       // Try different property name variations for outlet ID
       const outletIdValue = outlet._id || outlet.id || outlet.Id || outlet.outletId || outlet.OutletId;
       const outletNameValue = outlet.name || outlet.Name || outlet.outletName || outlet.OutletName;
       const outletLocationValue = outlet.location || outlet.Location || outlet.address || outlet.Address || 'N/A';
 
-      console.log(`  Outlet ID: ${outletIdValue}, Name: ${outletNameValue}`);
 
       // Filter data for this outlet - check all possible field name variations
       const outletSales = sales.filter((s: any) => {
@@ -2270,11 +2069,9 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         return chargeOutletId === outletIdValue;
       });
 
-      console.log(`  Sales: ${outletSales.length}, Online: ${outletOnlineSales.length}, Expenses: ${outletExpenses.length}, OpExp: ${outletOperationalExpenses.length}, PlatformCharges: ${outletPlatformCharges.length}`);
 
       // Log sample IDs to debug
       if (sales.length > 0 && outletSales.length === 0) {
-        console.log(`  ⚠️ No sales matched! Sample sales outlet IDs:`, sales.slice(0, 3).map(s => s.outletId || s.OutletId));
       }
 
       // Calculate offline sales
@@ -2312,7 +2109,6 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       const netProfit = totalRevenue - totalExpenses;
       const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-      console.log(`  Results for ${outletNameValue}: Revenue=${totalRevenue}, Expenses=${totalExpenses}, Profit=${netProfit}`);
 
       return {
         outletId: outletIdValue,
@@ -2334,4 +2130,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     // Sort by total revenue descending
     return breakdown.sort((a, b) => b.totalRevenue - a.totalRevenue);
   }
+
+  trackByIndex(index: number): number { return index; }
+  trackByName(index: number, item: any): string { return item.name; }
 }

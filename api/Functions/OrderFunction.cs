@@ -108,23 +108,36 @@ public class OrderFunction
             var orderItems = new List<OrderItem>();
             decimal subtotal = 0;
 
+            // Batch fetch all menu items at once (fixes N+1 query)
+            var menuItemIds = orderRequest.Items.Select(i => i.MenuItemId).Distinct().ToList();
+            var allMenuItems = await _mongo.GetMenuItemsByIdsAsync(menuItemIds, outletId);
+            var menuItemMap = allMenuItems
+                .Where(m => m.Id != null)
+                .ToDictionary(m => m.Id!, m => m);
+
+            // Batch fetch all categories at once
+            var categoryIds = allMenuItems
+                .Where(m => !string.IsNullOrEmpty(m.CategoryId))
+                .Select(m => m.CategoryId!)
+                .Distinct()
+                .ToList();
+            var categories = categoryIds.Count > 0
+                ? await _mongo.GetCategoriesByIdsAsync(categoryIds)
+                : new Dictionary<string, string>();
+
             foreach (var item in orderRequest.Items)
             {
-                // Get menu item details
-                var menuItem = await _mongo.GetMenuItemAsync(item.MenuItemId);
-                if (menuItem == null)
+                if (!menuItemMap.TryGetValue(item.MenuItemId, out var menuItem))
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                     await badRequest.WriteAsJsonAsync(new { success = false, error = $"Menu item {item.MenuItemId} not found" });
                     return badRequest;
                 }
 
-                // Get category name if available
                 string? categoryName = null;
                 if (!string.IsNullOrEmpty(menuItem.CategoryId))
                 {
-                    var category = await _mongo.GetCategoryAsync(menuItem.CategoryId);
-                    categoryName = category?.Name;
+                    categories.TryGetValue(menuItem.CategoryId, out categoryName);
                 }
 
                 var itemTotal = menuItem.OnlinePrice * item.Quantity;
@@ -203,62 +216,65 @@ public class OrderFunction
 
             _log.LogInformation($"Order {createdOrder.Id} created by user {username}");
 
-            // Send WhatsApp notification to customer
-            if (!string.IsNullOrEmpty(orderRequest.PhoneNumber))
+            // Fire-and-forget: Send notifications without blocking the response
+            _ = Task.Run(async () =>
             {
-                try
+                // Send WhatsApp notification to customer
+                if (!string.IsNullOrEmpty(orderRequest.PhoneNumber))
                 {
-                    var orderDetails = string.Join("\n", orderItems.Select(item => $"- {item.Name} x{item.Quantity} (₹{item.Total:N2})"));
-                    await _whatsApp.SendOrderConfirmationAsync(
-                        orderRequest.PhoneNumber,
-                        username,
-                        createdOrder.Id!,
-                        total,
-                        orderDetails
-                    );
+                    try
+                    {
+                        var orderDetails = string.Join("\n", orderItems.Select(item => $"- {item.Name} x{item.Quantity} (₹{item.Total:N2})"));
+                        await _whatsApp.SendOrderConfirmationAsync(
+                            orderRequest.PhoneNumber,
+                            username,
+                            createdOrder.Id!,
+                            total,
+                            orderDetails
+                        );
+                    }
+                    catch (Exception whatsAppEx)
+                    {
+                        _log.LogWarning(whatsAppEx, "Failed to send WhatsApp notification for order {OrderId}", createdOrder.Id);
+                    }
                 }
-                catch (Exception whatsAppEx)
-                {
-                    _log.LogWarning(whatsAppEx, "Failed to send WhatsApp notification for order {OrderId}", createdOrder.Id);
-                    // Don't fail the order creation if WhatsApp sending fails
-                }
-            }
 
-            // Send order confirmation email to customer
-            if (!string.IsNullOrEmpty(user?.Email))
-            {
+                // Send order confirmation email to customer
+                if (!string.IsNullOrEmpty(user?.Email))
+                {
+                    try
+                    {
+                        var customerName = user.FirstName ?? username;
+                        await _emailService.SendOrderConfirmationEmailAsync(
+                            user.Email,
+                            customerName,
+                            createdOrder.Id!,
+                            total,
+                            orderItems
+                        );
+                    }
+                    catch (Exception emailEx)
+                    {
+                        _log.LogWarning(emailEx, "Failed to send order confirmation email for order {OrderId}", createdOrder.Id);
+                    }
+                }
+
+                // Send order notification email to admin
                 try
                 {
-                    var customerName = user.FirstName ?? username;
                     await _emailService.SendOrderConfirmationEmailAsync(
-                        user.Email,
-                        customerName,
+                        "maataracafekpa@gmail.com",
+                        $"Admin (Order by {username})",
                         createdOrder.Id!,
                         total,
                         orderItems
                     );
                 }
-                catch (Exception emailEx)
+                catch (Exception adminEmailEx)
                 {
-                    _log.LogWarning(emailEx, "Failed to send order confirmation email for order {OrderId}", createdOrder.Id);
+                    _log.LogWarning(adminEmailEx, "Failed to send admin order notification email for order {OrderId}", createdOrder.Id);
                 }
-            }
-
-            // Send order notification email to admin
-            try
-            {
-                await _emailService.SendOrderConfirmationEmailAsync(
-                    "maataracafekpa@gmail.com",
-                    $"Admin (Order by {username})",
-                    createdOrder.Id!,
-                    total,
-                    orderItems
-                );
-            }
-            catch (Exception adminEmailEx)
-            {
-                _log.LogWarning(adminEmailEx, "Failed to send admin order notification email for order {OrderId}", createdOrder.Id);
-            }
+            });
 
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(MapToOrderResponse(createdOrder));
@@ -315,10 +331,16 @@ public class OrderFunction
                 return badRequest;
             }
 
-            var orders = await _mongo.GetUserOrdersAsync(userId);
+            var (page, pageSize) = PaginationHelper.ParsePagination(req);
+            var orders = await _mongo.GetUserOrdersAsync(userId, page, pageSize);
             var orderResponses = orders.Select(MapToOrderResponse).ToList();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await _mongo.GetUserOrdersCountAsync(userId);
+                PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
+            }
             await response.WriteAsJsonAsync(orderResponses);
             return response;
         }
@@ -351,10 +373,16 @@ public class OrderFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var orders = await _mongo.GetAllOrdersAsync(outletId);
+            var (page, pageSize) = PaginationHelper.ParsePagination(req);
+            var orders = await _mongo.GetAllOrdersAsync(outletId, page, pageSize);
             var orderResponses = orders.Select(MapToOrderResponse).ToList();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await _mongo.GetAllOrdersCountAsync(outletId);
+                PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
+            }
             await response.WriteAsJsonAsync(orderResponses);
             return response;
         }

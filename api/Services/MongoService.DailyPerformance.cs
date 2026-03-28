@@ -21,15 +21,8 @@ public partial class MongoService
 
         var entries = await _dailyPerformanceEntries.Find(filter).ToListAsync();
 
-        // Populate staff names
-        foreach (var entry in entries)
-        {
-            var staff = await GetStaffByIdAsync(entry.StaffId);
-            if (staff != null)
-            {
-                entry.StaffName = $"{staff.FirstName} {staff.LastName}";
-            }
-        }
+        // Batch populate staff names (fixes N+1 query)
+        await PopulateStaffNamesAsync(entries);
 
         return entries;
     }
@@ -93,26 +86,8 @@ public partial class MongoService
             .ThenBy(e => e.StaffId)
             .ToListAsync();
 
-        // Populate staff names
-        var staffIds = entries.Select(e => e.StaffId).Distinct().ToList();
-        var staffMap = new Dictionary<string, string>();
-
-        foreach (var staffId in staffIds)
-        {
-            var staff = await GetStaffByIdAsync(staffId);
-            if (staff != null)
-            {
-                staffMap[staffId] = $"{staff.FirstName} {staff.LastName}";
-            }
-        }
-
-        foreach (var entry in entries)
-        {
-            if (staffMap.ContainsKey(entry.StaffId))
-            {
-                entry.StaffName = staffMap[entry.StaffId];
-            }
-        }
+        // Batch populate staff names (fixes N+1 query)
+        await PopulateStaffNamesAsync(entries);
 
         return entries;
     }
@@ -210,9 +185,7 @@ public partial class MongoService
         BulkDailyPerformanceRequest request,
         string outletId)
     {
-        var results = new List<DailyPerformanceEntry>();
-
-        foreach (var entryRequest in request.Entries)
+        var tasks = request.Entries.Select(entryRequest =>
         {
             var upsertRequest = new UpsertDailyPerformanceRequest
             {
@@ -229,17 +202,49 @@ public partial class MongoService
                 Shifts = entryRequest.Shifts
             };
 
-            var result = await UpsertDailyPerformanceAsync(upsertRequest, outletId);
-            results.Add(result);
-        }
+            return UpsertDailyPerformanceAsync(upsertRequest, outletId);
+        });
 
-        return results;
+        var results = await Task.WhenAll(tasks);
+        return results.ToList();
     }
 
     public async Task<bool> DeleteDailyPerformanceAsync(string id)
     {
         var result = await _dailyPerformanceEntries.DeleteOneAsync(e => e.Id == id);
         return result.DeletedCount > 0;
+    }
+
+    /// <summary>
+    /// Batch populate staff names for a list of performance entries.
+    /// Uses a single DB query instead of N+1 individual queries.
+    /// </summary>
+    private async Task PopulateStaffNamesAsync(List<DailyPerformanceEntry> entries)
+    {
+        if (entries.Count == 0) return;
+
+        var staffIds = entries.Select(e => e.StaffId).Distinct().ToList();
+        var staffFilter = Builders<Staff>.Filter.In(s => s.Id, staffIds);
+        var staffMembers = await _staff.Find(staffFilter)
+            .Project(Builders<Staff>.Projection
+                .Include(s => s.Id)
+                .Include(s => s.FirstName)
+                .Include(s => s.LastName))
+            .As<Staff>()
+            .ToListAsync();
+
+        var staffMap = staffMembers.ToDictionary(
+            s => s.Id!,
+            s => $"{s.FirstName} {s.LastName}"
+        );
+
+        foreach (var entry in entries)
+        {
+            if (staffMap.TryGetValue(entry.StaffId, out var name))
+            {
+                entry.StaffName = name;
+            }
+        }
     }
 
     private double CalculateWorkingHours(string inTime, string outTime)

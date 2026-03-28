@@ -77,4 +77,6 @@ export class CustomerReviewsComponent implements OnInit {
   getItemsList(items: Array<{quantity: number; itemName: string}>): string {
     return items.map(item => `${item.quantity}x ${item.itemName}`).join(', ');
   }
+
+  trackByIndex(index: number): number { return index; }
 }

@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from './auth.service';
 import { environment } from '../../environments/environment';
-import { Subject, bufferTime, filter } from 'rxjs';
+import { Subject, bufferTime, filter, distinctUntilChanged, skip } from 'rxjs';
 
 export interface TrackEvent {
   eventType: string;
@@ -33,8 +33,11 @@ export class AnalyticsTrackingService {
       filter(events => events.length > 0)
     ).subscribe(events => this.flushEvents(events));
 
-    // Listen for login/logout to manage sessions
-    this.authService.currentUser$.subscribe(user => {
+    // Listen for login/logout to manage sessions — skip initial emission
+    this.authService.currentUser$.pipe(
+      distinctUntilChanged(),
+      skip(1)
+    ).subscribe(user => {
       if (user) {
         this.startSession();
       } else if (this.sessionId) {

@@ -6,6 +6,12 @@ using Microsoft.Azure.Functions.Worker;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MongoDB.Driver;
+using OfficeOpenXml;
+using Polly;
+using Polly.Extensions.Http;
+
+// Set EPPlus license context once at startup (thread-safe)
+ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWebApplication(builder =>
@@ -22,9 +28,35 @@ var host = new HostBuilder()
         s.AddSingleton<AuthService>();
         s.AddSingleton<IEmailService, EmailService>();
         s.AddSingleton<IWhatsAppService, WhatsAppService>();
-        s.AddHttpClient();
         s.AddSingleton<MarketPriceService>();
         s.AddSingleton<IRazorpayService, RazorpayService>();
+        
+        // Resilience policies for external HTTP calls
+        var retryPolicy = HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+        
+        var circuitBreakerPolicy = HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30));
+        
+        // Named HTTP clients with Polly policies
+        s.AddHttpClient("WhatsApp")
+            .AddPolicyHandler(retryPolicy)
+            .AddPolicyHandler(circuitBreakerPolicy);
+        
+        s.AddHttpClient("Razorpay")
+            .AddPolicyHandler(retryPolicy)
+            .AddPolicyHandler(circuitBreakerPolicy);
+        
+        // Default client for other uses
+        s.AddHttpClient();
+        
+        // Async initialization (replaces blocking .Wait() calls)
+        s.AddHostedService<MongoInitializationService>();
+        
+        // In-memory caching for frequently accessed data
+        s.AddMemoryCache();
         
         // Configure JSON serialization to use camelCase for Azure Functions Worker
         s.Configure<WorkerOptions>(options =>

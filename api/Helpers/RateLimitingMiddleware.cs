@@ -13,6 +13,8 @@ namespace Cafe.Api.Helpers;
 public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
 {
     private static readonly ConcurrentDictionary<string, RateLimitInfo> _rateLimits = new();
+    private static DateTime _lastCleanup = DateTime.UtcNow;
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(10);
     private readonly ILogger<RateLimitingMiddleware> _logger;
 
     // Configuration
@@ -111,6 +113,13 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         // Record request
         rateLimit.RecordRequest();
 
+        // Periodic cleanup of stale entries to prevent unbounded memory growth
+        if (DateTime.UtcNow - _lastCleanup > CleanupInterval)
+        {
+            _lastCleanup = DateTime.UtcNow;
+            CleanupStaleEntries();
+        }
+
         // Continue to next middleware
         await next(context);
 
@@ -129,23 +138,41 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         // Try to get IP from X-Forwarded-For header (for proxy/load balancer)
         if (request.Headers.TryGetValues("X-Forwarded-For", out var forwardedFor))
         {
-            return forwardedFor.First().Split(',')[0].Trim();
+            var ip = forwardedFor.First().Split(',')[0].Trim();
+            if (!string.IsNullOrEmpty(ip))
+                return ip;
         }
 
         // Try to get IP from X-Real-IP header
         if (request.Headers.TryGetValues("X-Real-IP", out var realIp))
         {
-            return realIp.First();
+            var ip = realIp.First();
+            if (!string.IsNullOrEmpty(ip))
+                return ip;
+        }
+
+        // Try Azure-specific client IP header
+        if (request.Headers.TryGetValues("X-Client-IP", out var clientIp))
+        {
+            var ip = clientIp.First();
+            if (!string.IsNullOrEmpty(ip))
+                return ip;
         }
 
         // Fallback to user ID if authenticated
         if (request.Headers.TryGetValues("Authorization", out var authHeader))
         {
             var token = authHeader.First().Replace("Bearer ", "");
-            return $"user:{token.GetHashCode()}";
+            if (!string.IsNullOrEmpty(token))
+                return $"user:{token.GetHashCode()}";
         }
 
-        // Fallback to unknown
+        // Fallback: use a combination of available headers to differentiate clients
+        var userAgent = request.Headers.TryGetValues("User-Agent", out var ua) ? ua.First() : "";
+        var acceptLang = request.Headers.TryGetValues("Accept-Language", out var al) ? al.First() : "";
+        if (!string.IsNullOrEmpty(userAgent))
+            return $"anon:{(userAgent + acceptLang).GetHashCode()}";
+
         return "unknown";
     }
 
@@ -181,6 +208,34 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
             return (int)(blockInfo.BlockedUntil - DateTime.UtcNow).TotalSeconds;
         }
         return 0;
+    }
+
+    /// <summary>
+    /// Remove entries that have no recent requests (older than 1 hour) to prevent unbounded memory growth.
+    /// </summary>
+    private void CleanupStaleEntries()
+    {
+        var staleKeys = new List<string>();
+        foreach (var kvp in _rateLimits)
+        {
+            // Remove expired blocks
+            if (kvp.Key.StartsWith("block:") && kvp.Value.BlockedUntil < DateTime.UtcNow)
+            {
+                staleKeys.Add(kvp.Key);
+                continue;
+            }
+
+            // Remove rate limit entries with no recent requests
+            if (!kvp.Key.StartsWith("block:") && kvp.Value.RequestsInLastHour == 0)
+            {
+                staleKeys.Add(kvp.Key);
+            }
+        }
+
+        foreach (var key in staleKeys)
+        {
+            _rateLimits.TryRemove(key, out _);
+        }
     }
 }
 

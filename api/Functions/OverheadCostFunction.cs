@@ -284,7 +284,6 @@ public class OverheadCostFunction
         {
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             _logger.LogInformation("CalculateOverheadAllocation called for outlet {OutletId}", outletId);
-            Console.WriteLine($"[API] CalculateOverheadAllocation: OutletId from request = {outletId ?? "NULL"}");
             
             if (!int.TryParse(req.Query["preparationTimeMinutes"], out var preparationTimeMinutes) || preparationTimeMinutes <= 0)
             {
@@ -294,13 +293,10 @@ public class OverheadCostFunction
                 return badRequestResponse;
             }
 
-            _logger.LogInformation("Calculating allocation for {Minutes} minutes", preparationTimeMinutes);
-            Console.WriteLine($"[API] Calculating overhead for {preparationTimeMinutes} minutes with OutletId: {outletId ?? "NULL"}");
+            _logger.LogInformation("Calculating allocation for {Minutes} minutes with OutletId: {OutletId}", preparationTimeMinutes, outletId ?? "NULL");
             
             var allocation = await _mongoService.CalculateOverheadAllocationAsync(preparationTimeMinutes, outletId);
-            _logger.LogInformation("Allocation calculated successfully");
-            
-            Console.WriteLine($"[API] Allocation result: {allocation.Costs.Count} cost items, Total: ₹{allocation.TotalOverheadCost:F2}");
+            _logger.LogInformation("Allocation calculated: {CostCount} cost items, Total: {TotalCost:F2}", allocation.Costs.Count, allocation.TotalOverheadCost);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(allocation);

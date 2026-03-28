@@ -63,7 +63,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let category of categories" [class.editing]="category.isEditing">
+          <tr *ngFor="let category of categories; trackBy: trackByObjId" [class.editing]="category.isEditing">
             <td>
               <span *ngIf="!category.isEditing">{{ category.name }}</span>
               <input
@@ -114,7 +114,7 @@
             [(ngModel)]="newSubCategory.categoryId"
             class="form-select">
             <option value="">Select a category</option>
-            <option *ngFor="let category of categories" [value]="category.id">
+            <option *ngFor="let category of categories; trackBy: trackByObjId" [value]="category.id">
               {{ category.name }}
             </option>
           </select>
@@ -145,7 +145,7 @@
         (change)="filterSubCategories()"
         class="form-select">
         <option value="">All Categories</option>
-        <option *ngFor="let category of categories" [value]="category.id">
+        <option *ngFor="let category of categories; trackBy: trackByObjId" [value]="category.id">
           {{ category.name }}
         </option>
       </select>
@@ -169,14 +169,14 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let subCategory of filteredSubCategories" [class.editing]="subCategory.isEditing">
+          <tr *ngFor="let subCategory of filteredSubCategories; trackBy: trackByObjId" [class.editing]="subCategory.isEditing">
             <td>
               <span *ngIf="!subCategory.isEditing">{{ getCategoryName(subCategory.categoryId) }}</span>
               <select
                 *ngIf="subCategory.isEditing"
                 [(ngModel)]="editingSubCategory!.categoryId"
                 class="edit-select">
-                <option *ngFor="let category of categories" [value]="category.id">
+                <option *ngFor="let category of categories; trackBy: trackByObjId" [value]="category.id">
                   {{ category.name }}
                 </option>
               </select>
@@ -326,7 +326,7 @@
           <div class="errors-section" *ngIf="uploadResult.Errors && uploadResult.Errors.length > 0">
             <h4>⚠️ Errors ({{ uploadResult.Errors.length }})</h4>
             <div class="error-list">
-              <div class="error-item" *ngFor="let err of uploadResult.Errors">
+              <div class="error-item" *ngFor="let err of uploadResult.Errors; trackBy: trackByIndex">
                 {{ err }}
               </div>
             </div>

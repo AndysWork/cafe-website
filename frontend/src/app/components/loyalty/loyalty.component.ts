@@ -167,4 +167,8 @@ export class LoyaltyComponent implements OnInit {
       console.error('Error redeeming reward:', err);
     }
   }
+
+  trackByName(index: number, item: any): string { return item.name; }
+
+  trackByIndex(index: number): number { return index; }
 }
