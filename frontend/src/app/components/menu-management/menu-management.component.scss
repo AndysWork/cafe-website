@@ -261,6 +261,30 @@
 
 .item-name {
   .name-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .item-thumbnail {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .item-thumbnail-placeholder {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f7fafc;
+      border-radius: 8px;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
     .name {
       font-weight: 700;
       color: #2d3748;
@@ -605,6 +629,114 @@
 
   input {
     background: white;
+  }
+}
+
+// Image Upload Styles
+.image-upload-section {
+  .image-upload-area {
+    border: 2px dashed #cbd5e0;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.3s ease;
+
+    &:hover {
+      border-color: #a0aec0;
+    }
+  }
+
+  .image-preview-container {
+    position: relative;
+    text-align: center;
+    background: #f7fafc;
+    padding: 10px;
+
+    .image-preview {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    .image-preview-actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .btn-remove-image {
+      padding: 6px 16px;
+      background: #fed7d7;
+      color: #c53030;
+      border: none;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover:not(:disabled) {
+        background: #fc8181;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      &.delete {
+        background: #fed7d7;
+      }
+    }
+
+    .btn-change-image {
+      padding: 6px 16px;
+      background: #bee3f8;
+      color: #2c5282;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: #90cdf4;
+      }
+    }
+  }
+
+  .image-upload-prompt {
+    text-align: center;
+    padding: 25px 15px;
+
+    .btn-select-image {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border-radius: 25px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      .upload-icon {
+        font-size: 1.2rem;
+      }
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      }
+    }
+
+    .image-hint {
+      color: #a0aec0;
+      font-size: 0.8rem;
+      margin-top: 8px;
+    }
   }
 }
 

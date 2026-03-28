@@ -221,6 +221,15 @@ try {
 
 # Configure App Settings
 Write-Step "Configuring app settings..."
+
+# Get storage account connection string for blob storage (reuse the same storage account)
+Write-Step "Fetching storage account connection string for blob storage..."
+$storageConnString = az storage account show-connection-string `
+    --name $StorageAccountName `
+    --resource-group $ResourceGroupName `
+    --query connectionString `
+    --output tsv 2>$null
+
 $settingsFile = "azure-app-settings.json"
 if (Test-Path $settingsFile) {
     $settings = Get-Content $settingsFile | ConvertFrom-Json
@@ -237,11 +246,17 @@ if (Test-Path $settingsFile) {
     }
     
     foreach ($setting in $settings) {
+        $settingValue = $setting.value
+        # Auto-fill Blob__ConnectionString from the storage account
+        if ($setting.name -eq "Blob__ConnectionString" -and $storageConnString) {
+            $settingValue = $storageConnString
+            Write-Success "Auto-configured Blob__ConnectionString from storage account"
+        }
         $ErrorActionPreference = "SilentlyContinue"
         az functionapp config appsettings set `
             --name $FunctionAppName `
             --resource-group $ResourceGroupName `
-            --settings "$($setting.name)=$($setting.value)" `
+            --settings "$($setting.name)=$settingValue" `
             --only-show-errors `
             --output none
         $ErrorActionPreference = "Stop"
@@ -273,5 +288,6 @@ Write-Output "2. Update CORS settings if needed: az functionapp cors add -n $Fun
 Write-Output "3. Test the API endpoints: https://$functionAppUrl/api/auth/admin/verify"
 Write-Output "4. Monitor logs: az functionapp log tail -n $FunctionAppName -g $ResourceGroupName"
 Write-Output "5. View in Azure Portal: https://portal.azure.com/#resource/subscriptions/$($accountInfo.id)/resourceGroups/$ResourceGroupName/providers/Microsoft.Web/sites/$FunctionAppName"
+Write-Output "6. (Optional) Configure Azure CDN for images: set Blob__CdnBaseUrl app setting to your CDN endpoint URL"
 
 Write-ColorOutput Green "`n[SUCCESS] Deployment completed successfully!"

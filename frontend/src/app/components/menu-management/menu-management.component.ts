@@ -32,6 +32,7 @@ interface MenuItem {
   futureOnlinePrice?: number;
   variants: MenuItemVariant[];
   isAvailable?: boolean;
+  imageUrl?: string;
   createdBy: string;
   createdDate: string;
   lastUpdatedBy: string;
@@ -83,6 +84,11 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   uploadError: string | null = null;
   dragOver = false;
   clearExisting = false;
+
+  // Image upload properties
+  imageFile: File | null = null;
+  imagePreview: string | null = null;
+  uploadingImage = false;
 
   formData: Partial<MenuItem> = {
     name: '',
@@ -216,6 +222,8 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
   openCreateModal(): void {
     this.isEditMode = false;
+    this.imageFile = null;
+    this.imagePreview = null;
     this.formData = {
       name: '',
       description: '',
@@ -236,6 +244,8 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   openEditModal(item: MenuItem): void {
     this.isEditMode = true;
     this.selectedItem = item;
+    this.imageFile = null;
+    this.imagePreview = item.imageUrl || null;
     // Deep copy the item including variants
     this.formData = {
       ...item,
@@ -249,6 +259,8 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   closeModal(): void {
     this.showModal = false;
     this.selectedItem = null;
+    this.imageFile = null;
+    this.imagePreview = null;
   }
 
   addVariant(): void {
@@ -298,9 +310,13 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       this.http.put(`${environment.apiUrl}/menu/${this.selectedItem.id}`, updatePayload)
         .subscribe({
           next: () => {
-            this.loading = false;
-            this.closeModal();
-            this.loadMenuItems();
+            if (this.imageFile && this.selectedItem) {
+              this.uploadMenuImage(this.selectedItem.id);
+            } else {
+              this.loading = false;
+              this.closeModal();
+              this.loadMenuItems();
+            }
           },
           error: (error) => {
             console.error('Error updating menu item:', error);
@@ -318,12 +334,16 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
         lastUpdated: getIstNow().toISOString()
       };
 
-      this.http.post(`${environment.apiUrl}/menu`, createPayload)
+      this.http.post<any>(`${environment.apiUrl}/menu`, createPayload)
         .subscribe({
-          next: () => {
-            this.loading = false;
-            this.closeModal();
-            this.loadMenuItems();
+          next: (response) => {
+            if (this.imageFile && response?.data?.id) {
+              this.uploadMenuImage(response.data.id);
+            } else {
+              this.loading = false;
+              this.closeModal();
+              this.loadMenuItems();
+            }
           },
           error: (error) => {
             console.error('Error creating menu item:', error);
@@ -369,6 +389,84 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
           }
         });
     }
+  }
+
+  // Image methods
+  onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please select a valid image file (JPEG, PNG, WebP, or GIF)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be less than 5MB');
+      return;
+    }
+
+    this.imageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.imagePreview = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  removeImage(): void {
+    this.imageFile = null;
+    this.imagePreview = null;
+  }
+
+  deleteExistingImage(): void {
+    if (!this.selectedItem || !this.selectedItem.imageUrl) return;
+    if (!confirm('Are you sure you want to delete this image?')) return;
+
+    this.uploadingImage = true;
+    this.http.delete(`${environment.apiUrl}/menu/${this.selectedItem.id}/image`)
+      .subscribe({
+        next: () => {
+          this.uploadingImage = false;
+          this.imagePreview = null;
+          if (this.selectedItem) {
+            this.selectedItem.imageUrl = undefined;
+          }
+          this.loadMenuItems();
+        },
+        error: (error) => {
+          this.uploadingImage = false;
+          console.error('Error deleting image:', error);
+          alert('Failed to delete image');
+        }
+      });
+  }
+
+  private uploadMenuImage(menuItemId: string): void {
+    if (!this.imageFile) return;
+
+    this.uploadingImage = true;
+    const formData = new FormData();
+    formData.append('file', this.imageFile);
+
+    this.http.post(`${environment.apiUrl}/menu/${menuItemId}/image`, formData)
+      .subscribe({
+        next: () => {
+          this.uploadingImage = false;
+          this.loading = false;
+          this.closeModal();
+          this.loadMenuItems();
+        },
+        error: (error) => {
+          this.uploadingImage = false;
+          this.loading = false;
+          console.error('Error uploading image:', error);
+          alert('Item saved but image upload failed: ' + (error.error?.error || error.message));
+          this.closeModal();
+          this.loadMenuItems();
+        }
+      });
   }
 
   // Upload methods

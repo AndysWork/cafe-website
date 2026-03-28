@@ -53,6 +53,59 @@ jobs:
       with:
         app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
         package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+
+    - name: 'Configure Blob Storage Settings'
+      shell: pwsh
+      run: |
+        Write-Host "Configuring Blob Storage settings..." -ForegroundColor Cyan
+        
+        # Get the storage account used by the Function App
+        $storageAccount = az functionapp config appsettings list `
+          --name ${{ env.AZURE_FUNCTIONAPP_NAME }} `
+          --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} `
+          --query "[?name=='AzureWebJobsStorage'].value" `
+          --output tsv
+        
+        if ($storageAccount) {
+          # Check if Blob__ConnectionString is already set
+          $blobConn = az functionapp config appsettings list `
+            --name ${{ env.AZURE_FUNCTIONAPP_NAME }} `
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} `
+            --query "[?name=='Blob__ConnectionString'].value" `
+            --output tsv
+          
+          if (-not $blobConn -or $blobConn -eq 'UseDevelopmentStorage=true') {
+            Write-Host "Setting Blob__ConnectionString from AzureWebJobsStorage..." -ForegroundColor Yellow
+            az functionapp config appsettings set `
+              --name ${{ env.AZURE_FUNCTIONAPP_NAME }} `
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} `
+              --settings "Blob__ConnectionString=$storageAccount" `
+              --output none
+            Write-Host "Blob__ConnectionString configured" -ForegroundColor Green
+          } else {
+            Write-Host "Blob__ConnectionString already configured" -ForegroundColor Green
+          }
+          
+          # Ensure Blob__CdnBaseUrl exists (empty string = direct blob URLs)
+          $cdnUrl = az functionapp config appsettings list `
+            --name ${{ env.AZURE_FUNCTIONAPP_NAME }} `
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} `
+            --query "[?name=='Blob__CdnBaseUrl'].value" `
+            --output tsv
+          
+          if ($null -eq $cdnUrl) {
+            az functionapp config appsettings set `
+              --name ${{ env.AZURE_FUNCTIONAPP_NAME }} `
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} `
+              --settings "Blob__CdnBaseUrl=" `
+              --output none
+            Write-Host "Blob__CdnBaseUrl initialized (empty = direct blob URLs)" -ForegroundColor Green
+          } else {
+            Write-Host "Blob__CdnBaseUrl already configured" -ForegroundColor Green
+          }
+        } else {
+          Write-Host "⚠️ Could not retrieve storage account. Set Blob__ConnectionString manually." -ForegroundColor Yellow
+        }
     
     - name: 'Verify Deployment'
       shell: pwsh
@@ -99,4 +152,9 @@ jobs:
         Write-Host "  • Login:        https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/auth/login" -ForegroundColor Gray
         Write-Host "  • Categories:   https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/categories" -ForegroundColor Gray
         Write-Host "  • Menu:         https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/menu" -ForegroundColor Gray
+        Write-Host "  • Image Upload: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api/menu/{id}/image" -ForegroundColor Gray
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "Infrastructure:" -ForegroundColor White
+        Write-Host "  • Blob Storage: menu-images container (auto-created on startup)" -ForegroundColor Gray
+        Write-Host "  • CDN:          Set Blob__CdnBaseUrl app setting to enable" -ForegroundColor Gray
         Write-Host "========================================" -ForegroundColor Cyan

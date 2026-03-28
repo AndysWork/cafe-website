@@ -10,11 +10,13 @@ namespace Cafe.Api.Services;
 public class MongoInitializationService : IHostedService
 {
     private readonly MongoService _mongoService;
+    private readonly BlobStorageService _blobStorageService;
     private readonly ILogger<MongoInitializationService> _logger;
 
-    public MongoInitializationService(MongoService mongoService, ILogger<MongoInitializationService> logger)
+    public MongoInitializationService(MongoService mongoService, BlobStorageService blobStorageService, ILogger<MongoInitializationService> logger)
     {
         _mongoService = mongoService;
+        _blobStorageService = blobStorageService;
         _logger = logger;
     }
 
@@ -23,6 +25,10 @@ public class MongoInitializationService : IHostedService
         _logger.LogInformation("Starting MongoDB initialization...");
         await _mongoService.InitializeAsync();
         _logger.LogInformation("MongoDB initialization completed");
+
+        _logger.LogInformation("Starting Blob Storage initialization...");
+        await _blobStorageService.InitializeAsync();
+        _logger.LogInformation("Blob Storage initialization completed");
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -1,0 +1,157 @@
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.Logging;
+
+namespace Cafe.Api.Services;
+
+public class BlobStorageService
+{
+    private readonly BlobServiceClient _blobServiceClient;
+    private readonly ILogger<BlobStorageService> _logger;
+    private readonly string _cdnBaseUrl;
+    private const string MenuImagesContainer = "menu-images";
+    private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5MB for images
+
+    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    };
+
+    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".webp", ".gif"
+    };
+
+    public BlobStorageService(BlobServiceClient blobServiceClient, ILogger<BlobStorageService> logger)
+    {
+        _blobServiceClient = blobServiceClient;
+        _logger = logger;
+
+        // CDN base URL — falls back to blob storage direct URL if CDN not configured
+        _cdnBaseUrl = Environment.GetEnvironmentVariable("Blob__CdnBaseUrl") ?? "";
+    }
+
+    /// <summary>
+    /// Ensures the required blob containers exist with public read access for images
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        try
+        {
+            var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
+            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
+            _logger.LogInformation("Blob container '{Container}' initialized", MenuImagesContainer);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize blob container '{Container}'", MenuImagesContainer);
+        }
+    }
+
+    /// <summary>
+    /// Uploads a menu item image to blob storage.
+    /// Returns the CDN/blob URL of the uploaded image.
+    /// </summary>
+    public async Task<string> UploadMenuImageAsync(Stream fileStream, string fileName, string contentType, string outletId)
+    {
+        ValidateUpload(fileStream, fileName, contentType);
+
+        var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
+
+        // Organize by outlet: menu-images/{outletId}/{guid}{extension}
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        var blobName = $"{outletId}/{Guid.NewGuid()}{extension}";
+
+        var blobClient = containerClient.GetBlobClient(blobName);
+
+        var headers = new BlobHttpHeaders
+        {
+            ContentType = contentType,
+            CacheControl = "public, max-age=31536000, immutable" // 1 year cache — images are immutable (new upload = new URL)
+        };
+
+        await blobClient.UploadAsync(fileStream, new BlobUploadOptions { HttpHeaders = headers });
+
+        _logger.LogInformation("Uploaded menu image: {BlobName} ({ContentType}, {Size} bytes)",
+            blobName, contentType, fileStream.Length);
+
+        return GetPublicUrl(blobName);
+    }
+
+    /// <summary>
+    /// Deletes a menu item image from blob storage by its full URL.
+    /// </summary>
+    public async Task<bool> DeleteMenuImageAsync(string imageUrl)
+    {
+        if (string.IsNullOrEmpty(imageUrl))
+            return false;
+
+        try
+        {
+            var blobName = ExtractBlobName(imageUrl);
+            if (string.IsNullOrEmpty(blobName))
+                return false;
+
+            var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
+            var blobClient = containerClient.GetBlobClient(blobName);
+            var response = await blobClient.DeleteIfExistsAsync();
+
+            if (response.Value)
+                _logger.LogInformation("Deleted menu image: {BlobName}", blobName);
+
+            return response.Value;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete menu image: {ImageUrl}", imageUrl);
+            return false;
+        }
+    }
+
+    private void ValidateUpload(Stream fileStream, string fileName, string contentType)
+    {
+        if (fileStream.Length > MaxFileSizeBytes)
+            throw new ArgumentException($"File size exceeds maximum of {MaxFileSizeBytes / (1024 * 1024)}MB");
+
+        if (fileStream.Length == 0)
+            throw new ArgumentException("File is empty");
+
+        if (!AllowedContentTypes.Contains(contentType))
+            throw new ArgumentException($"Content type '{contentType}' is not allowed. Allowed: {string.Join(", ", AllowedContentTypes)}");
+
+        var extension = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(extension) || !AllowedExtensions.Contains(extension))
+            throw new ArgumentException($"File extension '{extension}' is not allowed. Allowed: {string.Join(", ", AllowedExtensions)}");
+    }
+
+    /// <summary>
+    /// Returns full public URL — CDN if configured, otherwise direct blob URL.
+    /// </summary>
+    private string GetPublicUrl(string blobName)
+    {
+        if (!string.IsNullOrEmpty(_cdnBaseUrl))
+            return $"{_cdnBaseUrl.TrimEnd('/')}/{MenuImagesContainer}/{blobName}";
+
+        // Direct blob storage URL (still works with public container access)
+        var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
+        return $"{containerClient.Uri}/{blobName}";
+    }
+
+    /// <summary>
+    /// Extracts the blob name from a full CDN or blob URL.
+    /// </summary>
+    private string? ExtractBlobName(string url)
+    {
+        // Handle CDN URLs: https://cdn.example.com/menu-images/outlet123/guid.jpg
+        // Handle blob URLs: https://storageaccount.blob.core.windows.net/menu-images/outlet123/guid.jpg
+        var containerPath = $"/{MenuImagesContainer}/";
+        var idx = url.IndexOf(containerPath, StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+            return url[(idx + containerPath.Length)..];
+
+        return null;
+    }
+}

@@ -9,6 +9,7 @@ using MongoDB.Driver;
 using OfficeOpenXml;
 using Polly;
 using Polly.Extensions.Http;
+using Azure.Storage.Blobs;
 
 // Set EPPlus license context once at startup (thread-safe)
 ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
@@ -35,6 +36,11 @@ var host = new HostBuilder()
         s.AddSingleton<IWhatsAppService, WhatsAppService>();
         s.AddSingleton<MarketPriceService>();
         s.AddSingleton<IRazorpayService, RazorpayService>();
+        
+        // Azure Blob Storage for file/image uploads
+        var blobConnectionString = Environment.GetEnvironmentVariable("Blob__ConnectionString") ?? "UseDevelopmentStorage=true";
+        s.AddSingleton(new BlobServiceClient(blobConnectionString));
+        s.AddSingleton<BlobStorageService>();
         
         // Resilience policies for external HTTP calls
         var retryPolicy = HttpPolicyExtensions
