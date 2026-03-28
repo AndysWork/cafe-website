@@ -19,11 +19,35 @@ $danger: #ff5252;
   padding: 60px 20px 80px; text-align: center; overflow: hidden;
   .hero-pattern { position: absolute; inset: 0; background: radial-gradient(circle at 30% 70%, rgba(255,255,255,.08) 0%, transparent 50%), radial-gradient(circle at 70% 30%, rgba(255,255,255,.08) 0%, transparent 50%); }
   .hero-content { position: relative; z-index: 1; animation: slideUp .6s ease-out; }
+  .avatar-wrapper {
+    position: relative; width: 90px; height: 90px; margin: 0 auto 16px;
+  }
   .avatar {
-    width: 80px; height: 80px; margin: 0 auto 16px; border-radius: 50%;
+    width: 90px; height: 90px; border-radius: 50%;
     background: rgba(255,255,255,.2); backdrop-filter: blur(10px);
     border: 3px solid rgba(255,255,255,.4); display: flex; align-items: center; justify-content: center;
     font-size: 2rem; font-weight: 800; color: #fff; text-transform: uppercase;
+  }
+  .avatar-img {
+    width: 90px; height: 90px; border-radius: 50%; object-fit: cover;
+    border: 3px solid rgba(255,255,255,.4);
+  }
+  .avatar-edit {
+    position: absolute; bottom: -2px; right: -2px;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: $accent; color: #fff; border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; cursor: pointer; transition: all .2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    &:hover { transform: scale(1.1); background: darken($accent, 8%); }
+    &.uploading { opacity: .7; cursor: wait; }
+  }
+  .btn-remove-pic {
+    margin-top: 8px; padding: 4px 14px; border: 1px solid rgba(255,255,255,.4);
+    border-radius: 20px; background: rgba(255,255,255,.15); color: rgba(255,255,255,.9);
+    font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .2s;
+    &:hover:not(:disabled) { background: rgba(255,255,255,.3); }
+    &:disabled { opacity: .5; cursor: not-allowed; }
   }
   h1 { color: #fff; font-size: 1.6rem; font-weight: 700; margin: 0 0 6px; }
   p { color: rgba(255,255,255,.85); font-size: .95rem; margin: 0; }

@@ -135,7 +135,7 @@
 - ✅ Duplicate username/email prevention
 
 **What's Still Missing:**
-- ❌ Profile picture upload not implemented
+- ✅ Profile picture upload — IMPLEMENTED (March 29, 2026)
 - ❌ Two-factor authentication not implemented
 
 **Impact:** LOW - Core profile functionality complete
@@ -385,7 +385,7 @@
 - ✅ **Frontend Menu Management** - Image upload UI in add/edit modal + thumbnails in table
 
 **What's Still Missing:**
-- ❌ User profile picture upload not implemented
+- ✅ User profile picture upload — IMPLEMENTED (Azure Blob Storage)
 - ❌ Receipt/invoice image upload not implemented
 - ❌ Image compression/resizing not implemented
 
@@ -696,7 +696,7 @@
 8. Stock Alert Emails - Alert detection works, emails not sent
 9. Two-factor Authentication
 10. Mobile PWA Configuration
-11. Profile Picture Upload
+11. ~~Profile Picture Upload~~ ✅ IMPLEMENTED
 12. Image Compression/Resizing
 
 ### 🟢 LOW (Nice to Have)

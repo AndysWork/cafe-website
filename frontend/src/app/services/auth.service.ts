@@ -14,6 +14,7 @@ export interface User {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  profilePictureUrl?: string;
   token?: string;
   defaultOutletId?: string;
   assignedOutlets?: string[];
@@ -40,6 +41,7 @@ export interface LoginResponse {
   role: string;
   firstName?: string;
   lastName?: string;
+  profilePictureUrl?: string;
   defaultOutletId?: string;
   assignedOutlets?: string[];
 }
@@ -80,6 +82,7 @@ export class AuthService {
               role: response.role as UserRole,
               firstName: response.firstName,
               lastName: response.lastName,
+              profilePictureUrl: response.profilePictureUrl,
               token: response.token,
               defaultOutletId: response.defaultOutletId,
               assignedOutlets: response.assignedOutlets
@@ -161,9 +164,32 @@ export class AuthService {
           this.authStore.updateProfile({
             firstName: response.data.firstName,
             lastName: response.data.lastName,
-            phoneNumber: response.data.phoneNumber
+            phoneNumber: response.data.phoneNumber,
+            profilePictureUrl: response.data.profilePictureUrl
           });
         }
+      })
+    );
+  }
+
+  uploadProfilePicture(file: File): Observable<{ profilePictureUrl: string; message: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{ profilePictureUrl: string; message: string }>(
+      `${this.apiUrl}/auth/profile/picture`, formData
+    ).pipe(
+      tap((response) => {
+        if (response.profilePictureUrl) {
+          this.authStore.updateProfile({ profilePictureUrl: response.profilePictureUrl });
+        }
+      })
+    );
+  }
+
+  deleteProfilePicture(): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/auth/profile/picture`).pipe(
+      tap(() => {
+        this.authStore.updateProfile({ profilePictureUrl: undefined });
       })
     );
   }

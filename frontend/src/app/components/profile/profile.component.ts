@@ -21,6 +21,10 @@ export class ProfileComponent implements OnInit {
   profileError = '';
   isUpdatingProfile = false;
 
+  // Profile picture
+  isUploadingPicture = false;
+  picturePreview: string | null = null;
+
   // Change password
   currentPassword = '';
   newPassword = '';
@@ -121,6 +125,68 @@ export class ProfileComponent implements OnInit {
         this.isChangingPassword = false;
         this.passwordError = error.error?.error || 'Failed to change password';
         setTimeout(() => this.passwordError = '', 5000);
+      }
+    });
+  }
+
+  onProfilePictureSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      this.profileError = 'Only JPEG, PNG, WebP, and GIF images are allowed';
+      setTimeout(() => this.profileError = '', 5000);
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      this.profileError = 'Image must be less than 5MB';
+      setTimeout(() => this.profileError = '', 5000);
+      return;
+    }
+
+    this.isUploadingPicture = true;
+    this.clearMessages();
+
+    this.authService.uploadProfilePicture(file).subscribe({
+      next: () => {
+        this.isUploadingPicture = false;
+        this.user = this.authService.getCurrentUser();
+        this.profileMessage = 'Profile picture updated!';
+        setTimeout(() => this.profileMessage = '', 3000);
+      },
+      error: (error) => {
+        this.isUploadingPicture = false;
+        this.profileError = error.error?.error || 'Failed to upload profile picture';
+        setTimeout(() => this.profileError = '', 5000);
+      }
+    });
+
+    // Reset input so the same file can be re-selected
+    input.value = '';
+  }
+
+  removeProfilePicture(): void {
+    if (!this.user?.profilePictureUrl) return;
+
+    this.isUploadingPicture = true;
+    this.clearMessages();
+
+    this.authService.deleteProfilePicture().subscribe({
+      next: () => {
+        this.isUploadingPicture = false;
+        this.user = this.authService.getCurrentUser();
+        this.profileMessage = 'Profile picture removed!';
+        setTimeout(() => this.profileMessage = '', 3000);
+      },
+      error: (error) => {
+        this.isUploadingPicture = false;
+        this.profileError = error.error?.error || 'Failed to remove profile picture';
+        setTimeout(() => this.profileError = '', 5000);
       }
     });
   }

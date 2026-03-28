@@ -3,9 +3,19 @@
   <div class="hero">
     <div class="hero-pattern"></div>
     <div class="hero-content">
-      <div class="avatar">{{ (user?.firstName || user?.username || '?')[0] | uppercase }}</div>
+      <div class="avatar-wrapper">
+        <div class="avatar" *ngIf="!user?.profilePictureUrl">{{ (user?.firstName || user?.username || '?')[0] | uppercase }}</div>
+        <img class="avatar-img" *ngIf="user?.profilePictureUrl" [src]="user?.profilePictureUrl" alt="Profile picture" />
+        <label class="avatar-edit" [class.uploading]="isUploadingPicture">
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" (change)="onProfilePictureSelected($event)" hidden />
+          {{ isUploadingPicture ? '⏳' : '📷' }}
+        </label>
+      </div>
       <h1>{{ user?.firstName ? (user?.firstName + ' ' + (user?.lastName || '')) : user?.username }}</h1>
       <p>{{ user?.email }}</p>
+      <button *ngIf="user?.profilePictureUrl" class="btn-remove-pic" (click)="removeProfilePicture()" [disabled]="isUploadingPicture">
+        Remove Photo
+      </button>
     </div>
     <div class="hero-wave">
       <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path d="M0,64L60,69.3C120,75,240,85,360,80C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90L1440,96L1440,120L0,120Z" fill="#fafafa"/></svg>

@@ -1,5 +1,6 @@
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Cafe.Api.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
@@ -10,6 +11,7 @@ public class BlobStorageService
     private readonly ILogger<BlobStorageService> _logger;
     private readonly string _cdnBaseUrl;
     private const string MenuImagesContainer = "menu-images";
+    private const string ProfilePicturesContainer = "profile-pictures";
     private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5MB for images
 
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -41,13 +43,17 @@ public class BlobStorageService
     {
         try
         {
-            var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
-            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
+            var menuContainer = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
+            await menuContainer.CreateIfNotExistsAsync(PublicAccessType.Blob);
             _logger.LogInformation("Blob container '{Container}' initialized", MenuImagesContainer);
+
+            var profileContainer = _blobServiceClient.GetBlobContainerClient(ProfilePicturesContainer);
+            await profileContainer.CreateIfNotExistsAsync(PublicAccessType.Blob);
+            _logger.LogInformation("Blob container '{Container}' initialized", ProfilePicturesContainer);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize blob container '{Container}'", MenuImagesContainer);
+            _logger.LogError(ex, "Failed to initialize blob containers");
         }
     }
 
@@ -59,10 +65,16 @@ public class BlobStorageService
     {
         ValidateUpload(fileStream, fileName, contentType);
 
+        // Compress image before upload
+        var originalSize = fileStream.Length;
+        var (compressedStream, compressedContentType) = await ImageCompressor.CompressAsync(fileStream, contentType, isProfilePicture: false);
+        await using var _ = compressedStream;
+        contentType = compressedContentType;
+
         var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
 
-        // Organize by outlet: menu-images/{outletId}/{guid}{extension}
-        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        // Use extension matching the (possibly changed) content type
+        var extension = GetExtensionForContentType(contentType);
         var blobName = $"{outletId}/{Guid.NewGuid()}{extension}";
 
         var blobClient = containerClient.GetBlobClient(blobName);
@@ -73,12 +85,12 @@ public class BlobStorageService
             CacheControl = "public, max-age=31536000, immutable" // 1 year cache — images are immutable (new upload = new URL)
         };
 
-        await blobClient.UploadAsync(fileStream, new BlobUploadOptions { HttpHeaders = headers });
+        await blobClient.UploadAsync(compressedStream, new BlobUploadOptions { HttpHeaders = headers });
 
-        _logger.LogInformation("Uploaded menu image: {BlobName} ({ContentType}, {Size} bytes)",
-            blobName, contentType, fileStream.Length);
+        _logger.LogInformation("Uploaded menu image: {BlobName} ({ContentType}, {OriginalSize} -> {CompressedSize} bytes)",
+            blobName, contentType, originalSize, compressedStream.Length);
 
-        return GetPublicUrl(blobName);
+        return GetPublicUrl(MenuImagesContainer, blobName);
     }
 
     /// <summary>
@@ -91,7 +103,7 @@ public class BlobStorageService
 
         try
         {
-            var blobName = ExtractBlobName(imageUrl);
+            var blobName = ExtractBlobName(imageUrl, MenuImagesContainer);
             if (string.IsNullOrEmpty(blobName))
                 return false;
 
@@ -107,6 +119,72 @@ public class BlobStorageService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to delete menu image: {ImageUrl}", imageUrl);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Uploads a profile picture to blob storage.
+    /// Returns the CDN/blob URL of the uploaded image.
+    /// </summary>
+    public async Task<string> UploadProfilePictureAsync(Stream fileStream, string fileName, string contentType, string userId)
+    {
+        ValidateUpload(fileStream, fileName, contentType);
+
+        // Compress image before upload (profile pictures get smaller max dimension)
+        var originalSize = fileStream.Length;
+        var (compressedStream, compressedContentType) = await ImageCompressor.CompressAsync(fileStream, contentType, isProfilePicture: true);
+        await using var _ = compressedStream;
+        contentType = compressedContentType;
+
+        var containerClient = _blobServiceClient.GetBlobContainerClient(ProfilePicturesContainer);
+
+        // Use extension matching the (possibly changed) content type
+        var extension = GetExtensionForContentType(contentType);
+        var blobName = $"{userId}/{Guid.NewGuid()}{extension}";
+
+        var blobClient = containerClient.GetBlobClient(blobName);
+
+        var headers = new BlobHttpHeaders
+        {
+            ContentType = contentType,
+            CacheControl = "public, max-age=31536000, immutable"
+        };
+
+        await blobClient.UploadAsync(compressedStream, new BlobUploadOptions { HttpHeaders = headers });
+
+        _logger.LogInformation("Uploaded profile picture: {BlobName} ({ContentType}, {OriginalSize} -> {CompressedSize} bytes)",
+            blobName, contentType, originalSize, compressedStream.Length);
+
+        return GetPublicUrl(ProfilePicturesContainer, blobName);
+    }
+
+    /// <summary>
+    /// Deletes a profile picture from blob storage by its full URL.
+    /// </summary>
+    public async Task<bool> DeleteProfilePictureAsync(string imageUrl)
+    {
+        if (string.IsNullOrEmpty(imageUrl))
+            return false;
+
+        try
+        {
+            var blobName = ExtractBlobName(imageUrl, ProfilePicturesContainer);
+            if (string.IsNullOrEmpty(blobName))
+                return false;
+
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ProfilePicturesContainer);
+            var blobClient = containerClient.GetBlobClient(blobName);
+            var response = await blobClient.DeleteIfExistsAsync();
+
+            if (response.Value)
+                _logger.LogInformation("Deleted profile picture: {BlobName}", blobName);
+
+            return response.Value;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete profile picture: {ImageUrl}", imageUrl);
             return false;
         }
     }
@@ -127,27 +205,34 @@ public class BlobStorageService
             throw new ArgumentException($"File extension '{extension}' is not allowed. Allowed: {string.Join(", ", AllowedExtensions)}");
     }
 
+    private static string GetExtensionForContentType(string contentType) => contentType.ToLowerInvariant() switch
+    {
+        "image/jpeg" => ".jpg",
+        "image/png" => ".png",
+        "image/webp" => ".webp",
+        "image/gif" => ".gif",
+        _ => ".jpg"
+    };
+
     /// <summary>
     /// Returns full public URL — CDN if configured, otherwise direct blob URL.
     /// </summary>
-    private string GetPublicUrl(string blobName)
+    private string GetPublicUrl(string containerName, string blobName)
     {
         if (!string.IsNullOrEmpty(_cdnBaseUrl))
-            return $"{_cdnBaseUrl.TrimEnd('/')}/{MenuImagesContainer}/{blobName}";
+            return $"{_cdnBaseUrl.TrimEnd('/')}/{containerName}/{blobName}";
 
         // Direct blob storage URL (still works with public container access)
-        var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
+        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         return $"{containerClient.Uri}/{blobName}";
     }
 
     /// <summary>
     /// Extracts the blob name from a full CDN or blob URL.
     /// </summary>
-    private string? ExtractBlobName(string url)
+    private string? ExtractBlobName(string url, string containerName)
     {
-        // Handle CDN URLs: https://cdn.example.com/menu-images/outlet123/guid.jpg
-        // Handle blob URLs: https://storageaccount.blob.core.windows.net/menu-images/outlet123/guid.jpg
-        var containerPath = $"/{MenuImagesContainer}/";
+        var containerPath = $"/{containerName}/";
         var idx = url.IndexOf(containerPath, StringComparison.OrdinalIgnoreCase);
         if (idx >= 0)
             return url[(idx + containerPath.Length)..];

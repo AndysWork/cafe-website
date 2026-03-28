@@ -831,6 +831,14 @@ public partial class MongoService
         return result.MatchedCount > 0; // Return true if user was found, even if values didn't change
     }
 
+    // Update user profile picture URL
+    public async Task<bool> UpdateProfilePictureUrlAsync(string userId, string? profilePictureUrl)
+    {
+        var update = Builders<User>.Update.Set(x => x.ProfilePictureUrl, profilePictureUrl);
+        var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
+        return result.ModifiedCount > 0;
+    }
+
     // Update user password
     public async Task<bool> UpdateUserPasswordAsync(string userId, string newPasswordHash)
     {

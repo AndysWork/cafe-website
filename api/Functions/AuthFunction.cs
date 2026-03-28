@@ -151,6 +151,7 @@ public class AuthFunction
                     Role = user.Role,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
+                    ProfilePictureUrl = user.ProfilePictureUrl,
                     DefaultOutletId = user.DefaultOutletId,
                     AssignedOutlets = user.AssignedOutlets
                 },
@@ -453,7 +454,8 @@ public class AuthFunction
                     user.FirstName,
                     user.LastName,
                     user.Email,
-                    PhoneNumber = user.PhoneNumber ?? string.Empty
+                    PhoneNumber = user.PhoneNumber ?? string.Empty,
+                    user.ProfilePictureUrl
                 }
             });
 

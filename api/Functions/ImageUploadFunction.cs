@@ -164,6 +164,125 @@ public class ImageUploadFunction
         }
     }
 
+    /// <summary>
+    /// Uploads a profile picture for the authenticated user.
+    /// </summary>
+    [Function("UploadProfilePicture")]
+    [OpenApiOperation(operationId: "UploadProfilePicture", tags: new[] { "Images" }, Summary = "Upload profile picture")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Profile picture uploaded")]
+    public async Task<HttpResponseData> UploadProfilePicture(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/profile/picture")] HttpRequestData req)
+    {
+        try
+        {
+            // Any authenticated user can upload their own profile picture
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            // Parse multipart form data
+            var contentType = req.Headers.GetValues("Content-Type").FirstOrDefault() ?? "";
+            if (!contentType.Contains("multipart/form-data"))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Content-Type must be multipart/form-data" });
+                return badRequest;
+            }
+
+            var boundary = GetBoundary(contentType);
+            if (string.IsNullOrEmpty(boundary))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid multipart boundary" });
+                return badRequest;
+            }
+
+            using var bodyStream = new MemoryStream();
+            await req.Body.CopyToAsync(bodyStream);
+            bodyStream.Position = 0;
+
+            var (fileData, fileName, fileContentType) = ExtractFileFromMultipart(bodyStream, boundary);
+            if (fileData == null || fileData.Length == 0)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "No image file provided" });
+                return badRequest;
+            }
+
+            // Delete old profile picture if exists
+            var user = await _mongo.GetUserByIdAsync(userId!);
+            if (user != null && !string.IsNullOrEmpty(user.ProfilePictureUrl))
+            {
+                await _blobService.DeleteProfilePictureAsync(user.ProfilePictureUrl);
+            }
+
+            // Upload new profile picture
+            using var uploadStream = new MemoryStream(fileData);
+            var imageUrl = await _blobService.UploadProfilePictureAsync(
+                uploadStream,
+                fileName,
+                fileContentType,
+                userId!
+            );
+
+            // Update user's profile picture URL
+            await _mongo.UpdateProfilePictureUrlAsync(userId!, imageUrl);
+
+            _log.LogInformation("Profile picture updated for user {UserId}: {ImageUrl}", userId, imageUrl);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { profilePictureUrl = imageUrl, message = "Profile picture uploaded successfully" });
+            return response;
+        }
+        catch (ArgumentException ex)
+        {
+            var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+            await badRequest.WriteAsJsonAsync(new { error = ex.Message });
+            return badRequest;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error uploading profile picture");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to upload profile picture" });
+            return error;
+        }
+    }
+
+    /// <summary>
+    /// Deletes the authenticated user's profile picture.
+    /// </summary>
+    [Function("DeleteProfilePicture")]
+    [OpenApiOperation(operationId: "DeleteProfilePicture", tags: new[] { "Images" }, Summary = "Delete profile picture")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    public async Task<HttpResponseData> DeleteProfilePicture(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "auth/profile/picture")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var user = await _mongo.GetUserByIdAsync(userId!);
+            if (user != null && !string.IsNullOrEmpty(user.ProfilePictureUrl))
+            {
+                await _blobService.DeleteProfilePictureAsync(user.ProfilePictureUrl);
+                await _mongo.UpdateProfilePictureUrlAsync(userId!, null);
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Profile picture deleted successfully" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting profile picture");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to delete profile picture" });
+            return error;
+        }
+    }
+
     private static string? GetBoundary(string contentType)
     {
         var parts = contentType.Split("boundary=");

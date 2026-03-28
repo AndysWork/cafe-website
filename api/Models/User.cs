@@ -41,6 +41,9 @@ public class User
     [BsonElement("phoneNumber")]
     public string? PhoneNumber { get; set; }
 
+    [BsonElement("profilePictureUrl")]
+    public string? ProfilePictureUrl { get; set; }
+
     [BsonElement("isActive")]
     public bool IsActive { get; set; } = true;
 
@@ -70,6 +73,7 @@ public class LoginResponse
     public string Role { get; set; } = string.Empty;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    public string? ProfilePictureUrl { get; set; }
     public string? DefaultOutletId { get; set; }
     public List<string>? AssignedOutlets { get; set; }
 }
