@@ -1,34 +1,32 @@
 import { inject } from '@angular/core';
 import { Router, CanActivateFn } from '@angular/router';
-import { AuthService } from '../services/auth.service';
+import { AuthStore } from '../store/auth.store';
 
 export const authGuard: CanActivateFn = (route, state) => {
-  const authService = inject(AuthService);
+  const authStore = inject(AuthStore);
   const router = inject(Router);
 
-  if (authService.isLoggedIn()) {
+  if (authStore.isLoggedIn()) {
     return true;
   }
 
-  // Redirect to login page with return url
   router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
   return false;
 };
 
 export const adminGuard: CanActivateFn = (route, state) => {
-  const authService = inject(AuthService);
+  const authStore = inject(AuthStore);
   const router = inject(Router);
 
-  if (!authService.isLoggedIn()) {
+  if (!authStore.isLoggedIn()) {
     router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
     return false;
   }
 
-  if (authService.isAdmin()) {
+  if (authStore.isAdmin()) {
     return true;
   }
 
-  // Redirect to home if not admin
   router.navigate(['/home']);
   return false;
 };

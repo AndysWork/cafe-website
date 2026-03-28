@@ -13,13 +13,13 @@
 | **Backend Services** | ~~6~~ 0 | ~~14~~ 0 | ~~12~~ 0 | 32 | **32** |
 | **Backend Functions/Middleware** | ~~4~~ 0 | ~~9~~ 0 | ~~5~~ 0 | 18 | **18** |
 | **MongoDB Data Access** | ~~3~~ 0 | ~~5~~ 0 | ~~4~~ 0 | 12 | **12** |
-| **Frontend Architecture** | ~~5~~ 1 | ~~6~~ 1 | ~~8~~ 0 | 19 | **17** |
+| **Frontend Architecture** | ~~5~~ 1 | ~~6~~ 0 | ~~8~~ 0 | 19 | **18** |
 | **Frontend Components** | ~~5~~ 0 | ~~3~~ 1 | ~~5~~ 5 | 13 | **7** |
-| **TOTAL** | ~~23~~ **1** | ~~37~~ **2** | ~~34~~ **5** | **94** | **86 ✅** |
+| **TOTAL** | ~~23~~ **1** | ~~37~~ **1** | ~~34~~ **5** | **94** | **87 ✅** |
 
-**Overall Health Score: ~~42~~ ~~76~~ ~~85~~ ~~87~~ ~~89~~ ~~92~~ 95/100** (+53 points from initial 42)
+**Overall Health Score: ~~42~~ ~~76~~ ~~85~~ ~~87~~ ~~89~~ ~~92~~ ~~95~~ 96/100** (+54 points from initial 42)
 
-**86 of 94 findings have been resolved.** All 23 critical issues are resolved except one (OnPush change detection — deferred as incremental adoption). All backend issues fully resolved. The remaining 8 open items are frontend medium/low priority improvements.
+**87 of 94 findings have been resolved.** All 23 critical issues are resolved except one (OnPush change detection — deferred as incremental adoption). All backend issues fully resolved. Centralized state management implemented via Angular Signals. The remaining 7 open items are frontend medium/low priority improvements.
 
 ### Resolved Root Causes ✅
 1. ~~**Blocking async calls** in service constructors~~ → Replaced with `IHostedService` async initialization
@@ -59,9 +59,11 @@
 29. ~~**Inconsistent error handling**~~ → Enhanced error interceptor + `handleServiceError()` applied to 44 methods across 6 services
 30. ~~**No accessibility attributes**~~ → ARIA roles, labels, live regions on 5 core templates
 
+### Resolved in Round 7 ✅ (Centralized State Management)
+31. ~~**No centralized state management**~~ → Angular Signals-based stores (AuthStore, CartStore, OutletStore, UIStore) with AppStore façade; 5 services migrated from BehaviorSubjects; toast notification system; auth guards using signals directly
+
 ### Remaining Open Issues
 - 🟡 No OnPush change detection (deferred — incremental adoption; mitigated by trackBy on all ngFor)
-- ❌ No centralized state management (NgRx/Signals — architectural decision deferred)
 
 ---
 
@@ -387,11 +389,25 @@ ExcelPackage.LicenseContext = LicenseContext.NonCommercial; // Set once at start
 - Auto-logout + redirect to `/login` on 401 (skips auth endpoints)
 - Registered in `app.config.ts`: `withInterceptors([errorInterceptor, authInterceptor, outletInterceptor, analyticsInterceptor])`
 
-### 3.5 🟡 No Centralized State Management — OPEN
+### ~~3.5~~ ✅ No Centralized State Management — RESOLVED
 
-5+ scattered `BehaviorSubject`s across different services. This is an architectural concern but the current pattern works. `shareReplay` added to high-traffic service methods (see 4.3) mitigates duplicate HTTP requests.
+**Status:** ✅ Fixed — Implemented Angular Signals-based centralized state management (`store/` directory). All scattered `BehaviorSubject`s replaced with domain-specific signal stores:
 
-**Status:** Open — recommend evaluating Angular Signals or NgRx for future scalability.
+| Store | State Managed | Signals | Computed |
+|-------|--------------|---------|----------|
+| `AuthStore` | User, token, auth state | `user`, `token` | `isLoggedIn`, `isAdmin`, `isUser`, `userRole`, `userName` |
+| `CartStore` | Cart items, totals | `cart` | `items`, `itemCount`, `subtotal`, `total`, `isEmpty` |
+| `OutletStore` | Selected outlet, available outlets | `selectedOutlet`, `availableOutlets` | `selectedOutletId`, `selectedOutletName`, `hasOutletSelected`, `activeOutlets` |
+| `UIStore` | Loading state, notifications, sidebar | `isLoading`, `notifications` | `hasNotifications` |
+| `AppStore` | Façade aggregating all stores | — | Access via `store.auth`, `store.cart`, `store.outlet`, `store.ui` |
+
+**Migration approach:**
+- Each store is `@Injectable({ providedIn: 'root' })` using `signal()`, `computed()`, and `toObservable()` for backward-compatible observables
+- Services (AuthService, CartService, OutletService, MenuService, PriceCalculatorService) delegate state to stores — all existing `service.observable$` subscriptions continue to work unchanged
+- Auth guards use `AuthStore.isLoggedIn()` and `AuthStore.isAdmin()` signals directly
+- NavbarComponent reads `AuthStore.user()` and `CartStore.itemCount()` signals directly — no subscriptions to manage
+- `UIStore` powers `ToastContainerComponent` (global toast notifications) and `error.interceptor.ts` shows error toasts automatically
+- localStorage hydration in each store constructor ensures persistence across page reloads
 
 ---
 
@@ -529,7 +545,7 @@ User Request
 | 3 | ~~Implement health check endpoint~~ | Load balancer health monitoring | Medium | ✅ Done |
 | 4 | ~~Implement Azure Functions warm-up~~ | Eliminate cold start latency | Medium | ✅ Done *(R5)* |
 | 5 | ~~Add request/response logging middleware~~ | API observability | Medium | ✅ Done *(R5)* |
-| 6 | State management (NgRx or Signals) | Eliminate duplicate API calls | Medium | Open |
+| 6 | ~~State management (NgRx or Signals)~~ | Eliminate duplicate API calls | Medium | ✅ Done *(R7 — Angular Signals stores)* |
 | 7 | ~~Add retry policies for DB operations~~ | Handle transient MongoDB failures | Medium | ✅ Done *(R5 — saga pattern + error handling)* |
 | 8 | ~~Implement API versioning~~ | Breaking change management | Low | ✅ Done *(R5)* |
 | 9 | ~~Replace in-memory grouping with `$group`~~ | DB-level aggregation | Low | ✅ Done |
@@ -578,7 +594,8 @@ User Request
 | Error handling/Resilience | ✅ **Saga pattern + compensating actions on stock/frozen/sessions** | Data consistency |
 | Frontend error handling | ✅ **Error interceptor + handleServiceError on 44 methods** | User experience |
 | Accessibility (a11y) | ✅ **ARIA roles, labels, live regions on 5 core templates** | Compliance |
-| Shared UI components | ✅ **LoadingSpinner, ConfirmDialog, EmptyState** | Consistency, reuse |
+| Shared UI components | ✅ **LoadingSpinner, ConfirmDialog, EmptyState, ToastContainer** | Consistency, reuse |
+| Centralized state management | ✅ **Angular Signals stores (AuthStore, CartStore, OutletStore, UIStore, AppStore)** | Predictable state, signal-based reactivity |
 | CORS configuration | Unknown | Cross-origin security |
 
 ---
@@ -632,12 +649,12 @@ User Request
 36. ✅ _(merged with #35)_
 37. ✅ No error interceptor → `error.interceptor.ts` with retry + 401 handling
 
-### Frontend High (6) — 5 RESOLVED
+### Frontend High (6) — 6 RESOLVED
 38. ✅ 16 components missing OnDestroy → 7 critical components fixed with proper cleanup
 39. ✅ 20+ ngFor without trackBy → **all ~179 ngFor directives** now have trackBy across 35 components
 40. ✅ 50+ method calls in templates → 126 `.toFixed()`/`.toLocaleString()` replaced with Angular `number` pipe across 8 components
 41. ✅ No shareReplay on service HTTP calls → added to 6 methods across 4 services
-42. ❌ No centralized state management
+42. ✅ No centralized state management → Angular Signals-based stores (AuthStore, CartStore, OutletStore, UIStore, AppStore); 5 BehaviorSubjects replaced; services delegate to stores; guards + navbar use signals directly
 43. ✅ CSRF token stored but never sent → Auth interceptor now attaches `X-CSRF-Token` on POST/PUT/DELETE/PATCH
 
 ### Frontend Medium (8) — 8 RESOLVED
@@ -700,6 +717,13 @@ User Request
 - `frontend/src/app/shared/index.ts` — Barrel export for shared components *(R6)*
 - `frontend/src/app/services/admin-analytics-calculation.service.ts` — Extracted calculation logic (14 methods) from admin-analytics component *(R6)*
 - `frontend/src/app/services/bonus-calculation-engine.service.ts` — Extracted scoring/work-hour logic (15 methods) from bonus-calculation component *(R6)*
+- `frontend/src/app/store/auth.store.ts` — Centralized auth state (user, token) with signals + computed (isLoggedIn, isAdmin, userRole) *(R7)*
+- `frontend/src/app/store/cart.store.ts` — Centralized cart state with signals + computed (items, total, isEmpty) *(R7)*
+- `frontend/src/app/store/outlet.store.ts` — Centralized outlet state (selected, available) with signals + computed *(R7)*
+- `frontend/src/app/store/ui.store.ts` — Global UI state (loading, notifications, sidebar) with signal-based notify/dismiss *(R7)*
+- `frontend/src/app/store/app.store.ts` — Façade aggregating all domain stores into single injection point *(R7)*
+- `frontend/src/app/store/index.ts` — Barrel export for all stores *(R7)*
+- `frontend/src/app/shared/toast-container/toast-container.component.ts` — Global toast notification component using UIStore signals *(R7)*
 
 ### Frontend — Modified Files
 | File | Changes |
@@ -723,3 +747,13 @@ User Request
 | `frontend/src/app/components/bonus-calculation/bonus-calculation.component.ts` | **Delegated 13 scoring/work-hour methods to `BonusCalculationEngineService`; reduced from 1135→1102 lines** *(R6)* |
 | 5 HTML templates (navbar, login, menu, cart, checkout) | **ARIA roles, labels, `aria-expanded`, `aria-live`, `aria-labelledby`, `role="dialog"` attributes** *(R6)* |
 | `frontend/src/environments/environment.ts`, `environment.prod.ts` | **Removed unused `razorpayKeyId`** *(R6)* |
+| `frontend/src/app/services/auth.service.ts` | **Delegates state to AuthStore; removed BehaviorSubject; login/logout/getToken/isAdmin/isLoggedIn via store** *(R7)* |
+| `frontend/src/app/services/cart.service.ts` | **Delegates state to CartStore; removed BehaviorSubject; all cart operations via store** *(R7)* |
+| `frontend/src/app/services/outlet.service.ts` | **Delegates state to OutletStore; removed BehaviorSubjects; select/get/clear via store** *(R7)* |
+| `frontend/src/app/services/menu.service.ts` | **Replaced BehaviorSubject with `signal()` + `toObservable()` for menu refresh** *(R7)* |
+| `frontend/src/app/services/price-calculator.service.ts` | **Replaced 2 BehaviorSubjects with `signal()` + `toObservable()` for ingredients/recipes** *(R7)* |
+| `frontend/src/app/guards/auth.guard.ts` | **Guards use `AuthStore.isLoggedIn()` / `AuthStore.isAdmin()` signals directly** *(R7)* |
+| `frontend/src/app/components/navbar/navbar.component.ts` | **Reads `AuthStore.user()` and `CartStore.itemCount()` signals directly; no subscriptions needed** *(R7)* |
+| `frontend/src/app/interceptors/error.interceptor.ts` | **Injects UIStore; shows toast notifications on HTTP errors (skips analytics/401)** *(R7)* |
+| `frontend/src/app/app.component.ts`, `app.component.html` | **Added ToastContainerComponent for global toast notifications** *(R7)* |
+| `frontend/src/app/shared/index.ts` | **Added ToastContainerComponent export** *(R7)* |

@@ -1,7 +1,8 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, BehaviorSubject, of, forkJoin } from 'rxjs';
+import { Observable, of, forkJoin } from 'rxjs';
 import { map, catchError, switchMap } from 'rxjs/operators';
+import { toObservable } from '@angular/core/rxjs-interop';
 import {
   Ingredient,
   MenuItemRecipe,
@@ -19,12 +20,12 @@ import { environment } from '../../environments/environment';
 export class PriceCalculatorService {
   private apiUrl = environment.apiUrl || '/api';
 
-  // BehaviorSubjects for reactive data
-  private ingredientsSubject = new BehaviorSubject<Ingredient[]>([]);
-  private recipesSubject = new BehaviorSubject<MenuItemRecipe[]>([]);
+  // Signal-based reactive state (replaces BehaviorSubjects)
+  private ingredientsSignal = signal<Ingredient[]>([]);
+  private recipesSignal = signal<MenuItemRecipe[]>([]);
 
-  public ingredients$ = this.ingredientsSubject.asObservable();
-  public recipes$ = this.recipesSubject.asObservable();
+  public ingredients$ = toObservable(this.ingredientsSignal);
+  public recipes$ = toObservable(this.recipesSignal);
 
   constructor(private http: HttpClient) {
     this.loadIngredientsFromServer();
@@ -55,7 +56,7 @@ export class PriceCalculatorService {
         return of(this.initializeDefaultIngredients());
       }))
       .subscribe(ingredients => {
-        this.ingredientsSubject.next(ingredients);
+        this.ingredientsSignal.set(ingredients);
         // Cache in localStorage as backup
         localStorage.setItem('cafe_ingredients', JSON.stringify(ingredients));
       });
@@ -72,7 +73,7 @@ export class PriceCalculatorService {
         return of([]);
       }))
       .subscribe(recipes => {
-        this.recipesSubject.next(recipes);
+        this.recipesSignal.set(recipes);
         localStorage.setItem('cafe_recipes', JSON.stringify(recipes));
       });
   }
@@ -112,9 +113,9 @@ export class PriceCalculatorService {
     return this.http.post<Ingredient>(`${this.apiUrl}/ingredients`, ingredient)
       .pipe(
         map(newIngredient => {
-          const currentIngredients = this.ingredientsSubject.value;
+          const currentIngredients = this.ingredientsSignal();
           const updatedIngredients = [...currentIngredients, newIngredient];
-          this.ingredientsSubject.next(updatedIngredients);
+          this.ingredientsSignal.set(updatedIngredients);
           localStorage.setItem('cafe_ingredients', JSON.stringify(updatedIngredients));
           return newIngredient;
         }),
@@ -126,9 +127,9 @@ export class PriceCalculatorService {
             lastUpdated: new Date(),
             isActive: true
           };
-          const currentIngredients = this.ingredientsSubject.value;
+          const currentIngredients = this.ingredientsSignal();
           const updatedIngredients = [...currentIngredients, newIngredient];
-          this.ingredientsSubject.next(updatedIngredients);
+          this.ingredientsSignal.set(updatedIngredients);
           localStorage.setItem('cafe_ingredients', JSON.stringify(updatedIngredients));
           return of(newIngredient);
         })
@@ -141,18 +142,18 @@ export class PriceCalculatorService {
     return this.http.put<Ingredient>(`${this.apiUrl}/ingredients/${id}`, updateData)
       .pipe(
         map(updatedIngredient => {
-          const currentIngredients = this.ingredientsSubject.value;
+          const currentIngredients = this.ingredientsSignal();
           const index = currentIngredients.findIndex(ing => ing.id === id);
           if (index !== -1) {
             currentIngredients[index] = updatedIngredient;
-            this.ingredientsSubject.next([...currentIngredients]);
+            this.ingredientsSignal.set([...currentIngredients]);
             localStorage.setItem('cafe_ingredients', JSON.stringify(currentIngredients));
           }
           return updatedIngredient;
         }),
         catchError((error) => {
           console.error('Error updating ingredient, using local fallback', error);
-          const currentIngredients = this.ingredientsSubject.value;
+          const currentIngredients = this.ingredientsSignal();
           const index = currentIngredients.findIndex(ing => ing.id === id);
           if (index !== -1) {
             const updatedIngredient = {
@@ -161,7 +162,7 @@ export class PriceCalculatorService {
               lastUpdated: new Date()
             };
             currentIngredients[index] = updatedIngredient;
-            this.ingredientsSubject.next([...currentIngredients]);
+            this.ingredientsSignal.set([...currentIngredients]);
             localStorage.setItem('cafe_ingredients', JSON.stringify(currentIngredients));
             return of(updatedIngredient);
           }
@@ -174,17 +175,17 @@ export class PriceCalculatorService {
     return this.http.delete(`${this.apiUrl}/ingredients/${id}`)
       .pipe(
         map(() => {
-          const currentIngredients = this.ingredientsSubject.value;
+          const currentIngredients = this.ingredientsSignal();
           const filteredIngredients = currentIngredients.filter(ing => ing.id !== id);
-          this.ingredientsSubject.next(filteredIngredients);
+          this.ingredientsSignal.set(filteredIngredients);
           localStorage.setItem('cafe_ingredients', JSON.stringify(filteredIngredients));
           return true;
         }),
         catchError((error) => {
           console.error('Error deleting ingredient, using local fallback', error);
-          const currentIngredients = this.ingredientsSubject.value;
+          const currentIngredients = this.ingredientsSignal();
           const filteredIngredients = currentIngredients.filter(ing => ing.id !== id);
-          this.ingredientsSubject.next(filteredIngredients);
+          this.ingredientsSignal.set(filteredIngredients);
           localStorage.setItem('cafe_ingredients', JSON.stringify(filteredIngredients));
           return of(true);
         })
@@ -227,11 +228,11 @@ export class PriceCalculatorService {
       return this.http.put<MenuItemRecipe>(`${this.apiUrl}/recipes/${recipe.id}`, recipe)
         .pipe(
           map(updatedRecipe => {
-            const currentRecipes = this.recipesSubject.value;
+            const currentRecipes = this.recipesSignal();
             const index = currentRecipes.findIndex(r => r.id === recipe.id);
             if (index !== -1) {
               currentRecipes[index] = updatedRecipe;
-              this.recipesSubject.next([...currentRecipes]);
+              this.recipesSignal.set([...currentRecipes]);
               localStorage.setItem('cafe_recipes', JSON.stringify(currentRecipes));
             }
             return updatedRecipe;
@@ -239,11 +240,11 @@ export class PriceCalculatorService {
           catchError((error) => {
             console.error('Error updating recipe, using local fallback', error);
             const updatedRecipe = { ...recipe, updatedAt: new Date() };
-            const currentRecipes = this.recipesSubject.value;
+            const currentRecipes = this.recipesSignal();
             const index = currentRecipes.findIndex(r => r.id === recipe.id);
             if (index !== -1) {
               currentRecipes[index] = updatedRecipe;
-              this.recipesSubject.next([...currentRecipes]);
+              this.recipesSignal.set([...currentRecipes]);
               localStorage.setItem('cafe_recipes', JSON.stringify(currentRecipes));
             }
             return of(updatedRecipe);
@@ -254,9 +255,9 @@ export class PriceCalculatorService {
       return this.http.post<MenuItemRecipe>(`${this.apiUrl}/recipes`, recipe)
         .pipe(
           map(newRecipe => {
-            const currentRecipes = this.recipesSubject.value;
+            const currentRecipes = this.recipesSignal();
             const updatedRecipes = [...currentRecipes, newRecipe];
-            this.recipesSubject.next(updatedRecipes);
+            this.recipesSignal.set(updatedRecipes);
             localStorage.setItem('cafe_recipes', JSON.stringify(updatedRecipes));
             return newRecipe;
           }),
@@ -268,9 +269,9 @@ export class PriceCalculatorService {
               createdAt: new Date(),
               updatedAt: new Date()
             };
-            const currentRecipes = this.recipesSubject.value;
+            const currentRecipes = this.recipesSignal();
             const updatedRecipes = [...currentRecipes, newRecipe];
-            this.recipesSubject.next(updatedRecipes);
+            this.recipesSignal.set(updatedRecipes);
             localStorage.setItem('cafe_recipes', JSON.stringify(updatedRecipes));
             return of(newRecipe);
           })
@@ -282,17 +283,17 @@ export class PriceCalculatorService {
     return this.http.delete(`${this.apiUrl}/recipes/${id}`)
       .pipe(
         map(() => {
-          const currentRecipes = this.recipesSubject.value;
+          const currentRecipes = this.recipesSignal();
           const filteredRecipes = currentRecipes.filter(recipe => recipe.id !== id);
-          this.recipesSubject.next(filteredRecipes);
+          this.recipesSignal.set(filteredRecipes);
           localStorage.setItem('cafe_recipes', JSON.stringify(filteredRecipes));
           return true;
         }),
         catchError((error) => {
           console.error('Error deleting recipe, using local fallback', error);
-          const currentRecipes = this.recipesSubject.value;
+          const currentRecipes = this.recipesSignal();
           const filteredRecipes = currentRecipes.filter(recipe => recipe.id !== id);
-          this.recipesSubject.next(filteredRecipes);
+          this.recipesSignal.set(filteredRecipes);
           localStorage.setItem('cafe_recipes', JSON.stringify(filteredRecipes));
           return of(true);
         })
@@ -413,13 +414,13 @@ export class PriceCalculatorService {
           return forkJoin(creates);
         }),
         map((ingredients) => {
-          this.ingredientsSubject.next(ingredients);
+          this.ingredientsSignal.set(ingredients);
           localStorage.setItem('cafe_ingredients', JSON.stringify(ingredients));
           return ingredients;
         }),
         catchError(() => {
           // Fallback to local reset
-          this.ingredientsSubject.next(defaultIngredients);
+          this.ingredientsSignal.set(defaultIngredients);
           localStorage.setItem('cafe_ingredients', JSON.stringify(defaultIngredients));
           return of(defaultIngredients);
         })

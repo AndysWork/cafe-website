@@ -4,10 +4,11 @@ import { NavbarComponent } from './components/navbar/navbar.component';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
 import { AnalyticsTrackingService } from './services/analytics-tracking.service';
+import { ToastContainerComponent } from './shared/toast-container/toast-container.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, NavbarComponent, CommonModule],
+  imports: [RouterOutlet, NavbarComponent, CommonModule, ToastContainerComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })

@@ -4,7 +4,7 @@ import { RouterModule, Router } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
 import { CartService } from '../../services/cart.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
-import { Subscription } from 'rxjs';
+import { AuthStore, CartStore } from '../../store';
 
 @Component({
   selector: 'app-navbar',
@@ -17,11 +17,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
   isMobileMenuOpen = false;
   activeDropdown: string | null = null;
   private closeTimeout: any;
-  currentUser: User | null = null;
-  cartItemCount = 0;
-  private authSubscription?: Subscription;
-  private cartSubscription?: Subscription;
   private analyticsTracking = inject(AnalyticsTrackingService);
+  private authStore = inject(AuthStore);
+  private cartStore = inject(CartStore);
+
+  // Signal-based state reads — no subscriptions needed, auto-updates via change detection
+  get currentUser(): User | null { return this.authStore.user(); }
+  get cartItemCount(): number { return this.cartStore.itemCount(); }
 
   constructor(
     private authService: AuthService,
@@ -30,23 +32,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    this.authSubscription = this.authService.currentUser$.subscribe(
-      user => {
-        this.currentUser = user;
-      }
-    );
-    this.cartSubscription = this.cartService.cart$.subscribe(
-      cart => this.cartItemCount = cart.itemCount
-    );
+    // No subscriptions needed — signals are read directly in getters above
   }
 
   ngOnDestroy() {
-    if (this.authSubscription) {
-      this.authSubscription.unsubscribe();
-    }
-    if (this.cartSubscription) {
-      this.cartSubscription.unsubscribe();
-    }
+    // No subscriptions to clean up
   }
 
   get isAdmin(): boolean {

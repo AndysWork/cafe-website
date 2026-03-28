@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { Observable } from 'rxjs';
 import { AnalyticsTrackingService } from './analytics-tracking.service';
+import { CartStore } from '../store/cart.store';
 
 export interface CartItem {
   menuItemId: string;
@@ -25,120 +26,37 @@ export interface Cart {
   providedIn: 'root'
 })
 export class CartService {
-  private cartSubject = new BehaviorSubject<Cart>(this.getEmptyCart());
-  public cart$: Observable<Cart> = this.cartSubject.asObservable();
+  private cartStore = inject(CartStore);
   private analyticsTracking = inject(AnalyticsTrackingService);
 
-  constructor() {
-    // Load cart from localStorage on initialization
-    this.loadCartFromStorage();
-  }
-
-  private getEmptyCart(): Cart {
-    return {
-      items: [],
-      subtotal: 0,
-      packagingCharges: 0,
-      total: 0,
-      itemCount: 0
-    };
-  }
-
-  private loadCartFromStorage(): void {
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      try {
-        const cart = JSON.parse(savedCart);
-        this.cartSubject.next(this.calculateTotals(cart.items));
-      } catch (error) {
-        console.error('Error loading cart from storage:', error);
-      }
-    }
-  }
-
-  private saveCartToStorage(cart: Cart): void {
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }
-
-  private calculateTotals(items: CartItem[]): Cart {
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const packagingCharges = items.reduce((sum, item) => sum + ((item.packagingCharge || 0) * item.quantity), 0);
-    const total = subtotal + packagingCharges;
-    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-
-    return {
-      items,
-      subtotal: Math.round(subtotal * 100) / 100,
-      packagingCharges: Math.round(packagingCharges * 100) / 100,
-      total: Math.round(total * 100) / 100,
-      itemCount
-    };
-  }
+  /** Observable bridge — delegates to CartStore signal via toObservable. */
+  public cart$: Observable<Cart> = this.cartStore.cart$;
 
   addItem(item: Omit<CartItem, 'quantity'>, quantity: number = 1): void {
-    const currentCart = this.cartSubject.value;
-    const existingItemIndex = currentCart.items.findIndex(i => i.menuItemId === item.menuItemId);
-
-    let newItems: CartItem[];
-    if (existingItemIndex > -1) {
-      // Update quantity of existing item
-      newItems = [...currentCart.items];
-      newItems[existingItemIndex] = {
-        ...newItems[existingItemIndex],
-        quantity: newItems[existingItemIndex].quantity + quantity
-      };
-    } else {
-      // Add new item
-      newItems = [...currentCart.items, { ...item, quantity }];
-    }
-
-    const updatedCart = this.calculateTotals(newItems);
-    this.cartSubject.next(updatedCart);
-    this.saveCartToStorage(updatedCart);
+    this.cartStore.addItem(item, quantity);
     this.analyticsTracking.trackCartAdd(item.name, item.menuItemId);
   }
 
   updateQuantity(menuItemId: string, quantity: number): void {
-    const currentCart = this.cartSubject.value;
-
-    if (quantity <= 0) {
-      this.removeItem(menuItemId);
-      return;
-    }
-
-    const newItems = currentCart.items.map(item =>
-      item.menuItemId === menuItemId ? { ...item, quantity } : item
-    );
-
-    const updatedCart = this.calculateTotals(newItems);
-    this.cartSubject.next(updatedCart);
-    this.saveCartToStorage(updatedCart);
+    this.cartStore.updateQuantity(menuItemId, quantity);
   }
 
   removeItem(menuItemId: string): void {
-    const currentCart = this.cartSubject.value;
-    const removedItem = currentCart.items.find(item => item.menuItemId === menuItemId);
-    const newItems = currentCart.items.filter(item => item.menuItemId !== menuItemId);
-
-    const updatedCart = this.calculateTotals(newItems);
-    this.cartSubject.next(updatedCart);
-    this.saveCartToStorage(updatedCart);
-    if (removedItem) {
-      this.analyticsTracking.trackCartRemove(removedItem.name, removedItem.menuItemId);
+    const removed = this.cartStore.removeItem(menuItemId);
+    if (removed) {
+      this.analyticsTracking.trackCartRemove(removed.name, removed.menuItemId);
     }
   }
 
   clearCart(): void {
-    const emptyCart = this.getEmptyCart();
-    this.cartSubject.next(emptyCart);
-    localStorage.removeItem('cart');
+    this.cartStore.clearCart();
   }
 
   getCart(): Cart {
-    return this.cartSubject.value;
+    return this.cartStore.cart();
   }
 
   getItemCount(): number {
-    return this.cartSubject.value.itemCount;
+    return this.cartStore.itemCount();
   }
 }

@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap, catchError, of, map } from 'rxjs';
+import { Observable, tap, catchError, of, map } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { AuthStore } from '../store/auth.store';
 
 export type UserRole = 'admin' | 'user';
 
@@ -55,50 +56,13 @@ export interface ApiLoginResponse {
 export class AuthService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
+  private authStore = inject(AuthStore);
 
-  private currentUserSubject = new BehaviorSubject<User | null>(null);
-  public currentUser$: Observable<User | null> = this.currentUserSubject.asObservable();
-
-  constructor() {
-    // Check if user is already logged in from localStorage
-    const token = this.getToken();
-    const userJson = localStorage.getItem('currentUser');
-
-    if (token && userJson) {
-      try {
-        const user = JSON.parse(userJson);
-        // Validate that the user object has required fields
-        if (user && user.username && user.email && user.role) {
-          // Additional validation: check if token in user matches stored token
-          if (user.token && user.token === token) {
-            this.currentUserSubject.next(user);
-          } else {
-            // Token mismatch, clear stale data
-            this.clearAuthData();
-          }
-        } else {
-          // Invalid user data, clear it
-          this.clearAuthData();
-        }
-      } catch (e) {
-        // Failed to parse user data, clear it
-        console.error('Failed to parse user data:', e);
-        this.clearAuthData();
-      }
-    } else if (token || userJson) {
-      // Partial data exists (token without user or vice versa), clear everything
-      this.clearAuthData();
-    }
-  }
+  /** Observable bridge — delegates to AuthStore signal via toObservable. */
+  public currentUser$: Observable<User | null> = this.authStore.user$;
 
   private clearAuthData(): void {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('csrfToken');
-    // Clear outlet data as well
-    localStorage.removeItem('selectedOutletId');
-    localStorage.removeItem('selectedOutlet');
-    this.currentUserSubject.next(null);
+    this.authStore.logout();
   }
 
   login(username: string, password: string): Observable<LoginResponse> {
@@ -110,15 +74,6 @@ export class AuthService {
         tap(apiResponse => {
           const response = apiResponse.data;
           if (response.token) {
-            // Store token
-            localStorage.setItem('authToken', response.token);
-
-            // Store CSRF token if provided
-            if (apiResponse.csrfToken) {
-              localStorage.setItem('csrfToken', apiResponse.csrfToken);
-            }
-
-            // Store user info
             const user: User = {
               username: response.username,
               email: response.email,
@@ -129,9 +84,7 @@ export class AuthService {
               defaultOutletId: response.defaultOutletId,
               assignedOutlets: response.assignedOutlets
             };
-
-            localStorage.setItem('currentUser', JSON.stringify(user));
-            this.currentUserSubject.next(user);
+            this.authStore.login(user, response.token, apiResponse.csrfToken);
           }
         }),
         map(apiResponse => apiResponse.data)
@@ -147,28 +100,27 @@ export class AuthService {
   }
 
   getToken(): string | null {
-    return localStorage.getItem('authToken');
+    return this.authStore.token();
   }
 
   getCurrentUser(): User | null {
-    return this.currentUserSubject.value;
+    return this.authStore.user();
   }
 
   isAdmin(): boolean {
-    return this.currentUserSubject.value?.role === 'admin';
+    return this.authStore.isAdmin();
   }
 
   isUser(): boolean {
-    const role = this.currentUserSubject.value?.role;
-    return role === 'user' || role === 'admin';
+    return this.authStore.isUser();
   }
 
   isLoggedIn(): boolean {
-    return this.currentUserSubject.value !== null && this.getToken() !== null;
+    return this.authStore.isLoggedIn();
   }
 
   getUserRole(): UserRole | 'guest' {
-    return this.currentUserSubject.value?.role || 'guest';
+    return this.authStore.userRole();
   }
 
   validateToken(): Observable<boolean> {
@@ -205,17 +157,12 @@ export class AuthService {
   updateProfile(data: { firstName?: string; lastName?: string; phoneNumber?: string }): Observable<any> {
     return this.http.put(`${this.apiUrl}/auth/profile`, data).pipe(
       tap((response: any) => {
-        // Update current user in localStorage and subject
-        const currentUser = this.getCurrentUser();
-        if (currentUser && response.data) {
-          const updatedUser = {
-            ...currentUser,
+        if (response.data) {
+          this.authStore.updateProfile({
             firstName: response.data.firstName,
             lastName: response.data.lastName,
             phoneNumber: response.data.phoneNumber
-          };
-          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-          this.currentUserSubject.next(updatedUser);
+          });
         }
       })
     );

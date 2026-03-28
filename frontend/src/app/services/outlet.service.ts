@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap, catchError, of, shareReplay } from 'rxjs';
+import { Observable, tap, catchError, of, shareReplay } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Outlet } from '../models/outlet.model';
+import { OutletStore } from '../store/outlet.store';
 
 @Injectable({
   providedIn: 'root'
@@ -10,38 +11,11 @@ import { Outlet } from '../models/outlet.model';
 export class OutletService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
+  private outletStore = inject(OutletStore);
 
-  // Currently selected outlet
-  private selectedOutletSubject = new BehaviorSubject<Outlet | null>(null);
-  public selectedOutlet$ = this.selectedOutletSubject.asObservable();
-
-  // All available outlets for current user
-  private availableOutletsSubject = new BehaviorSubject<Outlet[]>([]);
-  public availableOutlets$ = this.availableOutletsSubject.asObservable();
-
-  constructor() {
-    // Load selected outlet from localStorage on init
-    this.loadSelectedOutlet();
-  }
-
-  /**
-   * Load selected outlet from localStorage
-   */
-  private loadSelectedOutlet(): void {
-    const storedOutletId = localStorage.getItem('selectedOutletId');
-    const storedOutlet = localStorage.getItem('selectedOutlet');
-
-    if (storedOutletId && storedOutlet) {
-      try {
-        const outlet = JSON.parse(storedOutlet);
-        this.selectedOutletSubject.next(outlet);
-      } catch (e) {
-        console.error('Failed to parse stored outlet:', e);
-        localStorage.removeItem('selectedOutletId');
-        localStorage.removeItem('selectedOutlet');
-      }
-    }
-  }
+  /** Observable bridges — delegate to OutletStore signals via toObservable. */
+  public selectedOutlet$ = this.outletStore.selectedOutlet$;
+  public availableOutlets$ = this.outletStore.availableOutlets$;
 
   /**
    * Get all outlets (admin only)
@@ -49,7 +23,7 @@ export class OutletService {
   getAllOutlets(): Observable<Outlet[]> {
     return this.http.get<Outlet[]>(`${this.apiUrl}/outlets`).pipe(
       tap(outlets => {
-        this.availableOutletsSubject.next(outlets);
+        this.outletStore.setAvailableOutlets(outlets);
       }),
       catchError(error => {
         console.error('Error fetching outlets:', error);
@@ -65,12 +39,7 @@ export class OutletService {
   getActiveOutlets(): Observable<Outlet[]> {
     return this.http.get<Outlet[]>(`${this.apiUrl}/outlets/active`).pipe(
       tap(outlets => {
-        this.availableOutletsSubject.next(outlets);
-
-        // If no outlet is currently selected and there are active outlets, select the first one
-        if (!this.selectedOutletSubject.value && outlets.length > 0) {
-          this.selectOutlet(outlets[0]);
-        }
+        this.outletStore.autoSelectIfEmpty(outlets);
       }),
       catchError(error => {
         console.error('Error fetching active outlets:', error);
@@ -126,37 +95,28 @@ export class OutletService {
    * Select an outlet for the current session
    */
   selectOutlet(outlet: Outlet): void {
-    const outletId = outlet._id || outlet.id || '';
-
-    this.selectedOutletSubject.next(outlet);
-    localStorage.setItem('selectedOutletId', outletId);
-    localStorage.setItem('selectedOutlet', JSON.stringify(outlet));
-
+    this.outletStore.selectOutlet(outlet);
   }
 
   /**
    * Get currently selected outlet
    */
   getSelectedOutlet(): Outlet | null {
-    return this.selectedOutletSubject.value;
+    return this.outletStore.selectedOutlet();
   }
 
   /**
    * Get selected outlet ID for API requests
    */
   getSelectedOutletId(): string | null {
-    const outlet = this.selectedOutletSubject.value;
-    const outletId = outlet?._id || outlet?.id || null;
-    return outletId;
+    return this.outletStore.selectedOutletId();
   }
 
   /**
    * Clear selected outlet
    */
   clearSelectedOutlet(): void {
-    this.selectedOutletSubject.next(null);
-    localStorage.removeItem('selectedOutletId');
-    localStorage.removeItem('selectedOutlet');
+    this.outletStore.clearSelectedOutlet();
   }
 
   /**

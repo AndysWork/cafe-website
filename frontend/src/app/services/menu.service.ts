@@ -1,7 +1,8 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject } from 'rxjs';
+import { Observable } from 'rxjs';
 import { tap, shareReplay, catchError } from 'rxjs/operators';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
 
@@ -46,17 +47,17 @@ export class MenuService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
 
-  // Subject to notify components when menu items are updated
-  private menuItemsUpdated$ = new BehaviorSubject<boolean>(false);
+  // Signal-based refresh notification
+  private menuItemsUpdatedSignal = signal(false);
 
-  // Observable that components can subscribe to
+  // Observable bridge for backward compatibility
   get menuItemsRefresh$(): Observable<boolean> {
-    return this.menuItemsUpdated$.asObservable();
+    return toObservable(this.menuItemsUpdatedSignal);
   }
 
   // Trigger refresh notification
   notifyMenuItemsUpdated(): void {
-    this.menuItemsUpdated$.next(true);
+    this.menuItemsUpdatedSignal.set(true);
   }
 
   getCategories(): Observable<MenuCategory[]> {

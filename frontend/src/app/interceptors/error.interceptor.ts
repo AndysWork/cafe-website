@@ -3,6 +3,7 @@ import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, retry, timer, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
+import { UIStore } from '../store/ui.store';
 
 function getErrorMessage(error: HttpErrorResponse, url: string): string {
   if (error.status === 0) {
@@ -26,6 +27,7 @@ function getErrorMessage(error: HttpErrorResponse, url: string): string {
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const authService = inject(AuthService);
+  const uiStore = inject(UIStore);
 
   return next(req).pipe(
     retry({
@@ -49,6 +51,11 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
       const userMessage = getErrorMessage(error, req.url);
       console.error(`[${req.method}] ${req.url} — ${error.status}: ${userMessage}`);
+
+      // Show toast notification for user-facing errors (skip analytics & background)
+      if (!req.url.includes('/analytics/') && error.status !== 401) {
+        uiStore.error(userMessage);
+      }
 
       const enrichedError = Object.assign(error, { userMessage });
       return throwError(() => enrichedError);
