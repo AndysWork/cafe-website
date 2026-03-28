@@ -167,7 +167,15 @@ public class ImageUploadFunction
     private static string? GetBoundary(string contentType)
     {
         var parts = contentType.Split("boundary=");
-        return parts.Length > 1 ? parts[1].Trim() : null;
+        if (parts.Length <= 1) return null;
+        var boundary = parts[1].Trim();
+        // Strip quotes if present (some clients wrap boundary in quotes)
+        if (boundary.StartsWith('"') && boundary.EndsWith('"'))
+            boundary = boundary[1..^1];
+        // Remove any trailing parameters after semicolon
+        var semiIdx = boundary.IndexOf(';');
+        if (semiIdx >= 0) boundary = boundary[..semiIdx].Trim();
+        return boundary;
     }
 
     private static (byte[]? Data, string FileName, string ContentType) ExtractFileFromMultipart(Stream stream, string boundary)

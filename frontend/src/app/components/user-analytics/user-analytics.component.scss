@@ -128,6 +128,46 @@ $teal: #14b8a6;
   font-size: 3rem;
 }
 
+// ─── Period Selector ───
+.period-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+
+  .period-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: $text-muted;
+    white-space: nowrap;
+  }
+
+  .period-btn {
+    padding: 6px 14px;
+    border: 1px solid $border;
+    border-radius: 20px;
+    background: $bg-card;
+    color: $text-muted;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+    &:hover {
+      border-color: $primary;
+      color: $primary;
+    }
+
+    &.active {
+      background: $primary;
+      border-color: $primary;
+      color: #fff;
+    }
+  }
+}
+
 // ─── Tab Navigation ───
 .tab-nav {
   display: flex;

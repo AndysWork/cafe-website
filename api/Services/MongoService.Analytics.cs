@@ -181,11 +181,15 @@ public partial class MongoService
         };
     }
 
-    public async Task<List<FeatureUsageStat>> GetTopFeaturesAsync(int limit = 15)
+    public async Task<List<FeatureUsageStat>> GetTopFeaturesAsync(int limit = 15, DateTime? periodStart = null)
     {
+        var matchFilter = new BsonDocument("EventType", "FeatureUsage");
+        if (periodStart.HasValue)
+            matchFilter.Add("Timestamp", new BsonDocument("$gte", periodStart.Value));
+
         var pipeline = new[]
         {
-            new BsonDocument("$match", new BsonDocument("EventType", "FeatureUsage")),
+            new BsonDocument("$match", matchFilter),
             new BsonDocument("$group", new BsonDocument
             {
                 { "_id", "$FeatureName" },
@@ -213,11 +217,15 @@ public partial class MongoService
         }).ToList();
     }
 
-    public async Task<List<ApiPerformanceStat>> GetApiPerformanceAsync(int limit = 20)
+    public async Task<List<ApiPerformanceStat>> GetApiPerformanceAsync(int limit = 20, DateTime? periodStart = null)
     {
+        var apiMatchFilter = new BsonDocument("EventType", "ApiCall");
+        if (periodStart.HasValue)
+            apiMatchFilter.Add("Timestamp", new BsonDocument("$gte", periodStart.Value));
+
         var pipeline = new[]
         {
-            new BsonDocument("$match", new BsonDocument("EventType", "ApiCall")),
+            new BsonDocument("$match", apiMatchFilter),
             new BsonDocument("$group", new BsonDocument
             {
                 { "_id", "$Detail" },
@@ -261,11 +269,15 @@ public partial class MongoService
         }).ToList();
     }
 
-    public async Task<CartAnalytics> GetCartAnalyticsAsync()
+    public async Task<CartAnalytics> GetCartAnalyticsAsync(DateTime? periodStart = null)
     {
-        var cartViewFilter = Builders<UserActivityEvent>.Filter.Eq(e => e.EventType, "CartView");
-        var cartAddFilter = Builders<UserActivityEvent>.Filter.Eq(e => e.EventType, "CartAdd");
-        var cartRemoveFilter = Builders<UserActivityEvent>.Filter.Eq(e => e.EventType, "CartRemove");
+        var timeFilter = periodStart.HasValue
+            ? Builders<UserActivityEvent>.Filter.Gte(e => e.Timestamp, periodStart.Value)
+            : Builders<UserActivityEvent>.Filter.Empty;
+
+        var cartViewFilter = Builders<UserActivityEvent>.Filter.Eq(e => e.EventType, "CartView") & timeFilter;
+        var cartAddFilter = Builders<UserActivityEvent>.Filter.Eq(e => e.EventType, "CartAdd") & timeFilter;
+        var cartRemoveFilter = Builders<UserActivityEvent>.Filter.Eq(e => e.EventType, "CartRemove") & timeFilter;
 
         var totalViews = await ActivityEvents.CountDocumentsAsync(cartViewFilter);
         var totalAdds = await ActivityEvents.CountDocumentsAsync(cartAddFilter);
@@ -275,9 +287,13 @@ public partial class MongoService
         var uniqueBrowsed = await ActivityEvents.Distinct<string>("UserId", cartViewFilter).ToListAsync();
 
         // Top carted items
+        var cartAddMatchFilter = new BsonDocument("EventType", "CartAdd");
+        if (periodStart.HasValue)
+            cartAddMatchFilter.Add("Timestamp", new BsonDocument("$gte", periodStart.Value));
+
         var pipeline = new[]
         {
-            new BsonDocument("$match", new BsonDocument("EventType", "CartAdd")),
+            new BsonDocument("$match", cartAddMatchFilter),
             new BsonDocument("$group", new BsonDocument
             {
                 { "_id", "$FeatureName" },

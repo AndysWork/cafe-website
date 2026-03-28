@@ -50,10 +50,8 @@ export class MenuService {
   // Signal-based refresh notification
   private menuItemsUpdatedSignal = signal(false);
 
-  // Observable bridge for backward compatibility
-  get menuItemsRefresh$(): Observable<boolean> {
-    return toObservable(this.menuItemsUpdatedSignal);
-  }
+  // Observable bridge for backward compatibility (must be field initializer for injection context)
+  menuItemsRefresh$ = toObservable(this.menuItemsUpdatedSignal);
 
   // Trigger refresh notification
   notifyMenuItemsUpdated(): void {

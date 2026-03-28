@@ -83,9 +83,10 @@ export class UserAnalyticsService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
 
-  getDashboard(): Observable<AnalyticsDashboard> {
+  getDashboard(period?: string): Observable<AnalyticsDashboard> {
+    const params = period ? `?period=${period}` : '';
     return this.http.get<{ success: boolean; data: AnalyticsDashboard }>(
-      `${this.apiUrl}/analytics/dashboard`
+      `${this.apiUrl}/analytics/dashboard${params}`
     ).pipe(map(res => res.data));
   }
 

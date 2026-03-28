@@ -35,6 +35,17 @@
   <!-- Dashboard Content -->
   <div *ngIf="dashboard" class="dashboard-content">
 
+    <!-- Period Selector -->
+    <div class="period-selector">
+      <span class="period-label">Time Period:</span>
+      <button *ngFor="let opt of periodOptions"
+              class="period-btn"
+              [class.active]="selectedPeriod === opt.value"
+              (click)="setPeriod(opt.value)">
+        {{ opt.label }}
+      </button>
+    </div>
+
     <!-- Tab Navigation -->
     <div class="tab-nav">
       <button [class.active]="activeTab === 'overview'" (click)="setTab('overview')">
@@ -122,7 +133,7 @@
 
       <!-- Daily Active Users Chart -->
       <div class="chart-card" *ngIf="dashboard.dailyActiveUsers.length > 0">
-        <h3>📈 Daily Active Users (Last 30 Days)</h3>
+        <h3>📈 Daily Active Users{{ selectedPeriod ? '' : ' (Last 30 Days)' }}</h3>
         <div class="bar-chart horizontal-chart">
           <div class="chart-row" *ngFor="let day of dashboard.dailyActiveUsers; trackBy: trackByIndex">
             <span class="chart-label">{{ day.date | date:'MMM d' }}</span>

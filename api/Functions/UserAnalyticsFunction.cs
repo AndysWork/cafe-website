@@ -187,20 +187,22 @@ public class UserAnalyticsFunction
     {
         try
         {
-            var (isAuthorized, userId, role, errorResponse) =
-                await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-            if (!isAuthorized) return errorResponse!;
-
             var body = await req.ReadFromJsonAsync<Dictionary<string, string>>();
             var sessionId = body?.GetValueOrDefault("sessionId") ?? Guid.NewGuid().ToString();
             var action = body?.GetValueOrDefault("action") ?? "start";
 
             if (action == "end")
             {
+                // End session does not require auth — just needs sessionId
                 await _mongo.EndSessionAsync(InputSanitizer.Sanitize(sessionId));
             }
             else
             {
+                // Start session requires authentication
+                var (isAuthorized, userId, role, errorResponse) =
+                    await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+                if (!isAuthorized) return errorResponse!;
+
                 var user = await _mongo.GetUserByIdAsync(userId!);
                 await _mongo.CreateSessionAsync(
                     userId!,
@@ -269,13 +271,36 @@ public class UserAnalyticsFunction
                 await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
+            // Parse period from query string: daily, weekly, monthly, yearly (default = all)
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var period = query["period"]?.ToLowerInvariant();
+
+            var now = DateTime.UtcNow;
+            DateTime? periodStart = period switch
+            {
+                "daily" => now.Date,
+                "weekly" => now.Date.AddDays(-(int)now.DayOfWeek),
+                "monthly" => new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc),
+                "yearly" => new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                _ => null
+            };
+
+            var daysForChart = period switch
+            {
+                "daily" => 1,
+                "weekly" => 7,
+                "monthly" => DateTime.DaysInMonth(now.Year, now.Month),
+                "yearly" => (now - new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc)).Days + 1,
+                _ => 30
+            };
+
             var dashboard = new AnalyticsDashboardResponse
             {
                 UserMetrics = await _mongo.GetUserMetricsAsync(),
-                TopFeatures = await _mongo.GetTopFeaturesAsync(),
-                ApiPerformance = await _mongo.GetApiPerformanceAsync(),
-                CartAnalytics = await _mongo.GetCartAnalyticsAsync(),
-                DailyActiveUsers = await _mongo.GetDailyActiveUsersAsync(),
+                TopFeatures = await _mongo.GetTopFeaturesAsync(15, periodStart),
+                ApiPerformance = await _mongo.GetApiPerformanceAsync(20, periodStart),
+                CartAnalytics = await _mongo.GetCartAnalyticsAsync(periodStart),
+                DailyActiveUsers = await _mongo.GetDailyActiveUsersAsync(daysForChart),
                 HourlyActivity = await _mongo.GetHourlyActivityAsync(),
                 RecentSessions = await _mongo.GetRecentSessionsAsync()
             };

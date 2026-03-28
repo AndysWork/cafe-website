@@ -19,6 +19,15 @@ export class UserAnalyticsComponent implements OnInit, OnDestroy {
   isLoading = true;
   errorMessage = '';
   activeTab = 'overview';
+  selectedPeriod = '';
+
+  periodOptions = [
+    { value: '', label: 'All Time' },
+    { value: 'daily', label: 'Today' },
+    { value: 'weekly', label: 'This Week' },
+    { value: 'monthly', label: 'This Month' },
+    { value: 'yearly', label: 'This Year' }
+  ];
 
   // For auto-refresh
   private refreshSub?: Subscription;
@@ -42,8 +51,14 @@ export class UserAnalyticsComponent implements OnInit, OnDestroy {
     this.refreshSub?.unsubscribe();
   }
 
+  setPeriod(period: string): void {
+    this.selectedPeriod = period;
+    this.isLoading = true;
+    this.loadDashboard();
+  }
+
   loadDashboard(): void {
-    this.analyticsService.getDashboard().subscribe({
+    this.analyticsService.getDashboard(this.selectedPeriod || undefined).subscribe({
       next: (data) => {
         this.dashboard = data;
         this.isLoading = false;
