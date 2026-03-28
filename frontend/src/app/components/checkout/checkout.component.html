@@ -21,7 +21,7 @@
         <h2>Delivery Details</h2>
       </div>
 
-      <form (ngSubmit)="placeOrder()" #checkoutForm="ngForm">
+      <form (ngSubmit)="placeOrder()" #checkoutForm="ngForm" aria-label="Checkout form">
         <div class="form-group">
           <label for="deliveryAddress">Delivery Address *</label>
           <textarea
@@ -60,14 +60,14 @@
         </div>
 
         <!-- Error Message -->
-        <div *ngIf="errorMessage" class="error-msg">
+        <div *ngIf="errorMessage" class="error-msg" role="alert">
           ❌ {{ errorMessage }}
         </div>
 
         <!-- Payment Method Selection -->
         <div class="payment-section">
-          <label class="section-label">💳 Payment Method</label>
-          <div class="payment-options">
+          <label class="section-label" id="payment-method-label">💳 Payment Method</label>
+          <div class="payment-options" role="radiogroup" aria-labelledby="payment-method-label">
             <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" (click)="paymentMethod = 'razorpay'">
               <input type="radio" name="paymentMethod" value="razorpay" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
               <div class="option-content">

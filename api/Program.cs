@@ -19,9 +19,14 @@ var host = new HostBuilder()
         // Add security middleware
         builder.UseMiddleware<SecurityHeadersMiddleware>();
         builder.UseMiddleware<RateLimitingMiddleware>();
+        builder.UseMiddleware<RequestLoggingMiddleware>();
+        builder.UseMiddleware<ApiVersionMiddleware>();
     })
     .ConfigureServices(s =>
     {
+        // Application Insights for distributed tracing and telemetry
+        s.AddApplicationInsightsTelemetryWorkerService();
+        s.ConfigureFunctionsApplicationInsights();
         s.AddSingleton<MongoService>();
         s.AddSingleton(sp => sp.GetRequiredService<MongoService>().Database);
         s.AddSingleton<FileUploadService>();

@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { handleServiceError } from '../utils/error-handler';
 
 export interface OrderItem {
   menuItemId: string;
@@ -63,22 +65,30 @@ export class OrderService {
 
   // Create new order
   createOrder(orderRequest: CreateOrderRequest): Observable<Order> {
-    return this.http.post<Order>(`${this.apiUrl}/orders`, orderRequest);
+    return this.http.post<Order>(`${this.apiUrl}/orders`, orderRequest).pipe(
+      catchError(handleServiceError('OrderService.createOrder'))
+    );
   }
 
   // Get current user's orders
   getMyOrders(): Observable<Order[]> {
-    return this.http.get<Order[]>(`${this.apiUrl}/orders/my`);
+    return this.http.get<Order[]>(`${this.apiUrl}/orders/my`).pipe(
+      catchError(handleServiceError('OrderService.getMyOrders'))
+    );
   }
 
   // Get all orders (admin only)
   getAllOrders(): Observable<Order[]> {
-    return this.http.get<Order[]>(`${this.apiUrl}/orders`);
+    return this.http.get<Order[]>(`${this.apiUrl}/orders`).pipe(
+      catchError(handleServiceError('OrderService.getAllOrders'))
+    );
   }
 
   // Get order by ID
   getOrderById(orderId: string): Observable<Order> {
-    return this.http.get<Order>(`${this.apiUrl}/orders/${orderId}`);
+    return this.http.get<Order>(`${this.apiUrl}/orders/${orderId}`).pipe(
+      catchError(handleServiceError('OrderService.getOrderById'))
+    );
   }
 
   // Update order status (admin only)
@@ -86,12 +96,16 @@ export class OrderService {
     return this.http.put<{ message: string; status: string }>(
       `${this.apiUrl}/orders/${orderId}/status`,
       { status }
+    ).pipe(
+      catchError(handleServiceError('OrderService.updateOrderStatus'))
     );
   }
 
   // Cancel order
   cancelOrder(orderId: string): Observable<{ message: string }> {
-    return this.http.delete<{ message: string }>(`${this.apiUrl}/orders/${orderId}`);
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/orders/${orderId}`).pipe(
+      catchError(handleServiceError('OrderService.cancelOrder'))
+    );
   }
 
   // Helper: Get status display text

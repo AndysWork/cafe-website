@@ -41,8 +41,17 @@ public partial class MongoService
         frozenItem.Category = "frozen";
         await _frozenItems.InsertOneAsync(frozenItem);
 
-        // Sync to inventory
-        await SyncFrozenItemToInventoryAsync(frozenItem);
+        // Saga: sync to inventory with compensation on failure
+        try
+        {
+            await SyncFrozenItemToInventoryAsync(frozenItem);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to sync frozen item {Id} to inventory — rolling back frozen item creation", frozenItem.Id);
+            await _frozenItems.DeleteOneAsync(f => f.Id == frozenItem.Id);
+            throw;
+        }
 
         return frozenItem;
     }
@@ -60,12 +69,26 @@ public partial class MongoService
                 Builders<FrozenItem>.Filter.Eq(item => item.OutletId, outletId)
             );
         
+        // Capture original for rollback
+        var original = await _frozenItems.Find(filter).FirstOrDefaultAsync();
         var result = await _frozenItems.ReplaceOneAsync(filter, frozenItem);
 
         if (result.ModifiedCount > 0)
         {
-            // Sync to inventory
-            await SyncFrozenItemToInventoryAsync(frozenItem);
+            // Saga: sync to inventory with compensation on failure
+            try
+            {
+                await SyncFrozenItemToInventoryAsync(frozenItem);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to sync updated frozen item {Id} to inventory — rolling back update", id);
+                if (original != null)
+                {
+                    await _frozenItems.ReplaceOneAsync(filter, original);
+                }
+                throw;
+            }
         }
 
         return result.ModifiedCount > 0;
@@ -91,16 +114,23 @@ public partial class MongoService
 
         if (result.DeletedCount > 0 && frozenItem != null)
         {
-            // Remove from inventory or mark as inactive
-            var inventoryItem = await _inventory
-                .Find(inv => inv.IngredientId == id && inv.Category == "frozen")
-                .FirstOrDefaultAsync();
-
-            if (inventoryItem != null)
+            // Deactivate inventory — best-effort, don't fail the delete
+            try
             {
-                inventoryItem.IsActive = false;
-                inventoryItem.UpdatedAt = DateTime.UtcNow;
-                await _inventory.ReplaceOneAsync(inv => inv.Id == inventoryItem.Id, inventoryItem);
+                var inventoryItem = await _inventory
+                    .Find(inv => inv.IngredientId == id && inv.Category == "frozen")
+                    .FirstOrDefaultAsync();
+
+                if (inventoryItem != null)
+                {
+                    inventoryItem.IsActive = false;
+                    inventoryItem.UpdatedAt = DateTime.UtcNow;
+                    await _inventory.ReplaceOneAsync(inv => inv.Id == inventoryItem.Id, inventoryItem);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to deactivate inventory for deleted frozen item {Id}", id);
             }
         }
 

@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SalesService, Sales, CreateSalesRequest, SalesItem } from '../../services/sales.service';
@@ -488,13 +489,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
 2025-12-14,Burger,1,150,150,Cash
 2025-12-14,Sandwich,3,100,300,UPI`;
 
-    const blob = new Blob([template], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sales_template.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+    downloadFile(template, 'sales_template.csv');
   }
 
   formatDate(date: string): string {

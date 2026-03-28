@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -489,13 +490,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
       ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `daily-performance-${this.selectedDate}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    downloadFile(csvContent, `daily-performance-${this.selectedDate}.csv`);
   }
 
   // Shift Management Methods

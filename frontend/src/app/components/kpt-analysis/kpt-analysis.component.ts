@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -231,17 +232,7 @@ export class KptAnalysisComponent implements OnInit, OnDestroy {
       .map(row => row.map(cell => `"${cell}"`).join(','))
       .join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', `kpt-analysis-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadFile(csvContent, `kpt-analysis-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
   }
 
   trackByIndex(index: number): number { return index; }

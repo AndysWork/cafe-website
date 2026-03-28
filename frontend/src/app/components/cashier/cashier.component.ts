@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -426,13 +427,7 @@ ${new Date().toISOString().split('T')[0]},0,0,0,Sample note
 # - Date format: YYYY-MM-DD
 # - Delete these instruction lines before uploading`;
 
-    const blob = new Blob([template], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'cash-reconciliation-template.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+    downloadFile(template, 'cash-reconciliation-template.csv');
   }
 
   getDeficitClass(deficit: number): string {

@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -9,6 +10,7 @@ import { DailyPerformanceEntry } from '../../services/daily-performance.service'
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { forkJoin, Observable } from 'rxjs';
+import { BonusCalculationEngineService } from '../../services/bonus-calculation-engine.service';
 import {
   BonusCalculation,
   BonusMetricInput,
@@ -30,6 +32,7 @@ export class BonusCalculationComponent implements OnInit {
   private router = inject(Router);
   private bonusConfigService = inject(BonusConfigurationService);
   private http = inject(HttpClient);
+  private bonusEngine = inject(BonusCalculationEngineService);
 
   staff: Staff[] = [];
   selectedStaff: Staff | null = null;
@@ -315,49 +318,9 @@ export class BonusCalculationComponent implements OnInit {
    */
   calculateExpectedHoursForPeriod(): number {
     if (!this.selectedStaff || !this.startDate || !this.endDate) return 0;
-
-    const start = new Date(this.startDate);
-    const end = new Date(this.endDate);
-    let totalExpectedHours = 0;
-
-    // If staff has no configured shifts, return 0
-    if (!this.selectedStaff.shifts || this.selectedStaff.shifts.length === 0) {
-      return 0;
-    }
-
-    // Create a map of day of week to shifts
-    const shiftsByDay = new Map<string, any[]>();
-    this.selectedStaff.shifts.forEach(shift => {
-      if (shift.isActive) {
-        const day = shift.dayOfWeek;
-        if (!shiftsByDay.has(day)) {
-          shiftsByDay.set(day, []);
-        }
-        shiftsByDay.get(day)!.push(shift);
-      }
-    });
-
-    // Iterate through each day in the date range
-    const currentDate = new Date(start);
-    while (currentDate <= end) {
-      const dayOfWeek = this.getDayOfWeek(currentDate);
-
-      // Check if staff has shifts for this day
-      const shiftsForDay = shiftsByDay.get(dayOfWeek);
-      if (shiftsForDay && shiftsForDay.length > 0) {
-        shiftsForDay.forEach(shift => {
-          const shiftHours = this.calculateShiftExpectedHours(shift.startTime, shift.endTime);
-          // Subtract break duration (convert minutes to hours)
-          const effectiveHours = shiftHours - (shift.breakDuration / 60);
-          totalExpectedHours += Math.max(0, effectiveHours);
-        });
-      }
-
-      // Move to next day
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    return totalExpectedHours;
+    return this.bonusEngine.calculateExpectedHoursForPeriod(
+      this.selectedStaff.shifts || [], this.startDate, this.endDate
+    );
   }
 
   /**
@@ -366,8 +329,7 @@ export class BonusCalculationComponent implements OnInit {
    * @returns Day name (Monday, Tuesday, etc.)
    */
   getDayOfWeek(date: Date): string {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[date.getDay()];
+    return this.bonusEngine.getDayOfWeek(date);
   }
 
   /**
@@ -377,29 +339,7 @@ export class BonusCalculationComponent implements OnInit {
    * @returns Hours as decimal (e.g., 8.5 for 8 hours 30 minutes)
    */
   calculateShiftExpectedHours(inTime: string, outTime: string): number {
-    if (!inTime || !outTime) return 0;
-
-    try {
-      const [inHour, inMin] = inTime.split(':').map(Number);
-      const [outHour, outMin] = outTime.split(':').map(Number);
-
-      if (isNaN(inHour) || isNaN(inMin) || isNaN(outHour) || isNaN(outMin)) return 0;
-
-      // Convert to minutes
-      const inTimeMinutes = inHour * 60 + inMin;
-      let outTimeMinutes = outHour * 60 + outMin;
-
-      // Handle shifts crossing midnight (e.g., 22:00 to 06:00)
-      if (outTimeMinutes < inTimeMinutes) {
-        outTimeMinutes += 24 * 60; // Add 24 hours
-      }
-
-      const durationMinutes = outTimeMinutes - inTimeMinutes;
-      return durationMinutes / 60; // Convert to hours
-    } catch (error) {
-      console.error('Error calculating shift hours:', error);
-      return 0;
-    }
+    return this.bonusEngine.calculateShiftExpectedHours(inTime, outTime);
   }
 
   resetCalculatedMetrics(): void {
@@ -645,33 +585,7 @@ export class BonusCalculationComponent implements OnInit {
   }
 
   getHourlyRate(staff: Staff): number {
-    let hourlyRate = 0;
-    const dailyHours = staff.salaryType !== 'Hourly' ? this.getAverageDailyWorkingHours(staff) : 0;
-
-    if (staff.salaryType === 'Hourly') {
-      hourlyRate = staff.salary;
-    } else if (staff.salaryType === 'Daily') {
-      // Get daily working hours from staff shifts
-      if (dailyHours > 0) {
-        hourlyRate = staff.salary / dailyHours;
-      } else {
-        hourlyRate = staff.salary / 8; // Fallback to 8 hours
-      }
-    } else if (staff.salaryType === 'Monthly') {
-      // Get daily working hours from staff shifts
-      // Formula: base salary / (working days × working hours per day)
-      // Using 30 days as standard working days per month
-      const workingDaysPerMonth = 30;
-      if (dailyHours > 0) {
-        hourlyRate = staff.salary / (workingDaysPerMonth * dailyHours);
-      } else {
-        // Fallback: assume 8 hours per day
-        hourlyRate = staff.salary / (workingDaysPerMonth * 8);
-      }
-    }
-
-
-    return hourlyRate;
+    return this.bonusEngine.getHourlyRate(staff.salary, staff.salaryType, staff.shifts || []);
   }
 
   /**
@@ -680,115 +594,44 @@ export class BonusCalculationComponent implements OnInit {
    * @returns Average hours per working day
    */
   getAverageDailyWorkingHours(staff: Staff): number {
-    if (!staff.shifts || staff.shifts.length === 0) {
-      return 0;
-    }
-
-    let totalHours = 0;
-    let totalDays = 0;
-
-    // Group shifts by day of week
-    const dayMap = new Map<string, number>();
-
-    staff.shifts.forEach(shift => {
-      if (shift.isActive) {
-        const shiftHours = this.calculateShiftExpectedHours(shift.startTime, shift.endTime);
-        // Subtract break duration (convert minutes to hours)
-        const effectiveHours = shiftHours - (shift.breakDuration / 60);
-
-        if (dayMap.has(shift.dayOfWeek)) {
-          dayMap.set(shift.dayOfWeek, dayMap.get(shift.dayOfWeek)! + effectiveHours);
-        } else {
-          dayMap.set(shift.dayOfWeek, effectiveHours);
-        }
-      }
-    });
-
-    // Calculate total hours and days
-    dayMap.forEach((hours, day) => {
-      totalHours += hours;
-      totalDays++;
-    });
-
-    // Return average hours per working day
-    const avgHours = totalDays > 0 ? totalHours / totalDays : 0;
-    return avgHours;
+    return this.bonusEngine.getAverageDailyWorkingHours(staff.shifts || []);
   }
 
   getRuleTypeLabel(ruleType: string): string {
-    const labels: { [key: string]: string } = {
-      'OvertimeHours': 'Overtime Hours',
-      'UndertimeHours': 'Undertime Hours',
-      'SnacksPreparation': 'Snacks Preparation',
-      'BadOrders': 'Bad Orders',
-      'GoodRatings': 'Good Ratings',
-      'RefundDeduction': 'Refund Deduction'
-    };
-    return labels[ruleType] || ruleType;
+    return this.bonusEngine.getRuleTypeLabel(ruleType);
   }
 
   // Scoring functions
   calculateAvailableTimeScore(hours: number): number {
-    // Assuming 160 hours per month is 100%
-    const maxHours = 160;
-    return Math.min((hours / maxHours) * 100, 100);
+    return this.bonusEngine.calculateAvailableTimeScore(hours);
   }
 
   calculateKPTScore(kpt: number): number {
-    // Lower KPT is better. Assuming 15 mins is ideal, 30+ mins is poor
-    if (kpt <= 15) return 100;
-    if (kpt >= 30) return 0;
-    return 100 - ((kpt - 15) / 15) * 100;
+    return this.bonusEngine.calculateKPTScore(kpt);
   }
 
   calculateOrderDeliveryScore(orders: number): number {
-    // Assuming 100 orders per month is excellent performance
-    const targetOrders = 100;
-    return Math.min((orders / targetOrders) * 100, 100);
+    return this.bonusEngine.calculateOrderDeliveryScore(orders);
   }
 
   calculateComplaintScore(complaints: number): number {
-    // 0 complaints = 100, 5+ complaints = 0
-    if (complaints === 0) return 100;
-    if (complaints >= 5) return 0;
-    return 100 - complaints * 20;
+    return this.bonusEngine.calculateComplaintScore(complaints);
   }
 
   calculateRefundScore(refundAmount: number): number {
-    // 0 refunds = 100, 5000+ refunds = 0
-    if (refundAmount === 0) return 100;
-    if (refundAmount >= 5000) return 0;
-    return 100 - (refundAmount / 5000) * 100;
+    return this.bonusEngine.calculateRefundScore(refundAmount);
   }
 
   calculateRatingScore(rating: number): number {
-    // Rating out of 5, converted to 100
-    return (rating / 5) * 100;
+    return this.bonusEngine.calculateRatingScore(rating);
   }
 
   calculateWastageScore(wastageReduction: number): number {
-    // Direct percentage score
-    return Math.min(wastageReduction, 100);
+    return this.bonusEngine.calculateWastageScore(wastageReduction);
   }
 
   calculateWeightedScore(scores: any): number {
-    const weightedSum =
-      scores.availableTimeScore * this.weights.availableTime +
-      scores.kptScore * this.weights.kpt +
-      scores.orderDeliveryScore * this.weights.orderDelivery +
-      scores.complaintScore * this.weights.complaint +
-      scores.refundScore * this.weights.refund +
-      scores.ratingScore * this.weights.rating +
-      scores.stockMaintenanceScore * this.weights.stockMaintenance +
-      scores.promptActionScore * this.weights.promptAction +
-      scores.wastageScore * this.weights.wastage +
-      scores.cleanlinessScore * this.weights.cleanliness;
-
-    const totalWeight = Object.values(this.weights).reduce(
-      (sum, weight) => sum + weight,
-      0
-    );
-    return weightedSum / totalWeight;
+    return this.bonusEngine.calculateWeightedScore(scores, this.weights);
   }
 
   getBonusTier(score: number): BonusTier {
@@ -889,15 +732,9 @@ export class BonusCalculationComponent implements OnInit {
     ];
 
     const csv = csvData.map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `bonus-calculation-${
+    downloadFile(csv, `bonus-calculation-${
       this.calculationResult.employeeId
-    }-${Date.now()}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    }-${Date.now()}.csv`);
   }
 
   exportAllCalculations(): void {
@@ -925,13 +762,7 @@ export class BonusCalculationComponent implements OnInit {
     ]);
 
     const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `bonus-calculations-${Date.now()}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    downloadFile(csv, `bonus-calculations-${Date.now()}.csv`);
   }
 
   deleteCalculation(index: number): void {
@@ -965,13 +796,7 @@ export class BonusCalculationComponent implements OnInit {
 
     const content = Object.entries(payslipData).map(([key, value]) => `${key}: ${value}`).join('\n') + breakdownText;
 
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `payslip-${this.calculationResult.employeeId}-${Date.now()}.txt`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    downloadFile(content, `payslip-${this.calculationResult.employeeId}-${Date.now()}.txt`, 'text/plain');
   }
 
   private updateTotalBonusAmount(): void {

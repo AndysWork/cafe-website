@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { handleServiceError } from '../utils/error-handler';
 
 export interface LoyaltyAccount {
   id: string;
@@ -53,27 +55,37 @@ export class LoyaltyService {
 
   // Get user's loyalty account
   getLoyaltyAccount(): Observable<LoyaltyAccount> {
-    return this.http.get<LoyaltyAccount>(`${this.apiUrl}/loyalty`);
+    return this.http.get<LoyaltyAccount>(`${this.apiUrl}/loyalty`).pipe(
+      catchError(handleServiceError('LoyaltyService.getLoyaltyAccount'))
+    );
   }
 
   // Get user's transaction history
   getTransactions(): Observable<PointsTransaction[]> {
-    return this.http.get<PointsTransaction[]>(`${this.apiUrl}/loyalty/transactions`);
+    return this.http.get<PointsTransaction[]>(`${this.apiUrl}/loyalty/transactions`).pipe(
+      catchError(handleServiceError('LoyaltyService.getTransactions'))
+    );
   }
 
   // Get available rewards
   getAvailableRewards(): Observable<Reward[]> {
-    return this.http.get<Reward[]>(`${this.apiUrl}/loyalty/rewards`);
+    return this.http.get<Reward[]>(`${this.apiUrl}/loyalty/rewards`).pipe(
+      catchError(handleServiceError('LoyaltyService.getAvailableRewards'))
+    );
   }
 
   // Redeem a reward
   redeemReward(rewardId: string): Observable<RedeemResponse> {
-    return this.http.post<RedeemResponse>(`${this.apiUrl}/loyalty/redeem/${rewardId}`, {});
+    return this.http.post<RedeemResponse>(`${this.apiUrl}/loyalty/redeem/${rewardId}`, {}).pipe(
+      catchError(handleServiceError('LoyaltyService.redeemReward'))
+    );
   }
 
   // Admin: Get all loyalty accounts
   getAllLoyaltyAccounts(): Observable<LoyaltyAccount[]> {
-    return this.http.get<LoyaltyAccount[]>(`${this.apiUrl}/admin/loyalty/accounts`);
+    return this.http.get<LoyaltyAccount[]>(`${this.apiUrl}/admin/loyalty/accounts`).pipe(
+      catchError(handleServiceError('LoyaltyService.getAllLoyaltyAccounts'))
+    );
   }
 
   // Admin: Create reward
@@ -85,27 +97,37 @@ export class LoyaltyService {
     isActive?: boolean;
     expiresAt?: string;
   }): Observable<Reward> {
-    return this.http.post<Reward>(`${this.apiUrl}/admin/loyalty/rewards`, reward);
+    return this.http.post<Reward>(`${this.apiUrl}/admin/loyalty/rewards`, reward).pipe(
+      catchError(handleServiceError('LoyaltyService.createReward'))
+    );
   }
 
   // Admin: Get all rewards
   getAllRewards(): Observable<Reward[]> {
-    return this.http.get<Reward[]>(`${this.apiUrl}/admin/loyalty/rewards`);
+    return this.http.get<Reward[]>(`${this.apiUrl}/admin/loyalty/rewards`).pipe(
+      catchError(handleServiceError('LoyaltyService.getAllRewards'))
+    );
   }
 
   // Admin: Update reward
   updateReward(id: string, reward: Partial<Reward>): Observable<Reward> {
-    return this.http.put<Reward>(`${this.apiUrl}/admin/loyalty/rewards/${id}`, reward);
+    return this.http.put<Reward>(`${this.apiUrl}/admin/loyalty/rewards/${id}`, reward).pipe(
+      catchError(handleServiceError('LoyaltyService.updateReward'))
+    );
   }
 
   // Admin: Delete reward
   deleteReward(id: string): Observable<{ message: string }> {
-    return this.http.delete<{ message: string }>(`${this.apiUrl}/admin/loyalty/rewards/${id}`);
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/admin/loyalty/rewards/${id}`).pipe(
+      catchError(handleServiceError('LoyaltyService.deleteReward'))
+    );
   }
 
   // Admin: Get all redemptions
   getAllRedemptions(): Observable<PointsTransaction[]> {
-    return this.http.get<PointsTransaction[]>(`${this.apiUrl}/admin/loyalty/redemptions`);
+    return this.http.get<PointsTransaction[]>(`${this.apiUrl}/admin/loyalty/redemptions`).pipe(
+      catchError(handleServiceError('LoyaltyService.getAllRedemptions'))
+    );
   }
 
   // Helper: Get tier color class

@@ -24,14 +24,15 @@
         [(ngModel)]="searchQuery"
         (ngModelChange)="onSearchChange()"
         autocomplete="off"
+        aria-label="Search menu items"
       />
-      <button *ngIf="searchQuery" class="search-clear" (click)="clearSearch()">✕</button>
+      <button *ngIf="searchQuery" class="search-clear" (click)="clearSearch()" aria-label="Clear search">✕</button>
     </div>
   </div>
 
   <!-- Category Pills -->
   <div class="category-scroll-section">
-    <div class="category-pills">
+    <div class="category-pills" role="tablist" aria-label="Menu categories">
       <button
         class="pill"
         [class.active]="selectedCategoryId === null"
@@ -61,7 +62,7 @@
   </div>
 
   <!-- Error State -->
-  <div *ngIf="errorMessage && !isLoading" class="error-state">
+  <div *ngIf="errorMessage && !isLoading" class="error-state" role="alert">
     <div class="error-icon">😔</div>
     <h3>Oops! Something went wrong</h3>
     <p>{{ errorMessage }}</p>
@@ -126,9 +127,9 @@
 
               <!-- In cart: show +/- controls -->
               <div *ngIf="getCartQuantity(item.id) > 0" class="qty-control">
-                <button class="qty-btn minus" (click)="decreaseQuantity(item)">−</button>
-                <span class="qty-value">{{ getCartQuantity(item.id) }}</span>
-                <button class="qty-btn plus" (click)="increaseQuantity(item)">+</button>
+                <button class="qty-btn minus" (click)="decreaseQuantity(item)" aria-label="Decrease quantity">−</button>
+                <span class="qty-value" aria-live="polite">{{ getCartQuantity(item.id) }}</span>
+                <button class="qty-btn plus" (click)="increaseQuantity(item)" aria-label="Increase quantity">+</button>
               </div>
             </div>
           </div>

@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { handleServiceError } from '../utils/error-handler';
 
 declare var Razorpay: any;
 
@@ -42,12 +44,16 @@ export class PaymentService {
     return this.http.post<CreatePaymentOrderResponse>(`${this.apiUrl}/payments/create-order`, {
       amount,
       receipt
-    });
+    }).pipe(
+      catchError(handleServiceError('PaymentService.createPaymentOrder'))
+    );
   }
 
   // Verify payment on backend
   verifyPayment(request: VerifyPaymentRequest): Observable<{ success: boolean; message: string }> {
-    return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/payments/verify`, request);
+    return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/payments/verify`, request).pipe(
+      catchError(handleServiceError('PaymentService.verifyPayment'))
+    );
   }
 
   // Open Razorpay checkout modal

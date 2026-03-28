@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -260,13 +261,7 @@ ${this.expenseCategories.map(cat =>
 ).join('\n')}
     `.trim();
 
-    const blob = new Blob([report], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `profit-report-${this.startDate}-to-${this.endDate}.txt`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    downloadFile(report, `profit-report-${this.startDate}-to-${this.endDate}.txt`, 'text/plain');
   }
 
   getProfitClass(): string {

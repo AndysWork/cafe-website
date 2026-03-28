@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -117,12 +118,7 @@ export class MenuUploadComponent {
       'Food,Breakfast,Sandwich,Regular,80,Grilled vegetable sandwich\n';
 
     const blob = new Blob([template], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'menu_upload_template.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+    downloadFile(template, 'menu_upload_template.csv');
   }
 
   trackByIndex(index: number): number { return index; }

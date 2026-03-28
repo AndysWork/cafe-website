@@ -72,6 +72,19 @@ public partial class MongoService
     
     // Public property to expose database for dependency injection
     public IMongoDatabase Database => _database;
+
+    // Projections for list queries — exclude heavy/sensitive fields not needed in list views
+    private static readonly ProjectionDefinition<User> _userListProjection =
+        Builders<User>.Projection.Exclude(u => u.PasswordHash);
+    private static readonly ProjectionDefinition<Staff> _staffListProjection =
+        Builders<Staff>.Projection.Exclude(s => s.Documents);
+    private static readonly ProjectionDefinition<Order> _orderListProjection =
+        Builders<Order>.Projection.Exclude(o => o.RazorpaySignature);
+    private static readonly ProjectionDefinition<OnlineSale> _onlineSaleListProjection =
+        Builders<OnlineSale>.Projection
+            .Exclude(s => s.Instructions)
+            .Exclude(s => s.Review)
+            .Exclude(s => s.Complain);
     
     public MongoService(IConfiguration config, ILogger<MongoService> logger, IMemoryCache cache)
     {
@@ -778,9 +791,12 @@ public partial class MongoService
         return result.ModifiedCount > 0;
     }
 
-    // Get all users
+    // Get all users (excludes PasswordHash — use GetUserByIdAsync for full document)
     public async Task<List<User>> GetAllUsersAsync() =>
-        await _users.Find(_ => true).Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+        await _users.Find(_ => true)
+            .Project<User>(_userListProjection)
+            .Limit(Helpers.PaginationHelper.SafetyLimit)
+            .ToListAsync();
 
     // Update user active status
     public async Task<bool> UpdateUserActiveStatusAsync(string userId, bool isActive)
@@ -917,19 +933,21 @@ public partial class MongoService
 
     #region Staff Operations
 
-    // Get all staff members
+    // Get all staff members (excludes Documents — use GetStaffByIdAsync for full document)
     public async Task<List<Staff>> GetAllStaffAsync()
     {
         return await _staff.Find(_ => true)
             .SortByDescending(s => s.CreatedAt)
+            .Project<Staff>(_staffListProjection)
             .ToListAsync();
     }
 
-    // Get active staff members only
+    // Get active staff members only (excludes Documents — use GetStaffByIdAsync for full document)
     public async Task<List<Staff>> GetActiveStaffAsync()
     {
         return await _staff.Find(s => s.IsActive)
             .SortByDescending(s => s.CreatedAt)
+            .Project<Staff>(_staffListProjection)
             .ToListAsync();
     }
 
@@ -951,28 +969,31 @@ public partial class MongoService
         return await _staff.Find(s => s.Email == email).FirstOrDefaultAsync();
     }
 
-    // Get staff by outlet
+    // Get staff by outlet (excludes Documents)
     public async Task<List<Staff>> GetStaffByOutletAsync(string outletId)
     {
         return await _staff.Find(s => 
             s.OutletIds.Contains(outletId) && s.IsActive)
             .SortBy(s => s.FirstName)
+            .Project<Staff>(_staffListProjection)
             .ToListAsync();
     }
 
-    // Get staff by position
+    // Get staff by position (excludes Documents)
     public async Task<List<Staff>> GetStaffByPositionAsync(string position)
     {
         return await _staff.Find(s => s.Position == position && s.IsActive)
             .SortBy(s => s.FirstName)
+            .Project<Staff>(_staffListProjection)
             .ToListAsync();
     }
 
-    // Get staff by department
+    // Get staff by department (excludes Documents)
     public async Task<List<Staff>> GetStaffByDepartmentAsync(string department)
     {
         return await _staff.Find(s => s.Department == department && s.IsActive)
             .SortBy(s => s.FirstName)
+            .Project<Staff>(_staffListProjection)
             .ToListAsync();
     }
 
@@ -1143,6 +1164,7 @@ public partial class MongoService
 
         return await _staff.Find(filter)
             .SortBy(s => s.FirstName)
+            .Project<Staff>(_staffListProjection)
             .ToListAsync();
     }
 
@@ -1240,12 +1262,13 @@ public partial class MongoService
         return order;
     }
 
-    // Get user's orders
+    // Get user's orders (excludes RazorpaySignature — use GetOrderByIdAsync for full document)
     public async Task<List<Order>> GetUserOrdersAsync(string userId, int? page = null, int? pageSize = null)
     {
         var fluent = _orders
             .Find(x => x.UserId == userId)
-            .SortByDescending(x => x.CreatedAt);
+            .SortByDescending(x => x.CreatedAt)
+            .Project<Order>(_orderListProjection);
 
         if (page.HasValue && pageSize.HasValue)
             return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
@@ -1258,13 +1281,14 @@ public partial class MongoService
         return await _orders.CountDocumentsAsync(x => x.UserId == userId);
     }
 
-    // Get all orders (admin) - optionally filtered by outlet
+    // Get all orders (admin) - optionally filtered by outlet (excludes RazorpaySignature)
     public async Task<List<Order>> GetAllOrdersAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
         var filter = outletId != null
             ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId)
             : Builders<Order>.Filter.Empty;
-        var fluent = _orders.Find(filter).SortByDescending(x => x.CreatedAt);
+        var fluent = _orders.Find(filter).SortByDescending(x => x.CreatedAt)
+            .Project<Order>(_orderListProjection);
 
         if (page.HasValue && pageSize.HasValue)
             return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
@@ -3426,7 +3450,9 @@ public partial class MongoService
             ? filterBuilder.And(filters) 
             : filterBuilder.Empty;
 
-        var fluent = _onlineSales.Find(filter).SortByDescending(s => s.OrderAt);
+        var fluent = _onlineSales.Find(filter)
+            .SortByDescending(s => s.OrderAt)
+            .Project<OnlineSale>(_onlineSaleListProjection);
 
         if (page.HasValue && pageSize.HasValue)
             return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
@@ -3469,6 +3495,7 @@ public partial class MongoService
 
         return await _onlineSales.Find(filter)
             .SortByDescending(s => s.OrderAt)
+            .Project<OnlineSale>(_onlineSaleListProjection)
             .ToListAsync();
     }
 

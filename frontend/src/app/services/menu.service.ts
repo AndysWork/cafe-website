@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
-import { tap, shareReplay } from 'rxjs/operators';
+import { tap, shareReplay, catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { handleServiceError } from '../utils/error-handler';
 
 export interface MenuSubCategory {
   id: string;
@@ -60,36 +61,45 @@ export class MenuService {
 
   getCategories(): Observable<MenuCategory[]> {
     return this.http.get<MenuCategory[]>(`${this.apiUrl}/categories`).pipe(
-      shareReplay({ bufferSize: 1, refCount: true })
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(handleServiceError('MenuService.getCategories'))
     );
   }
 
   // Get category by ID
   getCategory(id: string): Observable<MenuCategory> {
-    return this.http.get<MenuCategory>(`${this.apiUrl}/categories/${id}`);
+    return this.http.get<MenuCategory>(`${this.apiUrl}/categories/${id}`).pipe(
+      catchError(handleServiceError('MenuService.getCategory'))
+    );
   }
 
   getMenuItems(): Observable<MenuItem[]> {
     return this.http.get<MenuItem[]>(`${this.apiUrl}/menu`).pipe(
-      shareReplay({ bufferSize: 1, refCount: true })
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(handleServiceError('MenuService.getMenuItems'))
     );
   }
 
   // Get menu item by ID
   getMenuItem(id: string): Observable<MenuItem> {
-    return this.http.get<MenuItem>(`${this.apiUrl}/menu/${id}`);
+    return this.http.get<MenuItem>(`${this.apiUrl}/menu/${id}`).pipe(
+      catchError(handleServiceError('MenuService.getMenuItem'))
+    );
   }
 
   // Get menu items by category
   getMenuItemsByCategory(categoryId: string): Observable<MenuItem[]> {
-    return this.http.get<MenuItem[]>(`${this.apiUrl}/menu/category/${categoryId}`);
+    return this.http.get<MenuItem[]>(`${this.apiUrl}/menu/category/${categoryId}`).pipe(
+      catchError(handleServiceError('MenuService.getMenuItemsByCategory'))
+    );
   }
 
   // Update menu item
   updateMenuItem(id: string, menuItem: Partial<MenuItem>): Observable<MenuItem> {
     return this.http.put<MenuItem>(`${this.apiUrl}/menu/${id}`, menuItem)
       .pipe(
-        tap(() => this.notifyMenuItemsUpdated())
+        tap(() => this.notifyMenuItemsUpdated()),
+        catchError(handleServiceError('MenuService.updateMenuItem'))
       );
   }
 
@@ -97,7 +107,8 @@ export class MenuService {
   createMenuItem(menuItem: Partial<MenuItem>): Observable<MenuItem> {
     return this.http.post<MenuItem>(`${this.apiUrl}/menu`, menuItem)
       .pipe(
-        tap(() => this.notifyMenuItemsUpdated())
+        tap(() => this.notifyMenuItemsUpdated()),
+        catchError(handleServiceError('MenuService.createMenuItem'))
       );
   }
 
@@ -105,7 +116,8 @@ export class MenuService {
   toggleAvailability(id: string): Observable<any> {
     return this.http.patch(`${this.apiUrl}/menu/${id}/toggle-availability`, {})
       .pipe(
-        tap(() => this.notifyMenuItemsUpdated())
+        tap(() => this.notifyMenuItemsUpdated()),
+        catchError(handleServiceError('MenuService.toggleAvailability'))
       );
   }
 
@@ -116,7 +128,8 @@ export class MenuService {
       sourceOutletId,
       targetOutletId
     }).pipe(
-      tap(() => this.notifyMenuItemsUpdated())
+      tap(() => this.notifyMenuItemsUpdated()),
+      catchError(handleServiceError('MenuService.copyMenuItemFromOutlet'))
     );
   }
 }

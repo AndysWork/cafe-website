@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary, HierarchicalExpense, MonthExpense, WeekExpense } from '../../services/expense.service';
@@ -549,13 +550,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
                       `2024-12-15,${exampleTypes[2]},15000,Online\n` +
                       `2024-12-15,${exampleTypes[3]},800,Cash\n`;
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${this.currentExpenseSource.toLowerCase()}_expense_template.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    downloadFile(csvContent, `${this.currentExpenseSource.toLowerCase()}_expense_template.csv`);
   }
 
   formatDate(dateStr: string): string {

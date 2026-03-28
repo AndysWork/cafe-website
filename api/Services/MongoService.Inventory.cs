@@ -1,6 +1,7 @@
 // Inventory Management Methods Extension for MongoService
 using MongoDB.Driver;
 using Cafe.Api.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
 
@@ -194,24 +195,34 @@ public partial class MongoService
 
         await _inventoryTransactions.InsertOneAsync(transaction);
 
-        // Update inventory
-        inventory.CurrentStock = stockAfter;
-        inventory.UpdatedAt = DateTime.UtcNow;
-        inventory.LastUpdatedBy = performedBy;
-        inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
-        inventory.Status = DetermineStockStatus(inventory);
-
-        if (type == TransactionType.StockIn)
+        // Update inventory — compensate by deleting transaction on failure
+        try
         {
-            inventory.LastRestockDate = DateTime.UtcNow;
+            inventory.CurrentStock = stockAfter;
+            inventory.UpdatedAt = DateTime.UtcNow;
+            inventory.LastUpdatedBy = performedBy;
+            inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
+            inventory.Status = DetermineStockStatus(inventory);
+
+            if (type == TransactionType.StockIn)
+            {
+                inventory.LastRestockDate = DateTime.UtcNow;
+            }
+
+            var result = await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
+
+            // Check and create alerts (best-effort, don't fail the operation)
+            try { await CheckAndCreateAlertsAsync(inventory); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to check/create stock alerts for {InventoryId}", inventoryId); }
+
+            return result.ModifiedCount > 0;
         }
-
-        var result = await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
-
-        // Check and create alerts
-        await CheckAndCreateAlertsAsync(inventory);
-
-        return result.ModifiedCount > 0;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update inventory {InventoryId} after transaction — rolling back transaction {TransactionId}", inventoryId, transaction.Id);
+            await _inventoryTransactions.DeleteOneAsync(t => t.Id == transaction.Id);
+            throw;
+        }
     }
 
     public async Task<bool> StockInAsync(string inventoryId, decimal quantity, decimal? costPerUnit, string? supplierName, string? referenceNumber, string performedBy)
@@ -239,36 +250,46 @@ public partial class MongoService
 
         await _inventoryTransactions.InsertOneAsync(transaction);
 
-        // Update inventory
-        inventory.CurrentStock += quantity;
-        
-        if (costPerUnit.HasValue)
+        // Update inventory — compensate by deleting transaction on failure
+        try
         {
-            // Update cost per unit with weighted average
-            decimal totalCost = (inventory.CurrentStock - quantity) * inventory.CostPerUnit + quantity * costPerUnit.Value;
-            inventory.CostPerUnit = totalCost / inventory.CurrentStock;
-            inventory.LastPurchasePrice = costPerUnit.Value;
-        }
+            inventory.CurrentStock += quantity;
+            
+            if (costPerUnit.HasValue)
+            {
+                // Update cost per unit with weighted average
+                decimal totalCost = (inventory.CurrentStock - quantity) * inventory.CostPerUnit + quantity * costPerUnit.Value;
+                inventory.CostPerUnit = totalCost / inventory.CurrentStock;
+                inventory.LastPurchasePrice = costPerUnit.Value;
+            }
 
-        inventory.LastPurchaseDate = DateTime.UtcNow;
-        inventory.LastRestockDate = DateTime.UtcNow;
-        
-        if (!string.IsNullOrEmpty(supplierName))
+            inventory.LastPurchaseDate = DateTime.UtcNow;
+            inventory.LastRestockDate = DateTime.UtcNow;
+            
+            if (!string.IsNullOrEmpty(supplierName))
+            {
+                inventory.SupplierName = supplierName;
+            }
+
+            inventory.UpdatedAt = DateTime.UtcNow;
+            inventory.LastUpdatedBy = performedBy;
+            inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
+            inventory.Status = DetermineStockStatus(inventory);
+
+            var result = await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
+
+            // Resolve alerts (best-effort)
+            try { await ResolveAlertsAsync(inventoryId, new[] { AlertType.LowStock, AlertType.OutOfStock }, performedBy); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to resolve stock alerts for {InventoryId}", inventoryId); }
+
+            return result.ModifiedCount > 0;
+        }
+        catch (Exception ex)
         {
-            inventory.SupplierName = supplierName;
+            _logger.LogError(ex, "Failed to update inventory {InventoryId} after stock-in — rolling back transaction {TransactionId}", inventoryId, transaction.Id);
+            await _inventoryTransactions.DeleteOneAsync(t => t.Id == transaction.Id);
+            throw;
         }
-
-        inventory.UpdatedAt = DateTime.UtcNow;
-        inventory.LastUpdatedBy = performedBy;
-        inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
-        inventory.Status = DetermineStockStatus(inventory);
-
-        var result = await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
-
-        // Resolve low stock/out of stock alerts
-        await ResolveAlertsAsync(inventoryId, new[] { AlertType.LowStock, AlertType.OutOfStock }, performedBy);
-
-        return result.ModifiedCount > 0;
     }
 
     public async Task<bool> StockOutAsync(string inventoryId, decimal quantity, string reason, string performedBy)
@@ -292,19 +313,29 @@ public partial class MongoService
 
         await _inventoryTransactions.InsertOneAsync(transaction);
 
-        // Update inventory
-        inventory.CurrentStock -= quantity;
-        inventory.UpdatedAt = DateTime.UtcNow;
-        inventory.LastUpdatedBy = performedBy;
-        inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
-        inventory.Status = DetermineStockStatus(inventory);
+        // Update inventory — compensate by deleting transaction on failure
+        try
+        {
+            inventory.CurrentStock -= quantity;
+            inventory.UpdatedAt = DateTime.UtcNow;
+            inventory.LastUpdatedBy = performedBy;
+            inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
+            inventory.Status = DetermineStockStatus(inventory);
 
-        var result = await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
+            var result = await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
 
-        // Check for low stock
-        await CheckAndCreateAlertsAsync(inventory);
+            // Check for low stock (best-effort)
+            try { await CheckAndCreateAlertsAsync(inventory); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to check/create stock alerts for {InventoryId}", inventoryId); }
 
-        return result.ModifiedCount > 0;
+            return result.ModifiedCount > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update inventory {InventoryId} after stock-out — rolling back transaction {TransactionId}", inventoryId, transaction.Id);
+            await _inventoryTransactions.DeleteOneAsync(t => t.Id == transaction.Id);
+            throw;
+        }
     }
 
     // ==== TRANSACTIONS ====

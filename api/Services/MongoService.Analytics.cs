@@ -1,6 +1,7 @@
 using MongoDB.Driver;
 using MongoDB.Bson;
 using Cafe.Api.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
 
@@ -19,22 +20,36 @@ public partial class MongoService
 
     public async Task TrackEventAsync(UserActivityEvent evt)
     {
-        evt.Timestamp = DateTime.UtcNow;
-        await ActivityEvents.InsertOneAsync(evt);
+        try
+        {
+            evt.Timestamp = DateTime.UtcNow;
+            await ActivityEvents.InsertOneAsync(evt);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to track analytics event of type {EventType}", evt.EventType);
+        }
     }
 
     public async Task TrackEventsBatchAsync(List<UserActivityEvent> events)
     {
         if (events.Count == 0) return;
-        foreach (var evt in events) evt.Timestamp = DateTime.UtcNow;
-        await ActivityEvents.InsertManyAsync(events);
+        try
+        {
+            foreach (var evt in events) evt.Timestamp = DateTime.UtcNow;
+            await ActivityEvents.InsertManyAsync(events);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to track {Count} analytics events in batch", events.Count);
+        }
     }
 
     // ─── Session Management ───
 
     public async Task<UserSession> CreateSessionAsync(string userId, string username, string role, string sessionId)
     {
-        // Mark any previous active sessions for this user as inactive
+        // Step 1: Mark any previous active sessions for this user as inactive
         var filter = Builders<UserSession>.Filter.And(
             Builders<UserSession>.Filter.Eq(s => s.UserId, userId),
             Builders<UserSession>.Filter.Eq(s => s.IsActive, true)
@@ -42,8 +57,12 @@ public partial class MongoService
         var update = Builders<UserSession>.Update
             .Set(s => s.IsActive, false)
             .Set(s => s.LogoutTime, DateTime.UtcNow);
+
+        // Capture existing active sessions for compensation
+        var previousActiveSessions = await UserSessions.Find(filter).ToListAsync();
         await UserSessions.UpdateManyAsync(filter, update);
 
+        // Step 2: Create new session — compensate by restoring old sessions on failure
         var session = new UserSession
         {
             UserId = userId,
@@ -54,24 +73,57 @@ public partial class MongoService
             LastActiveTime = DateTime.UtcNow,
             IsActive = true
         };
-        await UserSessions.InsertOneAsync(session);
+
+        try
+        {
+            await UserSessions.InsertOneAsync(session);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to insert new session for user {UserId} — restoring previous sessions", userId);
+            // Compensate: re-activate the sessions we just deactivated
+            foreach (var prev in previousActiveSessions)
+            {
+                var restoreFilter = Builders<UserSession>.Filter.Eq(s => s.Id, prev.Id);
+                var restoreUpdate = Builders<UserSession>.Update
+                    .Set(s => s.IsActive, true)
+                    .Unset(s => s.LogoutTime);
+                await UserSessions.UpdateOneAsync(restoreFilter, restoreUpdate);
+            }
+            throw;
+        }
+
         return session;
     }
 
     public async Task EndSessionAsync(string sessionId)
     {
-        var filter = Builders<UserSession>.Filter.Eq(s => s.SessionId, sessionId);
-        var update = Builders<UserSession>.Update
-            .Set(s => s.IsActive, false)
-            .Set(s => s.LogoutTime, DateTime.UtcNow);
-        await UserSessions.UpdateOneAsync(filter, update);
+        try
+        {
+            var filter = Builders<UserSession>.Filter.Eq(s => s.SessionId, sessionId);
+            var update = Builders<UserSession>.Update
+                .Set(s => s.IsActive, false)
+                .Set(s => s.LogoutTime, DateTime.UtcNow);
+            await UserSessions.UpdateOneAsync(filter, update);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to end session {SessionId}", sessionId);
+        }
     }
 
     public async Task UpdateSessionActivityAsync(string sessionId)
     {
-        var filter = Builders<UserSession>.Filter.Eq(s => s.SessionId, sessionId);
-        var update = Builders<UserSession>.Update.Set(s => s.LastActiveTime, DateTime.UtcNow);
-        await UserSessions.UpdateOneAsync(filter, update);
+        try
+        {
+            var filter = Builders<UserSession>.Filter.Eq(s => s.SessionId, sessionId);
+            var update = Builders<UserSession>.Update.Set(s => s.LastActiveTime, DateTime.UtcNow);
+            await UserSessions.UpdateOneAsync(filter, update);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update session activity for {SessionId}", sessionId);
+        }
     }
 
     // ─── Analytics Queries ───

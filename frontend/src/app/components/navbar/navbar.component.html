@@ -5,7 +5,7 @@
   (click)="closeMobileMenu()"
 ></div>
 
-<nav class="navbar" [class.mobile-open]="isMobileMenuOpen">
+<nav class="navbar" [class.mobile-open]="isMobileMenuOpen" role="navigation" aria-label="Main navigation">
   <div class="navbar-container">
     <!-- Logo -->
     <a routerLink="/" class="navbar-brand" (click)="closeMobileMenu()">
@@ -17,6 +17,8 @@
       class="mobile-menu-toggle"
       [class.active]="isMobileMenuOpen"
       (click)="toggleMobileMenu()"
+      aria-label="Toggle navigation menu"
+      [attr.aria-expanded]="isMobileMenuOpen"
     >
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
@@ -124,7 +126,7 @@
           (mouseenter)="openDropdown('profile')"
           (mouseleave)="scheduleCloseDropdown()"
         >
-          <button class="profile-badge" (click)="toggleDropdown('profile')">
+          <button class="profile-badge" (click)="toggleDropdown('profile')" aria-haspopup="true" [attr.aria-expanded]="activeDropdown === 'profile'">
             <span class="profile-icon">👤</span>
             <span class="username">{{ displayName }}</span>
             <span class="arrow" [class.open]="activeDropdown === 'profile'"
@@ -137,6 +139,7 @@
             [class.show]="activeDropdown === 'profile'"
             (mouseenter)="cancelCloseDropdown()"
             (mouseleave)="scheduleCloseDropdown()"
+            role="menu"
           >
             <li>
               <a

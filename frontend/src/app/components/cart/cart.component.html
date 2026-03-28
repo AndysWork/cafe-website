@@ -40,12 +40,12 @@
           <div class="item-price">₹{{ item.price }}</div>
         </div>
         <div class="item-qty">
-          <button class="qty-btn" (click)="decreaseQuantity(item)" [disabled]="item.quantity <= 1">−</button>
-          <span class="qty-num">{{ item.quantity }}</span>
-          <button class="qty-btn" (click)="increaseQuantity(item)">+</button>
+          <button class="qty-btn" (click)="decreaseQuantity(item)" [disabled]="item.quantity <= 1" aria-label="Decrease quantity">−</button>
+          <span class="qty-num" aria-live="polite">{{ item.quantity }}</span>
+          <button class="qty-btn" (click)="increaseQuantity(item)" aria-label="Increase quantity">+</button>
         </div>
         <div class="item-total">₹{{ getItemTotal(item) }}</div>
-        <button class="btn-remove" (click)="removeItem(item)">✕</button>
+        <button class="btn-remove" (click)="removeItem(item)" [attr.aria-label]="'Remove ' + item.name + ' from cart'">✕</button>
       </div>
     </div>
 
@@ -61,7 +61,7 @@
           <span>Packaging Charges</span>
           <span>₹{{ cart.packagingCharges }}</span>
         </div>
-        <div class="summary-row total">
+        <div class="summary-row total" aria-live="polite">
           <span>Total</span>
           <span>₹{{ cart.total }}</span>
         </div>

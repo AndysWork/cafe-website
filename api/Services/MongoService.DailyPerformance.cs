@@ -1,5 +1,6 @@
 using MongoDB.Driver;
 using Cafe.Api.Models;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -185,28 +186,38 @@ public partial class MongoService
         BulkDailyPerformanceRequest request,
         string outletId)
     {
-        var tasks = request.Entries.Select(entryRequest =>
+        var results = new List<DailyPerformanceEntry>();
+
+        foreach (var entryRequest in request.Entries)
         {
-            var upsertRequest = new UpsertDailyPerformanceRequest
+            try
             {
-                StaffId = entryRequest.StaffId,
-                Date = request.Date,
-                InTime = entryRequest.InTime,
-                OutTime = entryRequest.OutTime,
-                TotalOrdersPrepared = entryRequest.TotalOrdersPrepared,
-                GoodOrdersCount = entryRequest.GoodOrdersCount,
-                BadOrdersCount = entryRequest.BadOrdersCount,
-                RefundAmountRecovery = entryRequest.RefundAmountRecovery,
-                Notes = entryRequest.Notes,
-                LeaveHours = entryRequest.LeaveHours,
-                Shifts = entryRequest.Shifts
-            };
+                var upsertRequest = new UpsertDailyPerformanceRequest
+                {
+                    StaffId = entryRequest.StaffId,
+                    Date = request.Date,
+                    InTime = entryRequest.InTime,
+                    OutTime = entryRequest.OutTime,
+                    TotalOrdersPrepared = entryRequest.TotalOrdersPrepared,
+                    GoodOrdersCount = entryRequest.GoodOrdersCount,
+                    BadOrdersCount = entryRequest.BadOrdersCount,
+                    RefundAmountRecovery = entryRequest.RefundAmountRecovery,
+                    Notes = entryRequest.Notes,
+                    LeaveHours = entryRequest.LeaveHours,
+                    Shifts = entryRequest.Shifts
+                };
 
-            return UpsertDailyPerformanceAsync(upsertRequest, outletId);
-        });
+                var result = await UpsertDailyPerformanceAsync(upsertRequest, outletId);
+                results.Add(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to upsert daily performance for staff {StaffId} on {Date}", entryRequest.StaffId, request.Date);
+                // Continue processing remaining entries instead of failing all
+            }
+        }
 
-        var results = await Task.WhenAll(tasks);
-        return results.ToList();
+        return results;
     }
 
     public async Task<bool> DeleteDailyPerformanceAsync(string id)
