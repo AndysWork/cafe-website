@@ -120,6 +120,58 @@ $danger: #ff5252;
   }
 }
 
+/* Notification Preferences */
+.prefs-section-title {
+  font-size: .95rem; font-weight: 700; color: $dark; margin: 0 0 16px;
+}
+
+.prefs-divider {
+  height: 1px; background: #eee; margin: 20px 0;
+}
+
+.pref-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 0; border-bottom: 1px solid #f0f0f0;
+  &:last-child { border-bottom: none; }
+}
+
+.pref-info {
+  display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;
+}
+
+.pref-icon {
+  font-size: 1.3rem; flex-shrink: 0;
+}
+
+.pref-label {
+  font-size: .9rem; font-weight: 600; color: $dark;
+}
+
+.pref-desc {
+  font-size: .78rem; color: #999; margin-top: 2px;
+}
+
+/* Toggle Switch */
+.toggle {
+  position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0;
+  input { opacity: 0; width: 0; height: 0; }
+}
+
+.toggle-slider {
+  position: absolute; cursor: pointer; inset: 0; background: #ddd; border-radius: 26px;
+  transition: all .3s;
+  &::before {
+    content: ''; position: absolute; left: 3px; bottom: 3px;
+    width: 20px; height: 20px; border-radius: 50%; background: #fff;
+    transition: all .3s; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+}
+
+.toggle input:checked + .toggle-slider {
+  background: $accent;
+  &::before { transform: translateX(22px); }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .hero { padding: 48px 16px 70px;

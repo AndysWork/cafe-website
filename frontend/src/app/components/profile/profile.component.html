@@ -27,7 +27,8 @@
     <!-- Tabs -->
     <div class="tabs">
       <button class="tab" [class.active]="activeTab === 'profile'" (click)="switchTab('profile')">👤 Profile Info</button>
-      <button class="tab" [class.active]="activeTab === 'password'" (click)="switchTab('password')">🔒 Change Password</button>
+      <button class="tab" [class.active]="activeTab === 'password'" (click)="switchTab('password')">🔒 Password</button>
+      <button class="tab" [class.active]="activeTab === 'notifications'" (click)="switchTab('notifications')">🔔 Notifications</button>
     </div>
 
     <!-- Profile Tab -->
@@ -87,6 +88,102 @@
         <button class="btn-submit" (click)="changePassword()" [disabled]="isChangingPassword">
           {{ isChangingPassword ? 'Changing...' : '🔐 Change Password' }}
         </button>
+      </div>
+    </div>
+
+    <!-- Notifications Tab -->
+    <div class="tab-body" *ngIf="activeTab === 'notifications'">
+      <div class="form-card">
+        <div class="msg msg-success" *ngIf="prefsMessage">✅ {{ prefsMessage }}</div>
+
+        <h3 class="prefs-section-title">Notification Types</h3>
+
+        <div class="pref-item">
+          <div class="pref-info">
+            <span class="pref-icon">📦</span>
+            <div>
+              <div class="pref-label">Order Updates</div>
+              <div class="pref-desc">Get notified when your order status changes</div>
+            </div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" [checked]="notificationStore.preferences().orderUpdates" (change)="togglePreference('orderUpdates', $event)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="pref-item">
+          <div class="pref-info">
+            <span class="pref-icon">⭐</span>
+            <div>
+              <div class="pref-label">Loyalty Points</div>
+              <div class="pref-desc">Points earned, redeemed, or tier changes</div>
+            </div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" [checked]="notificationStore.preferences().loyaltyPoints" (change)="togglePreference('loyaltyPoints', $event)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="pref-item">
+          <div class="pref-info">
+            <span class="pref-icon">🎁</span>
+            <div>
+              <div class="pref-label">Offers &amp; Promotions</div>
+              <div class="pref-desc">New deals, discounts, and special offers</div>
+            </div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" [checked]="notificationStore.preferences().offers" (change)="togglePreference('offers', $event)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="pref-item">
+          <div class="pref-info">
+            <span class="pref-icon">📊</span>
+            <div>
+              <div class="pref-label">System Notifications</div>
+              <div class="pref-desc">Account updates and important announcements</div>
+            </div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" [checked]="notificationStore.preferences().systemNotifications" (change)="togglePreference('systemNotifications', $event)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="prefs-divider"></div>
+        <h3 class="prefs-section-title">Channels</h3>
+
+        <div class="pref-item">
+          <div class="pref-info">
+            <span class="pref-icon">📧</span>
+            <div>
+              <div class="pref-label">Email Notifications</div>
+              <div class="pref-desc">Receive notifications via email</div>
+            </div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" [checked]="notificationStore.preferences().emailNotifications" (change)="togglePreference('emailNotifications', $event)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="pref-item">
+          <div class="pref-info">
+            <span class="pref-icon">🔔</span>
+            <div>
+              <div class="pref-label">Push Notifications</div>
+              <div class="pref-desc">In-app bell icon and real-time alerts</div>
+            </div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" [checked]="notificationStore.preferences().pushNotifications" (change)="togglePreference('pushNotifications', $event)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
     </div>
 

@@ -3,6 +3,7 @@ import { AuthStore } from './auth.store';
 import { CartStore } from './cart.store';
 import { OutletStore } from './outlet.store';
 import { UIStore } from './ui.store';
+import { NotificationStore } from './notification.store';
 
 /**
  * AppStore — Façade that aggregates all domain stores.
@@ -23,4 +24,5 @@ export class AppStore {
   readonly cart = inject(CartStore);
   readonly outlet = inject(OutletStore);
   readonly ui = inject(UIStore);
+  readonly notifications = inject(NotificationStore);
 }

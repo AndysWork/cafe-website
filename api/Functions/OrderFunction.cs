@@ -19,13 +19,15 @@ public class OrderFunction
     private readonly ILogger _log;
     private readonly IWhatsAppService _whatsApp;
     private readonly IEmailService _emailService;
+    private readonly NotificationService _notificationService;
 
-    public OrderFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, IEmailService emailService, ILoggerFactory loggerFactory)
+    public OrderFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, IEmailService emailService, NotificationService notificationService, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
         _whatsApp = whatsApp;
         _emailService = emailService;
+        _notificationService = notificationService;
         _log = loggerFactory.CreateLogger<OrderFunction>();
     }
 
@@ -273,6 +275,37 @@ public class OrderFunction
                 catch (Exception adminEmailEx)
                 {
                     _log.LogWarning(adminEmailEx, "Failed to send admin order notification email for order {OrderId}", createdOrder.Id);
+                }
+
+                // Send in-app notification to customer
+                try
+                {
+                    await _notificationService.SendAsync(
+                        userId,
+                        "order_status",
+                        "Order Placed Successfully! 🎉",
+                        $"Your order #{createdOrder.Id?[^6..]} has been placed. Total: ₹{total:N2}",
+                        new Dictionary<string, string>
+                        {
+                            { "orderId", createdOrder.Id ?? "" },
+                            { "status", "pending" }
+                        },
+                        actionUrl: "/orders"
+                    );
+                }
+                catch (Exception notifEx)
+                {
+                    _log.LogWarning(notifEx, "Failed to send in-app notification for order {OrderId}", createdOrder.Id);
+                }
+
+                // Notify admin(s) about the new order
+                try
+                {
+                    await _notificationService.SendNewOrderNotificationToAdminsAsync(createdOrder, total);
+                }
+                catch (Exception adminNotifEx)
+                {
+                    _log.LogWarning(adminNotifEx, "Failed to send admin in-app notification for order {OrderId}", createdOrder.Id);
                 }
             });
 
@@ -553,6 +586,19 @@ public class OrderFunction
                 }
             }
 
+            // Send in-app notification to customer
+            if (order != null && !string.IsNullOrEmpty(order.UserId))
+            {
+                try
+                {
+                    await _notificationService.SendOrderStatusNotificationAsync(order, statusRequest.Status);
+                }
+                catch (Exception notifEx)
+                {
+                    _log.LogWarning(notifEx, "Failed to send in-app notification for order {OrderId}", id);
+                }
+            }
+
             // Award loyalty points when order is delivered
             if (statusRequest.Status.ToLower() == "delivered" && order != null)
             {
@@ -587,6 +633,19 @@ public class OrderFunction
                             {
                                 _log.LogWarning(whatsAppEx, "Failed to send WhatsApp loyalty notification for order {OrderId}", id);
                             }
+                        }
+
+                        // Send in-app loyalty points notification
+                        try
+                        {
+                            var loyaltyAccount = await _mongo.GetLoyaltyAccountByUserIdAsync(order.UserId);
+                            var totalPts = loyaltyAccount?.CurrentPoints ?? pointsToAward;
+                            await _notificationService.SendLoyaltyPointsNotificationAsync(
+                                order.UserId, pointsToAward, totalPts, $"Order #{order.Id?[^6..]}");
+                        }
+                        catch (Exception notifEx)
+                        {
+                            _log.LogWarning(notifEx, "Failed to send loyalty in-app notification for order {OrderId}", id);
                         }
                     }
                     catch (Exception pointsEx)

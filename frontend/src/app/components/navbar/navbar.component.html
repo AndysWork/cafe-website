@@ -118,6 +118,9 @@
           Login
         </button>
 
+        <!-- Notification Bell (Logged in users) -->
+        <app-notification-center *ngIf="isLoggedIn"></app-notification-center>
+
         <!-- Admin Profile Dropdown -->
         <div
           *ngIf="isLoggedIn && isAdmin"

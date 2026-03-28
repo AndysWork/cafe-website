@@ -44,6 +44,9 @@ public class User
     [BsonElement("profilePictureUrl")]
     public string? ProfilePictureUrl { get; set; }
 
+    [BsonElement("notificationPreferences")]
+    public NotificationPreferences NotificationPreferences { get; set; } = new();
+
     [BsonElement("isActive")]
     public bool IsActive { get; set; } = true;
 

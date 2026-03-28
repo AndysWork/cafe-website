@@ -1,8 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
+import { NotificationStore } from '../../store';
 
 @Component({
   selector: 'app-profile',
@@ -33,7 +34,12 @@ export class ProfileComponent implements OnInit {
   passwordError = '';
   isChangingPassword = false;
 
-  activeTab: 'profile' | 'password' = 'profile';
+  activeTab: 'profile' | 'password' | 'notifications' = 'profile';
+
+  // Notification preferences
+  notificationStore = inject(NotificationStore);
+  isSavingPrefs = false;
+  prefsMessage = '';
 
   constructor(
     private authService: AuthService,
@@ -49,9 +55,12 @@ export class ProfileComponent implements OnInit {
     }
   }
 
-  switchTab(tab: 'profile' | 'password'): void {
+  switchTab(tab: 'profile' | 'password' | 'notifications'): void {
     this.activeTab = tab;
     this.clearMessages();
+    if (tab === 'notifications') {
+      this.notificationStore.loadPreferences();
+    }
   }
 
   clearMessages(): void {
@@ -59,6 +68,14 @@ export class ProfileComponent implements OnInit {
     this.profileError = '';
     this.passwordMessage = '';
     this.passwordError = '';
+    this.prefsMessage = '';
+  }
+
+  togglePreference(key: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.notificationStore.updatePreferences({ [key]: checked });
+    this.prefsMessage = 'Preferences saved!';
+    setTimeout(() => this.prefsMessage = '', 2000);
   }
 
   updateProfile(): void {

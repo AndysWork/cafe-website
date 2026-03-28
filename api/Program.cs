@@ -36,6 +36,7 @@ var host = new HostBuilder()
         s.AddSingleton<IWhatsAppService, WhatsAppService>();
         s.AddSingleton<MarketPriceService>();
         s.AddSingleton<IRazorpayService, RazorpayService>();
+        s.AddSingleton<NotificationService>();
         
         // Azure Blob Storage for file/image uploads
         var blobConnectionString = Environment.GetEnvironmentVariable("Blob__ConnectionString") ?? "UseDevelopmentStorage=true";

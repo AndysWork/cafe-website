@@ -5,11 +5,12 @@ import { AuthService, User } from '../../services/auth.service';
 import { CartService } from '../../services/cart.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { AuthStore, CartStore } from '../../store';
+import { NotificationCenterComponent } from '../notification-center/notification-center.component';
 
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, NotificationCenterComponent],
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.scss']
 })

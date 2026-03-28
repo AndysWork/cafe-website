@@ -192,16 +192,21 @@
 
 **Impact:** NONE - All customer screens redesigned
 
-### 5.4 Real-time Notifications ❌ NOT IMPLEMENTED
+### 5.4 Real-time Notifications ✅ IMPLEMENTED
 
 
-**What's Missing:**
-- ❌ No WebSocket/SignalR implementation
-- ❌ No push notifications
-- ❌ No in-app notification center
-- ❌ No notification preferences
+**Current State:**
+- ✅ In-app notification center with bell icon in navbar (badge with unread count)
+- ✅ Notification types: order_status, loyalty_points, offer, system, stock_alert
+- ✅ Polling-based real-time updates (30-second interval when logged in)
+- ✅ Notification preferences UI in profile page (toggle per type + channel)
+- ✅ Full REST API: paginated list, mark read, mark all read, delete, preferences CRUD
+- ✅ Backend NotificationService with preference-aware sending
+- ✅ Wired into OrderFunction (order placed, status updates, loyalty points earned)
+- ✅ MongoDB Notifications collection with TTL auto-cleanup (90 days)
+- ✅ @microsoft/signalr package installed for future WebSocket upgrade path
 
-**Impact:** MEDIUM - Users don't get real-time updates
+**Impact:** RESOLVED - Users receive real-time in-app notifications
 
 ---
 
@@ -691,7 +696,7 @@
 3. Food Delivery Platform Integration (Swiggy/Zomato)
 
 ### 🟡 MEDIUM (Plan for Future)
-6. Real-time Notifications (WebSocket/SignalR)
+6. ~~Real-time Notifications (WebSocket/SignalR)~~ ✅ IMPLEMENTED (Polling + In-App Center)
 7. Advanced Reporting (PDF generation, Excel exports)
 8. Stock Alert Emails - Alert detection works, emails not sent
 9. Two-factor Authentication
@@ -779,7 +784,7 @@
 5. Configure Azure CDN endpoint for Blob Storage
 
 ### Next Month
-6. Implement real-time notifications (SignalR)
+6. ~~Implement real-time notifications (SignalR)~~ ✅ IMPLEMENTED
 7. Add advanced reports with PDF export
 8. Food delivery platform integration (start with Swiggy)
 9. Configure Azure CDN endpoint for Blob Storage

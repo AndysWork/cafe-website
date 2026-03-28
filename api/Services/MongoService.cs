@@ -67,6 +67,7 @@ public partial class MongoService
     private readonly IMongoCollection<BonusConfiguration> _bonusConfigurations;
     private readonly IMongoCollection<StaffPerformanceRecord> _staffPerformanceRecords;
     private readonly IMongoCollection<DailyPerformanceEntry> _dailyPerformanceEntries;
+    private readonly IMongoCollection<AppNotification> _notifications;
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
     
@@ -151,6 +152,7 @@ public partial class MongoService
         _bonusConfigurations = db.GetCollection<BonusConfiguration>("BonusConfigurations");
         _staffPerformanceRecords = db.GetCollection<StaffPerformanceRecord>("StaffPerformanceRecords");
         _dailyPerformanceEntries = db.GetCollection<DailyPerformanceEntry>("DailyPerformanceEntries");
+        _notifications = db.GetCollection<AppNotification>("Notifications");
     }
 
     /// <summary>
@@ -2138,6 +2140,37 @@ public partial class MongoService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "PriceForecasts indexes warning");
+        }
+
+        // ========== Notifications Collection ==========
+        try
+        {
+            // Compound index: userId + createdAt (primary query pattern)
+            await _notifications.Indexes.CreateOneAsync(new CreateIndexModel<AppNotification>(
+                Builders<AppNotification>.IndexKeys.Ascending(x => x.UserId).Descending(x => x.CreatedAt),
+                new CreateIndexOptions { Name = "userId_1_createdAt_-1", Background = true }
+            ));
+            indexCount++;
+
+            // userId + isRead (for unread count query)
+            await _notifications.Indexes.CreateOneAsync(new CreateIndexModel<AppNotification>(
+                Builders<AppNotification>.IndexKeys.Ascending(x => x.UserId).Ascending(x => x.IsRead),
+                new CreateIndexOptions { Name = "userId_1_isRead_1", Background = true }
+            ));
+            indexCount++;
+
+            // TTL index: auto-delete notifications older than 90 days
+            await _notifications.Indexes.CreateOneAsync(new CreateIndexModel<AppNotification>(
+                Builders<AppNotification>.IndexKeys.Ascending(x => x.CreatedAt),
+                new CreateIndexOptions { Name = "createdAt_ttl", ExpireAfter = TimeSpan.FromDays(90), Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Notifications indexes created (userId+createdAt, userId+isRead, TTL 90 days)");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Notifications indexes warning");
         }
     }
 
@@ -5344,6 +5377,85 @@ public partial class MongoService
             FiveStarReviewCount = await fiveStarTask,
             YearsServing = 1
         };
+    }
+
+    #endregion
+
+    #region Notifications
+
+    public async Task<List<string>> GetAdminUserIdsAsync()
+    {
+        var admins = await _users.Find(u => u.Role == "admin" && u.IsActive)
+            .Project(u => u.Id!)
+            .ToListAsync();
+        return admins.Where(id => !string.IsNullOrEmpty(id)).ToList();
+    }
+
+    public async Task CreateNotificationAsync(AppNotification notification)
+    {
+        await _notifications.InsertOneAsync(notification);
+    }
+
+    public async Task<List<AppNotification>> GetUserNotificationsAsync(string userId, int page = 1, int pageSize = 20)
+    {
+        return await _notifications
+            .Find(n => n.UserId == userId)
+            .SortByDescending(n => n.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<long> GetUnreadNotificationCountAsync(string userId)
+    {
+        return await _notifications.CountDocumentsAsync(n => n.UserId == userId && !n.IsRead);
+    }
+
+    public async Task<long> GetTotalNotificationCountAsync(string userId)
+    {
+        return await _notifications.CountDocumentsAsync(n => n.UserId == userId);
+    }
+
+    public async Task<bool> MarkNotificationAsReadAsync(string notificationId, string userId)
+    {
+        var result = await _notifications.UpdateOneAsync(
+            n => n.Id == notificationId && n.UserId == userId,
+            Builders<AppNotification>.Update.Set(n => n.IsRead, true));
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<long> MarkAllNotificationsAsReadAsync(string userId)
+    {
+        var result = await _notifications.UpdateManyAsync(
+            n => n.UserId == userId && !n.IsRead,
+            Builders<AppNotification>.Update.Set(n => n.IsRead, true));
+        return result.ModifiedCount;
+    }
+
+    public async Task<bool> DeleteNotificationAsync(string notificationId, string userId)
+    {
+        var result = await _notifications.DeleteOneAsync(n => n.Id == notificationId && n.UserId == userId);
+        return result.DeletedCount > 0;
+    }
+
+    public async Task<long> DeleteAllNotificationsAsync(string userId)
+    {
+        var result = await _notifications.DeleteManyAsync(n => n.UserId == userId);
+        return result.DeletedCount;
+    }
+
+    public async Task<NotificationPreferences> GetNotificationPreferencesAsync(string userId)
+    {
+        var user = await _users.Find(u => u.Id == userId).FirstOrDefaultAsync();
+        return user?.NotificationPreferences ?? new NotificationPreferences();
+    }
+
+    public async Task<bool> UpdateNotificationPreferencesAsync(string userId, NotificationPreferences preferences)
+    {
+        var result = await _users.UpdateOneAsync(
+            u => u.Id == userId,
+            Builders<User>.Update.Set(u => u.NotificationPreferences, preferences));
+        return result.ModifiedCount > 0;
     }
 
     #endregion
