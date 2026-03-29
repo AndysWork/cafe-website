@@ -1,9 +1,10 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute } from '@angular/router';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { OrderService, Order } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
 import { AuthService } from '../../services/auth.service';
+import { CartService } from '../../services/cart.service';
 import { UIStore } from '../../store/ui.store';
 import { formatIstDateTime } from '../../utils/date-utils';
 import { Subscription } from 'rxjs';
@@ -38,6 +39,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
     private orderService: OrderService,
     private authService: AuthService,
     private paymentService: PaymentService,
+    private cartService: CartService,
+    private router: Router,
     private route: ActivatedRoute
   ) {
     this.isAdmin = this.authService.isAdmin();
@@ -223,6 +226,22 @@ export class OrdersComponent implements OnInit, OnDestroy {
         this.uiStore.error(err.error?.error || 'Failed to delete receipt');
       }
     });
+  }
+
+  reorderItems(order: Order) {
+    for (const item of order.items) {
+      this.cartService.addItem({
+        menuItemId: item.menuItemId,
+        name: item.name,
+        description: item.description,
+        categoryName: item.categoryName,
+        price: item.price,
+        imageUrl: undefined,
+        packagingCharge: 0,
+      }, item.quantity);
+    }
+    this.uiStore.success(`${order.items.length} item(s) added to cart`);
+    this.router.navigate(['/cart']);
   }
 
   trackByKey(index: number, item: any): string { return item.key; }

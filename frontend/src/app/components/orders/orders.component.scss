@@ -544,6 +544,11 @@ $radius-full: 9999px;
   font-size: 0.85rem;
   color: $text-mid;
 
+  &.discount-row {
+    color: #16a34a;
+    font-weight: 600;
+  }
+
   &.grand-total {
     border-top: 2px solid $border;
     margin-top: 0.35rem;
@@ -633,6 +638,25 @@ $radius-full: 9999px;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.btn-reorder {
+  padding: 0.55rem 1.15rem;
+  background: rgba($primary, 0.08);
+  color: $primary;
+  border: 2px solid rgba($primary, 0.3);
+  border-radius: $radius-full;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s;
+
+  &:hover {
+    background: $primary;
+    color: white;
+    border-color: $primary;
+    box-shadow: 0 4px 14px rgba($primary, 0.3);
+  }
 }
 
 .btn-cancel {

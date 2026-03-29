@@ -106,6 +106,56 @@
           ❌ {{ errorMessage }}
         </div>
 
+        <!-- Coupon Code Section -->
+        <div class="coupon-section">
+          <label class="section-label">🏷️ Have a promo code?</label>
+          <div class="coupon-input-row">
+            <input
+              type="text"
+              [(ngModel)]="couponCode"
+              name="couponCode"
+              placeholder="Enter coupon code"
+              [disabled]="couponValid || validatingCoupon"
+              class="coupon-input"
+              (keydown.enter)="applyCoupon(); $event.preventDefault()" />
+            <button
+              *ngIf="!couponValid"
+              type="button"
+              class="btn-apply-coupon"
+              (click)="applyCoupon()"
+              [disabled]="!couponCode.trim() || validatingCoupon">
+              {{ validatingCoupon ? '...' : 'Apply' }}
+            </button>
+            <button
+              *ngIf="couponValid"
+              type="button"
+              class="btn-remove-coupon"
+              (click)="removeCoupon()">
+              ✕
+            </button>
+          </div>
+          <div *ngIf="couponMessage" class="coupon-message" [class.success]="couponValid" [class.error]="!couponValid && couponMessage">
+            {{ couponValid ? '✅' : '❌' }} {{ couponMessage }}
+          </div>
+        </div>
+
+        <!-- Loyalty Points Section -->
+        <div *ngIf="loyaltyLoaded && loyaltyAccount && loyaltyAccount.currentPoints > 0" class="loyalty-section">
+          <label class="section-label">⭐ Loyalty Points</label>
+          <div class="loyalty-toggle">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="useLoyaltyPoints" name="useLoyaltyPoints" (change)="toggleLoyaltyPoints()" />
+              <span>
+                Use loyalty points
+                <small class="loyalty-balance">({{ loyaltyAccount.currentPoints }} pts available = ₹{{ (loyaltyAccount.currentPoints * 0.25) | number:'1.0-0' }})</small>
+              </span>
+            </label>
+            <div *ngIf="useLoyaltyPoints" class="loyalty-info">
+              Using <strong>{{ loyaltyPointsToUse }}</strong> points (−₹{{ loyaltyDiscount }})
+            </div>
+          </div>
+        </div>
+
         <!-- Payment Method Selection -->
         <div class="payment-section">
           <label class="section-label" id="payment-method-label">💳 Payment Method</label>
@@ -141,7 +191,7 @@
             ← Back to Cart
           </button>
           <button type="submit" class="btn-place" [disabled]="!checkoutForm.valid || isSubmitting">
-            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay ₹' + cart.total : '🎉 Place Order') }}
+            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay ₹' + grandTotal : '🎉 Place Order') }}
           </button>
         </div>
       </form>
@@ -173,10 +223,26 @@
           <span>Packaging Charges</span>
           <span>₹{{ cart.packagingCharges }}</span>
         </div>
+        <div class="t-row t-tax">
+          <span>Tax (2.5%)</span>
+          <span>₹{{ taxAmount }}</span>
+        </div>
+        <div class="t-row t-tax">
+          <span>Platform Charge (2.5%)</span>
+          <span>₹{{ platformChargeAmount }}</span>
+        </div>
+        <div *ngIf="couponDiscount > 0" class="t-row t-discount">
+          <span>🏷️ Coupon Discount</span>
+          <span>−₹{{ couponDiscount }}</span>
+        </div>
+        <div *ngIf="loyaltyDiscount > 0" class="t-row t-discount">
+          <span>⭐ Loyalty Discount</span>
+          <span>−₹{{ loyaltyDiscount }}</span>
+        </div>
         <div class="t-divider"></div>
         <div class="t-row t-final">
           <span>Total</span>
-          <span>₹{{ cart.total }}</span>
+          <span>₹{{ grandTotal }}</span>
         </div>
       </div>
 

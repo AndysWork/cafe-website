@@ -101,6 +101,11 @@
           </span>
           <!-- Category Tag -->
           <span class="card-category-tag">{{ item.categoryName }}</span>
+          <!-- Dietary Badge -->
+          <span class="badge-dietary" [ngClass]="item.dietaryType || 'veg'">
+            {{ (item.dietaryType || 'veg') === 'veg' ? '🟢' : (item.dietaryType === 'non-veg' ? '🔴' : (item.dietaryType === 'egg' ? '🟡' : '🟢')) }}
+            {{ (item.dietaryType || 'veg') | titlecase }}
+          </span>
           <!-- Favorite Heart -->
           <button class="btn-favorite" [class.favorited]="isFavorite(item.id)" (click)="toggleFavorite(item, $event)" aria-label="Toggle favorite">
             <span class="heart-icon">{{ isFavorite(item.id) ? '❤️' : '🤍' }}</span>

@@ -31,6 +31,7 @@ interface MenuItem {
   onlinePrice: number;
   futureShopPrice?: number;
   futureOnlinePrice?: number;
+  dietaryType?: string;
   variants: MenuItemVariant[];
   isAvailable?: boolean;
   imageUrl?: string;
@@ -237,6 +238,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       packagingCharge: 0,
       shopSellingPrice: 0,
       onlinePrice: 0,
+      dietaryType: 'veg',
       variants: []
     };
     this.filteredSubCategories = [];
@@ -251,6 +253,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     // Deep copy the item including variants
     this.formData = {
       ...item,
+      dietaryType: item.dietaryType || 'veg',
       variants: item.variants ? item.variants.map(v => ({ ...v })) : []
     };
     // Pass true to preserve the existing subCategoryId when filtering

@@ -158,9 +158,60 @@ public class OrderFunction
                 });
             }
 
-            // Calculate tax (10%)
-            var tax = Math.Round(subtotal * 0.10m, 2);
-            var total = subtotal + tax;
+            // Calculate tax (2.5%) and platform charge (2.5%)
+            var tax = Math.Round(subtotal * 0.025m, 2);
+            var platformCharge = Math.Round(subtotal * 0.025m, 2);
+
+            // Apply coupon discount
+            decimal discountAmount = 0;
+            string? couponCode = null;
+            if (!string.IsNullOrWhiteSpace(orderRequest.CouponCode))
+            {
+                couponCode = orderRequest.CouponCode.Trim().ToUpper();
+                var offer = await _mongo.GetOfferByCodeAsync(couponCode);
+                if (offer != null && offer.IsActive && offer.ValidFrom <= MongoService.GetIstNow() && offer.ValidTill >= MongoService.GetIstNow())
+                {
+                    if (offer.UsageLimit.HasValue && offer.UsageCount >= offer.UsageLimit.Value)
+                    {
+                        // Coupon exhausted — ignore silently
+                    }
+                    else if (offer.MinOrderAmount.HasValue && subtotal < offer.MinOrderAmount.Value)
+                    {
+                        // Minimum order not met — ignore silently
+                    }
+                    else
+                    {
+                        if (offer.DiscountType == "percentage")
+                            discountAmount = Math.Round(subtotal * (offer.DiscountValue / 100m), 2);
+                        else if (offer.DiscountType == "flat")
+                            discountAmount = Math.Round(offer.DiscountValue, 2);
+
+                        if (offer.MaxDiscount.HasValue && discountAmount > offer.MaxDiscount.Value)
+                            discountAmount = offer.MaxDiscount.Value;
+
+                        // Increment usage count
+                        await _mongo.IncrementOfferUsageAsync(offer.Id!);
+                    }
+                }
+            }
+
+            // Apply loyalty points discount
+            int loyaltyPointsUsed = 0;
+            decimal loyaltyDiscountAmount = 0;
+            if (orderRequest.LoyaltyPointsUsed > 0)
+            {
+                var loyaltyAccount = await _mongo.GetLoyaltyAccountAsync(userId);
+                if (loyaltyAccount != null && loyaltyAccount.CurrentPoints >= orderRequest.LoyaltyPointsUsed)
+                {
+                    loyaltyPointsUsed = orderRequest.LoyaltyPointsUsed;
+                    // 1 point = ₹0.25
+                    loyaltyDiscountAmount = Math.Round(loyaltyPointsUsed * 0.25m, 2);
+                    // Deduct loyalty points
+                    await _mongo.DeductLoyaltyPointsAsync(userId, loyaltyPointsUsed, $"Used for order");
+                }
+            }
+
+            var total = Math.Max(0, subtotal + tax + platformCharge - discountAmount - loyaltyDiscountAmount);
 
             // Get user email
             var user = await _mongo.GetUserByIdAsync(userId);
@@ -200,6 +251,7 @@ public class OrderFunction
                 Items = orderItems,
                 Subtotal = subtotal,
                 Tax = tax,
+                PlatformCharge = platformCharge,
                 Total = total,
                 Status = "pending",
                 PaymentStatus = paymentStatus,
@@ -210,6 +262,10 @@ public class OrderFunction
                 DeliveryAddress = orderRequest.DeliveryAddress,
                 PhoneNumber = orderRequest.PhoneNumber,
                 Notes = orderRequest.Notes,
+                CouponCode = couponCode,
+                DiscountAmount = discountAmount,
+                LoyaltyPointsUsed = loyaltyPointsUsed,
+                LoyaltyDiscountAmount = loyaltyDiscountAmount,
                 CreatedAt = MongoService.GetIstNow(),
                 UpdatedAt = MongoService.GetIstNow()
             };

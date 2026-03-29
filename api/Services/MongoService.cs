@@ -1617,6 +1617,37 @@ public partial class MongoService
             .ToListAsync();
     }
 
+    // Get loyalty account by user ID (alias)
+    public async Task<LoyaltyAccount?> GetLoyaltyAccountAsync(string userId)
+    {
+        return await GetLoyaltyAccountByUserIdAsync(userId);
+    }
+
+    // Deduct loyalty points for checkout
+    public async Task<bool> DeductLoyaltyPointsAsync(string userId, int points, string description)
+    {
+        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        if (account == null || account.CurrentPoints < points) return false;
+
+        account.CurrentPoints -= points;
+        account.TotalPointsRedeemed += points;
+        account.UpdatedAt = GetIstNow();
+
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+
+        var transaction = new PointsTransaction
+        {
+            UserId = userId,
+            Points = -points,
+            Type = "redeemed",
+            Description = description,
+            CreatedAt = GetIstNow()
+        };
+        await _transactions.InsertOneAsync(transaction);
+
+        return true;
+    }
+
     // Get all transactions (admin)
     public async Task<List<PointsTransaction>> GetAllTransactionsAsync()
     {

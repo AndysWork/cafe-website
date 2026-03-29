@@ -34,6 +34,9 @@ public class Order
     [BsonElement("tax")]
     public decimal Tax { get; set; }
 
+    [BsonElement("platformCharge")]
+    public decimal PlatformCharge { get; set; }
+
     [BsonElement("total")]
     public decimal Total { get; set; }
 
@@ -66,6 +69,18 @@ public class Order
 
     [BsonElement("notes")]
     public string? Notes { get; set; }
+
+    [BsonElement("couponCode")]
+    public string? CouponCode { get; set; }
+
+    [BsonElement("discountAmount")]
+    public decimal DiscountAmount { get; set; }
+
+    [BsonElement("loyaltyPointsUsed")]
+    public int LoyaltyPointsUsed { get; set; }
+
+    [BsonElement("loyaltyDiscountAmount")]
+    public decimal LoyaltyDiscountAmount { get; set; }
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
@@ -129,6 +144,11 @@ public class CreateOrderRequest
     
     [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
     public string? Notes { get; set; }
+
+    [StringLength(50, ErrorMessage = "Coupon code cannot exceed 50 characters")]
+    public string? CouponCode { get; set; }
+
+    public int LoyaltyPointsUsed { get; set; }
 }
 
 public class OrderItemRequest

@@ -24,7 +24,12 @@ export interface Order {
   items: OrderItem[];
   subtotal: number;
   tax: number;
+  platformCharge?: number;
   total: number;
+  couponCode?: string;
+  discountAmount?: number;
+  loyaltyPointsUsed?: number;
+  loyaltyDiscountAmount?: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'refunded';
   paymentMethod: 'cod' | 'razorpay';
@@ -51,6 +56,8 @@ export interface CreateOrderRequest {
   razorpayPaymentId?: string;
   razorpayOrderId?: string;
   razorpaySignature?: string;
+  couponCode?: string;
+  loyaltyPointsUsed?: number;
 }
 
 export interface UpdateOrderStatusRequest {

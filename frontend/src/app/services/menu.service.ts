@@ -35,6 +35,7 @@ export interface MenuItem {
   makingPrice?: number;
   packagingCharge?: number;
   shopSellingPrice?: number;
+  dietaryType?: string;
   // Future pricing
   futureShopPrice?: number;
   futureOnlinePrice?: number;

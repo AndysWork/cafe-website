@@ -125,8 +125,20 @@
               <span>₹{{ order.subtotal }}</span>
             </div>
             <div class="price-row">
-              <span>Tax (10%)</span>
+              <span>Tax (2.5%)</span>
               <span>₹{{ order.tax }}</span>
+            </div>
+            <div class="price-row">
+              <span>Platform Charge (2.5%)</span>
+              <span>₹{{ order.platformCharge }}</span>
+            </div>
+            <div *ngIf="order.discountAmount" class="price-row discount-row">
+              <span>🏷️ Coupon ({{ order.couponCode }})</span>
+              <span>−₹{{ order.discountAmount }}</span>
+            </div>
+            <div *ngIf="order.loyaltyDiscountAmount" class="price-row discount-row">
+              <span>⭐ Loyalty ({{ order.loyaltyPointsUsed }} pts)</span>
+              <span>−₹{{ order.loyaltyDiscountAmount }}</span>
             </div>
             <div class="price-row grand-total">
               <span>Total</span>
@@ -177,6 +189,12 @@
 
           <!-- Actions -->
           <div class="card-actions">
+            <button *ngIf="!isAdmin"
+                    class="btn-reorder"
+                    (click)="reorderItems(order); $event.stopPropagation()">
+              🔄 Reorder
+            </button>
+
             <button *ngIf="!isAdmin && canCancelOrder(order)"
                     class="btn-cancel"
                     (click)="cancelOrder(order.id); $event.stopPropagation()">

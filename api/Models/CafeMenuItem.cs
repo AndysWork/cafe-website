@@ -63,6 +63,9 @@ public class CafeMenuItem
     
     public bool IsAvailable { get; set; } = true;
     
+    // Dietary type: veg, non-veg, egg, vegan
+    public string DietaryType { get; set; } = "veg";
+    
     // Variants for menu items (e.g., different sizes, quantities)
     public List<MenuItemVariant> Variants { get; set; } = new List<MenuItemVariant>();
     

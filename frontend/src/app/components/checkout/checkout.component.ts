@@ -7,6 +7,8 @@ import { OrderService, CreateOrderRequest } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
 import { AddressService, DeliveryAddress, AddAddressRequest } from '../../services/address.service';
 import { AuthService } from '../../services/auth.service';
+import { OffersService, OfferValidationResponse } from '../../services/offers.service';
+import { LoyaltyService, LoyaltyAccount } from '../../services/loyalty.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 
@@ -43,12 +45,48 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   errorMessage = '';
   private cartSub?: Subscription;
 
+  // Coupon state
+  couponCode = '';
+  couponDiscount = 0;
+  couponMessage = '';
+  couponValid = false;
+  validatingCoupon = false;
+  appliedCouponOfferId = '';
+
+  // Loyalty state
+  loyaltyAccount: LoyaltyAccount | null = null;
+  useLoyaltyPoints = false;
+  loyaltyPointsToUse = 0;
+  maxLoyaltyDiscount = 0;
+  loyaltyLoaded = false;
+
+  // Computed totals
+  get taxAmount(): number {
+    return Math.round(this.cart.subtotal * 0.025 * 100) / 100;
+  }
+
+  get platformChargeAmount(): number {
+    return Math.round(this.cart.subtotal * 0.025 * 100) / 100;
+  }
+
+  get loyaltyDiscount(): number {
+    if (!this.useLoyaltyPoints || !this.loyaltyAccount) return 0;
+    return Math.round(this.loyaltyPointsToUse * 0.25 * 100) / 100;
+  }
+
+  get grandTotal(): number {
+    const raw = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount - this.couponDiscount - this.loyaltyDiscount;
+    return Math.round(Math.max(0, raw) * 100) / 100;
+  }
+
   constructor(
     private cartService: CartService,
     private orderService: OrderService,
     private paymentService: PaymentService,
     private addressService: AddressService,
     private authService: AuthService,
+    private offersService: OffersService,
+    private loyaltyService: LoyaltyService,
     private uiStore: UIStore,
     private router: Router
   ) {}
@@ -73,6 +111,15 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           }
         },
         error: () => {} // silently fail
+      });
+
+      // Load loyalty account
+      this.loyaltyService.getLoyaltyAccount().subscribe({
+        next: (account) => {
+          this.loyaltyAccount = account;
+          this.loyaltyLoaded = true;
+        },
+        error: () => { this.loyaltyLoaded = true; }
       });
     }
   }
@@ -127,9 +174,64 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Coupon methods
+  applyCoupon() {
+    if (!this.couponCode.trim()) return;
+    this.validatingCoupon = true;
+    this.couponMessage = '';
+    this.offersService.validateOffer({
+      code: this.couponCode.trim(),
+      orderAmount: this.cart.subtotal,
+      categories: this.cart.items.map(i => i.categoryName).filter((c): c is string => !!c)
+    }).subscribe({
+      next: (res: OfferValidationResponse) => {
+        this.validatingCoupon = false;
+        if (res.isValid) {
+          this.couponValid = true;
+          this.couponDiscount = res.discountAmount;
+          this.couponMessage = res.message || 'Coupon applied!';
+          this.appliedCouponOfferId = res.offer?.id || '';
+        } else {
+          this.couponValid = false;
+          this.couponDiscount = 0;
+          this.couponMessage = res.message || 'Invalid coupon code';
+        }
+      },
+      error: () => {
+        this.validatingCoupon = false;
+        this.couponValid = false;
+        this.couponDiscount = 0;
+        this.couponMessage = 'Failed to validate coupon';
+      }
+    });
+  }
+
+  removeCoupon() {
+    this.couponCode = '';
+    this.couponDiscount = 0;
+    this.couponMessage = '';
+    this.couponValid = false;
+    this.appliedCouponOfferId = '';
+  }
+
+  // Loyalty methods
+  toggleLoyaltyPoints() {
+    this.useLoyaltyPoints = !this.useLoyaltyPoints;
+    if (this.useLoyaltyPoints && this.loyaltyAccount) {
+      // Max points: use all available, capped so discount doesn't exceed (subtotal + tax - couponDiscount)
+      const maxDiscount = this.cart.subtotal + this.taxAmount - this.couponDiscount;
+      const maxPointsByBalance = this.loyaltyAccount.currentPoints;
+      const maxPointsByTotal = Math.floor(maxDiscount / 0.25);
+      this.loyaltyPointsToUse = Math.min(maxPointsByBalance, maxPointsByTotal);
+      this.maxLoyaltyDiscount = this.loyaltyPointsToUse * 0.25;
+    } else {
+      this.loyaltyPointsToUse = 0;
+    }
+  }
+
   private processRazorpayPayment() {
     // Step 1: Create Razorpay order on backend
-    this.paymentService.createPaymentOrder(this.cart.total).subscribe({
+    this.paymentService.createPaymentOrder(this.grandTotal).subscribe({
       next: (paymentOrder) => {
         // Step 2: Open Razorpay checkout modal
         this.paymentService.openRazorpayCheckout({
@@ -191,7 +293,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       paymentMethod: this.paymentMethod,
       razorpayPaymentId,
       razorpayOrderId,
-      razorpaySignature
+      razorpaySignature,
+      couponCode: this.couponValid ? this.couponCode.trim() : undefined,
+      loyaltyPointsUsed: this.useLoyaltyPoints ? this.loyaltyPointsToUse : undefined
     };
 
     // Submit order

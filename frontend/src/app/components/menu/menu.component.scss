@@ -472,6 +472,37 @@ $radius-full: 9999px;
   letter-spacing: 0.3px;
 }
 
+// Dietary Badge
+.badge-dietary {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: $radius-full;
+  backdrop-filter: blur(6px);
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+
+  &.veg, &.vegan {
+    background: rgba(34, 139, 34, 0.85);
+    color: white;
+  }
+
+  &.non-veg {
+    background: rgba(220, 38, 38, 0.85);
+    color: white;
+  }
+
+  &.egg {
+    background: rgba(202, 138, 4, 0.85);
+    color: white;
+  }
+}
+
 // Favorite Heart Button
 .btn-favorite {
   position: absolute;

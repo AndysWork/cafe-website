@@ -5,6 +5,7 @@ import { LoyaltyService, LoyaltyAccount, Reward, PointsTransaction, ExternalOrde
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { UIStore } from '../../store/ui.store';
 import { formatIstDate } from '../../utils/date-utils';
+import QRCode from 'qrcode';
 
 interface DisplayTransaction {
   date: string;
@@ -444,62 +445,29 @@ export class LoyaltyComponent implements OnInit {
   generateQrCode() {
     if (!this.qrCanvas || !this.loyaltyCardNumber) return;
     const canvas = this.qrCanvas.nativeElement;
-    const ctx = canvas.getContext('2d')!;
     const data = JSON.stringify({
       card: this.loyaltyCardNumber,
       tier: this.tier,
       points: this.currentPoints
     });
-    // Simple visual QR placeholder — generates a data-matrix style pattern
-    this.drawQrPattern(ctx, canvas, data);
-  }
-
-  private drawQrPattern(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, data: string) {
-    const size = 200;
-    canvas.width = size;
-    canvas.height = size;
-    const cellSize = 8;
-    const gridSize = Math.floor(size / cellSize);
-
-    // Create deterministic pattern from data hash
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      hash = ((hash << 5) - hash + data.charCodeAt(i)) | 0;
-    }
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, size, size);
-
-    // Draw finder patterns (3 corners)
-    this.drawFinderPattern(ctx, 0, 0, cellSize);
-    this.drawFinderPattern(ctx, (gridSize - 7) * cellSize, 0, cellSize);
-    this.drawFinderPattern(ctx, 0, (gridSize - 7) * cellSize, cellSize);
-
-    // Fill data cells using hash-based pattern
-    ctx.fillStyle = '#1A1A2E';
-    let seed = Math.abs(hash);
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
-        // Skip finder pattern areas
-        if ((x < 8 && y < 8) || (x >= gridSize - 8 && y < 8) || (x < 8 && y >= gridSize - 8)) continue;
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        if (seed % 3 === 0) {
-          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-        }
+    QRCode.toCanvas(canvas, data, {
+      width: 200,
+      margin: 2,
+      color: { dark: '#1A1A2E', light: '#ffffff' }
+    }).catch(() => {
+      // Fallback: clear canvas on error
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        canvas.width = 200;
+        canvas.height = 200;
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(0, 0, 200, 200);
+        ctx.fillStyle = '#999';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('QR Error', 100, 105);
       }
-    }
-  }
-
-  private drawFinderPattern(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number) {
-    // Outer dark 7x7
-    ctx.fillStyle = '#1A1A2E';
-    ctx.fillRect(x, y, 7 * cell, 7 * cell);
-    // Inner light 5x5
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(x + cell, y + cell, 5 * cell, 5 * cell);
-    // Center dark 3x3
-    ctx.fillStyle = '#FF6B35';
-    ctx.fillRect(x + 2 * cell, y + 2 * cell, 3 * cell, 3 * cell);
+    });
   }
 
   getTierIcon(): string {

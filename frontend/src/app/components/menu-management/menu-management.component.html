@@ -202,6 +202,16 @@
             <textarea [(ngModel)]="formData.description" name="description" rows="3" placeholder="Item description..."></textarea>
           </div>
 
+          <div class="form-group">
+            <label>Dietary Type</label>
+            <select [(ngModel)]="formData.dietaryType" name="dietaryType">
+              <option value="veg">🟢 Veg</option>
+              <option value="non-veg">🔴 Non-Veg</option>
+              <option value="egg">🟡 Egg</option>
+              <option value="vegan">🟢 Vegan</option>
+            </select>
+          </div>
+
           <!-- Image Upload Section -->
           <div class="form-group image-upload-section">
             <label>Item Image</label>
