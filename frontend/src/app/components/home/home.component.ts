@@ -10,6 +10,23 @@ import { AnalyticsTrackingService } from '../../services/analytics-tracking.serv
 
 declare const L: any;
 
+function loadLeaflet(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof L !== 'undefined') { resolve(); return; }
+    // Load CSS
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+    // Load JS
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Leaflet'));
+    document.head.appendChild(script);
+  });
+}
+
 interface Category {
   id: string;
   name: string;
@@ -140,7 +157,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
-    setTimeout(() => this.initMap(), 300);
+    loadLeaflet()
+      .then(() => setTimeout(() => this.initMap(), 300))
+      .catch(err => console.error('Failed to load Leaflet:', err));
   }
 
   ngOnDestroy() {

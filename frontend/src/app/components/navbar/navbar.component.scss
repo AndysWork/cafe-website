@@ -295,7 +295,7 @@
     font-size: inherit;
 
     &:hover {
-      background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+      background: linear-gradient(135deg, #475569 0%, #334155 100%);
       color: white;
     }
   }
@@ -370,14 +370,14 @@
 }
 
 .btn-logout {
-  background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
   color: white;
-  box-shadow: 0 6px 20px rgba(245, 101, 101, 0.4);
+  box-shadow: 0 6px 20px rgba(71, 85, 105, 0.35);
 
   &:hover {
     transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 10px 30px rgba(245, 101, 101, 0.5);
-    background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+    box-shadow: 0 10px 30px rgba(51, 65, 85, 0.45);
+    background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
 
     .logout-icon {
       transform: scale(1.2) rotate(-5deg);

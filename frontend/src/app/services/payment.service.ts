@@ -7,6 +7,17 @@ import { handleServiceError } from '../utils/error-handler';
 
 declare var Razorpay: any;
 
+function loadRazorpay(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof Razorpay !== 'undefined') { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
+    document.head.appendChild(script);
+  });
+}
+
 export interface CreatePaymentOrderRequest {
   amount: number;
   receipt?: string;
@@ -78,7 +89,7 @@ export class PaymentService {
   }
 
   // Open Razorpay checkout modal
-  openRazorpayCheckout(options: {
+  async openRazorpayCheckout(options: {
     orderId: string;
     amount: number;
     currency: string;
@@ -88,6 +99,7 @@ export class PaymentService {
     customerPhone?: string;
     description?: string;
   }): Promise<RazorpayPaymentResult> {
+    await loadRazorpay();
     return new Promise((resolve, reject) => {
       const razorpayOptions = {
         key: options.keyId,

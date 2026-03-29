@@ -39,50 +39,40 @@ export class AdminLayoutComponent implements OnDestroy {
           icon: '📁',
           label: 'Categories',
           route: '/admin/category/crud'
+        },
+        {
+          icon: '🍔',
+          label: 'Combo Meals',
+          route: '/admin/combos'
         }
       ]
     },
     {
-      icon: '🎁',
-      label: 'Offers',
-      route: '/admin/offers',
-      active: false
-    },
-    {
-      icon: '🏆',
-      label: 'Loyalty',
-      route: '/admin/loyalty',
-      active: false
-    },
-    {
       icon: '💰',
-      label: 'Sales',
-      route: '/admin/sales',
-      active: false
-    },
-    {
-      icon: '💸',
-      label: 'Expenses',
-      route: '/admin/expenses',
-      active: false
-    },
-    {
-      icon: '📈',
-      label: 'Analytics',
-      route: '/admin/analytics',
-      active: false
-    },
-    {
-      icon: '👁️',
-      label: 'User Analytics',
-      route: '/admin/user-analytics',
-      active: false
-    },
-    {
-      icon: '📦',
-      label: 'Inventory',
-      route: '/admin/inventory',
-      active: false
+      label: 'Finance',
+      active: false,
+      children: [
+        {
+          icon: '💵',
+          label: 'Sales',
+          route: '/admin/sales'
+        },
+        {
+          icon: '💸',
+          label: 'Expenses',
+          route: '/admin/expenses'
+        },
+        {
+          icon: '🏢',
+          label: 'Operational Expenses',
+          route: '/admin/operational-expenses'
+        },
+        {
+          icon: '🧾',
+          label: 'Cashier',
+          route: '/admin/cashier'
+        }
+      ]
     },
     {
       icon: '👥',
@@ -96,8 +86,13 @@ export class AdminLayoutComponent implements OnDestroy {
         },
         {
           icon: '📝',
-          label: 'Daily Performance Entry',
+          label: 'Daily Performance',
           route: '/admin/daily-performance'
+        },
+        {
+          icon: '📊',
+          label: 'Staff Performance',
+          route: '/admin/staff-performance'
         },
         {
           icon: '💰',
@@ -106,60 +101,13 @@ export class AdminLayoutComponent implements OnDestroy {
         },
         {
           icon: '⚙️',
-          label: 'Bonus Configuration',
+          label: 'Bonus Config',
           route: '/admin/bonus-configuration'
-        },
-        {
-          icon: '📊',
-          label: 'Staff Performance',
-          route: '/admin/staff-performance'
         },
         {
           icon: '🕐',
           label: 'Attendance',
           route: '/admin/attendance'
-        }
-      ]
-    },
-    {
-      icon: '🛠️',
-      label: 'Tools',
-      active: false,
-      children: [
-        {
-          icon: '🧾',
-          label: 'Cashier',
-          route: '/admin/cashier'
-        },
-        {
-          icon: '📊',
-          label: 'Online Sales',
-          route: '/admin/online-sale-tracker'
-        },
-        {
-          icon: '💹',
-          label: 'Profit Tracker',
-          route: '/admin/online-profit-tracker'
-        },
-        {
-          icon: '⏱️',
-          label: 'KPT Analysis',
-          route: '/admin/kpt-analysis'
-        },
-        {
-          icon: '💲',
-          label: 'Price Forecasting',
-          route: '/admin/price-forecasting'
-        },
-        {
-          icon: '🧮',
-          label: 'Price Calculator',
-          route: '/admin/price-calculator'
-        },
-         {
-          icon: '🏷️',
-          label: 'Discount Mapping',
-          route: '/admin/discount-mapping'
         }
       ]
     },
@@ -174,14 +122,14 @@ export class AdminLayoutComponent implements OnDestroy {
           route: '/admin/kitchen-display'
         },
         {
+          icon: '📦',
+          label: 'Inventory',
+          route: '/admin/inventory'
+        },
+        {
           icon: '📋',
           label: 'Reservations',
           route: '/admin/reservations'
-        },
-        {
-          icon: '🗑️',
-          label: 'Wastage',
-          route: '/admin/wastage'
         },
         {
           icon: '🚚',
@@ -197,6 +145,11 @@ export class AdminLayoutComponent implements OnDestroy {
           icon: '📦',
           label: 'Auto Reorder',
           route: '/admin/auto-reorder'
+        },
+        {
+          icon: '🗑️',
+          label: 'Wastage',
+          route: '/admin/wastage'
         }
       ]
     },
@@ -206,9 +159,14 @@ export class AdminLayoutComponent implements OnDestroy {
       active: false,
       children: [
         {
-          icon: '🍔',
-          label: 'Combo Meals',
-          route: '/admin/combos'
+          icon: '🎁',
+          label: 'Offers',
+          route: '/admin/offers'
+        },
+        {
+          icon: '🏆',
+          label: 'Loyalty',
+          route: '/admin/loyalty'
         },
         {
           icon: '🎉',
@@ -228,19 +186,66 @@ export class AdminLayoutComponent implements OnDestroy {
       ]
     },
     {
-      icon: '📊',
-      label: 'Reports',
+      icon: '📈',
+      label: 'Analytics',
       active: false,
       children: [
         {
-          icon: '📥',
-          label: 'Export Reports',
-          route: '/admin/reports'
+          icon: '📊',
+          label: 'Business Analytics',
+          route: '/admin/analytics'
+        },
+        {
+          icon: '👁️',
+          label: 'User Analytics',
+          route: '/admin/user-analytics'
+        },
+        {
+          icon: '🛒',
+          label: 'Online Sales',
+          route: '/admin/online-sale-tracker'
+        },
+        {
+          icon: '💹',
+          label: 'Profit Tracker',
+          route: '/admin/online-profit-tracker'
+        },
+        {
+          icon: '⏱️',
+          label: 'KPT Analysis',
+          route: '/admin/kpt-analysis'
         },
         {
           icon: '🏢',
           label: 'Branch Comparison',
           route: '/admin/branch-comparison'
+        }
+      ]
+    },
+    {
+      icon: '🛠️',
+      label: 'Tools',
+      active: false,
+      children: [
+        {
+          icon: '💲',
+          label: 'Price Forecasting',
+          route: '/admin/price-forecasting'
+        },
+        {
+          icon: '🧮',
+          label: 'Price Calculator',
+          route: '/admin/price-calculator'
+        },
+        {
+          icon: '🏷️',
+          label: 'Discount Mapping',
+          route: '/admin/discount-mapping'
+        },
+        {
+          icon: '📥',
+          label: 'Export Reports',
+          route: '/admin/reports'
         }
       ]
     }
