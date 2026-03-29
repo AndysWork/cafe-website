@@ -65,7 +65,7 @@ public class PriceForecastFunction
         {
             _log.LogError(ex, "Error getting price forecasts");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -91,7 +91,7 @@ public class PriceForecastFunction
         {
             _log.LogError(ex, "Error getting price forecasts for menu item {MenuItemId}", menuItemId);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -124,7 +124,7 @@ public class PriceForecastFunction
         {
             _log.LogError(ex, "Error getting price forecast {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -185,7 +185,7 @@ public class PriceForecastFunction
         {
             _log.LogError(ex, "Error creating price forecast");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -277,7 +277,7 @@ public class PriceForecastFunction
         {
             _log.LogError(ex, "Error updating price forecast {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -327,7 +327,7 @@ public class PriceForecastFunction
         {
             _log.LogError(ex, "Error deleting price forecast {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -361,7 +361,7 @@ public class PriceForecastFunction
         {
             _log.LogError(ex, "Error finalizing price forecast {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }

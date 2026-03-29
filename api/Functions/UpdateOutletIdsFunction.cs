@@ -3,6 +3,8 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using MongoDB.Bson;
+using Cafe.Api.Services;
+using Cafe.Api.Helpers;
 using System.Net;
 using System.Text.Json;
 
@@ -12,23 +14,29 @@ public class UpdateOutletIdsFunction
 {
     private readonly ILogger<UpdateOutletIdsFunction> _logger;
     private readonly IMongoDatabase _database;
+    private readonly AuthService _authService;
 
     public UpdateOutletIdsFunction(
         ILogger<UpdateOutletIdsFunction> logger,
-        IMongoDatabase database)
+        IMongoDatabase database,
+        AuthService authService)
     {
         _logger = logger;
         _database = database;
+        _authService = authService;
     }
 
     [Function("UpdateMissingOutletIds")]
     public async Task<HttpResponseData> UpdateMissingOutletIds(
-        [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequestData req)
     {
         _logger.LogInformation("Starting update of missing OutletId fields");
 
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var request = JsonSerializer.Deserialize<UpdateOutletIdsRequest>(requestBody, new JsonSerializerOptions 
             { 
@@ -88,7 +96,7 @@ public class UpdateOutletIdsFunction
         {
             _logger.LogError(ex, "Error updating outlet IDs");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteStringAsync($"Error: {ex.Message}");
+            await errorResponse.WriteStringAsync("Error: An internal error occurred");
             return errorResponse;
         }
     }
@@ -156,19 +164,21 @@ public class UpdateOutletIdsFunction
                 CollectionName = collectionName,
                 TotalRecords = 0,
                 UpdatedRecords = 0,
-                Message = $"Error: {ex.Message}"
+                Message = "Error: An internal error occurred"
             };
         }
     }
 
     [Function("VerifyOutletIds")]
     public async Task<HttpResponseData> VerifyOutletIds(
-        [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequestData req)
     {
         _logger.LogInformation("Verifying OutletId fields across collections");
 
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _authService);
+            if (!isAuthorized) return authError!;
             var collections = new[] { "Menu", "PriceForecasts", "Inventory", "DailyCashReconciliation" };
             var results = new Dictionary<string, CollectionStats>();
 
@@ -196,7 +206,7 @@ public class UpdateOutletIdsFunction
         {
             _logger.LogError(ex, "Error verifying outlet IDs");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteStringAsync($"Error: {ex.Message}");
+            await errorResponse.WriteStringAsync("Error: An internal error occurred");
             return errorResponse;
         }
     }
@@ -240,7 +250,7 @@ public class UpdateOutletIdsFunction
                 TotalRecords = 0,
                 WithOutletId = 0,
                 WithoutOutletId = 0,
-                Error = ex.Message
+                Error = "An internal error occurred"
             };
         }
     }

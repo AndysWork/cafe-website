@@ -28,7 +28,7 @@ public class InitializeIngredientsFunction
     // POST: Initialize ingredients database with cafe-specific data
     [Function("InitializeIngredients")]
     public async Task<HttpResponseData> InitializeIngredients(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ingredients/initialize")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ingredients/initialize")] HttpRequestData req)
     {
         try
         {
@@ -56,7 +56,7 @@ public class InitializeIngredientsFunction
                 }
                 catch (Exception ex)
                 {
-                    errors.Add($"{ingredient.Name}: {ex.Message}");
+                    errors.Add($"{ingredient.Name}: Failed to create");
                     _logger.LogError(ex, $"Failed to create ingredient: {ingredient.Name}");
                 }
             }
@@ -76,7 +76,7 @@ public class InitializeIngredientsFunction
         {
             _logger.LogError(ex, "Error initializing ingredients");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return response;
         }
     }

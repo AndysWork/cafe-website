@@ -49,7 +49,7 @@ public class SubCategoryFunction
         {
             _log.LogError(ex, "Error getting subcategories");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -80,7 +80,7 @@ public class SubCategoryFunction
         {
             _log.LogError(ex, "Error getting subcategories for category {CategoryId}", categoryId);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -119,7 +119,7 @@ public class SubCategoryFunction
         {
             _log.LogError(ex, "Error getting subcategory {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -160,7 +160,7 @@ public class SubCategoryFunction
         {
             _log.LogError(ex, "Error creating subcategory");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -209,7 +209,7 @@ public class SubCategoryFunction
         {
             _log.LogError(ex, "Error updating subcategory {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -248,7 +248,7 @@ public class SubCategoryFunction
         {
             _log.LogError(ex, "Error deleting subcategory {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }

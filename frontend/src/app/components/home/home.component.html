@@ -35,7 +35,10 @@
     </div>
     <div class="outlets-grid">
       <!-- Real Outlets -->
-      <div *ngFor="let outlet of outlets; trackBy: trackById" class="outlet-card">
+      <div
+        *ngFor="let outlet of outlets; trackBy: trackById"
+        class="outlet-card"
+      >
         <div class="outlet-name-row">
           <span class="outlet-badge">{{ outlet.outletCode }}</span>
           <h3>{{ outlet.outletName }}</h3>
@@ -54,7 +57,11 @@
         </div>
         <div class="outlet-info-row" *ngIf="outlet.phoneNumber">
           <span class="outlet-info-icon">📞</span>
-          <a [href]="'tel:' + outlet.phoneNumber" (click)="trackOutletPhoneClick(outlet.outletName)">{{ outlet.phoneNumber }}</a>
+          <a
+            [href]="'tel:' + outlet.phoneNumber"
+            (click)="trackOutletPhoneClick(outlet.outletName)"
+            >{{ outlet.phoneNumber }}</a
+          >
         </div>
         <div class="outlet-tags">
           <span *ngIf="outlet.settings.acceptsDineIn" class="outlet-tag"
@@ -68,63 +75,6 @@
           >
         </div>
       </div>
-
-      <!-- Placeholder Outlet Cards -->
-      <div class="outlet-card outlet-placeholder">
-        <div class="outlet-name-row">
-          <span class="outlet-badge">🏪</span>
-          <h3>Maa Tara Cafe</h3>
-        </div>
-        <div class="outlet-info-row">
-          <span class="outlet-info-icon">📍</span>
-          <span>107 KGR Path, Kanchrapara</span>
-        </div>
-        <div class="outlet-info-row">
-          <span class="outlet-info-icon">🕐</span>
-          <span class="outlet-timing"
-            >9.00 AM - 10.30 PM<span class="open-daily"> Everyday</span></span
-          >
-        </div>
-        <div class="outlet-info-row">
-          <span class="outlet-info-icon">📞</span>
-          <a href="tel:+918240443533" (click)="trackOutletPhoneClick('Maa Tara Cafe - Kanchrapara')">+91-8240443533</a>
-        </div>
-        <div class="outlet-tags">
-          <span class="outlet-tag">🍽️ Dine-In</span>
-          <span class="outlet-tag">🥡 Takeaway</span>
-          <span class="outlet-tag">🛵 Zomato</span>
-          <span class="outlet-tag">🛵 Swiggy</span>
-        </div>
-      </div>
-
-      <div class="outlet-card outlet-placeholder">
-        <div class="outlet-name-row">
-          <span class="outlet-badge">🏪</span>
-          <h3>Maa Tara Cafe</h3>
-        </div>
-        <div class="outlet-info-row">
-          <span class="outlet-info-icon">📍</span>
-          <span
-            >Bongaon Road, Kanchrapara (Beside Indian Girls High School)</span
-          >
-        </div>
-        <div class="outlet-info-row">
-          <span class="outlet-info-icon">🕐</span>
-          <span class="outlet-timing"
-            >9.00 AM - 10.00 PM<span class="open-daily"> Everyday</span></span
-          >
-        </div>
-        <div class="outlet-info-row">
-          <span class="outlet-info-icon">📞</span>
-          <a href="tel:+918240443533" (click)="trackOutletPhoneClick('Maa Tara Cafe - Bongaon Road')">+91-8240443533</a>
-        </div>
-        <div class="outlet-tags">
-          <span class="outlet-tag">🍽️ Dine-In</span>
-          <span class="outlet-tag">🥡 Takeaway</span>
-          <span class="outlet-tag">🛵 Zomato</span>
-          <!-- <span class="outlet-tag">🛵 Swiggy</span> -->
-        </div>
-      </div>
     </div>
 
     <!-- Map -->
@@ -133,7 +83,12 @@
         <span class="map-icon">🗺️</span>
         <h3>Find Us on the Map</h3>
       </div>
-      <div #cafeMap id="cafe-map" class="cafe-map" style="height: 350px; width: 100%;"></div>
+      <div
+        #cafeMap
+        id="cafe-map"
+        class="cafe-map"
+        style="height: 350px; width: 100%"
+      ></div>
     </div>
   </section>
 
@@ -145,7 +100,11 @@
     </div>
     <div class="categories-grid">
       <div
-        *ngFor="let category of categories; let i = index; trackBy: trackByObjId"
+        *ngFor="
+          let category of categories;
+          let i = index;
+          trackBy: trackByObjId
+        "
         class="category-card"
         [style.--accent]="getCategoryColor(i)"
         (click)="trackCategoryClick(category.name)"
@@ -166,7 +125,11 @@
       <p>Our latest menu items</p>
     </div>
     <div class="menu-grid">
-      <div *ngFor="let item of latestMenuItems; trackBy: trackByName" class="menu-card" (click)="trackMenuItemClick(item.name)">
+      <div
+        *ngFor="let item of latestMenuItems; trackBy: trackByName"
+        class="menu-card"
+        (click)="trackMenuItemClick(item.name)"
+      >
         <span class="menu-tag">{{ item.tag }}</span>
         <div class="menu-icon">{{ item.image }}</div>
         <h3>{{ item.name }}</h3>

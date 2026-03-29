@@ -773,7 +773,8 @@ public class OrderFunction
             Notes = order.Notes,
             CreatedAt = order.CreatedAt,
             UpdatedAt = order.UpdatedAt,
-            CompletedAt = order.CompletedAt
+            CompletedAt = order.CompletedAt,
+            ReceiptImageUrl = order.ReceiptImageUrl
         };
     }
 }

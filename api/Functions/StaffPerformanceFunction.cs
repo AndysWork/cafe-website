@@ -189,7 +189,7 @@ public class StaffPerformanceFunction
         {
             _log.LogError(ex, "Error calculating bonus for record {RecordId}", recordId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }

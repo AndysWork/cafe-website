@@ -405,7 +405,7 @@ public class SalesFunction
         {
             _log.LogError(ex, "Error uploading sales Excel file");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }

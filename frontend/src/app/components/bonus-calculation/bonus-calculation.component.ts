@@ -183,7 +183,7 @@ export class BonusCalculationComponent implements OnInit {
     if (!this.selectedStaff || !this.startDate || !this.endDate) return;
 
     this.isLoading = true;
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('authToken');
     const headers = new HttpHeaders({
       'Authorization': `Bearer ${token}`
     });

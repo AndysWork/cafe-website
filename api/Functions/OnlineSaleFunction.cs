@@ -62,7 +62,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error getting online sales");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -123,7 +123,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error getting online sales by date range");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -174,7 +174,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error getting daily online income");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -215,7 +215,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error getting online sale by ID");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -302,7 +302,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error creating online sale");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -348,7 +348,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error updating online sale");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -381,7 +381,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error deleting online sale");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -429,7 +429,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error bulk deleting online sales");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -460,7 +460,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error getting five star reviews");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -486,7 +486,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error getting discount coupons");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -531,7 +531,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error updating discount coupon status");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -556,7 +556,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error getting active discount coupons");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -600,7 +600,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error updating discount coupon max value");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -644,7 +644,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error updating discount coupon percentage");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -804,7 +804,7 @@ public class OnlineSaleFunction
         {
             _log.LogError(ex, "Error analyzing KPT data");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { success = false, message = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
     }

@@ -71,6 +71,18 @@ public class LoyaltyFunction
             // Get or create loyalty account
             var account = await _mongo.GetOrCreateLoyaltyAccountAsync(userId, username);
 
+            // Process any expired points
+            await _mongo.ProcessExpiredPointsAsync(userId);
+            // Refresh account after expiry processing
+            account = await _mongo.GetOrCreateLoyaltyAccountAsync(userId, username);
+
+            // Check birthday bonus
+            var birthdayAvailable = _mongo.IsBirthdayBonusAvailable(account);
+            var birthdayBonusPoints = _mongo.GetBirthdayBonusPoints(account.Tier);
+
+            // Get expiring points info
+            var (expiringPoints, expiringDate) = await _mongo.GetExpiringPointsInfoAsync(userId);
+
             // Calculate next tier info
             var (nextTier, pointsToNextTier) = CalculateNextTierInfo(account.TotalPointsEarned);
 
@@ -85,6 +97,16 @@ public class LoyaltyFunction
                 Tier = account.Tier,
                 NextTier = nextTier,
                 PointsToNextTier = pointsToNextTier,
+                ReferralCode = account.ReferralCode,
+                TotalReferrals = account.TotalReferrals,
+                LoyaltyCardNumber = account.LoyaltyCardNumber,
+                DateOfBirth = account.DateOfBirth,
+                TierMultiplier = _mongo.GetTierMultiplier(account.Tier),
+                TierBenefits = _mongo.GetTierBenefits(account.Tier),
+                ExpiringPoints = expiringPoints,
+                ExpiringDate = expiringDate,
+                BirthdayBonusAvailable = birthdayAvailable,
+                BirthdayBonusPoints = birthdayBonusPoints,
                 CreatedAt = account.CreatedAt,
                 UpdatedAt = account.UpdatedAt
             };
@@ -148,6 +170,7 @@ public class LoyaltyFunction
                 Description = t.Description,
                 OrderId = t.OrderId,
                 RewardId = t.RewardId,
+                ExpiresAt = t.ExpiresAt,
                 CreatedAt = t.CreatedAt
             }).ToList();
 
@@ -279,6 +302,12 @@ public class LoyaltyFunction
                 Tier = redemptionResult.Account.Tier,
                 NextTier = nextTier,
                 PointsToNextTier = pointsToNextTier,
+                ReferralCode = redemptionResult.Account.ReferralCode,
+                TotalReferrals = redemptionResult.Account.TotalReferrals,
+                LoyaltyCardNumber = redemptionResult.Account.LoyaltyCardNumber,
+                DateOfBirth = redemptionResult.Account.DateOfBirth,
+                TierMultiplier = _mongo.GetTierMultiplier(redemptionResult.Account.Tier),
+                TierBenefits = _mongo.GetTierBenefits(redemptionResult.Account.Tier),
                 CreatedAt = redemptionResult.Account.CreatedAt,
                 UpdatedAt = redemptionResult.Account.UpdatedAt
             };
@@ -333,6 +362,12 @@ public class LoyaltyFunction
                     Tier = a.Tier,
                     NextTier = nextTier,
                     PointsToNextTier = pointsToNextTier,
+                    ReferralCode = a.ReferralCode,
+                    TotalReferrals = a.TotalReferrals,
+                    LoyaltyCardNumber = a.LoyaltyCardNumber,
+                    DateOfBirth = a.DateOfBirth,
+                    TierMultiplier = _mongo.GetTierMultiplier(a.Tier),
+                    TierBenefits = _mongo.GetTierBenefits(a.Tier),
                     CreatedAt = a.CreatedAt,
                     UpdatedAt = a.UpdatedAt
                 };
@@ -423,6 +458,185 @@ public class LoyaltyFunction
             _log.LogError($"Error getting all rewards: {ex.Message}");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get rewards" });
+            return error;
+        }
+    }
+
+    // POST: Transfer points to another user
+    [Function("TransferPoints")]
+    [OpenApiOperation(operationId: "TransferPoints", tags: new[] { "Loyalty" }, Summary = "Transfer points", Description = "Transfer loyalty points to another user")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(TransferPointsRequest))]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object))]
+    public async Task<HttpResponseData> TransferPoints(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "loyalty/transfer")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) =
+                await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized || string.IsNullOrEmpty(userId))
+                return errorResponse!;
+
+            var body = await req.ReadFromJsonAsync<TransferPointsRequest>();
+            if (body == null || string.IsNullOrWhiteSpace(body.RecipientUsername) || body.Points <= 0)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Please provide a valid recipient username and points amount" });
+                return badRequest;
+            }
+
+            var sanitizedUsername = InputSanitizer.Sanitize(body.RecipientUsername);
+
+            var (success, message) = await _mongo.TransferPointsAsync(userId, sanitizedUsername, body.Points);
+
+            if (!success)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = message });
+                return badReq;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, message });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error transferring points: {ex.Message}");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to transfer points" });
+            return error;
+        }
+    }
+
+    // POST: Apply referral code
+    [Function("ApplyReferralCode")]
+    [OpenApiOperation(operationId: "ApplyReferralCode", tags: new[] { "Loyalty" }, Summary = "Apply referral code", Description = "Apply a referral code to earn bonus points")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(ApplyReferralRequest))]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object))]
+    public async Task<HttpResponseData> ApplyReferralCode(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "loyalty/referral/apply")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) =
+                await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized || string.IsNullOrEmpty(userId))
+                return errorResponse!;
+
+            var body = await req.ReadFromJsonAsync<ApplyReferralRequest>();
+            if (body == null || string.IsNullOrWhiteSpace(body.ReferralCode))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Please provide a referral code" });
+                return badRequest;
+            }
+
+            var sanitizedCode = InputSanitizer.Sanitize(body.ReferralCode).Trim().ToUpper();
+
+            var (success, message) = await _mongo.ApplyReferralCodeAsync(userId, sanitizedCode);
+
+            if (!success)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = message });
+                return badReq;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, message });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error applying referral code: {ex.Message}");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to apply referral code" });
+            return error;
+        }
+    }
+
+    // PUT: Set birthday
+    [Function("SetBirthday")]
+    [OpenApiOperation(operationId: "SetBirthday", tags: new[] { "Loyalty" }, Summary = "Set birthday", Description = "Set your date of birth for birthday rewards")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(SetBirthdayRequest))]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object))]
+    public async Task<HttpResponseData> SetBirthday(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "loyalty/birthday")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) =
+                await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized || string.IsNullOrEmpty(userId))
+                return errorResponse!;
+
+            var body = await req.ReadFromJsonAsync<SetBirthdayRequest>();
+            if (body == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Please provide a date of birth" });
+                return badRequest;
+            }
+
+            var (success, message) = await _mongo.SetBirthdayAsync(userId, body.DateOfBirth);
+
+            if (!success)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = message });
+                return badReq;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, message });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error setting birthday: {ex.Message}");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to set birthday" });
+            return error;
+        }
+    }
+
+    // POST: Claim birthday bonus
+    [Function("ClaimBirthdayBonus")]
+    [OpenApiOperation(operationId: "ClaimBirthdayBonus", tags: new[] { "Loyalty" }, Summary = "Claim birthday bonus", Description = "Claim your annual birthday bonus points")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object))]
+    public async Task<HttpResponseData> ClaimBirthdayBonus(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "loyalty/birthday/claim")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) =
+                await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized || string.IsNullOrEmpty(userId))
+                return errorResponse!;
+
+            var (awarded, points) = await _mongo.CheckAndAwardBirthdayBonusAsync(userId);
+
+            if (!awarded)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Birthday bonus not available. Either it's not your birthday, you've already claimed it this year, or your birthday is not set." });
+                return badReq;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, message = $"Happy Birthday! You earned {points} bonus points! 🎂", points });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error claiming birthday bonus: {ex.Message}");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to claim birthday bonus" });
             return error;
         }
     }

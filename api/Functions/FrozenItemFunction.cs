@@ -27,10 +27,13 @@ public class FrozenItemFunction
 
     [Function("GetAllFrozenItems")]
     public async Task<HttpResponseData> GetAllFrozenItems(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "frozen-items")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "frozen-items")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             if (string.IsNullOrEmpty(outletId))
             {
@@ -48,17 +51,20 @@ public class FrozenItemFunction
         {
             _logger.LogError(ex, "Error getting all frozen items");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetActiveFrozenItems")]
     public async Task<HttpResponseData> GetActiveFrozenItems(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "frozen-items/active")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "frozen-items/active")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             if (string.IsNullOrEmpty(outletId))
             {
@@ -76,18 +82,21 @@ public class FrozenItemFunction
         {
             _logger.LogError(ex, "Error getting active frozen items");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetFrozenItemById")]
     public async Task<HttpResponseData> GetFrozenItemById(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "frozen-items/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "frozen-items/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             if (string.IsNullOrEmpty(outletId))
             {
@@ -112,17 +121,20 @@ public class FrozenItemFunction
         {
             _logger.LogError(ex, "Error getting frozen item by ID: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("CreateFrozenItem")]
     public async Task<HttpResponseData> CreateFrozenItem(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "frozen-items")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "frozen-items")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             if (string.IsNullOrEmpty(outletId))
             {
@@ -155,18 +167,21 @@ public class FrozenItemFunction
         {
             _logger.LogError(ex, "Error creating frozen item");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("UpdateFrozenItem")]
     public async Task<HttpResponseData> UpdateFrozenItem(
-        [HttpTrigger(AuthorizationLevel.Function, "put", Route = "frozen-items/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "frozen-items/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             if (string.IsNullOrEmpty(outletId))
             {
@@ -204,18 +219,21 @@ public class FrozenItemFunction
         {
             _logger.LogError(ex, "Error updating frozen item: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("DeleteFrozenItem")]
     public async Task<HttpResponseData> DeleteFrozenItem(
-        [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "frozen-items/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "frozen-items/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             if (string.IsNullOrEmpty(outletId))
             {
@@ -240,17 +258,20 @@ public class FrozenItemFunction
         {
             _logger.LogError(ex, "Error deleting frozen item: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("UploadFrozenItemsExcel")]
     public async Task<HttpResponseData> UploadFrozenItemsExcel(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "frozen-items/upload")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "frozen-items/upload")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             if (string.IsNullOrEmpty(outletId))
             {
@@ -349,17 +370,20 @@ public class FrozenItemFunction
         {
             _logger.LogError(ex, "Error uploading frozen items Excel");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("SyncFrozenItemsToInventory")]
     public async Task<HttpResponseData> SyncFrozenItemsToInventory(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "frozen-items/sync-inventory")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "frozen-items/sync-inventory")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var syncedCount = await _mongoService.SyncAllFrozenItemsToInventoryAsync();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -374,7 +398,7 @@ public class FrozenItemFunction
         {
             _logger.LogError(ex, "Error syncing frozen items to inventory");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }

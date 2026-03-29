@@ -190,10 +190,10 @@ public class ExternalOrderClaimFunction
             });
             return response;
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             var bad = req.CreateResponse(HttpStatusCode.BadRequest);
-            await bad.WriteAsJsonAsync(new { error = ex.Message });
+            await bad.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return bad;
         }
         catch (Exception ex)

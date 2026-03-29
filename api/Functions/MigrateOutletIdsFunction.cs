@@ -138,7 +138,7 @@ public class MigrateOutletIdsFunction
         {
             _logger.LogError(ex, "Error during migration");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = $"Migration failed: {ex.Message}" });
+            await errorResponse.WriteAsJsonAsync(new { error = "Migration failed due to an internal error" });
             return errorResponse;
         }
     }
@@ -170,7 +170,7 @@ public class MigrateOutletIdsFunction
         {
             _logger.LogError(ex, "Error getting migration status");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }

@@ -28,7 +28,7 @@ public class PlatformChargeFunction
     // GET: Get all platform charges
     [Function("GetAllPlatformCharges")]
     public async Task<HttpResponseData> GetAllPlatformCharges(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "platform-charges")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "platform-charges")] HttpRequestData req)
     {
         try
         {
@@ -72,7 +72,7 @@ public class PlatformChargeFunction
     // GET: Get platform charge by month/year/platform
     [Function("GetPlatformChargeByKey")]
     public async Task<HttpResponseData> GetPlatformChargeByKey(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "platform-charges/{platform}/{year}/{month}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "platform-charges/{platform}/{year}/{month}")] HttpRequestData req,
         string platform, int year, int month)
     {
         try
@@ -128,7 +128,7 @@ public class PlatformChargeFunction
     // GET: Get charges by platform
     [Function("GetChargesByPlatform")]
     public async Task<HttpResponseData> GetChargesByPlatform(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "platform-charges/platform/{platform}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "platform-charges/platform/{platform}")] HttpRequestData req,
         string platform)
     {
         try
@@ -172,7 +172,7 @@ public class PlatformChargeFunction
     // POST: Create platform charge
     [Function("CreatePlatformCharge")]
     public async Task<HttpResponseData> CreatePlatformCharge(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "platform-charges")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "platform-charges")] HttpRequestData req)
     {
         try
         {
@@ -266,7 +266,7 @@ public class PlatformChargeFunction
     // PUT: Update platform charge
     [Function("UpdatePlatformCharge")]
     public async Task<HttpResponseData> UpdatePlatformCharge(
-        [HttpTrigger(AuthorizationLevel.Function, "put", Route = "platform-charges/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "platform-charges/{id}")] HttpRequestData req,
         string id)
     {
         try
@@ -320,7 +320,7 @@ public class PlatformChargeFunction
     // DELETE: Delete platform charge
     [Function("DeletePlatformCharge")]
     public async Task<HttpResponseData> DeletePlatformCharge(
-        [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "platform-charges/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "platform-charges/{id}")] HttpRequestData req,
         string id)
     {
         try
@@ -373,10 +373,13 @@ public class PlatformChargeFunction
 
     [Function("MigratePlatformChargeOutlets")]
     public async Task<HttpResponseData> MigratePlatformChargeOutlets(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "platform-charges/migrate-outlets")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "platform-charges/migrate-outlets")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             _logger.LogInformation("Starting migration of platform charge outlet IDs");
             
             // Parse request body to get default outlet ID
@@ -415,7 +418,7 @@ public class PlatformChargeFunction
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
             await response.WriteAsJsonAsync(new { 
                 success = false, 
-                error = ex.Message 
+                error = "An internal error occurred" 
             });
             return response;
         }

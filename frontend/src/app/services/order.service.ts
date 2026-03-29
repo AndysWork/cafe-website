@@ -33,6 +33,7 @@ export interface Order {
   deliveryAddress?: string;
   phoneNumber?: string;
   notes?: string;
+  receiptImageUrl?: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -105,6 +106,24 @@ export class OrderService {
   cancelOrder(orderId: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.apiUrl}/orders/${orderId}`).pipe(
       catchError(handleServiceError('OrderService.cancelOrder'))
+    );
+  }
+
+  // Upload receipt image for an order
+  uploadReceipt(orderId: string, file: File): Observable<{ receiptImageUrl: string; message: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{ receiptImageUrl: string; message: string }>(
+      `${this.apiUrl}/orders/${orderId}/receipt`, formData
+    ).pipe(
+      catchError(handleServiceError('OrderService.uploadReceipt'))
+    );
+  }
+
+  // Delete receipt image for an order
+  deleteReceipt(orderId: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/orders/${orderId}/receipt`).pipe(
+      catchError(handleServiceError('OrderService.deleteReceipt'))
     );
   }
 

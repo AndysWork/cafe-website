@@ -426,7 +426,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error uploading bulk reconciliation file");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to upload file: " + ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to upload file due to an internal error" });
             return errorRes;
         }
     }

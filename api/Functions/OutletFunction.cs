@@ -53,7 +53,7 @@ public class OutletFunction
         {
             _log.LogError(ex, "Error getting all outlets");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -87,7 +87,7 @@ public class OutletFunction
         {
             _log.LogError(ex, "Error getting active outlets");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -130,7 +130,7 @@ public class OutletFunction
         {
             _log.LogError(ex, "Error getting outlet {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -167,7 +167,7 @@ public class OutletFunction
         {
             _log.LogError(ex, "Error getting outlet by code {Code}", code);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -219,7 +219,7 @@ public class OutletFunction
         {
             _log.LogError(ex, "Error creating outlet");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -264,7 +264,7 @@ public class OutletFunction
         {
             _log.LogError(ex, "Error updating outlet {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -308,7 +308,7 @@ public class OutletFunction
         {
             _log.LogError(ex, "Error deleting outlet {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -345,7 +345,7 @@ public class OutletFunction
         {
             _log.LogError(ex, "Error toggling outlet status {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }

@@ -28,24 +28,19 @@ public class SalesItemTypeFunction
     {
         try
         {
-            var user = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
 
             var itemTypes = await _mongo.GetAllSalesItemTypesAsync();
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(itemTypes);
             return response;
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
-            return errorResponse;
-        }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error getting sales item types");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -57,24 +52,19 @@ public class SalesItemTypeFunction
         try
         {
             // Restricted to admin only
-            var user = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
 
             var itemTypes = await _mongo.GetActiveSalesItemTypesAsync();
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(itemTypes);
             return response;
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
-            return errorResponse;
-        }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error getting active sales item types");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -85,7 +75,8 @@ public class SalesItemTypeFunction
     {
         try
         {
-            var user = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
 
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var itemTypeRequest = JsonSerializer.Deserialize<CreateSalesItemTypeRequest>(requestBody, new JsonSerializerOptions
@@ -112,17 +103,11 @@ public class SalesItemTypeFunction
             await response.WriteAsJsonAsync(created);
             return response;
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
-            return errorResponse;
-        }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error creating sales item type");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -134,7 +119,8 @@ public class SalesItemTypeFunction
     {
         try
         {
-            var user = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
 
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var itemTypeRequest = JsonSerializer.Deserialize<SalesItemType>(requestBody, new JsonSerializerOptions
@@ -163,17 +149,11 @@ public class SalesItemTypeFunction
             await response.WriteAsJsonAsync(updated);
             return response;
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
-            return errorResponse;
-        }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error updating sales item type");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -185,7 +165,8 @@ public class SalesItemTypeFunction
     {
         try
         {
-            var user = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
 
             var success = await _mongo.DeleteSalesItemTypeAsync(id);
 
@@ -200,17 +181,11 @@ public class SalesItemTypeFunction
             await response.WriteAsJsonAsync(new { message = "Sales item type deleted successfully" });
             return response;
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
-            return errorResponse;
-        }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error deleting sales item type");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -221,7 +196,8 @@ public class SalesItemTypeFunction
     {
         try
         {
-            var user = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
 
             await _mongo.InitializeDefaultSalesItemTypesAsync();
 
@@ -229,17 +205,11 @@ public class SalesItemTypeFunction
             await response.WriteAsJsonAsync(new { message = "Default sales item types initialized successfully" });
             return response;
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            var errorResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
-            return errorResponse;
-        }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error initializing sales item types");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }

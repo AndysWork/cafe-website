@@ -13,7 +13,6 @@ export const outletInterceptor: HttpInterceptorFn = (req, next) => {
   // If X-Outlet-Id header is already set (even to empty string), don't override it
   // Empty string is used to request all outlets data
   if (req.headers.has('X-Outlet-Id')) {
-    const existingOutletId = req.headers.get('X-Outlet-Id');
     return next(req);
   }
 

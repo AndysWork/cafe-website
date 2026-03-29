@@ -100,7 +100,7 @@ public class MenuUploadFunction
         {
             _log.LogError(ex, "Error uploading menu Excel file");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message, details = ex.ToString() });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }

@@ -5,7 +5,6 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { CustomerReviewsComponent } from '../customer-reviews/customer-reviews.component';
 import { OutletService } from '../../services/outlet.service';
-import { AuthService } from '../../services/auth.service';
 import { Outlet } from '../../models/outlet.model';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 
@@ -127,18 +126,15 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor(
     private http: HttpClient,
-    private outletService: OutletService,
-    private authService: AuthService
+    private outletService: OutletService
   ) {}
 
   ngOnInit() {
     this.startTestimonialRotation();
     // Load categories first, which will trigger menu items
     this.loadCategories();
-    // Load outlets for display (only if logged in - endpoint requires auth)
-    if (this.authService.isLoggedIn()) {
-      this.loadOutlets();
-    }
+    // Load outlets for display (public endpoint, no auth needed)
+    this.loadOutlets();
     // Load real stats from public API
     this.loadPublicStats();
   }
@@ -233,7 +229,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadOutlets() {
-    this.outletService.getActiveOutlets().subscribe({
+    this.outletService.getPublicOutlets().subscribe({
       next: (data) => {
         this.outlets = data || [];
       },

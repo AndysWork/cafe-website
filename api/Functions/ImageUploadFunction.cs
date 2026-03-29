@@ -106,10 +106,10 @@ public class ImageUploadFunction
             await response.WriteAsJsonAsync(new { imageUrl, message = "Image uploaded successfully" });
             return response;
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-            await badRequest.WriteAsJsonAsync(new { error = ex.Message });
+            await badRequest.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return badRequest;
         }
         catch (Exception ex)
@@ -234,10 +234,10 @@ public class ImageUploadFunction
             await response.WriteAsJsonAsync(new { profilePictureUrl = imageUrl, message = "Profile picture uploaded successfully" });
             return response;
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-            await badRequest.WriteAsJsonAsync(new { error = ex.Message });
+            await badRequest.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return badRequest;
         }
         catch (Exception ex)
@@ -279,6 +279,156 @@ public class ImageUploadFunction
             _log.LogError(ex, "Error deleting profile picture");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to delete profile picture" });
+            return error;
+        }
+    }
+
+    /// <summary>
+    /// Uploads a receipt/invoice image for an order. Owner or admin can upload.
+    /// </summary>
+    [Function("UploadOrderReceipt")]
+    [OpenApiOperation(operationId: "UploadOrderReceipt", tags: new[] { "Images" }, Summary = "Upload order receipt image")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Receipt image uploaded")]
+    public async Task<HttpResponseData> UploadOrderReceipt(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders/{orderId}/receipt")] HttpRequestData req,
+        string orderId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            // Validate order exists
+            var order = await _mongo.GetOrderByIdAsync(orderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            // Only order owner or admin can upload receipt
+            if (order.UserId != userId && role != "admin")
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "You can only upload receipts for your own orders" });
+                return forbidden;
+            }
+
+            // Parse multipart form data
+            var contentType = req.Headers.GetValues("Content-Type").FirstOrDefault() ?? "";
+            if (!contentType.Contains("multipart/form-data"))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Content-Type must be multipart/form-data" });
+                return badRequest;
+            }
+
+            var boundary = GetBoundary(contentType);
+            if (string.IsNullOrEmpty(boundary))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid multipart boundary" });
+                return badRequest;
+            }
+
+            using var bodyStream = new MemoryStream();
+            await req.Body.CopyToAsync(bodyStream);
+            bodyStream.Position = 0;
+
+            var (fileData, fileName, fileContentType) = ExtractFileFromMultipart(bodyStream, boundary);
+            if (fileData == null || fileData.Length == 0)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "No image file provided" });
+                return badRequest;
+            }
+
+            // Delete old receipt image if exists
+            if (!string.IsNullOrEmpty(order.ReceiptImageUrl))
+            {
+                await _blobService.DeleteReceiptImageAsync(order.ReceiptImageUrl);
+            }
+
+            // Upload new receipt image (with compression)
+            using var uploadStream = new MemoryStream(fileData);
+            var imageUrl = await _blobService.UploadReceiptImageAsync(
+                uploadStream,
+                fileName,
+                fileContentType,
+                userId!
+            );
+
+            // Update order with receipt image URL
+            await _mongo.UpdateReceiptImageUrlAsync(orderId, imageUrl);
+
+            _log.LogInformation("Receipt image uploaded for order {OrderId}: {ImageUrl}", orderId, imageUrl);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { receiptImageUrl = imageUrl, message = "Receipt uploaded successfully" });
+            return response;
+        }
+        catch (ArgumentException)
+        {
+            var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+            await badRequest.WriteAsJsonAsync(new { error = "An internal error occurred" });
+            return badRequest;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error uploading receipt for order {OrderId}", orderId);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to upload receipt" });
+            return error;
+        }
+    }
+
+    /// <summary>
+    /// Deletes the receipt image for an order. Owner or admin can delete.
+    /// </summary>
+    [Function("DeleteOrderReceipt")]
+    [OpenApiOperation(operationId: "DeleteOrderReceipt", tags: new[] { "Images" }, Summary = "Delete order receipt image")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    public async Task<HttpResponseData> DeleteOrderReceipt(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "orders/{orderId}/receipt")] HttpRequestData req,
+        string orderId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var order = await _mongo.GetOrderByIdAsync(orderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (order.UserId != userId && role != "admin")
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "You can only delete receipts for your own orders" });
+                return forbidden;
+            }
+
+            if (!string.IsNullOrEmpty(order.ReceiptImageUrl))
+            {
+                await _blobService.DeleteReceiptImageAsync(order.ReceiptImageUrl);
+                await _mongo.UpdateReceiptImageUrlAsync(orderId, null);
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Receipt deleted successfully" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting receipt for order {OrderId}", orderId);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to delete receipt" });
             return error;
         }
     }

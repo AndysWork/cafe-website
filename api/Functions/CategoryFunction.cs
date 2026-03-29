@@ -52,7 +52,7 @@ public class CategoryFunction
         {
             _log.LogError(ex, "Error getting categories");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -95,7 +95,7 @@ public class CategoryFunction
         {
             _log.LogError(ex, "Error getting category {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -147,7 +147,7 @@ public class CategoryFunction
         {
             _log.LogError(ex, "Error creating category");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -191,7 +191,7 @@ public class CategoryFunction
         {
             _log.LogError(ex, "Error updating category {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -225,7 +225,7 @@ public class CategoryFunction
         {
             _log.LogError(ex, "Error deleting category {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }

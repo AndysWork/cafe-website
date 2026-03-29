@@ -13,6 +13,7 @@ public class BlobStorageService
     private const string MenuImagesContainer = "menu-images";
     private const string ProfilePicturesContainer = "profile-pictures";
     private const string InvoiceUploadsContainer = "invoice-uploads";
+    private const string ReceiptImagesContainer = "receipt-images";
     private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5MB for images
 
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -55,6 +56,10 @@ public class BlobStorageService
             var invoiceContainer = _blobServiceClient.GetBlobContainerClient(InvoiceUploadsContainer);
             await invoiceContainer.CreateIfNotExistsAsync(PublicAccessType.Blob);
             _logger.LogInformation("Blob container '{Container}' initialized", InvoiceUploadsContainer);
+
+            var receiptContainer = _blobServiceClient.GetBlobContainerClient(ReceiptImagesContainer);
+            await receiptContainer.CreateIfNotExistsAsync(PublicAccessType.Blob);
+            _logger.LogInformation("Blob container '{Container}' initialized", ReceiptImagesContainer);
         }
         catch (Exception ex)
         {
@@ -195,11 +200,17 @@ public class BlobStorageService
     }
 
     /// <summary>
-    /// Uploads an invoice screenshot for external order claims (no compression — preserve text quality for OCR).
+    /// Uploads an invoice screenshot for external order claims with compression.
     /// </summary>
     public async Task<string> UploadInvoiceImageAsync(Stream fileStream, string fileName, string contentType, string userId)
     {
         ValidateUpload(fileStream, fileName, contentType);
+
+        // Compress image before upload
+        var originalSize = fileStream.Length;
+        var (compressedStream, compressedContentType) = await ImageCompressor.CompressAsync(fileStream, contentType, isProfilePicture: false);
+        await using var _ = compressedStream;
+        contentType = compressedContentType;
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(InvoiceUploadsContainer);
         var extension = GetExtensionForContentType(contentType);
@@ -212,12 +223,75 @@ public class BlobStorageService
             CacheControl = "public, max-age=31536000, immutable"
         };
 
-        await blobClient.UploadAsync(fileStream, new BlobUploadOptions { HttpHeaders = headers });
+        await blobClient.UploadAsync(compressedStream, new BlobUploadOptions { HttpHeaders = headers });
 
-        _logger.LogInformation("Uploaded invoice image: {BlobName} ({ContentType}, {Size} bytes)",
-            blobName, contentType, fileStream.Length);
+        _logger.LogInformation("Uploaded invoice image: {BlobName} ({ContentType}, {OriginalSize} -> {CompressedSize} bytes)",
+            blobName, contentType, originalSize, compressedStream.Length);
 
         return GetPublicUrl(InvoiceUploadsContainer, blobName);
+    }
+
+    /// <summary>
+    /// Uploads a receipt/invoice image for an order with compression.
+    /// Returns the CDN/blob URL of the uploaded image.
+    /// </summary>
+    public async Task<string> UploadReceiptImageAsync(Stream fileStream, string fileName, string contentType, string userId)
+    {
+        ValidateUpload(fileStream, fileName, contentType);
+
+        // Compress image before upload
+        var originalSize = fileStream.Length;
+        var (compressedStream, compressedContentType) = await ImageCompressor.CompressAsync(fileStream, contentType, isProfilePicture: false);
+        await using var _ = compressedStream;
+        contentType = compressedContentType;
+
+        var containerClient = _blobServiceClient.GetBlobContainerClient(ReceiptImagesContainer);
+        var extension = GetExtensionForContentType(contentType);
+        var blobName = $"{userId}/{Guid.NewGuid()}{extension}";
+        var blobClient = containerClient.GetBlobClient(blobName);
+
+        var headers = new BlobHttpHeaders
+        {
+            ContentType = contentType,
+            CacheControl = "public, max-age=31536000, immutable"
+        };
+
+        await blobClient.UploadAsync(compressedStream, new BlobUploadOptions { HttpHeaders = headers });
+
+        _logger.LogInformation("Uploaded receipt image: {BlobName} ({ContentType}, {OriginalSize} -> {CompressedSize} bytes)",
+            blobName, contentType, originalSize, compressedStream.Length);
+
+        return GetPublicUrl(ReceiptImagesContainer, blobName);
+    }
+
+    /// <summary>
+    /// Deletes a receipt image from blob storage by its full URL.
+    /// </summary>
+    public async Task<bool> DeleteReceiptImageAsync(string imageUrl)
+    {
+        if (string.IsNullOrEmpty(imageUrl))
+            return false;
+
+        try
+        {
+            var blobName = ExtractBlobName(imageUrl, ReceiptImagesContainer);
+            if (string.IsNullOrEmpty(blobName))
+                return false;
+
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ReceiptImagesContainer);
+            var blobClient = containerClient.GetBlobClient(blobName);
+            var response = await blobClient.DeleteIfExistsAsync();
+
+            if (response.Value)
+                _logger.LogInformation("Deleted receipt image: {BlobName}", blobName);
+
+            return response.Value;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete receipt image: {ImageUrl}", imageUrl);
+            return false;
+        }
     }
 
     private void ValidateUpload(Stream fileStream, string fileName, string contentType)

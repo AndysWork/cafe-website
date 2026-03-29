@@ -38,4 +38,46 @@ public class PublicStatsFunction
             return errorResponse;
         }
     }
+
+    // GET /api/public/outlets - Public outlet info for landing page (no auth required)
+    [Function("GetPublicOutlets")]
+    public async Task<HttpResponseData> GetPublicOutlets(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "public/outlets")] HttpRequestData req)
+    {
+        try
+        {
+            var outlets = await _mongo.GetActiveOutletsAsync();
+
+            // Return only public-safe fields (no email, manager, internal dates)
+            var publicOutlets = outlets.Select(o => new
+            {
+                o.Id,
+                o.OutletName,
+                o.OutletCode,
+                o.Address,
+                o.City,
+                o.State,
+                o.PhoneNumber,
+                Settings = new
+                {
+                    o.Settings.OpeningTime,
+                    o.Settings.ClosingTime,
+                    o.Settings.AcceptsDineIn,
+                    o.Settings.AcceptsTakeaway,
+                    o.Settings.AcceptsOnlineOrders
+                }
+            });
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(publicOutlets);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting public outlets");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
+            return errorResponse;
+        }
+    }
 }

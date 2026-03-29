@@ -1,16 +1,14 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
-using System.Text.Json;
 using Cafe.Api.Helpers;
+using System.Text.Json;
+using System.Net;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
-using System.Net;
 
 namespace Cafe.Api.Functions
 {
@@ -18,11 +16,13 @@ namespace Cafe.Api.Functions
     {
         private readonly ILogger<RecipeFunction> _logger;
         private readonly MongoService _mongoService;
+        private readonly AuthService _authService;
 
-        public RecipeFunction(ILogger<RecipeFunction> logger, MongoService mongoService)
+        public RecipeFunction(ILogger<RecipeFunction> logger, MongoService mongoService, AuthService authService)
         {
             _logger = logger;
             _mongoService = mongoService;
+            _authService = authService;
         }
 
         // GET: /api/recipes
@@ -31,23 +31,29 @@ namespace Cafe.Api.Functions
         [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
         [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<MenuItemRecipe>), Description = "Successfully retrieved recipes")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
-        public async Task<IActionResult> GetRecipes(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "recipes")] HttpRequest req)
+        public async Task<HttpResponseData> GetRecipes(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "recipes")] HttpRequestData req)
         {
             try
             {
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
                 _logger.LogInformation("Getting all recipes");
 
-                // Get outlet ID from header
-                var outletId = req.Headers["X-Outlet-Id"].FirstOrDefault();
-                
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 var recipes = await _mongoService.GetRecipesAsync(outletId);
-                return new OkObjectResult(recipes);
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(recipes);
+                return response;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting recipes");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while getting recipes" });
+                return response;
             }
         }
 
@@ -59,26 +65,35 @@ namespace Cafe.Api.Functions
         [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(MenuItemRecipe), Description = "Successfully retrieved recipe")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Recipe not found")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
-        public async Task<IActionResult> GetRecipeById(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "recipes/{id}")] HttpRequest req,
+        public async Task<HttpResponseData> GetRecipeById(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "recipes/{id}")] HttpRequestData req,
             string id)
         {
             try
             {
-                _logger.LogInformation($"Getting recipe with ID: {id}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Getting recipe with ID: {Id}", id);
 
                 var recipe = await _mongoService.GetRecipeByIdAsync(id);
                 if (recipe == null)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Recipe not found" });
+                    return notFound;
                 }
 
-                return new OkObjectResult(recipe);
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(recipe);
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error getting recipe with ID: {id}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error getting recipe with ID: {Id}", id);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while getting the recipe" });
+                return response;
             }
         }
 
@@ -90,36 +105,48 @@ namespace Cafe.Api.Functions
         [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(MenuItemRecipe), Description = "Successfully retrieved recipe")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Recipe not found")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
-        public async Task<IActionResult> GetRecipeByMenuItemName(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "recipes/menuitem/{menuItemName}")] HttpRequest req,
+        public async Task<HttpResponseData> GetRecipeByMenuItemName(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "recipes/menuitem/{menuItemName}")] HttpRequestData req,
             string menuItemName)
         {
             try
             {
-                _logger.LogInformation($"Getting recipe for menu item: {menuItemName}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Getting recipe for menu item: {MenuItemName}", menuItemName);
 
                 var recipe = await _mongoService.GetRecipeByMenuItemNameAsync(menuItemName);
                 if (recipe == null)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Recipe not found" });
+                    return notFound;
                 }
 
-                return new OkObjectResult(recipe);
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(recipe);
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error getting recipe for menu item: {menuItemName}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error getting recipe for menu item: {MenuItemName}", menuItemName);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while getting the recipe" });
+                return response;
             }
         }
 
         // POST: /api/recipes
         [Function("CreateRecipe")]
-        public async Task<IActionResult> CreateRecipe(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "recipes")] HttpRequest req)
+        public async Task<HttpResponseData> CreateRecipe(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "recipes")] HttpRequestData req)
         {
             try
             {
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
                 _logger.LogInformation("Creating new recipe");
 
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
@@ -130,46 +157,53 @@ namespace Cafe.Api.Functions
 
                 if (recipe == null || string.IsNullOrEmpty(recipe.MenuItemName))
                 {
-                    return new BadRequestObjectResult("Invalid recipe data");
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Invalid recipe data" });
+                    return badRequest;
                 }
 
-                // Get outlet ID from header
-                var outletId = req.Headers["X-Outlet-Id"].FirstOrDefault();
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 if (!string.IsNullOrEmpty(outletId))
                 {
                     recipe.OutletId = outletId;
                 }
 
-                // Sanitize inputs
                 recipe.MenuItemName = InputSanitizer.Sanitize(recipe.MenuItemName);
                 if (!string.IsNullOrEmpty(recipe.Notes))
                 {
                     recipe.Notes = InputSanitizer.Sanitize(recipe.Notes);
                 }
 
-                // Set timestamps
                 recipe.CreatedAt = DateTime.UtcNow;
                 recipe.UpdatedAt = DateTime.UtcNow;
 
                 var createdRecipe = await _mongoService.CreateRecipeAsync(recipe);
-                return new OkObjectResult(createdRecipe);
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(createdRecipe);
+                return response;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating recipe");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while creating the recipe" });
+                return response;
             }
         }
 
         // PUT: /api/recipes/{id}
         [Function("UpdateRecipe")]
-        public async Task<IActionResult> UpdateRecipe(
-            [HttpTrigger(AuthorizationLevel.Function, "put", Route = "recipes/{id}")] HttpRequest req,
+        public async Task<HttpResponseData> UpdateRecipe(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "recipes/{id}")] HttpRequestData req,
             string id)
         {
             try
             {
-                _logger.LogInformation($"Updating recipe with ID: {id}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Updating recipe with ID: {Id}", id);
 
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 var recipe = JsonSerializer.Deserialize<MenuItemRecipe>(requestBody, new JsonSerializerOptions
@@ -179,17 +213,17 @@ namespace Cafe.Api.Functions
 
                 if (recipe == null)
                 {
-                    return new BadRequestObjectResult("Invalid recipe data");
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Invalid recipe data" });
+                    return badRequest;
                 }
 
-                // Get outlet ID from header (preserve existing if not in header)
-                var outletId = req.Headers["X-Outlet-Id"].FirstOrDefault();
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 if (!string.IsNullOrEmpty(outletId))
                 {
                     recipe.OutletId = outletId;
                 }
 
-                // Sanitize inputs
                 recipe.MenuItemName = InputSanitizer.Sanitize(recipe.MenuItemName);
                 if (!string.IsNullOrEmpty(recipe.Notes))
                 {
@@ -202,53 +236,71 @@ namespace Cafe.Api.Functions
                 var updated = await _mongoService.UpdateRecipeAsync(id, recipe);
                 if (!updated)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Recipe not found" });
+                    return notFound;
                 }
 
-                return new OkObjectResult(recipe);
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(recipe);
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error updating recipe with ID: {id}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error updating recipe with ID: {Id}", id);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while updating the recipe" });
+                return response;
             }
         }
 
         // DELETE: /api/recipes/{id}
         [Function("DeleteRecipe")]
-        public async Task<IActionResult> DeleteRecipe(
-            [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "recipes/{id}")] HttpRequest req,
+        public async Task<HttpResponseData> DeleteRecipe(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "recipes/{id}")] HttpRequestData req,
             string id)
         {
             try
             {
-                _logger.LogInformation($"Deleting recipe with ID: {id}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Deleting recipe with ID: {Id}", id);
 
                 var deleted = await _mongoService.DeleteRecipeAsync(id);
                 if (!deleted)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Recipe not found" });
+                    return notFound;
                 }
 
-                return new OkObjectResult(new { message = "Recipe deleted successfully" });
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(new { message = "Recipe deleted successfully" });
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error deleting recipe with ID: {id}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error deleting recipe with ID: {Id}", id);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while deleting the recipe" });
+                return response;
             }
         }
 
         // POST: /api/recipes/calculate
         [Function("CalculateRecipePrice")]
-        public IActionResult CalculateRecipePrice(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "recipes/calculate")] HttpRequest req)
+        public async Task<HttpResponseData> CalculateRecipePrice(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "recipes/calculate")] HttpRequestData req)
         {
             try
             {
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
                 _logger.LogInformation("Calculating recipe price");
 
-                var requestBody = new StreamReader(req.Body).ReadToEndAsync().Result;
+                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 var recipe = JsonSerializer.Deserialize<MenuItemRecipe>(requestBody, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
@@ -256,16 +308,14 @@ namespace Cafe.Api.Functions
 
                 if (recipe == null)
                 {
-                    return new BadRequestObjectResult("Invalid recipe data");
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Invalid recipe data" });
+                    return badRequest;
                 }
 
-                // Calculate total ingredient cost
                 var ingredientSubtotal = recipe.Ingredients.Sum(ing => ing.TotalCost);
-
-                // Calculate wastage
                 var wastageAmount = (ingredientSubtotal * recipe.OverheadCosts.WastagePercentage) / 100;
 
-                // Calculate overhead costs
                 var overheadSubtotal =
                     recipe.OverheadCosts.LabourCharge +
                     recipe.OverheadCosts.RentAllocation +
@@ -273,13 +323,8 @@ namespace Cafe.Api.Functions
                     wastageAmount +
                     recipe.OverheadCosts.Miscellaneous;
 
-                // Calculate making cost
                 var makingCost = ingredientSubtotal + overheadSubtotal;
-
-                // Calculate profit amount
                 var profitAmount = (makingCost * recipe.ProfitMargin) / 100;
-
-                // Calculate selling price
                 var sellingPrice = makingCost + profitAmount;
 
                 var calculation = new
@@ -304,29 +349,38 @@ namespace Cafe.Api.Functions
                     calculatedAt = DateTime.UtcNow
                 };
 
-                return new OkObjectResult(calculation);
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(calculation);
+                return response;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error calculating recipe price");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while calculating the recipe price" });
+                return response;
             }
         }
 
         // GET: /api/recipes/makingcost/{menuItemName}
         [Function("GetMakingCostByMenuItem")]
-        public async Task<IActionResult> GetMakingCostByMenuItem(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "recipes/makingcost/{menuItemName}")] HttpRequest req,
+        public async Task<HttpResponseData> GetMakingCostByMenuItem(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "recipes/makingcost/{menuItemName}")] HttpRequestData req,
             string menuItemName)
         {
             try
             {
-                _logger.LogInformation($"Getting making cost for menu item: {menuItemName}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Getting making cost for menu item: {MenuItemName}", menuItemName);
 
                 var recipe = await _mongoService.GetRecipeByMenuItemNameAsync(menuItemName);
                 if (recipe == null)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Recipe not found" });
+                    return notFound;
                 }
 
                 var result = new
@@ -337,31 +391,37 @@ namespace Cafe.Api.Functions
                     profitMargin = recipe.ProfitMargin
                 };
 
-                return new OkObjectResult(result);
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(result);
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error getting making cost for menu item: {menuItemName}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error getting making cost for menu item: {MenuItemName}", menuItemName);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while getting the making cost" });
+                return response;
             }
         }
 
         [Function("MigrateRecipeOutlets")]
         public async Task<HttpResponseData> MigrateRecipeOutlets(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "recipes/migrate-outlets")] HttpRequestData req)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "recipes/migrate-outlets")] HttpRequestData req)
         {
             try
             {
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
                 _logger.LogInformation("Starting migration of recipe outlet IDs");
                 
-                // Parse request body to get default outlet ID
                 string? defaultOutletId = null;
                 try
                 {
                     var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                     if (!string.IsNullOrEmpty(requestBody))
                     {
-                        var jsonDoc = System.Text.Json.JsonDocument.Parse(requestBody);
+                        var jsonDoc = JsonDocument.Parse(requestBody);
                         if (jsonDoc.RootElement.TryGetProperty("defaultOutletId", out var outletIdElement))
                         {
                             defaultOutletId = outletIdElement.GetString();
@@ -388,10 +448,7 @@ namespace Cafe.Api.Functions
             {
                 _logger.LogError(ex, "Error migrating recipe outlet IDs");
                 var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await response.WriteAsJsonAsync(new { 
-                    success = false, 
-                    error = ex.Message 
-                });
+                await response.WriteAsJsonAsync(new { error = "An error occurred while migrating recipe outlets" });
                 return response;
             }
         }

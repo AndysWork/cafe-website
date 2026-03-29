@@ -3,30 +3,37 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using Cafe.Api.Services;
+using Cafe.Api.Helpers;
 using System.Net;
 using System.Text.Json;
 
-namespace api.Functions
+namespace Cafe.Api.Functions
 {
     public class MigrationFunction
     {
         private readonly ILogger _logger;
         private readonly IMongoDatabase _database;
+        private readonly AuthService _authService;
 
-        public MigrationFunction(ILoggerFactory loggerFactory, IMongoDatabase database)
+        public MigrationFunction(ILoggerFactory loggerFactory, IMongoDatabase database, AuthService authService)
         {
             _logger = loggerFactory.CreateLogger<MigrationFunction>();
             _database = database;
+            _authService = authService;
         }
 
         [Function("MigrateToMultiOutlet")]
         public async Task<HttpResponseData> MigrateToMultiOutlet(
-            [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequestData req)
         {
             _logger.LogInformation("Starting multi-outlet migration");
 
             try
             {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
                 // Parse request body
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 var options = JsonSerializer.Deserialize<MigrationOptions>(requestBody, new JsonSerializerOptions
@@ -132,7 +139,7 @@ namespace api.Functions
             {
                 _logger.LogError(ex, "Migration failed");
                 var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+                await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
                 return errorResponse;
             }
         }

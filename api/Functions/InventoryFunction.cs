@@ -38,10 +38,13 @@ public class InventoryFunction
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Inventory>), Description = "Successfully retrieved inventory")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetAllInventory(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
             var (page, pageSize) = Helpers.PaginationHelper.ParsePagination(req);
             var inventory = await _mongoService.GetAllInventoryAsync(outletId, page, pageSize);
@@ -62,7 +65,7 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting all inventory");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -74,10 +77,13 @@ public class InventoryFunction
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Inventory>), Description = "Successfully retrieved active inventory")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetActiveInventory(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/active")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/active")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
             var (page, pageSize) = Helpers.PaginationHelper.ParsePagination(req);
             var inventory = await _mongoService.GetActiveInventoryAsync(outletId, page, pageSize);
@@ -89,7 +95,7 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting active inventory");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -102,11 +108,14 @@ public class InventoryFunction
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Inventory not found")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
     public async Task<HttpResponseData> GetInventoryByIngredientId(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/ingredient/{ingredientId}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/ingredient/{ingredientId}")] HttpRequestData req,
         string ingredientId)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var inventory = await _mongoService.GetInventoryByIngredientIdAsync(ingredientId);
             if (inventory == null)
             {
@@ -123,17 +132,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting inventory by ingredient ID: {IngredientId}", ingredientId);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetLowStockItems")]
     public async Task<HttpResponseData> GetLowStockItems(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/low-stock")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/low-stock")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
             var items = await _mongoService.GetLowStockItemsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -144,17 +156,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting low stock items");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetOutOfStockItems")]
     public async Task<HttpResponseData> GetOutOfStockItems(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/out-of-stock")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/out-of-stock")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
             var items = await _mongoService.GetOutOfStockItemsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -165,17 +180,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting out of stock items");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetExpiringItems")]
     public async Task<HttpResponseData> GetExpiringItems(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/expiring")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/expiring")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var daysThreshold = 7;
             if (req.Query["days"] != null && int.TryParse(req.Query["days"], out var days))
             {
@@ -192,17 +210,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting expiring items");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("CreateInventory")]
     public async Task<HttpResponseData> CreateInventory(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "inventory")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "inventory")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var inventory = JsonSerializer.Deserialize<Inventory>(requestBody, new JsonSerializerOptions
             {
@@ -245,18 +266,21 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error creating inventory");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("UpdateInventory")]
     public async Task<HttpResponseData> UpdateInventory(
-        [HttpTrigger(AuthorizationLevel.Function, "put", Route = "inventory/item/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "inventory/item/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var inventory = JsonSerializer.Deserialize<Inventory>(requestBody, new JsonSerializerOptions
             {
@@ -287,18 +311,21 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error updating inventory: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("DeleteInventory")]
     public async Task<HttpResponseData> DeleteInventory(
-        [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "inventory/item/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "inventory/item/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var success = await _mongoService.DeleteInventoryAsync(id);
             if (!success)
             {
@@ -315,18 +342,21 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error deleting inventory: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("StockIn")]
     public async Task<HttpResponseData> StockIn(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "inventory/item/{id}/stock-in")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "inventory/item/{id}/stock-in")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var data = JsonSerializer.Deserialize<StockInRequest>(requestBody, new JsonSerializerOptions
             {
@@ -364,18 +394,21 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error adding stock: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("StockOut")]
     public async Task<HttpResponseData> StockOut(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "inventory/item/{id}/stock-out")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "inventory/item/{id}/stock-out")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var data = JsonSerializer.Deserialize<StockOutRequest>(requestBody, new JsonSerializerOptions
             {
@@ -411,18 +444,21 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error removing stock: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("AdjustStock")]
     public async Task<HttpResponseData> AdjustStock(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "inventory/item/{id}/adjust")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "inventory/item/{id}/adjust")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var data = JsonSerializer.Deserialize<StockAdjustmentRequest>(requestBody, new JsonSerializerOptions
             {
@@ -460,18 +496,21 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error adjusting stock: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetInventoryTransactions")]
     public async Task<HttpResponseData> GetInventoryTransactions(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/item/{id}/transactions")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/item/{id}/transactions")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var limit = 50;
             if (req.Query["limit"] != null && int.TryParse(req.Query["limit"], out var l))
             {
@@ -487,17 +526,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting transactions: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetRecentTransactions")]
     public async Task<HttpResponseData> GetRecentTransactions(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/transactions/recent")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/transactions/recent")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var limit = 20;
             if (req.Query["limit"] != null && int.TryParse(req.Query["limit"], out var l))
             {
@@ -514,17 +556,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting recent transactions");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetStockAlerts")]
     public async Task<HttpResponseData> GetStockAlerts(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/alerts")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/alerts")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
             var alerts = await _mongoService.GetAllAlertsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -535,17 +580,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting stock alerts");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetCriticalAlerts")]
     public async Task<HttpResponseData> GetCriticalAlerts(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/alerts/critical")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/alerts/critical")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var alerts = await _mongoService.GetCriticalAlertsAsync();
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(alerts);
@@ -555,18 +603,21 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting critical alerts");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("ResolveAlert")]
     public async Task<HttpResponseData> ResolveAlert(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "inventory/alerts/{alertId}/resolve")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "inventory/alerts/{alertId}/resolve")] HttpRequestData req,
         string alertId)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var data = JsonSerializer.Deserialize<ResolveAlertRequest>(requestBody, new JsonSerializerOptions
             {
@@ -589,17 +640,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error resolving alert: {AlertId}", alertId);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetInventoryReport")]
     public async Task<HttpResponseData> GetInventoryReport(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/report")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/report")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
             var report = await _mongoService.GetInventoryReportAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -610,18 +664,21 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting inventory report");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetInventoryById")]
     public async Task<HttpResponseData> GetInventoryById(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "inventory/item/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "inventory/item/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             // Validate that the ID is a valid MongoDB ObjectId format (24 hex characters)
             if (string.IsNullOrEmpty(id) || id.Length != 24 || !System.Text.RegularExpressions.Regex.IsMatch(id, "^[0-9a-fA-F]{24}$"))
             {
@@ -646,17 +703,20 @@ public class InventoryFunction
         {
             _logger.LogError(ex, "Error getting inventory by ID: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("MigrateInventoryTransactionOutlets")]
     public async Task<HttpResponseData> MigrateInventoryTransactionOutlets(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "inventory/migrate-transaction-outlets")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "inventory/migrate-transaction-outlets")] HttpRequestData req)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             _logger.LogInformation("Starting migration of inventory transaction outlet IDs");
             
             // Parse request body to get default outlet ID
@@ -695,7 +755,7 @@ public class InventoryFunction
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
             await response.WriteAsJsonAsync(new { 
                 success = false, 
-                error = ex.Message 
+                error = "An internal error occurred" 
             });
             return response;
         }

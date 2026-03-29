@@ -260,26 +260,271 @@ $radius: 16px;
   width: 100%; padding-top: 8px; border-top: 1px solid #f0f0f0; margin-top: 4px;
   font-size: .85rem; color: #666;
 }
-.history-row {
+/* Points Meta */
+.points-meta {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center;
+  gap: 10px; margin-top: 16px; flex-wrap: wrap;
+}
+
+.multiplier-badge {
+  display: inline-block; background: rgba(255, 215, 0, .25); border: 1px solid rgba(255, 215, 0, .5);
+  color: #fff; padding: 4px 14px; border-radius: 50px; font-size: .82rem; font-weight: 700;
+  letter-spacing: .3px;
+}
+
+/* Expiry Warning */
+.expiry-warning {
+  position: relative; z-index: 1; margin-top: 16px; padding: 10px 16px;
+  background: rgba(255, 152, 0, .2); border: 1px solid rgba(255, 152, 0, .3);
+  border-radius: 12px; font-size: .85rem; color: #fff; text-align: center;
+}
+
+/* Birthday Banner */
+.birthday-banner {
+  position: relative; z-index: 1; margin-top: 16px; padding: 14px 18px;
+  background: rgba(255, 255, 255, .15); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, .25); border-radius: 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  .birthday-content {
+    display: flex; align-items: center; gap: 12px; color: #fff;
+    .birthday-emoji { font-size: 1.5rem; }
+    strong { display: block; font-size: .95rem; }
+    span { font-size: .85rem; opacity: .9; }
+  }
+}
+
+.btn-birthday-claim {
+  background: rgba(255, 255, 255, .9); color: $accent; border: none;
+  padding: 8px 18px; border-radius: 50px; font-size: .85rem; font-weight: 700;
+  cursor: pointer; transition: all .3s; white-space: nowrap;
+  &:hover:not(:disabled) { background: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+  &:disabled { opacity: .6; cursor: not-allowed; }
+}
+
+/* Tier Benefits Card */
+.tier-benefits-card {
+  background: $card-bg; border-radius: $radius; padding: 24px; margin-top: 24px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.06); animation: slideUp .6s ease-out;
+  h3 { font-size: 1.15rem; font-weight: 700; color: $dark; margin: 0 0 16px; }
+}
+
+.benefits-list { display: flex; flex-direction: column; gap: 10px; }
+
+.benefit-item {
+  display: flex; align-items: center; gap: 10px; font-size: .92rem; color: $dark;
+  .benefit-check { color: $green; font-weight: 700; font-size: 1rem; }
+}
+
+.tier-progress-hint {
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid #f0f0f0;
+  font-size: .85rem; color: #888; text-align: center;
+  strong { color: $accent; }
+}
+
+/* Tab Navigation */
+.tab-nav {
+  display: flex; gap: 6px; margin-top: 28px; padding: 6px; background: $card-bg;
+  border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.05); overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.tab-btn {
+  flex: 1; min-width: max-content; padding: 10px 16px; border: none; border-radius: 10px;
+  background: transparent; font-size: .85rem; font-weight: 600; color: #888;
+  cursor: pointer; transition: all .3s; white-space: nowrap;
+  &:hover { color: $dark; background: #f5f5f5; }
+  &.active { background: linear-gradient(135deg, $accent, #5A4BD1); color: #fff;
+    box-shadow: 0 4px 12px rgba($accent, .25);
+  }
+}
+
+.tab-content { animation: fadeIn .3s ease-out; }
+
+/* Loyalty Card */
+.loyalty-card-wrapper { text-align: center; padding: 10px 0 24px; }
+
+.loyalty-card {
+  display: inline-block; width: 300px; max-width: 100%; padding: 28px 24px;
+  border-radius: 20px; color: #fff; text-align: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,.15);
+  background: linear-gradient(135deg, $accent, #764ba2);
+  &.bronze { background: linear-gradient(135deg, #cd7f32, #a0522d); }
+  &.silver { background: linear-gradient(135deg, #a8a8a8, #c0c0c0, #8a8a8a); }
+  &.gold { background: linear-gradient(135deg, #daa520, #ffd700, #b8860b); }
+  &.platinum { background: linear-gradient(135deg, #4a4a5a, #7a7a8a, #5a5a6a); }
+}
+
+.card-top {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+  .card-brand { font-size: .85rem; font-weight: 700; letter-spacing: .5px; opacity: .9; }
+  .card-tier { font-size: .82rem; font-weight: 600; }
+}
+
+.card-qr {
+  margin: 0 auto 16px; background: #fff; border-radius: 12px; padding: 12px;
+  display: inline-block;
+  canvas { display: block; border-radius: 8px; }
+}
+
+.card-number {
+  font-family: 'Courier New', monospace; font-size: 1.1rem; font-weight: 700;
+  letter-spacing: 2px; margin-bottom: 16px; opacity: .9;
+}
+
+.card-bottom {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 14px; border-top: 1px solid rgba(255,255,255,.2);
+  .card-points { font-size: 1.1rem; font-weight: 700; }
+  .card-multiplier { font-size: .9rem; font-weight: 600; background: rgba(255,255,255,.2);
+    padding: 4px 12px; border-radius: 50px;
+  }
+}
+
+.card-hint { color: #999; font-size: .85rem; margin-top: 14px; }
+
+/* Birthday Section */
+.birthday-section {
+  background: $card-bg; border-radius: $radius; padding: 24px; margin-top: 24px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  h3 { font-size: 1.15rem; font-weight: 700; color: $dark; margin: 0 0 4px; }
+}
+
+.birthday-form {
+  display: flex; flex-direction: column; gap: 12px; margin-top: 14px; align-items: flex-start;
+}
+
+.birthday-input {
+  padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: .95rem;
+  width: 100%; max-width: 250px; transition: border-color .3s; box-sizing: border-box;
+  &:focus { outline: none; border-color: $accent; }
+}
+
+.birthday-set {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px;
+  font-size: .95rem; color: $dark;
+  .birthday-icon { font-size: 1.3rem; }
+  .birthday-bonus-info { color: $accent; font-size: .88rem; }
+}
+
+/* Referral Card */
+.referral-card {
+  background: $card-bg; border-radius: $radius; padding: 28px; text-align: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,.06);
+}
+
+.referral-code-display { margin-bottom: 20px; }
+
+.referral-label { font-size: .85rem; color: #888; font-weight: 600; display: block; margin-bottom: 10px; }
+
+.referral-code-box {
+  display: inline-flex; align-items: center; gap: 10px; background: #f8f8f8;
+  border: 2px dashed #d0d0d0; border-radius: 12px; padding: 12px 20px;
+}
+
+.referral-code {
+  font-family: 'Courier New', monospace; font-size: 1.3rem; font-weight: 800;
+  color: $accent; letter-spacing: 3px;
+}
+
+.btn-copy {
+  background: linear-gradient(135deg, $accent, #5A4BD1); color: #fff; border: none;
+  padding: 8px 16px; border-radius: 50px; font-size: .82rem; font-weight: 600;
+  cursor: pointer; transition: all .3s;
+  &:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba($accent, .25); }
+  &.copied { background: $green; }
+}
+
+.btn-share {
+  display: inline-block; background: linear-gradient(135deg, $primary, #FF2D55);
+  color: #fff; border: none; padding: 10px 24px; border-radius: 50px;
+  font-size: .9rem; font-weight: 600; cursor: pointer; transition: all .3s;
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba($primary, .3); }
+}
+
+.referral-stats {
+  margin-top: 20px; padding-top: 16px; border-top: 1px solid #f0f0f0;
+  display: flex; flex-direction: column; align-items: center;
+  .stat-number { font-size: 1.8rem; font-weight: 800; color: $accent; }
+  .stat-label { font-size: .85rem; color: #888; }
+}
+
+/* Apply Referral */
+.apply-referral-card {
+  background: $card-bg; border-radius: $radius; padding: 24px; margin-top: 20px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  h3 { font-size: 1.05rem; font-weight: 700; color: $dark; margin: 0 0 14px; }
+}
+
+.referral-input-row { display: flex; gap: 10px; }
+
+.referral-input {
+  flex: 1; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 12px;
+  font-size: 1rem; font-family: 'Courier New', monospace; letter-spacing: 2px;
+  text-transform: uppercase; transition: border-color .3s;
+  &:focus { outline: none; border-color: $accent; }
+}
+
+.btn-apply {
+  background: linear-gradient(135deg, $green, #00e676); color: #fff; border: none;
+  padding: 10px 20px; border-radius: 12px; font-size: .9rem; font-weight: 600;
+  cursor: pointer; transition: all .3s;
+  &:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba($green, .25); }
+  &:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+}
+
+/* Transfer Card */
+.transfer-card {
+  background: $card-bg; border-radius: $radius; padding: 28px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.transfer-input {
+  width: 100%; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 12px;
+  font-size: 1rem; transition: border-color .3s; box-sizing: border-box;
+  &:focus { outline: none; border-color: $accent; }
+}
+
+.btn-transfer {
+  width: 100%; padding: 14px; border: none; border-radius: 50px;
+  background: linear-gradient(135deg, $accent, #764ba2); color: #fff;
+  font-size: 1rem; font-weight: 700; cursor: pointer; transition: all .3s;
+  &:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba($accent, .3); }
+  &:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+}
+
+/* History List */
+.history-list {
+  background: $card-bg; border-radius: $radius; overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,.06);
+}
+
+.history-item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px; border-bottom: 1px solid #f0f0f0; transition: background .2s;
+  padding: 14px 20px; border-bottom: 1px solid #f0f0f0; transition: background .2s;
   &:last-child { border-bottom: none; }
   &:hover { background: #fafafa; }
+  &.history-earned { border-left: 3px solid $green; }
+  &.history-redeemed { border-left: 3px solid $primary; }
+  &.history-expired { border-left: 3px solid #ccc; background: #fafafa; }
+  &.history-transferred { border-left: 3px solid #ff9800; }
+  &.history-received { border-left: 3px solid $accent; }
 }
-.history-left { display: flex; align-items: center; gap: 14px; }
-.history-dot {
-  width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
-  &.earned { background: $green; box-shadow: 0 0 8px rgba($green, .3); }
-  &.redeemed { background: $primary; box-shadow: 0 0 8px rgba($primary, .3); }
-}
-.history-info {
-  .history-action { font-size: .95rem; font-weight: 600; color: $dark; }
+
+.history-left {
+  .history-action { font-size: .92rem; font-weight: 600; color: $dark; }
   .history-date { font-size: .8rem; color: #999; margin-top: 2px; }
+  .history-expiry { color: #ff9800; font-weight: 500; }
 }
-.history-pts {
+
+.history-points {
   font-size: 1rem; font-weight: 700; white-space: nowrap;
-  &.earned { color: $green; }
-  &.redeemed { color: $primary; }
+  &.points-earned { color: $green; }
+  &.points-redeemed { color: $primary; }
+  &.points-expired { color: #999; text-decoration: line-through; }
+  &.points-transferred { color: #ff9800; }
+  &.points-received { color: $accent; }
 }
 
 /* Responsive */
@@ -292,6 +537,9 @@ $radius: 16px;
   }
   .rewards-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
   .reward-card { padding: 22px 16px; }
+  .birthday-banner { flex-direction: column; text-align: center; }
+  .referral-code { font-size: 1.1rem; letter-spacing: 2px; }
+  .loyalty-card { width: 280px; padding: 24px 20px; }
 }
 @media (max-width: 480px) {
   .hero { padding: 40px 14px 60px;
@@ -303,7 +551,12 @@ $radius: 16px;
   }
   .rewards-grid { grid-template-columns: 1fr; }
   .section-header h2 { font-size: 1.2rem; }
-  .history-row { padding: 14px 16px; }
+  .history-item { padding: 12px 16px; }
+  .tab-btn { padding: 8px 12px; font-size: .8rem; }
+  .loyalty-card { width: 260px; padding: 22px 18px; }
+  .referral-input-row { flex-direction: column; }
+  .referral-code-box { flex-direction: column; gap: 8px; padding: 10px 16px; }
+  .birthday-banner { padding: 12px 14px; gap: 10px; }
 }
 @media (max-width: 360px) {
   .hero { padding: 32px 12px 50px; h1 { font-size: 1.3rem; } }
@@ -311,4 +564,6 @@ $radius: 16px;
     .points-number { font-size: 1.8rem; }
   }
   .reward-card { padding: 18px 12px; }
+  .loyalty-card { width: 240px; padding: 18px 14px; }
+  .card-number { font-size: .9rem; }
 }

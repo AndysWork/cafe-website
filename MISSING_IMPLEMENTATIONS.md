@@ -329,12 +329,12 @@
 - Loyalty account tracking
 
 **What's Missing:**
-- ❌ Tiered loyalty levels (Bronze, Silver, Gold)
-- ❌ Birthday rewards
-- ❌ Referral program
-- ❌ Loyalty card/QR code generation
-- ❌ Expiry of points
-- ❌ Points transfer between users
+- ✅ Tiered loyalty levels (Bronze, Silver, Gold) — tier multipliers (1.0x–2.0x), benefits, progress tracking
+- ✅ Birthday rewards — set DOB once, annual tier-based bonus (50–500 pts)
+- ✅ Referral program — 8-char code, referrer 100 pts, referee 50 pts
+- ✅ Loyalty card/QR code generation — unique card number, canvas QR code
+- ✅ Expiry of points — 1-year expiry, 30-day warning, auto-processing
+- ✅ Points transfer between users — by username, min 10 pts
 
 **Impact:** LOW - Basic loyalty works
 
@@ -391,10 +391,10 @@
 
 **What's Still Missing:**
 - ✅ User profile picture upload — IMPLEMENTED (Azure Blob Storage)
-- ❌ Receipt/invoice image upload not implemented
-- ❌ Image compression/resizing not implemented
+- ✅ Receipt/invoice image upload — IMPLEMENTED (Azure Blob Storage, per-order upload/delete, owner+admin access)
+- ✅ Image compression/resizing — IMPLEMENTED (SixLabors.ImageSharp, max 2048px, JPEG 82%, WebP 80%, PNG best compression)
 
-**Impact:** LOW - Menu item images fully supported
+**Impact:** NONE - All image upload features fully supported
 
 ---
 

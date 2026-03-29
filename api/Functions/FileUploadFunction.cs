@@ -119,7 +119,7 @@ public class FileUploadFunction
         {
             _log.LogError(ex, "Error uploading categories file");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -290,7 +290,7 @@ public class FileUploadFunction
         {
             _log.LogError(ex, "Error generating template");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -375,7 +375,7 @@ public class FileUploadFunction
         {
             _log.LogError(ex, "Error uploading online sales file");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }

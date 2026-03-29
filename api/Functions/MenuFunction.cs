@@ -53,7 +53,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error getting menu items");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -95,7 +95,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error getting menu items for category {CategoryId}", categoryId);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -137,7 +137,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error getting menu items for subcategory {SubCategoryId}", subCategoryId);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -188,7 +188,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error getting menu item {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -291,7 +291,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error creating menu item");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -386,7 +386,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error updating menu item {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -426,7 +426,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error toggling availability for menu item {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -476,7 +476,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error deleting menu item {Id}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -584,7 +584,7 @@ public class MenuFunction
         {
             _log.LogError(ex, "Error copying menu item data");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }

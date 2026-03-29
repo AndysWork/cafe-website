@@ -27,10 +27,13 @@ public class OverheadCostFunction
 
     [Function("GetAllOverheadCosts")]
     public async Task<HttpResponseData> GetAllOverheadCosts(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "overhead-costs")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "overhead-costs")] HttpRequestData req)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             _logger.LogInformation($"GetAllOverheadCosts called with outletId: {outletId}");
             
@@ -45,17 +48,20 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error getting all overhead costs");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetActiveOverheadCosts")]
     public async Task<HttpResponseData> GetActiveOverheadCosts(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "overhead-costs/active")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "overhead-costs/active")] HttpRequestData req)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             var overheadCosts = await _mongoService.GetActiveOverheadCostsAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -66,18 +72,21 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error getting active overhead costs");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("GetOverheadCostById")]
     public async Task<HttpResponseData> GetOverheadCostById(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "overhead-costs/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "overhead-costs/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             var overheadCost = await _mongoService.GetOverheadCostByIdAsync(id);
             if (overheadCost == null)
             {
@@ -94,17 +103,20 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error getting overhead cost by ID: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("CreateOverheadCost")]
     public async Task<HttpResponseData> CreateOverheadCost(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "overhead-costs")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "overhead-costs")] HttpRequestData req)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             _logger.LogInformation($"CreateOverheadCost received body: {requestBody}");
             
@@ -178,18 +190,21 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error creating overhead cost");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("UpdateOverheadCost")]
     public async Task<HttpResponseData> UpdateOverheadCost(
-        [HttpTrigger(AuthorizationLevel.Function, "put", Route = "overhead-costs/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "overhead-costs/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
@@ -225,18 +240,21 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error updating overhead cost: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("DeleteOverheadCost")]
     public async Task<HttpResponseData> DeleteOverheadCost(
-        [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "overhead-costs/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "overhead-costs/{id}")] HttpRequestData req,
         string id)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             
             // Verify the overhead cost belongs to the outlet before deleting
@@ -271,17 +289,20 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error deleting overhead cost: {Id}", id);
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("CalculateOverheadAllocation")]
     public async Task<HttpResponseData> CalculateOverheadAllocation(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "overhead-costs/calculate")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "overhead-costs/calculate")] HttpRequestData req)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
             _logger.LogInformation("CalculateOverheadAllocation called for outlet {OutletId}", outletId);
             
@@ -306,17 +327,20 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error calculating overhead allocation");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
 
     [Function("InitializeDefaultOverheadCosts")]
     public async Task<HttpResponseData> InitializeDefaultOverheadCosts(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "overhead-costs/initialize")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "overhead-costs/initialize")] HttpRequestData req)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             await _mongoService.InitializeDefaultOverheadCostsAsync();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -327,7 +351,7 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error initializing default overhead costs");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -337,10 +361,13 @@ public class OverheadCostFunction
     [OpenApiParameter(name: "targetOutletId", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "The OutletId to assign to overhead costs without an outlet")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Migration completed successfully")]
     public async Task<HttpResponseData> MigrateOverheadCostOutlets(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "overhead-costs/migrate-outlets")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "overhead-costs/migrate-outlets")] HttpRequestData req)
     {
         try
         {
+                var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return authError!;
+
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var targetOutletId = query["targetOutletId"];
 
@@ -366,7 +393,7 @@ public class OverheadCostFunction
         {
             _logger.LogError(ex, "Error migrating overhead cost outlets");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteStringAsync($"Error: {ex.Message}");
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }

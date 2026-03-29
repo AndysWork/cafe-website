@@ -1,15 +1,14 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
-using System.Text.Json;
 using Cafe.Api.Helpers;
+using System.Text.Json;
+using System.Net;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
-using System.Net;
 
 namespace Cafe.Api.Functions
 {
@@ -19,7 +18,7 @@ namespace Cafe.Api.Functions
         private readonly MongoService _mongoService;
         private readonly AuthService _authService;
         private readonly IEmailService _emailService;
-        private const decimal MAJOR_PRICE_CHANGE_THRESHOLD = 10.0m; // 10% change threshold
+        private const decimal MAJOR_PRICE_CHANGE_THRESHOLD = 10.0m;
 
         public IngredientFunction(ILogger<IngredientFunction> logger, MongoService mongoService, AuthService authService, IEmailService emailService)
         {
@@ -35,21 +34,28 @@ namespace Cafe.Api.Functions
         [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
         [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<Ingredient>), Description = "Successfully retrieved ingredients")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
-        public async Task<IActionResult> GetIngredients(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ingredients")] HttpRequest req)
+        public async Task<HttpResponseData> GetIngredients(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ingredients")] HttpRequestData req)
         {
             try
             {
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
                 _logger.LogInformation("Getting all ingredients");
 
-                // Get all ingredients without outlet filtering for price calculator dropdown
                 var ingredients = await _mongoService.GetAllIngredientsAsync();
-                return new OkObjectResult(ingredients);
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(ingredients);
+                return response;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting ingredients");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while getting ingredients" });
+                return response;
             }
         }
 
@@ -61,32 +67,43 @@ namespace Cafe.Api.Functions
         [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(Ingredient), Description = "Successfully retrieved ingredient")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "Ingredient not found")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
-        public async Task<IActionResult> GetIngredientById(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ingredients/{id}")] HttpRequest req,
+        public async Task<HttpResponseData> GetIngredientById(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ingredients/{id}")] HttpRequestData req,
             string id)
         {
             try
             {
-                _logger.LogInformation($"Getting ingredient with ID: {id}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Getting ingredient with ID: {Id}", id);
 
                 var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 if (string.IsNullOrEmpty(outletId))
                 {
-                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                    return badRequest;
                 }
 
                 var ingredient = await _mongoService.GetIngredientByIdAsync(id, outletId);
                 if (ingredient == null)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Ingredient not found" });
+                    return notFound;
                 }
 
-                return new OkObjectResult(ingredient);
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(ingredient);
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error getting ingredient with ID: {id}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error getting ingredient with ID: {Id}", id);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while getting the ingredient" });
+                return response;
             }
         }
 
@@ -98,17 +115,22 @@ namespace Cafe.Api.Functions
         [OpenApiResponseWithBody(statusCode: HttpStatusCode.Created, contentType: "application/json", bodyType: typeof(Ingredient), Description = "Ingredient successfully created")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid ingredient data")]
         [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
-        public async Task<IActionResult> CreateIngredient(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ingredients")] HttpRequest req)
+        public async Task<HttpResponseData> CreateIngredient(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ingredients")] HttpRequestData req)
         {
             try
             {
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
                 _logger.LogInformation("Creating new ingredient");
 
                 var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 if (string.IsNullOrEmpty(outletId))
                 {
-                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                    return badRequest;
                 }
 
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
@@ -119,15 +141,15 @@ namespace Cafe.Api.Functions
 
                 if (ingredient == null || string.IsNullOrEmpty(ingredient.Name))
                 {
-                    return new BadRequestObjectResult("Invalid ingredient data");
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Invalid ingredient data" });
+                    return badRequest;
                 }
 
-                // Sanitize inputs
                 ingredient.Name = InputSanitizer.Sanitize(ingredient.Name);
                 ingredient.Category = InputSanitizer.Sanitize(ingredient.Category);
                 ingredient.Unit = InputSanitizer.Sanitize(ingredient.Unit);
 
-                // Set outlet and timestamps
                 ingredient.OutletId = outletId;
                 ingredient.CreatedAt = DateTime.UtcNow;
                 ingredient.UpdatedAt = DateTime.UtcNow;
@@ -135,29 +157,39 @@ namespace Cafe.Api.Functions
                 ingredient.IsActive = true;
 
                 var createdIngredient = await _mongoService.CreateIngredientAsync(ingredient);
-                return new OkObjectResult(createdIngredient);
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(createdIngredient);
+                return response;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating ingredient");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while creating the ingredient" });
+                return response;
             }
         }
 
         // PUT: /api/ingredients/{id}
         [Function("UpdateIngredient")]
-        public async Task<IActionResult> UpdateIngredient(
-            [HttpTrigger(AuthorizationLevel.Function, "put", Route = "ingredients/{id}")] HttpRequest req,
+        public async Task<HttpResponseData> UpdateIngredient(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "ingredients/{id}")] HttpRequestData req,
             string id)
         {
             try
             {
-                _logger.LogInformation($"Updating ingredient with ID: {id}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Updating ingredient with ID: {Id}", id);
 
                 var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 if (string.IsNullOrEmpty(outletId))
                 {
-                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                    return badRequest;
                 }
 
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
@@ -168,17 +200,19 @@ namespace Cafe.Api.Functions
 
                 if (ingredient == null)
                 {
-                    return new BadRequestObjectResult("Invalid ingredient data");
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Invalid ingredient data" });
+                    return badRequest;
                 }
 
-                // Get current ingredient to detect price changes
                 var currentIngredient = await _mongoService.GetIngredientByIdAsync(id, outletId);
                 if (currentIngredient == null)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Ingredient not found" });
+                    return notFound;
                 }
 
-                // Sanitize inputs
                 ingredient.Name = InputSanitizer.Sanitize(ingredient.Name);
                 ingredient.Category = InputSanitizer.Sanitize(ingredient.Category);
                 ingredient.Unit = InputSanitizer.Sanitize(ingredient.Unit);
@@ -187,7 +221,6 @@ namespace Cafe.Api.Functions
                 ingredient.UpdatedAt = DateTime.UtcNow;
                 ingredient.LastUpdated = DateTime.UtcNow;
 
-                // Check for major price change
                 bool isMajorPriceChange = false;
                 decimal priceChangePercentage = 0;
                 
@@ -199,7 +232,6 @@ namespace Cafe.Api.Functions
                     ingredient.PreviousPrice = currentIngredient.MarketPrice;
                     ingredient.PriceChangePercentage = priceChangePercentage;
 
-                    // Save price history
                     await _mongoService.SavePriceHistoryAsync(new IngredientPriceHistory
                     {
                         IngredientId = id,
@@ -209,19 +241,21 @@ namespace Cafe.Api.Functions
                         ChangePercentage = priceChangePercentage,
                         Source = ingredient.PriceSource ?? "manual",
                         RecordedAt = DateTime.UtcNow,
-                        Notes = $"Updated by admin. Previous: ₹{currentIngredient.MarketPrice}"
+                        Notes = $"Updated by admin. Previous: ?{currentIngredient.MarketPrice}"
                     });
 
-                    _logger.LogInformation($"Price updated for {ingredient.Name}: {currentIngredient.MarketPrice} -> {ingredient.MarketPrice} ({priceChangePercentage:F2}% change)");
+                    _logger.LogInformation("Price updated for {Name}: {OldPrice} -> {NewPrice} ({Change:F2}% change)", 
+                        ingredient.Name, currentIngredient.MarketPrice, ingredient.MarketPrice, priceChangePercentage);
                 }
 
                 var updated = await _mongoService.UpdateIngredientAsync(id, ingredient, outletId);
                 if (!updated)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Ingredient not found" });
+                    return notFound;
                 }
 
-                // Send notification for major price changes
                 if (isMajorPriceChange)
                 {
                     _ = Task.Run(async () =>
@@ -232,12 +266,13 @@ namespace Cafe.Api.Functions
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, $"Failed to send price change notification for {ingredient.Name}");
+                            _logger.LogError(ex, "Failed to send price change notification for {Name}", ingredient.Name);
                         }
                     });
                 }
 
-                return new OkObjectResult(new
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(new
                 {
                     ingredient,
                     priceChangeAlert = isMajorPriceChange ? new
@@ -248,18 +283,21 @@ namespace Cafe.Api.Functions
                         newPrice = ingredient.MarketPrice
                     } : null
                 });
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error updating ingredient with ID: {id}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error updating ingredient with ID: {Id}", id);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while updating the ingredient" });
+                return response;
             }
         }
 
         private async Task NotifyMajorPriceChangeAsync(Ingredient ingredient, decimal changePercentage)
         {
             var direction = changePercentage > 0 ? "increased" : "decreased";
-            var subject = $"⚠️ Major Price Alert: {ingredient.Name}";
+            var subject = $"?? Major Price Alert: {ingredient.Name}";
             
             var htmlContent = $@"
 <html>
@@ -276,7 +314,7 @@ namespace Cafe.Api.Functions
 </head>
 <body>
     <div class='container'>
-        <h2>🔔 Price Alert Notification</h2>
+        <h2>?? Price Alert Notification</h2>
         <div class='alert-box'>
             <strong>Major price change detected for: {ingredient.Name}</strong>
         </div>
@@ -287,11 +325,11 @@ namespace Cafe.Api.Functions
             </div>
             <div class='price-row'>
                 <span class='label'>Previous Price:</span>
-                <span>₹{ingredient.PreviousPrice}/{ingredient.Unit}</span>
+                <span>?{ingredient.PreviousPrice}/{ingredient.Unit}</span>
             </div>
             <div class='price-row'>
                 <span class='label'>New Price:</span>
-                <span>₹{ingredient.MarketPrice}/{ingredient.Unit}</span>
+                <span>?{ingredient.MarketPrice}/{ingredient.Unit}</span>
             </div>
             <div class='price-row'>
                 <span class='label'>Change:</span>
@@ -312,102 +350,109 @@ namespace Cafe.Api.Functions
 </body>
 </html>";
 
-            var plainTextContent = $@"
-PRICE ALERT NOTIFICATION
-========================
-
-Major price change detected for: {ingredient.Name}
-
-Details:
-- Ingredient: {ingredient.Name} ({ingredient.Category})
-- Previous Price: ₹{ingredient.PreviousPrice}/{ingredient.Unit}
-- New Price: ₹{ingredient.MarketPrice}/{ingredient.Unit}
-- Change: {Math.Abs(changePercentage):F2}% {direction}
-- Source: {ingredient.PriceSource ?? "manual"}
-- Updated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC
-
-Action Required: Review this price change and consider updating menu prices if necessary.
-
-This is an automated alert triggered when ingredient prices change by more than {MAJOR_PRICE_CHANGE_THRESHOLD}%.
-";
-
-            // Send to default admin email
-            var adminEmail = "admin@cafemaatara.com"; // This should come from configuration or admin users in DB
+            var adminEmail = "admin@cafemaatara.com";
             await _emailService.SendPriceAlertEmailAsync(adminEmail, subject, htmlContent);
             
-            _logger.LogInformation($"Price change notification sent for {ingredient.Name} ({changePercentage:F2}% {direction})");
+            _logger.LogInformation("Price change notification sent for {Name} ({Change:F2}% {Direction})", 
+                ingredient.Name, changePercentage, direction);
         }
 
         // DELETE: /api/ingredients/{id}
         [Function("DeleteIngredient")]
-        public async Task<IActionResult> DeleteIngredient(
-            [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "ingredients/{id}")] HttpRequest req,
+        public async Task<HttpResponseData> DeleteIngredient(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "ingredients/{id}")] HttpRequestData req,
             string id)
         {
             try
             {
-                _logger.LogInformation($"Deleting ingredient with ID: {id}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Deleting ingredient with ID: {Id}", id);
 
                 var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 if (string.IsNullOrEmpty(outletId))
                 {
-                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                    return badRequest;
                 }
 
                 var deleted = await _mongoService.DeleteIngredientAsync(id, outletId);
                 if (!deleted)
                 {
-                    return new NotFoundResult();
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Ingredient not found" });
+                    return notFound;
                 }
 
-                return new OkObjectResult(new { message = "Ingredient deleted successfully" });
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(new { message = "Ingredient deleted successfully" });
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error deleting ingredient with ID: {id}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error deleting ingredient with ID: {Id}", id);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while deleting the ingredient" });
+                return response;
             }
         }
 
         // GET: /api/ingredients/category/{category}
         [Function("GetIngredientsByCategory")]
-        public async Task<IActionResult> GetIngredientsByCategory(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ingredients/category/{category}")] HttpRequest req,
+        public async Task<HttpResponseData> GetIngredientsByCategory(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ingredients/category/{category}")] HttpRequestData req,
             string category)
         {
             try
             {
-                _logger.LogInformation($"Getting ingredients for category: {category}");
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Getting ingredients for category: {Category}", category);
 
                 var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 if (string.IsNullOrEmpty(outletId))
                 {
-                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                    return badRequest;
                 }
 
                 var ingredients = await _mongoService.GetIngredientsByCategoryAsync(category, outletId);
-                return new OkObjectResult(ingredients);
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(ingredients);
+                return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error getting ingredients for category: {category}");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _logger.LogError(ex, "Error getting ingredients for category: {Category}", category);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while getting ingredients by category" });
+                return response;
             }
         }
 
         // POST: /api/ingredients/search
         [Function("SearchIngredients")]
-        public async Task<IActionResult> SearchIngredients(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ingredients/search")] HttpRequest req)
+        public async Task<HttpResponseData> SearchIngredients(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ingredients/search")] HttpRequestData req)
         {
             try
             {
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
                 _logger.LogInformation("Searching ingredients");
 
                 var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
                 if (string.IsNullOrEmpty(outletId))
                 {
-                    return new BadRequestObjectResult(new { error = "Outlet ID is required" });
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required" });
+                    return badRequest;
                 }
 
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
@@ -418,17 +463,24 @@ This is an automated alert triggered when ingredient prices change by more than 
 
                 if (searchRequest == null || !searchRequest.ContainsKey("searchTerm"))
                 {
-                    return new BadRequestObjectResult("Search term is required");
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Search term is required" });
+                    return badRequest;
                 }
 
                 var searchTerm = InputSanitizer.Sanitize(searchRequest["searchTerm"]);
                 var ingredients = await _mongoService.SearchIngredientsAsync(searchTerm, outletId);
-                return new OkObjectResult(ingredients);
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(ingredients);
+                return response;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error searching ingredients");
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while searching ingredients" });
+                return response;
             }
         }
     }

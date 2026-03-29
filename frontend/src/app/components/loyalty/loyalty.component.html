@@ -32,12 +32,15 @@
     <div class="points-hero-card">
       <div class="points-glow"></div>
       <div class="points-top">
-        <div class="points-star">⭐</div>
+        <div class="points-star">{{ getTierIcon() }}</div>
         <div class="points-number">{{ currentPoints }}</div>
         <div class="points-label">Available Points</div>
       </div>
-      <div class="points-bottom">
+      <div class="points-meta">
         <div class="tier-chip" [ngClass]="getTierColorClass()">{{ tier }} Member</div>
+        <div class="multiplier-badge" *ngIf="tierMultiplier > 1">×{{ tierMultiplier }} Points</div>
+      </div>
+      <div class="points-bottom">
         <div class="progress-section" *ngIf="nextTier">
           <div class="progress-text">{{ pointsToNextTier }} pts to <strong>{{ nextTier }}</strong></div>
           <div class="progress-track">
@@ -46,154 +49,299 @@
         </div>
         <div class="max-tier" *ngIf="!nextTier">🎉 Maximum tier achieved!</div>
       </div>
-    </div>
 
-    <!-- External Order Claims Section -->
-    <div class="section">
-      <div class="section-header">
-        <h2>📱 Claim External Order Points</h2>
-        <button class="btn-claim-toggle" (click)="toggleClaimForm()">
-          {{ showClaimForm ? '✕ Cancel' : '+ New Claim' }}
+      <!-- Expiry Warning -->
+      <div class="expiry-warning" *ngIf="expiringPoints > 0">
+        ⏳ <strong>{{ expiringPoints }} points</strong> expiring
+        <span *ngIf="expiringDate"> by {{ expiringDate | date:'mediumDate' }}</span>
+        — use them before they expire!
+      </div>
+
+      <!-- Birthday Banner -->
+      <div class="birthday-banner" *ngIf="birthdayBonusAvailable">
+        <div class="birthday-content">
+          <span class="birthday-emoji">🎂</span>
+          <div>
+            <strong>Happy Birthday!</strong>
+            <span>Claim your {{ birthdayBonusPoints }} bonus points!</span>
+          </div>
+        </div>
+        <button class="btn-birthday-claim" (click)="claimBirthdayBonus()" [disabled]="claimingBirthday">
+          {{ claimingBirthday ? '⏳ Claiming...' : '🎁 Claim Now' }}
         </button>
       </div>
-      <p class="section-desc">Ordered from Zomato or Swiggy? Upload your invoice to earn loyalty points!</p>
+    </div>
 
-      <!-- Success Message -->
-      <div *ngIf="claimSuccess" class="claim-alert claim-alert-success">
-        ✅ {{ claimSuccess }}
-      </div>
-
-      <!-- Claim Form -->
-      <div *ngIf="showClaimForm" class="claim-form-card">
-        <div class="claim-form-header">
-          <h3>Submit Invoice</h3>
-          <p>Upload your food delivery invoice screenshot and enter the total amount</p>
-        </div>
-
-        <div *ngIf="claimError" class="claim-alert claim-alert-error">
-          ❌ {{ claimError }}
-        </div>
-
-        <div class="claim-form-body">
-          <!-- Platform Selection -->
-          <div class="form-field">
-            <label>Platform</label>
-            <div class="platform-selector">
-              <button class="platform-btn" [class.active]="claimPlatform === 'zomato'" (click)="claimPlatform = 'zomato'">
-                🔴 Zomato
-              </button>
-              <button class="platform-btn" [class.active]="claimPlatform === 'swiggy'" (click)="claimPlatform = 'swiggy'">
-                🟠 Swiggy
-              </button>
-            </div>
-          </div>
-
-          <!-- Total Amount -->
-          <div class="form-field">
-            <label>Total Amount (₹)</label>
-            <input type="number" [(ngModel)]="claimTotalAmount" placeholder="Enter total from invoice" min="1" max="50000" step="0.01" class="claim-input">
-            <span class="form-hint" *ngIf="claimTotalAmount && claimTotalAmount > 0">
-              You'll earn approximately <strong>{{ (claimTotalAmount * 0.6) | number:'1.0-0' }}</strong> points
-            </span>
-          </div>
-
-          <!-- File Upload -->
-          <div class="form-field">
-            <label>Invoice Screenshot</label>
-            <div *ngIf="!claimFilePreview" class="file-upload-area" (click)="fileInput.click()">
-              <div class="upload-icon">📸</div>
-              <p>Click to upload invoice screenshot</p>
-              <span class="upload-hint">JPG, PNG • Max 10MB</span>
-              <input #fileInput type="file" accept="image/*" (change)="onClaimFileSelected($event)" hidden>
-            </div>
-            <div *ngIf="claimFilePreview" class="file-preview">
-              <img [src]="claimFilePreview" alt="Invoice preview">
-              <button class="btn-remove-file" (click)="removeClaimFile()">✕ Remove</button>
-            </div>
-          </div>
-
-          <button class="btn-submit-claim" [disabled]="submittingClaim || !claimFile || !claimTotalAmount" (click)="submitExternalClaim()">
-            <span *ngIf="!submittingClaim">📤 Submit Claim</span>
-            <span *ngIf="submittingClaim">⏳ Submitting...</span>
-          </button>
+    <!-- Tier Benefits -->
+    <div class="tier-benefits-card" *ngIf="tierBenefits.length > 0">
+      <h3>{{ getTierIcon() }} {{ tier }} Benefits</h3>
+      <div class="benefits-list">
+        <div class="benefit-item" *ngFor="let benefit of tierBenefits">
+          <span class="benefit-check">✓</span>
+          <span>{{ benefit }}</span>
         </div>
       </div>
-
-      <!-- Claims History -->
-      <div *ngIf="externalClaims.length > 0" class="claims-list">
-        <h3>Your Claims</h3>
-        <div *ngFor="let claim of externalClaims; trackBy: trackByIndex" class="claim-card">
-          <div class="claim-card-left">
-            <span class="claim-platform">{{ getPlatformIcon(claim.platform) }} {{ claim.platform | titlecase }}</span>
-            <span class="claim-amount">₹{{ claim.extractedTotal | number:'1.2-2' }}</span>
-            <span class="claim-date">{{ formatClaimDate(claim.createdAt) }}</span>
-          </div>
-          <div class="claim-card-right">
-            <span class="claim-points">{{ claim.calculatedPoints }} pts</span>
-            <span class="claim-status" [ngClass]="getStatusClass(claim.status)">
-              {{ getStatusIcon(claim.status) }} {{ claim.status | titlecase }}
-            </span>
-          </div>
-          <div *ngIf="claim.adminNotes" class="claim-notes">
-            💬 {{ claim.adminNotes }}
-          </div>
-        </div>
-      </div>
-
-      <div *ngIf="externalClaims.length === 0 && !showClaimForm" class="empty-block">
-        <div class="empty-icon">📱</div>
-        <h3>No External Claims</h3>
-        <p>Upload your Zomato or Swiggy invoice to earn loyalty points!</p>
-        <button class="btn-action" (click)="toggleClaimForm()">📤 Submit Your First Claim</button>
+      <div class="tier-progress-hint" *ngIf="nextTier">
+        Reach <strong>{{ nextTier }}</strong> for more perks!
       </div>
     </div>
 
-    <!-- Rewards Section -->
-    <div class="section">
-      <div class="section-header">
-        <h2>🎁 Redeem Rewards</h2>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn" [class.active]="activeTab === 'rewards'" (click)="activeTab = 'rewards'">🎁 Rewards</button>
+      <button class="tab-btn" [class.active]="activeTab === 'card'" (click)="activeTab = 'card'; generateQrCode()">💳 Card</button>
+      <button class="tab-btn" [class.active]="activeTab === 'referral'" (click)="activeTab = 'referral'">🤝 Referral</button>
+      <button class="tab-btn" [class.active]="activeTab === 'transfer'" (click)="activeTab = 'transfer'">🔄 Transfer</button>
+      <button class="tab-btn" [class.active]="activeTab === 'claims'" (click)="activeTab = 'claims'">📱 Claims</button>
+    </div>
+
+    <!-- ═══ TAB: Rewards ═══ -->
+    <div class="tab-content" *ngIf="activeTab === 'rewards'">
+      <div class="section">
+        <div class="section-header">
+          <h2>🎁 Redeem Rewards</h2>
+        </div>
+        <div *ngIf="availableRewards.length === 0" class="empty-block">
+          <div class="empty-icon">🎁</div>
+          <h3>No Rewards Available</h3>
+          <p>New rewards are coming soon! Keep earning points.</p>
+        </div>
+        <div class="rewards-grid" *ngIf="availableRewards.length > 0">
+          <div *ngFor="let reward of availableRewards; trackBy: trackByName" class="reward-card" [class.can-redeem]="reward.canRedeem">
+            <div class="reward-emoji">{{ reward.icon }}</div>
+            <h3 class="reward-name">{{ reward.name }}</h3>
+            <p class="reward-desc" *ngIf="reward.description">{{ reward.description }}</p>
+            <div class="reward-cost">{{ reward.pointsCost }} pts</div>
+            <button class="btn-redeem" [disabled]="!reward.canRedeem" (click)="redeemReward(reward)">
+              {{ reward.canRedeem ? 'Redeem' : 'Need ' + (reward.pointsCost - currentPoints) + ' more' }}
+            </button>
+          </div>
+        </div>
       </div>
-      <div *ngIf="availableRewards.length === 0" class="empty-block">
-        <div class="empty-icon">🎁</div>
-        <h3>No Rewards Available</h3>
-        <p>New rewards are coming soon! Keep earning points.</p>
-      </div>
-      <div class="rewards-grid" *ngIf="availableRewards.length > 0">
-        <div *ngFor="let reward of availableRewards; trackBy: trackByName" class="reward-card" [class.can-redeem]="reward.canRedeem">
-          <div class="reward-emoji">{{ reward.icon }}</div>
-          <h3 class="reward-name">{{ reward.name }}</h3>
-          <p class="reward-desc" *ngIf="reward.description">{{ reward.description }}</p>
-          <div class="reward-cost">{{ reward.pointsCost }} pts</div>
-          <button class="btn-redeem" [disabled]="!reward.canRedeem" (click)="redeemReward(reward)">
-            {{ reward.canRedeem ? '✨ Redeem' : '🔒 Need More Points' }}
-          </button>
+
+      <!-- Points History -->
+      <div class="section" *ngIf="rewardsHistory.length > 0">
+        <div class="section-header">
+          <h2>📋 Points History</h2>
+        </div>
+        <div class="history-list">
+          <div *ngFor="let item of rewardsHistory; trackBy: trackByIndex" class="history-item" [ngClass]="'history-' + item.type">
+            <div class="history-left">
+              <div class="history-action">{{ item.action }}</div>
+              <div class="history-date">{{ item.date }}
+                <span class="history-expiry" *ngIf="item.expiresAt && item.type === 'earned'"> · Expires {{ item.expiresAt }}</span>
+              </div>
+            </div>
+            <div class="history-points" [ngClass]="'points-' + item.type">{{ item.points }}</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- History Section -->
-    <div class="section">
-      <div class="section-header">
-        <h2>📊 Points History</h2>
-      </div>
-      <div *ngIf="rewardsHistory.length === 0" class="empty-block">
-        <div class="empty-icon">📊</div>
-        <h3>No Transactions Yet</h3>
-        <p>Start ordering to earn points! 1 point for every ₹10 spent.</p>
-        <a routerLink="/menu" class="btn-action">🍽️ Start Earning</a>
-      </div>
-      <div class="history-card" *ngIf="rewardsHistory.length > 0">
-        <div *ngFor="let h of rewardsHistory; trackBy: trackByIndex" class="history-row">
-          <div class="history-left">
-            <span class="history-dot" [class.earned]="h.type === 'earned'" [class.redeemed]="h.type === 'redeemed'"></span>
-            <div class="history-info">
-              <div class="history-action">{{ h.action }}</div>
-              <div class="history-date">{{ h.date }}</div>
+    <!-- ═══ TAB: Loyalty Card / QR ═══ -->
+    <div class="tab-content" *ngIf="activeTab === 'card'">
+      <div class="section">
+        <div class="loyalty-card-wrapper">
+          <div class="loyalty-card" [ngClass]="getTierColorClass()">
+            <div class="card-top">
+              <span class="card-brand">Maa Tara Cafe</span>
+              <span class="card-tier">{{ getTierIcon() }} {{ tier }}</span>
+            </div>
+            <div class="card-qr">
+              <canvas #qrCanvas width="200" height="200"></canvas>
+            </div>
+            <div class="card-number">{{ loyaltyCardNumber }}</div>
+            <div class="card-bottom">
+              <div class="card-points">{{ currentPoints }} pts</div>
+              <div class="card-multiplier" *ngIf="tierMultiplier > 1">×{{ tierMultiplier }}</div>
             </div>
           </div>
-          <span class="history-pts" [class.earned]="h.type === 'earned'" [class.redeemed]="h.type === 'redeemed'">
-            {{ h.points }}
-          </span>
+          <p class="card-hint">Show this card at the cafe to earn & redeem points</p>
+        </div>
+
+        <!-- Birthday Section -->
+        <div class="birthday-section">
+          <h3>🎂 Birthday Rewards</h3>
+          <p class="section-desc">Set your birthday to receive special bonus points every year!</p>
+          <div *ngIf="!dateOfBirth" class="birthday-form">
+            <input type="date" [(ngModel)]="birthdayInput" class="birthday-input" [max]="'2020-01-01'">
+            <button class="btn-action" (click)="saveBirthday()" [disabled]="settingBirthday || !birthdayInput">
+              {{ settingBirthday ? '⏳ Saving...' : '🎂 Set Birthday' }}
+            </button>
+            <span class="form-hint">Birthday cannot be changed after setting</span>
+          </div>
+          <div *ngIf="dateOfBirth" class="birthday-set">
+            <span class="birthday-icon">🎂</span>
+            <span>Birthday: <strong>{{ dateOfBirth | date:'mediumDate' }}</strong></span>
+            <span class="birthday-bonus-info">You get <strong>{{ birthdayBonusPoints }} pts</strong> every year!</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: Referral ═══ -->
+    <div class="tab-content" *ngIf="activeTab === 'referral'">
+      <div class="section">
+        <div class="section-header">
+          <h2>🤝 Refer & Earn</h2>
+        </div>
+        <p class="section-desc">Share your referral code — you get <strong>100 pts</strong>, your friend gets <strong>50 pts</strong>!</p>
+
+        <!-- Your Referral Code -->
+        <div class="referral-card">
+          <div class="referral-code-display">
+            <span class="referral-label">Your Referral Code</span>
+            <div class="referral-code-box">
+              <span class="referral-code">{{ referralCode }}</span>
+              <button class="btn-copy" (click)="copyReferralCode()" [class.copied]="referralCopied">
+                {{ referralCopied ? '✓ Copied' : '📋 Copy' }}
+              </button>
+            </div>
+          </div>
+          <button class="btn-share" (click)="shareReferral()">📤 Share with Friends</button>
+          <div class="referral-stats" *ngIf="totalReferrals > 0">
+            <span class="stat-number">{{ totalReferrals }}</span>
+            <span class="stat-label">Friends Referred</span>
+          </div>
+        </div>
+
+        <!-- Apply Referral Code -->
+        <div class="apply-referral-card">
+          <h3>Have a referral code?</h3>
+          <div class="referral-input-row">
+            <input type="text" [(ngModel)]="referralInput" placeholder="Enter 8-character code" class="referral-input" maxlength="8"
+                   (input)="referralInput = referralInput.toUpperCase()">
+            <button class="btn-apply" (click)="applyReferral()" [disabled]="applyingReferral || !referralInput.trim()">
+              {{ applyingReferral ? '⏳' : '✓ Apply' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: Transfer ═══ -->
+    <div class="tab-content" *ngIf="activeTab === 'transfer'">
+      <div class="section">
+        <div class="section-header">
+          <h2>🔄 Transfer Points</h2>
+        </div>
+        <p class="section-desc">Send points to another user. Minimum transfer: <strong>10 pts</strong></p>
+
+        <div class="transfer-card">
+          <div class="form-field">
+            <label>Recipient Username</label>
+            <input type="text" [(ngModel)]="transferUsername" placeholder="Enter username" class="transfer-input">
+          </div>
+          <div class="form-field">
+            <label>Points to Transfer</label>
+            <input type="number" [(ngModel)]="transferPoints" placeholder="Min 10" min="10" [max]="currentPoints" class="transfer-input">
+            <span class="form-hint" *ngIf="transferPoints > 0">
+              Your balance after transfer: <strong>{{ currentPoints - transferPoints }}</strong> pts
+            </span>
+          </div>
+          <button class="btn-transfer" (click)="doTransferPoints()"
+                  [disabled]="transferring || !transferUsername.trim() || transferPoints < 10 || transferPoints > currentPoints">
+            {{ transferring ? '⏳ Transferring...' : '🔄 Transfer Points' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: External Claims ═══ -->
+    <div class="tab-content" *ngIf="activeTab === 'claims'">
+      <div class="section">
+        <div class="section-header">
+          <h2>📱 Claim External Order Points</h2>
+          <button class="btn-claim-toggle" (click)="toggleClaimForm()">
+            {{ showClaimForm ? '✕ Cancel' : '+ New Claim' }}
+          </button>
+        </div>
+        <p class="section-desc">Ordered from Zomato or Swiggy? Upload your invoice to earn loyalty points!</p>
+
+        <!-- Success Message -->
+        <div *ngIf="claimSuccess" class="claim-alert claim-alert-success">
+          ✅ {{ claimSuccess }}
+        </div>
+
+        <!-- Claim Form -->
+        <div *ngIf="showClaimForm" class="claim-form-card">
+          <div class="claim-form-header">
+            <h3>Submit Invoice</h3>
+            <p>Upload your food delivery invoice screenshot and enter the total amount</p>
+          </div>
+
+          <div *ngIf="claimError" class="claim-alert claim-alert-error">
+            ❌ {{ claimError }}
+          </div>
+
+          <div class="claim-form-body">
+            <div class="form-field">
+              <label>Platform</label>
+              <div class="platform-selector">
+                <button class="platform-btn" [class.active]="claimPlatform === 'zomato'" (click)="claimPlatform = 'zomato'">
+                  🔴 Zomato
+                </button>
+                <button class="platform-btn" [class.active]="claimPlatform === 'swiggy'" (click)="claimPlatform = 'swiggy'">
+                  🟠 Swiggy
+                </button>
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label>Total Amount (₹)</label>
+              <input type="number" [(ngModel)]="claimTotalAmount" placeholder="Enter total from invoice" min="1" max="50000" step="0.01" class="claim-input">
+              <span class="form-hint" *ngIf="claimTotalAmount && claimTotalAmount > 0">
+                You'll earn approximately <strong>{{ (claimTotalAmount * 0.6) | number:'1.0-0' }}</strong> points
+              </span>
+            </div>
+
+            <div class="form-field">
+              <label>Invoice Screenshot</label>
+              <div *ngIf="!claimFilePreview" class="file-upload-area" (click)="fileInput.click()">
+                <div class="upload-icon">📸</div>
+                <p>Click to upload invoice screenshot</p>
+                <span class="upload-hint">JPG, PNG • Max 10MB</span>
+                <input #fileInput type="file" accept="image/*" (change)="onClaimFileSelected($event)" hidden>
+              </div>
+              <div *ngIf="claimFilePreview" class="file-preview">
+                <img [src]="claimFilePreview" alt="Invoice preview">
+                <button class="btn-remove-file" (click)="removeClaimFile()">✕ Remove</button>
+              </div>
+            </div>
+
+            <button class="btn-submit-claim" [disabled]="submittingClaim || !claimFile || !claimTotalAmount" (click)="submitExternalClaim()">
+              <span *ngIf="!submittingClaim">📤 Submit Claim</span>
+              <span *ngIf="submittingClaim">⏳ Submitting...</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Claims History -->
+        <div *ngIf="externalClaims.length > 0" class="claims-list">
+          <h3>Your Claims</h3>
+          <div *ngFor="let claim of externalClaims; trackBy: trackByIndex" class="claim-card">
+            <div class="claim-card-left">
+              <span class="claim-platform">{{ getPlatformIcon(claim.platform) }} {{ claim.platform | titlecase }}</span>
+              <span class="claim-amount">₹{{ claim.extractedTotal | number:'1.2-2' }}</span>
+              <span class="claim-date">{{ formatClaimDate(claim.createdAt) }}</span>
+            </div>
+            <div class="claim-card-right">
+              <span class="claim-points">{{ claim.calculatedPoints }} pts</span>
+              <span class="claim-status" [ngClass]="getStatusClass(claim.status)">
+                {{ getStatusIcon(claim.status) }} {{ claim.status | titlecase }}
+              </span>
+            </div>
+            <div *ngIf="claim.adminNotes" class="claim-notes">
+              💬 {{ claim.adminNotes }}
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="externalClaims.length === 0 && !showClaimForm" class="empty-block">
+          <div class="empty-icon">📱</div>
+          <h3>No External Claims</h3>
+          <p>Upload your Zomato or Swiggy invoice to earn loyalty points!</p>
+          <button class="btn-action" (click)="toggleClaimForm()">📤 Submit Your First Claim</button>
         </div>
       </div>
     </div>

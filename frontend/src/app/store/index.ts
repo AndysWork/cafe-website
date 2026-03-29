@@ -4,4 +4,3 @@ export { CartStore } from './cart.store';
 export { OutletStore } from './outlet.store';
 export { UIStore, type Notification, type NotificationType } from './ui.store';
 export { NotificationStore } from './notification.store';
-export { AppStore } from './app.store';

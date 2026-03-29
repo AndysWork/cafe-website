@@ -223,7 +223,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error rotating API key");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await res.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return res;
         }
     }
@@ -414,7 +414,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error exporting audit logs");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await res.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return res;
         }
     }

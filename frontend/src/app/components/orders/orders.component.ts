@@ -184,6 +184,47 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return icons[status] || '❓';
   }
 
+  // Receipt upload
+  uploadingReceiptForId: string | null = null;
+
+  onReceiptSelected(event: Event, orderId: string) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    const file = input.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+      this.uiStore.error('File size must be under 5MB');
+      return;
+    }
+    this.uploadingReceiptForId = orderId;
+    this.orderService.uploadReceipt(orderId, file).subscribe({
+      next: (res) => {
+        const order = this.orders.find(o => o.id === orderId);
+        if (order) order.receiptImageUrl = res.receiptImageUrl;
+        this.uploadingReceiptForId = null;
+        this.uiStore.success('Receipt uploaded successfully');
+      },
+      error: (err) => {
+        this.uploadingReceiptForId = null;
+        this.uiStore.error(err.error?.error || 'Failed to upload receipt');
+      }
+    });
+    input.value = '';
+  }
+
+  deleteReceipt(orderId: string) {
+    if (!confirm('Delete receipt image?')) return;
+    this.orderService.deleteReceipt(orderId).subscribe({
+      next: () => {
+        const order = this.orders.find(o => o.id === orderId);
+        if (order) order.receiptImageUrl = undefined;
+        this.uiStore.success('Receipt deleted');
+      },
+      error: (err) => {
+        this.uiStore.error(err.error?.error || 'Failed to delete receipt');
+      }
+    });
+  }
+
   trackByKey(index: number, item: any): string { return item.key; }
 
   trackByIndex(index: number): number { return index; }

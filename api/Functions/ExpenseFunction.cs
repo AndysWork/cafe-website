@@ -69,7 +69,7 @@ public class ExpenseFunction
                 _log.LogError($"Inner exception: {ex.InnerException.Message}");
             }
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to get expenses", details = ex.Message });
+            await error.WriteAsJsonAsync(new { error = "Failed to get expenses" });
             return error;
         }
     }
@@ -722,7 +722,7 @@ public class ExpenseFunction
         {
             _log.LogError(ex, "Error uploading expenses Excel file");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }

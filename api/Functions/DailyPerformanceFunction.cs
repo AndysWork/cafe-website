@@ -62,7 +62,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error getting daily performance by date");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -100,7 +100,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error getting daily performance by staff");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -152,7 +152,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error getting daily performance by date range");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -222,7 +222,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error upserting daily performance");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -273,7 +273,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error bulk upserting daily performance");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -311,7 +311,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error deleting daily performance");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -356,7 +356,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error adding performance shift");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -401,7 +401,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error updating performance shift");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -440,7 +440,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error deleting performance shift");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -470,7 +470,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error getting performance shifts");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return errorRes;
         }
     }

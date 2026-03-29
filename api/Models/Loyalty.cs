@@ -29,6 +29,25 @@ public class LoyaltyAccount
     [BsonElement("tier")]
     public string Tier { get; set; } = "Bronze"; // Bronze, Silver, Gold, Platinum
 
+    [BsonElement("referralCode")]
+    public string ReferralCode { get; set; } = string.Empty;
+
+    [BsonElement("referredBy")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? ReferredBy { get; set; }
+
+    [BsonElement("totalReferrals")]
+    public int TotalReferrals { get; set; } = 0;
+
+    [BsonElement("loyaltyCardNumber")]
+    public string LoyaltyCardNumber { get; set; } = string.Empty;
+
+    [BsonElement("dateOfBirth")]
+    public DateTime? DateOfBirth { get; set; }
+
+    [BsonElement("lastBirthdayRewardYear")]
+    public int? LastBirthdayRewardYear { get; set; }
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
@@ -91,6 +110,12 @@ public class PointsTransaction
     [BsonRepresentation(BsonType.ObjectId)]
     public string? RewardId { get; set; }
 
+    [BsonElement("expiresAt")]
+    public DateTime? ExpiresAt { get; set; }
+
+    [BsonElement("isExpired")]
+    public bool IsExpired { get; set; } = false;
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 }
@@ -107,6 +132,16 @@ public class LoyaltyAccountResponse
     public string Tier { get; set; } = string.Empty;
     public string? NextTier { get; set; }
     public int? PointsToNextTier { get; set; }
+    public string ReferralCode { get; set; } = string.Empty;
+    public int TotalReferrals { get; set; }
+    public string LoyaltyCardNumber { get; set; } = string.Empty;
+    public DateTime? DateOfBirth { get; set; }
+    public double TierMultiplier { get; set; } = 1.0;
+    public string[] TierBenefits { get; set; } = Array.Empty<string>();
+    public int ExpiringPoints { get; set; }
+    public DateTime? ExpiringDate { get; set; }
+    public bool BirthdayBonusAvailable { get; set; }
+    public int BirthdayBonusPoints { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -131,5 +166,23 @@ public class PointsTransactionResponse
     public string Description { get; set; } = string.Empty;
     public string? OrderId { get; set; }
     public string? RewardId { get; set; }
+    public DateTime? ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+// Request DTOs
+public class TransferPointsRequest
+{
+    public string RecipientUsername { get; set; } = string.Empty;
+    public int Points { get; set; }
+}
+
+public class SetBirthdayRequest
+{
+    public DateTime DateOfBirth { get; set; }
+}
+
+public class ApplyReferralRequest
+{
+    public string ReferralCode { get; set; } = string.Empty;
 }

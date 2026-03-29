@@ -42,7 +42,7 @@ public class OnlineExpenseTypeFunction
         {
             _log.LogError(ex, "Error getting online expense types");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -68,7 +68,7 @@ public class OnlineExpenseTypeFunction
         {
             _log.LogError(ex, "Error getting active online expense types");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -102,7 +102,7 @@ public class OnlineExpenseTypeFunction
         {
             _log.LogError(ex, "Error creating online expense type");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -137,7 +137,7 @@ public class OnlineExpenseTypeFunction
         {
             _log.LogError(ex, "Error updating online expense type");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -164,7 +164,7 @@ public class OnlineExpenseTypeFunction
         {
             _log.LogError(ex, "Error deleting online expense type");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }
@@ -190,7 +190,7 @@ public class OnlineExpenseTypeFunction
         {
             _log.LogError(ex, "Error initializing online expense types");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteAsJsonAsync(new { error = ex.Message });
+            await errorResponse.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorResponse;
         }
     }

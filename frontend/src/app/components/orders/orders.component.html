@@ -160,6 +160,21 @@
             </div>
           </div>
 
+          <!-- Receipt Image -->
+          <div class="receipt-section">
+            <div class="receipt-header">🧾 Receipt / Invoice</div>
+            <div *ngIf="order.receiptImageUrl" class="receipt-preview">
+              <img [src]="order.receiptImageUrl" alt="Order receipt" loading="lazy">
+              <button class="btn-remove-receipt" (click)="deleteReceipt(order.id); $event.stopPropagation()">✕ Remove</button>
+            </div>
+            <div *ngIf="!order.receiptImageUrl" class="receipt-upload-area" (click)="receiptInput.click(); $event.stopPropagation()">
+              <span *ngIf="uploadingReceiptForId !== order.id">📸 Upload Receipt Image</span>
+              <span *ngIf="uploadingReceiptForId === order.id">⏳ Uploading...</span>
+              <span class="upload-hint">JPG, PNG, WebP • Max 5MB • Auto-compressed</span>
+              <input #receiptInput type="file" accept="image/jpeg,image/png,image/webp,image/gif" (change)="onReceiptSelected($event, order.id)" hidden>
+            </div>
+          </div>
+
           <!-- Actions -->
           <div class="card-actions">
             <button *ngIf="!isAdmin && canCancelOrder(order)"

@@ -31,7 +31,7 @@ public class PriceUpdateFunction
     // GET: Get price history for an ingredient
     [Function("GetPriceHistory")]
     public async Task<HttpResponseData> GetPriceHistory(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ingredients/{id}/price-history")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ingredients/{id}/price-history")] HttpRequestData req,
         string id)
     {
         try
@@ -58,7 +58,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, $"Error getting price history for ingredient {id}");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return response;
         }
     }
@@ -66,11 +66,14 @@ public class PriceUpdateFunction
     // GET: Get price trends for an ingredient
     [Function("GetPriceTrends")]
     public async Task<HttpResponseData> GetPriceTrends(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ingredients/{id}/price-trends")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ingredients/{id}/price-trends")] HttpRequestData req,
         string id)
     {
         try
         {
+            var (isAuthorized, _, _, authError) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+            if (!isAuthorized) return authError!;
+
             var daysParam = req.Query["days"];
             var days = int.TryParse(daysParam, out var d) ? d : 30;
 
@@ -88,7 +91,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, $"Error getting price trends for ingredient {id}");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return response;
         }
     }
@@ -96,7 +99,7 @@ public class PriceUpdateFunction
     // POST: Manually refresh price for a single ingredient
     [Function("RefreshIngredientPrice")]
     public async Task<HttpResponseData> RefreshIngredientPrice(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ingredients/{id}/refresh-price")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ingredients/{id}/refresh-price")] HttpRequestData req,
         string id)
     {
         try
@@ -166,7 +169,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, $"Error refreshing price for ingredient {id}");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return response;
         }
     }
@@ -174,7 +177,7 @@ public class PriceUpdateFunction
     // POST: Bulk refresh prices for multiple ingredients
     [Function("BulkRefreshPrices")]
     public async Task<HttpResponseData> BulkRefreshPrices(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ingredients/bulk-refresh-prices")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ingredients/bulk-refresh-prices")] HttpRequestData req)
     {
         try
         {
@@ -245,7 +248,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, "Error during bulk price refresh");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return response;
         }
     }
@@ -253,7 +256,7 @@ public class PriceUpdateFunction
     // GET: Get price update settings
     [Function("GetPriceUpdateSettings")]
     public async Task<HttpResponseData> GetPriceUpdateSettings(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "price-settings")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "price-settings")] HttpRequestData req)
     {
         try
         {
@@ -275,7 +278,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, "Error getting price update settings");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return response;
         }
     }
@@ -283,7 +286,7 @@ public class PriceUpdateFunction
     // PUT: Update price update settings
     [Function("UpdatePriceUpdateSettings")]
     public async Task<HttpResponseData> UpdatePriceUpdateSettings(
-        [HttpTrigger(AuthorizationLevel.Function, "put", Route = "price-settings")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "price-settings")] HttpRequestData req)
     {
         try
         {
@@ -314,7 +317,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, "Error updating price settings");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return response;
         }
     }
@@ -322,7 +325,7 @@ public class PriceUpdateFunction
     // POST: Toggle auto-update for an ingredient
     [Function("ToggleIngredientAutoUpdate")]
     public async Task<HttpResponseData> ToggleIngredientAutoUpdate(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ingredients/{id}/toggle-auto-update")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ingredients/{id}/toggle-auto-update")] HttpRequestData req,
         string id)
     {
         try
@@ -363,7 +366,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, $"Error toggling auto-update for ingredient {id}");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
             return response;
         }
     }

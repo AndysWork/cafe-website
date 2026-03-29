@@ -50,6 +50,18 @@ export class OutletService {
   }
 
   /**
+   * Get public outlet info for landing page (no auth required)
+   */
+  getPublicOutlets(): Observable<Outlet[]> {
+    return this.http.get<Outlet[]>(`${this.apiUrl}/public/outlets`).pipe(
+      catchError(error => {
+        console.error('Error fetching public outlets:', error);
+        return of([]);
+      })
+    );
+  }
+
+  /**
    * Get outlet by ID
    */
   getOutletById(id: string): Observable<Outlet> {

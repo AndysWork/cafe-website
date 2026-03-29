@@ -1454,6 +1454,17 @@ public partial class MongoService
         return result.ModifiedCount > 0;
     }
 
+    // Update receipt image URL on order
+    public async Task<bool> UpdateReceiptImageUrlAsync(string orderId, string? receiptImageUrl)
+    {
+        var update = Builders<Order>.Update
+            .Set(x => x.ReceiptImageUrl, receiptImageUrl)
+            .Set(x => x.UpdatedAt, GetIstNow());
+
+        var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
+        return result.ModifiedCount > 0;
+    }
+
     #endregion
 
     #region Loyalty Operations
@@ -1473,10 +1484,22 @@ public partial class MongoService
                 TotalPointsEarned = 0,
                 TotalPointsRedeemed = 0,
                 Tier = "Bronze",
+                ReferralCode = await GenerateUniqueReferralCodeAsync(),
+                LoyaltyCardNumber = GenerateLoyaltyCardNumber(),
                 CreatedAt = GetIstNow(),
                 UpdatedAt = GetIstNow()
             };
             await _loyaltyAccounts.InsertOneAsync(account);
+        }
+        else if (string.IsNullOrEmpty(account.ReferralCode) || string.IsNullOrEmpty(account.LoyaltyCardNumber))
+        {
+            // Backfill referral code and card number for existing accounts
+            if (string.IsNullOrEmpty(account.ReferralCode))
+                account.ReferralCode = await GenerateUniqueReferralCodeAsync();
+            if (string.IsNullOrEmpty(account.LoyaltyCardNumber))
+                account.LoyaltyCardNumber = GenerateLoyaltyCardNumber();
+            account.UpdatedAt = GetIstNow();
+            await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
         }
         
         return account;
@@ -1506,15 +1529,19 @@ public partial class MongoService
         return await _loyaltyAccounts.CountDocumentsAsync(_ => true);
     }
 
-    // Award points to user
+    // Award points to user (with tier multiplier and expiry)
     public async Task<LoyaltyAccount?> AwardPointsAsync(string userId, int points, string description, string? orderId = null)
     {
         var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
         if (account == null) return null;
 
+        // Apply tier multiplier
+        double multiplier = GetTierMultiplier(account.Tier);
+        int adjustedPoints = (int)Math.Floor(points * multiplier);
+
         // Update account
-        account.CurrentPoints += points;
-        account.TotalPointsEarned += points;
+        account.CurrentPoints += adjustedPoints;
+        account.TotalPointsEarned += adjustedPoints;
         account.UpdatedAt = GetIstNow();
 
         // Update tier based on total points earned
@@ -1522,14 +1549,19 @@ public partial class MongoService
 
         await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
 
-        // Create transaction record
+        // Create transaction record with 1-year expiry
+        var txDescription = multiplier > 1.0
+            ? $"{description} (×{multiplier} {account.Tier} bonus)"
+            : description;
+
         var transaction = new PointsTransaction
         {
             UserId = userId,
-            Points = points,
+            Points = adjustedPoints,
             Type = "earned",
-            Description = description,
+            Description = txDescription,
             OrderId = orderId,
+            ExpiresAt = GetIstNow().AddYears(1),
             CreatedAt = GetIstNow()
         };
         await _transactions.InsertOneAsync(transaction);
@@ -1642,6 +1674,317 @@ public partial class MongoService
         var result = await _rewards.DeleteOneAsync(x => x.Id == id);
         _cache.Remove("active_rewards");
         return result.DeletedCount > 0;
+    }
+
+    // ─── Points Transfer ───
+    public async Task<(bool Success, string Message)> TransferPointsAsync(string fromUserId, string toUsername, int points)
+    {
+        if (points < 10)
+            return (false, "Minimum transfer is 10 points");
+
+        var fromAccount = await _loyaltyAccounts.Find(x => x.UserId == fromUserId).FirstOrDefaultAsync();
+        if (fromAccount == null)
+            return (false, "Your loyalty account not found");
+
+        if (fromAccount.CurrentPoints < points)
+            return (false, $"Insufficient points. You have {fromAccount.CurrentPoints} points");
+
+        // Find recipient by username
+        var toUser = await _users.Find(x => x.Username == toUsername).FirstOrDefaultAsync();
+        if (toUser == null)
+            return (false, "Recipient user not found");
+
+        if (toUser.Id == fromUserId)
+            return (false, "Cannot transfer points to yourself");
+
+        var toAccount = await _loyaltyAccounts.Find(x => x.UserId == toUser.Id).FirstOrDefaultAsync();
+        if (toAccount == null)
+            return (false, "Recipient has no loyalty account");
+
+        var now = GetIstNow();
+
+        // Deduct from sender
+        fromAccount.CurrentPoints -= points;
+        fromAccount.UpdatedAt = now;
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == fromAccount.Id, fromAccount);
+
+        // Add to recipient
+        toAccount.CurrentPoints += points;
+        toAccount.UpdatedAt = now;
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == toAccount.Id, toAccount);
+
+        // Create transaction records
+        await _transactions.InsertOneAsync(new PointsTransaction
+        {
+            UserId = fromUserId,
+            Points = -points,
+            Type = "transferred",
+            Description = $"Transferred {points} pts to {toUsername}",
+            CreatedAt = now
+        });
+
+        await _transactions.InsertOneAsync(new PointsTransaction
+        {
+            UserId = toUser.Id!,
+            Points = points,
+            Type = "received",
+            Description = $"Received {points} pts from {fromAccount.Username}",
+            ExpiresAt = now.AddYears(1),
+            CreatedAt = now
+        });
+
+        return (true, $"Successfully transferred {points} points to {toUsername}");
+    }
+
+    // ─── Referral Program ───
+    public async Task<LoyaltyAccount?> GetLoyaltyAccountByReferralCodeAsync(string referralCode)
+    {
+        return await _loyaltyAccounts.Find(x => x.ReferralCode == referralCode).FirstOrDefaultAsync();
+    }
+
+    public async Task<(bool Success, string Message)> ApplyReferralCodeAsync(string userId, string referralCode)
+    {
+        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        if (account == null)
+            return (false, "Loyalty account not found");
+
+        if (!string.IsNullOrEmpty(account.ReferredBy))
+            return (false, "You have already used a referral code");
+
+        var referrer = await GetLoyaltyAccountByReferralCodeAsync(referralCode);
+        if (referrer == null)
+            return (false, "Invalid referral code");
+
+        if (referrer.UserId == userId)
+            return (false, "Cannot use your own referral code");
+
+        var now = GetIstNow();
+
+        // Mark this user as referred
+        account.ReferredBy = referrer.UserId;
+        account.UpdatedAt = now;
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+
+        // Award referee bonus (50 points)
+        account.CurrentPoints += 50;
+        account.TotalPointsEarned += 50;
+        account.Tier = CalculateTier(account.TotalPointsEarned);
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+
+        await _transactions.InsertOneAsync(new PointsTransaction
+        {
+            UserId = userId,
+            Points = 50,
+            Type = "earned",
+            Description = $"Referral bonus — referred by {referrer.Username}",
+            ExpiresAt = now.AddYears(1),
+            CreatedAt = now
+        });
+
+        // Award referrer bonus (100 points)
+        referrer.CurrentPoints += 100;
+        referrer.TotalPointsEarned += 100;
+        referrer.TotalReferrals += 1;
+        referrer.Tier = CalculateTier(referrer.TotalPointsEarned);
+        referrer.UpdatedAt = now;
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == referrer.Id, referrer);
+
+        await _transactions.InsertOneAsync(new PointsTransaction
+        {
+            UserId = referrer.UserId,
+            Points = 100,
+            Type = "earned",
+            Description = $"Referral bonus — {account.Username} joined using your code",
+            ExpiresAt = now.AddYears(1),
+            CreatedAt = now
+        });
+
+        return (true, $"Referral applied! You earned 50 bonus points. {referrer.Username} earned 100 points.");
+    }
+
+    // ─── Birthday Rewards ───
+    public async Task<(bool Success, string Message)> SetBirthdayAsync(string userId, DateTime dateOfBirth)
+    {
+        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        if (account == null)
+            return (false, "Loyalty account not found");
+
+        if (account.DateOfBirth.HasValue)
+            return (false, "Birthday is already set and cannot be changed");
+
+        // Basic validation
+        var now = GetIstNow();
+        var age = now.Year - dateOfBirth.Year;
+        if (dateOfBirth > now.AddYears(-age)) age--;
+        if (age < 5 || age > 120)
+            return (false, "Please enter a valid date of birth");
+
+        account.DateOfBirth = dateOfBirth.Date;
+        account.UpdatedAt = now;
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+
+        return (true, "Birthday set successfully!");
+    }
+
+    public async Task<(bool Awarded, int Points)> CheckAndAwardBirthdayBonusAsync(string userId)
+    {
+        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        if (account == null || !account.DateOfBirth.HasValue)
+            return (false, 0);
+
+        var now = GetIstNow();
+        var today = now.Date;
+        var birthday = account.DateOfBirth.Value;
+
+        // Check if today is user's birthday
+        if (birthday.Month != today.Month || birthday.Day != today.Day)
+            return (false, 0);
+
+        // Check if already awarded this year
+        if (account.LastBirthdayRewardYear.HasValue && account.LastBirthdayRewardYear.Value == today.Year)
+            return (false, 0);
+
+        // Tier-based birthday bonus
+        int bonusPoints = GetBirthdayBonusPoints(account.Tier);
+
+        account.CurrentPoints += bonusPoints;
+        account.TotalPointsEarned += bonusPoints;
+        account.LastBirthdayRewardYear = today.Year;
+        account.Tier = CalculateTier(account.TotalPointsEarned);
+        account.UpdatedAt = now;
+        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+
+        await _transactions.InsertOneAsync(new PointsTransaction
+        {
+            UserId = userId,
+            Points = bonusPoints,
+            Type = "earned",
+            Description = $"🎂 Happy Birthday! {account.Tier} tier bonus",
+            ExpiresAt = now.AddYears(1),
+            CreatedAt = now
+        });
+
+        return (true, bonusPoints);
+    }
+
+    public bool IsBirthdayBonusAvailable(LoyaltyAccount account)
+    {
+        if (!account.DateOfBirth.HasValue) return false;
+        var today = GetIstNow().Date;
+        if (account.DateOfBirth.Value.Month != today.Month || account.DateOfBirth.Value.Day != today.Day)
+            return false;
+        if (account.LastBirthdayRewardYear.HasValue && account.LastBirthdayRewardYear.Value == today.Year)
+            return false;
+        return true;
+    }
+
+    public int GetBirthdayBonusPoints(string tier)
+    {
+        return tier switch
+        {
+            "Platinum" => 500,
+            "Gold" => 200,
+            "Silver" => 100,
+            _ => 50 // Bronze
+        };
+    }
+
+    // ─── Points Expiry ───
+    public async Task<int> ProcessExpiredPointsAsync(string userId)
+    {
+        var now = GetIstNow();
+        var expiredTransactions = await _transactions
+            .Find(x => x.UserId == userId && x.Type == "earned" && !x.IsExpired
+                && x.ExpiresAt.HasValue && x.ExpiresAt <= now)
+            .ToListAsync();
+
+        if (!expiredTransactions.Any()) return 0;
+
+        int totalExpired = expiredTransactions.Sum(x => x.Points);
+
+        // Mark each transaction as expired
+        var expiredIds = expiredTransactions.Select(x => x.Id).ToList();
+        await _transactions.UpdateManyAsync(
+            x => expiredIds.Contains(x.Id),
+            Builders<PointsTransaction>.Update.Set(x => x.IsExpired, true)
+        );
+
+        // Create expired transaction record
+        await _transactions.InsertOneAsync(new PointsTransaction
+        {
+            UserId = userId,
+            Points = -totalExpired,
+            Type = "expired",
+            Description = $"{totalExpired} points expired",
+            CreatedAt = now
+        });
+
+        // Deduct from account
+        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        if (account != null)
+        {
+            account.CurrentPoints = Math.Max(0, account.CurrentPoints - totalExpired);
+            account.UpdatedAt = now;
+            await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+        }
+
+        return totalExpired;
+    }
+
+    public async Task<(int ExpiringPoints, DateTime? NextExpiryDate)> GetExpiringPointsInfoAsync(string userId)
+    {
+        var now = GetIstNow();
+        var thirtyDaysFromNow = now.AddDays(30);
+
+        var expiringSoon = await _transactions
+            .Find(x => x.UserId == userId && x.Type == "earned" && !x.IsExpired
+                && x.ExpiresAt.HasValue && x.ExpiresAt > now && x.ExpiresAt <= thirtyDaysFromNow)
+            .ToListAsync();
+
+        if (!expiringSoon.Any()) return (0, null);
+
+        return (expiringSoon.Sum(x => x.Points), expiringSoon.Min(x => x.ExpiresAt));
+    }
+
+    // ─── Tier Helpers ───
+    public double GetTierMultiplier(string tier)
+    {
+        return tier switch
+        {
+            "Platinum" => 2.0,
+            "Gold" => 1.5,
+            "Silver" => 1.2,
+            _ => 1.0 // Bronze
+        };
+    }
+
+    public string[] GetTierBenefits(string tier)
+    {
+        return tier switch
+        {
+            "Platinum" => new[] { "2× points on every order", "Free packaging", "Priority support", "Exclusive offers", "Birthday 500 pts" },
+            "Gold" => new[] { "1.5× points on every order", "Free packaging", "Priority support", "Birthday 200 pts" },
+            "Silver" => new[] { "1.2× points on every order", "Free packaging", "Birthday 100 pts" },
+            _ => new[] { "1× points on every order", "Birthday 50 pts" }
+        };
+    }
+
+    // ─── Code Generation Helpers ───
+    private async Task<string> GenerateUniqueReferralCodeAsync()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        var random = new Random();
+        string code;
+        do
+        {
+            code = new string(Enumerable.Range(0, 8).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+        } while (await _loyaltyAccounts.Find(x => x.ReferralCode == code).AnyAsync());
+        return code;
+    }
+
+    private string GenerateLoyaltyCardNumber()
+    {
+        return $"MTC-{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
     }
 
     // Calculate tier based on total points earned

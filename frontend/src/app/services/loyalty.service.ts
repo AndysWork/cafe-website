@@ -15,6 +15,16 @@ export interface LoyaltyAccount {
   tier: string;
   nextTier?: string;
   pointsToNextTier?: number;
+  referralCode: string;
+  totalReferrals: number;
+  loyaltyCardNumber: string;
+  dateOfBirth?: string;
+  tierMultiplier: number;
+  tierBenefits: string[];
+  expiringPoints: number;
+  expiringDate?: string;
+  birthdayBonusAvailable: boolean;
+  birthdayBonusPoints: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,10 +44,11 @@ export interface PointsTransaction {
   id: string;
   userId: string;
   points: number;
-  type: string; // 'earned', 'redeemed', 'expired'
+  type: string; // 'earned', 'redeemed', 'expired', 'transferred', 'received'
   description: string;
   orderId?: string;
   rewardId?: string;
+  expiresAt?: string;
   createdAt: string;
 }
 
@@ -225,6 +236,8 @@ export class LoyaltyService {
       case 'earned': return 'Earned';
       case 'redeemed': return 'Redeemed';
       case 'expired': return 'Expired';
+      case 'transferred': return 'Transferred';
+      case 'received': return 'Received';
       default: return type;
     }
   }
@@ -235,7 +248,50 @@ export class LoyaltyService {
       case 'earned': return 'type-earned';
       case 'redeemed': return 'type-redeemed';
       case 'expired': return 'type-expired';
+      case 'transferred': return 'type-transferred';
+      case 'received': return 'type-received';
       default: return '';
+    }
+  }
+
+  // ─── New Loyalty Features ───
+
+  // Transfer points to another user
+  transferPoints(recipientUsername: string, points: number): Observable<{ success: boolean; message: string }> {
+    return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/loyalty/transfer`, {
+      recipientUsername, points
+    }).pipe(catchError(handleServiceError('LoyaltyService.transferPoints')));
+  }
+
+  // Apply referral code
+  applyReferralCode(referralCode: string): Observable<{ success: boolean; message: string }> {
+    return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/loyalty/referral/apply`, {
+      referralCode
+    }).pipe(catchError(handleServiceError('LoyaltyService.applyReferralCode')));
+  }
+
+  // Set birthday
+  setBirthday(dateOfBirth: string): Observable<{ success: boolean; message: string }> {
+    return this.http.put<{ success: boolean; message: string }>(`${this.apiUrl}/loyalty/birthday`, {
+      dateOfBirth
+    }).pipe(catchError(handleServiceError('LoyaltyService.setBirthday')));
+  }
+
+  // Claim birthday bonus
+  claimBirthdayBonus(): Observable<{ success: boolean; message: string; points: number }> {
+    return this.http.post<{ success: boolean; message: string; points: number }>(`${this.apiUrl}/loyalty/birthday/claim`, {}).pipe(
+      catchError(handleServiceError('LoyaltyService.claimBirthdayBonus'))
+    );
+  }
+
+  // Helper: Get tier icon
+  getTierIcon(tier: string): string {
+    switch (tier.toLowerCase()) {
+      case 'platinum': return '💎';
+      case 'gold': return '🥇';
+      case 'silver': return '🥈';
+      case 'bronze': return '🥉';
+      default: return '🥉';
     }
   }
 }

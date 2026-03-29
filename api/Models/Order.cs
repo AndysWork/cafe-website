@@ -75,6 +75,9 @@ public class Order
 
     [BsonElement("completedAt")]
     public DateTime? CompletedAt { get; set; }
+
+    [BsonElement("receiptImageUrl")]
+    public string? ReceiptImageUrl { get; set; }
 }
 
 public class OrderItem
@@ -165,4 +168,5 @@ public class OrderResponse
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+    public string? ReceiptImageUrl { get; set; }
 }

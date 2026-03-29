@@ -21,10 +21,10 @@ public class PriceUpdateScheduler
     }
 
     // Runs daily at 2 AM (0 2 * * *)
-    // Note: Uncomment and configure when deploying to Azure
+    // Uncomment the Function attribute when deploying to Azure with timer trigger support
     // [Function("ScheduledPriceUpdate")]
-    // public async Task Run([TimerTrigger("0 2 * * *")] TimerInfo timerInfo)
-    public async Task Run()
+    // public async Task Run([TimerTrigger("0 0 2 * * *")] TimerInfo timerInfo)
+    public async Task RunScheduledPriceUpdate()
     {
         _logger.LogInformation($"Price update scheduler triggered at: {DateTime.UtcNow}");
 
