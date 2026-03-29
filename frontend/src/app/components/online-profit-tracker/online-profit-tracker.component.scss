@@ -9,12 +9,12 @@
 
     h1 {
       font-size: 2.5rem;
-      color: #333;
+      color: #0F172A;
       margin-bottom: 0.5rem;
     }
 
     p {
-      color: #666;
+      color: #475569;
       font-size: 1.1rem;
     }
   }
@@ -155,14 +155,14 @@
 
       .card-label {
         font-size: 0.9rem;
-        color: #666;
+        color: #475569;
         margin-bottom: 0.25rem;
       }
 
       .card-value {
         font-size: 1.8rem;
         font-weight: 700;
-        color: #333;
+        color: #0F172A;
       }
     }
 
@@ -230,7 +230,7 @@
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s;
-      color: #666;
+      color: #475569;
 
       &:hover {
         background: #f8f9fa;
@@ -251,7 +251,7 @@
 
     h2 {
       font-size: 1.5rem;
-      color: #333;
+      color: #0F172A;
       margin-bottom: 1.5rem;
       padding-bottom: 0.75rem;
       border-bottom: 2px solid #f0f0f0;
@@ -313,14 +313,14 @@
 
       .metric-label {
         font-size: 0.9rem;
-        color: #666;
+        color: #475569;
         margin-bottom: 0.5rem;
       }
 
       .metric-value {
         font-size: 1.5rem;
         font-weight: 700;
-        color: #333;
+        color: #0F172A;
       }
     }
   }
@@ -357,7 +357,7 @@
 
         td {
           padding: 1rem;
-          color: #333;
+          color: #0F172A;
 
           &.item-name {
             font-weight: 600;
@@ -429,7 +429,7 @@
 
         .category-name {
           font-weight: 700;
-          color: #333;
+          color: #0F172A;
           font-size: 1.1rem;
         }
 
@@ -456,7 +456,7 @@
 
       .expense-percentage {
         font-size: 0.9rem;
-        color: #666;
+        color: #475569;
       }
     }
   }
@@ -464,7 +464,7 @@
   .empty-state {
     text-align: center;
     padding: 3rem;
-    color: #666;
+    color: #475569;
 
     p {
       font-size: 1.1rem;

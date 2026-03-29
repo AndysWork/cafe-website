@@ -11,20 +11,20 @@
 
   h1 {
     font-size: 2.5rem;
-    color: #2c3e50;
+    color: #0F172A;
     margin-bottom: 0.5rem;
     font-weight: 700;
   }
 
   .subtitle {
-    color: #7f8c8d;
+    color: #475569;
     font-size: 1.1rem;
   }
 }
 
 /* Template Section */
 .template-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
   color: white;
   padding: 2rem;
   border-radius: 12px;
@@ -60,7 +60,7 @@
   h3 {
     margin-top: 0;
     margin-bottom: 1.5rem;
-    color: #2c3e50;
+    color: #0F172A;
     font-size: 1.5rem;
   }
 }
@@ -76,12 +76,12 @@
   background: #f7fafc;
 
   &:hover {
-    border-color: #667eea;
+    border-color: #38BDF8;
     background: #edf2f7;
   }
 
   &.dragging {
-    border-color: #667eea;
+    border-color: #38BDF8;
     background: #e6f2ff;
     transform: scale(1.02);
   }
@@ -100,7 +100,7 @@
 
   .drop-text {
     font-size: 1.3rem;
-    color: #2d3748;
+    color: #0F172A;
     margin-bottom: 0.5rem;
     font-weight: 600;
   }
@@ -136,7 +136,7 @@
 
     .file-name {
       font-weight: 600;
-      color: #2d3748;
+      color: #0F172A;
       margin: 0;
       word-break: break-all;
     }
@@ -185,7 +185,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #38BDF8 0%, #84CC16 100%);
   transition: width 0.3s ease;
   border-radius: 10px;
 }
@@ -216,7 +216,7 @@
 
 .btn-template {
   background: white;
-  color: #667eea;
+  color: #38BDF8;
   border: 2px solid white;
 
   &:hover {
@@ -227,7 +227,7 @@
 }
 
 .btn-browse {
-  background: #667eea;
+  background: #38BDF8;
   color: white;
   padding: 0.875rem 2rem;
   font-size: 1.05rem;
@@ -319,7 +319,7 @@
   h3 {
     margin: 0;
     font-size: 1.75rem;
-    color: #2d3748;
+    color: #0F172A;
   }
 }
 
@@ -346,7 +346,7 @@
     display: block;
     font-size: 2.5rem;
     font-weight: 700;
-    color: #667eea;
+    color: #38BDF8;
   }
 
   .stat-label {
@@ -387,7 +387,7 @@
 
   h3 {
     margin-top: 0;
-    color: #2c3e50;
+    color: #0F172A;
     font-size: 1.5rem;
     margin-bottom: 1rem;
   }
@@ -404,7 +404,7 @@
       margin: 0.75rem 0;
 
       strong {
-        color: #2d3748;
+        color: #0F172A;
       }
     }
   }
@@ -412,7 +412,7 @@
   .tip {
     background: #edf2f7;
     padding: 1rem;
-    border-left: 4px solid #667eea;
+    border-left: 4px solid #38BDF8;
     margin-top: 1.5rem;
     border-radius: 4px;
   }

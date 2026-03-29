@@ -14,7 +14,7 @@
 
   h1 {
     font-size: 2rem;
-    color: #2d3748;
+    color: #0F172A;
     font-weight: 800;
   }
 }
@@ -35,7 +35,7 @@
 }
 
 .btn-refresh {
-  background: #ff6b6b;
+  background: #0EA5E9;
   color: white;
   border: none;
   padding: 10px 20px;
@@ -45,9 +45,9 @@
   transition: all 0.3s ease;
 
   &:hover:not(:disabled) {
-    background: #ee5a6f;
+    background: #0284C7;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
   }
 
   &:disabled {
@@ -144,7 +144,7 @@
 .stat-value {
   font-size: 2rem;
   font-weight: 800;
-  color: #2d3748;
+  color: #0F172A;
 }
 
 .content-section {
@@ -162,19 +162,19 @@
 
   h2 {
     font-size: 1.5rem;
-    color: #2d3748;
+    color: #0F172A;
     font-weight: 700;
   }
 }
 
 .btn-view-all {
-  color: #ff6b6b;
+  color: #0EA5E9;
   text-decoration: none;
   font-weight: 600;
   transition: all 0.3s ease;
 
   &:hover {
-    color: #ee5a6f;
+    color: #0284C7;
     transform: translateX(5px);
   }
 }
@@ -211,7 +211,7 @@
 
         td {
           padding: 15px;
-          color: #2d3748;
+          color: #0F172A;
         }
       }
     }
@@ -220,12 +220,12 @@
 
 .order-id {
   font-weight: 600;
-  color: #ff6b6b;
+  color: #0EA5E9;
 }
 
 .order-total {
   font-weight: 700;
-  color: #2d3748;
+  color: #0F172A;
 }
 
 .order-status {
@@ -281,7 +281,7 @@
 
 .loading-spinner {
   font-size: 1.5rem;
-  color: #ff6b6b;
+  color: #0EA5E9;
   font-weight: 600;
 }
 
@@ -393,7 +393,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
   color: white;
   font-weight: 800;
   border-radius: 8px;
@@ -406,7 +406,7 @@
 
 .item-name {
   font-weight: 600;
-  color: #2d3748;
+  color: #0F172A;
   margin-bottom: 4px;
   font-size: 1rem;
 }
@@ -417,7 +417,7 @@
 }
 
 .item-badge {
-  background: #ff6b6b;
+  background: #0EA5E9;
   color: white;
   padding: 6px 12px;
   border-radius: 20px;
@@ -426,19 +426,19 @@
 }
 
 .customer-badge {
-  background: #4ecdc4;
+  background: #A3E635;
 }
 
 .offline-badge {
-  background: #9b59b6;
+  background: #65A30D;
 }
 
 .section-divider {
   margin: 40px 0 20px 0;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
   border-radius: 15px;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
 }
 
 .section-title {

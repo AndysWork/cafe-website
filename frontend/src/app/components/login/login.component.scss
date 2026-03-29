@@ -2,12 +2,12 @@
 // Login Page — Modern Split-Screen Design
 // ═══════════════════════════════════════════════
 
-$primary: #FF6B35;
-$primary-dark: #E8520E;
-$secondary: #FF2D55;
-$accent: #6C5CE7;
-$gradient-start: #FF6B35;
-$gradient-end: #6C5CE7;
+$primary: #0EA5E9;
+$primary-dark: #0284C7;
+$secondary: #F43F5E;
+$accent: #84CC16;
+$gradient-start: #0EA5E9;
+$gradient-end: #84CC16;
 $text-dark: #1a1a2e;
 $text-muted: #6b7280;
 $border-color: #e5e7eb;
@@ -27,7 +27,7 @@ $error-border: #fecaca;
 // ── Left Visual Panel ──────────────────────────
 .auth-visual {
   flex: 1.1;
-  background: linear-gradient(135deg, $gradient-start 0%, #6C5CE7 50%, $secondary 100%);
+  background: linear-gradient(135deg, $gradient-start 0%, #84CC16 50%, $secondary 100%);
   display: flex;
   align-items: center;
   justify-content: center;

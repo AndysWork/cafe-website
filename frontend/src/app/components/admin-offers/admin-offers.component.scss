@@ -16,7 +16,7 @@
   }
 
   .btn-create {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #38BDF8, #84CC16);
     color: white;
     border: none;
     padding: 12px 24px;
@@ -42,7 +42,7 @@
     height: 50px;
     margin: 0 auto 20px;
     border: 4px solid #f3f3f3;
-    border-top: 4px solid #667eea;
+    border-top: 4px solid #38BDF8;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -82,7 +82,7 @@
   }
 
   .btn-create-empty {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #38BDF8, #84CC16);
     color: white;
     border: none;
     padding: 14px 30px;
@@ -110,7 +110,7 @@
     border-collapse: collapse;
 
     thead {
-      background: linear-gradient(135deg, #667eea, #764ba2);
+      background: linear-gradient(135deg, #38BDF8, #84CC16);
       color: white;
 
       th {
@@ -161,7 +161,7 @@
       .code-cell {
         font-family: monospace;
         font-weight: 600;
-        color: #667eea;
+        color: #38BDF8;
         font-size: 0.9rem;
       }
 
@@ -338,7 +338,7 @@
 
       &:focus {
         outline: none;
-        border-color: #667eea;
+        border-color: #38BDF8;
       }
 
       &:disabled {
@@ -399,7 +399,7 @@
     }
 
     &.btn-save {
-      background: linear-gradient(135deg, #667eea, #764ba2);
+      background: linear-gradient(135deg, #38BDF8, #84CC16);
       color: white;
 
       &:hover {

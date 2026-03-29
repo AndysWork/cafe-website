@@ -6,7 +6,7 @@
 
   .page-header {
     margin-bottom: 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 50%, #A3E635 100%);
     border-radius: 20px;
     padding: 2rem;
     box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
@@ -129,7 +129,7 @@
     margin-bottom: 2rem;
 
     .overview-card {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       border-radius: 16px;
       padding: 2rem;
       display: flex;
@@ -224,7 +224,7 @@
     }
 
     .card-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       color: white;
       padding: 1.5rem;
       display: flex;
@@ -274,7 +274,7 @@
     label {
       display: block;
       font-weight: 600;
-      color: #2c3e50;
+      color: #0F172A;
       margin-bottom: 0.5rem;
       font-size: 0.9rem;
 
@@ -294,12 +294,12 @@
       font-weight: 500;
 
       &:hover:not(:disabled) {
-        border-color: #667eea50;
+        border-color: #38BDF850;
       }
 
       &:focus {
         outline: none;
-        border-color: #667eea;
+        border-color: #38BDF8;
         box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15), 0 4px 12px rgba(102, 126, 234, 0.1);
         transform: translateY(-1px);
       }
@@ -326,8 +326,8 @@
 
   // Staff Info Card
   .staff-info-card {
-    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-    border: 2px solid #667eea30;
+    background: linear-gradient(135deg, #38BDF815 0%, #84CC1615 100%);
+    border: 2px solid #38BDF830;
     padding: 1.5rem;
     border-radius: 16px;
     margin-bottom: 1.5rem;
@@ -347,7 +347,7 @@
       width: 70px;
       height: 70px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -365,7 +365,7 @@
     .staff-name {
       font-size: 1.3rem;
       font-weight: 700;
-      color: #2c3e50;
+      color: #0F172A;
       margin-bottom: 1rem;
     }
 
@@ -391,7 +391,7 @@
 
       .label {
         font-size: 0.75rem;
-        color: #7f8c8d;
+        color: #475569;
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -399,7 +399,7 @@
 
       .value {
         font-size: 0.95rem;
-        color: #2c3e50;
+        color: #0F172A;
         font-weight: 700;
       }
     }
@@ -409,12 +409,12 @@
   .section-title {
     font-size: 1.2rem;
     font-weight: 700;
-    color: #2c3e50;
+    color: #0F172A;
     margin: 2rem 0 1.5rem 0;
     padding: 1rem;
-    background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
+    background: linear-gradient(135deg, #38BDF810 0%, #84CC1610 100%);
     border-radius: 12px;
-    border-left: 4px solid #667eea;
+    border-left: 4px solid #38BDF8;
     position: relative;
     overflow: hidden;
 
@@ -441,8 +441,8 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 
     &:hover {
-      border-color: #667eea30;
-      background: linear-gradient(135deg, #667eea05 0%, #764ba205 100%);
+      border-color: #38BDF830;
+      background: linear-gradient(135deg, #38BDF805 0%, #84CC1605 100%);
       transform: translateX(5px);
       box-shadow: 0 4px 16px rgba(102, 126, 234, 0.12);
     }
@@ -450,7 +450,7 @@
     label {
       display: block;
       font-weight: 700;
-      color: #2c3e50;
+      color: #0F172A;
       margin-bottom: 0.75rem;
       font-size: 1rem;
       display: flex;
@@ -461,11 +461,11 @@
     .help-text {
       display: block;
       font-size: 0.8rem;
-      color: #7f8c8d;
+      color: #475569;
       margin-top: 0.5rem;
       font-style: italic;
       padding-left: 0.5rem;
-      border-left: 3px solid #667eea20;
+      border-left: 3px solid #38BDF820;
     }
   }
 
@@ -488,20 +488,20 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       opacity: 0;
       transition: opacity 0.3s;
       pointer-events: none;
     }
 
     &:hover {
-      border-color: #667eea50;
+      border-color: #38BDF850;
       box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
       transform: translateY(-2px);
     }
 
     &:focus-within {
-      border-color: #667eea;
+      border-color: #38BDF8;
       box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1), 0 8px 24px rgba(102, 126, 234, 0.2);
       transform: translateY(-2px);
 
@@ -511,11 +511,11 @@
 
       .input-icon {
         transform: scale(1.2) rotate(5deg);
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       }
 
       .input-unit {
-        color: #667eea;
+        color: #38BDF8;
         font-weight: 700;
       }
     }
@@ -540,7 +540,7 @@
       padding: 1rem 1.25rem;
       font-size: 1.1rem;
       font-weight: 600;
-      color: #2c3e50;
+      color: #0F172A;
       background: transparent;
       outline: none;
       position: relative;
@@ -565,7 +565,7 @@
     .input-unit {
       font-size: 0.95rem;
       font-weight: 600;
-      color: #7f8c8d;
+      color: #475569;
       padding: 0 1.25rem;
       background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
       height: 100%;
@@ -629,7 +629,7 @@
     }
 
     &.btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       color: white;
       box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 
@@ -644,7 +644,7 @@
     }
 
     &.btn-secondary {
-      background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+      background: linear-gradient(135deg, #95a5a6 0%, #475569 100%);
       color: white;
 
       &:hover:not(:disabled) {
@@ -666,12 +666,12 @@
 
     &.btn-outline {
       background: transparent;
-      border: 2px solid #667eea;
-      color: #667eea;
+      border: 2px solid #38BDF8;
+      color: #38BDF8;
       box-shadow: none;
 
       &:hover {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         color: white;
         border-color: transparent;
         box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
@@ -702,7 +702,7 @@
     &:hover {
       transform: translateY(-2px) scale(1.1);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      border-color: #667eea20;
+      border-color: #38BDF820;
     }
 
     &.btn-danger {
@@ -722,7 +722,7 @@
     padding: 2rem;
     border-radius: 16px;
     margin-top: 2rem;
-    border: 2px solid #667eea20;
+    border: 2px solid #38BDF820;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
     animation: fadeIn 0.5s ease-out;
 
@@ -748,13 +748,13 @@
         transition: all 0.3s;
 
         &:hover {
-          border-color: #667eea;
+          border-color: #38BDF8;
           box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
         }
 
         label {
           font-size: 0.9rem;
-          color: #2c3e50;
+          color: #0F172A;
           margin: 0;
           font-weight: 600;
         }
@@ -813,12 +813,12 @@
     }
 
     &.tier-excellent {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
     }
 
     &.tier-outstanding {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      background: linear-gradient(135deg, #A3E635 0%, #f5576c 100%);
       box-shadow: 0 10px 40px rgba(240, 147, 251, 0.4);
       animation: pulse 2s ease-in-out infinite;
     }
@@ -855,7 +855,7 @@
       .score-value {
         font-size: 3.5rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -864,7 +864,7 @@
 
       .score-label {
         font-size: 0.8rem;
-        color: #7f8c8d;
+        color: #475569;
         margin-top: 0.5rem;
         font-weight: 600;
         text-transform: uppercase;
@@ -938,14 +938,14 @@
         top: 0;
         bottom: 0;
         width: 4px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         opacity: 0;
         transition: opacity 0.3s;
       }
 
       &:hover {
         transform: translateX(8px);
-        border-color: #667eea20;
+        border-color: #38BDF820;
         box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
 
         &::before {
@@ -960,7 +960,7 @@
 
         .metric-name {
           font-weight: 700;
-          color: #2c3e50;
+          color: #0F172A;
           font-size: 1rem;
           display: flex;
           align-items: center;
@@ -969,9 +969,9 @@
 
         .metric-value {
           font-size: 0.85rem;
-          color: #7f8c8d;
+          color: #475569;
           padding: 0.25rem 0.75rem;
-          background: #667eea10;
+          background: #38BDF810;
           border-radius: 6px;
           display: inline-block;
           width: fit-content;
@@ -989,7 +989,7 @@
 
         .bar-fill {
           height: 100%;
-          background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+          background: linear-gradient(90deg, #38BDF8 0%, #84CC16 50%, #A3E635 100%);
           transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
           border-radius: 16px;
           position: relative;
@@ -1011,7 +1011,7 @@
       .score-number {
         font-weight: 800;
         font-size: 1.25rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -1047,13 +1047,13 @@
         top: 0;
         bottom: 0;
         width: 6px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         transition: width 0.3s;
       }
 
       &:hover {
         transform: translateX(8px);
-        border-color: #667eea20;
+        border-color: #38BDF820;
         box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
 
         &::before {
@@ -1066,7 +1066,7 @@
         font-size: 1.1rem;
         color: white;
         min-width: 70px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         padding: 0.5rem 1rem;
         border-radius: 8px;
         text-align: center;
@@ -1074,7 +1074,7 @@
       }
 
       .tier-label {
-        color: #2c3e50;
+        color: #0F172A;
         font-weight: 600;
         font-size: 1rem;
       }
@@ -1106,7 +1106,7 @@
     background: white;
 
     thead {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
 
       th {
         padding: 1.25rem 1.5rem;
@@ -1134,7 +1134,7 @@
         position: relative;
 
         &:hover {
-          background: linear-gradient(135deg, #667eea08 0%, #764ba208 100%);
+          background: linear-gradient(135deg, #38BDF808 0%, #84CC1608 100%);
           transform: scale(1.01);
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
@@ -1188,12 +1188,12 @@
       }
 
       &.tier-excellent {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
       }
 
       &.tier-outstanding {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        background: linear-gradient(135deg, #A3E635 0%, #f5576c 100%);
         box-shadow: 0 2px 8px rgba(240, 147, 251, 0.4);
         animation: pulse 2s ease-in-out infinite;
       }
@@ -1303,7 +1303,7 @@
 
         .metric-label {
           font-size: 0.75rem;
-          color: #666;
+          color: #475569;
           font-weight: 600;
           text-transform: uppercase;
         }
@@ -1311,7 +1311,7 @@
         .metric-value {
           font-size: 1.25rem;
           font-weight: 700;
-          color: #333;
+          color: #0F172A;
         }
 
         .metric-help {
@@ -1358,7 +1358,7 @@
         align-items: center;
 
         &.breakdown-header {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
           color: white;
           font-weight: 700;
           text-transform: uppercase;
@@ -1379,7 +1379,7 @@
 
         .col-calc {
           font-size: 0.9rem;
-          color: #666;
+          color: #475569;
         }
 
         .col-amount {
@@ -1400,7 +1400,7 @@
   }
 
   .salary-section {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     padding: 2rem;
     border-radius: 12px;
     margin-bottom: 1.5rem;
@@ -1465,7 +1465,7 @@
       &:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        border-color: #667eea;
+        border-color: #38BDF8;
       }
 
       .stat-icon {
@@ -1475,7 +1475,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         border-radius: 12px;
         box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
       }
@@ -1493,7 +1493,7 @@
         .stat-value {
           font-size: 1.5rem;
           font-weight: 700;
-          color: #2c3e50;
+          color: #0F172A;
         }
       }
     }
@@ -1538,7 +1538,7 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 
     .payslip-header {
-      border-bottom: 3px solid #667eea;
+      border-bottom: 3px solid #38BDF8;
       padding-bottom: 1.5rem;
       margin-bottom: 2rem;
 
@@ -1546,13 +1546,13 @@
         .staff-name-large {
           font-size: 1.8rem;
           font-weight: 800;
-          color: #333;
+          color: #0F172A;
           margin-bottom: 0.5rem;
         }
 
         .staff-meta {
           font-size: 0.95rem;
-          color: #666;
+          color: #475569;
           margin-bottom: 0.5rem;
         }
 
@@ -1570,7 +1570,7 @@
       h3 {
         font-size: 1.1rem;
         font-weight: 700;
-        color: #667eea;
+        color: #38BDF8;
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
         border-bottom: 2px solid #f0f0f0;
@@ -1604,7 +1604,7 @@
         .payslip-amount {
           font-size: 1rem;
           font-weight: 600;
-          color: #333;
+          color: #0F172A;
           white-space: nowrap;
 
           &.bonus-positive {
@@ -1619,7 +1619,7 @@
     }
 
     .payslip-total {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       border-radius: 8px;
       padding: 1.5rem;
       margin-top: 2rem;
@@ -1664,7 +1664,7 @@
         .summary-label {
           display: block;
           font-size: 0.8rem;
-          color: #666;
+          color: #475569;
           margin-bottom: 0.5rem;
           text-transform: uppercase;
           font-weight: 600;
@@ -1674,7 +1674,7 @@
           display: block;
           font-size: 1.3rem;
           font-weight: 700;
-          color: #333;
+          color: #0F172A;
         }
       }
     }
@@ -1693,13 +1693,13 @@
       height: 50px;
       margin: 0 auto 1rem;
       border: 4px solid #f3f3f3;
-      border-top: 4px solid #667eea;
+      border-top: 4px solid #38BDF8;
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
 
     p {
-      color: #666;
+      color: #475569;
       font-weight: 600;
       margin: 0;
     }

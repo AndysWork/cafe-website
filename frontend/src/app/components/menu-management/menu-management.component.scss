@@ -16,7 +16,7 @@
   .header-content {
     h1 {
       font-size: 2.5rem;
-      color: #2d3748;
+      color: #0F172A;
       margin: 0 0 5px 0;
     }
 
@@ -113,7 +113,7 @@
   align-items: center;
   gap: 10px;
   padding: 14px 28px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #38BDF8, #84CC16);
   color: white;
   border: none;
   border-radius: 30px;
@@ -225,7 +225,7 @@
   border-collapse: collapse;
 
   thead {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #38BDF8, #84CC16);
     color: white;
 
     th {
@@ -287,7 +287,7 @@
 
     .name {
       font-weight: 700;
-      color: #2d3748;
+      color: #0F172A;
       font-size: 1.05rem;
     }
   }
@@ -338,7 +338,7 @@
 
     .variant-name {
       font-weight: 600;
-      color: #2d3748;
+      color: #0F172A;
     }
 
     .variant-price {
@@ -423,7 +423,7 @@
 
     &.btn-toggle {
       background: #e2e8f0;
-      color: #2d3748;
+      color: #0F172A;
 
       &.out-of-stock-btn {
         background: #fed7d7;
@@ -524,7 +524,7 @@
 
   h2 {
     margin: 0;
-    color: #2d3748;
+    color: #0F172A;
     font-size: 1.8rem;
   }
 
@@ -568,7 +568,7 @@
 
   label {
     font-weight: 600;
-    color: #2d3748;
+    color: #0F172A;
     font-size: 0.95rem;
   }
 
@@ -611,7 +611,7 @@
 
   h3 {
     margin: 0 0 15px 0;
-    color: #2d3748;
+    color: #0F172A;
     font-size: 1.2rem;
   }
 }
@@ -715,7 +715,7 @@
       align-items: center;
       gap: 8px;
       padding: 10px 24px;
-      background: linear-gradient(135deg, #667eea, #764ba2);
+      background: linear-gradient(135deg, #38BDF8, #84CC16);
       color: white;
       border-radius: 25px;
       font-weight: 600;
@@ -794,7 +794,7 @@
     color: #4a5568;
 
     strong {
-      color: #2d3748;
+      color: #0F172A;
     }
   }
 
@@ -871,7 +871,7 @@
   margin-bottom: 20px;
 
   h3 {
-    color: #2d3748;
+    color: #0F172A;
     margin: 0 0 10px 0;
     font-size: 1.2rem;
   }
@@ -896,7 +896,7 @@
   padding: 6px 12px;
   font-family: 'Courier New', monospace;
   font-size: 0.85rem;
-  color: #2d3748;
+  color: #0F172A;
   font-weight: 600;
 }
 
@@ -905,7 +905,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #38BDF8, #84CC16);
   color: white;
   border: none;
   border-radius: 8px;
@@ -929,7 +929,7 @@
   margin-bottom: 20px;
 
   &.drag-over {
-    border-color: #667eea;
+    border-color: #38BDF8;
     background: #f7fafc;
   }
 }
@@ -941,7 +941,7 @@
   }
 
   h3 {
-    color: #2d3748;
+    color: #0F172A;
     margin: 0 0 10px 0;
     font-size: 1.3rem;
   }
@@ -993,7 +993,7 @@
     text-align: left;
 
     h4 {
-      color: #2d3748;
+      color: #0F172A;
       margin: 0 0 5px 0;
       font-size: 1rem;
     }
@@ -1040,7 +1040,7 @@
     gap: 10px;
     cursor: pointer;
     font-weight: 600;
-    color: #2d3748;
+    color: #0F172A;
 
     input[type="checkbox"] {
       width: 18px;
@@ -1114,7 +1114,7 @@
     }
 
     h3 {
-      color: #2d3748;
+      color: #0F172A;
       margin: 0;
       font-size: 1.3rem;
     }
@@ -1141,7 +1141,7 @@
 
       strong {
         font-size: 1.5rem;
-        color: #2d3748;
+        color: #0F172A;
       }
 
       span {

@@ -13,12 +13,12 @@
   .header-left {
     h2 {
       margin: 0 0 5px 0;
-      color: #333;
+      color: #0F172A;
     }
 
     .subtitle {
       margin: 0;
-      color: #666;
+      color: #475569;
       font-size: 14px;
     }
   }
@@ -104,7 +104,7 @@
   text-align: center;
   padding: 60px;
   font-size: 18px;
-  color: #666;
+  color: #475569;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -133,7 +133,7 @@
   min-width: 1400px;
 
   thead {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
 
     th {
@@ -150,7 +150,7 @@
         position: sticky;
         left: 0;
         z-index: 11;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       }
     }
   }
@@ -194,7 +194,7 @@
             gap: 3px;
 
             strong {
-              color: #333;
+              color: #0F172A;
               font-size: 14px;
             }
 
@@ -228,7 +228,7 @@
 }
 
 .hours-badge {
-  background: #667eea;
+  background: #38BDF8;
   color: white;
   padding: 4px 10px;
   border-radius: 12px;
@@ -252,7 +252,7 @@
 
   &:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #38BDF8;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   }
 
@@ -311,7 +311,7 @@
   }
 
   p {
-    color: #666;
+    color: #475569;
     font-size: 18px;
     margin: 10px 0;
   }
@@ -325,11 +325,11 @@
   background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
   padding: 20px;
   border-radius: 8px;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid #38BDF8;
 
   h4 {
     margin: 0 0 15px 0;
-    color: #667eea;
+    color: #38BDF8;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -349,7 +349,7 @@
       line-height: 1.6;
 
       strong {
-        color: #333;
+        color: #0F172A;
       }
     }
   }
@@ -374,7 +374,7 @@
   }
 
   &.btn-primary {
-    background: #667eea;
+    background: #38BDF8;
     color: white;
 
     &:hover:not(:disabled) {
@@ -406,7 +406,7 @@
 
   &.btn-warning {
     background: #ffc107;
-    color: #333;
+    color: #0F172A;
 
     &:hover:not(:disabled) {
       background: #e0a800;
@@ -489,7 +489,7 @@
       align-items: center;
       gap: 8px;
       padding: 8px 16px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       color: white;
       border-radius: 20px;
       font-weight: 600;
@@ -589,7 +589,7 @@
         }
 
         strong {
-          color: #333;
+          color: #0F172A;
           font-size: 14px;
           font-weight: 600;
           overflow: hidden;
@@ -671,7 +671,7 @@
 
         small {
           margin-left: 4px;
-          color: #666;
+          color: #475569;
           font-weight: normal;
         }
       }
@@ -746,7 +746,7 @@
       }
 
       small {
-        color: #666;
+        color: #475569;
         font-size: 11px;
         line-height: 1.4;
       }
@@ -885,7 +885,7 @@
 
 .modal-header {
   padding: 24px 28px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
   color: white;
   border-radius: 16px 16px 0 0;
   display: flex;
@@ -971,13 +971,13 @@
 
       i {
         font-size: 18px;
-        color: #667eea;
+        color: #38BDF8;
       }
 
       h3 {
         margin: 0;
         font-size: 1.1rem;
-        color: #333;
+        color: #0F172A;
         font-weight: 600;
       }
     }
@@ -1029,7 +1029,7 @@
 
       &:focus {
         outline: none;
-        border-color: #667eea;
+        border-color: #38BDF8;
         box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         background: white;
       }
@@ -1077,7 +1077,7 @@
       width: 40px;
       height: 40px;
       margin-bottom: 0;
-      color: #667eea;
+      color: #38BDF8;
       font-size: 18px;
     }
   }
@@ -1173,7 +1173,7 @@
     }
 
     &.btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       color: white;
 
       &:hover {

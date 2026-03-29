@@ -39,11 +39,11 @@
 
         &:hover {
           background: rgba(99, 102, 241, 0.1);
-          color: #6366f1;
+          color: #0EA5E9;
         }
 
         &.active {
-          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          background: linear-gradient(135deg, #0EA5E9, #38BDF8);
           color: white;
           box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
         }
@@ -72,7 +72,7 @@
 
         &:focus {
           outline: none;
-          border-color: #10b981;
+          border-color: #22C55E;
           box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
         }
       }
@@ -114,11 +114,11 @@
 
         &:hover {
           background: rgba(245, 158, 11, 0.1);
-          color: #f59e0b;
+          color: #FACC15;
         }
 
         &.active {
-          background: linear-gradient(135deg, #f59e0b, #dc2626);
+          background: linear-gradient(135deg, #FACC15, #EF4444);
           color: white;
           box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
         }
@@ -183,7 +183,7 @@
             color: #333;
 
             &.positive {
-              color: #10b981;
+              color: #22C55E;
             }
 
             &.negative {
@@ -270,7 +270,7 @@
 
             .item-revenue {
               font-weight: bold;
-              color: #10b981;
+              color: #22C55E;
               font-size: 1rem;
             }
           }
@@ -286,7 +286,7 @@
           background: #f9fafb;
           padding: 1.5rem;
           border-radius: 8px;
-          border-left: 4px solid #10b981;
+          border-left: 4px solid #22C55E;
 
           .payment-header {
             display: flex;
@@ -309,7 +309,7 @@
           .payment-amount {
             font-size: 1.5rem;
             font-weight: bold;
-            color: #10b981;
+            color: #22C55E;
             margin-bottom: 0.75rem;
           }
 
@@ -321,7 +321,7 @@
             margin-bottom: 0.5rem;
 
             .payment-bar-fill {
-              background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+              background: linear-gradient(90deg, #22C55E 0%, #16A34A 100%);
               height: 100%;
               transition: width 0.3s ease;
             }
@@ -373,7 +373,7 @@
 
             .category-revenue {
               font-weight: bold;
-              color: #10b981;
+              color: #22C55E;
               font-size: 1.1rem;
             }
           }
@@ -405,7 +405,7 @@
 
           .trend-bar {
             width: 100%;
-            background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+            background: linear-gradient(180deg, #22C55E 0%, #16A34A 100%);
             border-radius: 8px 8px 0 0;
             min-height: 40px;
             display: flex;
@@ -507,7 +507,7 @@
           .peak-rank {
             font-size: 1.5rem;
             font-weight: bold;
-            color: #10b981;
+            color: #22C55E;
             min-width: 40px;
             text-align: center;
           }
@@ -537,19 +537,19 @@
   // Earnings Analytics Styles
   .online-collection {
     .card-icon {
-      background: linear-gradient(135deg, #10b981, #34d399);
+      background: linear-gradient(135deg, #22C55E, #34d399);
     }
   }
 
   .cash-collection {
     .card-icon {
-      background: linear-gradient(135deg, #f59e0b, #fbbf24);
+      background: linear-gradient(135deg, #FACC15, #fbbf24);
     }
   }
 
   .total-collection {
     .card-icon {
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      background: linear-gradient(135deg, #0EA5E9, #38BDF8);
     }
   }
 
@@ -565,7 +565,7 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 
       thead {
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        background: linear-gradient(135deg, #0EA5E9, #38BDF8);
 
         tr th {
           padding: 1rem;
@@ -598,11 +598,11 @@
               text-align: right;
 
               &.online {
-                color: #10b981;
+                color: #22C55E;
               }
 
               &.total {
-                color: #6366f1;
+                color: #0EA5E9;
                 font-size: 1.1rem;
               }
             }
@@ -636,8 +636,8 @@
       }
 
       &.active {
-        border-color: #6366f1;
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border-color: #0EA5E9;
+        background: linear-gradient(135deg, #0EA5E9, #38BDF8);
         color: white;
         box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
       }
@@ -777,7 +777,7 @@
 
         .item-revenue {
           font-weight: 600;
-          color: #10b981;
+          color: #22C55E;
         }
       }
     }
@@ -810,7 +810,7 @@
 
         .bar {
           width: 100%;
-          background: linear-gradient(180deg, #10b981, #059669);
+          background: linear-gradient(180deg, #22C55E, #16A34A);
           border-radius: 6px 6px 0 0;
           transition: height 0.5s ease;
         }
@@ -826,7 +826,7 @@
       .bar-value {
         font-size: 0.85rem;
         font-weight: 600;
-        color: #10b981;
+        color: #22C55E;
         margin-top: 0.25rem;
       }
 
@@ -874,7 +874,7 @@
         }
 
         .peak-income {
-          color: #10b981;
+          color: #22C55E;
           font-weight: 600;
           font-size: 1rem;
         }
@@ -911,7 +911,7 @@
       .distance-value {
         font-size: 2rem;
         font-weight: 700;
-        color: #6366f1;
+        color: #0EA5E9;
         margin: 0;
       }
     }
@@ -948,7 +948,7 @@
 
         .rating-fill {
           height: 100%;
-          background: linear-gradient(90deg, #fbbf24, #f59e0b);
+          background: linear-gradient(90deg, #fbbf24, #FACC15);
           transition: width 0.5s ease;
         }
       }
@@ -1032,7 +1032,7 @@
   // Discount card styles
   .discount {
     .card-icon {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
+      background: linear-gradient(135deg, #FACC15, #d97706);
       border-radius: 50%;
       width: 60px;
       height: 60px;
@@ -1043,13 +1043,13 @@
     }
 
     .card-value {
-      color: #f59e0b !important;
+      color: #FACC15 !important;
     }
   }
 
   .discount-avg {
     .card-icon {
-      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      background: linear-gradient(135deg, #38BDF8, #7c3aed);
       border-radius: 50%;
       width: 60px;
       height: 60px;
@@ -1060,7 +1060,7 @@
     }
 
     .card-value {
-      color: #8b5cf6 !important;
+      color: #38BDF8 !important;
     }
   }
 
@@ -1100,7 +1100,7 @@
 
   // PnL Summary Cards
   .total-revenue {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #2563eb 100%);
 
     .card-icon, .card-content h3, .card-content .card-value, .card-content .card-subtext {
       color: white !important;
@@ -1108,7 +1108,7 @@
   }
 
   .total-expenses {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: linear-gradient(135deg, #ef4444 0%, #EF4444 100%);
 
     .card-icon, .card-content h3, .card-content .card-value, .card-content .card-subtext {
       color: white !important;
@@ -1116,7 +1116,7 @@
   }
 
   .net-profit {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
 
     .card-icon, .card-content h3, .card-content .card-value, .card-content .card-subtext {
       color: white !important;
@@ -1124,7 +1124,7 @@
   }
 
   .net-loss {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: linear-gradient(135deg, #FACC15 0%, #d97706 100%);
 
     .card-icon, .card-content h3, .card-content .card-value, .card-content .card-subtext {
       color: white !important;
@@ -1132,7 +1132,7 @@
   }
 
   .profit-margin {
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #7c3aed 100%);
 
     .card-icon, .card-content h3, .card-content .card-value, .card-content .card-subtext {
       color: white !important;
@@ -1149,7 +1149,7 @@
       background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
       padding: 1.5rem;
       border-radius: 12px;
-      border-left: 4px solid #10b981;
+      border-left: 4px solid #22C55E;
       transition: transform 0.2s, box-shadow 0.2s;
 
       &:hover {
@@ -1158,7 +1158,7 @@
       }
 
       &.online-platform {
-        border-left-color: #f59e0b;
+        border-left-color: #FACC15;
         background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
       }
 
@@ -1172,7 +1172,7 @@
       .amount {
         font-size: 2rem;
         font-weight: bold;
-        color: #10b981;
+        color: #22C55E;
         margin: 0 0 0.75rem 0;
 
         &.expense {
@@ -1180,7 +1180,7 @@
         }
 
         &.expense-total {
-          color: #dc2626;
+          color: #EF4444;
         }
       }
 
@@ -1199,7 +1199,7 @@
           border-radius: 6px;
 
           &.orders-count {
-            color: #8b5cf6;
+            color: #38BDF8;
             font-weight: 600;
             justify-content: center;
           }
@@ -1241,7 +1241,7 @@
         font-weight: bold;
 
         &.income-amount {
-          color: #10b981;
+          color: #22C55E;
         }
 
         &.deduction-amount {
@@ -1249,7 +1249,7 @@
         }
 
         &.discount-amount {
-          color: #f59e0b;
+          color: #FACC15;
         }
 
         &.packaging-amount {
@@ -1279,7 +1279,7 @@
 
       &.total {
         background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-        border: 2px solid #3b82f6;
+        border: 2px solid #0EA5E9;
       }
 
       &.variance-positive {
@@ -1302,7 +1302,7 @@
       .amount {
         font-size: 2rem;
         font-weight: bold;
-        color: #3b82f6;
+        color: #0EA5E9;
         margin: 0 0 0.5rem 0;
 
         &.total {
@@ -1368,7 +1368,7 @@
           left: 0;
           right: 0;
           height: 4px;
-          background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);
+          background: linear-gradient(90deg, #0EA5E9, #38BDF8, #ec4899);
           transform: scaleX(0);
           transition: transform 0.3s ease;
         }
@@ -1415,7 +1415,7 @@
           .card-value {
             font-size: 2.25rem;
             font-weight: 800;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+            background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 50%, #ec4899 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -1457,7 +1457,7 @@
         gap: 0.75rem;
         padding-bottom: 1rem;
         border-bottom: 3px solid transparent;
-        border-image: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899) 1;
+        border-image: linear-gradient(90deg, #0EA5E9, #38BDF8, #ec4899) 1;
       }
     }
 
@@ -1539,7 +1539,7 @@
         }
 
         &.both-card {
-          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
         }
       }
     }
@@ -1558,7 +1558,7 @@
 
       &:focus {
         outline: none;
-        border-color: #6366f1;
+        border-color: #0EA5E9;
         box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
       }
 
@@ -1605,7 +1605,7 @@
       }
 
       &::-webkit-scrollbar-thumb {
-        background: linear-gradient(90deg, #6366f1, #8b5cf6);
+        background: linear-gradient(90deg, #0EA5E9, #38BDF8);
         border-radius: 8px;
       }
 
@@ -1668,7 +1668,7 @@
               &.rank {
                 font-weight: 800;
                 font-size: 1.25rem;
-                color: #6366f1;
+                color: #0EA5E9;
                 text-align: center;
                 width: 60px;
                 background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
@@ -1687,7 +1687,7 @@
 
               &.amount {
                 font-weight: 700;
-                color: #10b981;
+                color: #22C55E;
                 font-size: 1rem;
                 text-align: right;
               }
@@ -1699,7 +1699,7 @@
               }
 
               &.favorite-items {
-                color: #6366f1;
+                color: #0EA5E9;
                 font-style: italic;
                 max-width: 250px;
                 overflow: hidden;
@@ -1721,7 +1721,7 @@
               .rating-highlight {
                 font-size: 1.125rem;
                 font-weight: 800;
-                color: #f59e0b;
+                color: #FACC15;
               }
 
               .no-rating {
@@ -1883,7 +1883,7 @@
     }
 
     &::-webkit-scrollbar-thumb {
-      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      background: linear-gradient(90deg, #0EA5E9, #38BDF8);
       border-radius: 8px;
     }
 
@@ -1979,7 +1979,7 @@
 
             &.revenue-cell {
               font-weight: 700;
-              color: #10b981;
+              color: #22C55E;
               font-size: 1rem;
             }
 
@@ -1990,7 +1990,7 @@
 
             &.profit-positive {
               font-weight: 700;
-              color: #10b981;
+              color: #22C55E;
               background: linear-gradient(90deg, transparent 0%, rgba(16, 185, 129, 0.05) 100%);
             }
 

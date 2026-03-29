@@ -11,7 +11,7 @@
   align-items: center;
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 
@@ -56,7 +56,7 @@
     font-size: 2rem;
     color: white;
 
-    &.blue { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    &.blue { background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%); }
     &.green { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); }
     &.orange { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
     &.purple { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
@@ -66,12 +66,12 @@
     h3 {
       font-size: 2rem;
       margin: 0;
-      color: #333;
+      color: #0F172A;
     }
 
     p {
       margin: 0;
-      color: #666;
+      color: #475569;
       font-size: 0.9rem;
     }
   }
@@ -103,7 +103,7 @@
 
     &:focus {
       outline: none;
-      border-color: #667eea;
+      border-color: #38BDF8;
       background: white;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
@@ -143,7 +143,7 @@
       cursor: pointer;
       width: 18px;
       height: 18px;
-      accent-color: #667eea;
+      accent-color: #38BDF8;
     }
   }
 }
@@ -172,7 +172,7 @@
   text-align: center;
   padding: 3rem;
   font-size: 1.2rem;
-  color: #666;
+  color: #475569;
 }
 
 // Staff Cards
@@ -199,7 +199,7 @@
     display: flex;
     align-items: center;
     padding: 1.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
     gap: 1rem;
 
@@ -256,7 +256,7 @@
         gap: 0.75rem;
 
         i {
-          color: #667eea;
+          color: #38BDF8;
           font-size: 1.1rem;
           margin-top: 0.25rem;
         }
@@ -277,7 +277,7 @@
           span {
             display: block;
             font-size: 0.95rem;
-            color: #333;
+            color: #0F172A;
             word-wrap: break-word;
 
             &.outlets-text {
@@ -304,7 +304,7 @@
         margin-bottom: 1rem;
 
         i {
-          color: #667eea;
+          color: #38BDF8;
           font-size: 1.1rem;
         }
 
@@ -340,7 +340,7 @@
           .stat-value {
             font-size: 1.5rem;
             font-weight: 700;
-            color: #667eea;
+            color: #38BDF8;
             margin-bottom: 0.25rem;
           }
 
@@ -390,7 +390,7 @@
       }
 
       &.btn-view {
-        background: #667eea;
+        background: #38BDF8;
         color: white;
 
         &:hover {
@@ -424,7 +424,7 @@
 
       &.btn-deactivate {
         background: #ffc107;
-        color: #333;
+        color: #0F172A;
 
         &:hover {
           background: #e0a800;
@@ -497,7 +497,7 @@
       padding: 1rem;
       text-align: left;
       font-weight: 600;
-      color: #333;
+      color: #0F172A;
       border-bottom: 2px solid #dee2e6;
     }
   }
@@ -513,7 +513,7 @@
 
       td {
         padding: 1rem;
-        color: #666;
+        color: #475569;
       }
     }
   }
@@ -528,13 +528,13 @@
 
 .staff-name {
   strong {
-    color: #333;
+    color: #0F172A;
   }
 }
 
 .outlets-list {
   font-size: 0.85rem;
-  color: #666;
+  color: #475569;
   display: block;
   max-width: 200px;
   overflow: hidden;
@@ -592,12 +592,12 @@
   border: none;
   padding: 0.5rem;
   cursor: pointer;
-  color: #666;
+  color: #475569;
   transition: color 0.2s;
   font-size: 1.2rem;
 
   &:hover {
-    color: #333;
+    color: #0F172A;
     transform: scale(1.1);
   }
 
@@ -646,7 +646,7 @@
   }
 
   &.btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
     border: none;
 
@@ -743,7 +743,7 @@
   h2 {
     margin: 0;
     font-size: 1.5rem;
-    color: #333;
+    color: #0F172A;
   }
 
   .close-btn {
@@ -758,7 +758,7 @@
     height: 30px;
 
     &:hover {
-      color: #333;
+      color: #0F172A;
     }
   }
 }
@@ -776,13 +776,13 @@
   border: none;
   padding: 1rem 1.5rem;
   cursor: pointer;
-  color: #666;
+  color: #475569;
   border-bottom: 2px solid transparent;
   transition: all 0.2s;
   white-space: nowrap;
 
   &:hover {
-    color: #333;
+    color: #0F172A;
   }
 
   &.active {
@@ -802,7 +802,7 @@
     margin-top: 1.5rem;
     margin-bottom: 1rem;
     font-size: 1.2rem;
-    color: #333;
+    color: #0F172A;
     border-bottom: 1px solid #dee2e6;
     padding-bottom: 0.5rem;
 
@@ -829,7 +829,7 @@
 
   label {
     margin-bottom: 0.5rem;
-    color: #333;
+    color: #0F172A;
     font-weight: 500;
 
     .required {
@@ -1018,7 +1018,7 @@
 
     h3 {
       margin: 0;
-      color: #333;
+      color: #0F172A;
     }
   }
 
@@ -1079,7 +1079,7 @@
         h4 {
           margin: 0;
           font-size: 1.1rem;
-          color: #333;
+          color: #0F172A;
         }
 
         .badge {
@@ -1110,7 +1110,7 @@
           align-items: center;
           gap: 0.5rem;
           font-size: 0.9rem;
-          color: #666;
+          color: #475569;
 
           i {
             width: 16px;
@@ -1171,7 +1171,7 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 
   .modal-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
     padding: 1.5rem 2rem;
     border-radius: 12px 12px 0 0;
@@ -1219,7 +1219,7 @@
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       border: none;
 
       &:hover {
@@ -1421,7 +1421,7 @@
   label {
     display: block;
     margin-bottom: 0.5rem;
-    color: #333;
+    color: #0F172A;
     font-weight: 600;
     font-size: 0.95rem;
 
@@ -1460,7 +1460,7 @@
     label {
       display: block;
       margin-bottom: 8px;
-      color: #333;
+      color: #0F172A;
       font-weight: 600;
       font-size: 0.95rem;
 

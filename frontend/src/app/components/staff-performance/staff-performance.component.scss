@@ -32,7 +32,7 @@
       .animated-title {
         margin: 0;
         font-size: 28px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -105,7 +105,7 @@
   overflow: hidden;
 
   .filters-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
     padding: 15px 25px;
     font-weight: 600;
@@ -138,7 +138,7 @@
       gap: 8px;
 
       i {
-        color: #667eea;
+        color: #38BDF8;
       }
     }
 
@@ -158,7 +158,7 @@
 
   .spinner-icon {
     font-size: 48px;
-    color: #667eea;
+    color: #38BDF8;
     margin-bottom: 20px;
 
     i {
@@ -491,7 +491,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
   border-radius: 15px 15px 0 0;
 
   h3 {
@@ -572,7 +572,7 @@
 
   &:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #38BDF8;
     box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
   }
 
@@ -594,7 +594,7 @@
   }
 
   h4 {
-    color: #667eea;
+    color: #38BDF8;
     margin-bottom: 20px;
     font-size: 18px;
     font-weight: 700;
@@ -662,7 +662,7 @@
   background: #f8f9fa;
   padding: 20px;
   border-radius: 12px;
-  border-left: 5px solid #667eea;
+  border-left: 5px solid #38BDF8;
   transition: all 0.2s ease;
 
   &:hover {
@@ -800,7 +800,7 @@
     }
 
     &.net-item {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
 
       label {
         color: white;
@@ -817,7 +817,7 @@
   background: #f8f9fa;
   padding: 20px;
   border-radius: 10px;
-  border-left: 5px solid #667eea;
+  border-left: 5px solid #38BDF8;
   margin: 0;
   color: #495057;
   line-height: 1.8;
@@ -848,7 +848,7 @@
   }
 
   &.btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
 
     &:hover:not(:disabled) {
@@ -876,7 +876,7 @@
 
   &.btn-warning {
     background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-    color: #333;
+    color: #0F172A;
 
     &:hover:not(:disabled) {
       background: linear-gradient(135deg, #e0a800 0%, #e86a00 100%);

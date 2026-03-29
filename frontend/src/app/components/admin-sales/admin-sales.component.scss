@@ -14,7 +14,7 @@
     h1 {
       margin: 0;
       font-size: 2rem;
-      color: #333;
+      color: #0F172A;
     }
 
     .header-actions {
@@ -27,7 +27,7 @@
 
   // Summary Section
   .summary-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
     padding: 2rem;
     border-radius: 12px;
@@ -109,7 +109,7 @@
       text-align: center;
       padding: 3rem;
       font-size: 1.2rem;
-      color: #666;
+      color: #475569;
     }
 
     .empty-state {
@@ -127,7 +127,7 @@
         margin-bottom: 1.5rem;
 
         .year-header {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
           color: white;
           padding: 1rem 1.5rem;
           border-radius: 12px;
@@ -308,7 +308,7 @@
 
         .sales-date {
           font-size: 1.1rem;
-          color: #333;
+          color: #0F172A;
         }
 
         .sales-amount {
@@ -443,7 +443,7 @@
   }
 
   .btn-info {
-    background: #3b82f6;
+    background: #0EA5E9;
     color: white;
 
     &:hover {
@@ -472,7 +472,7 @@
   }
 
   .btn-add-item {
-    background: #8b5cf6;
+    background: #38BDF8;
     color: white;
     width: 100%;
     margin-top: 1rem;
@@ -1089,7 +1089,7 @@
 
   h3 {
     margin: 0 0 1rem 0;
-    color: #333;
+    color: #0F172A;
   }
 
   .form-row {
@@ -1117,7 +1117,7 @@
 
         &:focus {
           outline: none;
-          border-color: #3b82f6;
+          border-color: #0EA5E9;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
       }
@@ -1142,7 +1142,7 @@
 .item-types-list {
   h3 {
     margin: 0 0 1rem 0;
-    color: #333;
+    color: #0F172A;
   }
 
   .items-grid {
@@ -1164,7 +1164,7 @@
       transition: all 0.2s;
 
       &:hover {
-        border-color: #3b82f6;
+        border-color: #0EA5E9;
         box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
       }
 
@@ -1223,7 +1223,7 @@
         }
 
         .btn-edit-small {
-          background: #3b82f6;
+          background: #0EA5E9;
 
           &:hover {
             background: #2563eb;

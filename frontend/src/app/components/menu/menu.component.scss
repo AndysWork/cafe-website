@@ -2,11 +2,11 @@
 // MENU PAGE — Vibrant Modern Design
 // ==========================================
 
-$primary: #FF6B35;
-$primary-dark: #E8520E;
-$primary-light: #FFF0EB;
-$accent: #6C5CE7;
-$accent-light: #5A4BD1;
+$primary: #0EA5E9;
+$primary-dark: #0284C7;
+$primary-light: #E0F2FE;
+$accent: #84CC16;
+$accent-light: #65A30D;
 $green: #00c853;
 $green-dark: #009624;
 $red: #ff1744;
@@ -40,7 +40,7 @@ $radius-full: 9999px;
   background:
     radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
     radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
-    radial-gradient(circle at 55% 90%, rgba(#FF2D55, 0.3) 0%, transparent 45%),
+    radial-gradient(circle at 55% 90%, rgba(#F43F5E, 0.3) 0%, transparent 45%),
     linear-gradient(135deg, $primary 0%, $accent 100%);
   padding: 3rem 1.5rem 3.5rem;
   text-align: center;

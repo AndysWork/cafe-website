@@ -9,7 +9,7 @@
 
     h1 {
       font-size: 2.5rem;
-      color: #2d3748;
+      color: #0F172A;
       margin-bottom: 0.5rem;
       font-weight: 700;
     }
@@ -92,7 +92,7 @@
 
       label {
         font-weight: 600;
-        color: #2d3748;
+        color: #0F172A;
       }
 
       .date-input {
@@ -126,7 +126,7 @@
 
     h3 {
       font-size: 1.3rem;
-      color: #2d3748;
+      color: #0F172A;
       margin-bottom: 1.5rem;
       padding-bottom: 0.75rem;
       border-bottom: 2px solid #e2e8f0;
@@ -155,7 +155,7 @@
       .file-upload-label {
         display: inline-block;
         padding: 0.75rem 1.5rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         color: white;
         border-radius: 8px;
         cursor: pointer;
@@ -175,7 +175,7 @@
       .file-name {
         display: block;
         margin-top: 0.75rem;
-        color: #2d3748;
+        color: #0F172A;
         font-weight: 600;
         font-size: 0.9rem;
       }
@@ -257,7 +257,7 @@
 
   // Sales Summary Card
   .sales-summary-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
 
     h3 {
@@ -323,7 +323,7 @@
     label {
       display: block;
       font-weight: 600;
-      color: #2d3748;
+      color: #0F172A;
       margin-bottom: 0.5rem;
       font-size: 0.95rem;
     }
@@ -364,7 +364,7 @@
     gap: 0.75rem;
     cursor: pointer;
     font-weight: 600;
-    color: #2d3748;
+    color: #0F172A;
 
     input[type="checkbox"] {
       width: 20px;
@@ -384,7 +384,7 @@
     font-weight: 700;
 
     .label {
-      color: #2d3748;
+      color: #0F172A;
       font-size: 1.1rem;
     }
 
@@ -450,7 +450,7 @@
 
     .label {
       font-weight: 600;
-      color: #2d3748;
+      color: #0F172A;
     }
 
     .value {
@@ -470,7 +470,7 @@
 
   // Shop Balance Tracking
   .balance-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
     margin-bottom: 1.5rem;
 
@@ -550,7 +550,7 @@
     }
 
     &.btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       color: white;
 
       &:hover:not(:disabled) {
@@ -571,7 +571,7 @@
 
     &.btn-secondary {
       background: #e2e8f0;
-      color: #2d3748;
+      color: #0F172A;
 
       &:hover:not(:disabled) {
         background: #cbd5e0;
@@ -608,7 +608,7 @@
         padding: 1rem;
         text-align: left;
         font-weight: 700;
-        color: #2d3748;
+        color: #0F172A;
         border-bottom: 2px solid #e2e8f0;
       }
     }
@@ -662,7 +662,7 @@
 
   .btn-view {
     padding: 0.5rem 1rem;
-    background: #667eea;
+    background: #38BDF8;
     color: white;
     border: none;
     border-radius: 6px;

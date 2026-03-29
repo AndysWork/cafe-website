@@ -14,7 +14,7 @@
     h1 {
       margin: 0;
       font-size: 2rem;
-      color: #333;
+      color: #0F172A;
     }
 
     .header-actions {
@@ -24,7 +24,7 @@
   }
 
   .info-banner {
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
     color: white;
     padding: 1.5rem;
     border-radius: 12px;
@@ -76,7 +76,7 @@
       overflow: hidden;
 
       .year-header {
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
         color: white;
         padding: 1.5rem;
         cursor: pointer;
@@ -154,7 +154,7 @@
         .expense-month {
           font-size: 1.3rem;
           font-weight: bold;
-          color: #2d3748;
+          color: #0F172A;
         }
 
         .expense-total-badge {
@@ -191,7 +191,7 @@
 
           .breakdown-value {
             font-weight: bold;
-            color: #2d3748;
+            color: #0F172A;
             font-size: 1.1rem;
           }
 
@@ -267,7 +267,7 @@
     }
 
     .modal-header {
-      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
       color: white;
       padding: 1.5rem;
       display: flex;
@@ -325,7 +325,7 @@
         display: block;
         margin-bottom: 0.5rem;
         font-weight: 600;
-        color: #2d3748;
+        color: #0F172A;
       }
 
       input, select, textarea {
@@ -362,7 +362,7 @@
 
       h3 {
         margin: 0 0 1rem 0;
-        color: #2d3748;
+        color: #0F172A;
         font-size: 1.2rem;
       }
     }
@@ -408,7 +408,7 @@
     }
 
     .total-display {
-      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
       color: white;
       padding: 1.5rem;
       border-radius: 12px;
@@ -455,7 +455,7 @@
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
     color: white;
 
     &:hover:not(:disabled) {
@@ -466,7 +466,7 @@
 
   .btn-secondary {
     background: #e2e8f0;
-    color: #2d3748;
+    color: #0F172A;
 
     &:hover {
       background: #cbd5e0;

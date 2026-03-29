@@ -12,7 +12,7 @@
 
   h2 {
     margin: 0;
-    color: #333;
+    color: #0F172A;
   }
 }
 
@@ -64,7 +64,7 @@
   text-align: center;
   padding: 40px;
   font-size: 18px;
-  color: #666;
+  color: #475569;
 
   i {
     margin-right: 10px;
@@ -94,7 +94,7 @@
   }
 
   .card-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
     color: white;
     padding: 15px;
     display: flex;
@@ -166,7 +166,7 @@
   }
 
   p {
-    color: #666;
+    color: #475569;
     font-size: 18px;
     margin-bottom: 20px;
   }
@@ -223,7 +223,7 @@
 
   h3 {
     margin: 0;
-    color: #333;
+    color: #0F172A;
   }
 
   .close-btn {
@@ -240,7 +240,7 @@
     justify-content: center;
 
     &:hover {
-      color: #333;
+      color: #0F172A;
     }
   }
 }
@@ -269,7 +269,7 @@
   }
 
   h4 {
-    color: #667eea;
+    color: #38BDF8;
     margin-bottom: 15px;
     font-size: 18px;
   }
@@ -320,7 +320,7 @@
 
   &:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #38BDF8;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   }
 
@@ -359,11 +359,11 @@
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 20px;
-  border: 2px solid #667eea;
+  border: 2px solid #38BDF8;
 
   h5 {
     margin-top: 0;
-    color: #667eea;
+    color: #38BDF8;
   }
 }
 
@@ -385,7 +385,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid #38BDF8;
 
   .rule-info {
     flex: 1;
@@ -416,7 +416,7 @@
   }
 
   .rule-details {
-    color: #666;
+    color: #475569;
     font-size: 14px;
 
     span {
@@ -465,7 +465,7 @@
   }
 
   &.btn-primary {
-    background: #667eea;
+    background: #38BDF8;
     color: white;
 
     &:hover:not(:disabled) {
@@ -493,7 +493,7 @@
 
   &.btn-warning {
     background: #ffc107;
-    color: #333;
+    color: #0F172A;
 
     &:hover:not(:disabled) {
       background: #e0a800;

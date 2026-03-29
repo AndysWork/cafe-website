@@ -9,7 +9,7 @@
 
     h1 {
       font-size: 2.5rem;
-      color: #2d3748;
+      color: #0F172A;
       margin-bottom: 10px;
     }
 
@@ -157,7 +157,7 @@
     margin-bottom: 25px;
 
     .stat-card {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       color: white;
       padding: 25px;
       border-radius: 12px;
@@ -175,11 +175,11 @@
       }
 
       &:nth-child(1) {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       }
 
       &:nth-child(2) {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        background: linear-gradient(135deg, #A3E635 0%, #f5576c 100%);
       }
 
       &:nth-child(3) {
@@ -270,7 +270,7 @@
         .platform-badge {
           display: inline-block;
           padding: 8px 16px;
-          background: #667eea;
+          background: #38BDF8;
           color: white;
           border-radius: 6px;
           font-weight: 600;
@@ -314,7 +314,7 @@
       width: 50px;
       height: 50px;
       border: 4px solid #e2e8f0;
-      border-top-color: #667eea;
+      border-top-color: #38BDF8;
       border-radius: 50%;
       animation: spin 1s linear infinite;
       margin: 0 auto 20px;
@@ -357,7 +357,7 @@
 
     &:hover {
       .toggle-icon {
-        color: #667eea;
+        color: #38BDF8;
       }
     }
 
@@ -379,7 +379,7 @@
     overflow: hidden;
 
     .month-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       color: white;
       padding: 15px 20px;
       display: flex;
@@ -479,7 +479,7 @@
 
     .btn-pagination {
       padding: 10px 20px;
-      background: #667eea;
+      background: #38BDF8;
       color: white;
       border: none;
       border-radius: 8px;
@@ -507,7 +507,7 @@
         padding: 8px 12px;
         min-width: 40px;
         background: white;
-        color: #667eea;
+        color: #38BDF8;
         border: 2px solid #e2e8f0;
         border-radius: 6px;
         cursor: pointer;
@@ -515,14 +515,14 @@
         transition: all 0.2s ease;
 
         &:hover {
-          border-color: #667eea;
+          border-color: #38BDF8;
           background: #f7fafc;
         }
 
         &.active {
-          background: #667eea;
+          background: #38BDF8;
           color: white;
-          border-color: #667eea;
+          border-color: #38BDF8;
         }
       }
     }
@@ -541,7 +541,7 @@
         padding: 12px;
         text-align: left;
         font-weight: 600;
-        color: #2d3748;
+        color: #0F172A;
         border-bottom: 2px solid #e2e8f0;
         white-space: nowrap;
 
@@ -579,7 +579,7 @@
 
           &.date-cell {
             font-weight: 600;
-            color: #2d3748;
+            color: #0F172A;
             white-space: nowrap;
           }
 
@@ -637,7 +637,7 @@
 
           &.order-id {
             font-family: monospace;
-            color: #667eea;
+            color: #38BDF8;
             font-weight: 600;
             font-size: 0.9rem;
           }
@@ -688,7 +688,7 @@
 
                 &:focus {
                   outline: none;
-                  border-color: #667eea;
+                  border-color: #38BDF8;
                   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
                 }
               }
@@ -718,7 +718,7 @@
 
           .items-preview {
             cursor: help;
-            color: #667eea;
+            color: #38BDF8;
             text-decoration: underline dotted;
             font-weight: 500;
           }
@@ -768,7 +768,7 @@
     }
 
     h3 {
-      color: #2d3748;
+      color: #0F172A;
       margin-bottom: 10px;
     }
 
@@ -799,7 +799,7 @@
 
       &:hover {
         h2 {
-          color: #667eea;
+          color: #38BDF8;
         }
       }
 
@@ -865,7 +865,7 @@
           .month-text {
             font-size: 1.1rem;
             font-weight: 700;
-            color: #2d3748;
+            color: #0F172A;
           }
         }
 
@@ -917,7 +917,7 @@
           transition: all 0.3s ease;
 
           &.btn-edit {
-            background: #667eea;
+            background: #38BDF8;
             color: white;
 
             &:hover {
@@ -975,7 +975,7 @@
       h2 {
         margin: 0;
         font-size: 1.5rem;
-        color: #2d3748;
+        color: #0F172A;
       }
 
       .btn-close {
@@ -987,7 +987,7 @@
         transition: color 0.3s ease;
 
         &:hover {
-          color: #2d3748;
+          color: #0F172A;
         }
       }
     }
@@ -1010,7 +1010,7 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #2d3748;
+            color: #0F172A;
           }
 
           input,
@@ -1025,7 +1025,7 @@
 
             &:focus {
               outline: none;
-              border-color: #667eea;
+              border-color: #38BDF8;
             }
 
             &:disabled {
@@ -1060,7 +1060,7 @@
 
         &.btn-secondary {
           background: #e2e8f0;
-          color: #2d3748;
+          color: #0F172A;
 
           &:hover {
             background: #cbd5e0;
@@ -1068,7 +1068,7 @@
         }
 
         &.btn-primary {
-          background: #667eea;
+          background: #38BDF8;
           color: white;
 
           &:hover {
@@ -1125,7 +1125,7 @@
     }
 
     &.btn-primary {
-      background: #667eea;
+      background: #38BDF8;
       color: white;
 
       &:hover:not(:disabled) {
@@ -1148,7 +1148,7 @@
   }
 
   h2 {
-    color: #2d3748;
+    color: #0F172A;
     margin-bottom: 20px;
     font-size: 1.5rem;
   }

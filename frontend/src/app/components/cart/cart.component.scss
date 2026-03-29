@@ -1,5 +1,5 @@
-﻿$primary: #FF6B35;
-$accent: #6C5CE7;
+﻿$primary: #0EA5E9;
+$accent: #84CC16;
 $green: #00c853;
 $dark: #1A1A2E;
 $light-bg: #fafafa;
@@ -19,7 +19,7 @@ $danger: #ff5252;
   background:
     radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
     radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
-    radial-gradient(circle at 55% 90%, rgba(#FF2D55, 0.3) 0%, transparent 45%),
+    radial-gradient(circle at 55% 90%, rgba(#F43F5E, 0.3) 0%, transparent 45%),
     linear-gradient(135deg, $primary 0%, $accent 100%);
   padding: 50px 20px 50px; text-align: center; overflow: hidden;
   border-radius: 0 0 32px 32px;

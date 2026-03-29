@@ -30,7 +30,7 @@
 
 // Outlet Selection Bar
 .outlet-selection-bar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
   padding: 12px 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
@@ -68,7 +68,7 @@
 .logo-text {
   font-size: 1.3rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -106,7 +106,7 @@
 
   &:hover {
     background: #f7fafc;
-    color: #ff6b6b;
+    color: #0EA5E9;
 
     .nav-icon {
       transform: scale(1.1);
@@ -114,9 +114,9 @@
   }
 
   &.active {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
     color: white;
-    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 
     &::after {
       content: '';
@@ -126,7 +126,7 @@
       transform: translateX(-50%);
       width: 60%;
       height: 3px;
-      background: #ff6b6b;
+      background: #0EA5E9;
       border-radius: 2px 2px 0 0;
     }
   }
@@ -156,9 +156,9 @@
   }
 
   .nav-item.dropdown-toggle.active {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
     color: white;
-    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
   }
 }
 
@@ -179,7 +179,7 @@
   left: 0 !important;
   margin-top: 0;
   background: white !important;
-  border: 2px solid #ff6b6b !important;
+  border: 2px solid #0EA5E9 !important;
   border-radius: 10px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   min-width: 200px;
@@ -224,11 +224,11 @@
 
   &:hover {
     background: #f7fafc;
-    color: #ff6b6b;
+    color: #0EA5E9;
   }
 
   &.active {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
     color: white;
   }
 
@@ -271,7 +271,7 @@
 
   &:hover {
     background: #f7fafc;
-    border-color: #ff6b6b;
+    border-color: #0EA5E9;
     transform: translateY(-2px);
   }
 }
@@ -280,7 +280,7 @@
   position: absolute;
   top: -5px;
   right: -5px;
-  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: white;
   font-size: 0.7rem;
   font-weight: 700;
@@ -333,7 +333,7 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: white;
   display: flex;
   align-items: center;
@@ -349,7 +349,7 @@
 
 .user-name {
   font-weight: 600;
-  color: #2d3748;
+  color: #0F172A;
   font-size: 0.9rem;
   line-height: 1.2;
 }
@@ -440,7 +440,7 @@
   font-family: inherit;
 
   &:hover {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
     color: white;
     transform: translateX(5px);
 
@@ -481,7 +481,7 @@
   transition: all 0.3s ease;
 
   &:hover .hamburger-line {
-    background: #ff6b6b;
+    background: #0EA5E9;
   }
 
   &.active .hamburger-line {
@@ -616,10 +616,10 @@
     position: static !important;
     margin-top: 8px;
     box-shadow: none;
-    border-left: 3px solid #ff6b6b;
+    border-left: 3px solid #0EA5E9;
     background: #f7fafc !important;
     border: none !important;
-    border-left: 3px solid #ff6b6b !important;
+    border-left: 3px solid #0EA5E9 !important;
     border-radius: 0;
     transform: none !important;
   }

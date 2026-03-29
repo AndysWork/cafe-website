@@ -37,11 +37,11 @@
 
         &:hover {
           background: rgba(59, 130, 246, 0.1);
-          color: #3b82f6;
+          color: #0EA5E9;
         }
 
         &.active {
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          background: linear-gradient(135deg, #0EA5E9, #38BDF8);
           color: white;
           box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
         }
@@ -68,11 +68,11 @@
 
         &:hover {
           background: rgba(16, 185, 129, 0.1);
-          color: #10b981;
+          color: #22C55E;
         }
 
         &.active {
-          background: linear-gradient(135deg, #10b981, #059669);
+          background: linear-gradient(135deg, #22C55E, #16A34A);
           color: white;
           box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
         }
@@ -89,7 +89,7 @@
 
   // Summary Section
   .summary-card {
-    background: linear-gradient(135deg, #f59e0b 0%, #dc2626 100%);
+    background: linear-gradient(135deg, #FACC15 0%, #EF4444 100%);
     color: white;
     padding: 2rem;
     border-radius: 12px;
@@ -255,7 +255,7 @@
         margin: 1rem 0;
         padding: 0.75rem;
         background: #fffbeb;
-        border-left: 3px solid #f59e0b;
+        border-left: 3px solid #FACC15;
         border-radius: 4px;
         color: #92400e;
         font-size: 0.9rem;
@@ -293,11 +293,11 @@
   }
 
   .btn-primary {
-    background: #10b981;
+    background: #22C55E;
     color: white;
 
     &:not(:disabled):hover {
-      background: #059669;
+      background: #16A34A;
     }
   }
 
@@ -311,7 +311,7 @@
   }
 
   .btn-info {
-    background: #3b82f6;
+    background: #0EA5E9;
     color: white;
 
     &:hover {
@@ -320,7 +320,7 @@
   }
 
   .btn-edit {
-    background: #f59e0b;
+    background: #FACC15;
     color: white;
     padding: 0.5rem 1rem;
 
@@ -335,7 +335,7 @@
     padding: 0.5rem 1rem;
 
     &:hover {
-      background: #dc2626;
+      background: #EF4444;
     }
   }
 
@@ -432,7 +432,7 @@
 
           &:focus {
             outline: none;
-            border-color: #f59e0b;
+            border-color: #FACC15;
             box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
           }
         }
@@ -481,7 +481,7 @@
           background: #f9fafb;
 
           &:hover {
-            border-color: #f59e0b;
+            border-color: #FACC15;
             background: #fffbeb;
           }
 
@@ -504,7 +504,7 @@
       .success-message {
         padding: 1.5rem;
         background: #d1fae5;
-        border-left: 4px solid #10b981;
+        border-left: 4px solid #22C55E;
         border-radius: 4px;
         color: #065f46;
 
@@ -538,7 +538,7 @@
       margin-bottom: 1.5rem;
 
       .year-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
         color: white;
         padding: 1rem 1.5rem;
         border-radius: 12px;
@@ -638,7 +638,7 @@
               margin-bottom: 0.75rem;
 
               .week-header {
-                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
                 color: white;
                 padding: 0.6rem 1rem;
                 border-radius: 6px;
@@ -755,7 +755,7 @@
                     margin: 1rem 0;
                     padding: 0.75rem;
                     background: #fffbeb;
-                    border-left: 3px solid #f59e0b;
+                    border-left: 3px solid #FACC15;
                     border-radius: 4px;
                     color: #92400e;
                     font-size: 0.9rem;
@@ -1024,14 +1024,14 @@
             content: '';
             width: 4px;
             height: 24px;
-            background: linear-gradient(to bottom, #667eea, #764ba2);
+            background: linear-gradient(to bottom, #38BDF8, #84CC16);
             border-radius: 2px;
           }
         }
       }
 
       .rent-display {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
         color: white;
         padding: 1.75rem;
         border-radius: 16px;
@@ -1095,7 +1095,7 @@
       }
 
       .total-display {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+        background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 50%, #A3E635 100%);
         color: white;
         padding: 1.75rem 2rem;
         border-radius: 16px;
@@ -1196,7 +1196,7 @@
 
         &:focus {
           outline: none;
-          border-color: #3b82f6;
+          border-color: #0EA5E9;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
       }
@@ -1240,7 +1240,7 @@
       transition: all 0.2s;
 
       &:hover {
-        border-color: #3b82f6;
+        border-color: #0EA5E9;
         box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
       }
 
@@ -1256,7 +1256,7 @@
 
         .status-badge {
           display: inline-block;
-          background: #10b981;
+          background: #22C55E;
           color: white;
           padding: 0.25rem 0.5rem;
           border-radius: 4px;
@@ -1288,7 +1288,7 @@
         }
 
         .btn-edit-small {
-          background: #3b82f6;
+          background: #0EA5E9;
 
           &:hover {
             background: #2563eb;
@@ -1299,7 +1299,7 @@
           background: #ef4444;
 
           &:hover {
-            background: #dc2626;
+            background: #EF4444;
           }
         }
       }
@@ -1319,7 +1319,7 @@
 }
 
 .btn-warning {
-  background: #f59e0b;
+  background: #FACC15;
   color: white;
   padding: 0.75rem 1.5rem;
   border: none;
@@ -1339,7 +1339,7 @@
 .operational-info-banner {
   display: flex;
   gap: 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
   padding: 2rem;
   border-radius: 16px;
   color: white;
@@ -1378,7 +1378,7 @@
     width: 50px;
     height: 50px;
     border: 4px solid #e5e7eb;
-    border-top: 4px solid #667eea;
+    border-top: 4px solid #38BDF8;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -1427,7 +1427,7 @@
     overflow: hidden;
 
     .year-header-bar {
-      background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #ec4899 100%);
       padding: 1.5rem 2rem;
       cursor: pointer;
       display: flex;
@@ -1512,7 +1512,7 @@
           }
 
           .card-header-modern {
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
             padding: 1.25rem 1.5rem;
             display: flex;
             justify-content: space-between;
@@ -1557,12 +1557,12 @@
                 padding: 0.75rem;
                 background: #f8fafc;
                 border-radius: 8px;
-                border-left: 3px solid #3b82f6;
+                border-left: 3px solid #0EA5E9;
                 transition: all 0.2s;
 
                 &:hover {
                   background: #f1f5f9;
-                  border-left-color: #8b5cf6;
+                  border-left-color: #38BDF8;
                 }
 
                 .item-label {
@@ -1577,7 +1577,7 @@
                   }
 
                   .auto-badge {
-                    background: #10b981;
+                    background: #22C55E;
                     color: white;
                     padding: 0.15rem 0.5rem;
                     border-radius: 4px;
@@ -1599,7 +1599,7 @@
               margin-top: 1rem;
               padding: 1rem;
               background: #fff7ed;
-              border-left: 3px solid #f59e0b;
+              border-left: 3px solid #FACC15;
               border-radius: 8px;
               color: #92400e;
               font-style: italic;
@@ -1644,7 +1644,7 @@
               }
 
               .btn-action-edit {
-                background: #3b82f6;
+                background: #0EA5E9;
                 color: white;
 
                 &:hover {
@@ -1657,7 +1657,7 @@
                 color: white;
 
                 &:hover {
-                  background: #dc2626;
+                  background: #EF4444;
                 }
               }
             }

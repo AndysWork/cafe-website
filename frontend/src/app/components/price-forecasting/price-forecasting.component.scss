@@ -11,7 +11,7 @@
 
     h2 {
       margin: 0;
-      color: #333;
+      color: #0F172A;
       font-size: 1.8rem;
     }
   }
@@ -43,14 +43,14 @@
 
     p {
       margin-top: 1rem;
-      color: #666;
+      color: #475569;
     }
   }
 
   .empty-state {
     text-align: center;
     padding: 3rem;
-    color: #666;
+    color: #475569;
 
     i {
       color: #ddd;
@@ -84,7 +84,7 @@
     }
 
     .card-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #84CC16 100%);
       color: white;
       padding: 1rem;
       display: flex;
@@ -108,7 +108,7 @@
 
         &.badge-warning {
           background: #ffc107;
-          color: #333;
+          color: #0F172A;
         }
       }
     }
@@ -134,7 +134,7 @@
 
         h4 {
           font-size: 0.9rem;
-          color: #666;
+          color: #475569;
           margin: 0 0 0.5rem 0;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -147,12 +147,12 @@
           font-size: 0.95rem;
 
           .label {
-            color: #666;
+            color: #475569;
           }
 
           .value {
             font-weight: 600;
-            color: #333;
+            color: #0F172A;
           }
         }
       }
@@ -169,7 +169,7 @@
         gap: 0.25rem;
         margin-bottom: 0.75rem;
         font-size: 0.85rem;
-        color: #666;
+        color: #475569;
       }
 
       .actions {
@@ -200,7 +200,7 @@
   }
 
   &.btn-primary {
-    background: #667eea;
+    background: #38BDF8;
     color: white;
 
     &:hover:not(:disabled) {
@@ -304,7 +304,7 @@
       h3 {
         margin: 0;
         font-size: 1.5rem;
-        color: #333;
+        color: #0F172A;
       }
 
       .close-btn {
@@ -319,7 +319,7 @@
         height: 30px;
 
         &:hover {
-          color: #333;
+          color: #0F172A;
         }
       }
     }
@@ -337,7 +337,7 @@
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 500;
-            color: #333;
+            color: #0F172A;
           }
 
           input,
@@ -350,7 +350,7 @@
 
             &:focus {
               outline: none;
-              border-color: #667eea;
+              border-color: #38BDF8;
               box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
             }
           }
@@ -405,12 +405,12 @@
             background: #f0f8ff;
             padding: 1rem;
             border-radius: 4px;
-            border: 2px solid #667eea;
+            border: 2px solid #38BDF8;
 
             .calculated-value {
               font-size: 1.5rem;
               font-weight: 700;
-              color: #667eea;
+              color: #38BDF8;
               margin-bottom: 0.5rem;
             }
 
@@ -435,20 +435,20 @@
 
                 .profit-label {
                   font-size: 0.85rem;
-                  color: #666;
+                  color: #475569;
                   font-weight: 500;
                 }
 
                 .profit-value {
                   font-size: 1.25rem;
                   font-weight: 700;
-                  color: #667eea;
+                  color: #38BDF8;
                 }
               }
             }
 
             .help-text {
-              color: #666;
+              color: #475569;
               font-size: 0.85rem;
               line-height: 1.5;
             }
@@ -468,7 +468,7 @@
 
       .history-timeline {
         .history-entry {
-          border-left: 3px solid #667eea;
+          border-left: 3px solid #38BDF8;
           padding-left: 1rem;
           margin-bottom: 1.5rem;
 
@@ -480,7 +480,7 @@
             display: flex;
             justify-content: space-between;
             margin-bottom: 0.5rem;
-            color: #667eea;
+            color: #38BDF8;
             font-size: 0.9rem;
 
             strong {
@@ -508,12 +508,12 @@
               }
 
               span:first-child {
-                color: #666;
+                color: #475569;
               }
 
               span:last-child {
                 font-weight: 600;
-                color: #333;
+                color: #0F172A;
               }
             }
           }

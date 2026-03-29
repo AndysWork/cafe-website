@@ -6,7 +6,7 @@
 
   // ===== HEADER =====
   .calculator-header {
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
     color: white;
     padding: 2rem;
     border-radius: 16px;
@@ -70,13 +70,13 @@
 
       &:hover {
         background: #e0f2fe;
-        color: #3b82f6;
+        color: #0EA5E9;
       }
 
       &.active {
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
         color: white;
-        border-color: #3b82f6;
+        border-color: #0EA5E9;
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
       }
     }
@@ -219,17 +219,17 @@
         transition: color 0.2s;
 
         &:hover {
-          color: #3b82f6;
+          color: #0EA5E9;
         }
 
         &::marker {
-          color: #3b82f6;
+          color: #0EA5E9;
         }
       }
 
       &[open] {
         summary {
-          color: #3b82f6;
+          color: #0EA5E9;
           margin-bottom: 1rem;
         }
       }
@@ -250,7 +250,7 @@
       padding: 1rem;
       background: #f8fafc;
       border-radius: 8px;
-      border-left: 4px solid #3b82f6;
+      border-left: 4px solid #0EA5E9;
       transition: all 0.2s;
 
       &:hover {
@@ -281,7 +281,7 @@
 
         .ingredient-cost {
           font-weight: 700;
-          color: #3b82f6;
+          color: #0EA5E9;
           font-size: 1.1rem;
         }
 
@@ -367,7 +367,7 @@
         border: 1px solid #e5e7eb;
 
         .breakdown-header {
-          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+          background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
           color: white;
           padding: 1rem 1.5rem;
           display: flex;
@@ -640,7 +640,7 @@
     }
 
     .card-header {
-      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
       color: white;
       padding: 1.25rem 1.5rem;
       display: flex;
@@ -774,7 +774,7 @@
         .price-amount {
           font-size: 1.3rem;
           font-weight: 800;
-          color: #3b82f6;
+          color: #0EA5E9;
         }
 
         .btn-inline-edit {
@@ -782,7 +782,7 @@
           right: 0.5rem;
           top: 50%;
           transform: translateY(-50%);
-          background: #3b82f6;
+          background: #0EA5E9;
           color: white;
           border: none;
           border-radius: 6px;
@@ -965,7 +965,7 @@
 
     &:focus {
       outline: none;
-      border-color: #3b82f6;
+      border-color: #0EA5E9;
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
@@ -1008,7 +1008,7 @@
     cursor: pointer;
 
     &:hover {
-      border-color: #3b82f6;
+      border-color: #0EA5E9;
       background-color: #f8fafc;
     }
 
@@ -1073,7 +1073,7 @@
 
     &:focus {
       outline: none;
-      border-color: #3b82f6;
+      border-color: #0EA5E9;
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cpath d='m21 21-4.35-4.35'%3E%3C/path%3E%3C/svg%3E");
     }
@@ -1114,7 +1114,7 @@
 
   .btn-action,
   .btn-primary {
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
     color: white;
 
     &:hover {
@@ -1152,7 +1152,7 @@
 
   .btn-edit {
     flex: 1;
-    background: #3b82f6;
+    background: #0EA5E9;
     color: white;
     justify-content: center;
 
@@ -1226,7 +1226,7 @@
       }
 
       .modal-header {
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
         color: white;
         padding: 1rem 1.5rem;
         display: flex;
@@ -1361,7 +1361,7 @@
 
         &.selected {
           background: #f3e8ff;
-          border-color: #8b5cf6 !important;
+          border-color: #38BDF8 !important;
         }
 
         &:last-child {
@@ -1442,12 +1442,12 @@
     }
 
     &.badge-web {
-      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      background: linear-gradient(135deg, #0EA5E9 0%, #2563eb 100%);
       color: white;
     }
 
     &.badge-api {
-      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      background: linear-gradient(135deg, #38BDF8 0%, #7c3aed 100%);
       color: white;
     }
 
@@ -1617,7 +1617,7 @@
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 
         thead {
-          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+          background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
           color: white;
 
           th {
@@ -1741,7 +1741,7 @@
       background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
       border-radius: 12px;
       margin-bottom: 2rem;
-      border-left: 4px solid #3b82f6;
+      border-left: 4px solid #0EA5E9;
 
       .info-icon {
         font-size: 2rem;
@@ -1866,7 +1866,7 @@
                 color: #1e293b;
 
                 &.primary {
-                  color: #3b82f6;
+                  color: #0EA5E9;
                   font-size: 1.1rem;
                 }
               }
@@ -2206,7 +2206,7 @@
         border-radius: 8px;
         padding: 1.25rem;
         text-align: center;
-        border: 2px dashed #3b82f6;
+        border: 2px dashed #0EA5E9;
 
         .upload-icon {
           font-size: 2rem;
@@ -2239,16 +2239,16 @@
           .file-label {
             padding: 0.6rem 1.25rem;
             background: white;
-            border: 2px solid #3b82f6;
+            border: 2px solid #0EA5E9;
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s;
             font-weight: 600;
-            color: #3b82f6;
+            color: #0EA5E9;
             font-size: 0.9rem;
 
             &:hover {
-              background: #3b82f6;
+              background: #0EA5E9;
               color: white;
             }
           }
@@ -2431,7 +2431,7 @@
                 color: #1e293b;
 
                 &.primary {
-                  color: #3b82f6;
+                  color: #0EA5E9;
                   font-size: 1.1rem;
                 }
               }
@@ -2525,7 +2525,7 @@
     padding: 1.25rem;
     border-radius: 8px;
     margin-bottom: 1.25rem;
-    border-left: 4px solid #3b82f6;
+    border-left: 4px solid #0EA5E9;
 
     h3 {
       margin: 0 0 0.75rem 0;
@@ -2551,7 +2551,7 @@
       top: 0;
       bottom: 0;
       width: 2px;
-      background: linear-gradient(to bottom, #3b82f6, #8b5cf6);
+      background: linear-gradient(to bottom, #0EA5E9, #38BDF8);
     }
 
     .history-entry {
@@ -2577,7 +2577,7 @@
         .history-number {
           width: 2rem;
           height: 2rem;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          background: linear-gradient(135deg, #0EA5E9, #38BDF8);
           color: white;
           border-radius: 50%;
           display: flex;
@@ -2632,7 +2632,7 @@
             font-size: 0.9rem;
 
             thead {
-              background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+              background: linear-gradient(135deg, #0EA5E9, #38BDF8);
               color: white;
 
               th {
@@ -2715,7 +2715,7 @@
   }
 
   .btn-history {
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #7c3aed 100%);
 
     &:hover {
       background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
@@ -2755,7 +2755,7 @@
         }
 
         &.btn-history {
-          background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+          background: linear-gradient(135deg, #38BDF8 0%, #7c3aed 100%);
 
           &:hover {
             background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
