@@ -28,6 +28,8 @@
     <div class="tabs">
       <button class="tab" [class.active]="activeTab === 'profile'" (click)="switchTab('profile')">👤 Profile Info</button>
       <button class="tab" [class.active]="activeTab === 'password'" (click)="switchTab('password')">🔒 Password</button>
+      <button class="tab" [class.active]="activeTab === 'addresses'" (click)="switchTab('addresses')">📍 Addresses</button>
+      <button class="tab" [class.active]="activeTab === 'favorites'" (click)="switchTab('favorites')">❤️ Loved Food</button>
       <button class="tab" [class.active]="activeTab === 'notifications'" (click)="switchTab('notifications')">🔔 Notifications</button>
     </div>
 
@@ -183,6 +185,117 @@
             <input type="checkbox" [checked]="notificationStore.preferences().pushNotifications" (change)="togglePreference('pushNotifications', $event)" />
             <span class="toggle-slider"></span>
           </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Addresses Tab -->
+    <div class="tab-body" *ngIf="activeTab === 'addresses'">
+      <div class="form-card">
+        <div class="section-header">
+          <h3>My Addresses</h3>
+          <button class="btn-add-address" (click)="openAddressForm()" *ngIf="!showAddressForm">+ Add Address</button>
+        </div>
+
+        <!-- Address Form -->
+        <div class="address-form" *ngIf="showAddressForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Label *</label>
+              <input type="text" [(ngModel)]="addressForm.label" placeholder="e.g., Home, Office, Mom's Place" />
+            </div>
+            <div class="form-group">
+              <label>City</label>
+              <input type="text" [(ngModel)]="addressForm.city" placeholder="City" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Full Address *</label>
+            <textarea [(ngModel)]="addressForm.fullAddress" placeholder="Enter complete delivery address" rows="3"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Pin Code</label>
+              <input type="text" [(ngModel)]="addressForm.pinCode" placeholder="Pin Code" maxlength="6" />
+            </div>
+            <div class="form-group">
+              <label>Default?</label>
+              <label class="toggle" style="margin-top: 8px;">
+                <input type="checkbox" [(ngModel)]="addressForm.isDefault" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Collector Name *</label>
+              <input type="text" [(ngModel)]="addressForm.collectorName" placeholder="Person receiving delivery" />
+            </div>
+            <div class="form-group">
+              <label>Collector Phone *</label>
+              <input type="tel" [(ngModel)]="addressForm.collectorPhone" placeholder="10-digit phone number" />
+            </div>
+          </div>
+          <div class="form-actions-inline">
+            <button class="btn-submit" (click)="saveAddress()">{{ editingAddressId ? '✏️ Update' : '💾 Save' }}</button>
+            <button class="btn-cancel" (click)="cancelAddressForm()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div *ngIf="isLoadingAddresses" class="loading-state">Loading addresses...</div>
+
+        <!-- Address List -->
+        <div *ngIf="!isLoadingAddresses && addresses.length === 0 && !showAddressForm" class="empty-state">
+          <span class="empty-icon">📍</span>
+          <p>No saved addresses yet</p>
+        </div>
+
+        <div class="address-list" *ngIf="!isLoadingAddresses">
+          <div class="address-card" *ngFor="let addr of addresses" [class.default]="addr.isDefault">
+            <div class="address-header">
+              <span class="address-label">{{ addr.label }}</span>
+              <span class="badge-default" *ngIf="addr.isDefault">Default</span>
+            </div>
+            <p class="address-text">{{ addr.fullAddress }}</p>
+            <p class="address-detail" *ngIf="addr.city || addr.pinCode">{{ addr.city }} {{ addr.pinCode }}</p>
+            <div class="address-collector">
+              <span>👤 {{ addr.collectorName }}</span>
+              <span>📱 {{ addr.collectorPhone }}</span>
+            </div>
+            <div class="address-actions">
+              <button class="btn-sm" (click)="openAddressForm(addr)">✏️ Edit</button>
+              <button class="btn-sm" (click)="setDefaultAddress(addr.id)" *ngIf="!addr.isDefault">⭐ Set Default</button>
+              <button class="btn-sm btn-sm-danger" (click)="deleteAddress(addr.id)">🗑️ Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Favorites Tab -->
+    <div class="tab-body" *ngIf="activeTab === 'favorites'">
+      <div class="form-card">
+        <h3 class="prefs-section-title">❤️ My Loved Food</h3>
+
+        <div *ngIf="isLoadingFavorites" class="loading-state">Loading favorites...</div>
+
+        <div *ngIf="!isLoadingFavorites && favoriteItems.length === 0" class="empty-state">
+          <span class="empty-icon">🤍</span>
+          <p>No favorites yet. Tap the heart on menu items to add them here!</p>
+        </div>
+
+        <div class="favorites-grid" *ngIf="!isLoadingFavorites && favoriteItems.length > 0">
+          <div class="fav-card" *ngFor="let item of favoriteItems">
+            <img *ngIf="item.imageUrl" [src]="item.imageUrl" [alt]="item.name" class="fav-img" loading="lazy"/>
+            <div *ngIf="!item.imageUrl" class="fav-img-placeholder">🍽️</div>
+            <div class="fav-info">
+              <span class="fav-name">{{ item.name }}</span>
+              <span class="fav-category">{{ item.categoryName }}</span>
+              <span class="fav-price">₹{{ item.onlinePrice }}</span>
+            </div>
+            <button class="btn-remove-fav" (click)="removeFavorite(item.id)" aria-label="Remove favorite">❤️</button>
+          </div>
         </div>
       </div>
     </div>

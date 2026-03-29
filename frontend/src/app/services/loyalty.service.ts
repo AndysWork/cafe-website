@@ -46,6 +46,50 @@ export interface RedeemResponse {
   account: LoyaltyAccount;
 }
 
+export interface ExtractedInvoiceItem {
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+export interface ExternalOrderClaim {
+  id: string;
+  userId: string;
+  username: string;
+  platform: string;
+  invoiceImageUrl: string;
+  extractedItems: ExtractedInvoiceItem[];
+  extractedTotal: number;
+  calculatedPoints: number;
+  status: string;
+  adminNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
+
+export interface ExternalClaimSubmitResponse {
+  message: string;
+  claimId: string;
+  calculatedPoints: number;
+  extractedTotal: number;
+}
+
+export interface AdminClaimsResponse {
+  claims: ExternalOrderClaim[];
+  totalCount: number;
+  pendingCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ReviewClaimResponse {
+  message: string;
+  claimId: string;
+  status: string;
+  pointsAwarded: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -83,7 +127,7 @@ export class LoyaltyService {
 
   // Admin: Get all loyalty accounts
   getAllLoyaltyAccounts(): Observable<LoyaltyAccount[]> {
-    return this.http.get<LoyaltyAccount[]>(`${this.apiUrl}/admin/loyalty/accounts`).pipe(
+    return this.http.get<LoyaltyAccount[]>(`${this.apiUrl}/manage/loyalty/accounts`).pipe(
       catchError(handleServiceError('LoyaltyService.getAllLoyaltyAccounts'))
     );
   }
@@ -97,36 +141,70 @@ export class LoyaltyService {
     isActive?: boolean;
     expiresAt?: string;
   }): Observable<Reward> {
-    return this.http.post<Reward>(`${this.apiUrl}/admin/loyalty/rewards`, reward).pipe(
+    return this.http.post<Reward>(`${this.apiUrl}/manage/loyalty/rewards`, reward).pipe(
       catchError(handleServiceError('LoyaltyService.createReward'))
     );
   }
 
   // Admin: Get all rewards
   getAllRewards(): Observable<Reward[]> {
-    return this.http.get<Reward[]>(`${this.apiUrl}/admin/loyalty/rewards`).pipe(
+    return this.http.get<Reward[]>(`${this.apiUrl}/manage/loyalty/rewards`).pipe(
       catchError(handleServiceError('LoyaltyService.getAllRewards'))
     );
   }
 
   // Admin: Update reward
   updateReward(id: string, reward: Partial<Reward>): Observable<Reward> {
-    return this.http.put<Reward>(`${this.apiUrl}/admin/loyalty/rewards/${id}`, reward).pipe(
+    return this.http.put<Reward>(`${this.apiUrl}/manage/loyalty/rewards/${id}`, reward).pipe(
       catchError(handleServiceError('LoyaltyService.updateReward'))
     );
   }
 
   // Admin: Delete reward
   deleteReward(id: string): Observable<{ message: string }> {
-    return this.http.delete<{ message: string }>(`${this.apiUrl}/admin/loyalty/rewards/${id}`).pipe(
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/manage/loyalty/rewards/${id}`).pipe(
       catchError(handleServiceError('LoyaltyService.deleteReward'))
     );
   }
 
   // Admin: Get all redemptions
   getAllRedemptions(): Observable<PointsTransaction[]> {
-    return this.http.get<PointsTransaction[]>(`${this.apiUrl}/admin/loyalty/redemptions`).pipe(
+    return this.http.get<PointsTransaction[]>(`${this.apiUrl}/manage/loyalty/redemptions`).pipe(
       catchError(handleServiceError('LoyaltyService.getAllRedemptions'))
+    );
+  }
+
+  // ─── External Order Claims ───
+
+  // Submit external order claim (multipart: file + platform + totalAmount)
+  submitExternalClaim(formData: FormData): Observable<ExternalClaimSubmitResponse> {
+    return this.http.post<ExternalClaimSubmitResponse>(`${this.apiUrl}/loyalty/external-claim`, formData).pipe(
+      catchError(handleServiceError('LoyaltyService.submitExternalClaim'))
+    );
+  }
+
+  // Get my external claims
+  getMyExternalClaims(): Observable<ExternalOrderClaim[]> {
+    return this.http.get<ExternalOrderClaim[]>(`${this.apiUrl}/loyalty/external-claims`).pipe(
+      catchError(handleServiceError('LoyaltyService.getMyExternalClaims'))
+    );
+  }
+
+  // Admin: Get all external claims
+  getAdminExternalClaims(status?: string, page = 1, pageSize = 20): Observable<AdminClaimsResponse> {
+    let url = `${this.apiUrl}/manage/loyalty/external-claims?page=${page}&pageSize=${pageSize}`;
+    if (status) url += `&status=${status}`;
+    return this.http.get<AdminClaimsResponse>(url).pipe(
+      catchError(handleServiceError('LoyaltyService.getAdminExternalClaims'))
+    );
+  }
+
+  // Admin: Review (approve/reject) external claim
+  reviewExternalClaim(claimId: string, action: 'approve' | 'reject', adminNotes?: string, overridePoints?: number): Observable<ReviewClaimResponse> {
+    const body: any = { action, adminNotes };
+    if (overridePoints !== undefined) body.overridePoints = overridePoints;
+    return this.http.put<ReviewClaimResponse>(`${this.apiUrl}/manage/loyalty/external-claims/${claimId}/review`, body).pipe(
+      catchError(handleServiceError('LoyaltyService.reviewExternalClaim'))
     );
   }
 

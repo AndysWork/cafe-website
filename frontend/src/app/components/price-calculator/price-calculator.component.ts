@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -10,6 +10,7 @@ import { OverheadCostService, OverheadCost, OverheadAllocation } from '../../ser
 import { FrozenItemService } from '../../services/frozen-item.service';
 import { PriceForecastService, PriceForecast } from '../../services/price-forecast.service';
 import { OutletService } from '../../services/outlet.service';
+import { UIStore } from '../../store/ui.store';
 import { Outlet } from '../../models/outlet.model';
 import { environment } from '../../../environments/environment';
 import {
@@ -30,6 +31,7 @@ import {
   styleUrls: ['./price-calculator.component.scss']
 })
 export class PriceCalculatorComponent implements OnInit, OnDestroy {
+  private uiStore = inject(UIStore);
   private destroy$ = new Subject<void>();
 
   // Data
@@ -284,7 +286,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   saveOverheadCost(): void {
     if (!this.overheadForm.costType || this.overheadForm.monthlyCost <= 0) {
-      alert('Please fill in all required fields with valid values.');
+      this.uiStore.warning('Please fill in all required fields with valid values.');
       return;
     }
 
@@ -426,7 +428,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   saveIngredient(): void {
     if (!this.ingredientForm.name || this.ingredientForm.marketPrice <= 0) {
-      alert('Please fill in all required fields with valid values.');
+      this.uiStore.warning('Please fill in all required fields with valid values.');
       return;
     }
 
@@ -1014,7 +1016,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   addIngredientToRecipe(): void {
     if (!this.selectedIngredient || this.ingredientQuantity <= 0) {
-      alert('Please select an ingredient and enter a valid quantity.');
+      this.uiStore.warning('Please select an ingredient and enter a valid quantity.');
       return;
     }
 
@@ -1277,12 +1279,12 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   savePriceForecast(): void {
     if (!this.calculation || !this.priceForecast) {
-      alert('Please calculate the recipe price first.');
+      this.uiStore.warning('Please calculate the recipe price first.');
       return;
     }
 
     if (!this.currentRecipe.menuItemName) {
-      alert('Please enter a menu item name.');
+      this.uiStore.warning('Please enter a menu item name.');
       return;
     }
 
@@ -1482,7 +1484,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   viewPriceHistory(): void {
     if (!this.savedPriceForecast || !this.savedPriceForecast.history || this.savedPriceForecast.history.length === 0) {
-      alert('No price history available for this menu item.');
+      this.uiStore.warning('No price history available for this menu item.');
       return;
     }
     this.showForecastHistoryModal = true;
@@ -1494,12 +1496,12 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   saveCurrentRecipe(): void {
     if (!this.currentRecipe.menuItemName) {
-      alert('Please enter a menu item name.');
+      this.uiStore.warning('Please enter a menu item name.');
       return;
     }
 
     if (this.currentRecipe.ingredients.length === 0) {
-      alert('Please add at least one ingredient.');
+      this.uiStore.warning('Please add at least one ingredient.');
       return;
     }
 
@@ -1710,7 +1712,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   exportRecipe(): void {
     if (!this.currentRecipe.id) {
-      alert('Please save the recipe first.');
+      this.uiStore.warning('Please save the recipe first.');
       return;
     }
 
@@ -1906,14 +1908,14 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   uploadExcelFile(): void {
     if (!this.selectedFile) {
-      alert('Please select an Excel file first.');
+      this.uiStore.warning('Please select an Excel file first.');
       return;
     }
 
     // Validate file extension
     const fileName = this.selectedFile.name.toLowerCase();
     if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
-      alert('Please select a valid Excel file (.xlsx or .xls)');
+      this.uiStore.warning('Please select a valid Excel file (.xlsx or .xls)');
       return;
     }
 

@@ -10,6 +10,7 @@ import {
 } from '../../services/staff-performance.service';
 import { StaffService } from '../../services/staff.service';
 import { OutletService } from '../../services/outlet.service';
+import { UIStore } from '../../store/ui.store';
 import { Staff } from '../../models/staff.model';
 
 @Component({
@@ -23,6 +24,7 @@ export class StaffPerformanceComponent implements OnInit {
   private performanceService = inject(StaffPerformanceService);
   private staffService = inject(StaffService);
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
 
   performanceRecords: StaffPerformanceRecord[] = [];
   staffMembers: Staff[] = [];
@@ -272,7 +274,7 @@ export class StaffPerformanceComponent implements OnInit {
 
   exportToCSV(): void {
     if (this.performanceRecords.length === 0) {
-      alert('No records to export');
+      this.uiStore.warning('No records to export');
       return;
     }
 

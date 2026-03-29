@@ -7,6 +7,7 @@ import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
+import { UIStore } from '../../store/ui.store';
 import { environment } from '../../../environments/environment';
 import { getIstNow } from '../../utils/date-utils';
 
@@ -59,6 +60,7 @@ interface SubCategory {
 })
 export class MenuManagementComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
   menuItems: MenuItem[] = [];
@@ -161,7 +163,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error loading menu items:', error);
-          alert('Failed to load menu items. Please check the console for details.');
+          this.uiStore.error('Failed to load menu items. Please check the console for details.');
           this.loading = false;
         }
       });
@@ -283,7 +285,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
   saveMenuItem(): void {
     if (!this.formData.name || !this.formData.categoryId) {
-      alert('Please fill in all required fields');
+      this.uiStore.warning('Please fill in all required fields');
       return;
     }
 
@@ -321,7 +323,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
           error: (error) => {
             console.error('Error updating menu item:', error);
             this.loading = false;
-            alert('Failed to update menu item: ' + (error.error?.error || error.message));
+            this.uiStore.error('Failed to update menu item: ' + (error.error?.error || error.message));
           }
         });
     } else {
@@ -348,7 +350,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
           error: (error) => {
             console.error('Error creating menu item:', error);
             this.loading = false;
-            alert('Failed to create menu item: ' + (error.error?.error || error.message));
+            this.uiStore.error('Failed to create menu item: ' + (error.error?.error || error.message));
           }
         });
     }
@@ -366,7 +368,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
           error: (error) => {
             console.error('Error deleting menu item:', error);
             this.loading = false;
-            alert('Failed to delete menu item');
+            this.uiStore.error('Failed to delete menu item');
           }
         });
     }
@@ -385,7 +387,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
           error: (error) => {
             console.error('Error toggling availability:', error);
             this.loading = false;
-            alert('Failed to update availability status');
+            this.uiStore.error('Failed to update availability status');
           }
         });
     }
@@ -399,11 +401,11 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!validTypes.includes(file.type)) {
-      alert('Please select a valid image file (JPEG, PNG, WebP, or GIF)');
+      this.uiStore.warning('Please select a valid image file (JPEG, PNG, WebP, or GIF)');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be less than 5MB');
+      this.uiStore.warning('Image must be less than 5MB');
       return;
     }
 
@@ -438,7 +440,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
         error: (error) => {
           this.uploadingImage = false;
           console.error('Error deleting image:', error);
-          alert('Failed to delete image');
+          this.uiStore.error('Failed to delete image');
         }
       });
   }
@@ -462,7 +464,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
           this.uploadingImage = false;
           this.loading = false;
           console.error('Error uploading image:', error);
-          alert('Item saved but image upload failed: ' + (error.error?.error || error.message));
+          this.uiStore.error('Item saved but image upload failed: ' + (error.error?.error || error.message));
           this.closeModal();
           this.loadMenuItems();
         }

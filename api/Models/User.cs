@@ -47,6 +47,12 @@ public class User
     [BsonElement("notificationPreferences")]
     public NotificationPreferences NotificationPreferences { get; set; } = new();
 
+    [BsonElement("addresses")]
+    public List<DeliveryAddress> Addresses { get; set; } = new();
+
+    [BsonElement("favoriteMenuItemIds")]
+    public List<string> FavoriteMenuItemIds { get; set; } = new();
+
     [BsonElement("isActive")]
     public bool IsActive { get; set; } = true;
 
@@ -55,6 +61,36 @@ public class User
 
     [BsonElement("lastLoginAt")]
     public DateTime? LastLoginAt { get; set; }
+}
+
+public class DeliveryAddress
+{
+    [BsonElement("id")]
+    public string Id { get; set; } = ObjectId.GenerateNewId().ToString();
+
+    [BsonElement("label")]
+    public string Label { get; set; } = string.Empty; // e.g., "Home", "Office"
+
+    [BsonElement("fullAddress")]
+    public string FullAddress { get; set; } = string.Empty;
+
+    [BsonElement("city")]
+    public string? City { get; set; }
+
+    [BsonElement("pinCode")]
+    public string? PinCode { get; set; }
+
+    [BsonElement("collectorName")]
+    public string CollectorName { get; set; } = string.Empty;
+
+    [BsonElement("collectorPhone")]
+    public string CollectorPhone { get; set; } = string.Empty;
+
+    [BsonElement("isDefault")]
+    public bool IsDefault { get; set; } = false;
+
+    [BsonElement("createdAt")]
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 }
 
 public class LoginRequest
@@ -178,4 +214,54 @@ public class PasswordResetToken
 
     [BsonElement("isUsed")]
     public bool IsUsed { get; set; } = false;
+}
+
+public class AddDeliveryAddressRequest
+{
+    [Required(ErrorMessage = "Label is required")]
+    [StringLength(50, MinimumLength = 1, ErrorMessage = "Label must be between 1 and 50 characters")]
+    public string Label { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Full address is required")]
+    [StringLength(500, MinimumLength = 5, ErrorMessage = "Address must be between 5 and 500 characters")]
+    public string FullAddress { get; set; } = string.Empty;
+
+    [StringLength(100)]
+    public string? City { get; set; }
+
+    [StringLength(10)]
+    public string? PinCode { get; set; }
+
+    [Required(ErrorMessage = "Collector name is required")]
+    [StringLength(100, MinimumLength = 1)]
+    public string CollectorName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Collector phone is required")]
+    [IndianPhoneNumber]
+    public string CollectorPhone { get; set; } = string.Empty;
+
+    public bool IsDefault { get; set; } = false;
+}
+
+public class UpdateDeliveryAddressRequest
+{
+    [StringLength(50, MinimumLength = 1)]
+    public string? Label { get; set; }
+
+    [StringLength(500, MinimumLength = 5)]
+    public string? FullAddress { get; set; }
+
+    [StringLength(100)]
+    public string? City { get; set; }
+
+    [StringLength(10)]
+    public string? PinCode { get; set; }
+
+    [StringLength(100, MinimumLength = 1)]
+    public string? CollectorName { get; set; }
+
+    [IndianPhoneNumber]
+    public string? CollectorPhone { get; set; }
+
+    public bool? IsDefault { get; set; }
 }

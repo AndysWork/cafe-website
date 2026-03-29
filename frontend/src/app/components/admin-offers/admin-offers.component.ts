@@ -6,6 +6,7 @@ import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { getIstNow, formatIstDate } from '../../utils/date-utils';
+import { UIStore } from '../../store/ui.store';
 
 @Component({
   selector: 'app-admin-offers',
@@ -16,6 +17,7 @@ import { getIstNow, formatIstDate } from '../../utils/date-utils';
 })
 export class AdminOffersComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
   offers: Offer[] = [];
@@ -55,7 +57,7 @@ export class AdminOffersComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading offers:', err);
-        alert('Failed to load offers');
+        this.uiStore.error('Failed to load offers');
         this.loading = false;
       }
     });
@@ -107,25 +109,25 @@ export class AdminOffersComponent implements OnInit, OnDestroy {
     if (this.isEditMode && this.currentOffer?.id) {
       this.offersService.updateOffer(this.currentOffer.id, this.offerForm).subscribe({
         next: () => {
-          alert('Offer updated successfully!');
+          this.uiStore.success('Offer updated successfully!');
           this.loadOffers();
           this.closeModal();
         },
         error: (err) => {
           console.error('Error updating offer:', err);
-          alert('Failed to update offer');
+          this.uiStore.error('Failed to update offer');
         }
       });
     } else {
       this.offersService.createOffer(this.offerForm).subscribe({
         next: () => {
-          alert('Offer created successfully!');
+          this.uiStore.success('Offer created successfully!');
           this.loadOffers();
           this.closeModal();
         },
         error: (err) => {
           console.error('Error creating offer:', err);
-          alert('Failed to create offer');
+          this.uiStore.error('Failed to create offer');
         }
       });
     }
@@ -135,12 +137,12 @@ export class AdminOffersComponent implements OnInit, OnDestroy {
     if (confirm('Are you sure you want to delete this offer?')) {
       this.offersService.deleteOffer(id).subscribe({
         next: () => {
-          alert('Offer deleted successfully!');
+          this.uiStore.success('Offer deleted successfully!');
           this.loadOffers();
         },
         error: (err) => {
           console.error('Error deleting offer:', err);
-          alert('Failed to delete offer');
+          this.uiStore.error('Failed to delete offer');
         }
       });
     }
@@ -155,7 +157,7 @@ export class AdminOffersComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error toggling offer status:', err);
-          alert('Failed to update offer status');
+          this.uiStore.error('Failed to update offer status');
         }
       });
     }

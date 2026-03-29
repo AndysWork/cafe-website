@@ -8,6 +8,7 @@ import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { getIstDateString, getIstNow, convertToIst, formatIstDate } from '../../utils/date-utils';
+import { UIStore } from '../../store/ui.store';
 
 @Component({
   selector: 'app-admin-sales',
@@ -18,6 +19,7 @@ import { getIstDateString, getIstNow, convertToIst, formatIstDate } from '../../
 })
 export class AdminSalesComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
   sales: Sales[] = [];
@@ -264,7 +266,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading sales item types:', err);
-        alert('Error loading sales items. Please make sure you are logged in as admin.');
+        this.uiStore.error('Error loading sales items. Please make sure you are logged in as admin.');
       }
     });
   }
@@ -274,13 +276,13 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
       this.loading = true;
       this.salesItemTypeService.initializeDefaultItems().subscribe({
         next: (response) => {
-          alert('Sales item types initialized successfully!');
+          this.uiStore.success('Sales item types initialized successfully!');
           this.loadSalesItemTypes();
           this.loading = false;
         },
         error: (err) => {
           console.error('Error initializing sales item types:', err);
-          alert('Error initializing sales item types. Please check console.');
+          this.uiStore.error('Error initializing sales item types. Please check console.');
           this.loading = false;
         }
       });
@@ -299,7 +301,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
 
     // Check if sales item types are loaded
     if (!this.salesItemTypes || this.salesItemTypes.length === 0) {
-      alert('Loading sales items... Please try again in a moment.');
+      this.uiStore.warning('Loading sales items... Please try again in a moment.');
       this.loadSalesItemTypes();
       return;
     }
@@ -359,7 +361,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
 
   addItem() {
     if (!this.currentItem.itemName || this.currentItem.quantity <= 0 || this.currentItem.unitPrice <= 0) {
-      alert('Please fill all item details');
+      this.uiStore.warning('Please fill all item details');
       return;
     }
 
@@ -390,7 +392,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
     const validItems = this.formData.items.filter(item => item.quantity > 0);
 
     if (validItems.length === 0) {
-      alert('Please add at least one item with quantity greater than 0');
+      this.uiStore.warning('Please add at least one item with quantity greater than 0');
       return;
     }
 
@@ -415,7 +417,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error saving sales:', err);
-        alert('Failed to save sales record');
+        this.uiStore.error('Failed to save sales record');
         this.loading = false;
       }
     });
@@ -428,7 +430,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
       next: () => this.loadSales(),
       error: (err) => {
         console.error('Error deleting sales:', err);
-        alert('Failed to delete sales record');
+        this.uiStore.error('Failed to delete sales record');
       }
     });
   }
@@ -521,7 +523,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
 
   saveItemType() {
     if (!this.itemTypeForm.itemName || this.itemTypeForm.defaultPrice < 0) {
-      alert('Please provide item name and valid price (0 or greater)');
+      this.uiStore.warning('Please provide item name and valid price (0 or greater)');
       return;
     }
 
@@ -543,7 +545,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error updating item type:', err);
-          alert('Failed to update item type');
+          this.uiStore.error('Failed to update item type');
           this.loading = false;
         }
       });
@@ -557,7 +559,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error creating item type:', err);
-          alert('Failed to create item type');
+          this.uiStore.error('Failed to create item type');
           this.loading = false;
         }
       });
@@ -578,7 +580,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error deleting item type:', err);
-        alert('Failed to delete item type. It may be in use.');
+        this.uiStore.error('Failed to delete item type. It may be in use.');
       }
     });
   }

@@ -602,8 +602,8 @@ public class OrderFunction
             // Award loyalty points when order is delivered
             if (statusRequest.Status.ToLower() == "delivered" && order != null)
             {
-                // Award 1 point per ₹10 spent
-                int pointsToAward = (int)(order.Total / 10);
+                // Award 80% of the amount paid as loyalty points
+                int pointsToAward = (int)Math.Floor(order.Total * 0.80m);
                 if (pointsToAward > 0)
                 {
                     try

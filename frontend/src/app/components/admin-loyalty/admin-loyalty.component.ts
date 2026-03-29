@@ -1,8 +1,9 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LoyaltyService, Reward, LoyaltyAccount, PointsTransaction } from '../../services/loyalty.service';
+import { LoyaltyService, Reward, LoyaltyAccount, PointsTransaction, ExternalOrderClaim, AdminClaimsResponse } from '../../services/loyalty.service';
 import { OutletService } from '../../services/outlet.service';
+import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { formatIstDate, formatIstDateTime } from '../../utils/date-utils';
@@ -16,9 +17,10 @@ import { formatIstDate, formatIstDateTime } from '../../utils/date-utils';
 })
 export class AdminLoyaltyComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
-  activeTab: 'rewards' | 'accounts' | 'redemptions' = 'rewards';
+  activeTab: 'rewards' | 'accounts' | 'redemptions' | 'claims' = 'rewards';
 
   // Rewards management
   rewards: Reward[] = [];
@@ -32,6 +34,19 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
 
   // Redemptions
   redemptions: PointsTransaction[] = [];
+
+  // External Claims
+  externalClaims: ExternalOrderClaim[] = [];
+  claimsFilter: string = ''; // '' = all, 'pending', 'approved', 'rejected'
+  claimsPendingCount = 0;
+  claimsTotalCount = 0;
+  claimsPage = 1;
+  claimsPageSize = 20;
+  reviewingClaimId: string | null = null;
+  reviewNotes = '';
+  reviewOverridePoints: number | null = null;
+  showImageModal = false;
+  modalImageUrl = '';
 
   loading = true;
 
@@ -72,6 +87,8 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
       this.loadAccounts();
     } else if (this.activeTab === 'redemptions') {
       this.loadRedemptions();
+    } else if (this.activeTab === 'claims') {
+      this.loadClaims();
     }
   }
 
@@ -83,7 +100,7 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading rewards:', err);
-        alert('Failed to load rewards');
+        this.uiStore.error('Failed to load rewards');
         this.loading = false;
       }
     });
@@ -97,7 +114,7 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading accounts:', err);
-        alert('Failed to load loyalty accounts');
+        this.uiStore.error('Failed to load loyalty accounts');
         this.loading = false;
       }
     });
@@ -111,13 +128,13 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading redemptions:', err);
-        alert('Failed to load redemptions');
+        this.uiStore.error('Failed to load redemptions');
         this.loading = false;
       }
     });
   }
 
-  switchTab(tab: 'rewards' | 'accounts' | 'redemptions') {
+  switchTab(tab: 'rewards' | 'accounts' | 'redemptions' | 'claims') {
     this.activeTab = tab;
     this.loadData();
   }
@@ -158,25 +175,25 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
     if (this.isEditMode && this.currentReward?.id) {
       this.loyaltyService.updateReward(this.currentReward.id, this.rewardForm).subscribe({
         next: () => {
-          alert('Reward updated successfully!');
+          this.uiStore.success('Reward updated successfully!');
           this.loadRewards();
           this.closeModal();
         },
         error: (err) => {
           console.error('Error updating reward:', err);
-          alert('Failed to update reward');
+          this.uiStore.error('Failed to update reward');
         }
       });
     } else {
       this.loyaltyService.createReward(this.rewardForm).subscribe({
         next: () => {
-          alert('Reward created successfully!');
+          this.uiStore.success('Reward created successfully!');
           this.loadRewards();
           this.closeModal();
         },
         error: (err) => {
           console.error('Error creating reward:', err);
-          alert('Failed to create reward');
+          this.uiStore.error('Failed to create reward');
         }
       });
     }
@@ -186,12 +203,12 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
     if (confirm('Are you sure you want to delete this reward?')) {
       this.loyaltyService.deleteReward(id).subscribe({
         next: () => {
-          alert('Reward deleted successfully!');
+          this.uiStore.success('Reward deleted successfully!');
           this.loadRewards();
         },
         error: (err) => {
           console.error('Error deleting reward:', err);
-          alert('Failed to delete reward');
+          this.uiStore.error('Failed to delete reward');
         }
       });
     }
@@ -206,7 +223,7 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error toggling reward status:', err);
-          alert('Failed to update reward status');
+          this.uiStore.error('Failed to update reward status');
         }
       });
     }
@@ -251,4 +268,95 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
   trackByObjId(index: number, item: any): string { return item.id; }
   trackByName(index: number, item: any): string { return item.name; }
   trackByIndex(index: number): number { return index; }
+
+  // ─── External Claims ───
+
+  loadClaims() {
+    const status = this.claimsFilter || undefined;
+    this.loyaltyService.getAdminExternalClaims(status, this.claimsPage, this.claimsPageSize).subscribe({
+      next: (res: AdminClaimsResponse) => {
+        this.externalClaims = res.claims;
+        this.claimsTotalCount = res.totalCount;
+        this.claimsPendingCount = res.pendingCount;
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error('Error loading claims:', err);
+        this.uiStore.error('Failed to load external claims');
+        this.loading = false;
+      }
+    });
+  }
+
+  filterClaims(status: string) {
+    this.claimsFilter = status;
+    this.claimsPage = 1;
+    this.loadClaims();
+  }
+
+  openImageModal(imageUrl: string) {
+    this.modalImageUrl = imageUrl;
+    this.showImageModal = true;
+  }
+
+  closeImageModal() {
+    this.showImageModal = false;
+    this.modalImageUrl = '';
+  }
+
+  startReview(claimId: string) {
+    this.reviewingClaimId = claimId;
+    this.reviewNotes = '';
+    this.reviewOverridePoints = null;
+  }
+
+  cancelReview() {
+    this.reviewingClaimId = null;
+    this.reviewNotes = '';
+    this.reviewOverridePoints = null;
+  }
+
+  reviewClaim(claimId: string, action: 'approve' | 'reject') {
+    const claim = this.externalClaims.find(c => c.id === claimId);
+    const label = action === 'approve'
+      ? `Approve claim for ${claim?.username}? ${this.reviewOverridePoints ? this.reviewOverridePoints : claim?.calculatedPoints} points will be credited.`
+      : `Reject claim for ${claim?.username}?`;
+
+    if (!confirm(label)) return;
+
+    this.loyaltyService.reviewExternalClaim(
+      claimId, action, this.reviewNotes || undefined,
+      action === 'approve' && this.reviewOverridePoints ? this.reviewOverridePoints : undefined
+    ).subscribe({
+      next: (res) => {
+        this.uiStore.success(res.message);
+        this.reviewingClaimId = null;
+        this.reviewNotes = '';
+        this.reviewOverridePoints = null;
+        this.loadClaims();
+      },
+      error: (err) => {
+        console.error('Error reviewing claim:', err);
+        this.uiStore.error(err.error?.error || 'Failed to review claim');
+      }
+    });
+  }
+
+  getClaimStatusClass(status: string): string {
+    switch (status) {
+      case 'approved': return 'status-approved';
+      case 'rejected': return 'status-rejected';
+      default: return 'status-pending';
+    }
+  }
+
+  getClaimPages(): number {
+    return Math.ceil(this.claimsTotalCount / this.claimsPageSize);
+  }
+
+  goToClaimsPage(page: number) {
+    if (page < 1 || page > this.getClaimPages()) return;
+    this.claimsPage = page;
+    this.loadClaims();
+  }
 }

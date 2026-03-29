@@ -606,4 +606,181 @@
   .form-row {
     grid-template-columns: 1fr !important;
   }
+
+  .claims-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .claim-details-row {
+    flex-direction: column !important;
+  }
+}
+
+/* Tab Badge */
+.tab-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #f56565; color: white; border-radius: 50%;
+  min-width: 22px; height: 22px; font-size: 0.75rem; font-weight: 700;
+  margin-left: 8px; padding: 0 6px;
+}
+
+/* Claims Filter Bar */
+.claims-filter-bar {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  .filter-btn {
+    padding: 8px 18px; border: 2px solid #e2e8f0; border-radius: 8px;
+    background: white; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    transition: all 0.3s ease; color: #718096;
+    &:hover { border-color: #a0aec0; }
+    &.active { border-color: #667eea; background: rgba(102, 126, 234, 0.08); color: #667eea; }
+    &.pending.active { border-color: #ed8936; background: rgba(237, 137, 54, 0.08); color: #c05621; }
+    &.approved.active { border-color: #48bb78; background: rgba(72, 187, 120, 0.08); color: #276749; }
+    &.rejected.active { border-color: #f56565; background: rgba(245, 101, 101, 0.08); color: #c53030; }
+  }
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center; padding: 60px 20px;
+  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  h3 { color: #2d3748; margin: 0 0 8px; }
+  p { color: #718096; margin: 0; }
+}
+
+/* Claims Grid */
+.claims-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 20px;
+}
+
+.admin-claim-card {
+  background: white; border-radius: 12px; padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); border-left: 4px solid #e2e8f0;
+  transition: all 0.3s ease;
+  &.status-pending { border-left-color: #ed8936; }
+  &.status-approved { border-left-color: #48bb78; }
+  &.status-rejected { border-left-color: #f56565; }
+  &:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); }
+}
+
+.claim-header-row {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+}
+
+.claim-user {
+  display: flex; align-items: center; gap: 12px;
+  .user-avatar { font-size: 1.5rem; }
+  .claim-username { font-weight: 700; color: #2d3748; font-size: 1rem; }
+  .claim-meta { font-size: 0.82rem; color: #a0aec0; margin-top: 2px; }
+}
+
+.claim-status-badge {
+  padding: 4px 14px; border-radius: 50px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+  &.status-pending { background: rgba(237, 137, 54, 0.12); color: #c05621; }
+  &.status-approved { background: rgba(72, 187, 120, 0.12); color: #276749; }
+  &.status-rejected { background: rgba(245, 101, 101, 0.1); color: #c53030; }
+}
+
+.claim-details-row {
+  display: flex; gap: 16px; margin-bottom: 16px;
+}
+
+.claim-invoice-thumb {
+  position: relative; width: 120px; min-width: 120px; height: 120px;
+  border-radius: 8px; overflow: hidden; cursor: pointer; border: 2px solid #e2e8f0;
+  img { width: 100%; height: 100%; object-fit: cover; }
+  .zoom-overlay {
+    position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5);
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; font-weight: 600; opacity: 0; transition: opacity 0.3s;
+  }
+  &:hover .zoom-overlay { opacity: 1; }
+}
+
+.claim-info {
+  flex: 1; display: flex; flex-direction: column; gap: 8px;
+  .claim-stat {
+    display: flex; justify-content: space-between; align-items: center;
+    .stat-label { font-size: 0.85rem; color: #718096; font-weight: 500; }
+    .stat-value { font-size: 1rem; font-weight: 700; color: #2d3748; }
+  }
+  .claim-items {
+    .stat-label { display: block; font-size: 0.85rem; color: #718096; font-weight: 500; margin-bottom: 4px; }
+    ul { margin: 0; padding-left: 18px; font-size: 0.85rem; color: #4a5568; }
+  }
+  .claim-admin-notes {
+    .stat-label { display: block; font-size: 0.82rem; color: #718096; margin-bottom: 2px; }
+    span { font-size: 0.9rem; color: #4a5568; font-style: italic; }
+  }
+}
+
+.claim-action-row {
+  padding-top: 14px; border-top: 1px solid #edf2f7;
+}
+
+.btn-review {
+  background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none;
+  padding: 10px 22px; border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; transition: all 0.3s;
+  &:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+}
+
+.review-panel {
+  display: flex; flex-direction: column; gap: 12px; animation: fadeIn 0.3s ease;
+}
+
+.review-field {
+  label { display: block; font-size: 0.82rem; font-weight: 600; color: #4a5568; margin-bottom: 4px; }
+}
+
+.review-input {
+  width: 100%; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 8px;
+  font-size: 0.9rem; box-sizing: border-box; transition: border-color 0.3s;
+  &:focus { outline: none; border-color: #667eea; }
+}
+
+.review-actions {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  button {
+    padding: 10px 20px; border: none; border-radius: 8px;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s;
+  }
+  .btn-approve {
+    background: linear-gradient(135deg, #48bb78, #38a169); color: white;
+    &:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4); }
+  }
+  .btn-reject {
+    background: linear-gradient(135deg, #f56565, #e53e3e); color: white;
+    &:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4); }
+  }
+  .btn-cancel-review {
+    background: #e2e8f0; color: #4a5568;
+    &:hover { background: #cbd5e0; }
+  }
+}
+
+/* Pagination */
+.claims-pagination {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin-top: 24px; padding: 16px;
+  button {
+    padding: 8px 18px; border: 2px solid #e2e8f0; border-radius: 8px;
+    background: white; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+    &:hover:not(:disabled) { border-color: #667eea; color: #667eea; }
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+  }
+  span { font-size: 0.9rem; color: #718096; }
+}
+
+/* Image Modal */
+.image-modal-content {
+  position: relative; max-width: 90vw; max-height: 90vh;
+  img { max-width: 100%; max-height: 85vh; border-radius: 12px; display: block; }
+  .btn-close {
+    position: absolute; top: -10px; right: -10px;
+    background: #fff; border: none; width: 36px; height: 36px;
+    border-radius: 50%; font-size: 1.2rem; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); transition: all 0.2s;
+    &:hover { background: #fed7d7; transform: rotate(90deg); }
+  }
 }

@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { UIStore } from '../../store/ui.store';
 import { OperationalExpenseService, OperationalExpense, CreateOperationalExpenseRequest, UpdateOperationalExpenseRequest } from '../../services/operational-expense.service';
 import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
@@ -16,6 +17,7 @@ import { getIstDateString, formatIstDate, getIstNow } from '../../utils/date-uti
 })
 export class OperationalExpensesComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
   expenses: OperationalExpense[] = [];
@@ -86,7 +88,7 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error loading operational expenses:', error);
-        alert('Failed to load operational expenses');
+        this.uiStore.error('Failed to load operational expenses');
         this.loading = false;
       }
     });
@@ -131,7 +133,7 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
 
   calculateRent() {
     if (!this.formData.month || !this.formData.year) {
-      alert('Please select month and year first');
+      this.uiStore.warning('Please select month and year first');
       return;
     }
 
@@ -143,7 +145,7 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error calculating rent:', error);
-        alert('Failed to calculate rent');
+        this.uiStore.error('Failed to calculate rent');
         this.calculatingRent = false;
       }
     });
@@ -198,7 +200,7 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
 
   saveExpense() {
     if (!this.formData.month || !this.formData.year) {
-      alert('Please select month and year');
+      this.uiStore.warning('Please select month and year');
       return;
     }
 
@@ -222,7 +224,7 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error updating operational expense:', error);
-          alert('Failed to update operational expense');
+          this.uiStore.error('Failed to update operational expense');
           this.loading = false;
         }
       });
@@ -236,7 +238,7 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
         error: (error) => {
           console.error('Error creating operational expense:', error);
           const errorMsg = error.error?.error || 'Failed to create operational expense';
-          alert(errorMsg);
+          this.uiStore.error(errorMsg);
           this.loading = false;
         }
       });
@@ -252,7 +254,7 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error deleting operational expense:', error);
-        alert('Failed to delete operational expense');
+        this.uiStore.error('Failed to delete operational expense');
       }
     });
   }

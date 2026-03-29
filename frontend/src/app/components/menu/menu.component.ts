@@ -4,6 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { MenuService, MenuItem, MenuCategory } from '../../services/menu.service';
 import { CartService, Cart } from '../../services/cart.service';
+import { FavoriteService } from '../../services/favorite.service';
+import { AuthService } from '../../services/auth.service';
+import { UIStore } from '../../store/ui.store';
 import { Router } from '@angular/router';
 
 @Component({
@@ -26,17 +29,24 @@ export class MenuComponent implements OnInit, OnDestroy {
   // Track which items just got added (for animation)
   recentlyAdded: Set<string> = new Set();
 
+  // Favorites
+  favoriteIds: Set<string> = new Set();
+
   private menuRefreshSubscription?: Subscription;
   private cartSubscription?: Subscription;
 
   constructor(
     private menuService: MenuService,
     private cartService: CartService,
+    private favoriteService: FavoriteService,
+    private authService: AuthService,
+    private uiStore: UIStore,
     private router: Router
   ) {}
 
   ngOnInit() {
     this.loadMenu();
+    this.loadFavorites();
 
     this.cartSubscription = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
@@ -159,4 +169,40 @@ export class MenuComponent implements OnInit, OnDestroy {
   trackByObjId(index: number, item: any): string { return item.id; }
 
   trackByIndex(index: number): number { return index; }
+
+  // ── Favorites ──
+
+  loadFavorites() {
+    if (!this.authService.isLoggedIn()) return;
+    this.favoriteService.getMyFavorites().subscribe({
+      next: (ids) => this.favoriteIds = new Set(ids),
+      error: () => {} // silently fail
+    });
+  }
+
+  isFavorite(itemId: string): boolean {
+    return this.favoriteIds.has(itemId);
+  }
+
+  toggleFavorite(item: MenuItem, event: Event) {
+    event.stopPropagation();
+    if (!this.authService.isLoggedIn()) {
+      this.uiStore.warning('Please log in to save favorites');
+      return;
+    }
+    this.favoriteService.toggleFavorite(item.id).subscribe({
+      next: (res) => {
+        if (res.isFavorite) {
+          this.favoriteIds.add(item.id);
+          this.uiStore.success(`Added "${item.name}" to favorites`);
+        } else {
+          this.favoriteIds.delete(item.id);
+          this.uiStore.notify(`Removed "${item.name}" from favorites`);
+        }
+        // Force set re-render
+        this.favoriteIds = new Set(this.favoriteIds);
+      },
+      error: () => this.uiStore.error('Failed to update favorite')
+    });
+  }
 }

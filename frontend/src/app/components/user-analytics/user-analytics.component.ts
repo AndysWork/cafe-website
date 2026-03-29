@@ -1,5 +1,6 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { UIStore } from '../../store/ui.store';
 import {
   UserAnalyticsService,
   AnalyticsDashboard,
@@ -15,6 +16,7 @@ import { interval, Subscription } from 'rxjs';
   styleUrls: ['./user-analytics.component.scss']
 })
 export class UserAnalyticsComponent implements OnInit, OnDestroy {
+  private uiStore = inject(UIStore);
   dashboard: AnalyticsDashboard | null = null;
   isLoading = true;
   errorMessage = '';
@@ -92,8 +94,8 @@ export class UserAnalyticsComponent implements OnInit, OnDestroy {
 
   initializeIndexes(): void {
     this.analyticsService.initIndexes().subscribe({
-      next: () => alert('Analytics indexes created successfully!'),
-      error: () => alert('Failed to create indexes')
+      next: () => this.uiStore.success('Analytics indexes created successfully!'),
+      error: () => this.uiStore.error('Failed to create indexes')
     });
   }
 

@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { UIStore } from '../../store/ui.store';
 import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -33,6 +34,7 @@ export class BonusCalculationComponent implements OnInit {
   private bonusConfigService = inject(BonusConfigurationService);
   private http = inject(HttpClient);
   private bonusEngine = inject(BonusCalculationEngineService);
+  private uiStore = inject(UIStore);
 
   staff: Staff[] = [];
   selectedStaff: Staff | null = null;
@@ -815,7 +817,7 @@ export class BonusCalculationComponent implements OnInit {
     // Create a simple HTML-based payslip and print it
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (!printWindow) {
-      alert('Please allow popups for this website');
+      this.uiStore.warning('Please allow popups for this website');
       return;
     }
 

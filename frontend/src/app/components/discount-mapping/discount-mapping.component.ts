@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { UIStore } from '../../store/ui.store';
 import { DiscountCouponService, DiscountCoupon } from '../../services/discount-coupon.service';
 import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
@@ -14,6 +15,7 @@ import { filter } from 'rxjs/operators';
 })
 export class DiscountMappingComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
   coupons: DiscountCoupon[] = [];
@@ -96,12 +98,12 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
         next: (response) => {
           if (response.success) {
             coupon.isActive = newStatus;
-            alert(response.message || `Coupon ${action}d successfully!`);
+            this.uiStore.success(response.message || `Coupon ${action}d successfully!`);
           }
         },
         error: (err) => {
           console.error('Error updating coupon status:', err);
-          alert('Failed to update coupon status. Please try again.');
+          this.uiStore.error('Failed to update coupon status. Please try again.');
         }
       });
   }
@@ -117,7 +119,7 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
     const maxValue = inputValue.trim() === '' ? null : parseFloat(inputValue);
 
     if (maxValue !== null && (isNaN(maxValue) || maxValue < 0 || maxValue > 10000)) {
-      alert('Please enter a valid number between 0 and 10000, or leave empty for unlimited');
+      this.uiStore.warning('Please enter a valid number between 0 and 10000, or leave empty for unlimited');
       return;
     }
 
@@ -128,12 +130,12 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
           next: (response) => {
             if (response.success) {
               coupon.maxValue = maxValue === null ? undefined : maxValue;
-              alert(response.message || 'Max value updated successfully!');
+              this.uiStore.success(response.message || 'Max value updated successfully!');
             }
           },
           error: (err) => {
             console.error('Error updating max value:', err);
-            alert('Failed to update max value. Please try again.');
+            this.uiStore.error('Failed to update max value. Please try again.');
           }
         });
     } else {
@@ -157,22 +159,22 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
                       if (response.success) {
                         coupon.maxValue = maxValue === null ? undefined : maxValue;
                         reloadedCoupon.maxValue = maxValue === null ? undefined : maxValue;
-                        alert(response.message || 'Max value updated successfully!');
+                        this.uiStore.success(response.message || 'Max value updated successfully!');
                       }
                     },
                     error: (err) => {
                       console.error('Error updating max value:', err);
-                      alert('Failed to update max value. Please try again.');
+                      this.uiStore.error('Failed to update max value. Please try again.');
                     }
                   });
               } else {
-                alert('Could not retrieve coupon ID. Please refresh and try again.');
+                this.uiStore.error('Could not retrieve coupon ID. Please refresh and try again.');
               }
             }, 1000);
           },
           error: (err) => {
             console.error('Error initializing coupon record:', err);
-            alert('Failed to initialize coupon record. Please try again.');
+            this.uiStore.error('Failed to initialize coupon record. Please try again.');
           }
         });
     }
@@ -189,7 +191,7 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
     const discountPercentage = inputValue.trim() === '' ? null : parseFloat(inputValue);
 
     if (discountPercentage !== null && (isNaN(discountPercentage) || discountPercentage < 0 || discountPercentage > 100)) {
-      alert('Please enter a valid percentage between 0 and 100, or leave empty to unset');
+      this.uiStore.warning('Please enter a valid percentage between 0 and 100, or leave empty to unset');
       return;
     }
 
@@ -200,12 +202,12 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
           next: (response) => {
             if (response.success) {
               coupon.discountPercentage = discountPercentage === null ? undefined : discountPercentage;
-              alert(response.message || 'Discount percentage updated successfully!');
+              this.uiStore.success(response.message || 'Discount percentage updated successfully!');
             }
           },
           error: (err) => {
             console.error('Error updating discount percentage:', err);
-            alert('Failed to update discount percentage. Please try again.');
+            this.uiStore.error('Failed to update discount percentage. Please try again.');
           }
         });
     } else {
@@ -226,22 +228,22 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
                       if (response.success) {
                         coupon.discountPercentage = discountPercentage === null ? undefined : discountPercentage;
                         reloadedCoupon.discountPercentage = discountPercentage === null ? undefined : discountPercentage;
-                        alert(response.message || 'Discount percentage updated successfully!');
+                        this.uiStore.success(response.message || 'Discount percentage updated successfully!');
                       }
                     },
                     error: (err) => {
                       console.error('Error updating discount percentage:', err);
-                      alert('Failed to update discount percentage. Please try again.');
+                      this.uiStore.error('Failed to update discount percentage. Please try again.');
                     }
                   });
               } else {
-                alert('Could not retrieve coupon ID. Please refresh and try again.');
+                this.uiStore.error('Could not retrieve coupon ID. Please refresh and try again.');
               }
             }, 1000);
           },
           error: (err) => {
             console.error('Error initializing coupon record:', err);
-            alert('Failed to initialize coupon record. Please try again.');
+            this.uiStore.error('Failed to initialize coupon record. Please try again.');
           }
         });
     }

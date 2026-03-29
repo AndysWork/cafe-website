@@ -75,6 +75,47 @@ $danger: #ff5252;
   margin-bottom: 20px; animation: shake .5s ease-out;
 }
 
+/* Saved Addresses */
+.saved-addresses {
+  margin-bottom: 24px;
+  .section-label { display: block; font-size: .9rem; font-weight: 700; color: $dark; margin-bottom: 12px; }
+}
+
+.address-options { display: flex; flex-direction: column; gap: 10px; }
+
+.address-option {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px;
+  border: 2px solid #e8e8e8; border-radius: 12px; cursor: pointer; transition: all .2s;
+  background: #fff; position: relative;
+
+  input[type="radio"] { margin-top: 4px; accent-color: $accent; }
+
+  .option-content {
+    flex: 1; min-width: 0;
+    strong { display: block; font-size: .9rem; color: $dark; margin-bottom: 2px; }
+    .addr-text { display: block; font-size: .82rem; color: #666; line-height: 1.4; }
+    .addr-collector { display: block; font-size: .78rem; color: #999; margin-top: 4px; }
+  }
+
+  .addr-badge {
+    padding: 2px 8px; background: rgba($accent, .1); color: $accent;
+    font-size: .65rem; font-weight: 700; border-radius: 12px; text-transform: uppercase;
+    white-space: nowrap; align-self: center;
+  }
+
+  &.active { border-color: $accent; background: rgba($accent, .03); }
+  &:hover:not(.active) { border-color: #ccc; }
+}
+
+.save-address-opt {
+  margin-bottom: 20px; padding: 14px; background: #f8f9fa; border-radius: 12px;
+
+  .checkbox-label {
+    display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: .9rem; color: $dark;
+    input[type="checkbox"] { accent-color: $accent; width: 18px; height: 18px; }
+  }
+}
+
 /* Payment Section */
 .payment-section {
   margin-bottom: 24px;

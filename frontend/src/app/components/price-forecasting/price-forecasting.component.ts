@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { UIStore } from '../../store/ui.store';
 import { PriceForecastService, PriceForecast, PriceHistory } from '../../services/price-forecast.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { DiscountCouponService, DiscountCoupon } from '../../services/discount-coupon.service';
@@ -26,6 +27,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
   selectedHistory: PriceHistory[] = [];
 
   forecastForm: Partial<PriceForecast> = this.getEmptyForecast();
+  private uiStore = inject(UIStore);
 
   constructor(
     private forecastService: PriceForecastService,
@@ -64,7 +66,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading menu items:', err);
-        alert('Failed to load menu items');
+        this.uiStore.error('Failed to load menu items');
       }
     });
   }
@@ -80,7 +82,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading price forecasts:', err);
-        alert('Failed to load price forecasts');
+        this.uiStore.error('Failed to load price forecasts');
         this.loading = false;
       }
     });
@@ -119,7 +121,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
 
   openEditModal(forecast: PriceForecast) {
     if (forecast.isFinalized) {
-      alert('Cannot edit finalized forecast');
+      this.uiStore.warning('Cannot edit finalized forecast');
       return;
     }
     this.isEditMode = true;
@@ -266,7 +268,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
 
   saveForecast() {
     if (!this.forecastForm.menuItemId) {
-      alert('Please select a menu item');
+      this.uiStore.warning('Please select a menu item');
       return;
     }
 
@@ -281,25 +283,25 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
     if (this.isEditMode && this.currentForecast?.id) {
       this.forecastService.updatePriceForecast(this.currentForecast.id, this.forecastForm as PriceForecast).subscribe({
         next: () => {
-          alert('Price forecast updated successfully!');
+          this.uiStore.success('Price forecast updated successfully!');
           this.loadForecasts();
           this.closeModal();
         },
         error: (err) => {
           console.error('Error updating price forecast:', err);
-          alert('Failed to update price forecast: ' + (err.error?.error || err.message));
+          this.uiStore.error('Failed to update price forecast: ' + (err.error?.error || err.message));
         }
       });
     } else {
       this.forecastService.createPriceForecast(this.forecastForm as PriceForecast).subscribe({
         next: () => {
-          alert('Price forecast created successfully!');
+          this.uiStore.success('Price forecast created successfully!');
           this.loadForecasts();
           this.closeModal();
         },
         error: (err) => {
           console.error('Error creating price forecast:', err);
-          alert('Failed to create price forecast: ' + (err.error?.error || err.message));
+          this.uiStore.error('Failed to create price forecast: ' + (err.error?.error || err.message));
         }
       });
     }
@@ -307,19 +309,19 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
 
   deleteForecast(id: string, isFinalized: boolean) {
     if (isFinalized) {
-      alert('Cannot delete finalized forecast');
+      this.uiStore.warning('Cannot delete finalized forecast');
       return;
     }
 
     if (confirm('Are you sure you want to delete this price forecast?')) {
       this.forecastService.deletePriceForecast(id).subscribe({
         next: () => {
-          alert('Price forecast deleted successfully!');
+          this.uiStore.success('Price forecast deleted successfully!');
           this.loadForecasts();
         },
         error: (err) => {
           console.error('Error deleting price forecast:', err);
-          alert('Failed to delete price forecast: ' + (err.error?.error || err.message));
+          this.uiStore.error('Failed to delete price forecast: ' + (err.error?.error || err.message));
         }
       });
     }
@@ -329,12 +331,12 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
     if (confirm('⚠️ IMPORTANT: This will update prices for ALL OUTLETS!\n\nAre you sure you want to finalize this price forecast?\n\nThis action will:\n• Update menu item prices across ALL outlets\n• Cannot be undone\n• Apply the new pricing globally\n\nClick OK to proceed or Cancel to abort.')) {
       this.forecastService.finalizePriceForecast(id).subscribe({
         next: () => {
-          alert('✅ Price forecast finalized successfully!\n\nMenu item prices have been updated across ALL outlets.');
+          this.uiStore.success('Price forecast finalized successfully! Menu item prices have been updated across ALL outlets.');
           this.loadForecasts();
         },
         error: (err) => {
           console.error('Error finalizing price forecast:', err);
-          alert('Failed to finalize price forecast: ' + (err.error?.error || err.message));
+          this.uiStore.error('Failed to finalize price forecast: ' + (err.error?.error || err.message));
         }
       });
     }

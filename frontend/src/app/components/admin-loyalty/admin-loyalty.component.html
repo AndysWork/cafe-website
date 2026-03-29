@@ -23,6 +23,13 @@
       (click)="switchTab('redemptions')">
       📜 Redemptions
     </button>
+    <button
+      class="tab"
+      [class.active]="activeTab === 'claims'"
+      (click)="switchTab('claims')">
+      📋 Invoice Claims
+      <span *ngIf="claimsPendingCount > 0" class="tab-badge">{{ claimsPendingCount }}</span>
+    </button>
   </div>
 
   <!-- Loading -->
@@ -170,6 +177,100 @@
         </tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- Reward Modal -->
+
+<!-- External Claims Tab -->
+<div *ngIf="!loading && activeTab === 'claims'" class="tab-content">
+  <div class="section-header">
+    <h2>Invoice Claims ({{ claimsTotalCount }})</h2>
+    <div class="claims-filter-bar">
+      <button class="filter-btn" [class.active]="claimsFilter === ''" (click)="filterClaims('')">All</button>
+      <button class="filter-btn pending" [class.active]="claimsFilter === 'pending'" (click)="filterClaims('pending')">⏳ Pending ({{ claimsPendingCount }})</button>
+      <button class="filter-btn approved" [class.active]="claimsFilter === 'approved'" (click)="filterClaims('approved')">✅ Approved</button>
+      <button class="filter-btn rejected" [class.active]="claimsFilter === 'rejected'" (click)="filterClaims('rejected')">❌ Rejected</button>
+    </div>
+  </div>
+
+  <div *ngIf="externalClaims.length === 0" class="empty-state">
+    <div class="empty-icon">📋</div>
+    <h3>No Claims Found</h3>
+    <p>No external order claims match the current filter.</p>
+  </div>
+
+  <div *ngIf="externalClaims.length > 0" class="claims-grid">
+    <div *ngFor="let claim of externalClaims; trackBy: trackByObjId" class="admin-claim-card" [ngClass]="getClaimStatusClass(claim.status)">
+      <div class="claim-header-row">
+        <div class="claim-user">
+          <span class="user-avatar">👤</span>
+          <div>
+            <div class="claim-username">{{ claim.username }}</div>
+            <div class="claim-meta">{{ claim.platform | titlecase }} • {{ formatDate(claim.createdAt) }}</div>
+          </div>
+        </div>
+        <span class="claim-status-badge" [ngClass]="getClaimStatusClass(claim.status)">{{ claim.status | titlecase }}</span>
+      </div>
+
+      <div class="claim-details-row">
+        <div class="claim-invoice-thumb" (click)="openImageModal(claim.invoiceImageUrl)">
+          <img [src]="claim.invoiceImageUrl" alt="Invoice" loading="lazy">
+          <div class="zoom-overlay">🔍 View</div>
+        </div>
+        <div class="claim-info">
+          <div class="claim-stat"><span class="stat-label">Amount</span><span class="stat-value">₹{{ claim.extractedTotal | number:'1.2-2' }}</span></div>
+          <div class="claim-stat"><span class="stat-label">Base Points</span><span class="stat-value">{{ claim.calculatedPoints }}</span></div>
+          <div *ngIf="claim.extractedItems && claim.extractedItems.length > 0" class="claim-items">
+            <span class="stat-label">Items</span>
+            <ul>
+              <li *ngFor="let item of claim.extractedItems">{{ item.name }} x{{ item.quantity }} — ₹{{ item.price | number:'1.2-2' }}</li>
+            </ul>
+          </div>
+          <div *ngIf="claim.adminNotes" class="claim-admin-notes">
+            <span class="stat-label">Admin Notes</span>
+            <span>{{ claim.adminNotes }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Review Panel (only for pending claims) -->
+      <div *ngIf="claim.status === 'pending'" class="claim-action-row">
+        <div *ngIf="reviewingClaimId !== claim.id">
+          <button class="btn-review" (click)="startReview(claim.id)">📝 Review</button>
+        </div>
+        <div *ngIf="reviewingClaimId === claim.id" class="review-panel">
+          <div class="review-field">
+            <label>Admin Notes (optional)</label>
+            <input type="text" [(ngModel)]="reviewNotes" placeholder="Add notes..." class="review-input">
+          </div>
+          <div class="review-field">
+            <label>Override Points (optional, default: {{ claim.calculatedPoints }})</label>
+            <input type="number" [(ngModel)]="reviewOverridePoints" [placeholder]="claim.calculatedPoints" min="0" max="50000" class="review-input">
+          </div>
+          <div class="review-actions">
+            <button class="btn-approve" (click)="reviewClaim(claim.id, 'approve')">✅ Approve</button>
+            <button class="btn-reject" (click)="reviewClaim(claim.id, 'reject')">❌ Reject</button>
+            <button class="btn-cancel-review" (click)="cancelReview()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div *ngIf="getClaimPages() > 1" class="claims-pagination">
+    <button [disabled]="claimsPage <= 1" (click)="goToClaimsPage(claimsPage - 1)">← Prev</button>
+    <span>Page {{ claimsPage }} of {{ getClaimPages() }}</span>
+    <button [disabled]="claimsPage >= getClaimPages()" (click)="goToClaimsPage(claimsPage + 1)">Next →</button>
+  </div>
+</div>
+
+<!-- Invoice Image Modal -->
+<div class="modal-overlay" *ngIf="showImageModal" (click)="closeImageModal()">
+  <div class="image-modal-content" (click)="$event.stopPropagation()">
+    <button class="btn-close" (click)="closeImageModal()">✕</button>
+    <img [src]="modalImageUrl" alt="Invoice">
   </div>
 </div>
 

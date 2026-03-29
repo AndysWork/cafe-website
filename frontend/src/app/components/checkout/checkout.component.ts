@@ -5,6 +5,9 @@ import { Router } from '@angular/router';
 import { CartService, Cart } from '../../services/cart.service';
 import { OrderService, CreateOrderRequest } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
+import { AddressService, DeliveryAddress, AddAddressRequest } from '../../services/address.service';
+import { AuthService } from '../../services/auth.service';
+import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -29,6 +32,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   notes = '';
   paymentMethod: 'cod' | 'razorpay' = 'cod';
 
+  // Saved addresses
+  savedAddresses: DeliveryAddress[] = [];
+  selectedAddressId: string | null = null;
+  showNewAddressForm = false;
+  saveNewAddress = false;
+  newAddressLabel = '';
+
   isSubmitting = false;
   errorMessage = '';
   private cartSub?: Subscription;
@@ -37,21 +47,55 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     private cartService: CartService,
     private orderService: OrderService,
     private paymentService: PaymentService,
+    private addressService: AddressService,
+    private authService: AuthService,
+    private uiStore: UIStore,
     private router: Router
   ) {}
 
   ngOnInit() {
     this.cartSub = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
-      // Redirect to cart if empty
       if (cart.items.length === 0) {
         this.router.navigate(['/cart']);
       }
     });
+
+    // Load saved addresses
+    if (this.authService.isLoggedIn()) {
+      this.addressService.getMyAddresses().subscribe({
+        next: (addresses) => {
+          this.savedAddresses = addresses;
+          // Auto-select default address
+          const defaultAddr = addresses.find(a => a.isDefault);
+          if (defaultAddr) {
+            this.selectSavedAddress(defaultAddr.id);
+          }
+        },
+        error: () => {} // silently fail
+      });
+    }
   }
 
   ngOnDestroy() {
     this.cartSub?.unsubscribe();
+  }
+
+  selectSavedAddress(addressId: string): void {
+    this.selectedAddressId = addressId;
+    this.showNewAddressForm = false;
+    const addr = this.savedAddresses.find(a => a.id === addressId);
+    if (addr) {
+      this.deliveryAddress = addr.fullAddress;
+      this.phoneNumber = addr.collectorPhone;
+    }
+  }
+
+  useNewAddress(): void {
+    this.selectedAddressId = null;
+    this.showNewAddressForm = true;
+    this.deliveryAddress = '';
+    this.phoneNumber = '';
   }
 
   placeOrder() {
@@ -153,9 +197,21 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     // Submit order
     this.orderService.createOrder(orderRequest).subscribe({
       next: (order) => {
-        // Clear cart
+        // Save new address if requested
+        if (this.showNewAddressForm && this.saveNewAddress && this.newAddressLabel.trim()) {
+          const newAddr: AddAddressRequest = {
+            label: this.newAddressLabel.trim(),
+            fullAddress: this.deliveryAddress.trim(),
+            collectorName: '',
+            collectorPhone: this.phoneNumber.trim()
+          };
+          this.addressService.addAddress(newAddr).subscribe({
+            next: () => this.uiStore.success('Address saved for future orders'),
+            error: () => {} // silently fail
+          });
+        }
+
         this.cartService.clearCart();
-        // Navigate to orders page with success message
         this.router.navigate(['/orders'], {
           queryParams: { orderPlaced: 'true', orderId: order.id }
         });

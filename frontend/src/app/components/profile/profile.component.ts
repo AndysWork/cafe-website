@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
+import { AddressService, DeliveryAddress, AddAddressRequest } from '../../services/address.service';
+import { FavoriteService } from '../../services/favorite.service';
+import { MenuService, MenuItem } from '../../services/menu.service';
+import { UIStore } from '../../store/ui.store';
 import { NotificationStore } from '../../store';
 
 @Component({
@@ -34,12 +38,27 @@ export class ProfileComponent implements OnInit {
   passwordError = '';
   isChangingPassword = false;
 
-  activeTab: 'profile' | 'password' | 'notifications' = 'profile';
+  activeTab: 'profile' | 'password' | 'notifications' | 'addresses' | 'favorites' = 'profile';
 
   // Notification preferences
   notificationStore = inject(NotificationStore);
   isSavingPrefs = false;
   prefsMessage = '';
+
+  // Addresses
+  private addressService = inject(AddressService);
+  addresses: DeliveryAddress[] = [];
+  isLoadingAddresses = false;
+  showAddressForm = false;
+  editingAddressId: string | null = null;
+  addressForm: AddAddressRequest = { label: '', fullAddress: '', city: '', pinCode: '', collectorName: '', collectorPhone: '', isDefault: false };
+
+  // Favorites
+  private favoriteService = inject(FavoriteService);
+  private menuService = inject(MenuService);
+  private uiStore = inject(UIStore);
+  favoriteItems: MenuItem[] = [];
+  isLoadingFavorites = false;
 
   constructor(
     private authService: AuthService,
@@ -55,11 +74,17 @@ export class ProfileComponent implements OnInit {
     }
   }
 
-  switchTab(tab: 'profile' | 'password' | 'notifications'): void {
+  switchTab(tab: 'profile' | 'password' | 'notifications' | 'addresses' | 'favorites'): void {
     this.activeTab = tab;
     this.clearMessages();
     if (tab === 'notifications') {
       this.notificationStore.loadPreferences();
+    }
+    if (tab === 'addresses' && this.addresses.length === 0) {
+      this.loadAddresses();
+    }
+    if (tab === 'favorites' && this.favoriteItems.length === 0) {
+      this.loadFavorites();
     }
   }
 
@@ -205,6 +230,134 @@ export class ProfileComponent implements OnInit {
         this.profileError = error.error?.error || 'Failed to remove profile picture';
         setTimeout(() => this.profileError = '', 5000);
       }
+    });
+  }
+
+  // ── Addresses ──
+
+  loadAddresses(): void {
+    this.isLoadingAddresses = true;
+    this.addressService.getMyAddresses().subscribe({
+      next: (addresses) => {
+        this.addresses = addresses;
+        this.isLoadingAddresses = false;
+      },
+      error: () => {
+        this.uiStore.error('Failed to load addresses');
+        this.isLoadingAddresses = false;
+      }
+    });
+  }
+
+  openAddressForm(address?: DeliveryAddress): void {
+    if (address) {
+      this.editingAddressId = address.id;
+      this.addressForm = {
+        label: address.label,
+        fullAddress: address.fullAddress,
+        city: address.city || '',
+        pinCode: address.pinCode || '',
+        collectorName: address.collectorName,
+        collectorPhone: address.collectorPhone,
+        isDefault: address.isDefault
+      };
+    } else {
+      this.editingAddressId = null;
+      this.addressForm = { label: '', fullAddress: '', city: '', pinCode: '', collectorName: '', collectorPhone: '', isDefault: false };
+    }
+    this.showAddressForm = true;
+  }
+
+  cancelAddressForm(): void {
+    this.showAddressForm = false;
+    this.editingAddressId = null;
+  }
+
+  saveAddress(): void {
+    if (!this.addressForm.label.trim() || !this.addressForm.fullAddress.trim() ||
+        !this.addressForm.collectorName.trim() || !this.addressForm.collectorPhone.trim()) {
+      this.uiStore.warning('Please fill in all required fields');
+      return;
+    }
+
+    if (this.editingAddressId) {
+      this.addressService.updateAddress(this.editingAddressId, this.addressForm).subscribe({
+        next: () => {
+          this.uiStore.success('Address updated');
+          this.showAddressForm = false;
+          this.editingAddressId = null;
+          this.loadAddresses();
+        },
+        error: () => this.uiStore.error('Failed to update address')
+      });
+    } else {
+      this.addressService.addAddress(this.addressForm).subscribe({
+        next: () => {
+          this.uiStore.success('Address added');
+          this.showAddressForm = false;
+          this.loadAddresses();
+        },
+        error: () => this.uiStore.error('Failed to add address')
+      });
+    }
+  }
+
+  deleteAddress(addressId: string): void {
+    this.addressService.deleteAddress(addressId).subscribe({
+      next: () => {
+        this.uiStore.success('Address deleted');
+        this.addresses = this.addresses.filter(a => a.id !== addressId);
+      },
+      error: () => this.uiStore.error('Failed to delete address')
+    });
+  }
+
+  setDefaultAddress(addressId: string): void {
+    this.addressService.updateAddress(addressId, { isDefault: true }).subscribe({
+      next: () => {
+        this.uiStore.success('Default address updated');
+        this.loadAddresses();
+      },
+      error: () => this.uiStore.error('Failed to set default address')
+    });
+  }
+
+  // ── Favorites ──
+
+  loadFavorites(): void {
+    this.isLoadingFavorites = true;
+    this.favoriteService.getMyFavorites().subscribe({
+      next: (ids) => {
+        if (ids.length === 0) {
+          this.favoriteItems = [];
+          this.isLoadingFavorites = false;
+          return;
+        }
+        this.menuService.getMenuItems().subscribe({
+          next: (items) => {
+            this.favoriteItems = items.filter(i => ids.includes(i.id));
+            this.isLoadingFavorites = false;
+          },
+          error: () => {
+            this.isLoadingFavorites = false;
+            this.uiStore.error('Failed to load menu items');
+          }
+        });
+      },
+      error: () => {
+        this.isLoadingFavorites = false;
+        this.uiStore.error('Failed to load favorites');
+      }
+    });
+  }
+
+  removeFavorite(itemId: string): void {
+    this.favoriteService.toggleFavorite(itemId).subscribe({
+      next: () => {
+        this.favoriteItems = this.favoriteItems.filter(i => i.id !== itemId);
+        this.uiStore.success('Removed from favorites');
+      },
+      error: () => this.uiStore.error('Failed to remove favorite')
     });
   }
 }

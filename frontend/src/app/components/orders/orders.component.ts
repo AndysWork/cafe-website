@@ -1,9 +1,10 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { OrderService, Order } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
 import { AuthService } from '../../services/auth.service';
+import { UIStore } from '../../store/ui.store';
 import { formatIstDateTime } from '../../utils/date-utils';
 import { Subscription } from 'rxjs';
 
@@ -15,6 +16,7 @@ import { Subscription } from 'rxjs';
   styleUrls: ['./orders.component.scss']
 })
 export class OrdersComponent implements OnInit, OnDestroy {
+  private uiStore = inject(UIStore);
   orders: Order[] = [];
   isLoading = false;
   errorMessage = '';
@@ -111,7 +113,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error cancelling order:', error);
-        alert(error.error?.error || 'Failed to cancel order');
+        this.uiStore.error(error.error?.error || 'Failed to cancel order');
       }
     });
   }
@@ -125,7 +127,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error updating order status:', error);
-        alert(error.error?.error || 'Failed to update order status');
+        this.uiStore.error(error.error?.error || 'Failed to update order status');
       }
     });
   }
@@ -170,7 +172,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error processing refund:', error);
-        alert(error.error?.error || 'Failed to process refund');
+        this.uiStore.error(error.error?.error || 'Failed to process refund');
       }
     });
   }

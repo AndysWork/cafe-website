@@ -7,6 +7,7 @@ import { OfflineExpenseTypeService, OfflineExpenseType } from '../../services/of
 import { OnlineExpenseTypeService, OnlineExpenseType } from '../../services/online-expense-type.service';
 import { OperationalExpenseService, OperationalExpense, CreateOperationalExpenseRequest, UpdateOperationalExpenseRequest } from '../../services/operational-expense.service';
 import { OutletService } from '../../services/outlet.service';
+import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { getIstDateString, formatIstDate, convertToIst, getIstNow, extractIstDateString } from '../../utils/date-utils';
@@ -20,6 +21,7 @@ import { getIstDateString, formatIstDate, convertToIst, getIstNow, extractIstDat
 })
 export class AdminExpensesComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
   expenses: Expense[] = [];
@@ -225,7 +227,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading offline expense types:', err);
-        alert('Error loading offline expense types. Please make sure you are logged in as admin.');
+        this.uiStore.error('Error loading offline expense types. Please make sure you are logged in as admin.');
       }
     });
   }
@@ -239,7 +241,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading online expense types:', err);
-        alert('Error loading online expense types. Please make sure you are logged in as admin.');
+        this.uiStore.error('Error loading online expense types. Please make sure you are logged in as admin.');
       }
     });
   }
@@ -341,13 +343,13 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       this.loading = true;
       this.offlineExpenseTypeService.initializeDefaultExpenseTypes().subscribe({
         next: (response) => {
-          alert('Offline expense types initialized successfully!');
+          this.uiStore.success('Offline expense types initialized successfully!');
           this.loadOfflineExpenseTypes();
           this.loading = false;
         },
         error: (err) => {
           console.error('Error initializing offline expense types:', err);
-          alert('Error initializing offline expense types. Please check console.');
+          this.uiStore.error('Error initializing offline expense types. Please check console.');
           this.loading = false;
         }
       });
@@ -359,13 +361,13 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       this.loading = true;
       this.onlineExpenseTypeService.initializeDefaultExpenseTypes().subscribe({
         next: (response) => {
-          alert('Online expense types initialized successfully!');
+          this.uiStore.success('Online expense types initialized successfully!');
           this.loadOnlineExpenseTypes();
           this.loading = false;
         },
         error: (err) => {
           console.error('Error initializing online expense types:', err);
-          alert('Error initializing online expense types. Please check console.');
+          this.uiStore.error('Error initializing online expense types. Please check console.');
           this.loading = false;
         }
       });
@@ -424,7 +426,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
 
   saveExpense() {
     if (!this.formData.date || !this.formData.expenseType || this.formData.amount <= 0) {
-      alert('Please fill in all required fields');
+      this.uiStore.warning('Please fill in all required fields');
       return;
     }
 
@@ -439,7 +441,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error updating expense:', error);
-          alert('Failed to update expense');
+          this.uiStore.error('Failed to update expense');
           this.loading = false;
         }
       });
@@ -452,7 +454,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error creating expense:', error);
-          alert('Failed to create expense');
+          this.uiStore.error('Failed to create expense');
           this.loading = false;
         }
       });
@@ -468,7 +470,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error deleting expense:', error);
-        alert('Failed to delete expense');
+        this.uiStore.error('Failed to delete expense');
       }
     });
   }
@@ -515,7 +517,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
         // Show warning if there were invalid expense types
         if (result.invalidExpenseTypes && result.invalidExpenseTypes.length > 0) {
           const invalidTypes = result.invalidExpenseTypes.join(', ');
-          alert(`Upload completed with warnings!\n\n${result.processedRecords} records processed successfully.\n${result.skippedRecords} records skipped due to invalid expense types: ${invalidTypes}\n\nValid ${this.currentExpenseSource.toLowerCase()} expense types are: ${this.currentExpenseTypes.map(t => t.expenseType).join(', ')}`);
+          this.uiStore.warning(`Upload completed with warnings! ${result.processedRecords} records processed successfully. ${result.skippedRecords} records skipped due to invalid expense types: ${invalidTypes}. Valid ${this.currentExpenseSource.toLowerCase()} expense types are: ${this.currentExpenseTypes.map(t => t.expenseType).join(', ')}`);
         }
 
         this.loadExpenses();
@@ -638,7 +640,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
 
   calculateRent() {
     if (!this.operationalFormData.month || !this.operationalFormData.year) {
-      alert('Please select month and year first');
+      this.uiStore.warning('Please select month and year first');
       return;
     }
 
@@ -650,7 +652,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error calculating rent:', error);
-        alert('Failed to calculate rent');
+        this.uiStore.error('Failed to calculate rent');
         this.calculatingRent = false;
       }
     });
@@ -704,7 +706,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
 
   saveOperationalExpense() {
     if (!this.operationalFormData.month || !this.operationalFormData.year) {
-      alert('Please select month and year');
+      this.uiStore.warning('Please select month and year');
       return;
     }
 
@@ -728,7 +730,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error updating operational expense:', error);
-          alert('Failed to update operational expense');
+          this.uiStore.error('Failed to update operational expense');
           this.loading = false;
         }
       });
@@ -754,7 +756,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
         error: (error) => {
           console.error('Error creating operational expense:', error);
           const errorMsg = error.error?.error || 'Failed to create operational expense';
-          alert(errorMsg);
+          this.uiStore.error(errorMsg);
           this.loading = false;
         }
       });
@@ -770,7 +772,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error deleting operational expense:', error);
-        alert('Failed to delete operational expense');
+        this.uiStore.error('Failed to delete operational expense');
       }
     });
   }
@@ -800,7 +802,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
 
   saveExpenseType() {
     if (!this.expenseTypeForm.expenseType) {
-      alert('Please provide expense type name');
+      this.uiStore.warning('Please provide expense type name');
       return;
     }
 
@@ -809,7 +811,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     if (this.editingExpenseType) {
       // Update existing
       if (!this.editingExpenseType.id) {
-        alert('Invalid expense type ID');
+        this.uiStore.error('Invalid expense type ID');
         this.loading = false;
         return;
       }
@@ -827,7 +829,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
           },
           error: (err: any) => {
             console.error('Error updating expense type:', err);
-            alert('Failed to update expense type');
+            this.uiStore.error('Failed to update expense type');
             this.loading = false;
           }
         });
@@ -840,7 +842,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
           },
           error: (err: any) => {
             console.error('Error updating expense type:', err);
-            alert('Failed to update expense type');
+            this.uiStore.error('Failed to update expense type');
             this.loading = false;
           }
         });
@@ -858,7 +860,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
           },
           error: (err: any) => {
             console.error('Error creating expense type:', err);
-            alert('Failed to create expense type');
+            this.uiStore.error('Failed to create expense type');
             this.loading = false;
           }
         });
@@ -871,7 +873,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
           },
           error: (err: any) => {
             console.error('Error creating expense type:', err);
-            alert('Failed to create expense type');
+            this.uiStore.error('Failed to create expense type');
             this.loading = false;
           }
         });
@@ -888,7 +890,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     if (!confirm(`Are you sure you want to delete "${expenseType.expenseType}"?`)) return;
 
     if (!expenseType.id) {
-      alert('Invalid expense type ID');
+      this.uiStore.error('Invalid expense type ID');
       return;
     }
 
@@ -899,7 +901,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
         },
         error: (err: any) => {
           console.error('Error deleting expense type:', err);
-          alert('Failed to delete expense type. It may be in use.');
+          this.uiStore.error('Failed to delete expense type. It may be in use.');
         }
       });
     } else {
@@ -909,7 +911,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
         },
         error: (err: any) => {
           console.error('Error deleting expense type:', err);
-          alert('Failed to delete expense type. It may be in use.');
+          this.uiStore.error('Failed to delete expense type. It may be in use.');
         }
       });
     }

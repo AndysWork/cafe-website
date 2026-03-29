@@ -68,6 +68,7 @@ public partial class MongoService
     private readonly IMongoCollection<StaffPerformanceRecord> _staffPerformanceRecords;
     private readonly IMongoCollection<DailyPerformanceEntry> _dailyPerformanceEntries;
     private readonly IMongoCollection<AppNotification> _notifications;
+    private readonly IMongoCollection<ExternalOrderClaim> _externalClaims;
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
     
@@ -153,6 +154,7 @@ public partial class MongoService
         _staffPerformanceRecords = db.GetCollection<StaffPerformanceRecord>("StaffPerformanceRecords");
         _dailyPerformanceEntries = db.GetCollection<DailyPerformanceEntry>("DailyPerformanceEntries");
         _notifications = db.GetCollection<AppNotification>("Notifications");
+        _externalClaims = db.GetCollection<ExternalOrderClaim>("ExternalOrderClaims");
     }
 
     /// <summary>
@@ -847,6 +849,94 @@ public partial class MongoService
         var update = Builders<User>.Update.Set(x => x.PasswordHash, newPasswordHash);
         var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
         return result.ModifiedCount > 0;
+    }
+
+    // ── Delivery Addresses ──
+
+    public async Task<List<DeliveryAddress>> GetUserAddressesAsync(string userId)
+    {
+        var user = await _users.Find(x => x.Id == userId).FirstOrDefaultAsync();
+        return user?.Addresses ?? new List<DeliveryAddress>();
+    }
+
+    public async Task<DeliveryAddress> AddUserAddressAsync(string userId, DeliveryAddress address)
+    {
+        // If this is the default address, unset others first
+        if (address.IsDefault)
+        {
+            await _users.UpdateOneAsync(
+                x => x.Id == userId,
+                Builders<User>.Update.Set("addresses.$[].isDefault", false));
+        }
+
+        var update = Builders<User>.Update.Push(x => x.Addresses, address);
+        await _users.UpdateOneAsync(x => x.Id == userId, update);
+        return address;
+    }
+
+    public async Task<bool> UpdateUserAddressAsync(string userId, string addressId, UpdateDeliveryAddressRequest req)
+    {
+        var user = await _users.Find(x => x.Id == userId).FirstOrDefaultAsync();
+        if (user == null) return false;
+
+        var addrIndex = user.Addresses.FindIndex(a => a.Id == addressId);
+        if (addrIndex < 0) return false;
+
+        var addr = user.Addresses[addrIndex];
+        if (req.Label != null) addr.Label = req.Label;
+        if (req.FullAddress != null) addr.FullAddress = req.FullAddress;
+        if (req.City != null) addr.City = req.City;
+        if (req.PinCode != null) addr.PinCode = req.PinCode;
+        if (req.CollectorName != null) addr.CollectorName = req.CollectorName;
+        if (req.CollectorPhone != null) addr.CollectorPhone = req.CollectorPhone;
+
+        if (req.IsDefault == true)
+        {
+            foreach (var a in user.Addresses) a.IsDefault = false;
+            addr.IsDefault = true;
+        }
+        else if (req.IsDefault == false)
+        {
+            addr.IsDefault = false;
+        }
+
+        var update = Builders<User>.Update.Set(x => x.Addresses, user.Addresses);
+        var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
+        return result.MatchedCount > 0;
+    }
+
+    public async Task<bool> DeleteUserAddressAsync(string userId, string addressId)
+    {
+        var update = Builders<User>.Update.PullFilter(x => x.Addresses, a => a.Id == addressId);
+        var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    // ── Favorite Menu Items ──
+
+    public async Task<List<string>> GetUserFavoritesAsync(string userId)
+    {
+        var user = await _users.Find(x => x.Id == userId).FirstOrDefaultAsync();
+        return user?.FavoriteMenuItemIds ?? new List<string>();
+    }
+
+    public async Task<bool> ToggleFavoriteAsync(string userId, string menuItemId)
+    {
+        var user = await _users.Find(x => x.Id == userId).FirstOrDefaultAsync();
+        if (user == null) return false;
+
+        if (user.FavoriteMenuItemIds.Contains(menuItemId))
+        {
+            var update = Builders<User>.Update.Pull(x => x.FavoriteMenuItemIds, menuItemId);
+            await _users.UpdateOneAsync(x => x.Id == userId, update);
+            return false; // removed
+        }
+        else
+        {
+            var update = Builders<User>.Update.AddToSet(x => x.FavoriteMenuItemIds, menuItemId);
+            await _users.UpdateOneAsync(x => x.Id == userId, update);
+            return true; // added
+        }
     }
 
     // Create password reset token
@@ -5459,5 +5549,72 @@ public partial class MongoService
     }
 
     #endregion
-}
 
+    #region External Order Claims
+
+    public async Task CreateExternalClaimAsync(ExternalOrderClaim claim)
+    {
+        await _externalClaims.InsertOneAsync(claim);
+    }
+
+    public async Task<ExternalOrderClaim?> GetExternalClaimByIdAsync(string id)
+    {
+        return await _externalClaims.Find(c => c.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<ExternalOrderClaim>> GetUserExternalClaimsAsync(string userId)
+    {
+        return await _externalClaims
+            .Find(c => c.UserId == userId)
+            .SortByDescending(c => c.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<ExternalOrderClaim>> GetPendingExternalClaimsAsync()
+    {
+        return await _externalClaims
+            .Find(c => c.Status == "pending")
+            .SortBy(c => c.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<ExternalOrderClaim>> GetAllExternalClaimsAsync(string? status = null, int page = 1, int pageSize = 20)
+    {
+        var filter = status != null
+            ? Builders<ExternalOrderClaim>.Filter.Eq(c => c.Status, status)
+            : Builders<ExternalOrderClaim>.Filter.Empty;
+
+        return await _externalClaims
+            .Find(filter)
+            .SortByDescending(c => c.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<long> CountExternalClaimsAsync(string? status = null)
+    {
+        var filter = status != null
+            ? Builders<ExternalOrderClaim>.Filter.Eq(c => c.Status, status)
+            : Builders<ExternalOrderClaim>.Filter.Empty;
+        return await _externalClaims.CountDocumentsAsync(filter);
+    }
+
+    public async Task<bool> UpdateExternalClaimStatusAsync(string id, string status, string? adminNotes, string? reviewedBy, int? overridePoints = null)
+    {
+        var update = Builders<ExternalOrderClaim>.Update
+            .Set(c => c.Status, status)
+            .Set(c => c.AdminNotes, adminNotes)
+            .Set(c => c.ReviewedBy, reviewedBy)
+            .Set(c => c.ReviewedAt, GetIstNow())
+            .Set(c => c.UpdatedAt, GetIstNow());
+
+        if (overridePoints.HasValue)
+            update = update.Set(c => c.CalculatedPoints, overridePoints.Value);
+
+        var result = await _externalClaims.UpdateOneAsync(c => c.Id == id, update);
+        return result.ModifiedCount > 0;
+    }
+
+    #endregion
+}

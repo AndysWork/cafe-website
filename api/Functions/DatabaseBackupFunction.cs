@@ -75,7 +75,7 @@ public class DatabaseBackupFunction
     /// </summary>
     [Function("ManualDatabaseBackup")]
     public async Task<HttpResponseData> RunManualBackup(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/backup")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/backup")] HttpRequestData req)
     {
         try
         {
@@ -115,7 +115,7 @@ public class DatabaseBackupFunction
     /// </summary>
     [Function("ListDatabaseBackups")]
     public async Task<HttpResponseData> ListBackups(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "admin/backups")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/backups")] HttpRequestData req)
     {
         try
         {

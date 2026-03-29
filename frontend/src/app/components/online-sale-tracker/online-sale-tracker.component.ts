@@ -12,6 +12,7 @@ import {
   CreatePlatformChargeRequest,
   UpdatePlatformChargeRequest,
 } from '../../services/platform-charge.service';
+import { UIStore } from '../../store/ui.store';
 import {
   getIstNow,
   getIstDateString,
@@ -78,6 +79,7 @@ interface DailyIncome {
 })
 export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
   selectedPlatform: 'Zomato' | 'Swiggy' = 'Zomato';
@@ -614,10 +616,10 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
         this.editingCustomerNameId = null;
         this.editingCustomerNameValue = '';
       } else {
-        alert('Failed to update customer name: ' + response.message);
+        this.uiStore.error('Failed to update customer name: ' + response.message);
       }
     } catch (error: any) {
-      alert('Error updating customer name: ' + (error.error?.message || 'Unknown error'));
+      this.uiStore.error('Error updating customer name: ' + (error.error?.message || 'Unknown error'));
       console.error('Update error:', error);
     }
   }
@@ -777,13 +779,13 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
         .updatePlatformCharge(this.currentChargeId, updateRequest)
         .subscribe({
           next: () => {
-            alert('Platform charge updated successfully!');
+            this.uiStore.success('Platform charge updated successfully!');
             this.loadPlatformCharges();
             this.closeChargeModal();
           },
           error: (err) => {
             console.error('Error updating platform charge:', err);
-            alert('Failed to update platform charge');
+            this.uiStore.error('Failed to update platform charge');
           },
         });
     } else {
@@ -801,13 +803,13 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
         .createPlatformCharge(createRequest)
         .subscribe({
           next: () => {
-            alert('Platform charge created successfully!');
+            this.uiStore.success('Platform charge created successfully!');
             this.loadPlatformCharges();
             this.closeChargeModal();
           },
           error: (err) => {
             console.error('Error creating platform charge:', err);
-            alert(err.error?.message || 'Failed to create platform charge');
+            this.uiStore.error(err.error?.message || 'Failed to create platform charge');
           },
         });
     }
@@ -819,12 +821,12 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
 
     this.platformChargeService.deletePlatformCharge(id).subscribe({
       next: () => {
-        alert('Platform charge deleted successfully!');
+        this.uiStore.success('Platform charge deleted successfully!');
         this.loadPlatformCharges();
       },
       error: (err) => {
         console.error('Error deleting platform charge:', err);
-        alert('Failed to delete platform charge');
+        this.uiStore.error('Failed to delete platform charge');
       },
     });
   }

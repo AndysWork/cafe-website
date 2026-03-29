@@ -10,6 +10,7 @@ import {
 } from '../../services/daily-performance.service';
 import { StaffService } from '../../services/staff.service';
 import { OutletService } from '../../services/outlet.service';
+import { UIStore } from '../../store/ui.store';
 import { Staff } from '../../models/staff.model';
 
 interface StaffPerformanceRow {
@@ -28,6 +29,7 @@ interface StaffPerformanceRow {
   styleUrls: ['./daily-performance-entry.component.scss'],
 })
 export class DailyPerformanceEntryComponent implements OnInit {
+  private uiStore = inject(UIStore);
   private performanceService = inject(DailyPerformanceService);
   private staffService = inject(StaffService);
   private outletService = inject(OutletService);
@@ -449,7 +451,7 @@ export class DailyPerformanceEntryComponent implements OnInit {
 
   exportToCSV(): void {
     if (this.staffPerformanceRows.length === 0) {
-      alert('No data to export');
+      this.uiStore.warning('No data to export');
       return;
     }
 

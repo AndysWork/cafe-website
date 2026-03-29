@@ -304,7 +304,7 @@ public class LoyaltyFunction
     // GET: Get all loyalty accounts (Admin only)
     [Function("GetAllLoyaltyAccounts")]
     public async Task<HttpResponseData> GetAllLoyaltyAccounts(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/admin/loyalty/accounts")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/accounts")] HttpRequestData req)
     {
         try
         {
@@ -354,7 +354,7 @@ public class LoyaltyFunction
     // POST: Create reward (Admin only)
     [Function("CreateReward")]
     public async Task<HttpResponseData> CreateReward(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "api/admin/loyalty/rewards")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/loyalty/rewards")] HttpRequestData req)
     {
         try
         {
@@ -400,7 +400,7 @@ public class LoyaltyFunction
     // GET: Get all rewards including inactive (Admin only)
     [Function("GetAllRewards")]
     public async Task<HttpResponseData> GetAllRewards(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/admin/loyalty/rewards")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/rewards")] HttpRequestData req)
     {
         try
         {
@@ -442,7 +442,7 @@ public class LoyaltyFunction
     // GET: Get all redemption history (Admin only)
     [Function("GetAllRedemptions")]
     public async Task<HttpResponseData> GetAllRedemptions(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/admin/loyalty/redemptions")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/redemptions")] HttpRequestData req)
     {
         try
         {
@@ -471,7 +471,7 @@ public class LoyaltyFunction
     // PUT: Update reward (Admin only)
     [Function("UpdateReward")]
     public async Task<HttpResponseData> UpdateReward(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "api/admin/loyalty/rewards/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/loyalty/rewards/{id}")] HttpRequestData req,
         string id)
     {
         try
@@ -516,7 +516,7 @@ public class LoyaltyFunction
     // DELETE: Delete reward (Admin only)
     [Function("DeleteReward")]
     public async Task<HttpResponseData> DeleteReward(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "api/admin/loyalty/rewards/{id}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "manage/loyalty/rewards/{id}")] HttpRequestData req,
         string id)
     {
         try

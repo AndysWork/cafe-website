@@ -22,30 +22,72 @@
       </div>
 
       <form (ngSubmit)="placeOrder()" #checkoutForm="ngForm" aria-label="Checkout form">
-        <div class="form-group">
-          <label for="deliveryAddress">Delivery Address *</label>
-          <textarea
-            id="deliveryAddress"
-            name="deliveryAddress"
-            [(ngModel)]="deliveryAddress"
-            placeholder="Enter your complete delivery address"
-            rows="3"
-            required
-            [disabled]="isSubmitting"></textarea>
+
+        <!-- Saved Addresses -->
+        <div class="saved-addresses" *ngIf="savedAddresses.length > 0">
+          <label class="section-label">📍 Choose a saved address</label>
+          <div class="address-options">
+            <label
+              *ngFor="let addr of savedAddresses"
+              class="address-option"
+              [class.active]="selectedAddressId === addr.id"
+              (click)="selectSavedAddress(addr.id)">
+              <input type="radio" name="savedAddress" [value]="addr.id" [checked]="selectedAddressId === addr.id" />
+              <div class="option-content">
+                <strong>{{ addr.label }}</strong>
+                <span class="addr-text">{{ addr.fullAddress }}</span>
+                <span class="addr-collector">👤 {{ addr.collectorName }} · 📱 {{ addr.collectorPhone }}</span>
+              </div>
+              <span class="addr-badge" *ngIf="addr.isDefault">Default</span>
+            </label>
+            <label class="address-option" [class.active]="showNewAddressForm" (click)="useNewAddress()">
+              <input type="radio" name="savedAddress" value="new" [checked]="showNewAddressForm" />
+              <div class="option-content">
+                <strong>+ Enter new address</strong>
+              </div>
+            </label>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="phoneNumber">Phone Number *</label>
-          <input
-            type="tel"
-            id="phoneNumber"
-            name="phoneNumber"
-            [(ngModel)]="phoneNumber"
-            placeholder="Enter your 10-digit phone number"
-            pattern="[0-9]{10}"
-            required
-            [disabled]="isSubmitting" />
-          <small>Enter 10 digits without spaces or special characters</small>
+        <!-- New Address Fields (shown when no saved addresses or "new address" selected) -->
+        <div *ngIf="savedAddresses.length === 0 || showNewAddressForm">
+          <div class="form-group">
+            <label for="deliveryAddress">Delivery Address *</label>
+            <textarea
+              id="deliveryAddress"
+              name="deliveryAddress"
+              [(ngModel)]="deliveryAddress"
+              placeholder="Enter your complete delivery address"
+              rows="3"
+              required
+              [disabled]="isSubmitting"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="phoneNumber">Phone Number *</label>
+            <input
+              type="tel"
+              id="phoneNumber"
+              name="phoneNumber"
+              [(ngModel)]="phoneNumber"
+              placeholder="Enter your 10-digit phone number"
+              pattern="[0-9]{10}"
+              required
+              [disabled]="isSubmitting" />
+            <small>Enter 10 digits without spaces or special characters</small>
+          </div>
+
+          <!-- Save address option -->
+          <div class="save-address-opt" *ngIf="showNewAddressForm || savedAddresses.length === 0">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="saveNewAddress" name="saveNewAddress" />
+              <span>Save this address for future orders</span>
+            </label>
+            <div class="form-group" *ngIf="saveNewAddress" style="margin-top: 10px;">
+              <label>Address Label</label>
+              <input type="text" [(ngModel)]="newAddressLabel" name="newAddressLabel" placeholder="e.g., Home, Office" [disabled]="isSubmitting" />
+            </div>
+          </div>
         </div>
 
         <div class="form-group">

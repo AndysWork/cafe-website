@@ -12,6 +12,7 @@ public class BlobStorageService
     private readonly string _cdnBaseUrl;
     private const string MenuImagesContainer = "menu-images";
     private const string ProfilePicturesContainer = "profile-pictures";
+    private const string InvoiceUploadsContainer = "invoice-uploads";
     private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5MB for images
 
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -50,6 +51,10 @@ public class BlobStorageService
             var profileContainer = _blobServiceClient.GetBlobContainerClient(ProfilePicturesContainer);
             await profileContainer.CreateIfNotExistsAsync(PublicAccessType.Blob);
             _logger.LogInformation("Blob container '{Container}' initialized", ProfilePicturesContainer);
+
+            var invoiceContainer = _blobServiceClient.GetBlobContainerClient(InvoiceUploadsContainer);
+            await invoiceContainer.CreateIfNotExistsAsync(PublicAccessType.Blob);
+            _logger.LogInformation("Blob container '{Container}' initialized", InvoiceUploadsContainer);
         }
         catch (Exception ex)
         {
@@ -187,6 +192,32 @@ public class BlobStorageService
             _logger.LogWarning(ex, "Failed to delete profile picture: {ImageUrl}", imageUrl);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Uploads an invoice screenshot for external order claims (no compression — preserve text quality for OCR).
+    /// </summary>
+    public async Task<string> UploadInvoiceImageAsync(Stream fileStream, string fileName, string contentType, string userId)
+    {
+        ValidateUpload(fileStream, fileName, contentType);
+
+        var containerClient = _blobServiceClient.GetBlobContainerClient(InvoiceUploadsContainer);
+        var extension = GetExtensionForContentType(contentType);
+        var blobName = $"{userId}/{Guid.NewGuid()}{extension}";
+        var blobClient = containerClient.GetBlobClient(blobName);
+
+        var headers = new BlobHttpHeaders
+        {
+            ContentType = contentType,
+            CacheControl = "public, max-age=31536000, immutable"
+        };
+
+        await blobClient.UploadAsync(fileStream, new BlobUploadOptions { HttpHeaders = headers });
+
+        _logger.LogInformation("Uploaded invoice image: {BlobName} ({ContentType}, {Size} bytes)",
+            blobName, contentType, fileStream.Length);
+
+        return GetPublicUrl(InvoiceUploadsContainer, blobName);
     }
 
     private void ValidateUpload(Stream fileStream, string fileName, string contentType)

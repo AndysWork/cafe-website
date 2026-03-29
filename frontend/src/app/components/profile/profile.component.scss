@@ -179,6 +179,8 @@ $danger: #ff5252;
     h1 { font-size: 1.4rem; }
   }
   .form-card { padding: 24px 18px; }
+  .tabs { flex-wrap: wrap; }
+  .tab { flex: 0 0 auto; }
 }
 @media (max-width: 480px) {
   .hero { padding: 40px 14px 60px;
@@ -187,12 +189,130 @@ $danger: #ff5252;
   }
   .profile-content { margin-top: -24px; padding: 0 14px; }
   .form-row { grid-template-columns: 1fr; }
-  .tabs { border-radius: 12px; }
-  .tab { font-size: .82rem; padding: 12px 8px; }
+  .tabs { border-radius: 12px; flex-wrap: wrap; gap: 2px; }
+  .tab { font-size: .78rem; padding: 10px 6px; }
   .form-card { padding: 20px 14px; }
+  .favorites-grid { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 360px) {
   .hero { padding: 32px 12px 50px; h1 { font-size: 1.1rem; } }
   .form-group input { padding: 10px 12px; font-size: .9rem; }
   .btn-submit { padding: 12px; font-size: .9rem; }
+}
+
+/* ── Addresses Tab ── */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+  h3 { margin: 0; font-size: 1rem; font-weight: 700; color: $dark; }
+}
+
+.btn-add-address {
+  padding: 8px 16px; background: linear-gradient(135deg, $accent, #764ba2); color: #fff;
+  border: none; border-radius: 20px; font-size: .85rem; font-weight: 600; cursor: pointer;
+  transition: all .2s;
+  &:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba($accent, .3); }
+}
+
+.address-form {
+  background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 20px;
+  border: 1px solid #e8e8e8;
+
+  textarea {
+    width: 100%; padding: 12px 16px; border: 2px solid #e8e8e8; border-radius: 12px;
+    font-size: .95rem; color: $dark; background: #fff; transition: all .3s; box-sizing: border-box;
+    font-family: inherit; resize: vertical;
+    &:focus { outline: none; border-color: $accent; box-shadow: 0 0 0 4px rgba($accent, .1); }
+    &::placeholder { color: #bbb; }
+  }
+}
+
+.form-actions-inline {
+  display: flex; gap: 12px; margin-top: 8px;
+  .btn-submit { flex: 1; }
+  .btn-cancel {
+    padding: 14px 24px; border: 2px solid #ddd; border-radius: 12px; background: #fff;
+    color: #666; font-size: .95rem; font-weight: 600; cursor: pointer; transition: all .2s;
+    &:hover { border-color: $danger; color: $danger; }
+  }
+}
+
+.address-list { display: flex; flex-direction: column; gap: 14px; }
+
+.address-card {
+  border: 2px solid #e8e8e8; border-radius: 14px; padding: 18px; transition: all .2s;
+  &.default { border-color: rgba($accent, .4); background: rgba($accent, .02); }
+  &:hover { box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+}
+
+.address-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+
+.address-label { font-weight: 700; font-size: .95rem; color: $dark; }
+
+.badge-default {
+  padding: 2px 10px; background: rgba($accent, .1); color: $accent;
+  font-size: .7rem; font-weight: 700; border-radius: 20px; text-transform: uppercase;
+}
+
+.address-text { color: #555; font-size: .9rem; margin: 0 0 4px; line-height: 1.5; }
+.address-detail { color: #888; font-size: .82rem; margin: 0 0 8px; }
+
+.address-collector {
+  display: flex; gap: 16px; font-size: .82rem; color: #666; margin-bottom: 12px;
+}
+
+.address-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn-sm {
+  padding: 6px 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff;
+  font-size: .8rem; font-weight: 600; color: #555; cursor: pointer; transition: all .2s;
+  &:hover { border-color: $accent; color: $accent; background: rgba($accent, .04); }
+}
+.btn-sm-danger {
+  &:hover { border-color: $danger; color: $danger; background: rgba($danger, .04); }
+}
+
+.loading-state { text-align: center; padding: 30px; color: #999; font-size: .9rem; }
+
+.empty-state {
+  text-align: center; padding: 30px;
+  .empty-icon { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+  p { color: #999; font-size: .9rem; margin: 0; }
+}
+
+/* ── Favorites Tab ── */
+.favorites-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;
+}
+
+.fav-card {
+  display: flex; align-items: center; gap: 14px; padding: 14px;
+  border: 2px solid #efefef; border-radius: 14px; transition: all .2s;
+  &:hover { border-color: rgba($danger, .3); box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+}
+
+.fav-img {
+  width: 60px; height: 60px; border-radius: 12px; object-fit: cover; flex-shrink: 0;
+}
+
+.fav-img-placeholder {
+  width: 60px; height: 60px; border-radius: 12px; flex-shrink: 0;
+  background: linear-gradient(135deg, #ff9a56, $primary); display: flex;
+  align-items: center; justify-content: center; font-size: 1.5rem;
+}
+
+.fav-info {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+}
+
+.fav-name { font-weight: 700; font-size: .9rem; color: $dark; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav-category { font-size: .75rem; color: #999; }
+.fav-price { font-weight: 800; color: $primary; font-size: .95rem; }
+
+.btn-remove-fav {
+  width: 36px; height: 36px; border: none; border-radius: 50%; background: rgba($danger, .08);
+  cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center;
+  transition: all .2s; flex-shrink: 0;
+  &:hover { background: rgba($danger, .15); transform: scale(1.1); }
 }

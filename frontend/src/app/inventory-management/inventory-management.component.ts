@@ -11,6 +11,7 @@ import {
   StockOutRequest
 } from '../services/inventory.service';
 import { OutletService } from '../services/outlet.service';
+import { UIStore } from '../store/ui.store';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
@@ -23,6 +24,7 @@ import { filter } from 'rxjs/operators';
 })
 export class InventoryManagementComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
+  private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
   // Data
@@ -181,7 +183,7 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
 
   saveInventory(): void {
     if (!this.inventoryForm.ingredientName || !this.inventoryForm.unit) {
-      alert('Please fill in all required fields');
+      this.uiStore.warning('Please fill in all required fields');
       return;
     }
 
@@ -250,7 +252,7 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
 
   submitStockIn(): void {
     if (!this.selectedItem || this.stockInForm.quantity! <= 0) {
-      alert('Please enter a valid quantity');
+      this.uiStore.warning('Please enter a valid quantity');
       return;
     }
 
@@ -271,12 +273,12 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
 
   submitStockOut(): void {
     if (!this.selectedItem || this.stockOutForm.quantity! <= 0) {
-      alert('Please enter a valid quantity');
+      this.uiStore.warning('Please enter a valid quantity');
       return;
     }
 
     if (this.stockOutForm.quantity! > this.selectedItem.currentStock) {
-      alert('Cannot remove more stock than available');
+      this.uiStore.warning('Cannot remove more stock than available');
       return;
     }
 

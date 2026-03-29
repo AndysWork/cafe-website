@@ -101,6 +101,10 @@
           </span>
           <!-- Category Tag -->
           <span class="card-category-tag">{{ item.categoryName }}</span>
+          <!-- Favorite Heart -->
+          <button class="btn-favorite" [class.favorited]="isFavorite(item.id)" (click)="toggleFavorite(item, $event)" aria-label="Toggle favorite">
+            <span class="heart-icon">{{ isFavorite(item.id) ? '❤️' : '🤍' }}</span>
+          </button>
         </div>
 
         <!-- Card Body -->

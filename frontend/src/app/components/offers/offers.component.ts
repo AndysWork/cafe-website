@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { UIStore } from '../../store/ui.store';
 import { OffersService, Offer } from '../../services/offers.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { getIstNow, formatIstDate, getIstDaysDifference } from '../../utils/date-utils';
@@ -16,6 +17,7 @@ export class OffersComponent implements OnInit {
   loading = true;
   error: string | null = null;
   private analyticsService = inject(AnalyticsTrackingService);
+  private uiStore = inject(UIStore);
 
   constructor(private offersService: OffersService) {}
 
@@ -44,7 +46,7 @@ export class OffersComponent implements OnInit {
   copyCode(code: string) {
     navigator.clipboard.writeText(code);
     this.analyticsService.trackFeatureUsage('Offer Code Copy', `Copied code: ${code}`);
-    alert(`Code "${code}" copied to clipboard!`);
+    this.uiStore.success(`Code "${code}" copied to clipboard!`);
   }
 
   getDiscountDisplay(offer: Offer): string {
