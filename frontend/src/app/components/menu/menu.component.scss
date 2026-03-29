@@ -2,11 +2,11 @@
 // MENU PAGE — Vibrant Modern Design
 // ==========================================
 
-$primary: #ff6b35;
-$primary-dark: #e55a2b;
-$primary-light: #fff0eb;
-$accent: #1b1464;
-$accent-light: #4a3fbf;
+$primary: #FF6B35;
+$primary-dark: #E8520E;
+$primary-light: #FFF0EB;
+$accent: #6C5CE7;
+$accent-light: #5A4BD1;
 $green: #00c853;
 $green-dark: #009624;
 $red: #ff1744;
@@ -37,10 +37,15 @@ $radius-full: 9999px;
 // ==========================================
 .hero-banner {
   position: relative;
-  background: linear-gradient(135deg, $primary 0%, #ff8f65 40%, #ffc371 100%);
-  padding: 3rem 1.5rem 4rem;
+  background:
+    radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
+    radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
+    radial-gradient(circle at 55% 90%, rgba(#FF2D55, 0.3) 0%, transparent 45%),
+    linear-gradient(135deg, $primary 0%, $accent 100%);
+  padding: 3rem 1.5rem 3.5rem;
   text-align: center;
   overflow: hidden;
+  border-radius: 0 0 32px 32px;
 
   .hero-overlay {
     position: absolute;
@@ -70,16 +75,7 @@ $radius-full: 9999px;
   }
 
   .hero-wave {
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    line-height: 0;
-
-    svg {
-      width: 100%;
-      height: 50px;
-    }
+    display: none;
   }
 }
 
@@ -708,7 +704,7 @@ $radius-full: 9999px;
   cursor: pointer;
   font-size: 0.95rem;
   font-weight: 600;
-  box-shadow: 0 8px 30px rgba(27, 20, 100, 0.4);
+  box-shadow: 0 8px 30px rgba(108, 92, 231, 0.4);
   z-index: 100;
   animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1);
   transition: transform 0.25s, box-shadow 0.25s;
@@ -716,7 +712,7 @@ $radius-full: 9999px;
 
   &:hover {
     transform: translateX(-50%) translateY(-3px);
-    box-shadow: 0 12px 40px rgba(27, 20, 100, 0.55);
+    box-shadow: 0 12px 40px rgba(108, 92, 231, 0.55);
   }
 
   &:active {

@@ -1,11 +1,11 @@
-﻿$primary: #ff6b35;
-$primary-dark: #e55a2b;
-$accent: #667eea;
-$accent-dark: #5568d3;
+﻿$primary: #FF6B35;
+$primary-dark: #E8520E;
+$accent: #6C5CE7;
+$accent-dark: #5A4BD1;
 $green: #00c853;
 $red: #ff1744;
 $bg: #fafafa;
-$text-dark: #1a1a2e;
+$text-dark: #1A1A2E;
 $text-mid: #6b7280;
 $text-light: #9ca3af;
 $radius: 16px;
@@ -20,10 +20,15 @@ $radius-full: 9999px;
 // ===== HERO =====
 .hero {
   position: relative;
-  background: linear-gradient(135deg, $accent 0%, #764ba2 50%, #e040a0 100%);
-  padding: 3rem 1.5rem 4.5rem;
+  background:
+    radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
+    radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
+    radial-gradient(circle at 55% 90%, rgba(#FF2D55, 0.3) 0%, transparent 45%),
+    linear-gradient(135deg, $primary 0%, $accent 100%);
+  padding: 3rem 1.5rem 3.5rem;
   text-align: center;
   overflow: hidden;
+  border-radius: 0 0 32px 32px;
 
   .hero-pattern {
     position: absolute; inset: 0;
@@ -54,10 +59,7 @@ $radius-full: 9999px;
 
   p { color: rgba(255,255,255,0.9); font-size: 1.05rem; margin: 0; }
 
-  .hero-wave {
-    position: absolute; bottom: -1px; left: 0; right: 0; line-height: 0;
-    svg { width: 100%; height: 50px; }
-  }
+  .hero-wave { display: none; }
 }
 
 // ===== SKELETON =====
@@ -143,13 +145,13 @@ $radius-full: 9999px;
   &::before {
     content: '';
     position: absolute; top: 0; left: 0; right: 0; height: 4px;
-    background: linear-gradient(90deg, $accent, #764ba2, #e040a0);
+    background: linear-gradient(90deg, $primary, $accent, #FF2D55);
   }
 }
 
 .card-ribbon {
   position: absolute; top: 14px; right: -8px;
-  background: linear-gradient(135deg, #ff6b6b, #ee3a6f);
+  background: linear-gradient(135deg, $primary, #FF2D55);
   color: white; font-weight: 800; font-size: 0.8rem;
   padding: 0.4rem 1rem 0.4rem 0.8rem;
   border-radius: 6px 0 0 6px;

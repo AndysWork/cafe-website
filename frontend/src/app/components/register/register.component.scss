@@ -2,12 +2,12 @@
 // Register Page — Modern Split-Screen Design
 // ═══════════════════════════════════════════════
 
-$primary: #6C63FF;
-$primary-dark: #5A52D5;
-$secondary: #FF6B6B;
-$accent: #4ECDC4;
-$gradient-start: #6C63FF;
-$gradient-end: #a855f7;
+$primary: #FF6B35;
+$primary-dark: #E8520E;
+$secondary: #FF2D55;
+$accent: #6C5CE7;
+$gradient-start: #FF6B35;
+$gradient-end: #6C5CE7;
 $text-dark: #1a1a2e;
 $text-muted: #6b7280;
 $border-color: #e5e7eb;
@@ -27,7 +27,7 @@ $error-border: #fecaca;
 // ── Left Visual Panel ──────────────────────────
 .auth-visual {
   flex: 1;
-  background: linear-gradient(135deg, #a855f7 0%, $gradient-start 40%, $accent 100%);
+  background: linear-gradient(135deg, #6C5CE7 0%, $gradient-start 40%, $secondary 100%);
   display: flex;
   align-items: center;
   justify-content: center;

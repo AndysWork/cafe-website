@@ -1,7 +1,7 @@
-﻿$primary: #ff6b35;
-$accent: #667eea;
+﻿$primary: #FF6B35;
+$accent: #6C5CE7;
 $green: #00c853;
-$dark: #2d3436;
+$dark: #1A1A2E;
 $light-bg: #fafafa;
 $card-bg: #ffffff;
 $radius: 16px;
@@ -17,8 +17,14 @@ $radius: 16px;
 
 /* Hero */
 .hero {
-  position: relative; background: linear-gradient(135deg, $accent 0%, #764ba2 50%, #f093fb 100%);
-  padding: 60px 20px 80px; text-align: center; overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
+    radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
+    radial-gradient(circle at 55% 90%, rgba(#FF2D55, 0.3) 0%, transparent 45%),
+    linear-gradient(135deg, $primary 0%, $accent 100%);
+  padding: 60px 20px 60px; text-align: center; overflow: hidden;
+  border-radius: 0 0 32px 32px;
   .hero-pattern { position: absolute; inset: 0; background: radial-gradient(circle at 20% 80%, rgba(255,255,255,.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,.08) 0%, transparent 50%); }
   .hero-content { position: relative; z-index: 1; animation: slideUp .6s ease-out; }
   .hero-badge {
@@ -28,7 +34,7 @@ $radius: 16px;
   }
   h1 { color: #fff; font-size: 2.2rem; font-weight: 800; margin: 0 0 8px; }
   p { color: rgba(255,255,255,.9); font-size: 1.05rem; margin: 0; }
-  .hero-wave { position: absolute; bottom: -1px; left: 0; right: 0; line-height: 0; svg { width: 100%; height: 60px; } }
+  .hero-wave { display: none; }
 }
 
 /* Loading */
@@ -63,7 +69,7 @@ $radius: 16px;
 
 /* Points Hero Card */
 .points-hero-card {
-  position: relative; background: linear-gradient(135deg, $accent, #764ba2, #f093fb);
+  position: relative; background: linear-gradient(135deg, $primary, $accent, #A29BFE);
   border-radius: $radius; padding: 36px; margin-top: -40px; overflow: hidden;
   color: #fff; text-align: center; box-shadow: 0 10px 40px rgba($accent, .3);
   animation: slideUp .6s ease-out, glow 3s ease-in-out infinite;
@@ -147,7 +153,7 @@ $radius: 16px;
 .section-desc { color: #888; font-size: .92rem; margin: -12px 0 20px; }
 
 .btn-claim-toggle {
-  background: linear-gradient(135deg, $accent, #764ba2); color: #fff; border: none;
+  background: linear-gradient(135deg, $accent, #5A4BD1); color: #fff; border: none;
   padding: 10px 22px; border-radius: 50px; font-size: .9rem; font-weight: 600;
   cursor: pointer; transition: all .3s;
   &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba($accent, .3); }

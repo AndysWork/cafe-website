@@ -1,7 +1,7 @@
-﻿$primary: #ff6b35;
-$accent: #667eea;
+﻿$primary: #FF6B35;
+$accent: #6C5CE7;
 $green: #00c853;
-$dark: #2d3436;
+$dark: #1A1A2E;
 $light-bg: #fafafa;
 $card-bg: #ffffff;
 $radius: 16px;
@@ -15,8 +15,14 @@ $danger: #ff5252;
 
 /* Hero */
 .hero {
-  position: relative; background: linear-gradient(135deg, $primary 0%, #ff8a5c 50%, #ffd194 100%);
-  padding: 50px 20px 70px; text-align: center; overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
+    radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
+    radial-gradient(circle at 55% 90%, rgba(#FF2D55, 0.3) 0%, transparent 45%),
+    linear-gradient(135deg, $primary 0%, $accent 100%);
+  padding: 50px 20px 50px; text-align: center; overflow: hidden;
+  border-radius: 0 0 32px 32px;
   .hero-pattern { position: absolute; inset: 0; background: radial-gradient(circle at 20% 80%, rgba(255,255,255,.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,.08) 0%, transparent 50%); }
   .hero-content { position: relative; z-index: 1; animation: slideUp .6s ease-out; }
   .hero-badge {
@@ -26,7 +32,7 @@ $danger: #ff5252;
   }
   h1 { color: #fff; font-size: 2rem; font-weight: 800; margin: 0 0 6px; }
   p { color: rgba(255,255,255,.9); font-size: 1rem; margin: 0; }
-  .hero-wave { position: absolute; bottom: -1px; left: 0; right: 0; line-height: 0; svg { width: 100%; height: 60px; } }
+  .hero-wave { display: none; }
 }
 
 /* Empty State */
