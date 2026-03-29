@@ -1,0 +1,141 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>Branch Comparison</h1>
+    <p>Compare performance across outlets</p>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label>Start Date</label>
+      <input type="date" [(ngModel)]="startDate" />
+    </div>
+    <div class="filter-group">
+      <label>End Date</label>
+      <input type="date" [(ngModel)]="endDate" />
+    </div>
+    <button class="btn-primary" (click)="loadComparison()" [disabled]="loading">
+      {{ loading ? 'Loading...' : 'Compare' }}
+    </button>
+  </div>
+
+  <!-- Outlet Selection -->
+  <div class="outlet-selector">
+    <label>Select Outlets:</label>
+    <div class="outlet-chips">
+      <button *ngFor="let outlet of outlets"
+              class="chip"
+              [class.selected]="selectedOutletIds.includes(outlet.id || outlet._id)"
+              (click)="toggleOutlet(outlet.id || outlet._id)">
+        {{ outlet.outletName || outlet.name }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-spinner">
+    <div class="spinner"></div>
+    <p>Loading comparison data...</p>
+  </div>
+
+  <!-- Results -->
+  <div *ngIf="comparison && !loading" class="comparison-results">
+
+    <!-- Winner Banner -->
+    <div *ngIf="bestBranch" class="winner-banner">
+      <span class="trophy">🏆</span>
+      <strong>{{ bestBranch.outletName }}</strong> leads with {{ formatCurrency(bestBranch.totalSales) }} in sales
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="branch-cards">
+      <div *ngFor="let branch of comparison.branches; let i = index" class="branch-card"
+           [style.border-top-color]="getColor(i)">
+        <h3>{{ branch.outletName }}</h3>
+        <div class="branch-stats">
+          <div class="branch-stat">
+            <span class="label">Sales</span>
+            <span class="value">{{ formatCurrency(branch.totalSales) }}</span>
+          </div>
+          <div class="branch-stat">
+            <span class="label">Orders</span>
+            <span class="value">{{ branch.totalOrders }}</span>
+          </div>
+          <div class="branch-stat">
+            <span class="label">Expenses</span>
+            <span class="value">{{ formatCurrency(branch.totalExpenses) }}</span>
+          </div>
+          <div class="branch-stat">
+            <span class="label">Net Profit</span>
+            <span class="value" [class.negative]="branch.netProfit < 0">{{ formatCurrency(branch.netProfit) }}</span>
+          </div>
+          <div class="branch-stat">
+            <span class="label">Avg Order</span>
+            <span class="value">{{ formatCurrency(branch.averageOrderValue) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bar Charts -->
+    <div class="charts-section">
+      <div class="chart-block">
+        <h3>Sales Comparison</h3>
+        <div class="bar-chart">
+          <div *ngFor="let branch of comparison.branches; let i = index" class="bar-row">
+            <span class="bar-label">{{ branch.outletName }}</span>
+            <div class="bar-track">
+              <div class="bar-fill" [style.width.%]="getBarWidth(branch.totalSales, getMaxSales())"
+                   [style.background]="getColor(i)">
+                {{ formatCurrency(branch.totalSales) }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-block">
+        <h3>Orders Comparison</h3>
+        <div class="bar-chart">
+          <div *ngFor="let branch of comparison.branches; let i = index" class="bar-row">
+            <span class="bar-label">{{ branch.outletName }}</span>
+            <div class="bar-track">
+              <div class="bar-fill" [style.width.%]="getBarWidth(branch.totalOrders, getMaxOrders())"
+                   [style.background]="getColor(i)">
+                {{ branch.totalOrders }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Outlet</th>
+          <th>Total Sales</th>
+          <th>Orders</th>
+          <th>Expenses</th>
+          <th>Net Profit</th>
+          <th>Avg Order</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let branch of comparison.branches">
+          <td>{{ branch.outletName }}</td>
+          <td>{{ formatCurrency(branch.totalSales) }}</td>
+          <td>{{ branch.totalOrders }}</td>
+          <td>{{ formatCurrency(branch.totalExpenses) }}</td>
+          <td [class.negative]="branch.netProfit < 0">{{ formatCurrency(branch.netProfit) }}</td>
+          <td>{{ formatCurrency(branch.averageOrderValue) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!comparison && !loading" class="empty-state">
+    <p>Select at least 2 outlets and a date range, then click Compare.</p>
+  </div>
+</div>

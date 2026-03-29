@@ -1,0 +1,91 @@
+<div class="reservation-page">
+  <div class="page-hero">
+    <h1>Reserve a Table</h1>
+    <p>Book your perfect dining experience</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab === 'book'" (click)="switchTab('book')">Book a Table</button>
+    <button class="tab" [class.active]="activeTab === 'my'" (click)="switchTab('my')">My Reservations</button>
+  </div>
+
+  <!-- Booking Form -->
+  <div *ngIf="activeTab === 'book'" class="booking-section">
+    <!-- Success State -->
+    <div *ngIf="submitted" class="success-state">
+      <div class="success-icon">✓</div>
+      <h2>Reservation Booked!</h2>
+      <p>You'll receive a confirmation soon.</p>
+      <button class="btn-primary" (click)="bookAnother()">Book Another</button>
+    </div>
+
+    <!-- Form -->
+    <form *ngIf="!submitted" class="booking-form" (ngSubmit)="submitReservation()">
+      <div class="form-group">
+        <label>Your Name *</label>
+        <input type="text" [(ngModel)]="form.customerName" name="customerName" placeholder="Enter your name" required />
+      </div>
+      <div class="form-group">
+        <label>Phone Number *</label>
+        <input type="tel" [(ngModel)]="form.phone" name="phone" placeholder="Enter phone number" required />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" [(ngModel)]="form.reservationDate" name="reservationDate" [min]="getMinDate()" required />
+        </div>
+        <div class="form-group">
+          <label>Party Size *</label>
+          <select [(ngModel)]="form.partySize" name="partySize">
+            <option *ngFor="let s of partySizes" [ngValue]="s">{{ s }} {{ s === 1 ? 'Guest' : 'Guests' }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Preferred Time *</label>
+        <div class="time-slots">
+          <button *ngFor="let slot of timeSlots" type="button"
+                  class="time-chip"
+                  [class.selected]="form.timeSlot === slot"
+                  (click)="form.timeSlot = slot">
+            {{ slot }}
+          </button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Special Requests</label>
+        <textarea [(ngModel)]="form.specialRequests" name="specialRequests" rows="3" placeholder="Any special requirements? (e.g., birthday, wheelchair access)"></textarea>
+      </div>
+      <button type="submit" class="btn-submit" [disabled]="submitting">
+        {{ submitting ? 'Booking...' : 'Confirm Reservation' }}
+      </button>
+    </form>
+  </div>
+
+  <!-- My Reservations -->
+  <div *ngIf="activeTab === 'my'" class="my-reservations">
+    <div *ngIf="loadingMy" class="loading-state">
+      <div class="spinner"></div>
+    </div>
+    <div *ngIf="!loadingMy && myReservations.length === 0" class="empty-state">
+      <p>No reservations yet</p>
+      <button class="btn-primary" (click)="switchTab('book')">Book Now</button>
+    </div>
+    <div class="reservation-list">
+      <div *ngFor="let r of myReservations" class="reservation-card">
+        <div class="res-header">
+          <span class="res-date">{{ formatDate(r.reservationDate) }}</span>
+          <span class="res-status" [class]="getStatusClass(r.status)">{{ r.status }}</span>
+        </div>
+        <div class="res-details">
+          <span>{{ r.timeSlot }} · {{ r.partySize }} guests</span>
+          <span *ngIf="r.tableNumber">Table #{{ r.tableNumber }}</span>
+        </div>
+        <p *ngIf="r.specialRequests" class="res-notes">{{ r.specialRequests }}</p>
+        <button *ngIf="r.status === 'pending' || r.status === 'confirmed'"
+                class="btn-cancel" (click)="cancelReservation(r.id!)">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>

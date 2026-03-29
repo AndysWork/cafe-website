@@ -1,0 +1,71 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>🎉 Happy Hours</h1>
+    <button class="btn-create" (click)="openCreateModal()">➕ Add Happy Hour</button>
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
+
+  <div *ngIf="!loading && rules.length === 0" class="empty-state">
+    <div class="empty-icon">🎉</div><h2>No Happy Hours</h2><p>Set up time-based discounts to drive off-peak traffic!</p>
+    <button class="btn-create-empty" (click)="openCreateModal()">Create First Rule</button>
+  </div>
+
+  <div *ngIf="!loading && rules.length > 0" class="data-table">
+    <table>
+      <thead><tr><th>Name</th><th>Time</th><th>Days</th><th>Discount</th><th>Max Discount</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let r of rules; trackBy: trackById">
+          <td class="fw-bold">{{ r.name }}</td>
+          <td>{{ r.startTime }} - {{ r.endTime }}</td>
+          <td>{{ getDaysLabel(r.daysOfWeek) }}</td>
+          <td>{{ r.discountType === 'percentage' ? r.discountValue + '%' : '₹' + r.discountValue }}</td>
+          <td>₹{{ r.maxDiscount }}</td>
+          <td><span class="badge" [class.active]="r.isActive" [class.inactive]="!r.isActive">{{ r.isActive ? 'Active' : 'Inactive' }}</span></td>
+          <td class="actions-cell">
+            <button class="btn-edit" (click)="openEditModal(r)">✏️</button>
+            <button class="btn-delete" (click)="deleteRule(r.id!)">🗑️</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>{{ isEditMode ? 'Edit' : 'Create' }} Happy Hour</h2><button class="btn-close" (click)="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="saveRule()">
+        <div class="form-group"><label>Name *</label><input type="text" [(ngModel)]="ruleForm.name" name="name" required></div>
+        <div class="form-row">
+          <div class="form-group"><label>Start Time *</label><input type="time" [(ngModel)]="ruleForm.startTime" name="startTime" required></div>
+          <div class="form-group"><label>End Time *</label><input type="time" [(ngModel)]="ruleForm.endTime" name="endTime" required></div>
+        </div>
+        <div class="form-group">
+          <label>Active Days</label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" *ngFor="let day of dayNames; let i = index"
+              [style.background]="isDaySelected(i) ? '#38BDF8' : '#f1f5f9'"
+              [style.color]="isDaySelected(i) ? 'white' : '#64748b'"
+              style="border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600;"
+              (click)="toggleDay(i)">{{ day }}</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Discount Type</label>
+            <select [(ngModel)]="ruleForm.discountType" name="discountType">
+              <option value="percentage">Percentage</option><option value="flat">Flat Amount</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Discount Value *</label><input type="number" [(ngModel)]="ruleForm.discountValue" name="discountValue" min="0" required></div>
+        </div>
+        <div class="form-group"><label>Max Discount (₹)</label><input type="number" [(ngModel)]="ruleForm.maxDiscount" name="maxDiscount" min="0"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+          <button type="submit" class="btn-save">{{ isEditMode ? 'Update' : 'Create' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

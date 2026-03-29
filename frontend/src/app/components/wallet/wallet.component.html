@@ -1,0 +1,69 @@
+<div class="wallet-page">
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading wallet...</p>
+  </div>
+
+  <div *ngIf="!loading && walletData" class="wallet-content">
+    <!-- Balance Card -->
+    <div class="balance-card">
+      <div class="balance-label">Wallet Balance</div>
+      <div class="balance-amount">₹{{ walletData.balance | number:'1.0-0' }}</div>
+      <div class="balance-summary">
+        <span class="credited">+₹{{ walletData.totalCredited | number:'1.0-0' }} credited</span>
+        <span class="debited">-₹{{ walletData.totalDebited | number:'1.0-0' }} spent</span>
+      </div>
+      <button class="btn-recharge" (click)="showRecharge = !showRecharge">
+        {{ showRecharge ? 'Cancel' : 'Add Money' }}
+      </button>
+    </div>
+
+    <!-- Recharge Panel -->
+    <div *ngIf="showRecharge" class="recharge-panel">
+      <h3>Add Money to Wallet</h3>
+      <div class="preset-amounts">
+        <button *ngFor="let amt of presetAmounts"
+                class="amount-chip"
+                [class.selected]="rechargeAmount === amt"
+                (click)="selectAmount(amt)">
+          ₹{{ amt }}
+        </button>
+      </div>
+      <div class="custom-amount">
+        <label>Or enter amount</label>
+        <input type="number" [(ngModel)]="rechargeAmount" min="10" max="50000" placeholder="₹" />
+      </div>
+      <button class="btn-pay" (click)="rechargeWallet()" [disabled]="processing">
+        {{ processing ? 'Processing...' : 'Add ₹' + rechargeAmount }}
+      </button>
+    </div>
+
+    <!-- Transactions -->
+    <div class="transactions-section">
+      <h3>Recent Transactions</h3>
+      <div *ngIf="transactions.length === 0" class="empty-txns">
+        <p>No transactions yet</p>
+      </div>
+      <div class="txn-list">
+        <div *ngFor="let txn of transactions" class="txn-item" [class.credit]="txn.type === 'credit'" [class.debit]="txn.type === 'debit'">
+          <div class="txn-icon">
+            <span *ngIf="txn.type === 'credit'">↓</span>
+            <span *ngIf="txn.type === 'debit'">↑</span>
+          </div>
+          <div class="txn-details">
+            <span class="txn-desc">{{ txn.description }}</span>
+            <span class="txn-date">{{ formatDate(txn.createdAt) }}</span>
+          </div>
+          <div class="txn-amount">
+            <span *ngIf="txn.type === 'credit'">+₹{{ txn.amount | number:'1.0-0' }}</span>
+            <span *ngIf="txn.type === 'debit'">-₹{{ txn.amount | number:'1.0-0' }}</span>
+          </div>
+        </div>
+      </div>
+      <button *ngIf="transactions.length >= 20" class="btn-load-more" (click)="loadMoreTransactions()">
+        Load More
+      </button>
+    </div>
+  </div>
+</div>

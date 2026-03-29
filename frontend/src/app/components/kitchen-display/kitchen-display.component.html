@@ -1,0 +1,62 @@
+<div class="kitchen-container">
+  <div class="kitchen-header">
+    <h1>👨‍🍳 Kitchen Display</h1>
+    <div class="stats-row" *ngIf="stats">
+      <span class="stat-pill pending">⏳ {{ stats.pendingOrders }} Pending</span>
+      <span class="stat-pill preparing">🔥 {{ stats.preparingOrders }} Preparing</span>
+      <span class="stat-pill ready">✅ {{ stats.readyOrders }} Ready</span>
+      <span class="stat-pill done">📊 {{ stats.completedToday }} Done Today</span>
+      <span class="stat-pill" *ngIf="stats.avgPrepTime">⏱️ Avg {{ stats.avgPrepTime | number:'1.0-0' }}min</span>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading orders...</p></div>
+
+  <div *ngIf="!loading" class="kitchen-board">
+    <div class="kitchen-column" *ngFor="let status of ['pending', 'confirmed', 'preparing', 'ready']">
+      <div class="column-header" [style.border-bottom-color]="getStatusColor(status)">
+        <h2>{{ status | titlecase }}</h2>
+        <span class="count">{{ getOrdersByStatus(status).length }}</span>
+      </div>
+      <div class="order-card" *ngFor="let order of getOrdersByStatus(status)"
+        [style.border-left-color]="getStatusColor(order.status)">
+        <div class="order-header">
+          <span class="order-id">#{{ order.id?.slice(-6) }}</span>
+          <span class="order-time">{{ getTimeSince(order.createdAt) }}</span>
+        </div>
+        <div class="order-customer">
+          <span>{{ order.username }}</span>
+          <span *ngIf="order.orderType" class="order-type">{{ order.orderType }}</span>
+          <span *ngIf="order.tableNumber" class="order-type">Table {{ order.tableNumber }}</span>
+        </div>
+        <div class="order-items">
+          <div *ngFor="let item of order.items" class="order-item">
+            <span class="qty">{{ item.quantity }}×</span> {{ item.name }}
+          </div>
+        </div>
+        <div *ngIf="order.notes" class="order-notes">📝 {{ order.notes }}</div>
+        <div class="order-actions">
+          <button *ngIf="order.status === 'pending'" (click)="updateStatus(order.id, 'confirmed')" class="btn-kitchen confirm">Confirm</button>
+          <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Start</button>
+          <button *ngIf="order.status === 'preparing'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>
+          <button (click)="printKot(order.id)" class="btn-kitchen kot">🖨️ KOT</button>
+        </div>
+      </div>
+      <div *ngIf="getOrdersByStatus(status).length === 0" class="empty-column">No orders</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showKotModal" (click)="showKotModal = false">
+  <div class="kot-modal" (click)="$event.stopPropagation()">
+    <div class="kot-header">
+      <h3>KOT Preview</h3>
+      <button (click)="showKotModal = false" class="btn-close">✕</button>
+    </div>
+    <pre class="kot-content">{{ kotText }}</pre>
+    <div class="kot-actions">
+      <button (click)="printKotWindow()" class="btn-kitchen prepare">🖨️ Print</button>
+      <button (click)="showKotModal = false" class="btn-kitchen confirm">Close</button>
+    </div>
+  </div>
+</div>

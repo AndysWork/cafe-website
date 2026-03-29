@@ -1,0 +1,52 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>🪑 Table Reservations</h1>
+  </div>
+
+  <div class="filter-bar">
+    <input type="date" [(ngModel)]="filterDate">
+    <button class="btn-filter" (click)="loadReservations()">🔍 Filter</button>
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading reservations...</p></div>
+
+  <div *ngIf="!loading && reservations.length === 0" class="empty-state">
+    <div class="empty-icon">🪑</div>
+    <h2>No Reservations</h2>
+    <p>No reservations found for the selected date.</p>
+  </div>
+
+  <div *ngIf="!loading && reservations.length > 0" class="data-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>Phone</th>
+          <th>Party Size</th>
+          <th>Table</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of reservations; trackBy: trackById">
+          <td class="fw-bold">{{ r.customerName }}</td>
+          <td>{{ r.phone }}</td>
+          <td>{{ r.partySize }} guests</td>
+          <td>{{ r.tableNumber || '-' }}</td>
+          <td>{{ r.reservationDate | date:'mediumDate' }}</td>
+          <td>{{ r.timeSlot }}</td>
+          <td><span class="badge" [ngClass]="getStatusClass(r.status)">{{ r.status }}</span></td>
+          <td class="actions-cell">
+            <button *ngIf="r.status === 'pending'" class="btn-action" (click)="updateStatus(r.id!, 'confirmed')">✅ Confirm</button>
+            <button *ngIf="r.status === 'confirmed'" class="btn-action" (click)="updateStatus(r.id!, 'completed')">✔️ Complete</button>
+            <button *ngIf="r.status === 'pending' || r.status === 'confirmed'" class="btn-delete" (click)="updateStatus(r.id!, 'cancelled')">❌</button>
+            <button *ngIf="r.status === 'confirmed'" class="btn-delete" (click)="updateStatus(r.id!, 'no-show')" title="No Show">🚫</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

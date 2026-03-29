@@ -1,0 +1,65 @@
+<div class="subscriptions-page">
+  <div class="page-hero">
+    <h1>Meal Plans</h1>
+    <p>Save more with daily meal subscriptions</p>
+  </div>
+
+  <!-- Current Subscription -->
+  <div *ngIf="mySubscription" class="current-plan">
+    <div class="current-label">Your Active Plan</div>
+    <h3>{{ mySubscription.planName }}</h3>
+    <div class="current-details">
+      <span *ngIf="mySubscription.remainingDays">{{ mySubscription.remainingDays }} days remaining</span>
+      <span class="plan-status" [class]="mySubscription.status">{{ mySubscription.status }}</span>
+    </div>
+    <div *ngIf="mySubscription.items && mySubscription.items.length > 0" class="current-items">
+      <div *ngFor="let item of mySubscription.items" class="current-item">
+        {{ item.dailyQuantity }}x {{ item.menuItemName }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading plans...</p>
+  </div>
+
+  <!-- Plans Grid -->
+  <div *ngIf="!loading" class="plans-grid">
+    <div *ngFor="let plan of plans" class="plan-card" [class.current]="isCurrentPlan(plan)">
+      <div *ngIf="isCurrentPlan(plan)" class="plan-badge">Current</div>
+      <h3 class="plan-name">{{ plan.name }}</h3>
+      <p *ngIf="plan.description" class="plan-desc">{{ plan.description }}</p>
+      <div class="plan-price">
+        <span class="amount">₹{{ plan.price | number:'1.0-0' }}</span>
+        <span class="duration">/ {{ plan.durationDays }} days</span>
+      </div>
+      <div class="plan-daily">Just {{ getDailyValue(plan) }}/day</div>
+
+      <!-- Benefits -->
+      <ul *ngIf="plan.benefits && plan.benefits.length > 0" class="plan-benefits">
+        <li *ngFor="let b of plan.benefits">{{ b }}</li>
+      </ul>
+
+      <!-- Items -->
+      <div *ngIf="plan.items && plan.items.length > 0" class="plan-items">
+        <h4>Daily Items</h4>
+        <div *ngFor="let item of plan.items" class="plan-item">
+          <span class="item-qty">{{ item.dailyQuantity }}x</span>
+          <span>{{ item.menuItemName }}</span>
+        </div>
+      </div>
+
+      <button class="btn-subscribe"
+              [disabled]="subscribing || isCurrentPlan(plan)"
+              (click)="subscribe(plan)">
+        {{ isCurrentPlan(plan) ? 'Active' : (subscribing ? 'Processing...' : 'Subscribe') }}
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="!loading && plans.length === 0" class="empty-state">
+    <p>No subscription plans available at the moment</p>
+  </div>
+</div>

@@ -30,7 +30,7 @@ export interface Order {
   discountAmount?: number;
   loyaltyPointsUsed?: number;
   loyaltyDiscountAmount?: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled' | 'scheduled';
   paymentStatus: 'pending' | 'paid' | 'refunded';
   paymentMethod: 'cod' | 'razorpay';
   razorpayOrderId?: string;
@@ -39,6 +39,12 @@ export interface Order {
   phoneNumber?: string;
   notes?: string;
   receiptImageUrl?: string;
+  scheduledFor?: string;
+  isScheduled?: boolean;
+  orderType?: string;
+  deliveryFee?: number;
+  walletAmountUsed?: number;
+  tableNumber?: number;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -58,6 +64,11 @@ export interface CreateOrderRequest {
   razorpaySignature?: string;
   couponCode?: string;
   loyaltyPointsUsed?: number;
+  orderType?: 'delivery' | 'pickup' | 'dine-in';
+  scheduledFor?: string;
+  deliveryFee?: number;
+  walletAmountUsed?: number;
+  tableNumber?: number;
 }
 
 export interface UpdateOrderStatusRequest {
@@ -127,6 +138,13 @@ export class OrderService {
     );
   }
 
+  // Download order receipt PDF
+  downloadReceiptPdf(orderId: string): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/orders/${orderId}/receipt-pdf`, { responseType: 'blob' }).pipe(
+      catchError(handleServiceError('OrderService.downloadReceiptPdf'))
+    );
+  }
+
   // Delete receipt image for an order
   deleteReceipt(orderId: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.apiUrl}/orders/${orderId}/receipt`).pipe(
@@ -137,6 +155,7 @@ export class OrderService {
   // Helper: Get status display text
   getStatusDisplayText(status: string): string {
     const statusMap: { [key: string]: string } = {
+      'scheduled': 'Scheduled',
       'pending': 'Pending',
       'confirmed': 'Confirmed',
       'preparing': 'Preparing',
@@ -150,6 +169,7 @@ export class OrderService {
   // Helper: Get status color class
   getStatusColorClass(status: string): string {
     const colorMap: { [key: string]: string } = {
+      'scheduled': 'text-info',
       'pending': 'text-warning',
       'confirmed': 'text-info',
       'preparing': 'text-primary',
@@ -162,6 +182,6 @@ export class OrderService {
 
   // Helper: Check if order can be cancelled
   canCancelOrder(status: string): boolean {
-    return status === 'pending' || status === 'confirmed';
+    return status === 'pending' || status === 'confirmed' || status === 'scheduled';
   }
 }

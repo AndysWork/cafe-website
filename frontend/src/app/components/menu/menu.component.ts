@@ -24,10 +24,15 @@ export class MenuComponent implements OnInit, OnDestroy {
   isLoading = false;
   errorMessage = '';
   searchQuery = '';
+  sortBy: string = 'default';
   cart: Cart = { items: [], subtotal: 0, packagingCharges: 0, total: 0, itemCount: 0 };
 
   // Track which items just got added (for animation)
   recentlyAdded: Set<string> = new Set();
+
+  // Detail modal
+  selectedMenuItem: MenuItem | null = null;
+  showDetailModal = false;
 
   // Favorites
   favoriteIds: Set<string> = new Set();
@@ -101,10 +106,30 @@ export class MenuComponent implements OnInit, OnDestroy {
       );
     }
 
+    // Sorting
+    switch (this.sortBy) {
+      case 'price-low':
+        items = [...items].sort((a, b) => a.onlinePrice - b.onlinePrice);
+        break;
+      case 'price-high':
+        items = [...items].sort((a, b) => b.onlinePrice - a.onlinePrice);
+        break;
+      case 'name-az':
+        items = [...items].sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'name-za':
+        items = [...items].sort((a, b) => b.name.localeCompare(a.name));
+        break;
+    }
+
     this.filteredItems = items;
   }
 
   onSearchChange() {
+    this.applyFilters();
+  }
+
+  onSortChange() {
     this.applyFilters();
   }
 
@@ -155,6 +180,16 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   goToCart() {
     this.router.navigate(['/cart']);
+  }
+
+  openDetail(item: MenuItem) {
+    this.selectedMenuItem = item;
+    this.showDetailModal = true;
+  }
+
+  closeDetail() {
+    this.showDetailModal = false;
+    this.selectedMenuItem = null;
   }
 
   getCategoryItemCount(categoryId: string | null): number {

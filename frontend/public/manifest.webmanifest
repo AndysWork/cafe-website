@@ -1,0 +1,25 @@
+{
+  "name": "Maa Tara Cafe",
+  "short_name": "MaaTaraCafe",
+  "description": "Order delicious food from Maa Tara Cafe",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0EA5E9",
+  "theme_color": "#0EA5E9",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "Logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["food", "shopping"],
+  "lang": "en"
+}

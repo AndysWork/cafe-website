@@ -1,0 +1,208 @@
+<div class="order-detail-page">
+  <!-- Hero -->
+  <div class="detail-hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <button class="btn-back" (click)="goBack()">← Back to Orders</button>
+      <h1 *ngIf="order">Order #{{ order.id | slice:-6 }}</h1>
+      <h1 *ngIf="!order && isLoading">Loading Order...</h1>
+      <p *ngIf="order">Placed on {{ formatDate(order.createdAt) }}</p>
+    </div>
+    <div class="hero-wave">
+      <svg viewBox="0 0 1440 100" preserveAspectRatio="none">
+        <path d="M0,60L60,55C120,50,240,40,360,42C480,44,600,58,720,62C840,66,960,60,1080,52C1200,44,1320,36,1380,32L1440,28L1440,100L0,100Z" fill="#f8f9fb"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="isLoading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading order details...</p>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="errorMessage && !isLoading" class="error-state">
+    <div class="error-icon">😔</div>
+    <h3>Couldn't load this order</h3>
+    <p>{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="loadOrder()">🔄 Retry</button>
+  </div>
+
+  <!-- Order Content -->
+  <div *ngIf="order && !isLoading" class="detail-content">
+
+    <!-- Status Banner -->
+    <div class="status-banner" [ngClass]="order.status">
+      <span class="status-icon-lg">
+        {{ order.status === 'scheduled' ? '⏰' : order.status === 'pending' ? '⏳' : order.status === 'confirmed' ? '✅' : order.status === 'preparing' ? '👨‍🍳' : order.status === 'ready' ? '🔔' : order.status === 'delivered' ? '🎉' : '❌' }}
+      </span>
+      <div class="status-text">
+        <strong>{{ getStatusDisplayText(order.status) }}</strong>
+        <span *ngIf="pollingActive" class="polling-indicator">
+          <span class="pulse-dot"></span> Live tracking
+        </span>
+      </div>
+    </div>
+
+    <!-- Progress Stepper -->
+    <div class="progress-stepper" *ngIf="order.status !== 'cancelled'">
+      <div
+        *ngFor="let step of statusSteps; let i = index; let last = last; trackBy: trackByKey"
+        class="step"
+        [class.complete]="isStepComplete(step.key)"
+        [class.current]="isStepCurrent(step.key)">
+        <div class="step-circle">
+          <span *ngIf="isStepComplete(step.key) && !isStepCurrent(step.key)">✓</span>
+          <span *ngIf="!isStepComplete(step.key) || isStepCurrent(step.key)">{{ step.icon }}</span>
+        </div>
+        <span class="step-label">{{ step.label }}</span>
+        <div *ngIf="!last" class="step-connector" [class.filled]="isStepComplete(statusSteps[i + 1]?.key || '')"></div>
+      </div>
+    </div>
+
+    <!-- Scheduled Banner -->
+    <div class="scheduled-banner" *ngIf="order.isScheduled && order.scheduledFor">
+      <span class="scheduled-icon">⏰</span>
+      <div class="scheduled-text">
+        <strong>Scheduled Order</strong>
+        <span>Delivery: {{ order.scheduledFor | date:'medium' }}</span>
+      </div>
+    </div>
+
+    <!-- Cancelled Banner -->
+    <div class="cancelled-banner" *ngIf="order.status === 'cancelled'">
+      <span>❌</span>
+      <span>This order has been cancelled</span>
+    </div>
+
+    <!-- Items Section -->
+    <div class="section-card">
+      <h3 class="section-title">🍽️ Items Ordered</h3>
+      <div class="items-list">
+        <div class="item-row" *ngFor="let item of order.items; trackBy: trackByName">
+          <div class="item-left">
+            <span class="item-name">{{ item.name }}</span>
+            <span class="item-qty">× {{ item.quantity }}</span>
+          </div>
+          <span class="item-price">₹{{ item.total }}</span>
+        </div>
+      </div>
+
+      <!-- Price Summary -->
+      <div class="price-summary">
+        <div class="price-row">
+          <span>Subtotal</span>
+          <span>₹{{ order.subtotal }}</span>
+        </div>
+        <div class="price-row">
+          <span>Tax (2.5%)</span>
+          <span>₹{{ order.tax }}</span>
+        </div>
+        <div class="price-row">
+          <span>Platform Charge (2.5%)</span>
+          <span>₹{{ order.platformCharge }}</span>
+        </div>
+        <div *ngIf="order.discountAmount" class="price-row discount">
+          <span>🏷️ Coupon ({{ order.couponCode }})</span>
+          <span>−₹{{ order.discountAmount }}</span>
+        </div>
+        <div *ngIf="order.loyaltyDiscountAmount" class="price-row discount">
+          <span>⭐ Loyalty ({{ order.loyaltyPointsUsed }} pts)</span>
+          <span>−₹{{ order.loyaltyDiscountAmount }}</span>
+        </div>
+        <div class="price-row total">
+          <span>Total</span>
+          <span>₹{{ order.total }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delivery Details -->
+    <div class="section-card">
+      <h3 class="section-title">📦 Delivery Details</h3>
+      <div class="info-grid">
+        <div class="info-item" *ngIf="order.deliveryAddress">
+          <span class="info-label">📍 Address</span>
+          <span class="info-value">{{ order.deliveryAddress }}</span>
+        </div>
+        <div class="info-item" *ngIf="order.phoneNumber">
+          <span class="info-label">📞 Phone</span>
+          <span class="info-value">{{ order.phoneNumber }}</span>
+        </div>
+        <div class="info-item" *ngIf="order.notes">
+          <span class="info-label">📝 Notes</span>
+          <span class="info-value">{{ order.notes }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">💳 Payment</span>
+          <span class="info-value">
+            {{ order.paymentMethod === 'razorpay' ? '🔒 Online' : '💵 Cash on Delivery' }}
+            — {{ getPaymentStatusIcon(order.paymentStatus) }} {{ order.paymentStatus | titlecase }}
+          </span>
+        </div>
+        <div class="info-item" *ngIf="order.completedAt">
+          <span class="info-label">✅ Completed</span>
+          <span class="info-value">{{ formatDate(order.completedAt) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Receipt -->
+    <div class="section-card" *ngIf="order.receiptImageUrl">
+      <h3 class="section-title">🧾 Receipt</h3>
+      <div class="receipt-image-wrapper">
+        <img [src]="order.receiptImageUrl" alt="Order receipt" loading="lazy">
+      </div>
+    </div>
+
+    <!-- Review Section -->
+    <div class="section-card" *ngIf="order.status === 'delivered' && !isAdmin">
+      <h3 class="section-title">⭐ Rate Your Order</h3>
+
+      <!-- Existing Review -->
+      <div *ngIf="existingReview" class="existing-review">
+        <div class="review-stars-display">
+          <span *ngFor="let s of [1,2,3,4,5]" class="star filled" [class.filled]="s <= existingReview.rating">★</span>
+        </div>
+        <p class="review-comment" *ngIf="existingReview.comment">{{ existingReview.comment }}</p>
+        <span class="review-thanks">Thanks for your feedback! 🎉</span>
+      </div>
+
+      <!-- Review Form -->
+      <div *ngIf="!existingReview" class="review-form">
+        <p class="review-prompt">How was your order? Tap a star to rate:</p>
+        <div class="star-selector">
+          <span
+            *ngFor="let s of [1,2,3,4,5]"
+            class="star selectable"
+            [class.active]="s <= (reviewHoverRating || reviewRating)"
+            (click)="setRating(s)"
+            (mouseenter)="reviewHoverRating = s"
+            (mouseleave)="reviewHoverRating = 0">
+            ★
+          </span>
+        </div>
+        <textarea
+          class="review-textarea"
+          placeholder="Tell us more about your experience (optional)..."
+          [(ngModel)]="reviewComment"
+          maxlength="1000"
+          rows="3">
+        </textarea>
+        <button class="btn-submit-review" (click)="submitReview()" [disabled]="reviewSubmitting || reviewRating === 0">
+          {{ reviewSubmitting ? '⏳ Submitting...' : '📝 Submit Review' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions-bar" *ngIf="!isAdmin">
+      <button class="btn-action download" (click)="downloadReceipt()" [disabled]="downloadingPdf">
+        {{ downloadingPdf ? '⏳ Generating...' : '📄 Download Receipt' }}
+      </button>
+      <button class="btn-action reorder" (click)="reorder()">🔄 Reorder</button>
+      <button *ngIf="canCancel()" class="btn-action cancel" (click)="cancelOrder()">✕ Cancel Order</button>
+    </div>
+  </div>
+</div>

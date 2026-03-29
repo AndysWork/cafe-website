@@ -1,0 +1,137 @@
+.reservation-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.page-hero {
+  text-align: center; margin-bottom: 24px;
+  h1 { font-size: 1.8rem; color: #1e293b; margin-bottom: 4px; }
+  p { color: #64748b; }
+}
+
+.tabs {
+  display: flex; gap: 4px; margin-bottom: 24px;
+  background: #f1f5f9; border-radius: 10px; padding: 4px;
+}
+
+.tab {
+  flex: 1; padding: 10px; border: none; border-radius: 8px;
+  background: transparent; font-weight: 600; color: #64748b; cursor: pointer;
+  &.active { background: white; color: #0EA5E9; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+}
+
+.booking-form {
+  background: white; border-radius: 14px; padding: 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.form-group {
+  margin-bottom: 16px;
+  label { display: block; font-weight: 600; font-size: 0.9rem; color: #1e293b; margin-bottom: 6px; }
+  input, select, textarea {
+    width: 100%; padding: 10px 14px;
+    border: 2px solid #e2e8f0; border-radius: 10px; font-size: 0.95rem;
+    box-sizing: border-box;
+    &:focus { outline: none; border-color: #0EA5E9; }
+  }
+  textarea { resize: vertical; }
+}
+
+.form-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  @media (max-width: 480px) { grid-template-columns: 1fr; }
+}
+
+.time-slots { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.time-chip {
+  padding: 8px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  background: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  &.selected { border-color: #0EA5E9; background: #e0f2fe; color: #0369a1; font-weight: 600; }
+  &:hover { border-color: #38BDF8; }
+}
+
+.btn-submit {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, #0EA5E9, #84CC16);
+  color: white; border: none; border-radius: 12px;
+  font-size: 1rem; font-weight: 700; cursor: pointer;
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+  &:hover:not(:disabled) { opacity: 0.9; }
+}
+
+.success-state {
+  text-align: center; padding: 40px 20px;
+  background: white; border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.success-icon {
+  width: 64px; height: 64px; margin: 0 auto 16px;
+  background: #dcfce7; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem; color: #16a34a;
+}
+
+.success-state h2 { color: #1e293b; margin-bottom: 8px; }
+.success-state p { color: #64748b; margin-bottom: 20px; }
+
+.btn-primary {
+  padding: 10px 24px; background: #0EA5E9; color: white;
+  border: none; border-radius: 10px; font-weight: 600; cursor: pointer;
+  &:hover { background: #0284C7; }
+}
+
+.loading-state {
+  text-align: center; padding: 40px;
+  .spinner {
+    width: 40px; height: 40px; margin: 0 auto;
+    border: 4px solid #e2e8f0; border-top: 4px solid #0EA5E9;
+    border-radius: 50%; animation: spin 1s linear infinite;
+  }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state {
+  text-align: center; padding: 40px 20px; color: #94a3b8;
+  p { margin-bottom: 16px; }
+}
+
+.reservation-list { display: flex; flex-direction: column; gap: 12px; }
+
+.reservation-card {
+  background: white; border-radius: 12px; padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.res-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+  .res-date { font-weight: 700; color: #1e293b; }
+}
+
+.res-status {
+  padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; text-transform: capitalize;
+  &.pending { background: #fef3c7; color: #92400e; }
+  &.confirmed { background: #dbeafe; color: #1e40af; }
+  &.completed { background: #dcfce7; color: #166534; }
+  &.cancelled { background: #fee2e2; color: #991b1b; }
+  &.no-show { background: #f1f5f9; color: #475569; }
+}
+
+.res-details { color: #64748b; font-size: 0.9rem; display: flex; gap: 12px; }
+.res-notes { font-size: 0.85rem; color: #94a3b8; margin-top: 8px; font-style: italic; }
+
+.btn-cancel {
+  margin-top: 10px;
+  padding: 6px 16px;
+  background: #fee2e2; color: #dc2626;
+  border: none; border-radius: 8px;
+  font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  &:hover { background: #fecaca; }
+}

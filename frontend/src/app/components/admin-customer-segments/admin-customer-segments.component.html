@@ -1,0 +1,51 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>👥 Customer Segments</h1>
+    <button class="btn-create" (click)="refreshSegments()" [disabled]="refreshing">
+      {{ refreshing ? '⏳ Refreshing...' : '🔄 Refresh Segments' }}
+    </button>
+  </div>
+
+  <div *ngIf="summary.length > 0" class="stats-grid">
+    <div class="stat-card" *ngFor="let s of summary" [style.border-left]="'4px solid ' + getSegmentColor(s.segment)">
+      <div class="stat-icon">{{ getSegmentIcon(s.segment) }}</div>
+      <div class="stat-value">{{ s.count }}</div>
+      <div class="stat-label">{{ s.segment | titlecase }}</div>
+      <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px;">₹{{ s.totalRevenue | number:'1.0-0' }} revenue</div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <select [(ngModel)]="filterSegment" (change)="loadData()">
+      <option value="">All Segments</option>
+      <option value="new">New</option>
+      <option value="regular">Regular</option>
+      <option value="vip">VIP</option>
+      <option value="dormant">Dormant</option>
+      <option value="at-risk">At Risk</option>
+    </select>
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
+
+  <div *ngIf="!loading && segments.length === 0" class="empty-state">
+    <div class="empty-icon">👥</div><h2>No Segments</h2><p>Click Refresh to analyze customers.</p>
+  </div>
+
+  <div *ngIf="!loading && segments.length > 0" class="data-table">
+    <table>
+      <thead><tr><th>Customer</th><th>Email</th><th>Segment</th><th>Orders</th><th>Total Spent</th><th>Avg Order</th><th>Last Order</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let s of segments; trackBy: trackById">
+          <td class="fw-bold">{{ s.username || s.userId }}</td>
+          <td>{{ s.email || '-' }}</td>
+          <td><span [style.color]="getSegmentColor(s.segment)" style="font-weight: 600;">{{ getSegmentIcon(s.segment) }} {{ s.segment }}</span></td>
+          <td>{{ s.totalOrders }}</td>
+          <td>₹{{ s.totalSpent | number:'1.0-0' }}</td>
+          <td>₹{{ s.averageOrderValue | number:'1.0-0' }}</td>
+          <td>{{ s.lastOrderDate ? (s.lastOrderDate | date:'mediumDate') : '-' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

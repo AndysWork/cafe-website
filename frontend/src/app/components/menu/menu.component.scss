@@ -83,11 +83,43 @@ $radius-full: 9999px;
 // SEARCH SECTION
 // ==========================================
 .search-section {
-  max-width: 640px;
+  max-width: 720px;
   margin: -1.5rem auto 0;
   padding: 0 1.25rem;
   position: relative;
   z-index: 2;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.sort-wrapper {
+  flex-shrink: 0;
+
+  .sort-select {
+    padding: 0.75rem 1rem;
+    border-radius: $radius-full;
+    border: 2px solid transparent;
+    background: $card-bg;
+    box-shadow: $shadow-lg;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: $text-primary;
+    cursor: pointer;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%23666' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    padding-right: 2rem;
+
+    &:focus {
+      border-color: $primary;
+      box-shadow: $shadow-glow;
+      outline: none;
+    }
+  }
 }
 
 .search-wrapper {
@@ -792,6 +824,275 @@ $radius-full: 9999px;
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+}
+
+// ==========================================
+// DETAIL MODAL
+// ==========================================
+.detail-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.detail-modal {
+  background: $card-bg;
+  border-radius: $radius-lg;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.detail-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+
+  &:hover { background: rgba(0, 0, 0, 0.7); }
+}
+
+.detail-image-section {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  overflow: hidden;
+  border-radius: $radius-lg $radius-lg 0 0;
+
+  .detail-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .detail-image-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+    background: linear-gradient(135deg, $primary-light 0%, lighten($primary-light, 5%) 100%);
+  }
+
+  .detail-badge {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 0.75rem;
+  }
+}
+
+.detail-body {
+  padding: 1.5rem;
+}
+
+.detail-header {
+  margin-bottom: 0.75rem;
+
+  .detail-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: $text-primary;
+    margin: 0 0 0.35rem;
+  }
+
+  .detail-category {
+    font-size: 0.85rem;
+    color: $primary;
+    font-weight: 600;
+    background: $primary-light;
+    padding: 0.2rem 0.75rem;
+    border-radius: $radius-full;
+  }
+}
+
+.detail-description {
+  color: $text-secondary;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0.75rem 0 1rem;
+}
+
+.detail-pricing {
+  background: #f8f9fb;
+  border-radius: $radius-sm;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+
+  .detail-price-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.35rem 0;
+
+    .price-label {
+      color: $text-secondary;
+      font-size: 0.9rem;
+    }
+
+    .price-value {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: $text-primary;
+
+      &.primary {
+        color: $primary;
+        font-size: 1.1rem;
+      }
+    }
+  }
+}
+
+.detail-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: $text-primary;
+  margin: 0 0 0.5rem;
+}
+
+.detail-variants {
+  margin-bottom: 1rem;
+
+  .variant-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .variant-chip {
+    background: $primary-light;
+    border-radius: $radius-full;
+    padding: 0.4rem 0.85rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+
+    .variant-name {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: $text-primary;
+    }
+
+    .variant-price {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: $primary;
+    }
+  }
+}
+
+.detail-availability {
+  margin-bottom: 1rem;
+
+  .avail-badge {
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.3rem 0.75rem;
+    border-radius: $radius-full;
+
+    &.available {
+      color: #15803d;
+      background: #dcfce7;
+    }
+
+    &.out-of-stock {
+      color: #b91c1c;
+      background: #fee2e2;
+    }
+  }
+}
+
+.detail-cart-actions {
+  margin-top: 1rem;
+
+  .btn-add-detail {
+    width: 100%;
+    padding: 0.85rem;
+    border: none;
+    border-radius: $radius-md;
+    font-size: 1rem;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba($primary, 0.4);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .qty-control-detail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+
+    .qty-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid $primary;
+      background: white;
+      color: $primary;
+      font-size: 1.3rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+
+      &:hover {
+        background: $primary;
+        color: white;
+      }
+    }
+
+    .qty-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      min-width: 2rem;
+      text-align: center;
+    }
   }
 }
 

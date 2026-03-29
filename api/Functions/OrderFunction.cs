@@ -241,6 +241,27 @@ public class OrderFunction
                 paymentStatus = "paid";
             }
 
+            // Parse and validate scheduled order
+            DateTime? scheduledFor = null;
+            bool isScheduled = false;
+            if (orderRequest.ScheduledFor.HasValue)
+            {
+                scheduledFor = orderRequest.ScheduledFor.Value;
+                // Ensure scheduled time is at least 30 minutes in the future
+                var minScheduleTime = MongoService.GetIstNow().AddMinutes(30);
+                if (scheduledFor.Value < minScheduleTime)
+                {
+                    return req.CreateResponse(System.Net.HttpStatusCode.BadRequest);
+                }
+                // Ensure scheduled time is not more than 7 days in the future
+                var maxScheduleTime = MongoService.GetIstNow().AddDays(7);
+                if (scheduledFor.Value > maxScheduleTime)
+                {
+                    return req.CreateResponse(System.Net.HttpStatusCode.BadRequest);
+                }
+                isScheduled = true;
+            }
+
             // Create order
             var order = new Order
             {
@@ -253,7 +274,7 @@ public class OrderFunction
                 Tax = tax,
                 PlatformCharge = platformCharge,
                 Total = total,
-                Status = "pending",
+                Status = isScheduled ? "scheduled" : "pending",
                 PaymentStatus = paymentStatus,
                 PaymentMethod = paymentMethod,
                 RazorpayOrderId = razorpayOrderId,
@@ -266,6 +287,8 @@ public class OrderFunction
                 DiscountAmount = discountAmount,
                 LoyaltyPointsUsed = loyaltyPointsUsed,
                 LoyaltyDiscountAmount = loyaltyDiscountAmount,
+                ScheduledFor = scheduledFor,
+                IsScheduled = isScheduled,
                 CreatedAt = MongoService.GetIstNow(),
                 UpdatedAt = MongoService.GetIstNow()
             };
@@ -818,7 +841,12 @@ public class OrderFunction
             Items = order.Items,
             Subtotal = order.Subtotal,
             Tax = order.Tax,
+            PlatformCharge = order.PlatformCharge,
             Total = order.Total,
+            CouponCode = order.CouponCode,
+            DiscountAmount = order.DiscountAmount,
+            LoyaltyPointsUsed = order.LoyaltyPointsUsed,
+            LoyaltyDiscountAmount = order.LoyaltyDiscountAmount,
             Status = order.Status,
             PaymentStatus = order.PaymentStatus,
             PaymentMethod = order.PaymentMethod,
@@ -830,7 +858,15 @@ public class OrderFunction
             CreatedAt = order.CreatedAt,
             UpdatedAt = order.UpdatedAt,
             CompletedAt = order.CompletedAt,
-            ReceiptImageUrl = order.ReceiptImageUrl
+            ReceiptImageUrl = order.ReceiptImageUrl,
+            DeliveryFee = order.DeliveryFee,
+            OrderType = order.OrderType,
+            ScheduledFor = order.ScheduledFor,
+            IsScheduled = order.IsScheduled,
+            WalletAmountUsed = order.WalletAmountUsed,
+            DeliveryPartnerId = order.DeliveryPartnerId,
+            DeliveryPartnerName = order.DeliveryPartnerName,
+            TableNumber = order.TableNumber
         };
     }
 }

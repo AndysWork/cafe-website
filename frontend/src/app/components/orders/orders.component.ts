@@ -149,7 +149,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   getStatusIcon(status: string): string {
     const icons: Record<string, string> = {
-      pending: '⏳', confirmed: '✅', preparing: '👨‍🍳',
+      scheduled: '⏰', pending: '⏳', confirmed: '✅', preparing: '👨‍🍳',
       ready: '🔔', delivered: '🎉', cancelled: '❌'
     };
     return icons[status] || '📦';

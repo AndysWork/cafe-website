@@ -86,7 +86,9 @@
           <div class="header-left">
             <span class="status-dot" [ngClass]="order.status"></span>
             <div class="header-info">
-              <div class="order-id">#{{ order.id | slice:-6 }}</div>
+              <div class="order-id">
+                <a [routerLink]="['/orders', order.id]" (click)="$event.stopPropagation()" class="order-id-link">#{{ order.id | slice:-6 }}</a>
+              </div>
               <div class="order-meta">
                 <span class="meta-date">{{ formatDate(order.createdAt) }}</span>
                 <span *ngIf="isAdmin" class="meta-user">· {{ order.username }}</span>
@@ -208,6 +210,7 @@
                 [value]="order.status"
                 class="status-select"
                 (click)="$event.stopPropagation()">
+                <option value="scheduled">Scheduled</option>
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
                 <option value="preparing">Preparing</option>

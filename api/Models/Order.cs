@@ -93,6 +93,30 @@ public class Order
 
     [BsonElement("receiptImageUrl")]
     public string? ReceiptImageUrl { get; set; }
+
+    [BsonElement("deliveryFee")]
+    public decimal DeliveryFee { get; set; }
+
+    [BsonElement("orderType")]
+    public string OrderType { get; set; } = "delivery"; // delivery, pickup, dine-in
+
+    [BsonElement("scheduledFor")]
+    public DateTime? ScheduledFor { get; set; }
+
+    [BsonElement("isScheduled")]
+    public bool IsScheduled { get; set; }
+
+    [BsonElement("walletAmountUsed")]
+    public decimal WalletAmountUsed { get; set; }
+
+    [BsonElement("deliveryPartnerId")]
+    public string? DeliveryPartnerId { get; set; }
+
+    [BsonElement("deliveryPartnerName")]
+    public string? DeliveryPartnerName { get; set; }
+
+    [BsonElement("tableNumber")]
+    public string? TableNumber { get; set; }
 }
 
 public class OrderItem
@@ -149,6 +173,16 @@ public class CreateOrderRequest
     public string? CouponCode { get; set; }
 
     public int LoyaltyPointsUsed { get; set; }
+
+    [AllowedValuesList("delivery", "pickup", "dine-in")]
+    public string OrderType { get; set; } = "delivery";
+
+    public DateTime? ScheduledFor { get; set; }
+
+    public decimal WalletAmountUsed { get; set; }
+
+    [StringLength(20, ErrorMessage = "Table number cannot exceed 20 characters")]
+    public string? TableNumber { get; set; }
 }
 
 public class OrderItemRequest
@@ -176,7 +210,12 @@ public class OrderResponse
     public List<OrderItem> Items { get; set; } = new();
     public decimal Subtotal { get; set; }
     public decimal Tax { get; set; }
+    public decimal PlatformCharge { get; set; }
     public decimal Total { get; set; }
+    public string? CouponCode { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public int LoyaltyPointsUsed { get; set; }
+    public decimal LoyaltyDiscountAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public string PaymentStatus { get; set; } = string.Empty;
     public string PaymentMethod { get; set; } = string.Empty;
@@ -189,4 +228,12 @@ public class OrderResponse
     public DateTime UpdatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? ReceiptImageUrl { get; set; }
+    public decimal DeliveryFee { get; set; }
+    public string OrderType { get; set; } = "delivery";
+    public DateTime? ScheduledFor { get; set; }
+    public bool IsScheduled { get; set; }
+    public decimal WalletAmountUsed { get; set; }
+    public string? DeliveryPartnerId { get; set; }
+    public string? DeliveryPartnerName { get; set; }
+    public string? TableNumber { get; set; }
 }

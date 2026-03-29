@@ -1,0 +1,92 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>📊 Reports & GST</h1>
+  </div>
+
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab === 'reports'" (click)="activeTab = 'reports'">📥 Export Reports</button>
+    <button class="tab" [class.active]="activeTab === 'gst'" (click)="activeTab = 'gst'">🧾 GST Reports</button>
+  </div>
+
+  <div class="filter-bar">
+    <input type="date" [(ngModel)]="startDate">
+    <input type="date" [(ngModel)]="endDate">
+    <select [(ngModel)]="exportFormat" *ngIf="activeTab === 'reports'">
+      <option value="excel">Excel (.xlsx)</option>
+      <option value="csv">CSV (.csv)</option>
+    </select>
+  </div>
+
+  <div *ngIf="activeTab === 'reports'" class="cards-grid">
+    <div class="card">
+      <div class="card-header"><span class="card-title">💰 Sales Report</span></div>
+      <div class="card-body">Export detailed sales data with items, amounts, and payment methods.</div>
+      <div class="card-footer">
+        <button class="btn-create" (click)="exportSalesReport()" [disabled]="exporting">📥 Download</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">💸 Expense Report</span></div>
+      <div class="card-body">Export all expenses including categories and payment details.</div>
+      <div class="card-footer">
+        <button class="btn-create" (click)="exportExpenseReport()" [disabled]="exporting">📥 Download</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">📦 Orders Report</span></div>
+      <div class="card-body">Export complete order history with customer details and line items.</div>
+      <div class="card-footer">
+        <button class="btn-create" (click)="exportOrdersReport()" [disabled]="exporting">📥 Download</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">📈 Profit & Loss</span></div>
+      <div class="card-body">Combined P&L report with revenue, expenses, and net profit.</div>
+      <div class="card-footer">
+        <button class="btn-create" (click)="exportProfitLossReport()" [disabled]="exporting">📥 Download</button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab === 'gst'">
+    <div class="header-actions" style="margin-bottom: 20px;">
+      <button class="btn-create" (click)="loadGstSummary()" [disabled]="loadingGst">🔍 Load GST Summary</button>
+      <button class="btn-create" (click)="exportGstr1()" [disabled]="exporting" style="background: linear-gradient(135deg, #84CC16, #65a30d);">📥 Export GSTR-1</button>
+    </div>
+
+    <div *ngIf="loadingGst" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
+
+    <div *ngIf="gstSummary" class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-value">₹{{ gstSummary.totalSales | number:'1.0-0' }}</div>
+        <div class="stat-label">Total Sales</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📄</div>
+        <div class="stat-value">₹{{ gstSummary.totalTaxableAmount | number:'1.0-0' }}</div>
+        <div class="stat-label">Taxable Amount</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏛️</div>
+        <div class="stat-value">₹{{ gstSummary.cgst | number:'1.2-2' }}</div>
+        <div class="stat-label">CGST</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏛️</div>
+        <div class="stat-value">₹{{ gstSummary.sgst | number:'1.2-2' }}</div>
+        <div class="stat-label">SGST</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-value">₹{{ gstSummary.totalGst | number:'1.2-2' }}</div>
+        <div class="stat-label">Total GST</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💵</div>
+        <div class="stat-value">₹{{ gstSummary.totalWithGst | number:'1.0-0' }}</div>
+        <div class="stat-label">Total with GST</div>
+      </div>
+    </div>
+  </div>
+</div>

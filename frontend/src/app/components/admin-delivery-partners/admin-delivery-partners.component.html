@@ -1,0 +1,78 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>🏍️ Delivery Partners</h1>
+    <div class="header-actions">
+      <button class="btn-create" (click)="openAssignModal()">📦 Assign Order</button>
+      <button class="btn-create" (click)="openCreateModal()">➕ Add Partner</button>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
+
+  <div *ngIf="!loading && partners.length === 0" class="empty-state">
+    <div class="empty-icon">🏍️</div><h2>No Delivery Partners</h2><p>Add your delivery fleet.</p>
+    <button class="btn-create-empty" (click)="openCreateModal()">Add First Partner</button>
+  </div>
+
+  <div *ngIf="!loading && partners.length > 0" class="cards-grid">
+    <div class="card" *ngFor="let p of partners; trackBy: trackById">
+      <div class="card-header">
+        <div><div class="card-title">{{ p.name }}</div><div class="card-subtitle">{{ p.phone }} · {{ p.vehicleType }}</div></div>
+        <span class="badge" [ngClass]="p.status">{{ p.status }}</span>
+      </div>
+      <div class="card-body">
+        <p *ngIf="p.currentOrderId" style="color: #d97706;">📦 On delivery: {{ p.currentOrderId }}</p>
+        <p>Total deliveries: {{ p.totalDeliveries || 0 }}</p>
+      </div>
+      <div class="card-footer">
+        <div class="actions-cell">
+          <button *ngIf="p.status === 'offline'" class="btn-action" (click)="updateStatus(p.id!, 'available')">🟢 Online</button>
+          <button *ngIf="p.status === 'available'" class="btn-delete" (click)="updateStatus(p.id!, 'offline')">🔴 Offline</button>
+          <button *ngIf="p.status === 'busy'" class="btn-action" (click)="completeDelivery(p.id!)">✅ Complete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Add Delivery Partner</h2><button class="btn-close" (click)="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="savePartner()">
+        <div class="form-group"><label>Name *</label><input type="text" [(ngModel)]="partnerForm.name" name="name" required></div>
+        <div class="form-group"><label>Phone *</label><input type="tel" [(ngModel)]="partnerForm.phone" name="phone" required></div>
+        <div class="form-group"><label>Vehicle Type</label>
+          <select [(ngModel)]="partnerForm.vehicleType" name="vehicleType">
+            <option value="bike">Bike</option><option value="scooter">Scooter</option><option value="bicycle">Bicycle</option><option value="car">Car</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+          <button type="submit" class="btn-save">Add Partner</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showAssignModal" (click)="showAssignModal = false">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Assign Delivery</h2><button class="btn-close" (click)="showAssignModal = false">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="assignPartner()">
+        <div class="form-group"><label>Order ID *</label><input type="text" [(ngModel)]="assignForm.orderId" name="orderId" required></div>
+        <div class="form-group"><label>Partner (optional, auto-assign if empty)</label>
+          <select [(ngModel)]="assignForm.deliveryPartnerId" name="partnerId">
+            <option value="">Auto-assign</option>
+            <option *ngFor="let p of partners" [value]="p.id" [disabled]="p.status !== 'available'">{{ p.name }} ({{ p.status }})</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="showAssignModal = false">Cancel</button>
+          <button type="submit" class="btn-save">Assign</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

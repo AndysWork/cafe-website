@@ -113,6 +113,11 @@ export class AdminLayoutComponent implements OnDestroy {
           icon: '📊',
           label: 'Staff Performance',
           route: '/admin/staff-performance'
+        },
+        {
+          icon: '🕐',
+          label: 'Attendance',
+          route: '/admin/attendance'
         }
       ]
     },
@@ -155,6 +160,87 @@ export class AdminLayoutComponent implements OnDestroy {
           icon: '🏷️',
           label: 'Discount Mapping',
           route: '/admin/discount-mapping'
+        }
+      ]
+    },
+    {
+      icon: '🏪',
+      label: 'Operations',
+      active: false,
+      children: [
+        {
+          icon: '🍳',
+          label: 'Kitchen Display',
+          route: '/admin/kitchen-display'
+        },
+        {
+          icon: '📋',
+          label: 'Reservations',
+          route: '/admin/reservations'
+        },
+        {
+          icon: '🗑️',
+          label: 'Wastage',
+          route: '/admin/wastage'
+        },
+        {
+          icon: '🚚',
+          label: 'Delivery Zones',
+          route: '/admin/delivery-zones'
+        },
+        {
+          icon: '🏍️',
+          label: 'Delivery Partners',
+          route: '/admin/delivery-partners'
+        },
+        {
+          icon: '📦',
+          label: 'Auto Reorder',
+          route: '/admin/auto-reorder'
+        }
+      ]
+    },
+    {
+      icon: '📣',
+      label: 'Marketing',
+      active: false,
+      children: [
+        {
+          icon: '🍔',
+          label: 'Combo Meals',
+          route: '/admin/combos'
+        },
+        {
+          icon: '🎉',
+          label: 'Happy Hours',
+          route: '/admin/happy-hours'
+        },
+        {
+          icon: '📅',
+          label: 'Subscriptions',
+          route: '/admin/subscriptions'
+        },
+        {
+          icon: '👤',
+          label: 'Customer Segments',
+          route: '/admin/customer-segments'
+        }
+      ]
+    },
+    {
+      icon: '📊',
+      label: 'Reports',
+      active: false,
+      children: [
+        {
+          icon: '📥',
+          label: 'Export Reports',
+          route: '/admin/reports'
+        },
+        {
+          icon: '🏢',
+          label: 'Branch Comparison',
+          route: '/admin/branch-comparison'
         }
       ]
     }

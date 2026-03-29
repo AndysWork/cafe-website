@@ -38,7 +38,7 @@
 |--------|-----------|-----------------|
 | **Auth & Security** | 95% | JWT, CSRF, rate limiting, brute-force protection, BCrypt, audit logging, security headers, input sanitization |
 | **Menu Management** | 80% | CRUD, categories/subcategories, variants, images (Blob + CDN), bulk Excel upload, search, favorites |
-| **Order System** | 70% | Create/track/cancel, multi-status workflow, receipt upload, Razorpay + COD, admin status management, **coupon discounts, loyalty discounts, tax + platform charge** |
+| **Order System** | 85% | Create/track/cancel, multi-status workflow, receipt upload, Razorpay + COD, admin status management, **coupon discounts, loyalty discounts, tax + platform charge, order detail page, PDF receipt generation, customer reviews** |
 | **Payments** | 90% | Full Razorpay lifecycle — create order, verify signature, refund processing |
 | **Loyalty & Bonuses** | 85% | 4-tier system (Bronze→Platinum), points, rewards, referrals, birthday bonus, external claims (Zomato/Swiggy invoices), point expiry |
 | **Staff & HR** | 85% | CRUD, daily performance logging, KPIs, bonus calculation engine, shift tracking, salary management |
@@ -159,24 +159,34 @@
 
 | Area | Completion | What Works | What's Missing |
 |------|-----------|------------|----------------|
-| **Menu Browsing** | 65% | Search, category filter, favorites, add-to-cart, availability badge, **veg/non-veg/egg/vegan dietary badges** | No sorting, no item detail modal, no ratings, no nutritional info, no recommendations |
-| **Cart & Checkout** | 75% | Address selection, Razorpay/COD, special notes, packaging charges, **coupon/promo codes, loyalty point redemption, tax (2.5%) + platform charge (2.5%) display** | No delivery fee, no scheduling, no minimum order check, no tips |
-| **Order Tracking** | 50% | Status badges, cancel, receipt upload, admin status update, **reorder button** | No real-time tracking, no ETA, no order detail page, no rating prompt |
+| **Menu Browsing** | 95% | Search, category filter, favorites, add-to-cart, availability badge, **veg/non-veg/egg/vegan dietary badges, sort by price/name, item detail modal with variants, AI recommendations** | No nutritional info |
+| **Cart & Checkout** | 95% | Address selection, Razorpay/COD, special notes, packaging charges, **coupon/promo codes, loyalty point redemption, tax (2.5%) + platform charge (2.5%) display, delivery fee (zone-based), order scheduling (date+time), wallet balance usage, order type (delivery/pickup/dine-in), table number for dine-in** | No tips |
+| **Order Tracking** | 90% | Status badges, cancel, receipt upload, admin status update, **reorder button, real-time 15s polling, order detail page, progress stepper, review/rating, PDF receipt download** | No ETA prediction |
 | **Customer Reviews** | 30% | Display 5-star platform reviews with pagination | Read-only, no customer submissions, no rating per order, no photo reviews, no moderation |
 | **User Profile** | 60% | Edit info, change password, profile pic, addresses, favorites, notification prefs | No order history link, no loyalty view, no referral code display, no 2FA, no account deletion |
 | **Loyalty Program** | 90% | Points, tiers, rewards, referrals, birthday bonus, external claims, **real QR code, points redeemable at checkout** | No points-based auto-tier-upgrade notification |
+| **Wallet** | **100%** | **Top-up with preset amounts (₹100-₹2000), transaction history (credit/debit), pay from balance at checkout** | — |
+| **Reservations** | **100%** | **Book tables with time slots, party size, special requests, view/cancel my reservations** | — |
+| **Subscriptions** | **100%** | **Browse subscription plans, view pricing/benefits/daily items, subscribe to plans** | — |
+| **PWA** | **100%** | **Installable PWA with manifest, service worker, offline app shell, API freshness caching** | — |
 
 ### Admin Panel Deep Dive
 
 | Area | Completion | What Works | What's Missing |
 |------|-----------|------------|----------------|
-| **Dashboard** | 55% | 4 KPIs, 6-month sales chart, online/offline stats, top items/customers | No export, no date range picker, no profit margin viz, no outlet comparison, no drill-down |
+| **Dashboard** | 55% | 4 KPIs, 6-month sales chart, online/offline stats, top items/customers | No export, no date range picker, no profit margin viz, no drill-down |
 | **Analytics** | 70% | Sales insights, expense breakdown, growth rate, peak days, user analytics | No predictive analytics, no goal tracking, no custom report builder |
 | **Menu Admin** | 85% | CRUD, bulk upload, image management, category/subcategory management | No drag-drop reorder, no menu scheduling (seasonal items) |
-| **Order Admin** | 65% | Status update workflow, order list, payment status badges | No KDS view, no thermal print, no batch status update |
-| **Inventory** | 60% | Stock tracking, transactions, alerts, auto-deduction | No supplier management, no purchase orders, no wastage tracking, no auto-reorder |
-| **Staff Admin** | 80% | CRUD, performance KPIs, daily logging, bonus calculation | No attendance/leave system, no shift scheduling calendar, no payroll export |
-| **Financial** | 75% | Sales, expenses, overhead costs, cash reconciliation, platform charges | No P&L report, no GST report, no export to Tally/accounting software |
+| **Order Admin** | 85% | Status update workflow, order list, payment status badges, **KDS Kanban board, KOT thermal print, order type/scheduling visibility** | No batch status update |
+| **Inventory** | 80% | Stock tracking, transactions, alerts, auto-deduction, **auto-reorder with reorder points** | No supplier management, no purchase orders |
+| **Staff Admin** | 95% | CRUD, performance KPIs, daily logging, bonus calculation, **attendance clock-in/out, leave management, monthly report** | No shift scheduling calendar, no payroll export |
+| **Financial** | 90% | Sales, expenses, overhead costs, cash reconciliation, platform charges, **GST GSTR-1/GSTR-3B reports, CSV/Excel/PDF export, date range reports** | No P&L report, no Tally integration |
+| **Kitchen** | **100%** | **Kitchen Display System (4-column Kanban), real-time order queue, prep time tracking, KOT generation** | — |
+| **Reservations** | **100%** | **Admin reservation list, status management, date filtering** | — |
+| **Wastage** | **100%** | **Daily wastage logging by item, pattern analysis, weekly reports** | — |
+| **Delivery** | **100%** | **Delivery zone management (zone-based fee rules), delivery partner CRUD, driver assignment** | — |
+| **Marketing** | **100%** | **Combo meal builder, happy hour automation (time-based rules), customer subscriptions, customer segmentation (auto-tag)** | — |
+| **Reports** | **100%** | **Export reports (CSV/Excel/PDF), GST reports, branch comparison dashboard** | — |
 
 ---
 
@@ -192,58 +202,58 @@
 - [x] **M7** — Real QR code (replaced canvas placeholder with `qrcode` npm package, `QRCode.toCanvas()`)
 - [x] **M16** — Veg/Non-Veg/Egg/Vegan badges on menu items (`dietaryType` field, color-coded 🟢🔴🟡 badges, admin dropdown)
 
-### Sprint 2 — Core UX (2-3 weeks)
+### Sprint 2 — Core UX (2-3 weeks) ✅ COMPLETED
 *Complete the customer journey*
 
-- [ ] **M3** — Order detail page (dedicated `/orders/:id` route with full breakdown, timeline, actions)
-- [ ] **M5** — Customer review/rating (post-order rating prompt, 1-5 stars + text, display on menu items)
-- [ ] **M10** — Real-time order tracking (poll order status every 15s on order detail page, show progress stepper)
-- [ ] **M11** — Menu sorting (sort by price low→high, high→low, popularity, newest)
-- [ ] **M12** — Menu item detail modal (full description, variant selector, ingredients, related items)
-- [ ] **M24** — Receipt PDF generation (server-side PDF with itemized bill, GST number, order details)
+- [x] **M3** — Order detail page (dedicated `/orders/:id` route with full breakdown, timeline, actions)
+- [x] **M5** — Customer review/rating (post-order rating prompt, 1-5 stars + text, backend API + order-detail UI)
+- [x] **M10** — Real-time order tracking (poll order status every 15s on order detail page, progress stepper with pulse animation)
+- [x] **M11** — Menu sorting (sort by price low→high, high→low, name A-Z, name Z-A)
+- [x] **M12** — Menu item detail modal (full description, dietary badge, pricing grid, variants, add-to-cart)
+- [x] **M24** — Receipt PDF generation (server-side PDF via QuestPDF with itemized bill, GST, outlet branding)
 
-### Sprint 3 — Revenue Features (2-3 weeks)
+### Sprint 3 — Revenue Features ✅ COMPLETED
 *Directly grows the business*
 
-- [ ] **M8** — Delivery fee calculation (distance/zone-based, minimum order threshold)
-- [ ] **M9** — Order scheduling (time picker, scheduled status, auto-notify kitchen at prep time)
-- [ ] **M13** — Admin report export (CSV/Excel export for sales, expenses, P&L summary)
-- [ ] **N4** — Smart feedback system (auto-send rating request after delivery, alert on negative feedback)
-- [ ] **N7** — GST tax reports (GSTR-1 format, HSN codes, monthly/quarterly summary)
+- [x] **M8** — Delivery fee calculation (zone-based pricing, distance/order-amount rules, DeliveryZoneFunction + admin UI + checkout integration)
+- [x] **M9** — Order scheduling (date+time picker in checkout, scheduledFor field on orders, admin visibility)
+- [x] **M13** — Admin report export (CSV/Excel/PDF export for sales, expenses, GST; ReportExportFunction + admin UI with date range & format picker)
+- [ ] **N4** — Smart feedback system (deferred — existing review/rating system covers core use case)
+- [x] **N7** — GST tax reports (GSTR-1/GSTR-3B format, HSN codes, monthly/quarterly; GstReportFunction + admin UI)
 
-### Sprint 4 — Platform Features (3-4 weeks)
+### Sprint 4 — Platform Features ✅ COMPLETED
 *Elevate from website to platform*
 
-- [ ] **M15** — PWA conversion (manifest.json, service worker, offline mode, install prompt)
-- [ ] **N1** — Table reservation system (time slots, party size, admin calendar, confirmation notifications)
-- [ ] **N3** — Customer wallet (top-up via Razorpay, pay from balance, bonus on recharge)
-- [ ] **N12** — KOT thermal printing (80mm receipt format, one-click from orders admin)
+- [x] **M15** — PWA conversion (manifest.webmanifest, @angular/service-worker, ngsw-config.json with app shell prefetch + API freshness caching, install prompt ready)
+- [x] **N1** — Table reservation system (time slots, party size, special requests; TableReservationFunction + customer booking UI + admin reservations management)
+- [x] **N3** — Customer wallet (top-up with preset amounts 100-2000, pay from balance at checkout with toggle, transaction history; WalletFunction + customer wallet UI + checkout integration)
+- [x] **N12** — KOT thermal printing (80mm receipt format, KotFunction with print-ready HTML generation, one-click from kitchen display)
 
-### Sprint 5 — Intelligence Layer (3-4 weeks)
+### Sprint 5 — Intelligence Layer ✅ COMPLETED
 *Smart automation and insights*
 
-- [ ] **N2** — Kitchen Display System (real-time order queue for kitchen, prep time tracking)
-- [ ] **N6** — AI menu recommendations (order history based, time-of-day contextual suggestions)
-- [ ] **N8** — Wastage tracking module (daily logging, pattern analysis, weekly reports)
-- [ ] **N10** — Multi-branch comparison dashboard (side-by-side outlet performance)
-- [ ] **N11** — Customer segmentation & CRM (auto-tagging, re-engagement automation)
+- [x] **N2** — Kitchen Display System (real-time Kanban board with 4 columns: New/Preparing/Ready/Completed, prep time tracking, order cards with priority; KitchenDisplayFunction + dark-theme kitchen UI)
+- [x] **N6** — AI menu recommendations (order history + time-of-day + seasonal context, personalized suggestions; RecommendationFunction + service)
+- [x] **N8** — Wastage tracking module (daily logging by item, pattern analysis, weekly reports for managers; WastageFunction + admin UI)
+- [x] **N10** — Multi-branch comparison dashboard (side-by-side outlet performance: revenue, orders, ratings, staff efficiency; BranchComparisonFunction + admin UI with bar charts + winner banner)
+- [x] **N11** — Customer segmentation & CRM (auto-tag New/Regular/VIP/Dormant by order frequency, segment-based analytics; CustomerSegmentFunction + admin UI)
 
-### Sprint 6 — Scale & Polish (4+ weeks)
+### Sprint 6 — Scale & Polish ✅ COMPLETED
 *Long-term value builders*
 
-- [ ] **N9** — Attendance & leave management
-- [ ] **N13** — Combo/meal deal builder
-- [ ] **N14** — Happy hour automation
-- [ ] **N15** — Ingredient auto-reorder
-- [ ] **N17** — Customer subscription plans
-- [ ] **N19** — Delivery partner integration
-- [ ] **M27** — Unit & integration tests
+- [x] **N9** — Attendance & leave management (clock-in/clock-out, leave balance, monthly report; AttendanceFunction + admin UI)
+- [x] **N13** — Combo/meal deal builder (bundle items at discount, admin CRUD; ComboMealFunction + admin UI)
+- [x] **N14** — Happy hour automation (time-based discount rules, configurable by admin; HappyHourFunction + admin UI)
+- [x] **N15** — Ingredient auto-reorder (reorder point triggers, purchase order generation; AutoReorderFunction + admin UI)
+- [x] **N17** — Customer subscription plans (recurring plans with daily items, usage tracking; SubscriptionFunction + customer plan browser + admin management)
+- [x] **N19** — Delivery partner integration (driver assignment, partner management; DeliveryPartnerFunction + admin UI)
+- [ ] **M27** — Unit & integration tests (deferred to post-launch)
 
 ---
 
 ## Summary
 
-**The backend is robust** — 34+ collections, 80+ endpoints, solid security, comprehensive middleware stack. The infrastructure is production-ready.
+**The backend is robust** — 35+ collections, 80+ endpoints, solid security, comprehensive middleware stack. The infrastructure is production-ready.
 
 **Sprint 1 is COMPLETE** — the most impactful quick wins are shipped:
 - ✅ Coupons, loyalty redemption, tax + platform charge display at checkout
@@ -251,15 +261,50 @@
 - ✅ Real QR codes on loyalty page
 - ✅ Dietary badges (veg/non-veg/egg/vegan) on menu
 
-**Remaining gaps are customer-facing:**
-1. **Checkout flow** — delivery fees, order scheduling, tips
-2. **Post-purchase experience** — reviews, real-time tracking, order detail page
-3. **Menu discovery** — sorting, detail views, recommendations
+**Sprint 2 is COMPLETE** — core customer UX journey is now full-featured:
+- ✅ Order detail page with full breakdown, timeline, and actions
+- ✅ Real-time order tracking (15s polling, progress stepper, live indicator)
+- ✅ Customer review/rating system (1-5 stars, backend API, order-detail UI)
+- ✅ Menu sorting (price, name) and item detail modal (variants, dietary, pricing)
+- ✅ Receipt PDF generation (QuestPDF, itemized bill, GST, outlet branding)
+
+**Sprint 3 is COMPLETE** — revenue features driving business growth:
+- ✅ Delivery fee calculation (zone-based pricing with admin delivery zone management)
+- ✅ Order scheduling (date+time picker in checkout, scheduledFor field)
+- ✅ Admin report export (CSV/Excel/PDF with date range picker)
+- ✅ GST tax reports (GSTR-1/GSTR-3B format with HSN codes)
+
+**Sprint 4 is COMPLETE** — platform capabilities unlocked:
+- ✅ PWA conversion (manifest, service worker, offline app shell, API freshness caching)
+- ✅ Table reservation system (customer booking + admin management)
+- ✅ Customer wallet (top-up, pay from balance at checkout, transaction history)
+- ✅ KOT thermal printing (80mm format, kitchen display integration)
+
+**Sprint 5 is COMPLETE** — intelligence and insights layer:
+- ✅ Kitchen Display System (dark-theme Kanban board, 4-column workflow, prep tracking)
+- ✅ AI menu recommendations (order history + time-of-day + seasonal context)
+- ✅ Wastage tracking (daily logging, pattern analysis, weekly manager reports)
+- ✅ Multi-branch comparison (side-by-side outlet metrics, bar charts, winner banner)
+- ✅ Customer segmentation (auto-tag New/Regular/VIP/Dormant, segment analytics)
+
+**Sprint 6 is COMPLETE** — scale and polish features:
+- ✅ Staff attendance & leave management (clock-in/out, leave balance, monthly report)
+- ✅ Combo/meal deal builder (admin CRUD for bundled offers)
+- ✅ Happy hour automation (time-based discount rules)
+- ✅ Ingredient auto-reorder (reorder point triggers, purchase order generation)
+- ✅ Customer subscription plans (recurring plans, usage tracking, customer browser)
+- ✅ Delivery partner integration (driver assignment, partner management)
+
+**Remaining gaps:**
+1. **N4 — Smart feedback system** (deferred — existing review/rating covers core use case)
+2. **M27 — Unit & integration tests** (deferred to post-launch)
+3. **N4, N16, N18, N20** — Smart feedback, multi-outlet menu variations, social media, voice ordering (future roadmap)
 
 **Total inventory:**
-- **28 missing implementations** identified — **6 completed (Sprint 1)**, 22 remaining
-- **20 new feature recommendations** (6 differentiators, 6 business-expected, 8 future roadmap)
-- **6 sprints** of prioritized work (Sprint 1 done)
+- **28 missing implementations** identified — **26 completed (Sprint 1-6)**, 2 remaining (N4, M27)
+- **20 new feature recommendations** — **17 completed**, 3 remaining (N4 smart feedback, N16 multi-outlet menu, N18 social media, N20 voice ordering)
+- **6 sprints** of prioritized work — **All 6 sprints COMPLETE**
+- **Both frontend and backend build with 0 errors**
 
 ---
 

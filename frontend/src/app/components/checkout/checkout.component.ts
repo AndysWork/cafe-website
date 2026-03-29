@@ -9,6 +9,8 @@ import { AddressService, DeliveryAddress, AddAddressRequest } from '../../servic
 import { AuthService } from '../../services/auth.service';
 import { OffersService, OfferValidationResponse } from '../../services/offers.service';
 import { LoyaltyService, LoyaltyAccount } from '../../services/loyalty.service';
+import { WalletService, WalletResponse } from '../../services/wallet.service';
+import { DeliveryZoneService } from '../../services/delivery-zone.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 
@@ -60,6 +62,27 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   maxLoyaltyDiscount = 0;
   loyaltyLoaded = false;
 
+  // Order type
+  orderType: 'delivery' | 'pickup' | 'dine-in' = 'delivery';
+  tableNumber: number | null = null;
+
+  // Scheduling
+  scheduleOrder = false;
+  scheduledDate = '';
+  scheduledTime = '';
+  minScheduleDate = '';
+  maxScheduleDate = '';
+  scheduleValidationError = '';
+
+  // Delivery fee
+  deliveryFee = 0;
+  calculatingFee = false;
+
+  // Wallet
+  walletData: WalletResponse | null = null;
+  useWallet = false;
+  walletAmountToUse = 0;
+
   // Computed totals
   get taxAmount(): number {
     return Math.round(this.cart.subtotal * 0.025 * 100) / 100;
@@ -75,8 +98,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   get grandTotal(): number {
-    const raw = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount - this.couponDiscount - this.loyaltyDiscount;
+    const raw = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount + this.deliveryFee - this.couponDiscount - this.loyaltyDiscount - this.walletDiscount;
     return Math.round(Math.max(0, raw) * 100) / 100;
+  }
+
+  get walletDiscount(): number {
+    if (!this.useWallet || !this.walletData) return 0;
+    return this.walletAmountToUse;
   }
 
   constructor(
@@ -87,6 +115,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private offersService: OffersService,
     private loyaltyService: LoyaltyService,
+    private walletService: WalletService,
+    private deliveryZoneService: DeliveryZoneService,
     private uiStore: UIStore,
     private router: Router
   ) {}
@@ -120,6 +150,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           this.loyaltyLoaded = true;
         },
         error: () => { this.loyaltyLoaded = true; }
+      });
+
+      // Load wallet
+      this.walletService.getMyWallet().subscribe({
+        next: (data) => this.walletData = data,
+        error: () => {}
       });
     }
   }
@@ -161,6 +197,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     const phoneRegex = /^[0-9]{10}$/;
     if (!phoneRegex.test(this.phoneNumber.replace(/\s/g, ''))) {
       this.errorMessage = 'Please enter a valid 10-digit phone number';
+      return;
+    }
+
+    // Validate schedule if enabled
+    if (!this.validateSchedule()) {
+      this.errorMessage = this.scheduleValidationError;
       return;
     }
 
@@ -287,7 +329,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         menuItemId: item.menuItemId,
         quantity: item.quantity
       })),
-      deliveryAddress: this.deliveryAddress.trim(),
+      deliveryAddress: this.orderType === 'delivery' ? this.deliveryAddress.trim() : undefined,
       phoneNumber: this.phoneNumber.trim(),
       notes: this.notes.trim() || undefined,
       paymentMethod: this.paymentMethod,
@@ -295,7 +337,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       razorpayOrderId,
       razorpaySignature,
       couponCode: this.couponValid ? this.couponCode.trim() : undefined,
-      loyaltyPointsUsed: this.useLoyaltyPoints ? this.loyaltyPointsToUse : undefined
+      loyaltyPointsUsed: this.useLoyaltyPoints ? this.loyaltyPointsToUse : undefined,
+      orderType: this.orderType,
+      scheduledFor: this.getScheduledDateTime(),
+      deliveryFee: this.orderType === 'delivery' ? this.deliveryFee : undefined,
+      walletAmountUsed: this.useWallet ? this.walletAmountToUse : undefined,
+      tableNumber: this.orderType === 'dine-in' && this.tableNumber ? this.tableNumber : undefined
     };
 
     // Submit order
@@ -316,9 +363,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         }
 
         this.cartService.clearCart();
-        this.router.navigate(['/orders'], {
-          queryParams: { orderPlaced: 'true', orderId: order.id }
-        });
+        this.router.navigate(['/orders', order.id]);
       },
       error: (error) => {
         console.error('Error placing order:', error);
@@ -326,6 +371,85 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         this.isSubmitting = false;
       }
     });
+  }
+
+  // Order type change
+  onOrderTypeChange() {
+    if (this.orderType === 'delivery') {
+      this.calculateDeliveryFee();
+    } else {
+      this.deliveryFee = 0;
+    }
+  }
+
+  calculateDeliveryFee() {
+    if (this.orderType !== 'delivery' || !this.deliveryAddress.trim()) {
+      this.deliveryFee = 0;
+      return;
+    }
+    this.calculatingFee = true;
+    this.deliveryZoneService.calculateDeliveryFee(0, this.cart.subtotal).subscribe({
+      next: (res: any) => {
+        this.deliveryFee = res.deliveryFee || 0;
+        this.calculatingFee = false;
+      },
+      error: () => {
+        this.deliveryFee = 0;
+        this.calculatingFee = false;
+      }
+    });
+  }
+
+  toggleWallet() {
+    this.useWallet = !this.useWallet;
+    if (this.useWallet && this.walletData) {
+      const totalBeforeWallet = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount + this.deliveryFee - this.couponDiscount - this.loyaltyDiscount;
+      this.walletAmountToUse = Math.min(this.walletData.balance, Math.max(0, totalBeforeWallet));
+    } else {
+      this.walletAmountToUse = 0;
+    }
+  }
+
+  onScheduleToggle() {
+    if (this.scheduleOrder) {
+      const now = new Date();
+      this.minScheduleDate = now.toISOString().split('T')[0];
+      const maxDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      this.maxScheduleDate = maxDate.toISOString().split('T')[0];
+      this.scheduledDate = '';
+      this.scheduledTime = '';
+      this.scheduleValidationError = '';
+    } else {
+      this.scheduledDate = '';
+      this.scheduledTime = '';
+      this.scheduleValidationError = '';
+    }
+  }
+
+  validateSchedule(): boolean {
+    if (!this.scheduleOrder) return true;
+    if (!this.scheduledDate || !this.scheduledTime) {
+      this.scheduleValidationError = 'Please select both date and time for scheduling.';
+      return false;
+    }
+    const scheduled = new Date(`${this.scheduledDate}T${this.scheduledTime}:00`);
+    const minTime = new Date(Date.now() + 30 * 60 * 1000); // 30 min from now
+    if (scheduled < minTime) {
+      this.scheduleValidationError = 'Scheduled time must be at least 30 minutes from now.';
+      return false;
+    }
+    const maxTime = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    if (scheduled > maxTime) {
+      this.scheduleValidationError = 'Cannot schedule more than 7 days in advance.';
+      return false;
+    }
+    this.scheduleValidationError = '';
+    return true;
+  }
+
+  getScheduledDateTime(): string | undefined {
+    if (!this.scheduleOrder || !this.scheduledDate || !this.scheduledTime) return undefined;
+    return `${this.scheduledDate}T${this.scheduledTime}:00`;
   }
 
   goBackToCart() {

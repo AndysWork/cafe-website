@@ -18,13 +18,41 @@
     <div class="form-card">
       <div class="card-header">
         <span class="card-icon">📍</span>
-        <h2>Delivery Details</h2>
+        <h2>Order Details</h2>
       </div>
 
       <form (ngSubmit)="placeOrder()" #checkoutForm="ngForm" aria-label="Checkout form">
 
-        <!-- Saved Addresses -->
-        <div class="saved-addresses" *ngIf="savedAddresses.length > 0">
+        <!-- Order Type Selection -->
+        <div class="order-type-section">
+          <label class="section-label">🍽️ Order Type</label>
+          <div class="order-type-options">
+            <label class="order-type-option" [class.active]="orderType === 'delivery'" (click)="orderType = 'delivery'; onOrderTypeChange()">
+              <input type="radio" name="orderType" value="delivery" [(ngModel)]="orderType" />
+              <span class="type-icon">🚚</span>
+              <span>Delivery</span>
+            </label>
+            <label class="order-type-option" [class.active]="orderType === 'pickup'" (click)="orderType = 'pickup'; onOrderTypeChange()">
+              <input type="radio" name="orderType" value="pickup" [(ngModel)]="orderType" />
+              <span class="type-icon">🏃</span>
+              <span>Pickup</span>
+            </label>
+            <label class="order-type-option" [class.active]="orderType === 'dine-in'" (click)="orderType = 'dine-in'; onOrderTypeChange()">
+              <input type="radio" name="orderType" value="dine-in" [(ngModel)]="orderType" />
+              <span class="type-icon">🍽️</span>
+              <span>Dine-in</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Dine-in Table Number -->
+        <div *ngIf="orderType === 'dine-in'" class="form-group">
+          <label>Table Number</label>
+          <input type="number" [(ngModel)]="tableNumber" name="tableNumber" placeholder="Enter table number" min="1" />
+        </div>
+
+        <!-- Saved Addresses (delivery only) -->
+        <div class="saved-addresses" *ngIf="orderType === 'delivery' && savedAddresses.length > 0">
           <label class="section-label">📍 Choose a saved address</label>
           <div class="address-options">
             <label
@@ -50,7 +78,7 @@
         </div>
 
         <!-- New Address Fields (shown when no saved addresses or "new address" selected) -->
-        <div *ngIf="savedAddresses.length === 0 || showNewAddressForm">
+        <div *ngIf="orderType === 'delivery' && (savedAddresses.length === 0 || showNewAddressForm)">
           <div class="form-group">
             <label for="deliveryAddress">Delivery Address *</label>
             <textarea
@@ -156,6 +184,49 @@
           </div>
         </div>
 
+        <!-- Wallet Section -->
+        <div *ngIf="walletData?.balance && walletData!.balance > 0" class="wallet-section">
+          <label class="section-label">💰 Wallet Balance: ₹{{ walletData?.balance | number:'1.0-0' }}</label>
+          <div class="wallet-toggle">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="useWallet" name="useWallet" (change)="toggleWallet()" />
+              <span>Use wallet balance</span>
+            </label>
+            <div *ngIf="useWallet" class="wallet-info">
+              Using ₹{{ walletAmountToUse | number:'1.0-0' }} from wallet
+            </div>
+          </div>
+        </div>
+
+        <!-- Schedule Order -->
+        <div class="schedule-section">
+          <label class="section-label">⏰ Schedule Order</label>
+          <div class="schedule-toggle">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="scheduleOrder" name="scheduleOrder" (ngModelChange)="onScheduleToggle()" />
+              <span>Schedule for later</span>
+            </label>
+          </div>
+          <div *ngIf="scheduleOrder" class="schedule-fields">
+            <div class="schedule-inputs">
+              <div class="form-group">
+                <label>Date <span class="required">*</span></label>
+                <input type="date" [(ngModel)]="scheduledDate" name="scheduledDate" [min]="minScheduleDate" [max]="maxScheduleDate" required />
+              </div>
+              <div class="form-group">
+                <label>Time <span class="required">*</span></label>
+                <input type="time" [(ngModel)]="scheduledTime" name="scheduledTime" required />
+              </div>
+            </div>
+            <div *ngIf="scheduleValidationError" class="schedule-error">
+              ⚠️ {{ scheduleValidationError }}
+            </div>
+            <div *ngIf="!scheduleValidationError && scheduledDate && scheduledTime" class="schedule-preview">
+              📅 Your order will be placed for <strong>{{ scheduledDate | date:'mediumDate' }}</strong> at <strong>{{ scheduledTime }}</strong>
+            </div>
+          </div>
+        </div>
+
         <!-- Payment Method Selection -->
         <div class="payment-section">
           <label class="section-label" id="payment-method-label">💳 Payment Method</label>
@@ -238,6 +309,18 @@
         <div *ngIf="loyaltyDiscount > 0" class="t-row t-discount">
           <span>⭐ Loyalty Discount</span>
           <span>−₹{{ loyaltyDiscount }}</span>
+        </div>
+        <div *ngIf="orderType === 'delivery' && deliveryFee > 0" class="t-row">
+          <span>🚚 Delivery Fee</span>
+          <span>₹{{ deliveryFee }}</span>
+        </div>
+        <div *ngIf="calculatingFee" class="t-row">
+          <span>🚚 Delivery Fee</span>
+          <span>Calculating...</span>
+        </div>
+        <div *ngIf="walletDiscount > 0" class="t-row t-discount">
+          <span>💰 Wallet</span>
+          <span>−₹{{ walletDiscount | number:'1.0-0' }}</span>
         </div>
         <div class="t-divider"></div>
         <div class="t-row t-final">

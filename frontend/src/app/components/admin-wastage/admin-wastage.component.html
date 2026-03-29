@@ -1,0 +1,84 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>🗑️ Wastage Tracking</h1>
+    <button class="btn-create" (click)="openCreateModal()">➕ Record Wastage</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab === 'records'" (click)="activeTab = 'records'">📋 Records</button>
+    <button class="tab" [class.active]="activeTab === 'summary'" (click)="activeTab = 'summary'; loadSummary()">📊 Summary</button>
+  </div>
+
+  <div class="filter-bar">
+    <input type="date" [(ngModel)]="startDate">
+    <input type="date" [(ngModel)]="endDate">
+    <button class="btn-filter" (click)="activeTab === 'records' ? loadRecords() : loadSummary()">🔍 Filter</button>
+  </div>
+
+  <div *ngIf="activeTab === 'records'">
+    <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
+
+    <div *ngIf="!loading && records.length === 0" class="empty-state">
+      <div class="empty-icon">🗑️</div><h2>No Wastage Records</h2><p>Start recording wastage to track losses.</p>
+    </div>
+
+    <div *ngIf="!loading && records.length > 0" class="data-table">
+      <table>
+        <thead><tr><th>Date</th><th>Reason</th><th>Items</th><th>Total Value</th><th>Recorded By</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let r of records">
+            <td>{{ r.createdAt | date:'medium' }}</td>
+            <td>{{ r.reason }}</td>
+            <td>{{ r.items.length }} items</td>
+            <td class="fw-bold" style="color: #dc2626;">₹{{ r.totalValue | number:'1.2-2' }}</td>
+            <td>{{ r.recordedBy }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab === 'summary' && summary">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-value">{{ summary.totalRecords }}</div><div class="stat-label">Total Records</div></div>
+      <div class="stat-card"><div class="stat-icon">💸</div><div class="stat-value">₹{{ summary.totalValue | number:'1.0-0' }}</div><div class="stat-label">Total Loss</div></div>
+      <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value">₹{{ summary.dailyAverage | number:'1.0-0' }}</div><div class="stat-label">Daily Average</div></div>
+    </div>
+    <div *ngIf="summary.topWastedItems.length > 0" class="data-table" style="margin-top: 20px;">
+      <h3 style="padding: 16px;">Top Wasted Items</h3>
+      <table>
+        <thead><tr><th>Item</th><th>Total Qty</th><th>Total Cost</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let item of summary.topWastedItems">
+            <td class="fw-bold">{{ item.menuItemName }}</td>
+            <td>{{ item.totalQuantity }}</td>
+            <td style="color: #dc2626;">₹{{ item.totalCost | number:'1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Record Wastage</h2><button class="btn-close" (click)="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="saveWastage()">
+        <div *ngFor="let item of wastageForm.items; let i = index; trackBy: trackById" class="form-row" style="align-items: flex-end;">
+          <div class="form-group"><label>Item Name</label><input type="text" [(ngModel)]="item.menuItemName" [name]="'itemName'+i" required></div>
+          <div class="form-group" style="max-width: 80px;"><label>Qty</label><input type="number" [(ngModel)]="item.quantity" [name]="'qty'+i" min="1"></div>
+          <div class="form-group" style="max-width: 100px;"><label>Unit Cost</label><input type="number" [(ngModel)]="item.unitCost" [name]="'cost'+i" min="0"></div>
+          <button type="button" class="btn-delete" (click)="removeItem(i)" style="margin-bottom: 16px;" *ngIf="wastageForm.items.length > 1">🗑️</button>
+        </div>
+        <button type="button" class="btn-create" style="margin-bottom: 16px; font-size: 0.85rem; padding: 8px 16px;" (click)="addItem()">➕ Add Item</button>
+        <div class="form-group"><label>Reason *</label><textarea [(ngModel)]="wastageForm.reason" name="reason" rows="3" required></textarea></div>
+        <p style="font-weight: 600; color: #dc2626;">Total: ₹{{ getTotalValue() | number:'1.2-2' }}</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+          <button type="submit" class="btn-save">Save Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

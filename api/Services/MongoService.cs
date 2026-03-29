@@ -69,6 +69,21 @@ public partial class MongoService
     private readonly IMongoCollection<DailyPerformanceEntry> _dailyPerformanceEntries;
     private readonly IMongoCollection<AppNotification> _notifications;
     private readonly IMongoCollection<ExternalOrderClaim> _externalClaims;
+    private readonly IMongoCollection<CustomerReview> _customerReviews;
+    private readonly IMongoCollection<DeliveryZone> _deliveryZones;
+    private readonly IMongoCollection<TableReservation> _tableReservations;
+    private readonly IMongoCollection<CustomerWallet> _customerWallets;
+    private readonly IMongoCollection<WalletTransaction> _walletTransactions;
+    private readonly IMongoCollection<WastageRecord> _wastageRecords;
+    private readonly IMongoCollection<Attendance> _attendance;
+    private readonly IMongoCollection<LeaveRequest> _leaveRequests;
+    private readonly IMongoCollection<ComboMeal> _comboMeals;
+    private readonly IMongoCollection<HappyHourRule> _happyHourRules;
+    private readonly IMongoCollection<PurchaseOrder> _purchaseOrders;
+    private readonly IMongoCollection<SubscriptionPlan> _subscriptionPlans;
+    private readonly IMongoCollection<CustomerSubscription> _customerSubscriptions;
+    private readonly IMongoCollection<DeliveryPartner> _deliveryPartners;
+    private readonly IMongoCollection<CustomerSegment> _customerSegments;
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
     
@@ -155,6 +170,21 @@ public partial class MongoService
         _dailyPerformanceEntries = db.GetCollection<DailyPerformanceEntry>("DailyPerformanceEntries");
         _notifications = db.GetCollection<AppNotification>("Notifications");
         _externalClaims = db.GetCollection<ExternalOrderClaim>("ExternalOrderClaims");
+        _customerReviews = db.GetCollection<CustomerReview>("CustomerReviews");
+        _deliveryZones = db.GetCollection<DeliveryZone>("DeliveryZones");
+        _tableReservations = db.GetCollection<TableReservation>("TableReservations");
+        _customerWallets = db.GetCollection<CustomerWallet>("CustomerWallets");
+        _walletTransactions = db.GetCollection<WalletTransaction>("WalletTransactions");
+        _wastageRecords = db.GetCollection<WastageRecord>("WastageRecords");
+        _attendance = db.GetCollection<Attendance>("Attendance");
+        _leaveRequests = db.GetCollection<LeaveRequest>("LeaveRequests");
+        _comboMeals = db.GetCollection<ComboMeal>("ComboMeals");
+        _happyHourRules = db.GetCollection<HappyHourRule>("HappyHourRules");
+        _purchaseOrders = db.GetCollection<PurchaseOrder>("PurchaseOrders");
+        _subscriptionPlans = db.GetCollection<SubscriptionPlan>("SubscriptionPlans");
+        _customerSubscriptions = db.GetCollection<CustomerSubscription>("CustomerSubscriptions");
+        _deliveryPartners = db.GetCollection<DeliveryPartner>("DeliveryPartners");
+        _customerSegments = db.GetCollection<CustomerSegment>("CustomerSegments");
     }
 
     /// <summary>
@@ -5988,6 +6018,51 @@ public partial class MongoService
 
         var result = await _externalClaims.UpdateOneAsync(c => c.Id == id, update);
         return result.ModifiedCount > 0;
+    }
+
+    #endregion
+
+    #region Customer Reviews
+
+    public async Task<CustomerReview> CreateReviewAsync(CustomerReview review)
+    {
+        await _customerReviews.InsertOneAsync(review);
+        return review;
+    }
+
+    public async Task<CustomerReview?> GetReviewByOrderIdAsync(string orderId)
+    {
+        return await _customerReviews.Find(r => r.OrderId == orderId).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<CustomerReview>> GetReviewsByUserIdAsync(string userId)
+    {
+        return await _customerReviews.Find(r => r.UserId == userId)
+            .SortByDescending(r => r.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<CustomerReview>> GetAllReviewsAsync(string? outletId = null, int page = 1, int pageSize = 50)
+    {
+        var filter = outletId != null
+            ? Builders<CustomerReview>.Filter.Eq(r => r.OutletId, outletId)
+            : Builders<CustomerReview>.Filter.Empty;
+
+        return await _customerReviews.Find(filter)
+            .SortByDescending(r => r.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<double> GetAverageRatingAsync(string? outletId = null)
+    {
+        var filter = outletId != null
+            ? Builders<CustomerReview>.Filter.Eq(r => r.OutletId, outletId)
+            : Builders<CustomerReview>.Filter.Empty;
+
+        var reviews = await _customerReviews.Find(filter).ToListAsync();
+        return reviews.Count > 0 ? reviews.Average(r => r.Rating) : 0;
     }
 
     #endregion

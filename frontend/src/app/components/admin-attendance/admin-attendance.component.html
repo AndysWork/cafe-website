@@ -1,0 +1,119 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>🕐 Attendance & Leave</h1>
+    <button class="btn-create" (click)="openLeaveModal()">📝 New Leave Request</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab === 'attendance'" (click)="activeTab = 'attendance'">🕐 Today's Attendance</button>
+    <button class="tab" [class.active]="activeTab === 'leave'" (click)="activeTab = 'leave'">📋 Leave Requests</button>
+  </div>
+
+  <div *ngIf="activeTab === 'attendance'">
+    <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
+
+    <div *ngIf="!loading" class="cards-grid">
+      <div class="card" *ngFor="let staff of staffList; trackBy: trackById">
+        <div class="card-header">
+          <span class="card-title">{{ staff.name }}</span>
+          <span class="badge" [class.active]="isStaffClockedIn(staff.id)" [class.inactive]="!isStaffClockedIn(staff.id)">
+            {{ isStaffClockedIn(staff.id) ? '🟢 On Duty' : '⚪ Off Duty' }}
+          </span>
+        </div>
+        <div class="card-body">
+          <p>{{ staff.role }} · {{ staff.phone }}</p>
+        </div>
+        <div class="card-footer">
+          <button class="btn-create" style="padding: 8px 16px; font-size: 0.85rem;"
+            *ngIf="!isStaffClockedIn(staff.id)" (click)="clockIn(staff.id)">⏰ Clock In</button>
+          <button class="btn-create" style="padding: 8px 16px; font-size: 0.85rem; background: linear-gradient(135deg, #f59e0b, #d97706);"
+            *ngIf="isStaffClockedIn(staff.id)" (click)="clockOut(staff.id)">⏰ Clock Out</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 30px;">
+      <h3>📊 Attendance Report</h3>
+      <div class="filter-bar">
+        <input type="date" [(ngModel)]="startDate">
+        <input type="date" [(ngModel)]="endDate">
+        <select [(ngModel)]="selectedStaffId">
+          <option value="">All Staff</option>
+          <option *ngFor="let s of staffList" [value]="s.id">{{ s.name }}</option>
+        </select>
+        <button class="btn-filter" (click)="loadReport()">🔍 Load Report</button>
+      </div>
+      <div *ngIf="reportData.length > 0" class="data-table">
+        <table>
+          <thead><tr><th>Staff</th><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Hours</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let a of reportData">
+              <td class="fw-bold">{{ a.staffName }}</td>
+              <td>{{ a.date | date:'mediumDate' }}</td>
+              <td>{{ a.clockIn | date:'shortTime' }}</td>
+              <td>{{ a.clockOut ? (a.clockOut | date:'shortTime') : '-' }}</td>
+              <td>{{ a.hoursWorked ? (a.hoursWorked | number:'1.1-1') + 'h' : '-' }}</td>
+              <td><span class="badge" [ngClass]="a.status">{{ a.status }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab === 'leave'">
+    <div *ngIf="leaveRequests.length === 0" class="empty-state">
+      <div class="empty-icon">📋</div><h2>No Leave Requests</h2>
+    </div>
+    <div *ngIf="leaveRequests.length > 0" class="data-table">
+      <table>
+        <thead><tr><th>Staff</th><th>Type</th><th>From</th><th>To</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let l of leaveRequests; trackBy: trackById">
+            <td class="fw-bold">{{ l.staffName }}</td>
+            <td>{{ l.leaveType }}</td>
+            <td>{{ l.startDate | date:'mediumDate' }}</td>
+            <td>{{ l.endDate | date:'mediumDate' }}</td>
+            <td>{{ l.reason }}</td>
+            <td><span class="badge" [ngClass]="l.status">{{ l.status }}</span></td>
+            <td class="actions-cell" *ngIf="l.status === 'pending'">
+              <button class="btn-action" (click)="updateLeaveStatus(l.id!, 'approved')">✅</button>
+              <button class="btn-delete" (click)="updateLeaveStatus(l.id!, 'rejected')">❌</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showLeaveModal" (click)="showLeaveModal = false">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>New Leave Request</h2><button class="btn-close" (click)="showLeaveModal = false">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="submitLeave()">
+        <div class="form-group"><label>Staff *</label>
+          <select [(ngModel)]="leaveForm.staffId" name="staffId" required>
+            <option value="">Select Staff</option>
+            <option *ngFor="let s of staffList" [value]="s.id">{{ s.name }}</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Leave Type</label>
+          <select [(ngModel)]="leaveForm.leaveType" name="leaveType">
+            <option value="casual">Casual</option><option value="sick">Sick</option>
+            <option value="earned">Earned</option><option value="unpaid">Unpaid</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>From *</label><input type="date" [(ngModel)]="leaveForm.startDate" name="startDate" required></div>
+          <div class="form-group"><label>To *</label><input type="date" [(ngModel)]="leaveForm.endDate" name="endDate" required></div>
+        </div>
+        <div class="form-group"><label>Reason *</label><textarea [(ngModel)]="leaveForm.reason" name="reason" rows="3" required></textarea></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="showLeaveModal = false">Cancel</button>
+          <button type="submit" class="btn-save">Submit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

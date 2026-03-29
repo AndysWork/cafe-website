@@ -1,6 +1,6 @@
 # Comprehensive Codebase Audit Report
 
-**Date:** January 2025 | **Last Updated:** March 2026  
+**Date:** January 2025 | **Last Updated:** March 29, 2026  
 **Scope:** Full-stack analysis — .NET 9 Azure Functions API + Angular Frontend + MongoDB  
 **Focus:** Enterprise readiness, performance optimization, security, and code quality
 
@@ -678,6 +678,38 @@ User Request
 - `api/Helpers/RequestLoggingMiddleware.cs` — Logs method, URL, status, duration, invocationId per request *(Round 5)*
 - `api/Helpers/ApiVersionMiddleware.cs` — Adds X-API-Version header to all responses *(Round 5)*
 - `api/Functions/WarmupFunction.cs` — WarmupTrigger pre-warms MongoDB connection pool *(Round 5)*
+- `api/Services/MongoService.NewFeatures.cs` — MongoDB operations for all Sprint 3-6 features *(Sprint 3-6)*
+- `api/Functions/DeliveryZoneFunction.cs` — Delivery zone CRUD + fee calculation *(Sprint 3)*
+- `api/Functions/ReportExportFunction.cs` — CSV/Excel/PDF report export *(Sprint 3)*
+- `api/Functions/GstReportFunction.cs` — GSTR-1/GSTR-3B tax reports *(Sprint 3)*
+- `api/Functions/TableReservationFunction.cs` — Table reservation management *(Sprint 4)*
+- `api/Functions/WalletFunction.cs` — Customer wallet operations (top-up, debit, balance, transactions) *(Sprint 4)*
+- `api/Functions/KotFunction.cs` — Kitchen order ticket generation (80mm thermal format) *(Sprint 4)*
+- `api/Functions/KitchenDisplayFunction.cs` — Real-time kitchen order queue + status updates *(Sprint 5)*
+- `api/Functions/RecommendationFunction.cs` — AI menu recommendations *(Sprint 5)*
+- `api/Functions/WastageFunction.cs` — Daily wastage logging + pattern analysis *(Sprint 5)*
+- `api/Functions/BranchComparisonFunction.cs` — Multi-outlet performance comparison *(Sprint 5)*
+- `api/Functions/CustomerSegmentFunction.cs` — Auto-tag customers by order frequency *(Sprint 5)*
+- `api/Functions/AttendanceFunction.cs` — Staff clock-in/out + leave management *(Sprint 6)*
+- `api/Functions/ComboMealFunction.cs` — Combo/meal deal builder CRUD *(Sprint 6)*
+- `api/Functions/HappyHourFunction.cs` — Time-based discount automation *(Sprint 6)*
+- `api/Functions/AutoReorderFunction.cs` — Ingredient auto-reorder triggers *(Sprint 6)*
+- `api/Functions/SubscriptionFunction.cs` — Customer subscription plan management *(Sprint 6)*
+- `api/Functions/DeliveryPartnerFunction.cs` — Delivery partner/driver management *(Sprint 6)*
+- `api/Models/DeliveryZone.cs` — Delivery zone model *(Sprint 3)*
+- `api/Models/GstReport.cs` — GST report model *(Sprint 3)*
+- `api/Models/TableReservation.cs` — Table reservation model *(Sprint 4)*
+- `api/Models/Wallet.cs` — Wallet + WalletTransaction models *(Sprint 4)*
+- `api/Models/KitchenOrder.cs` — Kitchen display order model *(Sprint 5)*
+- `api/Models/Recommendation.cs` — Menu recommendation model *(Sprint 5)*
+- `api/Models/WastageEntry.cs` — Wastage tracking model *(Sprint 5)*
+- `api/Models/CustomerSegment.cs` — Customer segment model *(Sprint 5)*
+- `api/Models/Attendance.cs` — Attendance + LeaveRequest models *(Sprint 6)*
+- `api/Models/ComboMeal.cs` — Combo meal model *(Sprint 6)*
+- `api/Models/HappyHour.cs` — Happy hour rule model *(Sprint 6)*
+- `api/Models/AutoReorder.cs` — Auto-reorder configuration model *(Sprint 6)*
+- `api/Models/Subscription.cs` — Subscription plan + user subscription models *(Sprint 6)*
+- `api/Models/DeliveryPartner.cs` — Delivery partner model *(Sprint 6)*
 
 ### Backend — Modified Files
 | File | Changes |
@@ -724,6 +756,41 @@ User Request
 - `frontend/src/app/store/app.store.ts` — Façade aggregating all domain stores into single injection point *(R7)*
 - `frontend/src/app/store/index.ts` — Barrel export for all stores *(R7)*
 - `frontend/src/app/shared/toast-container/toast-container.component.ts` — Global toast notification component using UIStore signals *(R7)*
+- `frontend/src/app/services/delivery-zone.service.ts` — Delivery zone API service *(Sprint 3)*
+- `frontend/src/app/services/report-export.service.ts` — Report export API service *(Sprint 3)*
+- `frontend/src/app/services/gst-report.service.ts` — GST report API service *(Sprint 3)*
+- `frontend/src/app/services/table-reservation.service.ts` — Table reservation API service *(Sprint 4)*
+- `frontend/src/app/services/wallet.service.ts` — Customer wallet API service *(Sprint 4)*
+- `frontend/src/app/services/kitchen-display.service.ts` — Kitchen display API service *(Sprint 5)*
+- `frontend/src/app/services/recommendation.service.ts` — Menu recommendation API service *(Sprint 5)*
+- `frontend/src/app/services/wastage.service.ts` — Wastage tracking API service *(Sprint 5)*
+- `frontend/src/app/services/branch-comparison.service.ts` — Branch comparison API service *(Sprint 5)*
+- `frontend/src/app/services/customer-segment.service.ts` — Customer segment API service *(Sprint 5)*
+- `frontend/src/app/services/attendance.service.ts` — Attendance & leave API service *(Sprint 6)*
+- `frontend/src/app/services/combo-meal.service.ts` — Combo meal API service *(Sprint 6)*
+- `frontend/src/app/services/happy-hour.service.ts` — Happy hour API service *(Sprint 6)*
+- `frontend/src/app/services/auto-reorder.service.ts` — Auto-reorder API service *(Sprint 6)*
+- `frontend/src/app/services/subscription.service.ts` — Subscription plan API service *(Sprint 6)*
+- `frontend/src/app/services/delivery-partner.service.ts` — Delivery partner API service *(Sprint 6)*
+- `frontend/src/app/components/admin-delivery-zones/` — Admin delivery zone management (TS+HTML+SCSS) *(Sprint 3)*
+- `frontend/src/app/components/admin-report-export/` — Admin report export UI (TS+HTML+SCSS) *(Sprint 3)*
+- `frontend/src/app/components/admin-reservations/` — Admin reservation management (TS+HTML+SCSS) *(Sprint 4)*
+- `frontend/src/app/components/wallet/` — Customer wallet with balance card + transactions (TS+HTML+SCSS) *(Sprint 4)*
+- `frontend/src/app/components/table-reservation/` — Customer reservation booking (TS+HTML+SCSS) *(Sprint 4)*
+- `frontend/src/app/components/kitchen-display/` — Kitchen Display System dark-theme Kanban (TS+HTML+SCSS) *(Sprint 5)*
+- `frontend/src/app/components/admin-wastage/` — Admin wastage tracking (TS+HTML+SCSS) *(Sprint 5)*
+- `frontend/src/app/components/admin-branch-comparison/` — Multi-branch comparison dashboard (TS+HTML+SCSS) *(Sprint 5)*
+- `frontend/src/app/components/admin-customer-segments/` — Customer segmentation management (TS+HTML+SCSS) *(Sprint 5)*
+- `frontend/src/app/components/admin-attendance/` — Staff attendance & leave management (TS+HTML+SCSS) *(Sprint 6)*
+- `frontend/src/app/components/admin-combos/` — Combo meal builder (TS+HTML+SCSS) *(Sprint 6)*
+- `frontend/src/app/components/admin-happy-hours/` — Happy hour automation (TS+HTML+SCSS) *(Sprint 6)*
+- `frontend/src/app/components/admin-auto-reorder/` — Auto-reorder configuration (TS+HTML+SCSS) *(Sprint 6)*
+- `frontend/src/app/components/admin-subscriptions/` — Admin subscription management (TS+HTML+SCSS) *(Sprint 6)*
+- `frontend/src/app/components/admin-delivery-partners/` — Delivery partner management (TS+HTML+SCSS) *(Sprint 6)*
+- `frontend/src/app/components/subscription-plans/` — Customer subscription plan browser (TS+HTML+SCSS) *(Sprint 6)*
+- `frontend/src/app/styles/_admin-shared.scss` — Shared admin component styles (tables, cards, modals, badges, filters, responsive) *(Sprint 3-6)*
+- `frontend/public/manifest.webmanifest` — PWA manifest (app name, icons, theme, standalone display) *(Sprint 4)*
+- `frontend/ngsw-config.json` — Service worker config (app shell prefetch, lazy assets, API freshness) *(Sprint 4)*
 
 ### Frontend — Modified Files
 | File | Changes |
@@ -757,3 +824,13 @@ User Request
 | `frontend/src/app/interceptors/error.interceptor.ts` | **Injects UIStore; shows toast notifications on HTTP errors (skips analytics/401)** *(R7)* |
 | `frontend/src/app/app.component.ts`, `app.component.html` | **Added ToastContainerComponent for global toast notifications** *(R7)* |
 | `frontend/src/app/shared/index.ts` | **Added ToastContainerComponent export** *(R7)* |
+| `frontend/src/app/app.routes.ts` | **Added 17 new lazy-loaded routes (3 customer: /wallet, /reservations, /subscriptions + 14 admin children: delivery-zones, reports, reservations, wastage, attendance, combos, happy-hours, auto-reorder, subscriptions, delivery-partners, customer-segments, kitchen-display, branch-comparison)** *(Sprint 3-6)* |
+| `frontend/src/app/components/admin-layout/admin-layout.component.ts` | **Added 3 new nav dropdown menus (Operations, Marketing, Reports) + Attendance under Staff + 14 new nav items** *(Sprint 3-6)* |
+| `frontend/src/app/components/checkout/checkout.component.ts` | **Order type selection (delivery/pickup/dine-in), wallet balance usage, order scheduling, delivery fee calculation, table number for dine-in** *(Sprint 3-4)* |
+| `frontend/src/app/components/checkout/checkout.component.html` | **Order type radio buttons, wallet toggle section, schedule date+time, delivery fee + wallet discount in summary** *(Sprint 3-4)* |
+| `frontend/src/app/components/checkout/checkout.component.scss` | **Styles for order-type-options, wallet-section, schedule-section** *(Sprint 3-4)* |
+| `frontend/src/app/services/order.service.ts` | **CreateOrderRequest interface expanded with orderType, scheduledFor, deliveryFee, walletAmountUsed, tableNumber** *(Sprint 3-4)* |
+| `frontend/src/app/app.config.ts` | **Added provideServiceWorker with isDevMode() guard and registerWhenStable:30000** *(Sprint 4)* |
+| `frontend/angular.json` | **Added serviceWorker: "ngsw-config.json" under production config** *(Sprint 4)* |
+| `frontend/src/index.html` | **Added theme-color meta, manifest link, apple-touch-icon** *(Sprint 4)* |
+| `api/Functions/OrderFunction.cs` | **MapToOrderResponse updated with 7 new fields (orderType, scheduledFor, deliveryFee, walletAmountUsed, tableNumber, deliveryPartner, kotNumber)** *(Sprint 3-6)* |

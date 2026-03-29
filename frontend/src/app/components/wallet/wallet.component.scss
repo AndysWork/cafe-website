@@ -1,0 +1,137 @@
+.wallet-page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.loading-state {
+  text-align: center; padding: 60px 0;
+  .spinner {
+    width: 44px; height: 44px; margin: 0 auto 16px;
+    border: 4px solid #e2e8f0; border-top: 4px solid #0EA5E9;
+    border-radius: 50%; animation: spin 1s linear infinite;
+  }
+  p { color: #64748b; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.balance-card {
+  background: linear-gradient(135deg, #0EA5E9, #84CC16);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: center;
+  color: white;
+  margin-bottom: 20px;
+}
+
+.balance-label { font-size: 0.9rem; opacity: 0.9; margin-bottom: 4px; }
+.balance-amount { font-size: 2.8rem; font-weight: 800; margin-bottom: 10px; }
+
+.balance-summary {
+  display: flex; justify-content: center; gap: 16px; font-size: 0.85rem; opacity: 0.9; margin-bottom: 16px;
+}
+
+.btn-recharge {
+  background: rgba(255,255,255,0.25);
+  border: 2px solid white;
+  padding: 10px 28px;
+  border-radius: 25px;
+  color: white;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  &:hover { background: rgba(255,255,255,0.4); }
+}
+
+.recharge-panel {
+  background: white;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  h3 { margin-bottom: 14px; color: #1e293b; font-size: 1.1rem; }
+}
+
+.preset-amounts {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+}
+
+.amount-chip {
+  padding: 8px 18px;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  background: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  &.selected { border-color: #0EA5E9; background: #e0f2fe; color: #0369a1; }
+  &:hover { border-color: #38BDF8; }
+}
+
+.custom-amount {
+  margin-bottom: 14px;
+  label { display: block; font-size: 0.85rem; color: #64748b; margin-bottom: 6px; }
+  input {
+    width: 100%; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 10px;
+    font-size: 1rem; box-sizing: border-box;
+    &:focus { outline: none; border-color: #0EA5E9; }
+  }
+}
+
+.btn-pay {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #0EA5E9, #84CC16);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+  &:hover:not(:disabled) { opacity: 0.9; }
+}
+
+.transactions-section {
+  h3 { color: #1e293b; margin-bottom: 14px; font-size: 1.1rem; }
+}
+
+.empty-txns { text-align: center; padding: 40px 0; color: #94a3b8; }
+
+.txn-list { display: flex; flex-direction: column; gap: 2px; }
+
+.txn-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  background: white;
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+
+.txn-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; font-weight: 700;
+  .credit & { background: #dcfce7; color: #16a34a; }
+  .debit & { background: #fee2e2; color: #dc2626; }
+}
+
+.txn-details {
+  flex: 1; display: flex; flex-direction: column;
+  .txn-desc { font-weight: 600; color: #1e293b; font-size: 0.9rem; }
+  .txn-date { font-size: 0.78rem; color: #94a3b8; }
+}
+
+.txn-amount {
+  font-weight: 700; font-size: 1rem;
+  .credit & { color: #16a34a; }
+  .debit & { color: #dc2626; }
+}
+
+.btn-load-more {
+  width: 100%; padding: 12px; margin-top: 12px;
+  background: #f1f5f9; border: none; border-radius: 10px;
+  color: #0EA5E9; font-weight: 600; cursor: pointer;
+  &:hover { background: #e2e8f0; }
+}

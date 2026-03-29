@@ -1,0 +1,72 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>📦 Subscription Plans</h1>
+    <button class="btn-create" (click)="openCreateModal()">➕ Create Plan</button>
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
+
+  <div *ngIf="!loading && plans.length === 0" class="empty-state">
+    <div class="empty-icon">📦</div><h2>No Plans Yet</h2><p>Create subscription plans for regular customers.</p>
+    <button class="btn-create-empty" (click)="openCreateModal()">Create First Plan</button>
+  </div>
+
+  <div *ngIf="!loading && plans.length > 0" class="cards-grid">
+    <div class="card" *ngFor="let p of plans; trackBy: trackById">
+      <div class="card-header">
+        <div><div class="card-title">{{ p.name }}</div><div class="card-subtitle">{{ p.durationDays }} days</div></div>
+        <span class="badge" [class.active]="p.isActive" [class.inactive]="!p.isActive">{{ p.isActive ? 'Active' : 'Inactive' }}</span>
+      </div>
+      <div class="card-body">
+        <div style="font-size: 1.5rem; font-weight: 700; color: #0EA5E9; margin-bottom: 12px;">₹{{ p.price }}</div>
+        <p *ngIf="p.description" style="margin-bottom: 8px;">{{ p.description }}</p>
+        <div *ngIf="p.benefits.length > 0" style="margin-bottom: 8px;">
+          <div *ngFor="let b of p.benefits" style="font-size: 0.85rem; color: #16a34a;">✓ {{ b }}</div>
+        </div>
+        <div *ngIf="p.items.length > 0">
+          <div style="font-weight: 600; margin-bottom: 4px;">Daily Items:</div>
+          <div *ngFor="let item of p.items" style="font-size: 0.85rem; color: #64748b;">• {{ item.menuItemName }} × {{ item.dailyQuantity }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Create Subscription Plan</h2><button class="btn-close" (click)="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="savePlan()">
+        <div class="form-group"><label>Plan Name *</label><input type="text" [(ngModel)]="planForm.name" name="name" required></div>
+        <div class="form-group"><label>Description</label><textarea [(ngModel)]="planForm.description" name="description" rows="2"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label>Price (₹) *</label><input type="number" [(ngModel)]="planForm.price" name="price" min="0" required></div>
+          <div class="form-group"><label>Duration (days) *</label><input type="number" [(ngModel)]="planForm.durationDays" name="durationDays" min="1" required></div>
+        </div>
+        <div class="form-group">
+          <label>Benefits</label>
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <input type="text" [(ngModel)]="benefitInput" name="benefitInput" placeholder="e.g., Free delivery">
+            <button type="button" class="btn-create" style="padding: 8px 16px; white-space: nowrap;" (click)="addBenefit()">➕</button>
+          </div>
+          <div *ngFor="let b of planForm.benefits; let i = index" style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px;">
+            <span>✓ {{ b }}</span>
+            <button type="button" class="btn-delete" style="padding: 2px 6px; font-size: 0.75rem;" (click)="removeBenefit(i)">✕</button>
+          </div>
+        </div>
+        <h4 style="margin: 16px 0 8px;">Daily Items</h4>
+        <div *ngFor="let item of planForm.items; let i = index; trackBy: trackByIndex" class="form-row" style="align-items: flex-end;">
+          <div class="form-group"><label>Menu Item ID</label><input type="text" [(ngModel)]="item.menuItemId" [name]="'itemId'+i"></div>
+          <div class="form-group"><label>Name</label><input type="text" [(ngModel)]="item.menuItemName" [name]="'itemName'+i"></div>
+          <div class="form-group" style="max-width: 80px;"><label>Qty</label><input type="number" [(ngModel)]="item.dailyQuantity" [name]="'qty'+i" min="1"></div>
+          <button type="button" class="btn-delete" (click)="removeItem(i)" style="margin-bottom: 16px;" *ngIf="planForm.items.length > 1">🗑️</button>
+        </div>
+        <button type="button" class="btn-create" style="margin-bottom: 16px; font-size: 0.85rem; padding: 8px 16px;" (click)="addItem()">➕ Add Item</button>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+          <button type="submit" class="btn-save">Create Plan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

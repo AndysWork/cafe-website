@@ -28,6 +28,15 @@
       />
       <button *ngIf="searchQuery" class="search-clear" (click)="clearSearch()" aria-label="Clear search">✕</button>
     </div>
+    <div class="sort-wrapper">
+      <select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()" class="sort-select" aria-label="Sort menu items">
+        <option value="default">Sort: Default</option>
+        <option value="price-low">Price: Low → High</option>
+        <option value="price-high">Price: High → Low</option>
+        <option value="name-az">Name: A → Z</option>
+        <option value="name-za">Name: Z → A</option>
+      </select>
+    </div>
   </div>
 
   <!-- Category Pills -->
@@ -113,7 +122,7 @@
         </div>
 
         <!-- Card Body -->
-        <div class="card-body">
+        <div class="card-body" (click)="openDetail(item)">
           <h3 class="card-title">{{ item.name }}</h3>
           <p class="card-description" *ngIf="item.description">{{ item.description }}</p>
 
@@ -168,4 +177,77 @@
     </span>
     <span class="cart-arrow">→</span>
   </button>
+
+  <!-- Detail Modal -->
+  <div class="detail-modal-overlay" *ngIf="showDetailModal && selectedMenuItem" (click)="closeDetail()">
+    <div class="detail-modal" (click)="$event.stopPropagation()">
+      <button class="detail-close" (click)="closeDetail()">✕</button>
+
+      <div class="detail-image-section">
+        <img *ngIf="selectedMenuItem.imageUrl" [src]="selectedMenuItem.imageUrl" [alt]="selectedMenuItem.name" class="detail-image"/>
+        <div *ngIf="!selectedMenuItem.imageUrl" class="detail-image-placeholder">🍽️</div>
+        <span class="badge-dietary detail-badge" [ngClass]="selectedMenuItem.dietaryType || 'veg'">
+          {{ (selectedMenuItem.dietaryType || 'veg') === 'veg' ? '🟢' : (selectedMenuItem.dietaryType === 'non-veg' ? '🔴' : (selectedMenuItem.dietaryType === 'egg' ? '🟡' : '🟢')) }}
+          {{ (selectedMenuItem.dietaryType || 'veg') | titlecase }}
+        </span>
+      </div>
+
+      <div class="detail-body">
+        <div class="detail-header">
+          <h2 class="detail-title">{{ selectedMenuItem.name }}</h2>
+          <span class="detail-category">{{ selectedMenuItem.categoryName }}</span>
+        </div>
+
+        <p class="detail-description" *ngIf="selectedMenuItem.description">{{ selectedMenuItem.description }}</p>
+
+        <div class="detail-pricing">
+          <div class="detail-price-row">
+            <span class="price-label">Online Price</span>
+            <span class="price-value primary">₹{{ selectedMenuItem.onlinePrice }}</span>
+          </div>
+          <div class="detail-price-row" *ngIf="selectedMenuItem.dineInPrice">
+            <span class="price-label">Dine-In Price</span>
+            <span class="price-value">₹{{ selectedMenuItem.dineInPrice }}</span>
+          </div>
+          <div class="detail-price-row" *ngIf="selectedMenuItem.packagingCharge">
+            <span class="price-label">Packaging</span>
+            <span class="price-value">₹{{ selectedMenuItem.packagingCharge }}</span>
+          </div>
+        </div>
+
+        <!-- Variants -->
+        <div class="detail-variants" *ngIf="selectedMenuItem.variants && selectedMenuItem.variants.length > 0">
+          <h4 class="detail-section-title">Variants</h4>
+          <div class="variant-list">
+            <div class="variant-chip" *ngFor="let v of selectedMenuItem.variants">
+              <span class="variant-name">{{ v.variantName }}</span>
+              <span class="variant-price">₹{{ v.price }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-availability">
+          <span class="avail-badge" [class.available]="selectedMenuItem.isAvailable !== false" [class.out-of-stock]="selectedMenuItem.isAvailable === false">
+            {{ selectedMenuItem.isAvailable !== false ? '✅ Available' : '❌ Out of Stock' }}
+          </span>
+        </div>
+
+        <!-- Add to Cart from Modal -->
+        <div class="detail-cart-actions">
+          <button
+            *ngIf="getCartQuantity(selectedMenuItem.id) === 0"
+            class="btn-add-detail"
+            (click)="addToCart(selectedMenuItem)"
+            [disabled]="selectedMenuItem.isAvailable === false">
+            + Add to Cart — ₹{{ selectedMenuItem.onlinePrice }}
+          </button>
+          <div *ngIf="getCartQuantity(selectedMenuItem.id) > 0" class="qty-control-detail">
+            <button class="qty-btn minus" (click)="decreaseQuantity(selectedMenuItem)">−</button>
+            <span class="qty-value">{{ getCartQuantity(selectedMenuItem.id) }}</span>
+            <button class="qty-btn plus" (click)="increaseQuantity(selectedMenuItem)">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
