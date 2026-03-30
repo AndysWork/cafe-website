@@ -47,7 +47,7 @@ public class StaffPerformanceFunction
             if (string.IsNullOrEmpty(staffId) || string.IsNullOrEmpty(period))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { success = false, error = "staffId and period are required" });
+                await badReq.WriteAsJsonAsync(new { error = "staffId and period are required" });
                 return badReq;
             }
 
@@ -61,7 +61,7 @@ public class StaffPerformanceFunction
         {
             _log.LogError(ex, "Error getting performance records");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve records" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve records" });
             return errorRes;
         }
     }
@@ -86,7 +86,7 @@ public class StaffPerformanceFunction
             if (string.IsNullOrEmpty(period))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { success = false, error = "period is required" });
+                await badReq.WriteAsJsonAsync(new { error = "period is required" });
                 return badReq;
             }
 
@@ -101,7 +101,7 @@ public class StaffPerformanceFunction
         {
             _log.LogError(ex, "Error getting outlet performance records");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve records" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve records" });
             return errorRes;
         }
     }
@@ -152,7 +152,7 @@ public class StaffPerformanceFunction
         {
             _log.LogError(ex, "Error upserting performance record");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to save record" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to save record" });
             return errorRes;
         }
     }
@@ -184,7 +184,7 @@ public class StaffPerformanceFunction
         {
             _log.LogError(ex, "Error calculating bonus for record {RecordId}", recordId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }

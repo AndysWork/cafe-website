@@ -59,7 +59,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, $"Error getting price history for ingredient {id}");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -92,7 +92,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, $"Error getting price trends for ingredient {id}");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -113,7 +113,7 @@ public class PriceUpdateFunction
             if (ingredient == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "Ingredient not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Ingredient not found" });
                 return notFound;
             }
 
@@ -144,7 +144,7 @@ public class PriceUpdateFunction
             if (!updated)
             {
                 var updateFailed = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await updateFailed.WriteAsJsonAsync(new { success = false, error = "Failed to update price" });
+                await updateFailed.WriteAsJsonAsync(new { error = "Failed to update price" });
                 return updateFailed;
             }
 
@@ -170,7 +170,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, $"Error refreshing price for ingredient {id}");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -249,7 +249,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, "Error during bulk price refresh");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -279,7 +279,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, "Error getting price update settings");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -313,7 +313,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, "Error updating price settings");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }
@@ -334,7 +334,7 @@ public class PriceUpdateFunction
             if (ingredient == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "Ingredient not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Ingredient not found" });
                 return notFound;
             }
 
@@ -345,7 +345,7 @@ public class PriceUpdateFunction
             if (!updated)
             {
                 var updateFailed = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await updateFailed.WriteAsJsonAsync(new { success = false, error = "Failed to update ingredient" });
+                await updateFailed.WriteAsJsonAsync(new { error = "Failed to update ingredient" });
                 return updateFailed;
             }
 
@@ -362,7 +362,7 @@ public class PriceUpdateFunction
         {
             _logger.LogError(ex, $"Error toggling auto-update for ingredient {id}");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }

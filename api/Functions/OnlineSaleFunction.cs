@@ -575,7 +575,7 @@ public class OnlineSaleFunction
             if (!updated)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "Coupon not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Coupon not found" });
                 return notFound;
             }
 
@@ -614,7 +614,7 @@ public class OnlineSaleFunction
             if (!updated)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "Coupon not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Coupon not found" });
                 return notFound;
             }
 

@@ -450,9 +450,6 @@ public class FileUploadService
         return result;
     }
 
-    // Parse Swiggy Excel format
-    // Swiggy may have different column structure - adjust based on actual Swiggy report format
-    // Placeholder columns: SwiggyOrderId, OrderDate, CustomerName, Items, Total, Payout, etc.
     private async Task<OnlineSaleUploadResult> ProcessSwiggyExcel(
         Stream fileStream,
         MongoService mongoService,

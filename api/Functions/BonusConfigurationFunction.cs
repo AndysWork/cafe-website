@@ -52,7 +52,7 @@ public class BonusConfigurationFunction
         {
             _log.LogError(ex, "Error getting bonus configurations");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve bonus configurations" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve bonus configurations" });
             return errorRes;
         }
     }
@@ -83,7 +83,7 @@ public class BonusConfigurationFunction
         {
             _log.LogError(ex, "Error getting active bonus configurations");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve configurations" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve configurations" });
             return errorRes;
         }
     }
@@ -110,7 +110,7 @@ public class BonusConfigurationFunction
             if (config == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Bonus configuration not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Bonus configuration not found" });
                 return notFoundRes;
             }
 
@@ -122,7 +122,7 @@ public class BonusConfigurationFunction
         {
             _log.LogError(ex, "Error getting bonus configuration {Id}", id);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve configuration" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve configuration" });
             return errorRes;
         }
     }
@@ -190,7 +190,7 @@ public class BonusConfigurationFunction
         {
             _log.LogError(ex, "Error creating bonus configuration");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to create configuration" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to create configuration" });
             return errorRes;
         }
     }
@@ -218,7 +218,7 @@ public class BonusConfigurationFunction
             if (existing == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Bonus configuration not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Bonus configuration not found" });
                 return notFoundRes;
             }
 
@@ -253,7 +253,7 @@ public class BonusConfigurationFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update configuration" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update configuration" });
                 return errorRes;
             }
 
@@ -265,7 +265,7 @@ public class BonusConfigurationFunction
         {
             _log.LogError(ex, "Error updating bonus configuration {Id}", id);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update configuration" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update configuration" });
             return errorRes;
         }
     }
@@ -292,7 +292,7 @@ public class BonusConfigurationFunction
             if (!success)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Bonus configuration not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Bonus configuration not found" });
                 return notFoundRes;
             }
 
@@ -304,7 +304,7 @@ public class BonusConfigurationFunction
         {
             _log.LogError(ex, "Error deleting bonus configuration {Id}", id);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to delete configuration" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to delete configuration" });
             return errorRes;
         }
     }
@@ -331,7 +331,7 @@ public class BonusConfigurationFunction
             if (string.IsNullOrEmpty(isActiveParam) || !bool.TryParse(isActiveParam, out var isActive))
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid isActive parameter" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Invalid isActive parameter" });
                 return badReqRes;
             }
 
@@ -339,7 +339,7 @@ public class BonusConfigurationFunction
             if (!success)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Bonus configuration not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Bonus configuration not found" });
                 return notFoundRes;
             }
 
@@ -351,7 +351,7 @@ public class BonusConfigurationFunction
         {
             _log.LogError(ex, "Error toggling bonus configuration status {Id}", id);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update status" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update status" });
             return errorRes;
         }
     }

@@ -1,29 +1,37 @@
 # Missing Implementations & Incomplete Features
 
 **Document Created:** January 7, 2026  
-**Last Updated:** March 29, 2026  
-**Status:** Sprint 6 Complete — All Sprints Done
+**Last Updated:** March 30, 2026  
+**Status:** Sprint 6 Complete — Architecture Hardening Done
 
 ---
 
 ## 1. EMAIL NOTIFICATIONS - ✅ FULLY IMPLEMENTED
 
-### 1.1 Order Email Notifications ✅ FULLY IMPLEMENTED
+### 1.1 Order Email Notifications ✅ FULLY IMPLEMENTED (via Outbox Pattern)
 
 **What Exists:**
-- ✅ EmailService fully implemented with SMTP support
+- ✅ `IEmailService` interface with 9 methods backed by `EmailService` (MailKit/SMTP + Polly retry with circuit breaker)
 - ✅ Email templates are defined and working
-- ✅ **ORDER CONFIRMATION EMAILS IMPLEMENTED** (Lines 204, 221 in OrderFunction.cs)
-  - Customer receives itemized order confirmation
-  - Admin receives order notification with full details
-  - Both wrapped in try-catch with error logging
-- ✅ **ORDER STATUS UPDATE EMAILS IMPLEMENTED** (March 28, 2026)
-  - `SendOrderStatusUpdateEmailAsync()` called in UpdateOrderStatus after WhatsApp notification
-  - Sends email to customer’s email (`order.UserEmail`) on every status change
-  - Statuses: pending, confirmed, preparing, ready, delivered, cancelled
-  - Wrapped in try-catch — email failure does not block status update
+- ✅ **ORDER EMAILS VIA OUTBOX PATTERN** — OrderFunction enqueues 5 messages per order:
+  - `OrderEmailCustomer` — itemized order confirmation to customer
+  - `OrderEmailAdmin` — order notification to admin
+  - `StatusUpdateEmail` — sent on every status change
+  - Processed by `OutboxProcessorFunction` (timer trigger every 30s) for reliable delivery
+  - Emails are NOT called directly from OrderFunction — all routed through `OutboxService.EnqueueAsync()`
+- ✅ **Additional email triggers:**
+  - `AuthFunction` — password reset, password changed, welcome emails
+  - `ExternalOrderClaimFunction` — external claim confirmation emails
+  - `InventoryCommandFunction` — low-stock price alert emails
+  - `IngredientFunction` — ingredient price alert emails
 
-**Impact:** NONE - Full email lifecycle for orders
+**IEmailService Methods (9):**
+- `SendOrderConfirmationEmailAsync()`, `SendOrderStatusUpdateEmailAsync()`
+- `SendPasswordResetEmailAsync()`, `SendPasswordChangedNotificationAsync()`
+- `SendProfileUpdatedNotificationAsync()`, `SendWelcomeEmailAsync()`
+- `SendStaffWelcomeEmailAsync()`, `SendPromotionalEmailAsync()`, `SendPriceAlertEmailAsync()`
+
+**Impact:** NONE - Full email lifecycle with guaranteed delivery via outbox
 
 ---
 
@@ -33,9 +41,10 @@
 
 **Current State:**
 - Razorpay payment gateway fully integrated (India market)
-- `RazorpayService.cs` — CreateOrderAsync, VerifyPaymentSignature, RefundPaymentAsync
+- `IRazorpayService` interface → `RazorpayService.cs` — CreateOrderAsync, VerifyPaymentSignature, RefundPaymentAsync, GetKeyId
+- Named HttpClient "Razorpay" with Polly retry + circuit breaker policies
 - `PaymentFunction.cs` — POST /payments/create-order, POST /payments/verify, POST /payments/refund (admin)
-- Frontend `PaymentService` with createPaymentOrder, verifyPayment, refundPayment, openRazorpayCheckout
+- Frontend `PaymentService` with createPaymentOrder, verifyPayment, refundPayment, openRazorpayCheckout (Razorpay SDK loaded dynamically)
 - Checkout flow: Create Razorpay order → Open modal → Server-side signature verification → Create app order
 - Admin orders UI: Payment status badges (Paid/Pending/Refunded), refund button for paid Razorpay orders
 - Order model: PaymentStatus, PaymentMethod, RazorpayOrderId, RazorpayPaymentId, RazorpaySignature, RazorpayRefundId
@@ -58,11 +67,28 @@
 
 ---
 
-## 3. SCHEDULED TASKS - DISABLED
+## 3. SCHEDULED TASKS - MOSTLY ACTIVE
 
-### 3.1 Automated Price Updates ⚠️ COMMENTED OUT
+### 3.1 Active Timer Triggers
 
-**Location:** `api/Functions/PriceUpdateScheduler.cs` - Line 25
+**DatabaseBackupFunction** ✅ ACTIVE
+- `ScheduledDatabaseBackup` — Timer trigger at `0 30 20 * * *` (daily 2:00 AM IST)
+- Exports all 34 collections as JSON to Azure Blob `database-backups` container
+- 30-day retention policy with automatic cleanup
+
+**OutboxProcessorFunction** ✅ ACTIVE
+- `ProcessOutbox` — Timer trigger every 30 seconds
+- Processes outbox messages for reliable delivery of emails, WhatsApp, notifications, loyalty points
+- Uses `OutboxService`, `IWhatsAppService`, `IEmailService`, `NotificationService`
+
+**WarmupFunction** ✅ ACTIVE
+- Warmup trigger — pings MongoDB and warms `AuthService` on cold start
+
+### 3.2 Disabled Timer Triggers
+
+**PriceUpdateScheduler** ⚠️ COMMENTED OUT
+
+**Location:** `api/Functions/PriceUpdateScheduler.cs`
 
 **Current State:**
 ```csharp
@@ -75,19 +101,18 @@
 - Scheduled price fetching from external sources
 - Price history recording
 
-**Why Disabled:** Likely incomplete implementation or testing phase
+**Why Disabled:** `MarketPriceService` has placeholder implementations — requires real market data API integration
 
-**To Enable:**
-1. Uncomment the Function attribute
-2. Implement price fetching logic from:
-   - AgMarket API
-   - Web scraping sources
-   - Manual price feed
-3. Test scheduled execution
-4. Add error handling and logging
-5. Configure alerts for failed updates
+**OrphanCleanupFunction** ⚠️ COMMENTED OUT
 
-**Impact:** MEDIUM - Requires manual price updates
+**Location:** `api/Functions/OrphanCleanupFunction.cs`
+
+**Current State:**
+- HTTP manual trigger endpoint exists and works
+- Timer trigger (`3 AM UTC`) is commented out
+- Permanently purges soft-deleted records older than 30 days across all collections
+
+**Impact:** LOW — Outbox + backup timers are active; price scheduler and orphan cleanup are disabled
 
 ---
 
@@ -99,7 +124,7 @@
 - ✅ EmailService fully implemented with SMTP support
 - ✅ Email templates created and working
 - ✅ **SMTP CREDENTIALS CONFIGURED** in both local and Azure settings
-- ✅ Email service registered as singleton in Program.cs (Line 23)
+- ✅ Email service registered as singleton in Program.cs (`IEmailService → EmailService`)
 
 **Configured Environment Variables:**
 - ✅ `EmailService__SmtpHost=smtp.gmail.com`
@@ -107,15 +132,20 @@
 - ✅ `EmailService__SmtpUsername=cafemanager327@gmail.com`
 - ✅ `EmailService__SmtpPassword=<app-specific-password>`
 - ✅ `EmailService__FromEmail=Maa Tara Cafe <cafemanager327@gmail.com>`
+- ✅ `EmailService__FromName` — Sender display name
+- ✅ `EmailService__BaseUrl` — Frontend URL for email links
 - ✅ `EmailService__UseSsl=true`
 
-**Available Email Methods:**
-- ✅ SendOrderConfirmationEmailAsync() - ACTIVE
-- ✅ SendOrderStatusUpdateEmailAsync() - READY (not called)
-- ✅ SendPasswordResetEmailAsync()
-- ✅ SendWelcomeEmailAsync()
+**IEmailService Interface (9 methods):**
+- ✅ SendOrderConfirmationEmailAsync() — via Outbox
+- ✅ SendOrderStatusUpdateEmailAsync() — via Outbox
+- ✅ SendPasswordResetEmailAsync() — direct from AuthFunction
+- ✅ SendPasswordChangedNotificationAsync() — direct from AuthFunction
+- ✅ SendProfileUpdatedNotificationAsync()
+- ✅ SendWelcomeEmailAsync() — direct from AuthFunction
 - ✅ SendStaffWelcomeEmailAsync()
-- ✅ Additional promotional/alert methods
+- ✅ SendPromotionalEmailAsync()
+- ✅ SendPriceAlertEmailAsync() — direct from InventoryCommand/Ingredient
 
 **Impact:** NONE - Email service fully operational
 
@@ -202,9 +232,12 @@
 - ✅ Notification preferences UI in profile page (toggle per type + channel)
 - ✅ Full REST API: paginated list, mark read, mark all read, delete, preferences CRUD
 - ✅ Backend NotificationService with preference-aware sending
-- ✅ Wired into OrderFunction (order placed, status updates, loyalty points earned)
+  - `SendOrderStatusNotificationAsync`, `SendLoyaltyPointsNotificationAsync`
+  - `SendNewOrderNotificationToAdminsAsync`, `SendOrderCancellationToAdminsAsync`
+  - `SendOfferNotificationAsync`, `SendSystemNotificationAsync`
+- ✅ Wired into OrderFunction via Outbox pattern (order placed, status updates, loyalty points earned)
 - ✅ MongoDB Notifications collection with TTL auto-cleanup (90 days)
-- ✅ @microsoft/signalr package installed for future WebSocket upgrade path
+- ✅ NotificationStore (frontend signal-based store for unread count)
 
 **Impact:** RESOLVED - Users receive real-time in-app notifications
 
@@ -215,7 +248,8 @@
 ### 6.1 Rate Limiting ✅ FULLY IMPLEMENTED & APPLIED
 
 **Current State:**
-- ✅ RateLimitingMiddleware applied globally in Program.cs
+- ✅ RateLimitingMiddleware applied in 6-stage pipeline (stage 3 of 6)
+- ✅ Full pipeline: SecurityHeaders → InputSanitization → **RateLimit** → Authorization → RequestLogging → ApiVersioning
 - ✅ IP-based client identification
 - ✅ Rate limits configured:
   - 600 requests/minute per client
@@ -282,10 +316,11 @@
 **What Exists:**
 - ✅ Basic sales summary and dashboard statistics
 - ✅ Expense analytics
-- ✅ **ReportExportFunction** — CSV/Excel/PDF export for sales, expenses, P&L summary
-- ✅ **GstReportFunction** — GSTR-1/GSTR-3B format, HSN codes, monthly/quarterly
+- ✅ **ReportExportFunction** — CSV/Excel export for sales, expenses, P&L summary (uses EPPlus)
+- ✅ **GstReportFunction** — GSTR-1/GSTR-3B format, HSN codes, monthly/quarterly with Excel export
+- ✅ **ReceiptPdfFunction** — PDF receipt generation for orders via QuestPDF (`GET /orders/{id}/receipt-pdf`)
 - ✅ **Admin Report Export UI** — Date range picker, format selection (CSV/Excel/PDF), download
-- ✅ **BranchComparisonFunction** — Side-by-side outlet performance comparison
+- ✅ **BranchComparisonFunction** — Side-by-side outlet performance comparison (revenue, expenses, profit, order count)
 
 **What's Still Missing:**
 - ❌ Custom report builder (drag-and-drop columns)
@@ -297,7 +332,14 @@
 
 ## 8. INVENTORY MANAGEMENT - ✅ MOSTLY COMPLETE
 
-### 8.1 Stock Alerts & Auto-Reorder ✅ IMPLEMENTED (March 29, 2026)
+### 8.1 Inventory Functions (CQRS Split)
+
+**Current State:**
+- ✅ `InventoryCommandFunction.cs` — write operations (create, update, delete) + low-stock email alerts via `IEmailService`
+- ✅ `InventoryQueryFunction.cs` — read operations with pagination, outlet-scoped
+- ✅ Original `InventoryFunction.cs` split into Command/Query for CQRS pattern
+
+### 8.2 Stock Alerts & Auto-Reorder ✅ IMPLEMENTED (March 29, 2026)
 
 **What Exists:**
 - ✅ Stock alert model exists
@@ -307,34 +349,40 @@
 - ✅ **Admin Auto-Reorder UI** — Configure reorder points, view/manage reorder suggestions
 
 **What's Still Missing:**
-- ❌ Email alerts for low stock not sent
+- ✅ Email alerts for low stock — IMPLEMENTED (InventoryCommandFunction sends via IEmailService)
+- ✅ **OrphanCleanupFunction** — purges soft-deleted records older than 30 days (HTTP trigger; timer commented out)
+- ✅ **FrozenItemFunction** — frozen item CRUD with EPPlus Excel export
 - ❌ Supplier management missing (full CRUD)
-- ❌ Purchase order system (multi-supplier orders)
+- ❌ Purchase order system (multi-supplier orders) — PurchaseOrder model exists, partial generation via AutoReorder
 - ❌ Stock transfer between outlets
 
 **Impact:** LOW - Auto-reorder covers critical inventory automation
 
 ---
 
-## 9. CUSTOMER LOYALTY - BASIC
+## 9. CUSTOMER LOYALTY - ✅ FULLY IMPLEMENTED
 
-### 9.1 Loyalty Program ✅ BASIC IMPLEMENTED
+### 9.1 Loyalty Program ✅ COMPREHENSIVE (Split CQRS)
+
+**Architecture:**
+- `LoyaltyAdminFunction.cs` — admin operations (CRUD, rewards, tier config)
+- `LoyaltyUserFunction.cs` — customer operations (points, history, redeem, transfer, referral)
+- Original `LoyaltyFunction.cs` split into Admin/User for CQRS pattern
 
 **What Works:**
-- Points accumulation
-- Points redemption
-- Rewards management
-- Loyalty account tracking
-
-**What's Missing:**
+- ✅ Points accumulation and redemption
+- ✅ Rewards management
+- ✅ Loyalty account tracking
 - ✅ Tiered loyalty levels (Bronze, Silver, Gold) — tier multipliers (1.0x–2.0x), benefits, progress tracking
 - ✅ Birthday rewards — set DOB once, annual tier-based bonus (50–500 pts)
 - ✅ Referral program — 8-char code, referrer 100 pts, referee 50 pts
 - ✅ Loyalty card/QR code generation — unique card number, canvas QR code
 - ✅ Expiry of points — 1-year expiry, 30-day warning, auto-processing
 - ✅ Points transfer between users — by username, min 10 pts
+- ✅ WhatsApp loyalty notifications via `IWhatsAppService` (from LoyaltyUserFunction)
+- ✅ Loyalty points auto-awarded on order delivery via Outbox pattern
 
-**Impact:** LOW - Basic loyalty works
+**Impact:** NONE - Full loyalty lifecycle implemented
 
 ---
 
@@ -345,11 +393,13 @@
 **Current State:**
 - ✅ **Installable PWA** with `manifest.webmanifest` (app name, icons, theme color #0EA5E9, standalone display)
 - ✅ **Service Worker** via `@angular/service-worker@19.2.15` with `provideServiceWorker` in app.config.ts
+  - Registration strategy: `registerWhenStable:30000`
+  - Enabled only in production (`!isDevMode()`)
 - ✅ **App Shell Prefetch** — index.html, CSS, JS bundles cached on install for instant load
 - ✅ **Lazy Asset Caching** — Images and fonts cached on-demand
-- ✅ **API Freshness Strategy** — Network-first with 10s timeout fallback to cache for `/api/` calls
-- ✅ **ngsw-config.json** — Configured with asset groups (app shell + assets) and data groups (API)
-- ✅ **angular.json** — `serviceWorker: "ngsw-config.json"` in production build config
+- ✅ **Data Groups** (ngsw-config.json):
+  - Reference data: 6-hour cache with performance (cache-first) strategy
+  - API data: network-first (freshness) with 10s timeout fallback to cache
 - ✅ **index.html** — Meta theme-color, manifest link, apple-touch-icon
 
 **What's Not Included:**
@@ -368,15 +418,15 @@
 **What Exists:**
 - ✅ Excel upload for menu, sales, expenses
 - ✅ File upload function exists
-- ✅ **Azure Blob Storage integration** (`BlobStorageService.cs`)
-  - Uploads menu item images to Azure Blob Storage
-  - Validates file size (5MB max) and content type (JPEG, PNG, WebP, GIF)
-  - Organizes blobs by outlet: `menu-images/{outletId}/{guid}{extension}`
+- ✅ `BlobStorageService`: 4 containers — `menu-images`, `profile-pictures`, `invoice-uploads`, `receipt-images`
+  - Supports upload, delete, container auto-initialization
+  - Uses `ImageCompressor` (SixLabors.ImageSharp) for pre-upload compression
+  - CDN fallback support via `Blob__CdnBaseUrl`
   - Cache-control headers set to 1 year (immutable assets)
-  - Container auto-created with public read access
 - ✅ **Image Upload Endpoint** (`ImageUploadFunction.cs`)
   - `POST /menu/{menuItemId}/image` - Admin-only upload
   - `DELETE /menu/{menuItemId}/image` - Delete image
+  - Profile picture upload support
   - Multipart form-data parsing with boundary extraction
   - Menu item image URL auto-updated on upload
 - ✅ **CDN Support** configured via `Blob__CdnBaseUrl` environment variable
@@ -398,36 +448,45 @@
 ### 12.1 WhatsApp Notifications ✅ IMPLEMENTED (Twilio)
 
 **Implemented Features:**
-- ✅ WhatsAppService fully implemented using Twilio API
-- ✅ Registered as singleton in Program.cs (Line 24)
-- ✅ Methods available:
-  - SendOrderConfirmationAsync()
-  - SendOrderStatusUpdateAsync() - ACTIVE (called in UpdateOrderStatus)
-  - SendWelcomeMessageAsync()
-  - SendPromotionalMessageAsync()
-  - SendStockAlertAsync()
-  - SendCustomMessageAsync()
+- ✅ `IWhatsAppService` interface → `WhatsAppService` (Twilio API)
+- ✅ Named HttpClient "WhatsApp" with Polly retry + circuit breaker policies
+- ✅ Registered as singleton in Program.cs
+- ✅ **IWhatsAppService Methods (7):**
+  - `SendOrderConfirmationAsync()`, `SendOrderStatusUpdateAsync()`
+  - `SendLoyaltyNotificationAsync()`, `SendPromotionalOfferAsync()`
+  - `SendStaffNotificationAsync()`, `SendTemplateMessageAsync()`, `SendTextMessageAsync()`
+  - `IsEnabled` property for runtime toggle
 - ✅ Configuration ready in local.settings.json:
   - WhatsAppService:TwilioAccountSid
   - WhatsAppService:TwilioAuthToken
-  - WhatsAppService:TwilioFromNumber
+  - WhatsAppService:TwilioFromNumber (currently sandbox `+14155238886` — needs production number)
 
 **Integration Points:**
-- ✅ OrderFunction.UpdateOrderStatus (Line 471) sends WhatsApp on status change
+- ✅ OrderFunction → Outbox → OutboxProcessorFunction sends WhatsApp on order creation + status change
+- ✅ LoyaltyUserFunction sends WhatsApp on loyalty events
+- ✅ OfferFunction sends promotional WhatsApp
 
 **Impact:** NONE - WhatsApp notifications fully operational
 
-### 12.2 Food Delivery Platform Integration ❌ NOT IMPLEMENTED
+### 12.2 Food Delivery Platform Integration ⚠️ PARTIAL (External Order Claims)
 
-**What's Missing:**
-- ❌ Swiggy API integration
-- ❌ Zomato API integration
+**What Exists:**
+- ✅ **ExternalOrderClaimFunction** — Customers upload Swiggy/Zomato invoice screenshots to claim loyalty points
+  - Uses `BlobStorageService` for invoice image storage
+  - Sends confirmation emails via `IEmailService`
+  - Sends notifications via `NotificationService`
+  - Admin approval workflow
+- ✅ **ExternalOrderClaim model** — platform, amount, invoice image, approval status
+- ✅ **InvoiceParser helper** — extracts order data from uploaded invoices
+
+**What's Still Missing:**
+- ❌ Direct Swiggy/Zomato API integration
 - ❌ Auto-import of online orders
 - ❌ Menu sync with platforms
 - ❌ Inventory sync
 - ❌ Rating/review sync
 
-**Impact:** HIGH - Manual entry of online orders required
+**Impact:** MEDIUM - Manual order claim workaround exists, but no live API sync
 
 ### 12.3 Accounting Software Integration ❌ NOT IMPLEMENTED
 
@@ -538,7 +597,15 @@
 - ✅ Analytics: eventType+timestamp, sessionId, userId+timestamp
 - ✅ All indexes created as background to avoid write blocking
 
-**Impact:** NONE - Database queries optimized
+### 15.3 Startup Initialization ✅ IMPLEMENTED
+
+**Status:** `MongoInitializationService` (IHostedService) runs at startup:
+- ✅ Calls `MongoService.InitializeAsync()` — creates collections, indexes, seeds default admin
+- ✅ Calls `BlobStorageService.InitializeAsync()` — creates blob containers
+- ✅ Replaces `.Wait()` anti-pattern with proper async hosting
+- ✅ EPPlus NonCommercial license set at startup
+
+**Impact:** NONE - Clean async startup
 
 ---
 
@@ -680,33 +747,88 @@
 
 ---
 
-## PRIORITY MATRIX (Updated March 28, 2026)
+## 22. ADDITIONAL FEATURES - ✅ IMPLEMENTED (March 30, 2026)
+
+### 22.1 Customer Reviews ✅ IMPLEMENTED
+- ✅ `ReviewFunction.cs` — Create review (rating 1-5, text), validates order exists
+- ✅ `CustomerReview` model — rating, reviewText, orderId, userId, timestamps
+- ✅ Frontend: `CustomerReviews` component + `customer-review.service.ts` + `reviews.service.ts`
+- ✅ Public route: `/reviews`
+
+### 22.2 Customer Favorites ✅ IMPLEMENTED
+- ✅ `FavoriteFunction.cs` — `GetMyFavorites`, `ToggleFavorite` (uses IUserRepository)
+- ✅ Frontend: `favorite.service.ts`
+
+### 22.3 Delivery Address Management ✅ IMPLEMENTED
+- ✅ `AddressFunction.cs` — `GetMyAddresses`, `AddAddress` (uses IUserRepository)
+- ✅ Frontend: `address.service.ts`
+
+### 22.4 External Order Claims ✅ IMPLEMENTED
+- ✅ `ExternalOrderClaimFunction.cs` — Upload Swiggy/Zomato invoice screenshots to claim loyalty points
+- ✅ `ExternalOrderClaim` model — platform, amount, invoice image URL, approval status
+- ✅ Uses `BlobStorageService`, `NotificationService`, `IEmailService`
+- ✅ `InvoiceParser` helper for extracting order data
+
+### 22.5 Receipt PDF Generation ✅ IMPLEMENTED
+- ✅ `ReceiptPdfFunction.cs` — `GET /orders/{id}/receipt-pdf`
+- ✅ Uses QuestPDF library for professional receipt generation
+
+### 22.6 Discount Coupons ✅ IMPLEMENTED
+- ✅ `DiscountCoupon` model — code, type, value, min order, expiry, usage limits
+- ✅ Frontend: `DiscountMapping` component + `discount-coupon.service.ts`
+- ✅ Admin route: `/admin/discount-mapping`
+
+### 22.7 Cashier POS ✅ IMPLEMENTED
+- ✅ Frontend: `Cashier` component for in-store order taking
+- ✅ Admin route: `/admin/cashier`
+
+### 22.8 Outbox Pattern ✅ IMPLEMENTED
+- ✅ `OutboxProcessorFunction.cs` — Timer trigger every 30 seconds
+- ✅ `OutboxService.cs` — Enqueue/dequeue reliable messages
+- ✅ `OutboxMessage` model — type, payload, status, retry count
+- ✅ Processes: emails, WhatsApp, notifications, loyalty point awards
+- ✅ OrderFunction enqueues 5 messages on order creation, 6 on status update
+
+### 22.9 Soft-Delete & Orphan Cleanup ✅ IMPLEMENTED
+- ✅ `ISoftDeletable` interface — IsDeleted, DeletedAt fields
+- ✅ `OrphanCleanupFunction.cs` — purges records deleted >30 days ago
+- ✅ HTTP manual trigger available; timer trigger commented out (3 AM UTC)
+
+**Impact:** NONE - All additional features operational
+
+---
+
+## PRIORITY MATRIX (Updated March 30, 2026)
 
 ### 🔴 CRITICAL (Implement Immediately)
-- ✅ All critical items resolved! (Payment gateway is HIGH, not blocking operations)
+- ✅ All critical items resolved!
 
 ### 🟠 HIGH (Implement Soon)
 1. ~~Payment Gateway Integration~~ ✅ IMPLEMENTED (Razorpay)
-2. Unit & Integration Tests - Zero backend test coverage
-3. Food Delivery Platform Integration (Swiggy/Zomato)
+2. Unit & Integration Tests - Zero test coverage
+3. ~~Food Delivery Platform Integration (Swiggy/Zomato)~~ ⚠️ PARTIAL (External order claim workflow exists)
 
 ### 🟡 MEDIUM (Plan for Future)
-6. ~~Real-time Notifications (WebSocket/SignalR)~~ ✅ IMPLEMENTED (Polling + In-App Center)
-7. ~~Advanced Reporting (PDF generation, Excel exports)~~ ✅ IMPLEMENTED (ReportExport + GstReport)
-8. Stock Alert Emails - Alert detection works, emails not sent
-9. Two-factor Authentication
-10. ~~Mobile PWA Configuration~~ ✅ IMPLEMENTED (manifest, service worker, ngsw-config)
-11. ~~Profile Picture Upload~~ ✅ IMPLEMENTED
-12. Image Compression/Resizing
+4. ~~Real-time Notifications (WebSocket/SignalR)~~ ✅ IMPLEMENTED (Polling + In-App Center)
+5. ~~Advanced Reporting (PDF generation, Excel exports)~~ ✅ IMPLEMENTED (ReportExport + GstReport + ReceiptPdf)
+6. ~~Stock Alert Emails~~ ✅ IMPLEMENTED (InventoryCommandFunction sends via IEmailService)
+7. Two-factor Authentication
+8. ~~Mobile PWA Configuration~~ ✅ IMPLEMENTED
+9. ~~Profile Picture Upload~~ ✅ IMPLEMENTED
+10. ~~Image Compression/Resizing~~ ✅ IMPLEMENTED (ImageCompressor + SixLabors.ImageSharp)
+11. Direct Swiggy/Zomato API integration (live order sync)
+12. Supplier management CRUD with purchase order workflow
 
 ### 🟢 LOW (Nice to Have)
-13. Tiered Loyalty Levels (Bronze/Silver/Gold/Platinum)
+13. ~~Tiered Loyalty Levels~~ ✅ IMPLEMENTED (Bronze/Silver/Gold with multipliers)
 14. Multi-language Support (Hindi + English)
 15. Accounting Software Integration (Tally/QuickBooks)
-16. Referral Program
-17. Birthday Rewards
+16. ~~Referral Program~~ ✅ IMPLEMENTED
+17. ~~Birthday Rewards~~ ✅ IMPLEMENTED
 18. Redis Distributed Cache
 19. Staging Environment & Blue-Green Deployment
+20. Push notifications for PWA (VAPID keys + backend push service)
+21. WebSocket upgrade (SignalR) for real-time notifications
 
 ### ✅ COMPLETED SINCE JANUARY 2026
 - ✅ Email SMTP Configuration
@@ -752,16 +874,41 @@
 - ✅ **Order Scheduling** (date+time picker, scheduledFor field) — *March 29, 2026*
 - ✅ **Checkout Enhancements** (order type, wallet usage, delivery fee, dine-in table) — *March 29, 2026*
 
+**Architecture Hardening (March 30, 2026):**
+- ✅ **Outbox Pattern** — OrderFunction enqueues side-effects; OutboxProcessorFunction delivers reliably every 30s
+- ✅ **CQRS Function Splits** — Inventory→Command/Query, Loyalty→Admin/User, Staff→Command/Query
+- ✅ **Service Interfaces** — IEmailService, IRazorpayService, IWhatsAppService for testability
+- ✅ **MongoInitializationService** — IHostedService for async startup (replaces .Wait() anti-pattern)
+- ✅ **Repository Pattern** — 14 domain-specific interfaces (IMenuRepository through IWalletRepository)
+- ✅ **6-Stage Middleware Pipeline** — SecurityHeaders → InputSanitization → RateLimit → Authorization → RequestLogging → ApiVersioning
+- ✅ **Soft-Delete + Orphan Cleanup** — ISoftDeletable interface + OrphanCleanupFunction
+- ✅ **Customer Reviews** — ReviewFunction (ratings 1-5, order-verified) + CustomerReviews frontend component
+- ✅ **Customer Favorites** — FavoriteFunction (toggle favorites) + FavoriteService frontend
+- ✅ **Address Management** — AddressFunction (delivery address CRUD) + AddressService frontend
+- ✅ **External Order Claims** — ExternalOrderClaimFunction (Swiggy/Zomato invoice upload for loyalty points)
+- ✅ **Receipt PDF Generation** — ReceiptPdfFunction via QuestPDF library
+- ✅ **Discount Coupons** — DiscountCoupon model + DiscountMapping component + DiscountCouponService
+- ✅ **Cashier POS** — Cashier component for in-store order taking
+- ✅ **Order Detail View** — OrderDetail component with full order breakdown
+- ✅ **Outlet Selector** — OutletSelector shared component + OutletInterceptor
+- ✅ **Error Recovery** — Exponential backoff, idempotent retry, offline queue in error.interceptor.ts
+- ✅ **Structured Logging** — All LogError calls use `LogError(ex, "message")` pattern
+- ✅ **Standardized Error Responses** — All backend errors return `{ error = "message" }` format
+- ✅ **Polly Resilience** — Named HttpClients for WhatsApp and Razorpay with retry + circuit breaker
+
 ---
 
-## IMPLEMENTATION EFFORT ESTIMATES (Updated March 29, 2026)
+## IMPLEMENTATION EFFORT ESTIMATES (Updated March 30, 2026)
 
 | Feature | Effort | Priority | Status |
 |---------|--------|----------|--------|
 | ~~Payment Gateway~~ | ~~40 hours~~ | ~~HIGH~~ | ✅ Implemented |
 | Unit Tests | 80 hours | HIGH | ❌ Zero Coverage |
-| Delivery Integration (Swiggy/Zomato) | 60 hours | HIGH | ❌ Not Started |
-| **Total High Remaining** | **140 hours** | - | - |
+| ~~Delivery Integration (Swiggy/Zomato)~~ | ~~60 hours~~ | ~~HIGH~~ | ⚠️ Partial (ExternalOrderClaim) |
+| Direct Swiggy/Zomato API | 40 hours | MEDIUM | ❌ Not Started |
+| Two-Factor Authentication | 16 hours | MEDIUM | ❌ Not Started |
+| Supplier Management CRUD | 24 hours | MEDIUM | ❌ Not Started |
+| **Total Remaining** | **~160 hours** | - | - |
 
 ### Completed Features (January-March 2026)
 | Feature | Estimated Effort | Completed |
@@ -788,26 +935,42 @@
 | **Sprint 4 (Platform Features)** | **48 hours** | ✅ |
 | **Sprint 5 (Intelligence Layer)** | **56 hours** | ✅ |
 | **Sprint 6 (Scale & Polish)** | **48 hours** | ✅ |
-| **Total Completed** | **~458 hours** | - |
+| **Architecture Hardening (Round 7-8)** | **~64 hours** | ✅ |
+| **Total Completed** | **~522 hours** | - |
 
 ---
 
-## RECOMMENDATIONS (March 29, 2026)
+## RECOMMENDATIONS (March 30, 2026)
 
 ### Immediate Actions (This Week)
 1. **Write unit tests** — AuthFunction, OrderFunction, MongoService critical paths
-2. **Deploy to production** — All 6 sprints complete, 0 build errors, ready for launch
+2. **Deploy to production** — All sprints + architecture hardening complete, 0 build errors
+3. **Replace Twilio sandbox** — WhatsApp from number is still sandbox (`+14155238886`)
+4. **Replace Razorpay test keys** — `rzp_test_YOUR_KEY_ID` still placeholder
 
 ### Next Sprint (2 Weeks)
-3. Add automated tests to CI/CD pipeline
-4. Configure Azure CDN endpoint for Blob Storage
-5. Set up Azure Portal alert rules for Application Insights
+5. Add automated tests to CI/CD pipeline
+6. Configure Azure CDN endpoint for Blob Storage
+7. Set up Azure Portal alert rules for Application Insights
+8. Enable OrphanCleanupFunction timer trigger in production
 
 ### Next Month
-6. Food delivery platform integration (start with Swiggy/Zomato API)
-7. N4 — Smart feedback system (auto-rating prompt post-delivery)
-8. Push notifications for PWA (VAPID keys + backend push service)
-9. Supplier management CRUD with purchase order workflow
+9. Direct Swiggy/Zomato API integration (beyond current invoice-upload workflow)
+10. Push notifications for PWA (VAPID keys + backend push service)
+11. Supplier management CRUD with purchase order workflow
+12. Two-factor authentication
+
+### Frontend Gaps (Backend exists, no UI)
+These backend APIs exist but have no frontend component or route:
+- **GST Report** — `GstReportFunction` + `gst-report.service.ts` (no component/route)
+- **Frozen Item Management** — `FrozenItemFunction` + `frozen-item.service.ts` (no component/route)
+- **Cash Reconciliation** — `CashReconciliationFunction` (no frontend service or component)
+- **Overhead Cost** — `OverheadCostFunction` + `overhead-cost.service.ts` (no component/route)
+- **Platform Charge** — `PlatformChargeFunction` + `platform-charge.service.ts` (no component/route)
+- **Online Expense Type** — `OnlineExpenseTypeFunction` + service (no component/route)
+- **Offline Expense Type** — `OfflineExpenseTypeFunction` + service (no component/route)
+- **KOT Thermal Printing** — `KotFunction` backend only (no frontend at all)
+- **Recommendation** — `RecommendationFunction` + `recommendation.service.ts` (no component/route)
 
 ### Progress Since January 2026
 ✅ **Q1 2026 Achievements:**
@@ -838,29 +1001,64 @@
 - **PWA conversion** complete (manifest, service worker, offline app shell, API caching)
 - **0 frontend build errors, 0 backend build errors**
 
+✅ **Architecture Hardening (March 30, 2026):**
+- **Outbox pattern** for reliable side-effect delivery (emails, WhatsApp, notifications, loyalty)
+- **CQRS function splits** — Inventory, Loyalty, Staff decomposed into Command/Query pairs
+- **14 repository interfaces** — all domain entities backed by MongoService via DI
+- **Service interfaces** — IEmailService, IRazorpayService, IWhatsAppService for testability
+- **MongoInitializationService** — IHostedService for async startup
+- **6-stage middleware pipeline** — SecurityHeaders → InputSanitization → RateLimit → Authorization → RequestLogging → ApiVersioning
+- **Standardized error responses** — all backend `{ error = "message" }` format
+- **Structured logging** — all `LogError(ex, "message")` pattern
+- **8 new function files** — AddressFunction, ExternalOrderClaimFunction, FavoriteFunction, OrphanCleanupFunction, OutboxProcessorFunction, ReceiptPdfFunction, ReviewFunction, NotificationFunction
+- **5 new frontend services** — address, customer-review, discount-coupon, favorite, reviews
+- **5 new frontend components** — CustomerReviews, DiscountMapping, Cashier, OrderDetail, OutletSelector
+- **Polly resilience** on named HttpClients (WhatsApp, Razorpay) with retry + circuit breaker
+
 **Remaining Items:**
-- Unit & integration tests (M27) — 80 hours estimated
-- Food delivery platform integration (Swiggy/Zomato) — 60 hours estimated
-- Smart feedback system (N4) — 16 hours estimated
+- Unit & integration tests — 80 hours estimated (zero coverage)
+- Direct Swiggy/Zomato API integration — 40 hours estimated (ExternalOrderClaim exists as workaround)
+- 9 frontend components missing for existing backend APIs (see Frontend Gaps above)
+- Two-factor authentication — 16 hours estimated
+- Supplier management CRUD — 24 hours estimated
 
 ---
 
 ## NOTES
 
 - This document was created on January 7, 2026
-- **Last comprehensive update: March 29, 2026** (Sprint 3-6 completion review)
-- Document reflects Q1 2026 development progress through Sprint 6
+- **Last comprehensive update: March 30, 2026** (Architecture Hardening review)
+- Document reflects Q1 2026 development progress through Sprint 6 + Architecture Hardening
 - Features marked ✅ are fully implemented and working
 - Features marked ⚠️ are partially implemented
 - Features marked ❌ are not implemented
 - Multi-tenant architecture is planned but not implemented (separate document exists)
 
+### Codebase Statistics (March 30, 2026)
+| Metric | Count |
+|--------|-------|
+| Backend Functions | **74** |
+| Backend Services | **24** |
+| Backend Models | **46** |
+| Backend Helpers | **18** |
+| Backend Repositories | **14** |
+| Frontend Components | **65** |
+| Frontend Services | **52** |
+| Frontend Models | **4** |
+| Frontend Interceptors | **4** |
+| Frontend Guards | **2** (in 1 file) |
+| Frontend Stores | **5** |
+| Frontend Utils | **4** |
+| Routes (total) | **~49** (13 public + 6 auth + 30 admin) |
+| MongoDB Collections | **54** |
+| Compound Indexes | **35+** |
+
 ### Q1 2026 Development Summary
-- **~458 hours** of features completed (email, analytics, WhatsApp, UI redesign, Swagger, Blob Storage, CI/CD, security, caching, indexing, monitoring, backups, Sprint 1-6 full feature set)
-- **140 hours** remaining for high priority features (unit tests, Swiggy/Zomato integration)
-- All 6 sprints COMPLETE — 26 of 28 missing implementations resolved, 17 of 20 new feature recommendations implemented
+- **~522 hours** of features completed across 6 sprints + architecture hardening
+- **~160 hours** remaining for medium/high priority features
+- All 6 sprints COMPLETE + architecture hardening COMPLETE
 - **Zero critical items remaining** — all critical blockers resolved
-- **Both frontend and backend build with 0 errors**
+- **Both frontend and backend build with 0 errors** (83 nullable warnings — baseline)
 
 ---
 

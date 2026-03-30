@@ -58,7 +58,7 @@ public class AuthFunction
             if (loginRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
                 return badRequest;
             }
 
@@ -73,7 +73,7 @@ public class AuthFunction
                     $"Username: {loginRequest.Username}", SecuritySeverity.High);
                 
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid input detected" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid input detected" });
                 return badRequest;
             }
 
@@ -93,7 +93,7 @@ public class AuthFunction
                     $"Failed attempts: {failedAttempts}", SecuritySeverity.High);
                 
                 var tooMany = req.CreateResponse(HttpStatusCode.TooManyRequests);
-                await tooMany.WriteAsJsonAsync(new { success = false, error = "Too many failed attempts. Please try again later." });
+                await tooMany.WriteAsJsonAsync(new { error = "Too many failed attempts. Please try again later." });
                 return tooMany;
             }
 
@@ -104,7 +104,7 @@ public class AuthFunction
                 auditLogger.LogAuthentication(loginRequest.Username, "Login Failed", false, ipAddress, userAgent, "User not found");
                 
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await unauthorized.WriteAsJsonAsync(new { success = false, error = "Invalid username or password" });
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid username or password" });
                 return unauthorized;
             }
 
@@ -114,7 +114,7 @@ public class AuthFunction
                 auditLogger.LogAuthentication(user.Id!, "Login Failed", false, ipAddress, userAgent, "Invalid password");
                 
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await unauthorized.WriteAsJsonAsync(new { success = false, error = "Invalid username or password" });
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid username or password" });
                 return unauthorized;
             }
 
@@ -124,7 +124,7 @@ public class AuthFunction
                 auditLogger.LogAuthentication(user.Id!, "Login Failed", false, ipAddress, userAgent, "Account deactivated");
                 
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbidden.WriteAsJsonAsync(new { success = false, error = "Account is deactivated" });
+                await forbidden.WriteAsJsonAsync(new { error = "Account is deactivated" });
                 return forbidden;
             }
 
@@ -197,7 +197,7 @@ public class AuthFunction
             if (registerRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
                 return badRequest;
             }
 
@@ -218,7 +218,7 @@ public class AuthFunction
                     $"Username: {registerRequest.Username}, Email: {registerRequest.Email}", SecuritySeverity.High);
                 
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid input detected" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid input detected" });
                 return badRequest;
             }
 
@@ -237,7 +237,7 @@ public class AuthFunction
                 auditLogger.LogAuthentication(registerRequest.Username, "Registration Failed", false, ipAddress, userAgent, "Username already exists");
                 
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflict.WriteAsJsonAsync(new { success = false, error = "Username already exists" });
+                await conflict.WriteAsJsonAsync(new { error = "Username already exists" });
                 return conflict;
             }
 
@@ -248,7 +248,7 @@ public class AuthFunction
                 auditLogger.LogAuthentication(registerRequest.Email, "Registration Failed", false, ipAddress, userAgent, "Email already registered");
                 
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflict.WriteAsJsonAsync(new { success = false, error = "Email already registered" });
+                await conflict.WriteAsJsonAsync(new { error = "Email already registered" });
                 return conflict;
             }
 
@@ -391,7 +391,7 @@ public class AuthFunction
             if (updateRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
                 return badRequest;
             }
 
@@ -420,7 +420,7 @@ public class AuthFunction
                 if (existingUser != null && existingUser.Id != userId)
                 {
                     var conflict = req.CreateResponse(HttpStatusCode.Conflict);
-                    await conflict.WriteAsJsonAsync(new { success = false, error = "Email is already in use" });
+                    await conflict.WriteAsJsonAsync(new { error = "Email is already in use" });
                     return conflict;
                 }
             }
@@ -430,7 +430,7 @@ public class AuthFunction
             if (!updated)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "No changes made to profile" });
+                await badRequest.WriteAsJsonAsync(new { error = "No changes made to profile" });
                 return badRequest;
             }
 
@@ -441,7 +441,7 @@ public class AuthFunction
             if (user == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
                 return notFound;
             }
 
@@ -491,7 +491,7 @@ public class AuthFunction
             if (changePasswordRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
                 return badRequest;
             }
 
@@ -507,7 +507,7 @@ public class AuthFunction
             if (changePasswordRequest.NewPassword != changePasswordRequest.ConfirmPassword)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "New password and confirm password do not match" });
+                await badRequest.WriteAsJsonAsync(new { error = "New password and confirm password do not match" });
                 return badRequest;
             }
 
@@ -516,7 +516,7 @@ public class AuthFunction
             if (user == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
                 return notFound;
             }
 
@@ -526,7 +526,7 @@ public class AuthFunction
                 auditLogger.LogSecurityEvent("Failed Password Change", userId!, ipAddress, "Invalid current password", SecuritySeverity.Medium);
                 
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
-                await unauthorized.WriteAsJsonAsync(new { success = false, error = "Current password is incorrect" });
+                await unauthorized.WriteAsJsonAsync(new { error = "Current password is incorrect" });
                 return unauthorized;
             }
 
@@ -573,7 +573,7 @@ public class AuthFunction
             if (forgotPasswordRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
                 return badRequest;
             }
 
@@ -642,7 +642,7 @@ public class AuthFunction
             if (resetPasswordRequest == null)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
                 return badRequest;
             }
 
@@ -658,7 +658,7 @@ public class AuthFunction
             if (resetPasswordRequest.NewPassword != resetPasswordRequest.ConfirmPassword)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "New password and confirm password do not match" });
+                await badRequest.WriteAsJsonAsync(new { error = "New password and confirm password do not match" });
                 return badRequest;
             }
 
@@ -669,7 +669,7 @@ public class AuthFunction
                 auditLogger.LogSecurityEvent("Invalid Reset Token", "unknown", ipAddress, $"Token: {resetPasswordRequest.ResetToken}", SecuritySeverity.Medium);
                 
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid or expired reset token" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid or expired reset token" });
                 return badRequest;
             }
 
@@ -678,7 +678,7 @@ public class AuthFunction
             if (user == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
                 return notFound;
             }
 

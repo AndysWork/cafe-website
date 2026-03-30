@@ -49,7 +49,7 @@ public class DailyPerformanceFunction
             if (string.IsNullOrEmpty(outletId))
             {
                 var forbiddenRes = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbiddenRes.WriteAsJsonAsync(new { success = false, error = "Outlet ID not found for the user" });
+                await forbiddenRes.WriteAsJsonAsync(new { error = "Outlet ID not found for the user" });
                 return forbiddenRes;
             }
 
@@ -63,7 +63,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error getting daily performance by date");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -101,7 +101,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error getting daily performance by staff");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -127,7 +127,7 @@ public class DailyPerformanceFunction
             if (string.IsNullOrEmpty(outletId))
             {
                 var forbiddenRes = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbiddenRes.WriteAsJsonAsync(new { success = false, error = "Outlet ID not found for the user" });
+                await forbiddenRes.WriteAsJsonAsync(new { error = "Outlet ID not found for the user" });
                 return forbiddenRes;
             }
 
@@ -139,7 +139,7 @@ public class DailyPerformanceFunction
             if (string.IsNullOrEmpty(startDate) || string.IsNullOrEmpty(endDate))
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Start date and end date are required" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Start date and end date are required" });
                 return badReqRes;
             }
 
@@ -153,7 +153,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error getting daily performance by date range");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -178,7 +178,7 @@ public class DailyPerformanceFunction
             if (string.IsNullOrEmpty(outletId))
             {
                 var forbiddenRes = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbiddenRes.WriteAsJsonAsync(new { success = false, error = "Outlet ID not found for the user" });
+                await forbiddenRes.WriteAsJsonAsync(new { error = "Outlet ID not found for the user" });
                 return forbiddenRes;
             }
 
@@ -190,7 +190,7 @@ public class DailyPerformanceFunction
             if (request == null)
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid request body" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Invalid request body" });
                 return badReqRes;
             }
 
@@ -199,7 +199,7 @@ public class DailyPerformanceFunction
                 string.IsNullOrEmpty(request.Date))
             {
                 var validationRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await validationRes.WriteAsJsonAsync(new { success = false, error = "Staff ID and date are required" });
+                await validationRes.WriteAsJsonAsync(new { error = "Staff ID and date are required" });
                 return validationRes;
             }
 
@@ -209,7 +209,7 @@ public class DailyPerformanceFunction
                 (string.IsNullOrEmpty(request.InTime) || string.IsNullOrEmpty(request.OutTime)))
             {
                 var validationRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await validationRes.WriteAsJsonAsync(new { success = false, error = "In time and out time are required unless marking leave" });
+                await validationRes.WriteAsJsonAsync(new { error = "In time and out time are required unless marking leave" });
                 return validationRes;
             }
 
@@ -223,7 +223,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error upserting daily performance");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -248,7 +248,7 @@ public class DailyPerformanceFunction
             if (string.IsNullOrEmpty(outletId))
             {
                 var forbiddenRes = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbiddenRes.WriteAsJsonAsync(new { success = false, error = "Outlet ID not found for the user" });
+                await forbiddenRes.WriteAsJsonAsync(new { error = "Outlet ID not found for the user" });
                 return forbiddenRes;
             }
 
@@ -260,7 +260,7 @@ public class DailyPerformanceFunction
             if (request == null || request.Entries == null || !request.Entries.Any())
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid request body or no entries provided" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Invalid request body or no entries provided" });
                 return badReqRes;
             }
 
@@ -274,7 +274,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error bulk upserting daily performance");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -300,7 +300,7 @@ public class DailyPerformanceFunction
             if (!success)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Entry not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Entry not found" });
                 return notFoundRes;
             }
 
@@ -312,7 +312,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error deleting daily performance");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -343,7 +343,7 @@ public class DailyPerformanceFunction
             if (shift == null)
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid shift data" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Invalid shift data" });
                 return badReqRes;
             }
 
@@ -357,7 +357,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error adding performance shift");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -388,7 +388,7 @@ public class DailyPerformanceFunction
             if (shift == null)
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid shift data" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Invalid shift data" });
                 return badReqRes;
             }
 
@@ -402,7 +402,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error updating performance shift");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -429,7 +429,7 @@ public class DailyPerformanceFunction
             if (!success)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Shift not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Shift not found" });
                 return notFoundRes;
             }
 
@@ -441,7 +441,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error deleting performance shift");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }
@@ -471,7 +471,7 @@ public class DailyPerformanceFunction
         {
             _logger.LogError(ex, "Error getting performance shifts");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await errorRes.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return errorRes;
         }
     }

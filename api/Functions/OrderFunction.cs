@@ -139,7 +139,7 @@ public class OrderFunction
                 if (!menuItemMap.TryGetValue(item.MenuItemId, out var menuItem))
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { success = false, error = $"Menu item {item.MenuItemId} not found" });
+                    await badRequest.WriteAsJsonAsync(new { error = $"Menu item {item.MenuItemId} not found" });
                     return badRequest;
                 }
 

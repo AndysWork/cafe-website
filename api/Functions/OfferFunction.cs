@@ -47,9 +47,9 @@ public class OfferFunction
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error getting active offers: {ex.Message}");
+            _logger.LogError(ex, "Error getting active offers");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { message = "Error retrieving offers" });
+            await response.WriteAsJsonAsync(new { error = "Error retrieving offers" });
             return response;
         }
     }
@@ -82,9 +82,9 @@ public class OfferFunction
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error getting all offers: {ex.Message}");
+            _logger.LogError(ex, "Error getting all offers");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { message = "Error retrieving offers" });
+            await response.WriteAsJsonAsync(new { error = "Error retrieving offers" });
             return response;
         }
     }
@@ -116,7 +116,7 @@ public class OfferFunction
             if (offer == null)
             {
                 var notFoundResponse = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundResponse.WriteAsJsonAsync(new { message = "Offer not found" });
+                await notFoundResponse.WriteAsJsonAsync(new { error = "Offer not found" });
                 return notFoundResponse;
             }
 
@@ -126,9 +126,9 @@ public class OfferFunction
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error getting offer: {ex.Message}");
+            _logger.LogError(ex, "Error getting offer");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { message = "Error retrieving offer" });
+            await response.WriteAsJsonAsync(new { error = "Error retrieving offer" });
             return response;
         }
     }
@@ -152,7 +152,7 @@ public class OfferFunction
             if (offer == null)
             {
                 var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequestResponse.WriteAsJsonAsync(new { message = "Invalid offer data" });
+                await badRequestResponse.WriteAsJsonAsync(new { error = "Invalid offer data" });
                 return badRequestResponse;
             }
 
@@ -161,7 +161,7 @@ public class OfferFunction
             if (existingOffer != null)
             {
                 var conflictResponse = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflictResponse.WriteAsJsonAsync(new { message = "Offer code already exists" });
+                await conflictResponse.WriteAsJsonAsync(new { error = "Offer code already exists" });
                 return conflictResponse;
             }
 
@@ -173,9 +173,9 @@ public class OfferFunction
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error creating offer: {ex.Message}");
+            _logger.LogError(ex, "Error creating offer");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { message = "Error creating offer" });
+            await response.WriteAsJsonAsync(new { error = "Error creating offer" });
             return response;
         }
     }
@@ -200,7 +200,7 @@ public class OfferFunction
             if (offer == null)
             {
                 var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequestResponse.WriteAsJsonAsync(new { message = "Invalid offer data" });
+                await badRequestResponse.WriteAsJsonAsync(new { error = "Invalid offer data" });
                 return badRequestResponse;
             }
 
@@ -210,7 +210,7 @@ public class OfferFunction
             if (!success)
             {
                 var notFoundResponse = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundResponse.WriteAsJsonAsync(new { message = "Offer not found" });
+                await notFoundResponse.WriteAsJsonAsync(new { error = "Offer not found" });
                 return notFoundResponse;
             }
 
@@ -220,9 +220,9 @@ public class OfferFunction
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error updating offer: {ex.Message}");
+            _logger.LogError(ex, "Error updating offer");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { message = "Error updating offer" });
+            await response.WriteAsJsonAsync(new { error = "Error updating offer" });
             return response;
         }
     }
@@ -248,7 +248,7 @@ public class OfferFunction
             if (!success)
             {
                 var notFoundResponse = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundResponse.WriteAsJsonAsync(new { message = "Offer not found" });
+                await notFoundResponse.WriteAsJsonAsync(new { error = "Offer not found" });
                 return notFoundResponse;
             }
 
@@ -258,9 +258,9 @@ public class OfferFunction
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error deleting offer: {ex.Message}");
+            _logger.LogError(ex, "Error deleting offer");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { message = "Error deleting offer" });
+            await response.WriteAsJsonAsync(new { error = "Error deleting offer" });
             return response;
         }
     }
@@ -284,7 +284,7 @@ public class OfferFunction
             if (validationRequest == null)
             {
                 var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequestResponse.WriteAsJsonAsync(new { message = "Invalid validation request" });
+                await badRequestResponse.WriteAsJsonAsync(new { error = "Invalid validation request" });
                 return badRequestResponse;
             }
 
@@ -296,9 +296,9 @@ public class OfferFunction
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error validating offer: {ex.Message}");
+            _logger.LogError(ex, "Error validating offer");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { message = "Error validating offer" });
+            await response.WriteAsJsonAsync(new { error = "Error validating offer" });
             return response;
         }
     }
@@ -324,7 +324,7 @@ public class OfferFunction
             if (!success)
             {
                 var notFoundResponse = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundResponse.WriteAsJsonAsync(new { message = "Offer not found" });
+                await notFoundResponse.WriteAsJsonAsync(new { error = "Offer not found" });
                 return notFoundResponse;
             }
 
@@ -334,9 +334,9 @@ public class OfferFunction
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error applying offer: {ex.Message}");
+            _logger.LogError(ex, "Error applying offer");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { message = "Error applying offer" });
+            await response.WriteAsJsonAsync(new { error = "Error applying offer" });
             return response;
         }
     }

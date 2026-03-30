@@ -64,7 +64,7 @@ public class StaffQueryFunction
         {
             _log.LogError(ex, "Error getting staff members");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve staff members" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve staff members" });
             return errorRes;
         }
     }
@@ -96,7 +96,7 @@ public class StaffQueryFunction
         {
             _log.LogError(ex, "Error getting staff statistics");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve statistics" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve statistics" });
             return errorRes;
         }
     }
@@ -123,7 +123,7 @@ public class StaffQueryFunction
         if (string.IsNullOrEmpty(staffId) || staffId.Length != 24 || !System.Text.RegularExpressions.Regex.IsMatch(staffId, "^[0-9a-fA-F]{24}$"))
         {
             var badRequestRes = req.CreateResponse(HttpStatusCode.BadRequest);
-            await badRequestRes.WriteAsJsonAsync(new { success = false, error = "Invalid staff ID format" });
+            await badRequestRes.WriteAsJsonAsync(new { error = "Invalid staff ID format" });
             return badRequestRes;
         }
 
@@ -133,7 +133,7 @@ public class StaffQueryFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -145,7 +145,7 @@ public class StaffQueryFunction
         {
             _log.LogError(ex, "Error getting staff member {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve staff member" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve staff member" });
             return errorRes;
         }
     }
@@ -179,7 +179,7 @@ public class StaffQueryFunction
         {
             _log.LogError(ex, "Error getting staff for outlet {OutletId}", outletId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve staff members" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve staff members" });
             return errorRes;
         }
     }
@@ -207,7 +207,7 @@ public class StaffQueryFunction
             if (string.IsNullOrWhiteSpace(searchTerm))
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Search term is required" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Search term is required" });
                 return badReqRes;
             }
 
@@ -221,7 +221,7 @@ public class StaffQueryFunction
         {
             _log.LogError(ex, "Error searching staff");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to search staff members" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to search staff members" });
             return errorRes;
         }
     }
@@ -248,7 +248,7 @@ public class StaffQueryFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -260,7 +260,7 @@ public class StaffQueryFunction
         {
             _log.LogError(ex, "Error getting shifts for staff {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve shifts" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve shifts" });
             return errorRes;
         }
     }

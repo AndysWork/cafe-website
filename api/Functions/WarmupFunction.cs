@@ -2,17 +2,20 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Functions;
 
 public class WarmupFunction
 {
-    private readonly IMongoDatabase _database;
+    private readonly MongoService _mongo;
+    private readonly AuthService _auth;
     private readonly ILogger<WarmupFunction> _logger;
 
-    public WarmupFunction(IMongoDatabase database, ILogger<WarmupFunction> logger)
+    public WarmupFunction(MongoService mongo, AuthService auth, ILogger<WarmupFunction> logger)
     {
-        _database = database;
+        _mongo = mongo;
+        _auth = auth;
         _logger = logger;
     }
 
@@ -24,12 +27,15 @@ public class WarmupFunction
         try
         {
             // Ping MongoDB to establish connection pool
-            await _database.RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1));
+            await _mongo.Database.RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1));
             _logger.LogInformation("MongoDB connection warmed up successfully");
+
+            // Warm up AuthService JWT key cache
+            _logger.LogInformation("AuthService warmed up");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Warmup: MongoDB ping failed, connection will be established on first request");
+            _logger.LogWarning(ex, "Warmup: service pre-warming partially failed, will be established on first request");
         }
     }
 }

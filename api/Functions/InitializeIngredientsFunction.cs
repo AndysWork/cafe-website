@@ -77,7 +77,7 @@ public class InitializeIngredientsFunction
         {
             _logger.LogError(ex, "Error initializing ingredients");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await response.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return response;
         }
     }

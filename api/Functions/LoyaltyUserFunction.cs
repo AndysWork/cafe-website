@@ -117,7 +117,7 @@ public class LoyaltyUserFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting loyalty account: {ex.Message}");
+            _log.LogError(ex, "Error getting loyalty account");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get loyalty account" });
             return error;
@@ -180,7 +180,7 @@ public class LoyaltyUserFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting transactions: {ex.Message}");
+            _log.LogError(ex, "Error getting transactions");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get transactions" });
             return error;
@@ -231,7 +231,7 @@ public class LoyaltyUserFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting rewards: {ex.Message}");
+            _log.LogError(ex, "Error getting rewards");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get rewards" });
             return error;
@@ -323,7 +323,7 @@ public class LoyaltyUserFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error redeeming reward: {ex.Message}");
+            _log.LogError(ex, "Error redeeming reward");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to redeem reward" });
             return error;
@@ -373,7 +373,7 @@ public class LoyaltyUserFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error transferring points: {ex.Message}");
+            _log.LogError(ex, "Error transferring points");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to transfer points" });
             return error;
@@ -416,7 +416,7 @@ public class LoyaltyUserFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error applying referral code: {ex.Message}");
+            _log.LogError(ex, "Error applying referral code");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to apply referral code" });
             return error;
@@ -457,7 +457,7 @@ public class LoyaltyUserFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error setting birthday: {ex.Message}");
+            _log.LogError(ex, "Error setting birthday");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to set birthday" });
             return error;
@@ -494,7 +494,7 @@ public class LoyaltyUserFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error claiming birthday bonus: {ex.Message}");
+            _log.LogError(ex, "Error claiming birthday bonus");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to claim birthday bonus" });
             return error;

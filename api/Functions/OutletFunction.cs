@@ -200,7 +200,7 @@ public class OutletFunction
         {
             _log.LogWarning(ex, "Outlet creation validation error");
             var res = req.CreateResponse(HttpStatusCode.BadRequest);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "Outlet creation failed due to a validation error" });
             return res;
         }
         catch (Exception ex)
@@ -284,7 +284,7 @@ public class OutletFunction
         {
             _log.LogWarning(ex, "Cannot delete outlet with data");
             var res = req.CreateResponse(HttpStatusCode.BadRequest);
-            await res.WriteAsJsonAsync(new { error = ex.Message });
+            await res.WriteAsJsonAsync(new { error = "Cannot delete outlet — it still has associated data" });
             return res;
         }
         catch (Exception ex)

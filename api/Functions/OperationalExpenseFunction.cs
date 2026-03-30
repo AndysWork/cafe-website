@@ -42,7 +42,7 @@ public class OperationalExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting operational expenses: {ex.Message}");
+            _log.LogError(ex, "Error getting operational expenses");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get operational expenses" });
             return error;
@@ -70,7 +70,7 @@ public class OperationalExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting operational expenses for year {year}: {ex.Message}");
+            _log.LogError(ex, "Error getting operational expenses for year {year}");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get operational expenses" });
             return error;
@@ -106,7 +106,7 @@ public class OperationalExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting operational expense for {month}/{year}: {ex.Message}");
+            _log.LogError(ex, "Error getting operational expense for {month}/{year}");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get operational expense" });
             return error;
@@ -134,7 +134,7 @@ public class OperationalExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error calculating rent for {month}/{year}: {ex.Message}");
+            _log.LogError(ex, "Error calculating rent for {month}/{year}");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to calculate rent" });
             return error;
@@ -197,7 +197,7 @@ public class OperationalExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error creating operational expense: {ex.Message}");
+            _log.LogError(ex, "Error creating operational expense");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to create operational expense" });
             return error;
@@ -251,7 +251,7 @@ public class OperationalExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error updating operational expense: {ex.Message}");
+            _log.LogError(ex, "Error updating operational expense");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to update operational expense" });
             return error;
@@ -286,7 +286,7 @@ public class OperationalExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error deleting operational expense: {ex.Message}");
+            _log.LogError(ex, "Error deleting operational expense");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to delete operational expense" });
             return error;

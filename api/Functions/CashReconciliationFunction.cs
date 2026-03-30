@@ -52,7 +52,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error getting cash reconciliations");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve cash reconciliations" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve cash reconciliations" });
             return errorRes;
         }
     }
@@ -71,7 +71,7 @@ public class CashReconciliationFunction
             if (!DateTime.TryParse(date, out var parsedDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid date format" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
 
@@ -86,7 +86,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error getting cash reconciliation by date");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve cash reconciliation" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve cash reconciliation" });
             return errorRes;
         }
     }
@@ -105,7 +105,7 @@ public class CashReconciliationFunction
             if (!DateTime.TryParse(date, out var parsedDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid date format" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
 
@@ -120,7 +120,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error getting daily sales summary");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve sales summary" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve sales summary" });
             return errorRes;
         }
     }
@@ -152,7 +152,7 @@ public class CashReconciliationFunction
             if (existing != null)
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflict.WriteAsJsonAsync(new { success = false, error = "Reconciliation already exists for this date" });
+                await conflict.WriteAsJsonAsync(new { error = "Reconciliation already exists for this date" });
                 return conflict;
             }
 
@@ -179,7 +179,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error creating cash reconciliation");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to create cash reconciliation" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to create cash reconciliation" });
             return errorRes;
         }
     }
@@ -205,7 +205,7 @@ public class CashReconciliationFunction
             if (current == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "Reconciliation not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Reconciliation not found" });
                 return notFound;
             }
 
@@ -226,7 +226,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error updating cash reconciliation");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update cash reconciliation" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update cash reconciliation" });
             return errorRes;
         }
     }
@@ -247,7 +247,7 @@ public class CashReconciliationFunction
             if (request.Records == null || request.Records.Count == 0)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "No records provided" });
+                await badRequest.WriteAsJsonAsync(new { error = "No records provided" });
                 return badRequest;
             }
 
@@ -273,7 +273,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error bulk creating cash reconciliations");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to create cash reconciliations" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to create cash reconciliations" });
             return errorRes;
         }
     }
@@ -294,7 +294,7 @@ public class CashReconciliationFunction
             if (!deleted)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "Reconciliation not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Reconciliation not found" });
                 return notFound;
             }
 
@@ -306,7 +306,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error deleting cash reconciliation");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to delete cash reconciliation" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to delete cash reconciliation" });
             return errorRes;
         }
     }
@@ -327,7 +327,7 @@ public class CashReconciliationFunction
                 !DateTime.TryParse(query["endDate"], out var endDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Start date and end date are required" });
+                await badRequest.WriteAsJsonAsync(new { error = "Start date and end date are required" });
                 return badRequest;
             }
 
@@ -341,7 +341,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error getting cash reconciliation summary");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve summary" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve summary" });
             return errorRes;
         }
     }
@@ -367,7 +367,7 @@ public class CashReconciliationFunction
             if (fileBytes == null || fileBytes.Length == 0)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "No file data received" });
+                await badRequest.WriteAsJsonAsync(new { error = "No file data received" });
                 return badRequest;
             }
 
@@ -377,7 +377,7 @@ public class CashReconciliationFunction
             if (fileData == null || fileData.Length == 0)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "No valid file found in request" });
+                await badRequest.WriteAsJsonAsync(new { error = "No valid file found in request" });
                 return badRequest;
             }
 
@@ -387,7 +387,7 @@ public class CashReconciliationFunction
             if (reconciliations == null || reconciliations.Count == 0)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "No valid reconciliation data found in file" });
+                await badRequest.WriteAsJsonAsync(new { error = "No valid reconciliation data found in file" });
                 return badRequest;
             }
 
@@ -402,7 +402,7 @@ public class CashReconciliationFunction
         {
             _log.LogError(ex, "Error uploading bulk reconciliation file");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to upload file due to an internal error" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to upload file due to an internal error" });
             return errorRes;
         }
     }

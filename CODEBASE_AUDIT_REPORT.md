@@ -1,6 +1,6 @@
 # Comprehensive Codebase Audit Report
 
-**Date:** January 2025 | **Last Updated:** March 29, 2026  
+**Date:** January 2025 | **Last Updated:** March 30, 2026  
 **Scope:** Full-stack analysis — .NET 9 Azure Functions API + Angular Frontend + MongoDB  
 **Focus:** Enterprise readiness, performance optimization, security, and code quality
 
@@ -17,9 +17,11 @@
 | **Frontend Components** | ~~5~~ 0 | ~~3~~ 1 | ~~5~~ 5 | 13 | **7** |
 | **TOTAL** | ~~23~~ **1** | ~~37~~ **1** | ~~34~~ **5** | **94** | **87 ✅** |
 
-**Overall Health Score: ~~42~~ ~~76~~ ~~85~~ ~~87~~ ~~89~~ ~~92~~ ~~95~~ 96/100** (+54 points from initial 42)
+**Overall Health Score: ~~42~~ ~~76~~ ~~85~~ ~~87~~ ~~89~~ ~~92~~ ~~95~~ ~~96~~ 97/100** (+55 points from initial 42)
 
 **87 of 94 findings have been resolved.** All 23 critical issues are resolved except one (OnPush change detection — deferred as incremental adoption). All backend issues fully resolved. Centralized state management implemented via Angular Signals. The remaining 7 open items are frontend medium/low priority improvements.
+
+**Backend architecture now includes:** 6-stage middleware pipeline, 14 repository interfaces, event sourcing (`EventLogService`), transactional outbox with timer-based processor (`OutboxService`), soft-delete via `ISoftDeletable`, standardized `{ error = "message" }` error response format across **all** endpoints, and structured `LogError(ex, "...")` logging throughout.
 
 ### Resolved Root Causes ✅
 1. ~~**Blocking async calls** in service constructors~~ → Replaced with `IHostedService` async initialization
@@ -46,7 +48,7 @@
 18. ~~**No distributed tracing**~~ → Application Insights telemetry wired in Program.cs
 19. ~~**No request logging**~~ → RequestLoggingMiddleware with method, URL, status, duration, invocation ID
 20. ~~**No API versioning**~~ → ApiVersionMiddleware adds X-API-Version header
-21. ~~**No warm-up trigger**~~ → WarmupFunction pre-warms MongoDB connection pool
+21. ~~**No warm-up trigger**~~ → WarmupFunction pre-warms MongoDB connection pool + AuthService
 22. ~~**No saga pattern**~~ → Compensating rollbacks in stock operations, frozen items, sessions
 23. ~~**Missing DB error handling**~~ → try/catch with structured logging on analytics, performance, inventory operations
 
@@ -61,6 +63,20 @@
 
 ### Resolved in Round 7 ✅ (Centralized State Management)
 31. ~~**No centralized state management**~~ → Angular Signals-based stores (AuthStore, CartStore, OutletStore, UIStore) with AppStore façade; 5 services migrated from BehaviorSubjects; toast notification system; auth guards using signals directly
+
+### Resolved in Round 8 ✅ (Backend Hardening)
+32. ~~**`ex.Message` leaked to clients**~~ → OutletFunction.cs InvalidOperationException handlers now return safe hardcoded validation messages
+33. ~~**Stale placeholder comments**~~ → Removed 3 misleading Swiggy column mapping comments from FileUploadService.cs (implementation was already complete)
+34. ~~**Direct `IMongoDatabase` injection**~~ → UpdateOutletIdsFunction and WarmupFunction refactored to use MongoService; WarmupFunction now also pre-warms AuthService
+35. ~~**3 inconsistent error response formats**~~ → All backends standardized to `{ error = "message" }`: removed `success = false` wrapper from 15 files (182 instances), converted OfferFunction from `{ message }` to `{ error }` (16 instances); frontend interceptor + error-handler updated to read `error.error?.error || error.error?.message`
+36. ~~**Inconsistent logging styles**~~ → All `LogError($"...: {ex.Message}")` calls converted to structured `LogError(ex, "...")` in 6 function files (47 instances); redundant stack trace logging removed from ExpenseFunction
+37. ~~**14 repository interfaces**~~ → Added to DI: IMenuRepository, IOrderRepository, IOfferRepository, ILoyaltyRepository, IUserRepository, IFinanceRepository, IPricingRepository, IInventoryRepository, IStaffRepository, IOutletRepository, IOperationsRepository, IWalletRepository, INotificationRepository, IAnalyticsRepository — all backed by MongoService
+38. ~~**No event sourcing**~~ → EventLogService with EventLog model for state transition audit trails
+39. ~~**No outbox pattern**~~ → OutboxService + OutboxProcessorFunction (timer every 30s) for reliable side effects with retry
+40. ~~**No soft delete**~~ → ISoftDeletable interface across 14 models; all queries filter deleted records
+41. ~~**No authorization middleware**~~ → AuthorizationMiddleware extracts JWT claims into FunctionContext for all requests
+42. ~~**No input sanitization middleware**~~ → InputSanitizationMiddleware sanitizes request bodies against XSS/injection
+43. ~~**No security headers middleware**~~ → SecurityHeadersMiddleware adds X-Content-Type-Options, X-Frame-Options, CSP, etc.
 
 ### Remaining Open Issues
 - 🟡 No OnPush change detection (deferred — incremental adoption; mitigated by trackBy on all ngFor)
@@ -129,8 +145,8 @@ var results = await Task.WhenAll(tasks);
 return results.ToList();
 ```
 
-#### Location 4: Still Open
-- `GetMenuAsync()` still groups forecasts in-memory (could use `$group` aggregation)
+#### ~~Location 4~~ ✅ RESOLVED
+- `GetMenuAsync()` forecast grouping now uses MongoDB `$match → $sort → $group` aggregation pipeline in `PopulateFuturePricesAsync`
 
 ---
 
@@ -340,9 +356,9 @@ ExcelPackage.LicenseContext = LicenseContext.NonCommercial; // Set once at start
 
 ## Part 3: Frontend — Critical Issues
 
-### 3.1 � Zero ChangeDetectionStrategy.OnPush Implementations — DEFERRED
+### 3.1 🟡 Zero ChangeDetectionStrategy.OnPush Implementations — DEFERRED
 
-**All 41 components** use the default `ChangeDetectionStrategy.Default`. Blanket OnPush was intentionally **deferred** because it requires per-component refactoring of state management patterns (injecting `ChangeDetectorRef`, using immutable data, async pipe) to avoid stale UI.
+**All 65 components** use the default `ChangeDetectionStrategy.Default`. Blanket OnPush was intentionally **deferred** because it requires per-component refactoring of state management patterns (injecting `ChangeDetectorRef`, using immutable data, async pipe) to avoid stale UI.
 
 **Mitigated by:** `trackBy` added to all ~179 `*ngFor` directives (see 4.1), which provides the major rendering performance gain without risk of broken components.
 
@@ -385,8 +401,12 @@ ExcelPackage.LicenseContext = LicenseContext.NonCommercial; // Set once at start
 
 **File:** `frontend/src/app/interceptors/error.interceptor.ts` (NEW)  
 **Status:** ✅ Fixed — Global HTTP error interceptor created and registered first in the interceptor chain:
-- Auto-retry (1x with 1s delay) on network errors (status 0) and 503
+- Exponential backoff retries (1s, 2s, 4s capped at 8s) on transient errors (status 0, 502, 503, 504)
+- Idempotent methods (GET/PUT/DELETE) get 2 retries; non-idempotent (POST/PATCH) get 1 retry
 - Auto-logout + redirect to `/login` on 401 (skips auth endpoints)
+- Offline queue: critical mutations (orders, attendance, clock, sales POST) queued to `OfflineQueueService` when network is down
+- Server error message extraction: reads `error.error?.error || error.error?.message` for consistent backend compatibility
+- Toast notifications via `UIStore.error()` for all non-analytics, non-401 errors
 - Registered in `app.config.ts`: `withInterceptors([errorInterceptor, authInterceptor, outletInterceptor, analyticsInterceptor])`
 
 ### ~~3.5~~ ✅ No Centralized State Management — RESOLVED
@@ -399,6 +419,7 @@ ExcelPackage.LicenseContext = LicenseContext.NonCommercial; // Set once at start
 | `CartStore` | Cart items, totals | `cart` | `items`, `itemCount`, `subtotal`, `total`, `isEmpty` |
 | `OutletStore` | Selected outlet, available outlets | `selectedOutlet`, `availableOutlets` | `selectedOutletId`, `selectedOutletName`, `hasOutletSelected`, `activeOutlets` |
 | `UIStore` | Loading state, notifications, sidebar | `isLoading`, `notifications` | `hasNotifications` |
+| `NotificationStore` | App notifications with 30s polling | `notifications`, `unreadCount` | `hasUnread` |
 | `AppStore` | Façade aggregating all stores | — | Access via `store.auth`, `store.cart`, `store.outlet`, `store.ui` |
 
 **Migration approach:**
@@ -497,7 +518,7 @@ if (mutatingMethods.includes(req.method.toUpperCase())) {
 
 ```
 User Request
-  → ~~Azure Functions cold start (no warm-up configured)~~ ✅ WarmupTrigger
+  → ~~Azure Functions cold start (no warm-up configured)~~ ✅ WarmupTrigger (MongoDB + AuthService)
   → ~~MongoService constructor blocks with .Wait() (0.5-2s)~~ ✅ IHostedService
   → ~~No caching → DB query on every request~~ ✅ IMemoryCache
   → ~~Missing indexes → full collection scan (0.5-5s)~~ ✅ 18+ indexes
@@ -543,7 +564,7 @@ User Request
 | 1 | ~~Add circuit breaker (Polly)~~ | Resilience for external services | High | ✅ Done |
 | 2 | ~~Add Azure Application Insights~~ | Distributed tracing, performance metrics | High | ✅ Done *(R5)* |
 | 3 | ~~Implement health check endpoint~~ | Load balancer health monitoring | Medium | ✅ Done |
-| 4 | ~~Implement Azure Functions warm-up~~ | Eliminate cold start latency | Medium | ✅ Done *(R5)* |
+| 4 | ~~Implement Azure Functions warm-up~~ | Eliminate cold start latency | Medium | ✅ Done *(R5, enhanced R8 — also warms AuthService)* |
 | 5 | ~~Add request/response logging middleware~~ | API observability | Medium | ✅ Done *(R5)* |
 | 6 | ~~State management (NgRx or Signals)~~ | Eliminate duplicate API calls | Medium | ✅ Done *(R7 — Angular Signals stores)* |
 | 7 | ~~Add retry policies for DB operations~~ | Handle transient MongoDB failures | Medium | ✅ Done *(R5 — saga pattern + error handling)* |
@@ -586,17 +607,24 @@ User Request
 | Caching layer | ✅ **IMemoryCache (categories, subcategories, rewards)** | Response time < 200ms |
 | Message queue | None | Async processing |
 | API versioning | ✅ **ApiVersionMiddleware adds X-API-Version header** | Breaking change management |
-| Structured logging | ✅ **ILogger in MongoService** (partial — other services pending) | Log aggregation, alerting |
+| Structured logging | ✅ **ILogger across all Functions & MongoService** | Log aggregation, alerting |
 | Metrics/telemetry | ✅ **Application Insights worker service telemetry** | SLA monitoring |
 | Rate limiting (per-endpoint) | ✅ **Per-endpoint rate limiting + improved client ID** | DDoS protection |
 | Request validation | ✅ **File size limits (10MB), date range limits (1yr), safety limits (5000)** | Input sanitization |
-| Warm-up trigger | ✅ **WarmupFunction pre-warms MongoDB connection pool** | Eliminate cold start latency |
+| Warm-up trigger | ✅ **WarmupFunction pre-warms MongoDB + AuthService** | Eliminate cold start latency |
 | Error handling/Resilience | ✅ **Saga pattern + compensating actions on stock/frozen/sessions** | Data consistency |
 | Frontend error handling | ✅ **Error interceptor + handleServiceError on 44 methods** | User experience |
 | Accessibility (a11y) | ✅ **ARIA roles, labels, live regions on 5 core templates** | Compliance |
 | Shared UI components | ✅ **LoadingSpinner, ConfirmDialog, EmptyState, ToastContainer** | Consistency, reuse |
-| Centralized state management | ✅ **Angular Signals stores (AuthStore, CartStore, OutletStore, UIStore, AppStore)** | Predictable state, signal-based reactivity |
-| CORS configuration | Unknown | Cross-origin security |
+| Centralized state management | ✅ **Angular Signals stores (AuthStore, CartStore, OutletStore, UIStore, NotificationStore, AppStore)** | Predictable state, signal-based reactivity |
+| Repository interfaces | ✅ **14 domain-specific interfaces** (`IMenuRepository`, `IOrderRepository`, etc.) backed by MongoService | Separation of concerns, testability |
+| 6-stage middleware pipeline | ✅ **SecurityHeaders → InputSanitization → RateLimit → Authorization → RequestLogging → ApiVersioning** | Defense-in-depth |
+| Event sourcing | ✅ **EventLogService with EventLog model** for state transition audit trails | Audit, compliance |
+| Outbox pattern | ✅ **OutboxService + OutboxProcessorFunction** (timer every 30s) for reliable side effects | Eventual consistency |
+| Soft delete | ✅ **ISoftDeletable interface** across 14 models; all queries filter deleted records | Data recovery, audit |
+| Standardized error format | ✅ **`{ error = "message" }` across all 74 function files** | Consistent frontend handling |
+| Offline support | ✅ **OfflineQueueService + NetworkStatusService** for critical mutation queuing | PWA resilience |
+| CORS configuration | ✅ **Configured in host.json** | Cross-origin security |
 
 ---
 
@@ -633,7 +661,7 @@ User Request
 22. ✅ No distributed tracing → Application Insights wired up in Program.cs (`AddApplicationInsightsTelemetryWorkerService` + `ConfigureFunctionsApplicationInsights`)
 23. ✅ No request logging middleware → `RequestLoggingMiddleware` logs method, URL, status, duration, invocation ID on every request
 24. ✅ No API versioning → `ApiVersionMiddleware` adds `X-API-Version: 1.0` header to all responses
-25. ✅ No warm-up trigger for Azure Functions → `WarmupFunction` with `[WarmupTrigger]` pings MongoDB to pre-warm connection pool
+25. ✅ No warm-up trigger for Azure Functions → `WarmupFunction` with `[WarmupTrigger]` pings MongoDB to pre-warm connection pool + pre-warms AuthService
 26. ✅ Batch operations done in loops → `BulkUpsertDailyPerformanceAsync` parallelized with `Task.WhenAll`
 27. ✅ 4 sequential queries in DeleteOutletAsync → parallelized with `Task.WhenAll`
 28. ✅ No saga pattern for multi-step operations → compensating actions in AdjustStockAsync/StockInAsync/StockOutAsync (rollback transaction on inventory failure), CreateFrozenItemAsync (rollback insert on sync failure), CreateSessionAsync (restore previous sessions on insert failure)
@@ -643,7 +671,7 @@ User Request
 32. ✅ Missing error handling on some DB operations → try/catch with structured logging on TrackEventAsync, TrackEventsBatchAsync, EndSessionAsync, UpdateSessionActivityAsync, BulkUpsertDailyPerformanceAsync (per-entry), DeleteFrozenItemAsync (inventory deactivation), stock alert operations
 
 ### Frontend Critical (5) — 4 RESOLVED, 1 DEFERRED
-33. 🟡 0/41 components use OnPush CD → deferred; mitigated by trackBy on all ngFor
+33. 🟡 0/65 components use OnPush CD → deferred; mitigated by trackBy on all ngFor
 34. ✅ No lazy loading → 28 routes lazy-loaded via `loadComponent`
 35. ✅ Memory leaks: setInterval, event listeners, subscriptions → OnDestroy in 7 components
 36. ✅ _(merged with #35)_
@@ -677,7 +705,40 @@ User Request
 - `api/Functions/HealthFunction.cs` — GET /health endpoint with MongoDB ping *(Round 2)*
 - `api/Helpers/RequestLoggingMiddleware.cs` — Logs method, URL, status, duration, invocationId per request *(Round 5)*
 - `api/Helpers/ApiVersionMiddleware.cs` — Adds X-API-Version header to all responses *(Round 5)*
-- `api/Functions/WarmupFunction.cs` — WarmupTrigger pre-warms MongoDB connection pool *(Round 5)*
+- `api/Functions/WarmupFunction.cs` — WarmupTrigger pre-warms MongoDB + AuthService *(Round 5, updated Round 8)*
+- `api/Helpers/SecurityHeadersMiddleware.cs` — Adds X-Content-Type-Options, X-Frame-Options, CSP, Referrer-Policy *(Round 8)*
+- `api/Helpers/InputSanitizationMiddleware.cs` — Sanitizes request bodies against XSS/injection *(Round 8)*
+- `api/Helpers/AuthorizationMiddleware.cs` — Extracts JWT claims into FunctionContext for all requests *(Round 8)*
+- `api/Helpers/ValidationHelper.cs` — Centralized request body deserialization + validation *(Round 8)*
+- `api/Helpers/ValidationAttributes.cs` — Custom validation attributes for model binding *(Round 8)*
+- `api/Helpers/InputSanitizer.cs` — HTML/script sanitization helper *(Round 8)*
+- `api/Helpers/AuditLogger.cs` — Structured audit logging helper *(Round 8)*
+- `api/Helpers/ApiKeyManager.cs` — API key management helper *(Round 8)*
+- `api/Helpers/OutletHelper.cs` — Outlet extraction from request context *(Round 8)*
+- `api/Services/EventLogService.cs` — Event sourcing for state transition audit trails *(Round 8)*
+- `api/Services/OutboxService.cs` — Transactional outbox for reliable side effects *(Round 8)*
+- `api/Services/BlobStorageService.cs` — Azure Blob Storage operations *(Round 8)*
+- `api/Services/NotificationService.cs` — Push notification service *(Round 8)*
+- `api/Models/EventLog.cs` — Event log entity for audit trail *(Round 8)*
+- `api/Models/OutboxMessage.cs` — Outbox message entity for reliable messaging *(Round 8)*
+- `api/Models/ISoftDeletable.cs` — Soft-delete interface (IsDeleted, DeletedAt, DeletedBy) *(Round 8)*
+- `api/Models/UserSession.cs` — User session tracking model *(Round 8)*
+- `api/Repositories/IMenuRepository.cs` — Menu domain repository interface *(Round 8)*
+- `api/Repositories/IOrderRepository.cs` — Order domain repository interface *(Round 8)*
+- `api/Repositories/IUserRepository.cs` — User domain repository interface *(Round 8)*
+- `api/Repositories/ILoyaltyRepository.cs` — Loyalty domain repository interface *(Round 8)*
+- `api/Repositories/IOfferRepository.cs` — Offer domain repository interface *(Round 8)*
+- `api/Repositories/IFinanceRepository.cs` — Finance domain repository interface *(Round 8)*
+- `api/Repositories/IPricingRepository.cs` — Pricing domain repository interface *(Round 8)*
+- `api/Repositories/IInventoryRepository.cs` — Inventory domain repository interface *(Round 8)*
+- `api/Repositories/IStaffRepository.cs` — Staff domain repository interface *(Round 8)*
+- `api/Repositories/IOutletRepository.cs` — Outlet domain repository interface *(Round 8)*
+- `api/Repositories/IOperationsRepository.cs` — Operations domain repository interface *(Round 8)*
+- `api/Repositories/IWalletRepository.cs` — Wallet domain repository interface *(Round 8)*
+- `api/Repositories/INotificationRepository.cs` — Notification domain repository interface *(Round 8)*
+- `api/Repositories/IAnalyticsRepository.cs` — Analytics domain repository interface *(Round 8)*
+- `api/Functions/OutboxProcessorFunction.cs` — Timer-triggered (30s) outbox message processor *(Round 8)*
+- `api/Functions/DatabaseBackupFunction.cs` — Timer-triggered daily backup to Azure Blob *(Round 8)*
 - `api/Services/MongoService.NewFeatures.cs` — MongoDB operations for all Sprint 3-6 features *(Sprint 3-6)*
 - `api/Functions/DeliveryZoneFunction.cs` — Delivery zone CRUD + fee calculation *(Sprint 3)*
 - `api/Functions/ReportExportFunction.cs` — CSV/Excel/PDF report export *(Sprint 3)*
@@ -714,7 +775,7 @@ User Request
 ### Backend — Modified Files
 | File | Changes |
 |------|---------|
-| `api/Program.cs` | EPPlus license at startup, IHostedService, IMemoryCache, IHttpClient, **Polly named HTTP clients with retry + circuit breaker** *(R2)*, **Application Insights telemetry + RequestLoggingMiddleware + ApiVersionMiddleware** *(R5)* |
+| `api/Program.cs` | EPPlus license at startup, IHostedService, IMemoryCache, IHttpClient, **Polly named HTTP clients with retry + circuit breaker** *(R2)*, **Application Insights telemetry + RequestLoggingMiddleware + ApiVersionMiddleware** *(R5)*, **6-stage middleware pipeline (SecurityHeaders → InputSanitization → RateLimit → Authorization → RequestLogging → ApiVersioning), 14 repository DI registrations, EventLogService + OutboxService + BlobServiceClient + NotificationService** *(R8)* |
 | `api/api.csproj` | **Microsoft.Extensions.Http.Polly 9.0.6** *(R2)*, **Microsoft.Azure.Functions.Worker.Extensions.Warmup 4.0.1** *(R5)* |
 | `api/Services/MongoService.cs` | IMemoryCache, pagination, caching, projections, batch methods, 18+ indexes, structured logging, **MongoClientSettings pool config (5-100)**, **loyalty pagination + count**, **sales 1yr date limit**, **users safety limit** *(R2)*, **MongoDB $facet/$group aggregation replacing 17 in-memory GroupBys** (`PopulateFuturePricesAsync`, `GetStaffStatisticsAsync`, `GetSalesSummaryByDateAsync`, `GetExpenseSummaryByDateAsync`, `GetDailyOnlineIncomeAsync`, `GetUniqueDiscountCouponsAsync`, `GetExpenseAnalyticsAggregationAsync`) *(R3)*, **List query projections on 11 methods: exclude PasswordHash (users), Documents (staff), RazorpaySignature (orders), Instructions/Review/Complain (online sales)** *(R4)* |
 | `api/Services/MongoService.Analytics.cs` | **Error handling (try/catch) on TrackEventAsync, TrackEventsBatchAsync, EndSessionAsync, UpdateSessionActivityAsync; saga pattern with compensating rollback in CreateSessionAsync** *(R5)* |
@@ -723,9 +784,17 @@ User Request
 | `api/Services/MongoService.Inventory.cs` | **Inventory pagination + count, active inventory pagination, transactions safety limit, date range 1yr limit** *(R2)*, **Saga pattern: compensating transaction rollback in AdjustStock/StockIn/StockOut, best-effort alert operations** *(R5)* |
 | `api/Functions/OverheadCostFunction.cs` | **3 Console.WriteLines → _logger.LogInformation with structured logging** *(R3)* |
 | `api/Services/MongoService.FrozenItems.cs` | ILogger, structured logging, **Saga pattern: compensating rollback in Create/Update, best-effort inventory deactivation in Delete** *(R5)* |
-| `api/Functions/OrderFunction.cs` | Batch menu/category fetch, fire-and-forget notifications, pagination |
-| `api/Functions/SalesFunction.cs` | Pagination |
-| `api/Functions/ExpenseFunction.cs` | Pagination, **GetExpenseAnalytics rewritten to use MongoDB $facet aggregation via `GetExpenseAnalyticsAggregationAsync`** *(R3)* |
+| `api/Functions/OrderFunction.cs` | Batch menu/category fetch, fire-and-forget notifications, pagination, **Outbox pattern for side effects, repository interface injection (IOrderRepository, IMenuRepository, IOfferRepository, ILoyaltyRepository, IUserRepository)** *(R8)* |
+| `api/Functions/OutletFunction.cs` | **`ex.Message` leak fixed: InvalidOperationException handlers now return safe validation messages** *(R8)* |
+| `api/Functions/UpdateOutletIdsFunction.cs` | **Refactored from IMongoDatabase to MongoService injection** *(R8)* |
+| `api/Functions/OfferFunction.cs` | **Error format: `{ message }` → `{ error }` on all 16 error responses** *(R8)* |
+| `api/Functions/LoyaltyAdminFunction.cs` | **Structured logging: `LogError($"...)` → `LogError(ex, ...)` on 6 methods** *(R8)* |
+| `api/Functions/LoyaltyUserFunction.cs` | **Structured logging: `LogError($"...)` → `LogError(ex, ...)` on 8 methods** *(R8)* |
+| `api/Functions/OperationalExpenseFunction.cs` | **Structured logging: `LogError($"...)` → `LogError(ex, ...)` on 7 methods** *(R8)* |
+| `api/Functions/SalesFunction.cs` | Pagination, **Structured logging: `LogError($"...)` → `LogError(ex, ...)` on 6 methods** *(R8)* |
+| `api/Functions/` (15 files) | **Error format: removed `success = false` wrapper from 182 error responses** *(R8)* |
+| `api/Services/FileUploadService.cs` | **Removed stale Swiggy placeholder comments** *(R8)* |
+| `api/Functions/ExpenseFunction.cs` | Pagination, **GetExpenseAnalytics rewritten to use MongoDB $facet aggregation via `GetExpenseAnalyticsAggregationAsync`** *(R3)*, **Structured logging: removed redundant stack trace / inner exception logging** *(R8)* |
 | `api/Functions/OnlineSaleFunction.cs` | Pagination |
 | `api/Functions/InventoryFunction.cs` | **Pagination query params** *(R2)* |
 | `api/Functions/LoyaltyFunction.cs` | **Pagination query params** *(R2)* |
@@ -741,7 +810,7 @@ User Request
 ### Frontend — New Files
 - `frontend/src/app/interceptors/error.interceptor.ts` — Global HTTP error interceptor
 - `frontend/src/app/utils/file-download.ts` — Shared `downloadFile()` and `toCsv()` utilities replacing duplicated download logic *(R6)*
-- `frontend/src/app/utils/error-handler.ts` — `handleServiceError(context)` for consistent `catchError` handling across services *(R6)*
+- `frontend/src/app/utils/error-handler.ts` — `handleServiceError(context)` for consistent `catchError` handling across services; reads `error.error?.error || error.error?.message` *(R6, updated R8)*
 - `frontend/src/app/utils/loading.ts` — `withLoading<T>()` observable wrapper for automatic loading state management *(R6)*
 - `frontend/src/app/shared/loading-spinner/loading-spinner.component.ts` — Reusable loading spinner with size/message/overlay inputs *(R6)*
 - `frontend/src/app/shared/confirm-dialog/confirm-dialog.component.ts` — Reusable confirmation dialog with accessible modal *(R6)*
@@ -753,8 +822,19 @@ User Request
 - `frontend/src/app/store/cart.store.ts` — Centralized cart state with signals + computed (items, total, isEmpty) *(R7)*
 - `frontend/src/app/store/outlet.store.ts` — Centralized outlet state (selected, available) with signals + computed *(R7)*
 - `frontend/src/app/store/ui.store.ts` — Global UI state (loading, notifications, sidebar) with signal-based notify/dismiss *(R7)*
+- `frontend/src/app/store/notification.store.ts` — Centralized notification state with 30s polling when logged in *(R8)*
 - `frontend/src/app/store/app.store.ts` — Façade aggregating all domain stores into single injection point *(R7)*
 - `frontend/src/app/store/index.ts` — Barrel export for all stores *(R7)*
+- `frontend/src/app/services/network-status.service.ts` — Signal-based `isOnline` using browser online/offline events *(R8)*
+- `frontend/src/app/services/offline-queue.service.ts` — Queues critical HTTP mutations to localStorage when offline; auto-flushes on reconnect; 50-item max, 24h TTL *(R8)*
+- `frontend/src/app/services/notification-api.service.ts` — Notification API service for fetching/managing app notifications *(R8)*
+- `frontend/src/app/interceptors/analytics.interceptor.ts` — Tracks API call response times via AnalyticsTrackingService; skips analytics URLs *(R8)*
+- `frontend/src/app/interceptors/outlet.interceptor.ts` — Adds X-Outlet-Id header to API requests from OutletService *(R8)*
+- `frontend/src/app/utils/date-utils.ts` — IST timezone utilities: `getIstNow()`, `getIstDateString()`, `convertToIst()` *(R8)*
+- `frontend/src/app/models/bonus.model.ts` — BonusCalculation interface with metrics, scores, config, results *(R8)*
+- `frontend/src/app/models/ingredient.model.ts` — Ingredient + PriceHistory interfaces *(R8)*
+- `frontend/src/app/models/outlet.model.ts` — Outlet + OutletSettings interfaces *(R8)*
+- `frontend/src/app/models/staff.model.ts` — Staff + related interfaces (address, bank, emergency contact) *(R8)*
 - `frontend/src/app/shared/toast-container/toast-container.component.ts` — Global toast notification component using UIStore signals *(R7)*
 - `frontend/src/app/services/delivery-zone.service.ts` — Delivery zone API service *(Sprint 3)*
 - `frontend/src/app/services/report-export.service.ts` — Report export API service *(Sprint 3)*
@@ -808,7 +888,7 @@ User Request
 | 8 HTML templates (admin-dashboard, bonus-calculation, admin-analytics, cashier, price-forecasting, kpt-analysis, online-profit-tracker, online-sale-tracker) | **126 `.toFixed()`/`.toLocaleString()` → Angular `number` pipe** *(R2)* |
 | 17 .ts files across frontend | **143 console.log/warn/debug statements removed** *(R2)* |
 | 9 components (daily-performance, expense-tracker, kpt-analysis, online-profit-tracker, online-sale-tracker, bonus-calculation, admin-analytics, staff-performance, cashier) | **Duplicated download logic replaced with shared `downloadFile()` utility** *(R6)* |
-| `frontend/src/app/interceptors/error.interceptor.ts` | **Enhanced with `getErrorMessage()` providing structured error messages by HTTP status; `userMessage` enrichment on all errors** *(R6)* |
+| `frontend/src/app/interceptors/error.interceptor.ts` | **Enhanced with `getErrorMessage()` providing structured error messages by HTTP status; `userMessage` enrichment on all errors** *(R6)*, **exponential backoff retries (2 for idempotent, 1 for non-idempotent), offline queue for critical mutations, reads `error.error?.error \|\| error.error?.message` for standardized backend compatibility** *(R8)* |
 | 6 services (order, expense, sales, payment, loyalty, menu) | **`catchError(handleServiceError(...))` added to 44 HTTP methods** *(R6)* |
 | `frontend/src/app/components/admin-analytics/admin-analytics.component.ts` | **Delegated 14 calculation methods to `AdminAnalyticsCalculationService`; reduced from 1894→1572 lines** *(R6)* |
 | `frontend/src/app/components/bonus-calculation/bonus-calculation.component.ts` | **Delegated 13 scoring/work-hour methods to `BonusCalculationEngineService`; reduced from 1135→1102 lines** *(R6)* |

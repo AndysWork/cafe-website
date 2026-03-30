@@ -51,7 +51,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error generating CSRF token");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "Failed to generate CSRF token" });
+            await res.WriteAsJsonAsync(new { error = "Failed to generate CSRF token" });
             return res;
         }
     }
@@ -86,7 +86,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error validating CSRF token");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "Failed to validate CSRF token" });
+            await res.WriteAsJsonAsync(new { error = "Failed to validate CSRF token" });
             return res;
         }
     }
@@ -130,7 +130,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error generating API key");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "Failed to generate API key" });
+            await res.WriteAsJsonAsync(new { error = "Failed to generate API key" });
             return res;
         }
     }
@@ -174,7 +174,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error retrieving API keys");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve API keys" });
+            await res.WriteAsJsonAsync(new { error = "Failed to retrieve API keys" });
             return res;
         }
     }
@@ -213,7 +213,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error rotating API key");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }
@@ -249,7 +249,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error revoking API key");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "Failed to revoke API key" });
+            await res.WriteAsJsonAsync(new { error = "Failed to revoke API key" });
             return res;
         }
     }
@@ -313,7 +313,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error retrieving audit logs");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve audit logs" });
+            await res.WriteAsJsonAsync(new { error = "Failed to retrieve audit logs" });
             return res;
         }
     }
@@ -355,7 +355,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error retrieving security alerts");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve security alerts" });
+            await res.WriteAsJsonAsync(new { error = "Failed to retrieve security alerts" });
             return res;
         }
     }
@@ -399,7 +399,7 @@ public class SecurityAdminFunction
         {
             _log.LogError(ex, "Error exporting audit logs");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await res.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
     }

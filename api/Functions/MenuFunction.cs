@@ -233,7 +233,7 @@ public class MenuFunction
             if (!hasAccess)
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbidden.WriteAsJsonAsync(new { success = false, error = accessError });
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
                 return forbidden;
             }
             
@@ -250,7 +250,7 @@ public class MenuFunction
                 if (category == null)
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { success = false, error = $"Category with ID {item.CategoryId} not found" });
+                    await badRequest.WriteAsJsonAsync(new { error = $"Category with ID {item.CategoryId} not found" });
                     return badRequest;
                 }
             }
@@ -262,7 +262,7 @@ public class MenuFunction
                 if (subCategory == null)
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { success = false, error = $"SubCategory with ID {item.SubCategoryId} not found" });
+                    await badRequest.WriteAsJsonAsync(new { error = $"SubCategory with ID {item.SubCategoryId} not found" });
                     return badRequest;
                 }
 
@@ -270,7 +270,7 @@ public class MenuFunction
                 if (!string.IsNullOrEmpty(item.CategoryId) && subCategory.CategoryId != item.CategoryId)
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { success = false, error = $"SubCategory {item.SubCategoryId} does not belong to Category {item.CategoryId}" });
+                    await badRequest.WriteAsJsonAsync(new { error = $"SubCategory {item.SubCategoryId} does not belong to Category {item.CategoryId}" });
                     return badRequest;
                 }
             }
@@ -450,7 +450,7 @@ public class MenuFunction
             if (!success)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "Menu item not found" });
+                await notFound.WriteAsJsonAsync(new { error = "Menu item not found" });
                 return notFound;
             }
 

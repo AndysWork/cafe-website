@@ -58,7 +58,7 @@ public class StaffCommandFunction
             if (existingByEmployeeId != null)
             {
                 var conflictRes = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflictRes.WriteAsJsonAsync(new { success = false, error = "A staff member with this Employee ID already exists" });
+                await conflictRes.WriteAsJsonAsync(new { error = "A staff member with this Employee ID already exists" });
                 return conflictRes;
             }
 
@@ -67,7 +67,7 @@ public class StaffCommandFunction
             if (existingByEmail != null)
             {
                 var conflictRes = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflictRes.WriteAsJsonAsync(new { success = false, error = "A staff member with this email already exists" });
+                await conflictRes.WriteAsJsonAsync(new { error = "A staff member with this email already exists" });
                 return conflictRes;
             }
 
@@ -122,7 +122,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error creating staff member");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to create staff member" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to create staff member" });
             return errorRes;
         }
     }
@@ -153,7 +153,7 @@ public class StaffCommandFunction
             if (existingStaff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -174,7 +174,7 @@ public class StaffCommandFunction
                 if (existingByEmployeeId != null)
                 {
                     var conflictRes = req.CreateResponse(HttpStatusCode.Conflict);
-                    await conflictRes.WriteAsJsonAsync(new { success = false, error = "A staff member with this Employee ID already exists" });
+                    await conflictRes.WriteAsJsonAsync(new { error = "A staff member with this Employee ID already exists" });
                     return conflictRes;
                 }
             }
@@ -186,7 +186,7 @@ public class StaffCommandFunction
                 if (existingByEmail != null)
                 {
                     var conflictRes = req.CreateResponse(HttpStatusCode.Conflict);
-                    await conflictRes.WriteAsJsonAsync(new { success = false, error = "A staff member with this email already exists" });
+                    await conflictRes.WriteAsJsonAsync(new { error = "A staff member with this email already exists" });
                     return conflictRes;
                 }
             }
@@ -195,7 +195,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update staff member" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update staff member" });
                 return errorRes;
             }
 
@@ -211,7 +211,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error updating staff member {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update staff member" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update staff member" });
             return errorRes;
         }
     }
@@ -240,7 +240,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -248,7 +248,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to deactivate staff member" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to deactivate staff member" });
                 return errorRes;
             }
 
@@ -264,7 +264,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error deactivating staff member {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to deactivate staff member" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to deactivate staff member" });
             return errorRes;
         }
     }
@@ -293,7 +293,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -301,7 +301,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to activate staff member" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to activate staff member" });
                 return errorRes;
             }
 
@@ -317,7 +317,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error activating staff member {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to activate staff member" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to activate staff member" });
             return errorRes;
         }
     }
@@ -346,7 +346,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -354,7 +354,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to delete staff member" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to delete staff member" });
                 return errorRes;
             }
 
@@ -370,7 +370,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error deleting staff member {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to delete staff member" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to delete staff member" });
             return errorRes;
         }
     }
@@ -401,7 +401,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -411,7 +411,7 @@ public class StaffCommandFunction
             if (request.Salary <= 0)
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid salary amount" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Invalid salary amount" });
                 return badReqRes;
             }
 
@@ -419,7 +419,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update salary" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update salary" });
                 return errorRes;
             }
 
@@ -435,7 +435,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error updating salary for staff member {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update salary" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update salary" });
             return errorRes;
         }
     }
@@ -466,7 +466,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -476,7 +476,7 @@ public class StaffCommandFunction
             if (request.Rating < 0 || request.Rating > 5)
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Rating must be between 0 and 5" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Rating must be between 0 and 5" });
                 return badReqRes;
             }
 
@@ -484,7 +484,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update rating" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update rating" });
                 return errorRes;
             }
 
@@ -500,7 +500,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error updating performance rating for staff member {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update rating" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update rating" });
             return errorRes;
         }
     }
@@ -531,7 +531,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -548,7 +548,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update leave balances" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update leave balances" });
                 return errorRes;
             }
 
@@ -564,7 +564,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error updating leave balances for staff member {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update leave balances" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update leave balances" });
             return errorRes;
         }
     }
@@ -599,7 +599,7 @@ public class StaffCommandFunction
             if (!string.IsNullOrWhiteSpace(shift.DayOfWeek) && !validDays.Contains(shift.DayOfWeek, StringComparer.OrdinalIgnoreCase))
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = $"Invalid DayOfWeek. Must be one of: {string.Join(", ", validDays)}" });
+                await badReqRes.WriteAsJsonAsync(new { error = $"Invalid DayOfWeek. Must be one of: {string.Join(", ", validDays)}" });
                 return badReqRes;
             }
 
@@ -608,7 +608,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -626,7 +626,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to add shift" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to add shift" });
                 return errorRes;
             }
 
@@ -643,7 +643,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error adding shift to staff {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to add shift" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to add shift" });
             return errorRes;
         }
     }
@@ -677,7 +677,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -686,7 +686,7 @@ public class StaffCommandFunction
             if (shift == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Shift not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Shift not found" });
                 return notFoundRes;
             }
 
@@ -708,7 +708,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update shift" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update shift" });
                 return errorRes;
             }
 
@@ -725,7 +725,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error updating shift {ShiftId} for staff {StaffId}", shiftId, staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update shift" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update shift" });
             return errorRes;
         }
     }
@@ -755,7 +755,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -764,7 +764,7 @@ public class StaffCommandFunction
             if (shift == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Shift not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Shift not found" });
                 return notFoundRes;
             }
 
@@ -777,7 +777,7 @@ public class StaffCommandFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to delete shift" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to delete shift" });
                 return errorRes;
             }
 
@@ -794,7 +794,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error deleting shift {ShiftId} for staff {StaffId}", shiftId, staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to delete shift" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to delete shift" });
             return errorRes;
         }
     }
@@ -825,7 +825,7 @@ public class StaffCommandFunction
             if (emailRequest == null || string.IsNullOrWhiteSpace(emailRequest.Subject) || string.IsNullOrWhiteSpace(emailRequest.Message))
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Subject and message are required" });
+                await badReqRes.WriteAsJsonAsync(new { error = "Subject and message are required" });
                 return badReqRes;
             }
 
@@ -833,7 +833,7 @@ public class StaffCommandFunction
             if (staff == null)
             {
                 var notFoundRes = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFoundRes.WriteAsJsonAsync(new { success = false, error = "Staff member not found" });
+                await notFoundRes.WriteAsJsonAsync(new { error = "Staff member not found" });
                 return notFoundRes;
             }
 
@@ -880,7 +880,7 @@ public class StaffCommandFunction
         {
             _log.LogError(ex, "Error sending email to staff {StaffId}", staffId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to send email" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to send email" });
             return errorRes;
         }
     }

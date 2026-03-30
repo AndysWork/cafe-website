@@ -105,7 +105,7 @@ public class DatabaseBackupFunction
         {
             _log.LogError(ex, "Manual database backup failed");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { success = false, error = "Backup failed due to an internal error" });
+            await error.WriteAsJsonAsync(new { error = "Backup failed due to an internal error" });
             return error;
         }
     }
@@ -157,7 +157,7 @@ public class DatabaseBackupFunction
         {
             _log.LogError(ex, "Failed to list backups");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { success = false, error = "An internal error occurred" });
+            await error.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return error;
         }
     }

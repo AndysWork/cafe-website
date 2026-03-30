@@ -13,16 +13,16 @@ namespace Cafe.Api.Functions;
 public class UpdateOutletIdsFunction
 {
     private readonly ILogger<UpdateOutletIdsFunction> _logger;
-    private readonly IMongoDatabase _database;
+    private readonly MongoService _mongo;
     private readonly AuthService _authService;
 
     public UpdateOutletIdsFunction(
         ILogger<UpdateOutletIdsFunction> logger,
-        IMongoDatabase database,
+        MongoService mongo,
         AuthService authService)
     {
         _logger = logger;
-        _database = database;
+        _mongo = mongo;
         _authService = authService;
     }
 
@@ -51,7 +51,7 @@ public class UpdateOutletIdsFunction
             // Get default outlet if not provided
             if (string.IsNullOrEmpty(defaultOutletId))
             {
-                var outletsCollection = _database.GetCollection<BsonDocument>("Outlets");
+                var outletsCollection = _mongo.Database.GetCollection<BsonDocument>("Outlets");
                 var defaultOutlet = await outletsCollection
                     .Find(Builders<BsonDocument>.Filter.Eq("outletCode", "MTC001"))
                     .FirstOrDefaultAsync();
@@ -108,7 +108,7 @@ public class UpdateOutletIdsFunction
     {
         try
         {
-            var collection = _database.GetCollection<BsonDocument>(collectionName);
+            var collection = _mongo.Database.GetCollection<BsonDocument>(collectionName);
 
             // Filter for documents without OutletId or with null OutletId
             var filter = Builders<BsonDocument>.Filter.Or(
@@ -215,7 +215,7 @@ public class UpdateOutletIdsFunction
     {
         try
         {
-            var collection = _database.GetCollection<BsonDocument>(collectionName);
+            var collection = _mongo.Database.GetCollection<BsonDocument>(collectionName);
 
             var total = await collection.CountDocumentsAsync(Builders<BsonDocument>.Filter.Empty);
 

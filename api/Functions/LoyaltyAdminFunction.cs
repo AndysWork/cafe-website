@@ -68,7 +68,7 @@ public class LoyaltyAdminFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting all loyalty accounts: {ex.Message}");
+            _log.LogError(ex, "Error getting all loyalty accounts");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get loyalty accounts" });
             return error;
@@ -106,7 +106,7 @@ public class LoyaltyAdminFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error creating reward: {ex.Message}");
+            _log.LogError(ex, "Error creating reward");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to create reward" });
             return error;
@@ -134,7 +134,7 @@ public class LoyaltyAdminFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting all rewards: {ex.Message}");
+            _log.LogError(ex, "Error getting all rewards");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get rewards" });
             return error;
@@ -179,7 +179,7 @@ public class LoyaltyAdminFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error updating reward: {ex.Message}");
+            _log.LogError(ex, "Error updating reward");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to update reward" });
             return error;
@@ -215,7 +215,7 @@ public class LoyaltyAdminFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error deleting reward: {ex.Message}");
+            _log.LogError(ex, "Error deleting reward");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to delete reward" });
             return error;
@@ -244,7 +244,7 @@ public class LoyaltyAdminFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting all redemptions: {ex.Message}");
+            _log.LogError(ex, "Error getting all redemptions");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get redemptions" });
             return error;

@@ -73,7 +73,7 @@ public class UserManagementFunction
         {
             _log.LogError(ex, "Error getting users");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to retrieve users" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to retrieve users" });
             return errorRes;
         }
     }
@@ -104,7 +104,7 @@ public class UserManagementFunction
             if (user == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
                 return notFound;
             }
 
@@ -112,7 +112,7 @@ public class UserManagementFunction
             if (user.Role == "admin")
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflict.WriteAsJsonAsync(new { success = false, error = "User is already an admin" });
+                await conflict.WriteAsJsonAsync(new { error = "User is already an admin" });
                 return conflict;
             }
 
@@ -122,7 +122,7 @@ public class UserManagementFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update user role" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update user role" });
                 return errorRes;
             }
 
@@ -154,7 +154,7 @@ public class UserManagementFunction
         {
             _log.LogError(ex, "Error promoting user to admin");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to promote user" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to promote user" });
             return errorRes;
         }
     }
@@ -176,7 +176,7 @@ public class UserManagementFunction
             if (userId == adminUserId)
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbidden.WriteAsJsonAsync(new { success = false, error = "Cannot demote yourself" });
+                await forbidden.WriteAsJsonAsync(new { error = "Cannot demote yourself" });
                 return forbidden;
             }
 
@@ -185,7 +185,7 @@ public class UserManagementFunction
             if (user == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
                 return notFound;
             }
 
@@ -193,7 +193,7 @@ public class UserManagementFunction
             if (user.Role == "user")
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
-                await conflict.WriteAsJsonAsync(new { success = false, error = "User is already a regular user" });
+                await conflict.WriteAsJsonAsync(new { error = "User is already a regular user" });
                 return conflict;
             }
 
@@ -203,7 +203,7 @@ public class UserManagementFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update user role" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update user role" });
                 return errorRes;
             }
 
@@ -235,7 +235,7 @@ public class UserManagementFunction
         {
             _log.LogError(ex, "Error demoting admin to user");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to demote user" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to demote user" });
             return errorRes;
         }
     }
@@ -257,7 +257,7 @@ public class UserManagementFunction
             if (userId == adminUserId)
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbidden.WriteAsJsonAsync(new { success = false, error = "Cannot deactivate yourself" });
+                await forbidden.WriteAsJsonAsync(new { error = "Cannot deactivate yourself" });
                 return forbidden;
             }
 
@@ -266,7 +266,7 @@ public class UserManagementFunction
             if (user == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { success = false, error = "User not found" });
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
                 return notFound;
             }
 
@@ -277,7 +277,7 @@ public class UserManagementFunction
             if (!success)
             {
                 var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update user status" });
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update user status" });
                 return errorRes;
             }
 
@@ -309,7 +309,7 @@ public class UserManagementFunction
         {
             _log.LogError(ex, "Error toggling user active status");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorRes.WriteAsJsonAsync(new { success = false, error = "Failed to update user status" });
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update user status" });
             return errorRes;
         }
     }

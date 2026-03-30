@@ -62,7 +62,7 @@ public class SalesFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting sales records: {ex.Message}");
+            _log.LogError(ex, "Error getting sales records");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get sales records" });
             return error;
@@ -113,7 +113,7 @@ public class SalesFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting sales by date range: {ex.Message}");
+            _log.LogError(ex, "Error getting sales by date range");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get sales records" });
             return error;
@@ -151,7 +151,7 @@ public class SalesFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting sales summary: {ex.Message}");
+            _log.LogError(ex, "Error getting sales summary");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get sales summary" });
             return error;
@@ -227,7 +227,7 @@ public class SalesFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error creating sales record: {ex.Message}");
+            _log.LogError(ex, "Error creating sales record");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to create sales record" });
             return error;
@@ -299,7 +299,7 @@ public class SalesFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error updating sales record: {ex.Message}");
+            _log.LogError(ex, "Error updating sales record");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to update sales record" });
             return error;
@@ -335,7 +335,7 @@ public class SalesFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error deleting sales record: {ex.Message}");
+            _log.LogError(ex, "Error deleting sales record");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to delete sales record" });
             return error;

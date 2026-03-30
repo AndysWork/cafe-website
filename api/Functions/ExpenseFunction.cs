@@ -62,12 +62,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting expenses: {ex.Message}");
-            _log.LogError($"Stack trace: {ex.StackTrace}");
-            if (ex.InnerException != null)
-            {
-                _log.LogError($"Inner exception: {ex.InnerException.Message}");
-            }
+            _log.LogError(ex, "Error getting expenses");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get expenses" });
             return error;
@@ -109,7 +104,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting expense by ID: {ex.Message}");
+            _log.LogError(ex, "Error getting expense by ID");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get expense" });
             return error;
@@ -168,7 +163,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting expenses by date range: {ex.Message}");
+            _log.LogError(ex, "Error getting expenses by date range");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get expenses" });
             return error;
@@ -209,7 +204,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting expense summary: {ex.Message}");
+            _log.LogError(ex, "Error getting expense summary");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get expense summary" });
             return error;
@@ -281,7 +276,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting hierarchical expenses: {ex.Message}");
+            _log.LogError(ex, "Error getting hierarchical expenses");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get hierarchical expenses" });
             return error;
@@ -478,7 +473,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error getting expense analytics: {ex.Message}");
+            _log.LogError(ex, "Error getting expense analytics");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get expense analytics" });
             return error;
@@ -558,7 +553,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error creating expense: {ex.Message}");
+            _log.LogError(ex, "Error creating expense");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to create expense" });
             return error;
@@ -620,7 +615,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error updating expense: {ex.Message}");
+            _log.LogError(ex, "Error updating expense");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to update expense" });
             return error;
@@ -656,7 +651,7 @@ public class ExpenseFunction
         }
         catch (Exception ex)
         {
-            _log.LogError($"Error deleting expense: {ex.Message}");
+            _log.LogError(ex, "Error deleting expense");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to delete expense" });
             return error;
