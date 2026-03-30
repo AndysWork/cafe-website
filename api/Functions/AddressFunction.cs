@@ -42,21 +42,8 @@ public class AddressFunction
         var (isValid, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
         if (!isValid) return errorResponse!;
 
-        var body = await req.ReadFromJsonAsync<AddDeliveryAddressRequest>();
-        if (body == null)
-        {
-            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
-            await bad.WriteAsJsonAsync(new { error = "Invalid request body" });
-            return bad;
-        }
-
-        var validationErrors = ValidationHelper.ValidateModel(body);
-        if (validationErrors.Count > 0)
-        {
-            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
-            await bad.WriteAsJsonAsync(new { error = "Validation failed", details = validationErrors });
-            return bad;
-        }
+        var (body, validationError) = await ValidationHelper.ValidateBody<AddDeliveryAddressRequest>(req);
+        if (validationError != null) return validationError;
 
         var address = new DeliveryAddress
         {
@@ -83,13 +70,8 @@ public class AddressFunction
         var (isValid, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
         if (!isValid) return errorResponse!;
 
-        var body = await req.ReadFromJsonAsync<UpdateDeliveryAddressRequest>();
-        if (body == null)
-        {
-            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
-            await bad.WriteAsJsonAsync(new { error = "Invalid request body" });
-            return bad;
-        }
+        var (body, validationError) = await ValidationHelper.ValidateBody<UpdateDeliveryAddressRequest>(req);
+        if (validationError != null) return validationError;
 
         // Sanitize inputs
         if (body.Label != null) body.Label = InputSanitizer.Sanitize(body.Label);

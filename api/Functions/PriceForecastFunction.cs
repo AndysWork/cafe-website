@@ -140,21 +140,8 @@ public class PriceForecastFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var forecast = await req.ReadFromJsonAsync<PriceForecast>();
-            if (forecast == null)
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Invalid price forecast data" });
-                return badReq;
-            }
-
-            // Validate menu item name
-            if (string.IsNullOrEmpty(forecast.MenuItemName))
-            {
-                var badReq2 = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq2.WriteAsJsonAsync(new { error = "Menu item name is required" });
-                return badReq2;
-            }
+            var (forecast, validationError) = await ValidationHelper.ValidateBody<PriceForecast>(req);
+            if (validationError != null) return validationError;
 
             // Optionally validate that menu item exists if MenuItemId is provided
             if (!string.IsNullOrEmpty(forecast.MenuItemId))
@@ -217,13 +204,8 @@ public class PriceForecastFunction
                 return badReq;
             }
 
-            var forecast = await req.ReadFromJsonAsync<PriceForecast>();
-            if (forecast == null)
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Invalid price forecast data" });
-                return badReq;
-            }
+            var (forecast, validationError) = await ValidationHelper.ValidateBody<PriceForecast>(req);
+            if (validationError != null) return validationError;
 
             // Add current state to history before updating
             var historyEntry = new PriceHistory

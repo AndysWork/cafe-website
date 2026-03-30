@@ -171,21 +171,8 @@ public class SalesFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var salesRequest = await req.ReadFromJsonAsync<CreateSalesRequest>();
-            if (salesRequest == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid sales data" });
-                return badRequest;
-            }
-
-            // Validate request
-            if (!ValidationHelper.TryValidate(salesRequest, out var validationError))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(validationError!.Value);
-                return badRequest;
-            }
+            var (salesRequest, validationError) = await ValidationHelper.ValidateBody<CreateSalesRequest>(req);
+            if (validationError != null) return validationError;
 
             // Validate outlet access
             var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
@@ -261,13 +248,8 @@ public class SalesFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var salesRequest = await req.ReadFromJsonAsync<CreateSalesRequest>();
-            if (salesRequest == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid sales data" });
-                return badRequest;
-            }
+            var (salesRequest, validationError) = await ValidationHelper.ValidateBody<CreateSalesRequest>(req);
+            if (validationError != null) return validationError;
 
             var existingSales = await _mongo.GetSalesByIdAsync(id);
             if (existingSales == null)

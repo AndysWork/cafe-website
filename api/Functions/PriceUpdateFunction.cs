@@ -295,13 +295,8 @@ public class PriceUpdateFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
             if (!isAuthorized) return errorResponse!;
 
-            var settings = await req.ReadFromJsonAsync<PriceUpdateSettings>();
-            if (settings == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid settings data" });
-                return badRequest;
-            }
+            var (settings, validationError) = await ValidationHelper.ValidateBody<PriceUpdateSettings>(req);
+            if (validationError != null) return validationError;
 
             var savedSettings = await _mongoService.SavePriceUpdateSettingsAsync(settings);
             

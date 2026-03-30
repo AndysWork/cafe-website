@@ -511,13 +511,8 @@ public class ExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var expenseRequest = await req.ReadFromJsonAsync<CreateExpenseRequest>();
-            if (expenseRequest == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid expense data" });
-                return badRequest;
-            }
+            var (expenseRequest, validationError) = await ValidationHelper.ValidateBody<CreateExpenseRequest>(req);
+            if (validationError != null) return validationError;
 
             // Get username for recordedBy
             var user = await _mongo.GetUserByIdAsync(userId!);
@@ -584,13 +579,8 @@ public class ExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var expenseRequest = await req.ReadFromJsonAsync<CreateExpenseRequest>();
-            if (expenseRequest == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid expense data" });
-                return badRequest;
-            }
+            var (expenseRequest, validationError) = await ValidationHelper.ValidateBody<CreateExpenseRequest>(req);
+            if (validationError != null) return validationError;
 
             var existingExpense = await _mongo.GetExpenseByIdAsync(id);
             if (existingExpense == null)

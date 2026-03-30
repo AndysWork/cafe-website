@@ -401,13 +401,8 @@ public class LoyaltyFunction
                 return errorResponse!;
 
             // Parse request
-            var reward = await req.ReadFromJsonAsync<Reward>();
-            if (reward == null || string.IsNullOrWhiteSpace(reward.Name))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid reward data" });
-                return badRequest;
-            }
+            var (reward, validationError) = await ValidationHelper.ValidateBody<Reward>(req);
+            if (validationError != null) return validationError;
 
             if (reward.PointsCost <= 0)
             {
@@ -478,11 +473,13 @@ public class LoyaltyFunction
             if (!isAuthorized || string.IsNullOrEmpty(userId))
                 return errorResponse!;
 
-            var body = await req.ReadFromJsonAsync<TransferPointsRequest>();
-            if (body == null || string.IsNullOrWhiteSpace(body.RecipientUsername) || body.Points <= 0)
+            var (body, validationError) = await ValidationHelper.ValidateBody<TransferPointsRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (body.Points <= 0)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Please provide a valid recipient username and points amount" });
+                await badRequest.WriteAsJsonAsync(new { error = "Points amount must be greater than 0" });
                 return badRequest;
             }
 
@@ -526,13 +523,8 @@ public class LoyaltyFunction
             if (!isAuthorized || string.IsNullOrEmpty(userId))
                 return errorResponse!;
 
-            var body = await req.ReadFromJsonAsync<ApplyReferralRequest>();
-            if (body == null || string.IsNullOrWhiteSpace(body.ReferralCode))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Please provide a referral code" });
-                return badRequest;
-            }
+            var (body, validationError) = await ValidationHelper.ValidateBody<ApplyReferralRequest>(req);
+            if (validationError != null) return validationError;
 
             var sanitizedCode = InputSanitizer.Sanitize(body.ReferralCode).Trim().ToUpper();
 
@@ -574,13 +566,8 @@ public class LoyaltyFunction
             if (!isAuthorized || string.IsNullOrEmpty(userId))
                 return errorResponse!;
 
-            var body = await req.ReadFromJsonAsync<SetBirthdayRequest>();
-            if (body == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Please provide a date of birth" });
-                return badRequest;
-            }
+            var (body, validationError) = await ValidationHelper.ValidateBody<SetBirthdayRequest>(req);
+            if (validationError != null) return validationError;
 
             var (success, message) = await _mongo.SetBirthdayAsync(userId, body.DateOfBirth);
 

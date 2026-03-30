@@ -122,13 +122,8 @@ public class StaffPerformanceFunction
 
         try
         {
-            var record = await req.ReadFromJsonAsync<StaffPerformanceRecord>();
-            if (record == null)
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { success = false, error = "Invalid record data" });
-                return badReq;
-            }
+            var (record, validationError) = await ValidationHelper.ValidateBody<StaffPerformanceRecord>(req);
+            if (validationError != null) return validationError;
 
             // Validate outlet access
             var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);

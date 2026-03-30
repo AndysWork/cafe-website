@@ -144,13 +144,8 @@ public class BonusConfigurationFunction
 
         try
         {
-            var request = await req.ReadFromJsonAsync<CreateBonusConfigurationRequest>();
-            if (request == null)
-            {
-                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid configuration data" });
-                return badReqRes;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateBonusConfigurationRequest>(req);
+            if (validationError != null) return validationError;
 
             // Validate outlet access
             var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
@@ -227,13 +222,8 @@ public class BonusConfigurationFunction
                 return notFoundRes;
             }
 
-            var request = await req.ReadFromJsonAsync<UpdateBonusConfigurationRequest>();
-            if (request == null)
-            {
-                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid configuration data" });
-                return badReqRes;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateBonusConfigurationRequest>(req);
+            if (validationError != null) return validationError;
 
             // Update fields
             if (request.ConfigurationName != null) existing.ConfigurationName = request.ConfigurationName;

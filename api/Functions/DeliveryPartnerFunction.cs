@@ -56,20 +56,8 @@ public class DeliveryPartnerFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateDeliveryPartnerRequest>();
-            if (request == null)
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badReq;
-            }
-
-            if (!ValidationHelper.TryValidate(request, out var validationError))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(validationError!.Value);
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateDeliveryPartnerRequest>(req);
+            if (validationError != null) return validationError;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
@@ -110,13 +98,8 @@ public class DeliveryPartnerFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<AssignDeliveryRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.OrderId))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "OrderId is required" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<AssignDeliveryRequest>(req);
+            if (validationError != null) return validationError;
 
             string? partnerId = request.DeliveryPartnerId;
             string? partnerName = null;
@@ -201,13 +184,8 @@ public class DeliveryPartnerFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<UpdateDeliveryPartnerStatusRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.Status))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Status is required" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateDeliveryPartnerStatusRequest>(req);
+            if (validationError != null) return validationError;
 
             var validStatuses = new[] { "available", "offline" };
             if (!validStatuses.Contains(request.Status.ToLower()))

@@ -90,20 +90,8 @@ public class HappyHourFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateHappyHourRequest>();
-            if (request == null)
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badReq;
-            }
-
-            if (!ValidationHelper.TryValidate(request, out var validationError))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(validationError!.Value);
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateHappyHourRequest>(req);
+            if (validationError != null) return validationError;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
@@ -147,13 +135,8 @@ public class HappyHourFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateHappyHourRequest>();
-            if (request == null)
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateHappyHourRequest>(req);
+            if (validationError != null) return validationError;
 
             var existing = await _mongo.GetHappyHourRuleByIdAsync(id);
             if (existing == null)

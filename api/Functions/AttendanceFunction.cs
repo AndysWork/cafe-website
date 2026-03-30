@@ -31,13 +31,8 @@ public class AttendanceFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<ClockInOutRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.StaffId))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "StaffId is required" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<ClockInOutRequest>(req);
+            if (validationError != null) return validationError;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var attendance = await _mongo.ClockInAsync(request.StaffId, "", outletId ?? "default");
@@ -64,13 +59,8 @@ public class AttendanceFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<ClockInOutRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.StaffId))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "StaffId is required" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<ClockInOutRequest>(req);
+            if (validationError != null) return validationError;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var attendance = await _mongo.ClockOutAsync(request.StaffId, outletId ?? "default");
@@ -161,20 +151,8 @@ public class AttendanceFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateLeaveRequestDto>();
-            if (request == null)
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badReq;
-            }
-
-            if (!ValidationHelper.TryValidate(request, out var validationError))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(validationError!.Value);
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateLeaveRequestDto>(req);
+            if (validationError != null) return validationError;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
@@ -242,13 +220,8 @@ public class AttendanceFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<UpdateLeaveStatusRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.Status))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Status is required" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateLeaveStatusRequest>(req);
+            if (validationError != null) return validationError;
 
             var validStatuses = new[] { "approved", "rejected" };
             if (!validStatuses.Contains(request.Status.ToLower()))

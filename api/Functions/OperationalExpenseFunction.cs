@@ -154,13 +154,8 @@ public class OperationalExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var requestBody = await req.ReadFromJsonAsync<CreateOperationalExpenseRequest>();
-            if (requestBody == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badRequest;
-            }
+            var (requestBody, validationError) = await ValidationHelper.ValidateBody<CreateOperationalExpenseRequest>(req);
+            if (validationError != null) return validationError;
 
             // Validate outlet access
             var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
@@ -222,13 +217,8 @@ public class OperationalExpenseFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var requestBody = await req.ReadFromJsonAsync<UpdateOperationalExpenseRequest>();
-            if (requestBody == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badRequest;
-            }
+            var (requestBody, validationError) = await ValidationHelper.ValidateBody<UpdateOperationalExpenseRequest>(req);
+            if (validationError != null) return validationError;
 
             var existing = await _mongo.GetOperationalExpenseByIdAsync(id);
             if (existing == null)

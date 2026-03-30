@@ -79,20 +79,8 @@ public class SubscriptionFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateSubscriptionPlanRequest>();
-            if (request == null)
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badReq;
-            }
-
-            if (!ValidationHelper.TryValidate(request, out var validationError))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(validationError!.Value);
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateSubscriptionPlanRequest>(req);
+            if (validationError != null) return validationError;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
@@ -141,13 +129,8 @@ public class SubscriptionFunction
             var (isAuthenticated, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthenticated) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<SubscribeRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.PlanId))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "PlanId is required" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<SubscribeRequest>(req);
+            if (validationError != null) return validationError;
 
             // Check plan exists
             var plans = await _mongo.GetSubscriptionPlansAsync("default");

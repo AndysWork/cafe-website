@@ -59,8 +59,10 @@ public class PaymentFunction
                 return unauthorized;
             }
 
-            var request = await req.ReadFromJsonAsync<CreatePaymentOrderRequest>();
-            if (request == null || request.Amount <= 0)
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreatePaymentOrderRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (request.Amount <= 0)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Valid amount is required" });
@@ -120,14 +122,8 @@ public class PaymentFunction
                 return unauthorized;
             }
 
-            var request = await req.ReadFromJsonAsync<VerifyPaymentRequest>();
-            if (request == null || string.IsNullOrEmpty(request.RazorpayOrderId) ||
-                string.IsNullOrEmpty(request.RazorpayPaymentId) || string.IsNullOrEmpty(request.RazorpaySignature))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "All payment verification fields are required" });
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<VerifyPaymentRequest>(req);
+            if (validationError != null) return validationError;
 
             // Verify the signature
             var isValid = _razorpay.VerifyPaymentSignature(
@@ -210,13 +206,8 @@ public class PaymentFunction
                 return forbidden;
             }
 
-            var request = await req.ReadFromJsonAsync<RefundPaymentRequest>();
-            if (request == null || string.IsNullOrEmpty(request.OrderId))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Order ID is required" });
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<RefundPaymentRequest>(req);
+            if (validationError != null) return validationError;
 
             // Get the order
             var order = await _mongo.GetOrderByIdAsync(request.OrderId);

@@ -219,13 +219,8 @@ public class MenuFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var item = await req.ReadFromJsonAsync<CafeMenuItem>();
-            if (item == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid menu item data" });
-                return badRequest;
-            }
+            var (item, validationError) = await ValidationHelper.ValidateBody<CafeMenuItem>(req);
+            if (validationError != null) return validationError;
 
             // Get or validate outlet ID
             var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
@@ -240,14 +235,6 @@ public class MenuFunction
             if (string.IsNullOrEmpty(item.OutletId))
             {
                 item.OutletId = outletId!;
-            }
-
-            // Validate request
-            if (!ValidationHelper.TryValidate(item, out var validationError))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(validationError!.Value);
-                return badRequest;
             }
 
             // Validate CategoryId exists
@@ -314,13 +301,8 @@ public class MenuFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var item = await req.ReadFromJsonAsync<CafeMenuItem>();
-            if (item == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid menu item data" });
-                return badRequest;
-            }
+            var (item, validationError) = await ValidationHelper.ValidateBody<CafeMenuItem>(req);
+            if (validationError != null) return validationError;
 
             // Ensure outlet ID is set
             if (string.IsNullOrEmpty(item.OutletId))
@@ -499,14 +481,8 @@ public class MenuFunction
             var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var body = await req.ReadFromJsonAsync<CopyMenuItemRequest>();
-            if (body == null || string.IsNullOrEmpty(body.MenuItemName) || 
-                string.IsNullOrEmpty(body.SourceOutletId) || string.IsNullOrEmpty(body.TargetOutletId))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "MenuItemName, SourceOutletId, and TargetOutletId are required" });
-                return badRequest;
-            }
+            var (body, validationError) = await ValidationHelper.ValidateBody<CopyMenuItemRequest>(req);
+            if (validationError != null) return validationError;
 
             if (body.SourceOutletId == body.TargetOutletId)
             {

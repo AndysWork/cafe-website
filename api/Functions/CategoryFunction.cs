@@ -119,13 +119,8 @@ public class CategoryFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var category = await req.ReadFromJsonAsync<MenuCategory>();
-            if (category == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid category data" });
-                return badRequest;
-            }
+            var (category, validationError) = await ValidationHelper.ValidateBody<MenuCategory>(req);
+            if (validationError != null) return validationError;
 
             // Extract outlet ID from request
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
@@ -163,13 +158,8 @@ public class CategoryFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var category = await req.ReadFromJsonAsync<MenuCategory>();
-            if (category == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid category data" });
-                return badRequest;
-            }
+            var (category, validationError) = await ValidationHelper.ValidateBody<MenuCategory>(req);
+            if (validationError != null) return validationError;
 
             // Extract outlet ID from request
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);

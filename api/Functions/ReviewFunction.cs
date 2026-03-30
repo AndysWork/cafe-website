@@ -31,11 +31,13 @@ public class ReviewFunction
             var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateReviewRequest>();
-            if (request == null || string.IsNullOrEmpty(request.OrderId) || request.Rating < 1 || request.Rating > 5)
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateReviewRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (request.Rating < 1 || request.Rating > 5)
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Invalid review data. Rating must be 1-5 and orderId is required." });
+                await badReq.WriteAsJsonAsync(new { error = "Rating must be between 1 and 5" });
                 return badReq;
             }
 

@@ -68,13 +68,8 @@ public class SecurityAdminFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var requestBody = await req.ReadFromJsonAsync<CsrfValidationRequest>();
-            if (requestBody == null || string.IsNullOrWhiteSpace(requestBody.Token))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Token is required" });
-                return badRequest;
-            }
+            var (requestBody, validationError) = await ValidationHelper.ValidateBody<CsrfValidationRequest>(req);
+            if (validationError != null) return validationError;
 
             var isValid = CsrfTokenManager.ValidateToken(requestBody.Token, userId!);
 
@@ -112,13 +107,8 @@ public class SecurityAdminFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var requestBody = await req.ReadFromJsonAsync<ApiKeyGenerationRequest>();
-            if (requestBody == null || string.IsNullOrWhiteSpace(requestBody.ServiceName))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Service name is required" });
-                return badRequest;
-            }
+            var (requestBody, validationError) = await ValidationHelper.ValidateBody<ApiKeyGenerationRequest>(req);
+            if (validationError != null) return validationError;
 
             var apiKey = ApiKeyManager.GenerateApiKey(requestBody.ServiceName, requestBody.Description ?? "");
 
@@ -384,13 +374,8 @@ public class SecurityAdminFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var requestBody = await req.ReadFromJsonAsync<AuditExportRequest>();
-            if (requestBody == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
-                return badRequest;
-            }
+            var (requestBody, validationError) = await ValidationHelper.ValidateBody<AuditExportRequest>(req);
+            if (validationError != null) return validationError;
 
             var exportData = await auditLogger.ExportLogs(
                 requestBody.StartDate,

@@ -60,20 +60,8 @@ public class DeliveryZoneFunction
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
-            var request = await req.ReadFromJsonAsync<CreateDeliveryZoneRequest>();
-            if (request == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
-                return badRequest;
-            }
-
-            if (!ValidationHelper.TryValidate(request, out var validationError))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(validationError!.Value);
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateDeliveryZoneRequest>(req);
+            if (validationError != null) return validationError;
 
             var zone = new DeliveryZone
             {
@@ -110,13 +98,8 @@ public class DeliveryZoneFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateDeliveryZoneRequest>();
-            if (request == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateDeliveryZoneRequest>(req);
+            if (validationError != null) return validationError;
 
             var existing = await _mongo.GetDeliveryZoneByIdAsync(id);
             if (existing == null)

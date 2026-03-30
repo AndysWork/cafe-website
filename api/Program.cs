@@ -20,6 +20,7 @@ var host = new HostBuilder()
     {
         // Add security middleware
         builder.UseMiddleware<SecurityHeadersMiddleware>();
+        builder.UseMiddleware<InputSanitizationMiddleware>();
         builder.UseMiddleware<RateLimitingMiddleware>();
         builder.UseMiddleware<RequestLoggingMiddleware>();
         builder.UseMiddleware<ApiVersionMiddleware>();

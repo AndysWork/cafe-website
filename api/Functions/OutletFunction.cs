@@ -188,21 +188,8 @@ public class OutletFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateOutletRequest>();
-            if (request == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badRequest;
-            }
-
-            // Validate request
-            if (string.IsNullOrWhiteSpace(request.OutletName) || string.IsNullOrWhiteSpace(request.OutletCode))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Outlet name and code are required" });
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateOutletRequest>(req);
+            if (validationError != null) return validationError;
 
             var outlet = await _mongo.CreateOutletAsync(request, userId!);
             var res = req.CreateResponse(HttpStatusCode.Created);
@@ -241,13 +228,8 @@ public class OutletFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<UpdateOutletRequest>();
-            if (request == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request body" });
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateOutletRequest>(req);
+            if (validationError != null) return validationError;
 
             var success = await _mongo.UpdateOutletAsync(id, request, userId!);
             if (!success)

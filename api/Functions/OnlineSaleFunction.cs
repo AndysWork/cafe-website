@@ -503,13 +503,8 @@ public class OnlineSaleFunction
             var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var requestBody = await req.ReadFromJsonAsync<UpdateCouponStatusRequest>();
-            if (requestBody == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request body" });
-                return badRequest;
-            }
+            var (requestBody, validationError) = await ValidationHelper.ValidateBody<UpdateCouponStatusRequest>(req);
+            if (validationError != null) return validationError;
 
             // Create or update the coupon status
             var updatedCoupon = await _mongo.CreateOrUpdateDiscountCouponAsync(
@@ -572,13 +567,8 @@ public class OnlineSaleFunction
             var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var requestBody = await req.ReadFromJsonAsync<UpdateCouponMaxValueRequest>();
-            if (requestBody == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request body" });
-                return badRequest;
-            }
+            var (requestBody, validationError) = await ValidationHelper.ValidateBody<UpdateCouponMaxValueRequest>(req);
+            if (validationError != null) return validationError;
 
             var updated = await _mongo.UpdateDiscountCouponMaxValueAsync(id, requestBody.MaxValue);
             
@@ -616,13 +606,8 @@ public class OnlineSaleFunction
             var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var requestBody = await req.ReadFromJsonAsync<UpdateCouponDiscountPercentageRequest>();
-            if (requestBody == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request body" });
-                return badRequest;
-            }
+            var (requestBody, validationError) = await ValidationHelper.ValidateBody<UpdateCouponDiscountPercentageRequest>(req);
+            if (validationError != null) return validationError;
 
             var updated = await _mongo.UpdateDiscountCouponPercentageAsync(id, requestBody.DiscountPercentage);
             

@@ -81,21 +81,8 @@ public class OrderFunction
             }
 
             // Parse request
-            var orderRequest = await req.ReadFromJsonAsync<CreateOrderRequest>();
-            if (orderRequest == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
-                return badRequest;
-            }
-
-            // Validate request
-            if (!ValidationHelper.TryValidate(orderRequest, out var validationError))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(validationError!.Value);
-                return badRequest;
-            }
+            var (orderRequest, validationError) = await ValidationHelper.ValidateBody<CreateOrderRequest>(req);
+            if (validationError != null) return validationError;
 
             // Validate outlet access
             var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
@@ -599,13 +586,8 @@ public class OrderFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var statusRequest = await req.ReadFromJsonAsync<UpdateOrderStatusRequest>();
-            if (statusRequest == null || string.IsNullOrWhiteSpace(statusRequest.Status))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Status is required" });
-                return badRequest;
-            }
+            var (statusRequest, validationError) = await ValidationHelper.ValidateBody<UpdateOrderStatusRequest>(req);
+            if (validationError != null) return validationError;
 
             // Validate status value
             var validStatuses = new[] { "pending", "confirmed", "preparing", "ready", "delivered", "cancelled" };

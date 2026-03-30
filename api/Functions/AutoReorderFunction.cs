@@ -86,13 +86,8 @@ public class AutoReorderFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<UpdatePurchaseOrderStatusRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.Status))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Status is required" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdatePurchaseOrderStatusRequest>(req);
+            if (validationError != null) return validationError;
 
             var validStatuses = new[] { "approved", "ordered", "received", "cancelled" };
             if (!validStatuses.Contains(request.Status.ToLower()))

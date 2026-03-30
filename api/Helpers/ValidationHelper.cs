@@ -1,6 +1,10 @@
+using System.Collections;
 using System.ComponentModel.DataAnnotations;
+using System.Net;
+using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Functions.Worker.Http;
 
 namespace Cafe.Api.Helpers;
 
@@ -115,5 +119,102 @@ public static class ValidationHelper
 
         errorResponse = null;
         return true;
+    }
+
+    /// <summary>
+    /// Reads, sanitizes, and validates a JSON request body in a single call.
+    /// Replaces the per-function pattern of ReadFromJsonAsync + null check + sanitize + validate.
+    /// Returns either the validated model or an HttpResponseData error.
+    /// </summary>
+    public static async Task<(T? Model, HttpResponseData? ErrorResponse)> ValidateBody<T>(HttpRequestData req) where T : class
+    {
+        T? model;
+        try
+        {
+            model = await req.ReadFromJsonAsync<T>();
+        }
+        catch (Exception)
+        {
+            var error = req.CreateResponse(HttpStatusCode.BadRequest);
+            await error.WriteAsJsonAsync(new { success = false, error = "Invalid JSON format" });
+            return (null, error);
+        }
+
+        if (model == null)
+        {
+            var error = req.CreateResponse(HttpStatusCode.BadRequest);
+            await error.WriteAsJsonAsync(new { success = false, error = "Request body is required" });
+            return (null, error);
+        }
+
+        // Sanitize all string properties recursively
+        SanitizeObjectStrings(model);
+
+        // Validate using DataAnnotations
+        var validationResults = ValidateModel(model);
+        if (validationResults.Any())
+        {
+            var errors = validationResults
+                .GroupBy(vr => vr.MemberNames.FirstOrDefault() ?? "General")
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(vr => vr.ErrorMessage ?? "Validation error").ToArray()
+                );
+
+            var error = req.CreateResponse(HttpStatusCode.BadRequest);
+            await error.WriteAsJsonAsync(new { success = false, message = "Validation failed", errors });
+            return (null, error);
+        }
+
+        return (model, null);
+    }
+
+    /// <summary>
+    /// Recursively sanitizes all string properties on an object using InputSanitizer.Sanitize().
+    /// Skips properties whose names contain "password", "secret", or "token".
+    /// </summary>
+    public static void SanitizeObjectStrings(object obj, int depth = 0)
+    {
+        if (obj == null || depth > 3) return;
+
+        var type = obj.GetType();
+        foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (!prop.CanRead || !prop.CanWrite) continue;
+
+            var nameLower = prop.Name.ToLowerInvariant();
+            if (nameLower.Contains("password") || nameLower.Contains("secret") || nameLower.Contains("token"))
+                continue;
+
+            if (prop.PropertyType == typeof(string))
+            {
+                var value = (string?)prop.GetValue(obj);
+                if (!string.IsNullOrEmpty(value))
+                {
+                    prop.SetValue(obj, InputSanitizer.Sanitize(value));
+                }
+            }
+            else if (prop.PropertyType.IsClass && prop.PropertyType != typeof(string))
+            {
+                if (typeof(IEnumerable).IsAssignableFrom(prop.PropertyType))
+                {
+                    var enumerable = prop.GetValue(obj) as IEnumerable;
+                    if (enumerable != null)
+                    {
+                        foreach (var item in enumerable)
+                        {
+                            if (item != null && item is not string)
+                                SanitizeObjectStrings(item, depth + 1);
+                        }
+                    }
+                }
+                else
+                {
+                    var nested = prop.GetValue(obj);
+                    if (nested != null)
+                        SanitizeObjectStrings(nested, depth + 1);
+                }
+            }
+        }
     }
 }

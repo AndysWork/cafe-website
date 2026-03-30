@@ -80,13 +80,8 @@ public class KitchenDisplayFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<KitchenStatusUpdateRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.Status))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "Status is required" });
-                return badReq;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<KitchenStatusUpdateRequest>(req);
+            if (validationError != null) return validationError;
 
             var validStatuses = new[] { "preparing", "ready", "completed" };
             if (!validStatuses.Contains(request.Status.ToLower()))

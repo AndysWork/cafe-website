@@ -143,13 +143,8 @@ public class SubCategoryFunction
                 return badRequest;
             }
 
-            var subcategory = await req.ReadFromJsonAsync<MenuSubCategory>();
-            if (subcategory == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid subcategory data" });
-                return badRequest;
-            }
+            var (subcategory, validationError) = await ValidationHelper.ValidateBody<MenuSubCategory>(req);
+            if (validationError != null) return validationError;
 
             subcategory.OutletId = outletId;
             var created = await _mongo.CreateSubCategoryAsync(subcategory);
@@ -184,13 +179,8 @@ public class SubCategoryFunction
                 return badRequest;
             }
 
-            var subcategory = await req.ReadFromJsonAsync<MenuSubCategory>();
-            if (subcategory == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid subcategory data" });
-                return badRequest;
-            }
+            var (subcategory, validationError) = await ValidationHelper.ValidateBody<MenuSubCategory>(req);
+            if (validationError != null) return validationError;
 
             subcategory.Id = id;
             var success = await _mongo.UpdateSubCategoryAsync(id, subcategory, outletId);

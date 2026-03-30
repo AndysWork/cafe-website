@@ -135,21 +135,8 @@ public class CashReconciliationFunction
 
         try
         {
-            var request = await req.ReadFromJsonAsync<CreateDailyCashReconciliationRequest>();
-            if (request == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
-                return badRequest;
-            }
-
-            // Validate request
-            if (!ValidationHelper.TryValidate(request, out var validationError))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(validationError!.Value);
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateDailyCashReconciliationRequest>(req);
+            if (validationError != null) return validationError;
 
             // Validate outlet access
             var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
@@ -208,21 +195,8 @@ public class CashReconciliationFunction
 
         try
         {
-            var request = await req.ReadFromJsonAsync<UpdateDailyCashReconciliationRequest>();
-            if (request == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request" });
-                return badRequest;
-            }
-
-            // Validate request
-            if (!ValidationHelper.TryValidate(request, out var validationError))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(validationError!.Value);
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateDailyCashReconciliationRequest>(req);
+            if (validationError != null) return validationError;
 
             // Get existing reconciliation
             var existing = await _mongo.GetCashReconciliationsAsync();
@@ -267,11 +241,13 @@ public class CashReconciliationFunction
 
         try
         {
-            var request = await req.ReadFromJsonAsync<BulkReconciliationRequest>();
-            if (request == null || request.Records == null || request.Records.Count == 0)
+            var (request, validationError) = await ValidationHelper.ValidateBody<BulkReconciliationRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (request.Records == null || request.Records.Count == 0)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { success = false, error = "Invalid request or no records provided" });
+                await badRequest.WriteAsJsonAsync(new { success = false, error = "No records provided" });
                 return badRequest;
             }
 

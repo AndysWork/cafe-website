@@ -86,13 +86,8 @@ public class OfflineExpenseTypeFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateOfflineExpenseTypeRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.ExpenseType))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateOfflineExpenseTypeRequest>(req);
+            if (validationError != null) return validationError;
 
             var expenseType = await _mongo.CreateOfflineExpenseTypeAsync(request);
             var response = req.CreateResponse(HttpStatusCode.Created);
@@ -121,13 +116,8 @@ public class OfflineExpenseTypeFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<CreateOfflineExpenseTypeRequest>();
-            if (request == null || string.IsNullOrWhiteSpace(request.ExpenseType))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateOfflineExpenseTypeRequest>(req);
+            if (validationError != null) return validationError;
 
             var success = await _mongo.UpdateOfflineExpenseTypeAsync(id, request);
             if (!success)

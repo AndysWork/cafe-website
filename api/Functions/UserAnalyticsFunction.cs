@@ -55,13 +55,8 @@ public class UserAnalyticsFunction
                 }
             }
 
-            var body = await req.ReadFromJsonAsync<TrackEventRequest>();
-            if (body == null || string.IsNullOrWhiteSpace(body.EventType))
-            {
-                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = "EventType is required" });
-                return badReq;
-            }
+            var (body, validationError) = await ValidationHelper.ValidateBody<TrackEventRequest>(req);
+            if (validationError != null) return validationError;
 
             // Sanitize inputs
             var evt = new UserActivityEvent
@@ -126,8 +121,10 @@ public class UserAnalyticsFunction
                 }
             }
 
-            var body = await req.ReadFromJsonAsync<TrackBatchRequest>();
-            if (body == null || body.Events.Count == 0)
+            var (body, validationError) = await ValidationHelper.ValidateBody<TrackBatchRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (body.Events.Count == 0)
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = "Events array is required" });

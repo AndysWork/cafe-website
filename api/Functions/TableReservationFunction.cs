@@ -48,20 +48,8 @@ public class TableReservationFunction
                 userId = principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             }
 
-            var request = await req.ReadFromJsonAsync<CreateReservationRequest>();
-            if (request == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
-                return badRequest;
-            }
-
-            if (!ValidationHelper.TryValidate(request, out var validationError))
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(validationError!.Value);
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateReservationRequest>(req);
+            if (validationError != null) return validationError;
 
             var reservation = new TableReservation
             {
@@ -165,13 +153,8 @@ public class TableReservationFunction
             var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var request = await req.ReadFromJsonAsync<UpdateReservationStatusRequest>();
-            if (request == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid request" });
-                return badRequest;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateReservationStatusRequest>(req);
+            if (validationError != null) return validationError;
 
             var success = await _mongo.UpdateReservationStatusAsync(id, request.Status);
             if (!success)

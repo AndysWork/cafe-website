@@ -245,35 +245,8 @@ public class StaffFunction
 
         try
         {
-            var staff = await req.ReadFromJsonAsync<Staff>();
-            if (staff == null)
-            {
-                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid staff data" });
-                return badReqRes;
-            }
-
-            // Validate required fields
-            var validationErrors = new List<string>();
-            if (string.IsNullOrWhiteSpace(staff.EmployeeId))
-                validationErrors.Add("Employee ID is required");
-            if (string.IsNullOrWhiteSpace(staff.FirstName))
-                validationErrors.Add("First name is required");
-            if (string.IsNullOrWhiteSpace(staff.LastName))
-                validationErrors.Add("Last name is required");
-            if (string.IsNullOrWhiteSpace(staff.Email))
-                validationErrors.Add("Email is required");
-            if (string.IsNullOrWhiteSpace(staff.PhoneNumber))
-                validationErrors.Add("Phone number is required");
-            if (string.IsNullOrWhiteSpace(staff.Position))
-                validationErrors.Add("Position is required");
-
-            if (validationErrors.Any())
-            {
-                var validationRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await validationRes.WriteAsJsonAsync(new { success = false, errors = validationErrors });
-                return validationRes;
-            }
+            var (staff, validationError) = await ValidationHelper.ValidateBody<Staff>(req);
+            if (validationError != null) return validationError;
 
             // Check for duplicate employee ID
             var existingByEmployeeId = await _mongo.GetStaffByEmployeeIdAsync(staff.EmployeeId);
@@ -381,13 +354,8 @@ public class StaffFunction
                 return notFoundRes;
             }
 
-            var updatedStaff = await req.ReadFromJsonAsync<Staff>();
-            if (updatedStaff == null)
-            {
-                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid staff data" });
-                return badReqRes;
-            }
+            var (updatedStaff, validationError) = await ValidationHelper.ValidateBody<Staff>(req);
+            if (validationError != null) return validationError;
 
             // Preserve ID and audit fields
             updatedStaff.Id = staffId;
@@ -634,8 +602,10 @@ public class StaffFunction
                 return notFoundRes;
             }
 
-            var request = await req.ReadFromJsonAsync<UpdateSalaryRequest>();
-            if (request == null || request.Salary <= 0)
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateSalaryRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (request.Salary <= 0)
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid salary amount" });
@@ -697,8 +667,10 @@ public class StaffFunction
                 return notFoundRes;
             }
 
-            var request = await req.ReadFromJsonAsync<UpdatePerformanceRatingRequest>();
-            if (request == null || request.Rating < 0 || request.Rating > 5)
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdatePerformanceRatingRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (request.Rating < 0 || request.Rating > 5)
             {
                 var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReqRes.WriteAsJsonAsync(new { success = false, error = "Rating must be between 0 and 5" });
@@ -760,13 +732,8 @@ public class StaffFunction
                 return notFoundRes;
             }
 
-            var request = await req.ReadFromJsonAsync<UpdateLeaveBalancesRequest>();
-            if (request == null)
-            {
-                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid leave balance data" });
-                return badReqRes;
-            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateLeaveBalancesRequest>(req);
+            if (validationError != null) return validationError;
 
             var success = await _mongo.UpdateStaffLeaveBalancesAsync(
                 staffId, 
@@ -831,35 +798,16 @@ public class StaffFunction
 
         try
         {
-            var shift = await req.ReadFromJsonAsync<StaffShift>();
-            if (shift == null)
-            {
-                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid shift data" });
-                return badReqRes;
-            }
-
-            // Validate required fields
-            var validationErrors = new List<string>();
-            if (string.IsNullOrWhiteSpace(shift.DayOfWeek))
-                validationErrors.Add("DayOfWeek is required");
-            if (string.IsNullOrWhiteSpace(shift.StartTime))
-                validationErrors.Add("StartTime is required");
-            if (string.IsNullOrWhiteSpace(shift.EndTime))
-                validationErrors.Add("EndTime is required");
+            var (shift, validationError) = await ValidationHelper.ValidateBody<StaffShift>(req);
+            if (validationError != null) return validationError;
 
             // Validate day of week
             var validDays = new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
             if (!string.IsNullOrWhiteSpace(shift.DayOfWeek) && !validDays.Contains(shift.DayOfWeek, StringComparer.OrdinalIgnoreCase))
             {
-                validationErrors.Add($"Invalid DayOfWeek. Must be one of: {string.Join(", ", validDays)}");
-            }
-
-            if (validationErrors.Any())
-            {
-                var validationRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await validationRes.WriteAsJsonAsync(new { success = false, errors = validationErrors });
-                return validationRes;
+                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReqRes.WriteAsJsonAsync(new { success = false, error = $"Invalid DayOfWeek. Must be one of: {string.Join(", ", validDays)}" });
+                return badReqRes;
             }
 
             // Get staff member
@@ -928,13 +876,8 @@ public class StaffFunction
 
         try
         {
-            var updatedShift = await req.ReadFromJsonAsync<StaffShift>();
-            if (updatedShift == null)
-            {
-                var badReqRes = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReqRes.WriteAsJsonAsync(new { success = false, error = "Invalid shift data" });
-                return badReqRes;
-            }
+            var (updatedShift, validationError) = await ValidationHelper.ValidateBody<StaffShift>(req);
+            if (validationError != null) return validationError;
 
             // Get staff member
             var staff = await _mongo.GetStaffByIdAsync(staffId);
