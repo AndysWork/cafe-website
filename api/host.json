@@ -19,6 +19,12 @@
             "forceHttp": false
         }
     },
+    "singleton": {
+        "lockPeriod": "00:00:15",
+        "listenerLockPeriod": "00:01:00",
+        "lockAcquisitionTimeout": "00:01:00",
+        "lockAcquisitionPollingInterval": "00:00:02"
+    },
     "cors": {
         "allowedOrigins": [
             "http://localhost:4200",

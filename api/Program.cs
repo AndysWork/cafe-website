@@ -22,6 +22,7 @@ var host = new HostBuilder()
         builder.UseMiddleware<SecurityHeadersMiddleware>();
         builder.UseMiddleware<InputSanitizationMiddleware>();
         builder.UseMiddleware<RateLimitingMiddleware>();
+        builder.UseMiddleware<AuthorizationMiddleware>();
         builder.UseMiddleware<RequestLoggingMiddleware>();
         builder.UseMiddleware<ApiVersionMiddleware>();
     })
@@ -57,6 +58,10 @@ var host = new HostBuilder()
         s.AddSingleton<MarketPriceService>();
         s.AddSingleton<IRazorpayService, RazorpayService>();
         s.AddSingleton<NotificationService>();
+        
+        // Event sourcing and outbox services (FLAWs 15 & 17)
+        s.AddSingleton<EventLogService>();
+        s.AddSingleton<OutboxService>();
         
         // Azure Blob Storage for file/image uploads
         var blobConnectionString = Environment.GetEnvironmentVariable("Blob__ConnectionString") ?? "UseDevelopmentStorage=true";

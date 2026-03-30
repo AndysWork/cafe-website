@@ -8,7 +8,11 @@ using Microsoft.Extensions.Logging;
 namespace Cafe.Api.Helpers;
 
 /// <summary>
-/// Rate limiting middleware to prevent abuse and DoS attacks
+/// Tiered rate limiting middleware. Endpoints are classified into tiers with different limits:
+///   Auth          — 10/min,  30/hr   (Login, Register, ResetPassword)
+///   AdminWrite    — 60/min,  600/hr  (Create*, Update*, Delete*, Upload*, Migrate*, Initialize*)
+///   ExportReport  — 20/min,  200/hr  (Export*, Report*, Backup*, Forecast*, Analytics*)
+///   PublicRead    — 300/min, 5000/hr (default — all GET / read endpoints)
 /// </summary>
 public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
 {
@@ -17,16 +21,44 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(10);
     private readonly ILogger<RateLimitingMiddleware> _logger;
 
-    // Configuration
-    private const int MaxRequestsPerMinute = 600;
-    private const int MaxRequestsPerHour = 10000;
-    private const int MaxLoginAttemptsPerHour = 10;
     private const int BlockDurationMinutes = 5;
 
     public RateLimitingMiddleware(ILogger<RateLimitingMiddleware> logger)
     {
         _logger = logger;
     }
+
+    // ── Endpoint tier classification ─────────────────────────────────────
+
+    private enum EndpointTier { Auth, AdminWrite, ExportReport, PublicRead }
+
+    private static readonly (int PerMinute, int PerHour)[] TierLimits = new[]
+    {
+        (  10,    30),   // Auth
+        (  60,   600),   // AdminWrite
+        (  20,   200),   // ExportReport
+        ( 300,  5000),   // PublicRead
+    };
+
+    private static readonly string[] AuthKeywords = { "Login", "Register", "ResetPassword", "ChangePassword", "RefreshToken" };
+    private static readonly string[] ExportKeywords = { "Export", "Report", "Backup", "Forecast", "Analytics", "Performance", "Reconciliation", "PublicStats" };
+    private static readonly string[] WriteKeywords = { "Create", "Update", "Delete", "Upload", "Add", "Remove", "Set", "Migrate", "Initialize", "Approve", "Reject", "Assign", "Redeem", "Adjust" };
+
+    private static EndpointTier ClassifyEndpoint(string functionName)
+    {
+        if (AuthKeywords.Any(k => functionName.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            return EndpointTier.Auth;
+
+        if (ExportKeywords.Any(k => functionName.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            return EndpointTier.ExportReport;
+
+        if (WriteKeywords.Any(k => functionName.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            return EndpointTier.AdminWrite;
+
+        return EndpointTier.PublicRead;
+    }
+
+    // ── Main pipeline ────────────────────────────────────────────────────
 
     public async Task Invoke(FunctionContext context, FunctionExecutionDelegate next)
     {
@@ -39,12 +71,13 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
 
         var clientId = GetClientIdentifier(requestData);
         var endpoint = context.FunctionDefinition.Name;
-        var isAuthEndpoint = endpoint.Contains("Login") || endpoint.Contains("Register");
+        var tier = ClassifyEndpoint(endpoint);
+        var (limitPerMinute, limitPerHour) = TierLimits[(int)tier];
 
         // Check if client is blocked
         if (IsClientBlocked(clientId))
         {
-            _logger.LogWarning($"Blocked request from {clientId} - rate limit exceeded");
+            _logger.LogWarning("Blocked request from {ClientId} — rate limit exceeded", clientId);
             var response = requestData.CreateResponse(HttpStatusCode.TooManyRequests);
             await response.WriteAsJsonAsync(new
             {
@@ -56,80 +89,66 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
             return;
         }
 
-        // Apply rate limiting
-        var rateLimitKey = $"{clientId}:{endpoint}";
+        // Use a per-client + per-tier key so limits accumulate across endpoints in the same tier
+        var rateLimitKey = $"{clientId}:{tier}";
         var rateLimit = _rateLimits.GetOrAdd(rateLimitKey, _ => new RateLimitInfo());
-
         rateLimit.CleanupOldRequests();
 
-        // Check per-minute limit
-        if (rateLimit.RequestsInLastMinute >= MaxRequestsPerMinute)
+        // Per-minute check
+        if (rateLimit.RequestsInLastMinute >= limitPerMinute)
         {
-            _logger.LogWarning($"Rate limit exceeded for {clientId} on {endpoint} - per minute");
+            _logger.LogWarning("Rate limit exceeded ({Tier}) for {ClientId} on {Endpoint} — {Limit}/min",
+                tier, clientId, endpoint, limitPerMinute);
             BlockClient(clientId);
             var response = requestData.CreateResponse(HttpStatusCode.TooManyRequests);
             await response.WriteAsJsonAsync(new
             {
                 success = false,
-                error = "Rate limit exceeded. Maximum 60 requests per minute.",
+                error = $"Rate limit exceeded. Maximum {limitPerMinute} requests per minute for this endpoint category.",
                 retryAfter = 60
             });
             context.GetInvocationResult().Value = response;
             return;
         }
 
-        // Check per-hour limit
-        if (rateLimit.RequestsInLastHour >= MaxRequestsPerHour)
+        // Per-hour check
+        if (rateLimit.RequestsInLastHour >= limitPerHour)
         {
-            _logger.LogWarning($"Rate limit exceeded for {clientId} on {endpoint} - per hour");
+            _logger.LogWarning("Rate limit exceeded ({Tier}) for {ClientId} on {Endpoint} — {Limit}/hr",
+                tier, clientId, endpoint, limitPerHour);
             BlockClient(clientId);
             var response = requestData.CreateResponse(HttpStatusCode.TooManyRequests);
             await response.WriteAsJsonAsync(new
             {
                 success = false,
-                error = "Rate limit exceeded. Maximum 1000 requests per hour.",
+                error = $"Rate limit exceeded. Maximum {limitPerHour} requests per hour for this endpoint category.",
                 retryAfter = 3600
             });
             context.GetInvocationResult().Value = response;
             return;
         }
 
-        // Special limit for auth endpoints
-        if (isAuthEndpoint && rateLimit.RequestsInLastHour >= MaxLoginAttemptsPerHour)
-        {
-            _logger.LogWarning($"Login rate limit exceeded for {clientId}");
-            BlockClient(clientId);
-            var response = requestData.CreateResponse(HttpStatusCode.TooManyRequests);
-            await response.WriteAsJsonAsync(new
-            {
-                success = false,
-                error = "Too many login attempts. Please try again later.",
-                retryAfter = 3600
-            });
-            context.GetInvocationResult().Value = response;
-            return;
-        }
-
-        // Record request
         rateLimit.RecordRequest();
 
-        // Periodic cleanup of stale entries to prevent unbounded memory growth
+        // Periodic cleanup
         if (DateTime.UtcNow - _lastCleanup > CleanupInterval)
         {
             _lastCleanup = DateTime.UtcNow;
             CleanupStaleEntries();
         }
 
-        // Continue to next middleware
         await next(context);
 
-        // Add rate limit headers to response
+        // Rate limit response headers
         var httpResponse = context.GetHttpResponseData();
         if (httpResponse != null)
         {
-            httpResponse.Headers.Add("X-RateLimit-Limit", MaxRequestsPerMinute.ToString());
-            httpResponse.Headers.Add("X-RateLimit-Remaining", (MaxRequestsPerMinute - rateLimit.RequestsInLastMinute).ToString());
-            httpResponse.Headers.Add("X-RateLimit-Reset", DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds().ToString());
+            httpResponse.Headers.Add("X-RateLimit-Limit", limitPerMinute.ToString());
+            httpResponse.Headers.Add("X-RateLimit-Remaining",
+                Math.Max(0, limitPerMinute - rateLimit.RequestsInLastMinute).ToString());
+            httpResponse.Headers.Add("X-RateLimit-Reset",
+                DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds().ToString());
+            httpResponse.Headers.Add("X-RateLimit-Tier", tier.ToString());
         }
     }
 

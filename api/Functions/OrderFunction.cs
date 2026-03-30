@@ -4,8 +4,10 @@ using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
+using Cafe.Api.Repositories;
 using System.Net;
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
@@ -14,20 +16,38 @@ namespace Cafe.Api.Functions;
 
 public class OrderFunction
 {
-    private readonly MongoService _mongo;
+    private readonly IOrderRepository _orderRepo;
+    private readonly IMenuRepository _menuRepo;
+    private readonly IOfferRepository _offerRepo;
+    private readonly ILoyaltyRepository _loyaltyRepo;
+    private readonly IUserRepository _userRepo;
+    private readonly MongoService _mongo;  // retained for OutletHelper compatibility and static helpers
     private readonly AuthService _auth;
     private readonly ILogger _log;
-    private readonly IWhatsAppService _whatsApp;
-    private readonly IEmailService _emailService;
-    private readonly NotificationService _notificationService;
+    private readonly EventLogService _eventLog;
+    private readonly OutboxService _outbox;
 
-    public OrderFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, IEmailService emailService, NotificationService notificationService, ILoggerFactory loggerFactory)
+    public OrderFunction(
+        IOrderRepository orderRepo,
+        IMenuRepository menuRepo,
+        IOfferRepository offerRepo,
+        ILoyaltyRepository loyaltyRepo,
+        IUserRepository userRepo,
+        MongoService mongo,
+        AuthService auth,
+        EventLogService eventLog,
+        OutboxService outbox,
+        ILoggerFactory loggerFactory)
     {
+        _orderRepo = orderRepo;
+        _menuRepo = menuRepo;
+        _offerRepo = offerRepo;
+        _loyaltyRepo = loyaltyRepo;
+        _userRepo = userRepo;
         _mongo = mongo;
         _auth = auth;
-        _whatsApp = whatsApp;
-        _emailService = emailService;
-        _notificationService = notificationService;
+        _eventLog = eventLog;
+        _outbox = outbox;
         _log = loggerFactory.CreateLogger<OrderFunction>();
     }
 
@@ -99,7 +119,7 @@ public class OrderFunction
 
             // Batch fetch all menu items at once (fixes N+1 query)
             var menuItemIds = orderRequest.Items.Select(i => i.MenuItemId).Distinct().ToList();
-            var allMenuItems = await _mongo.GetMenuItemsByIdsAsync(menuItemIds, outletId);
+            var allMenuItems = await _menuRepo.GetMenuItemsByIdsAsync(menuItemIds, outletId);
             var menuItemMap = allMenuItems
                 .Where(m => m.Id != null)
                 .ToDictionary(m => m.Id!, m => m);
@@ -111,7 +131,7 @@ public class OrderFunction
                 .Distinct()
                 .ToList();
             var categories = categoryIds.Count > 0
-                ? await _mongo.GetCategoriesByIdsAsync(categoryIds)
+                ? await _menuRepo.GetCategoriesByIdsAsync(categoryIds)
                 : new Dictionary<string, string>();
 
             foreach (var item in orderRequest.Items)
@@ -155,7 +175,7 @@ public class OrderFunction
             if (!string.IsNullOrWhiteSpace(orderRequest.CouponCode))
             {
                 couponCode = orderRequest.CouponCode.Trim().ToUpper();
-                var offer = await _mongo.GetOfferByCodeAsync(couponCode);
+                var offer = await _offerRepo.GetOfferByCodeAsync(couponCode);
                 if (offer != null && offer.IsActive && offer.ValidFrom <= MongoService.GetIstNow() && offer.ValidTill >= MongoService.GetIstNow())
                 {
                     if (offer.UsageLimit.HasValue && offer.UsageCount >= offer.UsageLimit.Value)
@@ -177,7 +197,7 @@ public class OrderFunction
                             discountAmount = offer.MaxDiscount.Value;
 
                         // Increment usage count
-                        await _mongo.IncrementOfferUsageAsync(offer.Id!);
+                        await _offerRepo.IncrementOfferUsageAsync(offer.Id!);
                     }
                 }
             }
@@ -187,21 +207,21 @@ public class OrderFunction
             decimal loyaltyDiscountAmount = 0;
             if (orderRequest.LoyaltyPointsUsed > 0)
             {
-                var loyaltyAccount = await _mongo.GetLoyaltyAccountAsync(userId);
+                var loyaltyAccount = await _loyaltyRepo.GetLoyaltyAccountAsync(userId);
                 if (loyaltyAccount != null && loyaltyAccount.CurrentPoints >= orderRequest.LoyaltyPointsUsed)
                 {
                     loyaltyPointsUsed = orderRequest.LoyaltyPointsUsed;
                     // 1 point = ₹0.25
                     loyaltyDiscountAmount = Math.Round(loyaltyPointsUsed * 0.25m, 2);
                     // Deduct loyalty points
-                    await _mongo.DeductLoyaltyPointsAsync(userId, loyaltyPointsUsed, $"Used for order");
+                    await _loyaltyRepo.DeductLoyaltyPointsAsync(userId, loyaltyPointsUsed, $"Used for order");
                 }
             }
 
             var total = Math.Max(0, subtotal + tax + platformCharge - discountAmount - loyaltyDiscountAmount);
 
             // Get user email
-            var user = await _mongo.GetUserByIdAsync(userId);
+            var user = await _userRepo.GetUserByIdAsync(userId);
 
             // Determine payment method and status
             var paymentMethod = orderRequest.PaymentMethod?.ToLower() ?? "cod";
@@ -280,100 +300,43 @@ public class OrderFunction
                 UpdatedAt = MongoService.GetIstNow()
             };
 
-            var createdOrder = await _mongo.CreateOrderAsync(order);
+            var createdOrder = await _orderRepo.CreateOrderAsync(order);
 
-            _log.LogInformation($"Order {createdOrder.Id} created by user {username}");
+            _log.LogInformation("Order {OrderId} created by user {Username}", createdOrder.Id, username);
 
-            // Fire-and-forget: Send notifications without blocking the response
-            _ = Task.Run(async () =>
+            // Event sourcing: record order creation (FLAW 15)
+            _ = _eventLog.LogEventAsync("Order", createdOrder.Id ?? "", "Created",
+                actorId: userId, actorRole: "user",
+                newState: new { createdOrder.Status, createdOrder.Total, createdOrder.PaymentMethod, ItemCount = orderItems.Count },
+                outletId: outletId);
+
+            // Outbox pattern: enqueue side effects for reliable delivery (FLAW 17)
+            var orderItemsJson = JsonSerializer.Serialize(orderItems);
+
+            if (!string.IsNullOrEmpty(orderRequest.PhoneNumber))
             {
-                // Send WhatsApp notification to customer
-                if (!string.IsNullOrEmpty(orderRequest.PhoneNumber))
-                {
-                    try
-                    {
-                        var orderDetails = string.Join("\n", orderItems.Select(item => $"- {item.Name} x{item.Quantity} (₹{item.Total:N2})"));
-                        await _whatsApp.SendOrderConfirmationAsync(
-                            orderRequest.PhoneNumber,
-                            username,
-                            createdOrder.Id!,
-                            total,
-                            orderDetails
-                        );
-                    }
-                    catch (Exception whatsAppEx)
-                    {
-                        _log.LogWarning(whatsAppEx, "Failed to send WhatsApp notification for order {OrderId}", createdOrder.Id);
-                    }
-                }
+                var orderDetails = string.Join("\n", orderItems.Select(item => $"- {item.Name} x{item.Quantity} (₹{item.Total:N2})"));
+                await _outbox.EnqueueAsync("OrderWhatsApp", "Order", createdOrder.Id!,
+                    new { PhoneNumber = orderRequest.PhoneNumber, Username = username, OrderId = createdOrder.Id!, Total = total, OrderDetails = orderDetails });
+            }
 
-                // Send order confirmation email to customer
-                if (!string.IsNullOrEmpty(user?.Email))
-                {
-                    try
-                    {
-                        var customerName = user.FirstName ?? username;
-                        await _emailService.SendOrderConfirmationEmailAsync(
-                            user.Email,
-                            customerName,
-                            createdOrder.Id!,
-                            total,
-                            orderItems
-                        );
-                    }
-                    catch (Exception emailEx)
-                    {
-                        _log.LogWarning(emailEx, "Failed to send order confirmation email for order {OrderId}", createdOrder.Id);
-                    }
-                }
+            if (!string.IsNullOrEmpty(user?.Email))
+            {
+                await _outbox.EnqueueAsync("OrderEmailCustomer", "Order", createdOrder.Id!,
+                    new { Email = user.Email, CustomerName = user.FirstName ?? username, OrderId = createdOrder.Id!, Total = total, OrderItemsJson = orderItemsJson });
+            }
 
-                // Send order notification email to admin
-                try
-                {
-                    await _emailService.SendOrderConfirmationEmailAsync(
-                        "maataracafekpa@gmail.com",
-                        $"Admin (Order by {username})",
-                        createdOrder.Id!,
-                        total,
-                        orderItems
-                    );
-                }
-                catch (Exception adminEmailEx)
-                {
-                    _log.LogWarning(adminEmailEx, "Failed to send admin order notification email for order {OrderId}", createdOrder.Id);
-                }
+            await _outbox.EnqueueAsync("OrderEmailAdmin", "Order", createdOrder.Id!,
+                new { Email = "maataracafekpa@gmail.com", CustomerName = $"Admin (Order by {username})", OrderId = createdOrder.Id!, Total = total, OrderItemsJson = orderItemsJson });
 
-                // Send in-app notification to customer
-                try
-                {
-                    await _notificationService.SendAsync(
-                        userId,
-                        "order_status",
-                        "Order Placed Successfully! 🎉",
-                        $"Your order #{createdOrder.Id?[^6..]} has been placed. Total: ₹{total:N2}",
-                        new Dictionary<string, string>
-                        {
-                            { "orderId", createdOrder.Id ?? "" },
-                            { "status", "pending" }
-                        },
-                        actionUrl: "/orders"
-                    );
-                }
-                catch (Exception notifEx)
-                {
-                    _log.LogWarning(notifEx, "Failed to send in-app notification for order {OrderId}", createdOrder.Id);
-                }
+            await _outbox.EnqueueAsync("OrderNotificationUser", "Order", createdOrder.Id!,
+                new { UserId = userId, Type = "order_status", Title = "Order Placed Successfully! 🎉",
+                    Message = $"Your order #{createdOrder.Id?[^6..]} has been placed. Total: ₹{total:N2}",
+                    Data = new Dictionary<string, string> { { "orderId", createdOrder.Id ?? "" }, { "status", "pending" } },
+                    ActionUrl = "/orders" });
 
-                // Notify admin(s) about the new order
-                try
-                {
-                    await _notificationService.SendNewOrderNotificationToAdminsAsync(createdOrder, total);
-                }
-                catch (Exception adminNotifEx)
-                {
-                    _log.LogWarning(adminNotifEx, "Failed to send admin in-app notification for order {OrderId}", createdOrder.Id);
-                }
-            });
+            await _outbox.EnqueueAsync("OrderNotificationAdmin", "Order", createdOrder.Id!,
+                new { OrderId = createdOrder.Id!, Total = total });
 
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(MapToOrderResponse(createdOrder));
@@ -431,13 +394,13 @@ public class OrderFunction
             }
 
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
-            var orders = await _mongo.GetUserOrdersAsync(userId, page, pageSize);
+            var orders = await _orderRepo.GetUserOrdersAsync(userId, page, pageSize);
             var orderResponses = orders.Select(MapToOrderResponse).ToList();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             if (page.HasValue && pageSize.HasValue)
             {
-                var totalCount = await _mongo.GetUserOrdersCountAsync(userId);
+                var totalCount = await _orderRepo.GetUserOrdersCountAsync(userId);
                 PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
             }
             await response.WriteAsJsonAsync(orderResponses);
@@ -473,13 +436,13 @@ public class OrderFunction
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
-            var orders = await _mongo.GetAllOrdersAsync(outletId, page, pageSize);
+            var orders = await _orderRepo.GetAllOrdersAsync(outletId, page, pageSize);
             var orderResponses = orders.Select(MapToOrderResponse).ToList();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             if (page.HasValue && pageSize.HasValue)
             {
-                var totalCount = await _mongo.GetAllOrdersCountAsync(outletId);
+                var totalCount = await _orderRepo.GetAllOrdersCountAsync(outletId);
                 PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
             }
             await response.WriteAsJsonAsync(orderResponses);
@@ -534,7 +497,7 @@ public class OrderFunction
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var role = principal.FindFirst(ClaimTypes.Role)?.Value;
 
-            var order = await _mongo.GetOrderByIdAsync(id);
+            var order = await _orderRepo.GetOrderByIdAsync(id);
 
             if (order == null)
             {
@@ -598,7 +561,10 @@ public class OrderFunction
                 return badRequest;
             }
 
-            var success = await _mongo.UpdateOrderStatusAsync(id, statusRequest.Status.ToLower());
+            var oldOrder = await _orderRepo.GetOrderByIdAsync(id);
+            var oldStatus = oldOrder?.Status;
+
+            var success = await _orderRepo.UpdateOrderStatusAsync(id, statusRequest.Status.ToLower());
 
             if (!success)
             {
@@ -607,117 +573,60 @@ public class OrderFunction
                 return notFound;
             }
 
-            // Get order details for notifications
-            var order = await _mongo.GetOrderByIdAsync(id);
+            var order = await _orderRepo.GetOrderByIdAsync(id);
 
-            // Send WhatsApp notification to customer about status update
+            // Event sourcing: record status transition (FLAW 15)
+            _ = _eventLog.LogEventAsync("Order", id, "StatusChanged",
+                actorId: null, actorRole: "admin",
+                oldState: new { Status = oldStatus },
+                newState: new { Status = statusRequest.Status.ToLower() },
+                outletId: order?.OutletId);
+
+            // Outbox: enqueue status update notifications (FLAW 17)
             if (order != null && !string.IsNullOrEmpty(order.PhoneNumber))
             {
-                try
-                {
-                    await _whatsApp.SendOrderStatusUpdateAsync(
-                        order.PhoneNumber,
-                        order.Username ?? "Customer",
-                        order.Id!,
-                        statusRequest.Status
-                    );
-                }
-                catch (Exception whatsAppEx)
-                {
-                    _log.LogWarning(whatsAppEx, "Failed to send WhatsApp notification for order {OrderId} status update", id);
-                    // Don't fail the status update if WhatsApp sending fails
-                }
+                await _outbox.EnqueueAsync("StatusUpdateWhatsApp", "Order", id,
+                    new { PhoneNumber = order.PhoneNumber, Username = order.Username ?? "Customer", OrderId = order.Id!, Status = statusRequest.Status });
             }
 
-            // Send email notification to customer about status update
             if (order != null && !string.IsNullOrEmpty(order.UserEmail))
             {
-                try
-                {
-                    await _emailService.SendOrderStatusUpdateEmailAsync(
-                        order.UserEmail,
-                        order.Username ?? "Customer",
-                        order.Id!,
-                        statusRequest.Status
-                    );
-                }
-                catch (Exception emailEx)
-                {
-                    _log.LogWarning(emailEx, "Failed to send order status email for order {OrderId}", id);
-                }
+                await _outbox.EnqueueAsync("StatusUpdateEmail", "Order", id,
+                    new { Email = order.UserEmail, Username = order.Username ?? "Customer", OrderId = order.Id!, Status = statusRequest.Status });
             }
 
-            // Send in-app notification to customer
             if (order != null && !string.IsNullOrEmpty(order.UserId))
             {
-                try
-                {
-                    await _notificationService.SendOrderStatusNotificationAsync(order, statusRequest.Status);
-                }
-                catch (Exception notifEx)
-                {
-                    _log.LogWarning(notifEx, "Failed to send in-app notification for order {OrderId}", id);
-                }
+                await _outbox.EnqueueAsync("StatusUpdateNotification", "Order", id,
+                    new { OrderId = order.Id!, Status = statusRequest.Status });
             }
 
             // Award loyalty points when order is delivered
             if (statusRequest.Status.ToLower() == "delivered" && order != null)
             {
-                // Award 80% of the amount paid as loyalty points
                 int pointsToAward = (int)Math.Floor(order.Total * 0.80m);
                 if (pointsToAward > 0)
                 {
-                    try
-                    {
-                        await _mongo.AwardPointsAsync(
-                            order.UserId,
-                            pointsToAward,
-                            $"Order #{order.Id}",
-                            order.Id
-                        );
-                        _log.LogInformation($"Awarded {pointsToAward} points to user {order.UserId} for order {order.Id}");
+                    await _outbox.EnqueueAsync("LoyaltyPointsAward", "Order", id,
+                        new { UserId = order.UserId, Points = pointsToAward, Reason = $"Order #{order.Id}", OrderId = order.Id });
 
-                        // Send WhatsApp notification about loyalty points
-                        if (!string.IsNullOrEmpty(order.PhoneNumber))
-                        {
-                            try
-                            {
-                                var totalPoints = pointsToAward;
-                                await _whatsApp.SendLoyaltyNotificationAsync(
-                                    order.PhoneNumber,
-                                    order.Username ?? "Customer",
-                                    pointsToAward,
-                                    totalPoints
-                                );
-                            }
-                            catch (Exception whatsAppEx)
-                            {
-                                _log.LogWarning(whatsAppEx, "Failed to send WhatsApp loyalty notification for order {OrderId}", id);
-                            }
-                        }
-
-                        // Send in-app loyalty points notification
-                        try
-                        {
-                            var loyaltyAccount = await _mongo.GetLoyaltyAccountByUserIdAsync(order.UserId);
-                            var totalPts = loyaltyAccount?.CurrentPoints ?? pointsToAward;
-                            await _notificationService.SendLoyaltyPointsNotificationAsync(
-                                order.UserId, pointsToAward, totalPts, $"Order #{order.Id?[^6..]}");
-                        }
-                        catch (Exception notifEx)
-                        {
-                            _log.LogWarning(notifEx, "Failed to send loyalty in-app notification for order {OrderId}", id);
-                        }
-                    }
-                    catch (Exception pointsEx)
+                    if (!string.IsNullOrEmpty(order.PhoneNumber))
                     {
-                        _log.LogWarning($"Failed to award points for order {id}: {pointsEx.Message}");
-                        // Don't fail the order status update if points award fails
+                        await _outbox.EnqueueAsync("LoyaltyWhatsApp", "Order", id,
+                            new { PhoneNumber = order.PhoneNumber, Username = order.Username ?? "Customer", PointsEarned = pointsToAward, TotalPoints = pointsToAward });
                     }
+
+                    await _outbox.EnqueueAsync("LoyaltyNotification", "Order", id,
+                        new { UserId = order.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Order #{order.Id?[^6..]}" });
+
+                    _ = _eventLog.LogEventAsync("Loyalty", order.UserId, "PointsAwarded",
+                        actorId: null, actorRole: "system",
+                        newState: new { Points = pointsToAward, Reason = $"Order #{order.Id}" },
+                        outletId: order.OutletId);
                 }
             }
 
-            _log.LogInformation($"Order {id} status updated to {statusRequest.Status}");
+            _log.LogInformation("Order {OrderId} status updated to {Status}", id, statusRequest.Status);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { message = "Order status updated successfully", status = statusRequest.Status });
@@ -762,7 +671,7 @@ public class OrderFunction
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var role = principal.FindFirst(ClaimTypes.Role)?.Value;
 
-            var order = await _mongo.GetOrderByIdAsync(id);
+            var order = await _orderRepo.GetOrderByIdAsync(id);
 
             if (order == null)
             {
@@ -787,7 +696,7 @@ public class OrderFunction
                 return badRequest;
             }
 
-            var success = await _mongo.UpdateOrderStatusAsync(id, "cancelled");
+            var success = await _orderRepo.UpdateOrderStatusAsync(id, "cancelled");
 
             if (!success)
             {
@@ -796,7 +705,14 @@ public class OrderFunction
                 return error;
             }
 
-            _log.LogInformation($"Order {id} cancelled by user {userId}");
+            // Event sourcing: record cancellation (FLAW 15)
+            _ = _eventLog.LogEventAsync("Order", id, "Cancelled",
+                actorId: userId, actorRole: role,
+                oldState: new { order.Status },
+                newState: new { Status = "cancelled" },
+                outletId: order.OutletId);
+
+            _log.LogInformation("Order {OrderId} cancelled by user {UserId}", id, userId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { message = "Order cancelled successfully" });
