@@ -31,6 +31,7 @@ var host = new HostBuilder()
         s.AddApplicationInsightsTelemetryWorkerService();
         s.ConfigureFunctionsApplicationInsights();
         s.AddSingleton<MongoService>();
+        s.AddSingleton(sp => sp.GetRequiredService<MongoService>().Client);
         s.AddSingleton(sp => sp.GetRequiredService<MongoService>().Database);
         
         // Register domain-specific repository interfaces (all backed by MongoService)

@@ -12,6 +12,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 {
     private readonly ILogger<MongoService> _logger;
     private readonly IMemoryCache _cache;
+    private readonly IMongoClient _client;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
     private static readonly TimeZoneInfo IstTimeZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
     
@@ -88,8 +89,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
     
-    // Public property to expose database for dependency injection
+    // Public properties to expose MongoDB primitives for dependency injection
     public IMongoDatabase Database => _database;
+    public IMongoClient Client => _client;
 
     // Projections for list queries — exclude heavy/sensitive fields not needed in list views
     private static readonly ProjectionDefinition<User> _userListProjection =
@@ -124,15 +126,22 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         
         // Configure MongoDB connection pool settings
         var settings = MongoClientSettings.FromConnectionString(cs);
-        settings.MinConnectionPoolSize = 5;
-        settings.MaxConnectionPoolSize = 100;
-        settings.MaxConnectionIdleTime = TimeSpan.FromMinutes(2);
+        
+        // Pool sizing — configurable via environment variables for per-environment tuning
+        settings.MaxConnectionPoolSize = int.TryParse(
+            Environment.GetEnvironmentVariable("Mongo__MaxPoolSize"), out var maxPool) ? maxPool : 100;
+        settings.MinConnectionPoolSize = int.TryParse(
+            Environment.GetEnvironmentVariable("Mongo__MinPoolSize"), out var minPool) ? minPool : 5;
+        
+        // Timeouts — fail fast on connection issues; prevent pool exhaustion queueing
         settings.ConnectTimeout = TimeSpan.FromSeconds(10);
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(10);
         settings.SocketTimeout = TimeSpan.FromSeconds(30);
+        settings.MaxConnectionIdleTime = TimeSpan.FromMinutes(2);
+        settings.WaitQueueTimeout = TimeSpan.FromSeconds(10);
         
-        var client = new MongoClient(settings);
-        _database = client.GetDatabase(dbName); // Store database reference
+        _client = new MongoClient(settings);
+        _database = _client.GetDatabase(dbName); // Store database reference
         var db = _database;
         _menu = db.GetCollection<CafeMenuItem>("CafeMenu");
         _categories = db.GetCollection<MenuCategory>("MenuCategory");
@@ -293,18 +302,33 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     }
     
     // Get all menu items
-    public async Task<List<CafeMenuItem>> GetMenuAsync(string? outletId = null)
+    public async Task<List<CafeMenuItem>> GetMenuAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
         var notDeleted = Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true);
         var filter = string.IsNullOrWhiteSpace(outletId)
             ? notDeleted
             : Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId) & notDeleted;
         
-        var menuItems = await _menu.Find(filter).ToListAsync();
+        var fluent = _menu.Find(filter);
+
+        List<CafeMenuItem> menuItems;
+        if (page.HasValue && pageSize.HasValue)
+            menuItems = await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+        else
+            menuItems = await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
         
         await PopulateFuturePricesAsync(menuItems);
         
         return menuItems;
+    }
+
+    public async Task<long> GetMenuCountAsync(string? outletId = null)
+    {
+        var notDeleted = Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true);
+        var filter = string.IsNullOrWhiteSpace(outletId)
+            ? notDeleted
+            : Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId) & notDeleted;
+        return await _menu.CountDocumentsAsync(filter);
     }
 
     // Get menu items by CategoryId
@@ -1115,12 +1139,21 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     #region Staff Operations
 
     // Get all staff members (excludes Documents — use GetStaffByIdAsync for full document)
-    public async Task<List<Staff>> GetAllStaffAsync()
+    public async Task<List<Staff>> GetAllStaffAsync(int? page = null, int? pageSize = null)
     {
-        return await _staff.Find(_ => true)
+        var fluent = _staff.Find(_ => true)
             .SortByDescending(s => s.CreatedAt)
-            .Project<Staff>(_staffListProjection)
-            .ToListAsync();
+            .Project<Staff>(_staffListProjection);
+
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetAllStaffCountAsync()
+    {
+        return await _staff.CountDocumentsAsync(_ => true);
     }
 
     // Get active staff members only (excludes Documents — use GetStaffByIdAsync for full document)
@@ -2722,6 +2755,452 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         {
             _logger.LogWarning(ex, "Notifications indexes warning");
         }
+
+        // ========== Categories Collection ==========
+        try
+        {
+            await _categories.Indexes.CreateOneAsync(new CreateIndexModel<MenuCategory>(
+                Builders<MenuCategory>.IndexKeys.Ascending(x => x.OutletId),
+                new CreateIndexOptions { Name = "outletId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Categories indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Categories indexes warning");
+        }
+
+        // ========== SubCategories Collection ==========
+        try
+        {
+            await _subCategories.Indexes.CreateOneAsync(new CreateIndexModel<MenuSubCategory>(
+                Builders<MenuSubCategory>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.CategoryId),
+                new CreateIndexOptions { Name = "outletId_1_categoryId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("SubCategories indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SubCategories indexes warning");
+        }
+
+        // ========== CafeMenu — OutletId + CategoryId compound ==========
+        try
+        {
+            await _menu.Indexes.CreateOneAsync(new CreateIndexModel<CafeMenuItem>(
+                Builders<CafeMenuItem>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.CategoryId),
+                new CreateIndexOptions { Name = "outletId_1_categoryId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("CafeMenu outletId+categoryId compound index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CafeMenu outletId+categoryId index warning");
+        }
+
+        // ========== Orders — UserId + Status compound ==========
+        try
+        {
+            await _orders.Indexes.CreateOneAsync(new CreateIndexModel<Order>(
+                Builders<Order>.IndexKeys.Ascending(x => x.UserId).Ascending(x => x.Status),
+                new CreateIndexOptions { Name = "userId_1_status_1", Background = true }
+            ));
+            indexCount++;
+
+            await _orders.Indexes.CreateOneAsync(new CreateIndexModel<Order>(
+                Builders<Order>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.Status),
+                new CreateIndexOptions { Name = "outletId_1_status_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Orders userId+status, outletId+status compound indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Orders compound indexes warning");
+        }
+
+        // ========== Ingredients Collection ==========
+        try
+        {
+            await _ingredients.Indexes.CreateOneAsync(new CreateIndexModel<Ingredient>(
+                Builders<Ingredient>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.IsActive),
+                new CreateIndexOptions { Name = "outletId_1_isActive_1", Background = true }
+            ));
+            indexCount++;
+
+            await _ingredients.Indexes.CreateOneAsync(new CreateIndexModel<Ingredient>(
+                Builders<Ingredient>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.Category),
+                new CreateIndexOptions { Name = "outletId_1_category_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Ingredients indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Ingredients indexes warning");
+        }
+
+        // ========== Recipes Collection ==========
+        try
+        {
+            await _recipes.Indexes.CreateOneAsync(new CreateIndexModel<MenuItemRecipe>(
+                Builders<MenuItemRecipe>.IndexKeys.Ascending(x => x.MenuItemId),
+                new CreateIndexOptions { Name = "menuItemId_1", Background = true }
+            ));
+            indexCount++;
+
+            await _recipes.Indexes.CreateOneAsync(new CreateIndexModel<MenuItemRecipe>(
+                Builders<MenuItemRecipe>.IndexKeys.Ascending(x => x.OutletId),
+                new CreateIndexOptions { Name = "outletId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Recipes indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Recipes indexes warning");
+        }
+
+        // ========== InventoryTransactions Collection ==========
+        try
+        {
+            await _inventoryTransactions.Indexes.CreateOneAsync(new CreateIndexModel<InventoryTransaction>(
+                Builders<InventoryTransaction>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.TransactionDate),
+                new CreateIndexOptions { Name = "outletId_1_transactionDate_-1", Background = true }
+            ));
+            indexCount++;
+
+            await _inventoryTransactions.Indexes.CreateOneAsync(new CreateIndexModel<InventoryTransaction>(
+                Builders<InventoryTransaction>.IndexKeys.Ascending(x => x.InventoryId),
+                new CreateIndexOptions { Name = "inventoryId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("InventoryTransactions indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "InventoryTransactions indexes warning");
+        }
+
+        // ========== StockAlerts Collection ==========
+        try
+        {
+            await _stockAlerts.Indexes.CreateOneAsync(new CreateIndexModel<StockAlert>(
+                Builders<StockAlert>.IndexKeys.Ascending(x => x.IsResolved),
+                new CreateIndexOptions { Name = "isResolved_1", Background = true }
+            ));
+            indexCount++;
+
+            await _stockAlerts.Indexes.CreateOneAsync(new CreateIndexModel<StockAlert>(
+                Builders<StockAlert>.IndexKeys.Ascending(x => x.InventoryId),
+                new CreateIndexOptions { Name = "inventoryId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("StockAlerts indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "StockAlerts indexes warning");
+        }
+
+        // ========== Attendance Collection ==========
+        try
+        {
+            await _attendance.Indexes.CreateOneAsync(new CreateIndexModel<Attendance>(
+                Builders<Attendance>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.Date),
+                new CreateIndexOptions { Name = "outletId_1_date_1", Background = true }
+            ));
+            indexCount++;
+
+            await _attendance.Indexes.CreateOneAsync(new CreateIndexModel<Attendance>(
+                Builders<Attendance>.IndexKeys.Ascending(x => x.StaffId).Ascending(x => x.Date),
+                new CreateIndexOptions { Name = "staffId_1_date_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Attendance indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Attendance indexes warning");
+        }
+
+        // ========== LeaveRequests Collection ==========
+        try
+        {
+            await _leaveRequests.Indexes.CreateOneAsync(new CreateIndexModel<LeaveRequest>(
+                Builders<LeaveRequest>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.Status),
+                new CreateIndexOptions { Name = "outletId_1_status_1", Background = true }
+            ));
+            indexCount++;
+
+            await _leaveRequests.Indexes.CreateOneAsync(new CreateIndexModel<LeaveRequest>(
+                Builders<LeaveRequest>.IndexKeys.Ascending(x => x.StaffId),
+                new CreateIndexOptions { Name = "staffId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("LeaveRequests indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LeaveRequests indexes warning");
+        }
+
+        // ========== WalletTransactions Collection ==========
+        try
+        {
+            await _walletTransactions.Indexes.CreateOneAsync(new CreateIndexModel<WalletTransaction>(
+                Builders<WalletTransaction>.IndexKeys.Ascending(x => x.UserId).Descending(x => x.CreatedAt),
+                new CreateIndexOptions { Name = "userId_1_createdAt_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("WalletTransactions indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "WalletTransactions indexes warning");
+        }
+
+        // ========== CustomerWallets Collection ==========
+        try
+        {
+            await _customerWallets.Indexes.CreateOneAsync(new CreateIndexModel<CustomerWallet>(
+                Builders<CustomerWallet>.IndexKeys.Ascending(x => x.UserId),
+                new CreateIndexOptions { Name = "userId_1", Unique = true, Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("CustomerWallets indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CustomerWallets indexes warning");
+        }
+
+        // ========== CustomerReviews Collection ==========
+        try
+        {
+            await _customerReviews.Indexes.CreateOneAsync(new CreateIndexModel<CustomerReview>(
+                Builders<CustomerReview>.IndexKeys.Ascending(x => x.OrderId),
+                new CreateIndexOptions { Name = "orderId_1", Background = true }
+            ));
+            indexCount++;
+
+            await _customerReviews.Indexes.CreateOneAsync(new CreateIndexModel<CustomerReview>(
+                Builders<CustomerReview>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.CreatedAt),
+                new CreateIndexOptions { Name = "outletId_1_createdAt_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("CustomerReviews indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CustomerReviews indexes warning");
+        }
+
+        // ========== ExternalOrderClaims Collection ==========
+        try
+        {
+            await _externalClaims.Indexes.CreateOneAsync(new CreateIndexModel<ExternalOrderClaim>(
+                Builders<ExternalOrderClaim>.IndexKeys.Ascending(x => x.UserId),
+                new CreateIndexOptions { Name = "userId_1", Background = true }
+            ));
+            indexCount++;
+
+            await _externalClaims.Indexes.CreateOneAsync(new CreateIndexModel<ExternalOrderClaim>(
+                Builders<ExternalOrderClaim>.IndexKeys.Ascending(x => x.Status),
+                new CreateIndexOptions { Name = "status_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("ExternalOrderClaims indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ExternalOrderClaims indexes warning");
+        }
+
+        // ========== CashReconciliations Collection ==========
+        try
+        {
+            await _cashReconciliations.Indexes.CreateOneAsync(new CreateIndexModel<DailyCashReconciliation>(
+                Builders<DailyCashReconciliation>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.Date),
+                new CreateIndexOptions { Name = "outletId_1_date_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("CashReconciliations indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CashReconciliations indexes warning");
+        }
+
+        // ========== OperationalExpenses Collection ==========
+        try
+        {
+            await _operationalExpenses.Indexes.CreateOneAsync(new CreateIndexModel<OperationalExpense>(
+                Builders<OperationalExpense>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.Year).Descending(x => x.Month),
+                new CreateIndexOptions { Name = "outletId_1_year_-1_month_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("OperationalExpenses indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "OperationalExpenses indexes warning");
+        }
+
+        // ========== IngredientPriceHistory Collection ==========
+        try
+        {
+            await _priceHistory.Indexes.CreateOneAsync(new CreateIndexModel<IngredientPriceHistory>(
+                Builders<IngredientPriceHistory>.IndexKeys.Ascending(x => x.IngredientId).Descending(x => x.RecordedAt),
+                new CreateIndexOptions { Name = "ingredientId_1_recordedAt_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("IngredientPriceHistory indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "IngredientPriceHistory indexes warning");
+        }
+
+        // ========== TableReservations Collection ==========
+        try
+        {
+            await _tableReservations.Indexes.CreateOneAsync(new CreateIndexModel<TableReservation>(
+                Builders<TableReservation>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.ReservationDate),
+                new CreateIndexOptions { Name = "outletId_1_reservationDate_1", Background = true }
+            ));
+            indexCount++;
+
+            await _tableReservations.Indexes.CreateOneAsync(new CreateIndexModel<TableReservation>(
+                Builders<TableReservation>.IndexKeys.Ascending(x => x.UserId),
+                new CreateIndexOptions { Name = "userId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("TableReservations indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "TableReservations indexes warning");
+        }
+
+        // ========== WastageRecords Collection ==========
+        try
+        {
+            await _wastageRecords.Indexes.CreateOneAsync(new CreateIndexModel<WastageRecord>(
+                Builders<WastageRecord>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.Date),
+                new CreateIndexOptions { Name = "outletId_1_date_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("WastageRecords indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "WastageRecords indexes warning");
+        }
+
+        // ========== ComboMeals Collection ==========
+        try
+        {
+            await _comboMeals.Indexes.CreateOneAsync(new CreateIndexModel<ComboMeal>(
+                Builders<ComboMeal>.IndexKeys.Ascending(x => x.OutletId),
+                new CreateIndexOptions { Name = "outletId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("ComboMeals indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ComboMeals indexes warning");
+        }
+
+        // ========== HappyHourRules Collection ==========
+        try
+        {
+            await _happyHourRules.Indexes.CreateOneAsync(new CreateIndexModel<HappyHourRule>(
+                Builders<HappyHourRule>.IndexKeys.Ascending(x => x.OutletId),
+                new CreateIndexOptions { Name = "outletId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("HappyHourRules indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "HappyHourRules indexes warning");
+        }
+
+        // ========== DeliveryZones Collection ==========
+        try
+        {
+            await _deliveryZones.Indexes.CreateOneAsync(new CreateIndexModel<DeliveryZone>(
+                Builders<DeliveryZone>.IndexKeys.Ascending(x => x.OutletId),
+                new CreateIndexOptions { Name = "outletId_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("DeliveryZones indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DeliveryZones indexes warning");
+        }
+
+        // ========== StaffPerformanceRecords Collection ==========
+        try
+        {
+            await _staffPerformanceRecords.Indexes.CreateOneAsync(new CreateIndexModel<StaffPerformanceRecord>(
+                Builders<StaffPerformanceRecord>.IndexKeys.Ascending(x => x.StaffId).Descending(x => x.RecordDate),
+                new CreateIndexOptions { Name = "staffId_1_recordDate_-1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("StaffPerformanceRecords indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "StaffPerformanceRecords indexes warning");
+        }
+
+        // ========== Inventory — OutletId + Status compound (for filtered queries) ==========
+        try
+        {
+            await _inventory.Indexes.CreateOneAsync(new CreateIndexModel<Inventory>(
+                Builders<Inventory>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.Status),
+                new CreateIndexOptions { Name = "outletId_1_status_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("Inventory outletId+status compound index created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Inventory outletId+status index warning");
+        }
+
+        _logger.LogInformation($"Database indexing completed. Total indexes created/verified: {indexCount}");
     }
 
     // Ensure default rewards exist in database
@@ -2782,21 +3261,41 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     #region Offer Operations
 
-    // Get all active offers
+    // Get all active offers (cached)
     public async Task<List<Offer>> GetActiveOffersAsync()
     {
+        const string cacheKey = "active_offers";
+        if (_cache.TryGetValue(cacheKey, out List<Offer>? cached) && cached != null)
+            return cached;
+
         var now = GetIstNow();
-        return await _offers.Find(o => 
+        var result = await _offers.Find(o => 
             o.IsActive && 
             o.ValidFrom <= now && 
             o.ValidTill >= now &&
             o.IsDeleted != true
         ).ToListAsync();
+        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
+        return result;
     }
 
-    // Get all offers (admin)
-    public async Task<List<Offer>> GetAllOffersAsync() =>
-        await _offers.Find(o => o.IsDeleted != true).ToListAsync();
+    // Get all offers (admin, cached)
+    public async Task<List<Offer>> GetAllOffersAsync()
+    {
+        const string cacheKey = "all_offers";
+        if (_cache.TryGetValue(cacheKey, out List<Offer>? cached) && cached != null)
+            return cached;
+
+        var result = await _offers.Find(o => o.IsDeleted != true).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
+
+    private void InvalidateOfferCache()
+    {
+        _cache.Remove("active_offers");
+        _cache.Remove("all_offers");
+    }
 
     // Get offer by ID
     public async Task<Offer?> GetOfferByIdAsync(string id) =>
@@ -2812,6 +3311,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         offer.CreatedAt = GetIstNow();
         offer.UpdatedAt = GetIstNow();
         await _offers.InsertOneAsync(offer);
+        InvalidateOfferCache();
         return offer;
     }
 
@@ -2820,6 +3320,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         offer.UpdatedAt = GetIstNow();
         var result = await _offers.ReplaceOneAsync(o => o.Id == id, offer);
+        InvalidateOfferCache();
         return result.ModifiedCount > 0;
     }
 
@@ -2830,6 +3331,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .Set(x => x.IsDeleted, true)
             .Set(x => x.DeletedAt, DateTime.UtcNow);
         var result = await _offers.UpdateOneAsync(o => o.Id == id && o.IsDeleted != true, update);
+        InvalidateOfferCache();
         return result.ModifiedCount > 0;
     }
 
@@ -3476,11 +3978,33 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     #region SalesItemType Methods
 
-    public async Task<List<SalesItemType>> GetAllSalesItemTypesAsync() =>
-        await _salesItemTypes.Find(_ => true).ToListAsync();
+    public async Task<List<SalesItemType>> GetAllSalesItemTypesAsync()
+    {
+        const string cacheKey = "all_sales_item_types";
+        if (_cache.TryGetValue(cacheKey, out List<SalesItemType>? cached) && cached != null)
+            return cached;
 
-    public async Task<List<SalesItemType>> GetActiveSalesItemTypesAsync() =>
-        await _salesItemTypes.Find(s => s.IsActive).ToListAsync();
+        var result = await _salesItemTypes.Find(_ => true).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
+
+    public async Task<List<SalesItemType>> GetActiveSalesItemTypesAsync()
+    {
+        const string cacheKey = "active_sales_item_types";
+        if (_cache.TryGetValue(cacheKey, out List<SalesItemType>? cached) && cached != null)
+            return cached;
+
+        var result = await _salesItemTypes.Find(s => s.IsActive).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
+
+    private void InvalidateSalesItemTypeCache()
+    {
+        _cache.Remove("all_sales_item_types");
+        _cache.Remove("active_sales_item_types");
+    }
 
     public async Task<SalesItemType?> GetSalesItemTypeByIdAsync(string id) =>
         await _salesItemTypes.Find(s => s.Id == id).FirstOrDefaultAsync();
@@ -3490,6 +4014,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         itemType.CreatedAt = GetIstNow();
         itemType.UpdatedAt = GetIstNow();
         await _salesItemTypes.InsertOneAsync(itemType);
+        InvalidateSalesItemTypeCache();
         return itemType;
     }
 
@@ -3497,12 +4022,14 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         itemType.UpdatedAt = GetIstNow();
         var result = await _salesItemTypes.ReplaceOneAsync(s => s.Id == id, itemType);
+        InvalidateSalesItemTypeCache();
         return result.ModifiedCount > 0 ? itemType : null;
     }
 
     public async Task<bool> DeleteSalesItemTypeAsync(string id)
     {
         var result = await _salesItemTypes.DeleteOneAsync(s => s.Id == id);
+        InvalidateSalesItemTypeCache();
         return result.DeletedCount > 0;
     }
 
@@ -3537,12 +4064,30 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<List<OfflineExpenseType>> GetAllOfflineExpenseTypesAsync()
     {
-        return await _offlineExpenseTypes.Find(_ => true).ToListAsync();
+        const string cacheKey = "all_offline_expense_types";
+        if (_cache.TryGetValue(cacheKey, out List<OfflineExpenseType>? cached) && cached != null)
+            return cached;
+
+        var result = await _offlineExpenseTypes.Find(_ => true).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
     }
 
     public async Task<List<OfflineExpenseType>> GetActiveOfflineExpenseTypesAsync()
     {
-        return await _offlineExpenseTypes.Find(e => e.IsActive).ToListAsync();
+        const string cacheKey = "active_offline_expense_types";
+        if (_cache.TryGetValue(cacheKey, out List<OfflineExpenseType>? cached) && cached != null)
+            return cached;
+
+        var result = await _offlineExpenseTypes.Find(e => e.IsActive).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
+
+    private void InvalidateOfflineExpenseTypeCache()
+    {
+        _cache.Remove("all_offline_expense_types");
+        _cache.Remove("active_offline_expense_types");
     }
 
     public async Task<OfflineExpenseType?> GetOfflineExpenseTypeByIdAsync(string id)
@@ -3561,6 +4106,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         };
 
         await _offlineExpenseTypes.InsertOneAsync(expenseType);
+        InvalidateOfflineExpenseTypeCache();
         return expenseType;
     }
 
@@ -3571,12 +4117,14 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .Set(e => e.UpdatedAt, GetIstNow());
 
         var result = await _offlineExpenseTypes.UpdateOneAsync(e => e.Id == id, update);
+        InvalidateOfflineExpenseTypeCache();
         return result.ModifiedCount > 0;
     }
 
     public async Task<bool> DeleteOfflineExpenseTypeAsync(string id)
     {
         var result = await _offlineExpenseTypes.DeleteOneAsync(e => e.Id == id);
+        InvalidateOfflineExpenseTypeCache();
         return result.DeletedCount > 0;
     }
 
@@ -3620,12 +4168,30 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<List<OnlineExpenseType>> GetAllOnlineExpenseTypesAsync()
     {
-        return await _onlineExpenseTypes.Find(_ => true).ToListAsync();
+        const string cacheKey = "all_online_expense_types";
+        if (_cache.TryGetValue(cacheKey, out List<OnlineExpenseType>? cached) && cached != null)
+            return cached;
+
+        var result = await _onlineExpenseTypes.Find(_ => true).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
     }
 
     public async Task<List<OnlineExpenseType>> GetActiveOnlineExpenseTypesAsync()
     {
-        return await _onlineExpenseTypes.Find(t => t.IsActive).ToListAsync();
+        const string cacheKey = "active_online_expense_types";
+        if (_cache.TryGetValue(cacheKey, out List<OnlineExpenseType>? cached) && cached != null)
+            return cached;
+
+        var result = await _onlineExpenseTypes.Find(t => t.IsActive).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
+
+    private void InvalidateOnlineExpenseTypeCache()
+    {
+        _cache.Remove("all_online_expense_types");
+        _cache.Remove("active_online_expense_types");
     }
 
     public async Task<OnlineExpenseType?> GetOnlineExpenseTypeByIdAsync(string id)
@@ -3644,6 +4210,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         };
 
         await _onlineExpenseTypes.InsertOneAsync(expenseType);
+        InvalidateOnlineExpenseTypeCache();
         return expenseType;
     }
 
@@ -3654,11 +4221,13 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .Set(t => t.UpdatedAt, GetIstNow());
 
         await _onlineExpenseTypes.UpdateOneAsync(t => t.Id == id, update);
+        InvalidateOnlineExpenseTypeCache();
     }
 
     public async Task DeleteOnlineExpenseTypeAsync(string id)
     {
         await _onlineExpenseTypes.DeleteOneAsync(t => t.Id == id);
+        InvalidateOnlineExpenseTypeCache();
     }
 
     public async Task InitializeDefaultOnlineExpenseTypesAsync()
@@ -4775,9 +5344,19 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await _ingredients.Find(i => i.OutletId == outletId && i.IsDeleted != true).ToListAsync();
     }
 
-    public async Task<List<Ingredient>> GetAllIngredientsAsync()
+    public async Task<List<Ingredient>> GetAllIngredientsAsync(int? page = null, int? pageSize = null)
     {
-        return await _ingredients.Find(i => i.IsDeleted != true).ToListAsync();
+        var fluent = _ingredients.Find(i => i.IsDeleted != true);
+
+        if (page.HasValue && pageSize.HasValue)
+            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+
+        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<long> GetAllIngredientsCountAsync()
+    {
+        return await _ingredients.CountDocumentsAsync(i => i.IsDeleted != true);
     }
 
     public async Task<Ingredient?> GetIngredientByIdAsync(string id, string? outletId = null)

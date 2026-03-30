@@ -45,9 +45,15 @@ namespace Cafe.Api.Functions
 
                 _logger.LogInformation("Getting all ingredients");
 
-                var ingredients = await _mongoService.GetAllIngredientsAsync();
+                var (page, pageSize) = PaginationHelper.ParsePagination(req);
+                var ingredients = await _mongoService.GetAllIngredientsAsync(page, pageSize);
 
                 var response = req.CreateResponse(HttpStatusCode.OK);
+                if (page.HasValue && pageSize.HasValue)
+                {
+                    var totalCount = await _mongoService.GetAllIngredientsCountAsync();
+                    PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
+                }
                 await response.WriteAsJsonAsync(ingredients);
                 return response;
             }

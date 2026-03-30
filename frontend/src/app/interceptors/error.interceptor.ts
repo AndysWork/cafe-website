@@ -1,9 +1,35 @@
-import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
+import { HttpInterceptorFn, HttpErrorResponse, HttpRequest } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, retry, timer, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { UIStore } from '../store/ui.store';
+import { OfflineQueueService } from '../services/offline-queue.service';
+
+const TRANSIENT_STATUS_CODES = [0, 502, 503, 504];
+const IDEMPOTENT_METHODS = ['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE'];
+const MAX_RETRIES_IDEMPOTENT = 2;
+const MAX_RETRIES_NON_IDEMPOTENT = 1;
+
+function isTransientError(status: number): boolean {
+  return TRANSIENT_STATUS_CODES.includes(status);
+}
+
+function getMaxRetries(method: string): number {
+  return IDEMPOTENT_METHODS.includes(method.toUpperCase())
+    ? MAX_RETRIES_IDEMPOTENT
+    : MAX_RETRIES_NON_IDEMPOTENT;
+}
+
+function isCriticalMutation(req: HttpRequest<unknown>): boolean {
+  const method = req.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+  const url = req.url.toLowerCase();
+  return url.includes('/orders') ||
+    url.includes('/attendance') ||
+    url.includes('/clock') ||
+    url.includes('/sales') && method === 'POST';
+}
 
 function getErrorMessage(error: HttpErrorResponse, url: string): string {
   if (error.status === 0) {
@@ -18,6 +44,8 @@ function getErrorMessage(error: HttpErrorResponse, url: string): string {
     return error.error?.message || 'Conflict — resource already exists';
   } else if (error.status === 429) {
     return 'Too many requests — please slow down';
+  } else if (error.status === 502 || error.status === 504) {
+    return 'Server is temporarily unavailable — retrying...';
   } else if (error.status >= 500) {
     return 'Server error — please try again later';
   }
@@ -28,14 +56,19 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const authService = inject(AuthService);
   const uiStore = inject(UIStore);
+  const offlineQueue = inject(OfflineQueueService);
+
+  const maxRetries = getMaxRetries(req.method);
 
   return next(req).pipe(
     retry({
-      count: 1,
-      delay: (error: HttpErrorResponse) => {
-        // Only retry on network errors (status 0) or 503 Service Unavailable
-        if (error.status === 0 || error.status === 503) {
-          return timer(1000);
+      count: maxRetries,
+      delay: (error: HttpErrorResponse, retryCount: number) => {
+        if (isTransientError(error.status)) {
+          // Exponential backoff: 1s, 2s, 4s...
+          const delayMs = Math.min(1000 * Math.pow(2, retryCount - 1), 8000);
+          console.warn(`[Retry ${retryCount}/${maxRetries}] ${req.method} ${req.url} — status ${error.status}, retrying in ${delayMs}ms`);
+          return timer(delayMs);
         }
         return throwError(() => error);
       }
@@ -47,6 +80,13 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           authService.logout();
           router.navigate(['/login'], { queryParams: { returnUrl: router.url } });
         }
+      }
+
+      // Queue critical mutations for offline retry when network is down
+      if (error.status === 0 && isCriticalMutation(req)) {
+        offlineQueue.enqueue(req);
+        uiStore.error('You are offline. Your request has been queued and will be sent when you reconnect.');
+        return throwError(() => Object.assign(error, { userMessage: 'Queued for offline retry', queued: true }));
       }
 
       const userMessage = getErrorMessage(error, req.url);

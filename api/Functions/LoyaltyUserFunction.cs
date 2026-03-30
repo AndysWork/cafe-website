@@ -12,19 +12,19 @@ using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
 
-public class LoyaltyFunction
+public class LoyaltyUserFunction
 {
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
     private readonly IWhatsAppService _whatsApp;
 
-    public LoyaltyFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, ILoggerFactory loggerFactory)
+    public LoyaltyUserFunction(MongoService mongo, AuthService auth, IWhatsAppService whatsApp, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
         _whatsApp = whatsApp;
-        _log = loggerFactory.CreateLogger<LoyaltyFunction>();
+        _log = loggerFactory.CreateLogger<LoyaltyUserFunction>();
     }
 
     // GET: Get user's loyalty account
@@ -84,7 +84,7 @@ public class LoyaltyFunction
             var (expiringPoints, expiringDate) = await _mongo.GetExpiringPointsInfoAsync(userId);
 
             // Calculate next tier info
-            var (nextTier, pointsToNextTier) = CalculateNextTierInfo(account.TotalPointsEarned);
+            var (nextTier, pointsToNextTier) = LoyaltyHelper.CalculateNextTierInfo(account.TotalPointsEarned);
 
             var response = new LoyaltyAccountResponse
             {
@@ -289,7 +289,7 @@ public class LoyaltyFunction
             }
 
             // Calculate next tier info
-            var (nextTier, pointsToNextTier) = CalculateNextTierInfo(redemptionResult.Account!.TotalPointsEarned);
+            var (nextTier, pointsToNextTier) = LoyaltyHelper.CalculateNextTierInfo(redemptionResult.Account!.TotalPointsEarned);
 
             var accountResponse = new LoyaltyAccountResponse
             {
@@ -326,133 +326,6 @@ public class LoyaltyFunction
             _log.LogError($"Error redeeming reward: {ex.Message}");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to redeem reward" });
-            return error;
-        }
-    }
-
-    // GET: Get all loyalty accounts (Admin only)
-    [Function("GetAllLoyaltyAccounts")]
-    public async Task<HttpResponseData> GetAllLoyaltyAccounts(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/accounts")] HttpRequestData req)
-    {
-        try
-        {
-            // Validate admin authorization
-            var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
-            
-            if (!isAuthorized)
-                return errorResponse!;
-
-            // Get all accounts
-            var (page, pageSize) = Helpers.PaginationHelper.ParsePagination(req);
-            var accounts = await _mongo.GetAllLoyaltyAccountsAsync(page, pageSize);
-
-            var accountResponses = accounts.Select(a =>
-            {
-                var (nextTier, pointsToNextTier) = CalculateNextTierInfo(a.TotalPointsEarned);
-                return new LoyaltyAccountResponse
-                {
-                    Id = a.Id!,
-                    UserId = a.UserId,
-                    Username = a.Username,
-                    CurrentPoints = a.CurrentPoints,
-                    TotalPointsEarned = a.TotalPointsEarned,
-                    TotalPointsRedeemed = a.TotalPointsRedeemed,
-                    Tier = a.Tier,
-                    NextTier = nextTier,
-                    PointsToNextTier = pointsToNextTier,
-                    ReferralCode = a.ReferralCode,
-                    TotalReferrals = a.TotalReferrals,
-                    LoyaltyCardNumber = a.LoyaltyCardNumber,
-                    DateOfBirth = a.DateOfBirth,
-                    TierMultiplier = _mongo.GetTierMultiplier(a.Tier),
-                    TierBenefits = _mongo.GetTierBenefits(a.Tier),
-                    CreatedAt = a.CreatedAt,
-                    UpdatedAt = a.UpdatedAt
-                };
-            }).ToList();
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(accountResponses);
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError($"Error getting all loyalty accounts: {ex.Message}");
-            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to get loyalty accounts" });
-            return error;
-        }
-    }
-
-    // POST: Create reward (Admin only)
-    [Function("CreateReward")]
-    public async Task<HttpResponseData> CreateReward(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/loyalty/rewards")] HttpRequestData req)
-    {
-        try
-        {
-            // Validate admin authorization
-            var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
-            
-            if (!isAuthorized)
-                return errorResponse!;
-
-            // Parse request
-            var (reward, validationError) = await ValidationHelper.ValidateBody<Reward>(req);
-            if (validationError != null) return validationError;
-
-            if (reward.PointsCost <= 0)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Points cost must be greater than 0" });
-                return badRequest;
-            }
-
-            // Create reward
-            var createdReward = await _mongo.CreateRewardAsync(reward);
-
-            var response = req.CreateResponse(HttpStatusCode.Created);
-            await response.WriteAsJsonAsync(createdReward);
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError($"Error creating reward: {ex.Message}");
-            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to create reward" });
-            return error;
-        }
-    }
-
-    // GET: Get all rewards including inactive (Admin only)
-    [Function("GetAllRewards")]
-    public async Task<HttpResponseData> GetAllRewards(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/rewards")] HttpRequestData req)
-    {
-        try
-        {
-            // Validate admin authorization
-            var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
-            
-            if (!isAuthorized)
-                return errorResponse!;
-
-            // Get all rewards
-            var rewards = await _mongo.GetAllRewardsAsync();
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(rewards);
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError($"Error getting all rewards: {ex.Message}");
-            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to get rewards" });
             return error;
         }
     }
@@ -624,128 +497,6 @@ public class LoyaltyFunction
             _log.LogError($"Error claiming birthday bonus: {ex.Message}");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to claim birthday bonus" });
-            return error;
-        }
-    }
-
-    // Helper method to calculate next tier
-    private (string? NextTier, int? PointsToNextTier) CalculateNextTierInfo(int totalPoints)
-    {
-        if (totalPoints < 500)
-            return ("Silver", 500 - totalPoints);
-        if (totalPoints < 1500)
-            return ("Gold", 1500 - totalPoints);
-        if (totalPoints < 3000)
-            return ("Platinum", 3000 - totalPoints);
-        return (null, null); // Already at max tier
-    }
-
-    // GET: Get all redemption history (Admin only)
-    [Function("GetAllRedemptions")]
-    public async Task<HttpResponseData> GetAllRedemptions(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/redemptions")] HttpRequestData req)
-    {
-        try
-        {
-            var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
-            
-            if (!isAuthorized)
-                return errorResponse!;
-
-            var transactions = await _mongo.GetAllTransactionsAsync();
-            var redemptions = transactions.Where(t => t.Type == "redeemed").ToList();
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(redemptions);
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError($"Error getting all redemptions: {ex.Message}");
-            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to get redemptions" });
-            return error;
-        }
-    }
-
-    // PUT: Update reward (Admin only)
-    [Function("UpdateReward")]
-    public async Task<HttpResponseData> UpdateReward(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/loyalty/rewards/{id}")] HttpRequestData req,
-        string id)
-    {
-        try
-        {
-            var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
-            
-            if (!isAuthorized)
-                return errorResponse!;
-
-            var reward = await System.Text.Json.JsonSerializer.DeserializeAsync<Reward>(req.Body);
-            if (reward == null)
-            {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid reward data" });
-                return badRequest;
-            }
-
-            reward.Id = id;
-            var updated = await _mongo.UpdateRewardAsync(id, reward);
-
-            if (!updated)
-            {
-                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { error = "Reward not found" });
-                return notFound;
-            }
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(reward);
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError($"Error updating reward: {ex.Message}");
-            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to update reward" });
-            return error;
-        }
-    }
-
-    // DELETE: Delete reward (Admin only)
-    [Function("DeleteReward")]
-    public async Task<HttpResponseData> DeleteReward(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "manage/loyalty/rewards/{id}")] HttpRequestData req,
-        string id)
-    {
-        try
-        {
-            var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
-            
-            if (!isAuthorized)
-                return errorResponse!;
-
-            var deleted = await _mongo.DeleteRewardAsync(id);
-
-            if (!deleted)
-            {
-                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { error = "Reward not found" });
-                return notFound;
-            }
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { message = "Reward deleted successfully" });
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError($"Error deleting reward: {ex.Message}");
-            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to delete reward" });
             return error;
         }
     }

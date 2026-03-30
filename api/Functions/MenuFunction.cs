@@ -44,8 +44,14 @@ public class MenuFunction
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             // Allow public access without outlet ID (returns all menu items)
-            var items = await _mongo.GetMenuAsync(outletId);
+            var (page, pageSize) = PaginationHelper.ParsePagination(req);
+            var items = await _mongo.GetMenuAsync(outletId, page, pageSize);
             var res = req.CreateResponse(HttpStatusCode.OK);
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await _mongo.GetMenuCountAsync(outletId);
+                PaginationHelper.AddPaginationHeaders(res, totalCount, page.Value, pageSize.Value);
+            }
             await res.WriteAsJsonAsync(items);
             return res;
         }

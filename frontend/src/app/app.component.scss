@@ -1,3 +1,15 @@
+.offline-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  background: #f59e0b;
+  color: #1a1a1a;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 .main-content {
   min-height: 100vh;
   transition: margin-left 0.3s ease;

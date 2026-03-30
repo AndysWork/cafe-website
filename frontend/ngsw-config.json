@@ -28,6 +28,21 @@
   ],
   "dataGroups": [
     {
+      "name": "api-reference-data",
+      "urls": [
+        "/api/categories",
+        "/api/menu",
+        "/api/outlets",
+        "/api/loyalty/rewards",
+        "/api/public/**"
+      ],
+      "cacheConfig": {
+        "strategy": "performance",
+        "maxSize": 50,
+        "maxAge": "6h"
+      }
+    },
+    {
       "name": "api-fresh",
       "urls": ["/api/**"],
       "cacheConfig": {

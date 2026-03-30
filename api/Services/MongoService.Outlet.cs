@@ -1,6 +1,7 @@
 ﻿using MongoDB.Driver;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
@@ -9,21 +10,54 @@ public partial class MongoService
 {
     #region Outlet Management
 
-    // Get all outlets
-    public async Task<List<Outlet>> GetAllOutletsAsync() =>
-        await _outlets.Find(o => o.IsDeleted != true).ToListAsync();
+    // Get all outlets (cached)
+    public async Task<List<Outlet>> GetAllOutletsAsync()
+    {
+        const string cacheKey = "all_outlets";
+        if (_cache.TryGetValue(cacheKey, out List<Outlet>? cached) && cached != null)
+            return cached;
 
-    // Get active outlets only
-    public async Task<List<Outlet>> GetActiveOutletsAsync() =>
-        await _outlets.Find(o => o.IsActive && o.IsDeleted != true).ToListAsync();
+        var result = await _outlets.Find(o => o.IsDeleted != true).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
 
-    // Get single outlet by ID
-    public async Task<Outlet?> GetOutletByIdAsync(string id) =>
-        await _outlets.Find(o => o.Id == id && o.IsDeleted != true).FirstOrDefaultAsync();
+    // Get active outlets only (cached)
+    public async Task<List<Outlet>> GetActiveOutletsAsync()
+    {
+        const string cacheKey = "active_outlets";
+        if (_cache.TryGetValue(cacheKey, out List<Outlet>? cached) && cached != null)
+            return cached;
+
+        var result = await _outlets.Find(o => o.IsActive && o.IsDeleted != true).ToListAsync();
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
+
+    // Get single outlet by ID (cached)
+    public async Task<Outlet?> GetOutletByIdAsync(string id)
+    {
+        var cacheKey = $"outlet_{id}";
+        if (_cache.TryGetValue(cacheKey, out Outlet? cached) && cached != null)
+            return cached;
+
+        var result = await _outlets.Find(o => o.Id == id && o.IsDeleted != true).FirstOrDefaultAsync();
+        if (result != null)
+            _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
 
     // Get outlet by code
     public async Task<Outlet?> GetOutletByCodeAsync(string code) =>
         await _outlets.Find(o => o.OutletCode == code && o.IsDeleted != true).FirstOrDefaultAsync();
+
+    private void InvalidateOutletCache(string? outletId = null)
+    {
+        _cache.Remove("all_outlets");
+        _cache.Remove("active_outlets");
+        if (outletId != null)
+            _cache.Remove($"outlet_{outletId}");
+    }
 
     // Create new outlet
     public async Task<Outlet> CreateOutletAsync(CreateOutletRequest request, string userId)
@@ -54,6 +88,7 @@ public partial class MongoService
         };
 
         await _outlets.InsertOneAsync(outlet);
+        InvalidateOutletCache();
         return outlet;
     }
 
@@ -98,6 +133,7 @@ public partial class MongoService
         var combinedUpdate = updateBuilder.Combine(updates);
         var result = await _outlets.UpdateOneAsync(o => o.Id == id, combinedUpdate);
 
+        InvalidateOutletCache(id);
         return result.ModifiedCount > 0;
     }
 
@@ -122,6 +158,7 @@ public partial class MongoService
             .Set(o => o.DeletedAt, DateTime.UtcNow)
             .Set(o => o.IsActive, false);
         var result = await _outlets.UpdateOneAsync(o => o.Id == id && o.IsDeleted != true, update);
+        InvalidateOutletCache(id);
         return result.ModifiedCount > 0;
     }
 
@@ -137,6 +174,7 @@ public partial class MongoService
             .Set(o => o.LastUpdated, GetIstNow());
 
         var result = await _outlets.UpdateOneAsync(o => o.Id == id, update);
+        InvalidateOutletCache(id);
         return result.ModifiedCount > 0;
     }
 

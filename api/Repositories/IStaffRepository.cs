@@ -5,7 +5,8 @@ namespace Cafe.Api.Repositories;
 public interface IStaffRepository
 {
     // Staff CRUD
-    Task<List<Staff>> GetAllStaffAsync();
+    Task<List<Staff>> GetAllStaffAsync(int? page = null, int? pageSize = null);
+    Task<long> GetAllStaffCountAsync();
     Task<List<Staff>> GetActiveStaffAsync();
     Task<Staff?> GetStaffByIdAsync(string staffId);
     Task<Staff?> GetStaffByEmployeeIdAsync(string employeeId);

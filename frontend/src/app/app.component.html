@@ -1,3 +1,7 @@
+<div *ngIf="!networkStatus.isOnline()" class="offline-banner">
+  <span>⚠ You are offline.</span>
+  <span *ngIf="offlineQueue.queueLength > 0"> {{ offlineQueue.queueLength }} request(s) queued — will sync when reconnected.</span>
+</div>
 <app-navbar *ngIf="showNavbar"></app-navbar>
 <div class="main-content" [class.no-sidebar]="!showNavbar">
   <router-outlet></router-outlet>

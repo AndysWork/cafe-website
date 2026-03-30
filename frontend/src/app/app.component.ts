@@ -5,6 +5,8 @@ import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
 import { AnalyticsTrackingService } from './services/analytics-tracking.service';
 import { ToastContainerComponent } from './shared/toast-container/toast-container.component';
+import { NetworkStatusService } from './services/network-status.service';
+import { OfflineQueueService } from './services/offline-queue.service';
 
 @Component({
   selector: 'app-root',
@@ -16,6 +18,8 @@ export class AppComponent {
   title = 'Dashboard';
   showNavbar = true;
   private analyticsTracking = inject(AnalyticsTrackingService);
+  networkStatus = inject(NetworkStatusService);
+  offlineQueue = inject(OfflineQueueService);
 
   constructor(private router: Router) {
     // Hide navbar on admin routes & track page views

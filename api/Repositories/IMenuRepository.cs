@@ -5,7 +5,8 @@ namespace Cafe.Api.Repositories;
 public interface IMenuRepository
 {
     // Menu Items
-    Task<List<CafeMenuItem>> GetMenuAsync(string? outletId = null);
+    Task<List<CafeMenuItem>> GetMenuAsync(string? outletId = null, int? page = null, int? pageSize = null);
+    Task<long> GetMenuCountAsync(string? outletId = null);
     Task<List<CafeMenuItem>> GetMenuItemsByCategoryAsync(string categoryId, string? outletId = null);
     Task<List<CafeMenuItem>> GetMenuItemsBySubCategoryAsync(string subCategoryId, string? outletId = null);
     Task<CafeMenuItem?> GetMenuItemAsync(string id, string? outletId = null);

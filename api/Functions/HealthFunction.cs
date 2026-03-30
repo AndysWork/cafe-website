@@ -7,10 +7,12 @@ namespace Cafe.Api.Functions;
 
 public class HealthFunction
 {
+    private readonly IMongoClient _client;
     private readonly IMongoDatabase _database;
 
-    public HealthFunction(IMongoDatabase database)
+    public HealthFunction(IMongoClient client, IMongoDatabase database)
     {
+        _client = client;
         _database = database;
     }
 
@@ -25,12 +27,23 @@ public class HealthFunction
             // Ping MongoDB to verify connectivity
             await _database.RunCommandAsync<MongoDB.Bson.BsonDocument>(new MongoDB.Bson.BsonDocument("ping", 1));
 
+            // Report connection pool stats from the cluster description
+            var clusterDescription = _client.Cluster.Description;
+            var serverCount = clusterDescription.Servers.Count;
+            var connectedServers = clusterDescription.Servers.Count(s => s.State == MongoDB.Driver.Core.Servers.ServerState.Connected);
+
             response.StatusCode = HttpStatusCode.OK;
             await response.WriteAsJsonAsync(new
             {
                 status = "healthy",
                 timestamp = DateTime.UtcNow,
-                database = "connected"
+                database = "connected",
+                cluster = new
+                {
+                    type = clusterDescription.Type.ToString(),
+                    servers = serverCount,
+                    connectedServers
+                }
             });
         }
         catch (Exception)
