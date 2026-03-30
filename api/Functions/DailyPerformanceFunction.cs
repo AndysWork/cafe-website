@@ -5,6 +5,7 @@ using System.Net;
 using System.Text.Json;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Helpers;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.OpenApi.Models;
@@ -14,12 +15,12 @@ namespace Cafe.Api.Functions;
 public class DailyPerformanceFunction
 {
     private readonly ILogger<DailyPerformanceFunction> _logger;
-    private readonly MongoService _mongo;
+    private readonly IStaffRepository _mongo;
     private readonly AuthService _auth;
 
     public DailyPerformanceFunction(
         ILogger<DailyPerformanceFunction> logger,
-        MongoService mongo,
+        IStaffRepository mongo,
         AuthService auth)
     {
         _logger = logger;

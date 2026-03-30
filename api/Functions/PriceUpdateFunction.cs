@@ -2,6 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
@@ -11,13 +12,13 @@ namespace Cafe.Api.Functions;
 
 public class PriceUpdateFunction
 {
-    private readonly MongoService _mongoService;
+    private readonly IPricingRepository _mongoService;
     private readonly MarketPriceService _priceService;
     private readonly AuthService _authService;
     private readonly ILogger<PriceUpdateFunction> _logger;
 
     public PriceUpdateFunction(
-        MongoService mongoService,
+        IPricingRepository mongoService,
         MarketPriceService priceService,
         AuthService authService,
         ILogger<PriceUpdateFunction> logger)

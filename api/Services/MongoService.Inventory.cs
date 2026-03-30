@@ -1,11 +1,12 @@
 // Inventory Management Methods Extension for MongoService
 using MongoDB.Driver;
 using Cafe.Api.Models;
+using Cafe.Api.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
 
-public partial class MongoService
+public partial class MongoService : IInventoryRepository
 {
     #region Inventory Management
 

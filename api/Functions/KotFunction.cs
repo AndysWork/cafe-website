@@ -2,6 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Helpers;
 using System.Net;
 using System.Text;
@@ -10,11 +11,11 @@ namespace Cafe.Api.Functions;
 
 public class KotFunction
 {
-    private readonly MongoService _mongo;
+    private readonly IOrderRepository _mongo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public KotFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public KotFunction(IOrderRepository mongo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;

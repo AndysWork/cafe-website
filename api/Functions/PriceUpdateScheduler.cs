@@ -1,17 +1,18 @@
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 
 namespace Cafe.Api.Functions;
 
 public class PriceUpdateScheduler
 {
-    private readonly MongoService _mongoService;
+    private readonly IPricingRepository _mongoService;
     private readonly MarketPriceService _priceService;
     private readonly ILogger<PriceUpdateScheduler> _logger;
 
     public PriceUpdateScheduler(
-        MongoService mongoService,
+        IPricingRepository mongoService,
         MarketPriceService priceService,
         ILogger<PriceUpdateScheduler> logger)
     {

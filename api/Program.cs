@@ -1,5 +1,6 @@
 using Cafe.Api.Services;
 using Cafe.Api.Helpers;
+using Cafe.Api.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Azure.Functions.Worker;
@@ -30,6 +31,23 @@ var host = new HostBuilder()
         s.ConfigureFunctionsApplicationInsights();
         s.AddSingleton<MongoService>();
         s.AddSingleton(sp => sp.GetRequiredService<MongoService>().Database);
+        
+        // Register domain-specific repository interfaces (all backed by MongoService)
+        s.AddSingleton<IMenuRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IUserRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IOrderRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<ILoyaltyRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IOfferRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IFinanceRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IPricingRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IInventoryRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IStaffRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IOutletRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IOperationsRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IWalletRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<INotificationRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IAnalyticsRepository>(sp => sp.GetRequiredService<MongoService>());
+        
         s.AddSingleton<FileUploadService>();
         s.AddSingleton<AuthService>();
         s.AddSingleton<IEmailService, EmailService>();

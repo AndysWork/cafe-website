@@ -7,6 +7,7 @@ using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 
@@ -14,11 +15,11 @@ namespace Cafe.Api.Functions;
 
 public class OverheadCostFunction
 {
-    private readonly MongoService _mongoService;
+    private readonly IPricingRepository _mongoService;
     private readonly AuthService _authService;
     private readonly ILogger<OverheadCostFunction> _logger;
 
-    public OverheadCostFunction(MongoService mongoService, AuthService authService, ILogger<OverheadCostFunction> logger)
+    public OverheadCostFunction(IPricingRepository mongoService, AuthService authService, ILogger<OverheadCostFunction> logger)
     {
         _mongoService = mongoService;
         _authService = authService;

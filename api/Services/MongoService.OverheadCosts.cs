@@ -1,5 +1,6 @@
 ﻿using MongoDB.Driver;
 using Cafe.Api.Models;
+using Cafe.Api.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;

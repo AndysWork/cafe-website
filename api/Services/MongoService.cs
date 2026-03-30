@@ -1,13 +1,14 @@
 ﻿using MongoDB.Driver;
 using MongoDB.Bson;
 using Cafe.Api.Models;
+using Cafe.Api.Repositories;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Cafe.Api.Services;
 
-public partial class MongoService
+public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepository, ILoyaltyRepository, IOfferRepository, IFinanceRepository, IPricingRepository, INotificationRepository, IOutletRepository, IWalletRepository
 {
     private readonly ILogger<MongoService> _logger;
     private readonly IMemoryCache _cache;

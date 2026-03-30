@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Helpers;
 using System.Text.Json;
 using System.Net;
@@ -15,10 +16,10 @@ namespace Cafe.Api.Functions
     public class RecipeFunction
     {
         private readonly ILogger<RecipeFunction> _logger;
-        private readonly MongoService _mongoService;
+        private readonly IPricingRepository _mongoService;
         private readonly AuthService _authService;
 
-        public RecipeFunction(ILogger<RecipeFunction> logger, MongoService mongoService, AuthService authService)
+        public RecipeFunction(ILogger<RecipeFunction> logger, IPricingRepository mongoService, AuthService authService)
         {
             _logger = logger;
             _mongoService = mongoService;

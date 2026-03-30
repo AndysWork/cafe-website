@@ -3,15 +3,16 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 
 namespace Cafe.Api.Functions;
 
 public class PublicStatsFunction
 {
     private readonly ILogger<PublicStatsFunction> _log;
-    private readonly MongoService _mongo;
+    private readonly IOutletRepository _mongo;
 
-    public PublicStatsFunction(ILogger<PublicStatsFunction> log, MongoService mongo)
+    public PublicStatsFunction(ILogger<PublicStatsFunction> log, IOutletRepository mongo)
     {
         _log = log;
         _mongo = mongo;

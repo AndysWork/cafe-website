@@ -2,6 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
@@ -14,12 +15,12 @@ namespace Cafe.Api.Functions;
 
 public class OfferFunction
 {
-    private readonly MongoService _mongoService;
+    private readonly IOfferRepository _mongoService;
     private readonly AuthService _authService;
     private readonly IWhatsAppService _whatsAppService;
     private readonly ILogger<OfferFunction> _logger;
 
-    public OfferFunction(MongoService mongoService, AuthService authService, IWhatsAppService whatsAppService, ILogger<OfferFunction> logger)
+    public OfferFunction(IOfferRepository mongoService, AuthService authService, IWhatsAppService whatsAppService, ILogger<OfferFunction> logger)
     {
         _mongoService = mongoService;
         _authService = authService;

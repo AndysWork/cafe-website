@@ -2,6 +2,7 @@ using System.Net;
 using Cafe.Api.Helpers;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
@@ -11,11 +12,11 @@ namespace Cafe.Api.Functions;
 
 public class SalesItemTypeFunction
 {
-    private readonly MongoService _mongo;
+    private readonly IFinanceRepository _mongo;
     private readonly AuthService _authService;
     private readonly ILogger<SalesItemTypeFunction> _log;
 
-    public SalesItemTypeFunction(MongoService mongo, AuthService authService, ILogger<SalesItemTypeFunction> log)
+    public SalesItemTypeFunction(IFinanceRepository mongo, AuthService authService, ILogger<SalesItemTypeFunction> log)
     {
         _mongo = mongo;
         _authService = authService;

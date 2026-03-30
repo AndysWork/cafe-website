@@ -1,6 +1,7 @@
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Helpers;
 using System.Net;
 
@@ -8,10 +9,10 @@ namespace Cafe.Api.Functions;
 
 public class AdminFunction
 {
-    private readonly MongoService _mongo;
+    private readonly IMenuRepository _mongo;
     private readonly AuthService _auth;
 
-    public AdminFunction(MongoService mongo, AuthService auth)
+    public AdminFunction(IMenuRepository mongo, AuthService auth)
     {
         _mongo = mongo;
         _auth = auth;

@@ -4,6 +4,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using OfficeOpenXml;
@@ -12,11 +13,11 @@ namespace Cafe.Api.Functions;
 
 public class FrozenItemFunction
 {
-    private readonly MongoService _mongoService;
+    private readonly IInventoryRepository _mongoService;
     private readonly AuthService _authService;
     private readonly ILogger<FrozenItemFunction> _logger;
 
-    public FrozenItemFunction(MongoService mongoService, AuthService authService, ILogger<FrozenItemFunction> logger)
+    public FrozenItemFunction(IInventoryRepository mongoService, AuthService authService, ILogger<FrozenItemFunction> logger)
     {
         _mongoService = mongoService;
         _authService = authService;

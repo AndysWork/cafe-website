@@ -1,4 +1,5 @@
 using Cafe.Api.Models;
+using Cafe.Api.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
@@ -9,10 +10,10 @@ namespace Cafe.Api.Services;
 /// </summary>
 public class NotificationService
 {
-    private readonly MongoService _mongo;
+    private readonly INotificationRepository _mongo;
     private readonly ILogger<NotificationService> _logger;
 
-    public NotificationService(MongoService mongo, ILogger<NotificationService> logger)
+    public NotificationService(INotificationRepository mongo, ILogger<NotificationService> logger)
     {
         _mongo = mongo;
         _logger = logger;

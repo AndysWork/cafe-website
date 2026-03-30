@@ -2,6 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
@@ -10,11 +11,11 @@ namespace Cafe.Api.Functions;
 
 public class OnlineExpenseTypeFunction
 {
-    private readonly MongoService _mongo;
+    private readonly IFinanceRepository _mongo;
     private readonly AuthService _authService;
     private readonly ILogger _log;
 
-    public OnlineExpenseTypeFunction(MongoService mongo, AuthService authService, ILoggerFactory loggerFactory)
+    public OnlineExpenseTypeFunction(IFinanceRepository mongo, AuthService authService, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _authService = authService;

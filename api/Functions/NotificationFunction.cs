@@ -3,6 +3,7 @@ using System.Text.Json;
 using Cafe.Api.Helpers;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
@@ -14,7 +15,7 @@ namespace Cafe.Api.Functions;
 
 public class NotificationFunction
 {
-    private readonly MongoService _mongo;
+    private readonly INotificationRepository _mongo;
     private readonly AuthService _auth;
     private readonly ILogger<NotificationFunction> _log;
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -23,7 +24,7 @@ public class NotificationFunction
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public NotificationFunction(MongoService mongo, AuthService auth, ILogger<NotificationFunction> log)
+    public NotificationFunction(INotificationRepository mongo, AuthService auth, ILogger<NotificationFunction> log)
     {
         _mongo = mongo;
         _auth = auth;

@@ -1,6 +1,7 @@
 using System.Net;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Helpers;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -13,12 +14,12 @@ namespace Cafe.Api.Functions;
 
 public class AuthFunction
 {
-    private readonly MongoService _mongo;
+    private readonly IUserRepository _mongo;
     private readonly AuthService _auth;
     private readonly IEmailService _emailService;
     private readonly ILogger _log;
 
-    public AuthFunction(MongoService mongo, AuthService auth, IEmailService emailService, ILoggerFactory loggerFactory)
+    public AuthFunction(IUserRepository mongo, AuthService auth, IEmailService emailService, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;

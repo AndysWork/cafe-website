@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Helpers;
 using System.Text.Json;
 using System.Net;
@@ -15,12 +16,12 @@ namespace Cafe.Api.Functions
     public class IngredientFunction
     {
         private readonly ILogger<IngredientFunction> _logger;
-        private readonly MongoService _mongoService;
+        private readonly IPricingRepository _mongoService;
         private readonly AuthService _authService;
         private readonly IEmailService _emailService;
         private const decimal MAJOR_PRICE_CHANGE_THRESHOLD = 10.0m;
 
-        public IngredientFunction(ILogger<IngredientFunction> logger, MongoService mongoService, AuthService authService, IEmailService emailService)
+        public IngredientFunction(ILogger<IngredientFunction> logger, IPricingRepository mongoService, AuthService authService, IEmailService emailService)
         {
             _logger = logger;
             _mongoService = mongoService;

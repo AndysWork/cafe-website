@@ -1,11 +1,12 @@
 using MongoDB.Driver;
 using MongoDB.Bson;
 using Cafe.Api.Models;
+using Cafe.Api.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
 
-public partial class MongoService
+public partial class MongoService : IAnalyticsRepository
 {
     private IMongoCollection<UserActivityEvent>? _activityEvents;
     private IMongoCollection<UserSession>? _userSessions;

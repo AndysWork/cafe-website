@@ -2,6 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
@@ -11,12 +12,12 @@ namespace Cafe.Api.Functions;
 
 public class InitializeIngredientsFunction
 {
-    private readonly MongoService _mongoService;
+    private readonly IPricingRepository _mongoService;
     private readonly AuthService _authService;
     private readonly ILogger<InitializeIngredientsFunction> _logger;
 
     public InitializeIngredientsFunction(
-        MongoService mongoService,
+        IPricingRepository mongoService,
         AuthService authService,
         ILogger<InitializeIngredientsFunction> logger)
     {

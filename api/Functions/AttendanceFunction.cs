@@ -2,6 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
@@ -10,11 +11,11 @@ namespace Cafe.Api.Functions;
 
 public class AttendanceFunction
 {
-    private readonly MongoService _mongo;
+    private readonly IStaffRepository _mongo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public AttendanceFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public AttendanceFunction(IStaffRepository mongo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;

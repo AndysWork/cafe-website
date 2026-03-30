@@ -1,9 +1,10 @@
 using MongoDB.Driver;
 using Cafe.Api.Models;
+using Cafe.Api.Repositories;
 
 namespace Cafe.Api.Services;
 
-public partial class MongoService
+public partial class MongoService : IStaffRepository
 {
     #region BonusConfiguration Operations
 
