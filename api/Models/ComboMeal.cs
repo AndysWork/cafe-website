@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Cafe.Api.Models;
 
-public class ComboMeal
+public class ComboMeal : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -56,6 +56,11 @@ public class ComboMeal
 
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 public class ComboItem

@@ -10,14 +10,14 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<List<DeliveryZone>> GetDeliveryZonesAsync(string outletId)
     {
-        return await _deliveryZones.Find(z => z.OutletId == outletId && z.IsActive)
+        return await _deliveryZones.Find(z => z.OutletId == outletId && z.IsActive && z.IsDeleted != true)
             .SortBy(z => z.MinDistance)
             .ToListAsync();
     }
 
     public async Task<DeliveryZone?> GetDeliveryZoneByIdAsync(string id)
     {
-        return await _deliveryZones.Find(z => z.Id == id).FirstOrDefaultAsync();
+        return await _deliveryZones.Find(z => z.Id == id && z.IsDeleted != true).FirstOrDefaultAsync();
     }
 
     public async Task<DeliveryZone> CreateDeliveryZoneAsync(DeliveryZone zone)
@@ -42,8 +42,11 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<bool> DeleteDeliveryZoneAsync(string id)
     {
-        var result = await _deliveryZones.DeleteOneAsync(z => z.Id == id);
-        return result.DeletedCount > 0;
+        var update = Builders<DeliveryZone>.Update
+            .Set(z => z.IsDeleted, true)
+            .Set(z => z.DeletedAt, DateTime.UtcNow);
+        var result = await _deliveryZones.UpdateOneAsync(z => z.Id == id && z.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     public async Task<decimal> CalculateDeliveryFeeAsync(string outletId, decimal orderSubtotal)
@@ -371,7 +374,7 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<List<ComboMeal>> GetComboMealsAsync(string outletId, bool activeOnly = false)
     {
-        var filter = Builders<ComboMeal>.Filter.Eq(c => c.OutletId, outletId);
+        var filter = Builders<ComboMeal>.Filter.Eq(c => c.OutletId, outletId) & Builders<ComboMeal>.Filter.Ne(c => c.IsDeleted, true);
         if (activeOnly)
             filter &= Builders<ComboMeal>.Filter.Eq(c => c.IsActive, true);
 
@@ -382,7 +385,7 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<ComboMeal?> GetComboMealByIdAsync(string id)
     {
-        return await _comboMeals.Find(c => c.Id == id).FirstOrDefaultAsync();
+        return await _comboMeals.Find(c => c.Id == id && c.IsDeleted != true).FirstOrDefaultAsync();
     }
 
     public async Task<bool> UpdateComboMealAsync(string id, ComboMeal combo)
@@ -394,8 +397,11 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<bool> DeleteComboMealAsync(string id)
     {
-        var result = await _comboMeals.DeleteOneAsync(c => c.Id == id);
-        return result.DeletedCount > 0;
+        var update = Builders<ComboMeal>.Update
+            .Set(c => c.IsDeleted, true)
+            .Set(c => c.DeletedAt, DateTime.UtcNow);
+        var result = await _comboMeals.UpdateOneAsync(c => c.Id == id && c.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     #endregion
@@ -499,7 +505,7 @@ public partial class MongoService : IOperationsRepository
 
             if (existingPo != null) continue;
 
-            var ingredient = await _ingredients.Find(i => i.Id == item.IngredientId).FirstOrDefaultAsync();
+            var ingredient = await _ingredients.Find(i => i.Id == item.IngredientId && i.IsDeleted != true).FirstOrDefaultAsync();
             if (ingredient == null) continue;
 
             var po = new PurchaseOrder
@@ -531,7 +537,7 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<List<SubscriptionPlan>> GetSubscriptionPlansAsync(string outletId, bool activeOnly = false)
     {
-        var filter = Builders<SubscriptionPlan>.Filter.Eq(p => p.OutletId, outletId);
+        var filter = Builders<SubscriptionPlan>.Filter.Eq(p => p.OutletId, outletId) & Builders<SubscriptionPlan>.Filter.Ne(p => p.IsDeleted, true);
         if (activeOnly)
             filter &= Builders<SubscriptionPlan>.Filter.Eq(p => p.IsActive, true);
 
@@ -540,13 +546,22 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<SubscriptionPlan?> GetSubscriptionPlanByIdAsync(string id)
     {
-        return await _subscriptionPlans.Find(p => p.Id == id).FirstOrDefaultAsync();
+        return await _subscriptionPlans.Find(p => p.Id == id && p.IsDeleted != true).FirstOrDefaultAsync();
     }
 
     public async Task<bool> DeleteSubscriptionPlanAsync(string id)
     {
-        var result = await _subscriptionPlans.DeleteOneAsync(p => p.Id == id);
-        return result.DeletedCount > 0;
+        // Check for active customer subscriptions on this plan
+        var hasSubscribers = await _customerSubscriptions.Find(s => s.PlanId == id && s.Status == "active").AnyAsync();
+        if (hasSubscribers)
+            throw new InvalidOperationException("Cannot delete subscription plan: it has active subscribers. Deactivate it instead.");
+
+        var update = Builders<SubscriptionPlan>.Update
+            .Set(p => p.IsDeleted, true)
+            .Set(p => p.DeletedAt, DateTime.UtcNow)
+            .Set(p => p.IsActive, false);
+        var result = await _subscriptionPlans.UpdateOneAsync(p => p.Id == id && p.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     public async Task<CustomerSubscription> CreateCustomerSubscriptionAsync(CustomerSubscription sub)
@@ -641,7 +656,7 @@ public partial class MongoService : IOperationsRepository
     public async Task<List<Order>> GetOrdersByStatusAsync(string[] statuses, string? outletId = null)
     {
         var filterBuilder = Builders<Order>.Filter;
-        var filter = filterBuilder.In(o => o.Status, statuses);
+        var filter = filterBuilder.In(o => o.Status, statuses) & filterBuilder.Ne(o => o.IsDeleted, true);
         if (!string.IsNullOrEmpty(outletId))
             filter &= filterBuilder.Eq(o => o.OutletId, outletId);
 
@@ -688,7 +703,7 @@ public partial class MongoService : IOperationsRepository
         int count = 0;
         foreach (var user in users)
         {
-            var orders = await _orders.Find(o => o.UserId == user.Id).ToListAsync();
+            var orders = await _orders.Find(o => o.UserId == user.Id && o.IsDeleted != true).ToListAsync();
             if (orders.Count == 0) continue;
 
             var totalSpent = orders.Sum(o => o.Total);

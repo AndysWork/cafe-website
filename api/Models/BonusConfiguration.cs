@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Cafe.Api.Models;
 
 [BsonIgnoreExtraElements]
-public class BonusConfiguration
+public class BonusConfiguration : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -47,6 +47,11 @@ public class BonusConfiguration
     [BsonElement("createdBy")]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? CreatedBy { get; set; }
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 // Individual bonus or deduction rule

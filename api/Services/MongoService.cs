@@ -295,9 +295,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Get all menu items
     public async Task<List<CafeMenuItem>> GetMenuAsync(string? outletId = null)
     {
+        var notDeleted = Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true);
         var filter = string.IsNullOrWhiteSpace(outletId)
-            ? Builders<CafeMenuItem>.Filter.Empty
-            : Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId);
+            ? notDeleted
+            : Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId) & notDeleted;
         
         var menuItems = await _menu.Find(filter).ToListAsync();
         
@@ -310,7 +311,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<List<CafeMenuItem>> GetMenuItemsByCategoryAsync(string categoryId, string? outletId = null)
     {
         var filterBuilder = Builders<CafeMenuItem>.Filter;
-        var filter = filterBuilder.Eq(item => item.CategoryId, categoryId);
+        var filter = filterBuilder.Eq(item => item.CategoryId, categoryId) & filterBuilder.Ne(item => item.IsDeleted, true);
         
         // Add outlet filter if provided
         if (!string.IsNullOrWhiteSpace(outletId))
@@ -329,7 +330,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<List<CafeMenuItem>> GetMenuItemsBySubCategoryAsync(string subCategoryId, string? outletId = null)
     {
         var filterBuilder = Builders<CafeMenuItem>.Filter;
-        var filter = filterBuilder.Eq(item => item.SubCategoryId, subCategoryId);
+        var filter = filterBuilder.Eq(item => item.SubCategoryId, subCategoryId) & filterBuilder.Ne(item => item.IsDeleted, true);
         
         // Add outlet filter if provided
         if (!string.IsNullOrWhiteSpace(outletId))
@@ -348,7 +349,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<CafeMenuItem?> GetMenuItemAsync(string id, string? outletId = null)
     {
         var filterBuilder = Builders<CafeMenuItem>.Filter;
-        var filter = filterBuilder.Eq(x => x.Id, id);
+        var filter = filterBuilder.Eq(x => x.Id, id) & filterBuilder.Ne(x => x.IsDeleted, true);
         
         // Add outlet filter if provided
         if (!string.IsNullOrWhiteSpace(outletId))
@@ -378,7 +379,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<List<CafeMenuItem>> GetMenuItemsByIdsAsync(List<string> ids, string? outletId = null)
     {
         var filterBuilder = Builders<CafeMenuItem>.Filter;
-        var filter = filterBuilder.In(x => x.Id, ids);
+        var filter = filterBuilder.In(x => x.Id, ids) & filterBuilder.Ne(x => x.IsDeleted, true);
 
         if (!string.IsNullOrWhiteSpace(outletId))
         {
@@ -393,7 +394,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     /// </summary>
     public async Task<Dictionary<string, string>> GetCategoriesByIdsAsync(List<string> ids)
     {
-        var filter = Builders<MenuCategory>.Filter.In(x => x.Id, ids);
+        var filter = Builders<MenuCategory>.Filter.In(x => x.Id, ids) & Builders<MenuCategory>.Filter.Ne(x => x.IsDeleted, true);
         var categories = await _categories.Find(filter)
             .Project(Builders<MenuCategory>.Projection
                 .Include(c => c.Id)
@@ -420,7 +421,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 m => m.Name, 
                 new MongoDB.Bson.BsonRegularExpression($"^{escapedName}$", "i")
             ),
-            Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId)
+            Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId),
+            Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true)
         );
         
         var result = await _menu.Find(filter).FirstOrDefaultAsync();
@@ -433,7 +435,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             _logger.LogDebug("[Menu Item Lookup] NOT FOUND - Name: '{trimmedName}', Outlet: {outletId}");
             
             // Try to find any menu items with similar names for debugging
-            var debugFilter = Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId);
+            var debugFilter = Builders<CafeMenuItem>.Filter.Eq(m => m.OutletId, outletId) & Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true);
             var allItemsInOutlet = await _menu.Find(debugFilter).Limit(100).ToListAsync();
             _logger.LogDebug("[Menu Item Lookup] Total items in outlet {outletId}: {allItemsInOutlet.Count}");
             foreach (var item in allItemsInOutlet.Take(5))
@@ -495,11 +497,24 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
-    // Delete menu item
+    // Delete menu item (soft-delete with dependency check)
     public async Task<bool> DeleteMenuItemAsync(string id)
     {
-        var result = await _menu.DeleteOneAsync(x => x.Id == id);
-        return result.DeletedCount > 0;
+        // Check for active recipes referencing this menu item
+        var hasRecipe = await _recipes.Find(r => r.MenuItemId == id).AnyAsync();
+        if (hasRecipe)
+            throw new InvalidOperationException("Cannot delete menu item: it has an associated recipe. Delete the recipe first.");
+
+        // Check for active combo meals referencing this menu item
+        var hasCombo = await _comboMeals.Find(c => c.IsDeleted != true && c.Items.Any(i => i.MenuItemId == id)).AnyAsync();
+        if (hasCombo)
+            throw new InvalidOperationException("Cannot delete menu item: it is included in an active combo meal.");
+
+        var update = Builders<CafeMenuItem>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        var result = await _menu.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     // Bulk insert menu items (for Excel upload) - appends new items, updates existing by name
@@ -514,7 +529,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             // Check if item with same name AND outlet ID already exists
             var existingItem = await _menu.Find(x => 
                 x.Name.ToLower() == item.Name.ToLower() && 
-                x.OutletId == item.OutletId).FirstOrDefaultAsync();
+                x.OutletId == item.OutletId && x.IsDeleted != true).FirstOrDefaultAsync();
             
             if (existingItem != null)
             {
@@ -562,22 +577,28 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return count;
     }
     
-    // Clear all menu items (useful before bulk upload)
+    // Clear all menu items (soft-delete all - used before bulk upload)
     public async Task ClearMenuItemsAsync()
     {
-        await _menu.DeleteManyAsync(_ => true);
+        var update = Builders<CafeMenuItem>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        await _menu.UpdateManyAsync(x => x.IsDeleted != true, update);
     }
 
-    // Clear menu items for a specific outlet
+    // Clear menu items for a specific outlet (soft-delete)
     public async Task ClearMenuItemsByOutletAsync(string outletId)
     {
-        await _menu.DeleteManyAsync(m => m.OutletId == outletId);
+        var update = Builders<CafeMenuItem>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        await _menu.UpdateManyAsync(m => m.OutletId == outletId && m.IsDeleted != true, update);
     }
 
     // Toggle menu item availability (stock status)
     public async Task<bool> ToggleMenuItemAvailabilityAsync(string id)
     {
-        var item = await _menu.Find(x => x.Id == id).FirstOrDefaultAsync();
+        var item = await _menu.Find(x => x.Id == id && x.IsDeleted != true).FirstOrDefaultAsync();
         if (item == null)
             return false;
 
@@ -611,9 +632,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (_cache.TryGetValue(cacheKey, out List<MenuCategory>? cached) && cached != null)
             return cached;
 
+        var notDeleted = Builders<MenuCategory>.Filter.Ne(x => x.IsDeleted, true);
         var filter = outletId != null 
-            ? Builders<MenuCategory>.Filter.Eq(x => x.OutletId, outletId)
-            : Builders<MenuCategory>.Filter.Empty;
+            ? Builders<MenuCategory>.Filter.Eq(x => x.OutletId, outletId) & notDeleted
+            : notDeleted;
         var result = await _categories.Find(filter).ToListAsync();
         _cache.Set(cacheKey, result, CacheDuration);
         return result;
@@ -623,7 +645,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<MenuCategory?> GetCategoryAsync(string id, string? outletId = null)
     {
         var builder = Builders<MenuCategory>.Filter;
-        var filter = builder.Eq(x => x.Id, id);
+        var filter = builder.Eq(x => x.Id, id) & builder.Ne(x => x.IsDeleted, true);
         
         if (outletId != null)
         {
@@ -662,20 +684,33 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
-    // Delete category
+    // Delete category (soft-delete with dependency check)
     public async Task<bool> DeleteCategoryAsync(string id, string? outletId = null)
     {
+        // Check for menu items still using this category
+        var hasMenuItems = await _menu.Find(m => m.CategoryId == id && m.IsDeleted != true).AnyAsync();
+        if (hasMenuItems)
+            throw new InvalidOperationException("Cannot delete category: it has active menu items. Move or delete them first.");
+
+        // Check for subcategories under this category
+        var hasSubCategories = await _subCategories.Find(s => s.CategoryId == id && s.IsDeleted != true).AnyAsync();
+        if (hasSubCategories)
+            throw new InvalidOperationException("Cannot delete category: it has active subcategories. Delete them first.");
+
         var builder = Builders<MenuCategory>.Filter;
-        var filter = builder.Eq(x => x.Id, id);
+        var filter = builder.Eq(x => x.Id, id) & builder.Ne(x => x.IsDeleted, true);
         
         if (outletId != null)
         {
             filter &= builder.Eq(x => x.OutletId, outletId);
         }
         
-        var result = await _categories.DeleteOneAsync(filter);
+        var update = Builders<MenuCategory>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        var result = await _categories.UpdateOneAsync(filter, update);
         InvalidateCategoryCache(outletId);
-        return result.DeletedCount > 0;
+        return result.ModifiedCount > 0;
     }
 
     private void InvalidateCategoryCache(string? outletId = null)
@@ -697,9 +732,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         List<MenuSubCategory> result;
         if (string.IsNullOrEmpty(outletId))
-            result = await _subCategories.Find(_ => true).ToListAsync();
+            result = await _subCategories.Find(x => x.IsDeleted != true).ToListAsync();
         else
-            result = await _subCategories.Find(x => x.OutletId == outletId).ToListAsync();
+            result = await _subCategories.Find(x => x.OutletId == outletId && x.IsDeleted != true).ToListAsync();
 
         _cache.Set(cacheKey, result, CacheDuration);
         return result;
@@ -709,18 +744,18 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<List<MenuSubCategory>> GetSubCategoriesByCategoryAsync(string categoryId, string? outletId = null)
     {
         if (string.IsNullOrEmpty(outletId))
-            return await _subCategories.Find(x => x.CategoryId == categoryId).ToListAsync();
+            return await _subCategories.Find(x => x.CategoryId == categoryId && x.IsDeleted != true).ToListAsync();
         
-        return await _subCategories.Find(x => x.CategoryId == categoryId && x.OutletId == outletId).ToListAsync();
+        return await _subCategories.Find(x => x.CategoryId == categoryId && x.OutletId == outletId && x.IsDeleted != true).ToListAsync();
     }
 
     // Get single subcategory by ID
     public async Task<MenuSubCategory?> GetSubCategoryAsync(string id, string? outletId = null)
     {
         if (string.IsNullOrEmpty(outletId))
-            return await _subCategories.Find(x => x.Id == id).FirstOrDefaultAsync();
+            return await _subCategories.Find(x => x.Id == id && x.IsDeleted != true).FirstOrDefaultAsync();
         
-        return await _subCategories.Find(x => x.Id == id && x.OutletId == outletId).FirstOrDefaultAsync();
+        return await _subCategories.Find(x => x.Id == id && x.OutletId == outletId && x.IsDeleted != true).FirstOrDefaultAsync();
     }
 
     // Create new subcategory
@@ -753,21 +788,30 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
-    // Delete subcategory
+    // Delete subcategory (soft-delete with dependency check)
     public async Task<bool> DeleteSubCategoryAsync(string id, string? outletId = null)
     {
+        // Check for menu items still using this subcategory
+        var hasMenuItems = await _menu.Find(m => m.SubCategoryId == id && m.IsDeleted != true).AnyAsync();
+        if (hasMenuItems)
+            throw new InvalidOperationException("Cannot delete subcategory: it has active menu items. Move or delete them first.");
+
         FilterDefinition<MenuSubCategory> filter;
         if (string.IsNullOrEmpty(outletId))
-            filter = Builders<MenuSubCategory>.Filter.Eq(x => x.Id, id);
+            filter = Builders<MenuSubCategory>.Filter.Eq(x => x.Id, id) & Builders<MenuSubCategory>.Filter.Ne(x => x.IsDeleted, true);
         else
             filter = Builders<MenuSubCategory>.Filter.And(
                 Builders<MenuSubCategory>.Filter.Eq(x => x.Id, id),
-                Builders<MenuSubCategory>.Filter.Eq(x => x.OutletId, outletId)
+                Builders<MenuSubCategory>.Filter.Eq(x => x.OutletId, outletId),
+                Builders<MenuSubCategory>.Filter.Ne(x => x.IsDeleted, true)
             );
         
-        var result = await _subCategories.DeleteOneAsync(filter);
+        var update = Builders<MenuSubCategory>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        var result = await _subCategories.UpdateOneAsync(filter, update);
         InvalidateSubCategoryCache(outletId);
-        return result.DeletedCount > 0;
+        return result.ModifiedCount > 0;
     }
 
     private void InvalidateSubCategoryCache(string? outletId = null)
@@ -776,16 +820,22 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _cache.Remove("subcategories_all");
     }
     
-    // Clear all categories (for schema migration)
+// Clear all categories (soft-delete for schema migration)
     public async Task ClearCategoriesAsync()
     {
-        await _categories.DeleteManyAsync(_ => true);
+        var update = Builders<MenuCategory>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        await _categories.UpdateManyAsync(x => x.IsDeleted != true, update);
     }
-    
-    // Clear all subcategories (for schema migration)
+
+    // Clear all subcategories (soft-delete for schema migration)
     public async Task ClearSubCategoriesAsync()
     {
-        await _subCategories.DeleteManyAsync(_ => true);
+        var update = Builders<MenuSubCategory>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        await _subCategories.UpdateManyAsync(x => x.IsDeleted != true, update);
     }
     
     #endregion
@@ -1397,7 +1447,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<List<Order>> GetUserOrdersAsync(string userId, int? page = null, int? pageSize = null)
     {
         var fluent = _orders
-            .Find(x => x.UserId == userId)
+            .Find(x => x.UserId == userId && x.IsDeleted != true)
             .SortByDescending(x => x.CreatedAt)
             .Project<Order>(_orderListProjection);
 
@@ -1409,15 +1459,16 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<long> GetUserOrdersCountAsync(string userId)
     {
-        return await _orders.CountDocumentsAsync(x => x.UserId == userId);
+        return await _orders.CountDocumentsAsync(x => x.UserId == userId && x.IsDeleted != true);
     }
 
     // Get all orders (admin) - optionally filtered by outlet (excludes RazorpaySignature)
     public async Task<List<Order>> GetAllOrdersAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
+        var notDeleted = Builders<Order>.Filter.Ne(o => o.IsDeleted, true);
         var filter = outletId != null
-            ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId)
-            : Builders<Order>.Filter.Empty;
+            ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId) & notDeleted
+            : notDeleted;
         var fluent = _orders.Find(filter).SortByDescending(x => x.CreatedAt)
             .Project<Order>(_orderListProjection);
 
@@ -1429,16 +1480,17 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<long> GetAllOrdersCountAsync(string? outletId = null)
     {
+        var notDeleted = Builders<Order>.Filter.Ne(o => o.IsDeleted, true);
         var filter = outletId != null
-            ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId)
-            : Builders<Order>.Filter.Empty;
+            ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId) & notDeleted
+            : notDeleted;
         return await _orders.CountDocumentsAsync(filter);
     }
 
     // Get order by ID
     public async Task<Order?> GetOrderByIdAsync(string orderId)
     {
-        return await _orders.Find(x => x.Id == orderId).FirstOrDefaultAsync();
+        return await _orders.Find(x => x.Id == orderId && x.IsDeleted != true).FirstOrDefaultAsync();
     }
 
     // Update order status
@@ -1607,7 +1659,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (account == null)
             return (false, "Loyalty account not found", null);
 
-        var reward = await _rewards.Find(x => x.Id == rewardId && x.IsActive).FirstOrDefaultAsync();
+        var reward = await _rewards.Find(x => x.Id == rewardId && x.IsActive && x.IsDeleted != true).FirstOrDefaultAsync();
         if (reward == null)
             return (false, "Reward not found or inactive", null);
 
@@ -1697,7 +1749,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         var now = GetIstNow();
         var result = await _rewards
-            .Find(x => x.IsActive && (!x.ExpiresAt.HasValue || x.ExpiresAt.Value > now))
+            .Find(x => x.IsActive && x.IsDeleted != true && (!x.ExpiresAt.HasValue || x.ExpiresAt.Value > now))
             .SortBy(x => x.PointsCost)
             .ToListAsync();
         _cache.Set(cacheKey, result, CacheDuration);
@@ -1708,7 +1760,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<List<Reward>> GetAllRewardsAsync()
     {
         return await _rewards
-            .Find(_ => true)
+            .Find(r => r.IsDeleted != true)
             .SortBy(x => x.PointsCost)
             .ToListAsync();
     }
@@ -1733,9 +1785,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Delete reward (admin)
     public async Task<bool> DeleteRewardAsync(string id)
     {
-        var result = await _rewards.DeleteOneAsync(x => x.Id == id);
+        var update = Builders<Reward>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        var result = await _rewards.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
         _cache.Remove("active_rewards");
-        return result.DeletedCount > 0;
+        return result.ModifiedCount > 0;
     }
 
     // ─── Points Transfer ───
@@ -2734,21 +2789,22 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await _offers.Find(o => 
             o.IsActive && 
             o.ValidFrom <= now && 
-            o.ValidTill >= now
+            o.ValidTill >= now &&
+            o.IsDeleted != true
         ).ToListAsync();
     }
 
     // Get all offers (admin)
     public async Task<List<Offer>> GetAllOffersAsync() =>
-        await _offers.Find(_ => true).ToListAsync();
+        await _offers.Find(o => o.IsDeleted != true).ToListAsync();
 
     // Get offer by ID
     public async Task<Offer?> GetOfferByIdAsync(string id) =>
-        await _offers.Find(o => o.Id == id).FirstOrDefaultAsync();
+        await _offers.Find(o => o.Id == id && o.IsDeleted != true).FirstOrDefaultAsync();
 
     // Get offer by code
     public async Task<Offer?> GetOfferByCodeAsync(string code) =>
-        await _offers.Find(o => o.Code.ToLower() == code.ToLower()).FirstOrDefaultAsync();
+        await _offers.Find(o => o.Code.ToLower() == code.ToLower() && o.IsDeleted != true).FirstOrDefaultAsync();
 
     // Create new offer
     public async Task<Offer> CreateOfferAsync(Offer offer)
@@ -2770,8 +2826,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Delete offer
     public async Task<bool> DeleteOfferAsync(string id)
     {
-        var result = await _offers.DeleteOneAsync(o => o.Id == id);
-        return result.DeletedCount > 0;
+        var update = Builders<Offer>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        var result = await _offers.UpdateOneAsync(o => o.Id == id && o.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     // Increment offer usage count
@@ -2876,8 +2935,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Delete order (for testing/admin purposes)
     public async Task<bool> DeleteOrderAsync(string orderId)
     {
-        var result = await _orders.DeleteOneAsync(x => x.Id == orderId);
-        return result.DeletedCount > 0;
+        var update = Builders<Order>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        var result = await _orders.UpdateOneAsync(x => x.Id == orderId && x.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     #region Sales Operations
@@ -2885,9 +2947,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Get all sales records
     public async Task<List<Sales>> GetAllSalesAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
+        var notDeleted = Builders<Sales>.Filter.Ne(s => s.IsDeleted, true);
         var filter = outletId != null
-            ? Builders<Sales>.Filter.Eq(s => s.OutletId, outletId)
-            : Builders<Sales>.Filter.Empty;
+            ? Builders<Sales>.Filter.Eq(s => s.OutletId, outletId) & notDeleted
+            : notDeleted;
         var fluent = _sales.Find(filter).SortByDescending(s => s.Date);
 
         if (page.HasValue && pageSize.HasValue)
@@ -2898,9 +2961,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<long> GetAllSalesCountAsync(string? outletId = null)
     {
+        var notDeleted = Builders<Sales>.Filter.Ne(s => s.IsDeleted, true);
         var filter = outletId != null
-            ? Builders<Sales>.Filter.Eq(s => s.OutletId, outletId)
-            : Builders<Sales>.Filter.Empty;
+            ? Builders<Sales>.Filter.Eq(s => s.OutletId, outletId) & notDeleted
+            : notDeleted;
         return await _sales.CountDocumentsAsync(filter);
     }
 
@@ -2917,7 +2981,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var filters = new List<FilterDefinition<Sales>>
         {
             filterBuilder.Gte(s => s.Date, startDate),
-            filterBuilder.Lte(s => s.Date, endDate)
+            filterBuilder.Lte(s => s.Date, endDate),
+            filterBuilder.Ne(s => s.IsDeleted, true)
         };
 
         if (outletId != null)
@@ -2934,7 +2999,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     // Get sales by ID
     public async Task<Sales?> GetSalesByIdAsync(string id) =>
-        await _sales.Find(x => x.Id == id).FirstOrDefaultAsync();
+        await _sales.Find(x => x.Id == id && x.IsDeleted != true).FirstOrDefaultAsync();
 
     // Create new sales record
     public async Task<Sales> CreateSalesAsync(Sales sales)
@@ -2956,8 +3021,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Delete sales record
     public async Task<bool> DeleteSalesAsync(string id)
     {
-        var result = await _sales.DeleteOneAsync(x => x.Id == id);
-        return result.DeletedCount > 0;
+        var update = Builders<Sales>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        var result = await _sales.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     // Get sales summary by date (optionally filtered by outlet)
@@ -2969,7 +3037,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var builder = Builders<Sales>.Filter;
         var filter = builder.And(
             builder.Gte(s => s.Date, startOfDay),
-            builder.Lt(s => s.Date, endOfDay)
+            builder.Lt(s => s.Date, endOfDay),
+            builder.Ne(s => s.IsDeleted, true)
         );
         
         if (outletId != null)
@@ -3027,9 +3096,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Get all expenses (optionally filtered by outlet)
     public async Task<List<Expense>> GetAllExpensesAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
+        var notDeleted = Builders<Expense>.Filter.Ne(e => e.IsDeleted, true);
         var filter = outletId != null 
-            ? Builders<Expense>.Filter.Eq(e => e.OutletId, outletId)
-            : Builders<Expense>.Filter.Empty;
+            ? Builders<Expense>.Filter.Eq(e => e.OutletId, outletId) & notDeleted
+            : notDeleted;
         var fluent = _expenses.Find(filter).SortByDescending(e => e.Date);
 
         if (page.HasValue && pageSize.HasValue)
@@ -3040,9 +3110,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<long> GetAllExpensesCountAsync(string? outletId = null)
     {
+        var notDeleted = Builders<Expense>.Filter.Ne(e => e.IsDeleted, true);
         var filter = outletId != null 
-            ? Builders<Expense>.Filter.Eq(e => e.OutletId, outletId) 
-            : Builders<Expense>.Filter.Empty;
+            ? Builders<Expense>.Filter.Eq(e => e.OutletId, outletId) & notDeleted
+            : notDeleted;
         return await _expenses.CountDocumentsAsync(filter);
     }
 
@@ -3052,7 +3123,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var builder = Builders<Expense>.Filter;
         var filter = builder.And(
             builder.Gte(e => e.Date, startDate),
-            builder.Lte(e => e.Date, endDate)
+            builder.Lte(e => e.Date, endDate),
+            builder.Ne(e => e.IsDeleted, true)
         );
         
         if (outletId != null)
@@ -3073,7 +3145,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var builder = Builders<Expense>.Filter;
         var filter = builder.And(
             builder.Gte(e => e.Date, startDate),
-            builder.Lte(e => e.Date, endDate)
+            builder.Lte(e => e.Date, endDate),
+            builder.Ne(e => e.IsDeleted, true)
         );
         if (outletId != null)
             filter = builder.And(filter, builder.Eq(e => e.OutletId, outletId));
@@ -3082,7 +3155,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     // Get expense by ID
     public async Task<Expense?> GetExpenseByIdAsync(string id) =>
-        await _expenses.Find(x => x.Id == id).FirstOrDefaultAsync();
+        await _expenses.Find(x => x.Id == id && x.IsDeleted != true).FirstOrDefaultAsync();
 
     // Create new expense
     public async Task<Expense> CreateExpenseAsync(Expense expense)
@@ -3104,8 +3177,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Delete expense
     public async Task<bool> DeleteExpenseAsync(string id)
     {
-        var result = await _expenses.DeleteOneAsync(x => x.Id == id);
-        return result.DeletedCount > 0;
+        var update = Builders<Expense>.Update
+            .Set(x => x.IsDeleted, true)
+            .Set(x => x.DeletedAt, DateTime.UtcNow);
+        var result = await _expenses.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     // Get expense summary by date using MongoDB aggregation
@@ -3116,7 +3192,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         var filter = Builders<Expense>.Filter.And(
             Builders<Expense>.Filter.Gte(e => e.Date, startOfDay),
-            Builders<Expense>.Filter.Lt(e => e.Date, endOfDay)
+            Builders<Expense>.Filter.Lt(e => e.Date, endOfDay),
+            Builders<Expense>.Filter.Ne(e => e.IsDeleted, true)
         );
 
         // MongoDB aggregation: $match → $facet (total + type breakdown)
@@ -3166,7 +3243,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var filterDoc = new BsonDocument
         {
-            { "date", new BsonDocument { { "$gte", startDate }, { "$lte", endDate } } }
+            { "date", new BsonDocument { { "$gte", startDate }, { "$lte", endDate } } },
+            { "isDeleted", new BsonDocument("$ne", true) }
         };
         if (outletId != null)
             filterDoc.Add("outletId", new ObjectId(outletId));
@@ -3324,7 +3402,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             filterBuilder.Gte(e => e.Date, startDate),
             filterBuilder.Lt(e => e.Date, endDate),
             filterBuilder.Eq(e => e.ExpenseSource, "Offline"),
-            filterBuilder.Regex(e => e.ExpenseType, new MongoDB.Bson.BsonRegularExpression("^rent$", "i"))
+            filterBuilder.Regex(e => e.ExpenseType, new MongoDB.Bson.BsonRegularExpression("^rent$", "i")),
+            filterBuilder.Ne(e => e.IsDeleted, true)
         );
         
         if (outletId != null)
@@ -3895,7 +3974,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         // Build filters with outlet ID
         var filterBuilder = Builders<Sales>.Filter;
         var filter = filterBuilder.Gte(s => s.Date, startOfDay) & 
-                     filterBuilder.Lt(s => s.Date, endOfDay);
+                     filterBuilder.Lt(s => s.Date, endOfDay) &
+                     filterBuilder.Ne(s => s.IsDeleted, true);
         
         if (!string.IsNullOrEmpty(outletId))
         {
@@ -3914,7 +3994,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             Builders<Order>.Filter.Gte(o => o.CreatedAt, startOfDay),
             Builders<Order>.Filter.Lt(o => o.CreatedAt, endOfDay),
             Builders<Order>.Filter.Ne(o => o.Status, "cancelled"),
-            Builders<Order>.Filter.Ne(o => o.Status, "rejected")
+            Builders<Order>.Filter.Ne(o => o.Status, "rejected"),
+            Builders<Order>.Filter.Ne(o => o.IsDeleted, true)
         );
         if (!string.IsNullOrEmpty(outletId))
         {
@@ -3928,7 +4009,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         // Get expenses for the date
         var expensesFilter = Builders<Expense>.Filter.And(
             Builders<Expense>.Filter.Gte(e => e.Date, startOfDay),
-            Builders<Expense>.Filter.Lt(e => e.Date, endOfDay)
+            Builders<Expense>.Filter.Lt(e => e.Date, endOfDay),
+            Builders<Expense>.Filter.Ne(e => e.IsDeleted, true)
         );
         if (!string.IsNullOrEmpty(outletId))
         {
@@ -4419,12 +4501,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var cleanName = itemName.Trim().ToLower();
 
         // Try exact match first
-        var exactMatch = await _menu.Find(m => m.Name.ToLower() == cleanName).FirstOrDefaultAsync();
+        var exactMatch = await _menu.Find(m => m.Name.ToLower() == cleanName && m.IsDeleted != true).FirstOrDefaultAsync();
         if (exactMatch != null)
             return exactMatch.Id;
 
         // Try contains match
-        var containsMatch = await _menu.Find(m => m.Name.ToLower().Contains(cleanName)).FirstOrDefaultAsync();
+        var containsMatch = await _menu.Find(m => m.Name.ToLower().Contains(cleanName) && m.IsDeleted != true).FirstOrDefaultAsync();
         if (containsMatch != null)
             return containsMatch.Id;
 
@@ -4558,7 +4640,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             return false;
 
         // Get all menu items with the same name across ALL outlets
-        var filter = Builders<CafeMenuItem>.Filter.Eq(m => m.Name, forecast.MenuItemName);
+        var filter = Builders<CafeMenuItem>.Filter.Eq(m => m.Name, forecast.MenuItemName) & Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true);
         var menuItems = await _menu.Find(filter).ToListAsync();
 
         if (menuItems == null || menuItems.Count == 0)
@@ -4688,30 +4770,30 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<List<Ingredient>> GetIngredientsAsync(string? outletId = null)
     {
         if (string.IsNullOrEmpty(outletId))
-            return await _ingredients.Find(_ => true).ToListAsync();
+            return await _ingredients.Find(i => i.IsDeleted != true).ToListAsync();
         
-        return await _ingredients.Find(i => i.OutletId == outletId).ToListAsync();
+        return await _ingredients.Find(i => i.OutletId == outletId && i.IsDeleted != true).ToListAsync();
     }
 
     public async Task<List<Ingredient>> GetAllIngredientsAsync()
     {
-        return await _ingredients.Find(_ => true).ToListAsync();
+        return await _ingredients.Find(i => i.IsDeleted != true).ToListAsync();
     }
 
     public async Task<Ingredient?> GetIngredientByIdAsync(string id, string? outletId = null)
     {
         if (string.IsNullOrEmpty(outletId))
-            return await _ingredients.Find(i => i.Id == id).FirstOrDefaultAsync();
+            return await _ingredients.Find(i => i.Id == id && i.IsDeleted != true).FirstOrDefaultAsync();
         
-        return await _ingredients.Find(i => i.Id == id && i.OutletId == outletId).FirstOrDefaultAsync();
+        return await _ingredients.Find(i => i.Id == id && i.OutletId == outletId && i.IsDeleted != true).FirstOrDefaultAsync();
     }
 
     public async Task<List<Ingredient>> GetIngredientsByCategoryAsync(string category, string? outletId = null)
     {
         if (string.IsNullOrEmpty(outletId))
-            return await _ingredients.Find(i => i.Category == category && i.IsActive).ToListAsync();
+            return await _ingredients.Find(i => i.Category == category && i.IsActive && i.IsDeleted != true).ToListAsync();
         
-        return await _ingredients.Find(i => i.Category == category && i.IsActive && i.OutletId == outletId).ToListAsync();
+        return await _ingredients.Find(i => i.Category == category && i.IsActive && i.OutletId == outletId && i.IsDeleted != true).ToListAsync();
     }
 
     public async Task<List<Ingredient>> SearchIngredientsAsync(string searchTerm, string? outletId = null)
@@ -4720,7 +4802,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var filters = new List<FilterDefinition<Ingredient>>
         {
             filterBuilder.Regex(i => i.Name, new MongoDB.Bson.BsonRegularExpression(searchTerm, "i")),
-            filterBuilder.Eq(i => i.IsActive, true)
+            filterBuilder.Eq(i => i.IsActive, true),
+            filterBuilder.Ne(i => i.IsDeleted, true)
         };
         
         if (!string.IsNullOrEmpty(outletId))
@@ -4753,17 +4836,26 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<bool> DeleteIngredientAsync(string id, string? outletId = null)
     {
+        // Check for recipes referencing this ingredient
+        var hasRecipes = await _recipes.Find(r => r.Ingredients.Any(i => i.IngredientId == id)).AnyAsync();
+        if (hasRecipes)
+            throw new InvalidOperationException("Cannot delete ingredient: it is used in one or more recipes. Remove it from recipes first.");
+
         FilterDefinition<Ingredient> filter;
         if (string.IsNullOrEmpty(outletId))
-            filter = Builders<Ingredient>.Filter.Eq(i => i.Id, id);
+            filter = Builders<Ingredient>.Filter.Eq(i => i.Id, id) & Builders<Ingredient>.Filter.Ne(i => i.IsDeleted, true);
         else
             filter = Builders<Ingredient>.Filter.And(
                 Builders<Ingredient>.Filter.Eq(i => i.Id, id),
-                Builders<Ingredient>.Filter.Eq(i => i.OutletId, outletId)
+                Builders<Ingredient>.Filter.Eq(i => i.OutletId, outletId),
+                Builders<Ingredient>.Filter.Ne(i => i.IsDeleted, true)
             );
         
-        var result = await _ingredients.DeleteOneAsync(filter);
-        return result.DeletedCount > 0;
+        var update = Builders<Ingredient>.Update
+            .Set(i => i.IsDeleted, true)
+            .Set(i => i.DeletedAt, DateTime.UtcNow);
+        var result = await _ingredients.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
     }
 
     #endregion
@@ -5835,6 +5927,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var onlineOrdersTask = _onlineSales.CountDocumentsAsync(Builders<OnlineSale>.Filter.Empty);
         // Count unique menu items by name (deduplicate across outlets)
         var uniqueMenuTask = _menu.Aggregate()
+            .Match(Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true))
             .Group(new MongoDB.Bson.BsonDocument("_id", "$Name"))
             .ToListAsync();
         var fiveStarTask = _onlineSales.CountDocumentsAsync(
@@ -5855,7 +5948,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         // Active outlets
         var outletsTask = _outlets.CountDocumentsAsync(
-            Builders<Outlet>.Filter.Eq(o => o.IsActive, true));
+            Builders<Outlet>.Filter.Eq(o => o.IsActive, true) & Builders<Outlet>.Filter.Ne(o => o.IsDeleted, true));
 
         await Task.WhenAll(onlineOrdersTask, uniqueMenuTask, fiveStarTask, ratingPipeline, outletsTask);
 

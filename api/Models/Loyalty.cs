@@ -55,7 +55,7 @@ public class LoyaltyAccount
     public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 }
 
-public class Reward
+public class Reward : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -81,6 +81,11 @@ public class Reward
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 public class PointsTransaction

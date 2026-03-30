@@ -3,7 +3,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Cafe.Api.Models
 {
-    public class Ingredient
+    public class Ingredient : ISoftDeletable
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
@@ -52,6 +52,11 @@ namespace Cafe.Api.Models
 
         [BsonElement("updatedAt")]
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        // Soft-delete support
+        [BsonElement("isDeleted")]  public bool IsDeleted { get; set; }
+        [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+        [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
     }
 
     public class IngredientUsage

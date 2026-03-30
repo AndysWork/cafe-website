@@ -7,7 +7,7 @@ namespace Cafe.Api.Models;
 
 // Daily Expense Record
 [BsonIgnoreExtraElements]
-public class Expense
+public class Expense : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -43,6 +43,11 @@ public class Expense
 
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; }
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 // Request/Response DTOs

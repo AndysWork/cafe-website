@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Cafe.Api.Models;
 
 [BsonIgnoreExtraElements]
-public class MenuSubCategory
+public class MenuSubCategory : ISoftDeletable
 {
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string Id { get; set; } = string.Empty;
@@ -27,4 +27,9 @@ public class MenuSubCategory
     // Temporary property for file upload processing (not saved to DB)
     [BsonIgnore]
     public string? CategoryName { get; set; }
+
+    // Soft-delete support
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedBy { get; set; }
 }

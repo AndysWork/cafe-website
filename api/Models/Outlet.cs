@@ -8,7 +8,7 @@ namespace Cafe.Api.Models;
 /// <summary>
 /// Represents a physical outlet/branch of Maa Tara Cafe
 /// </summary>
-public class Outlet
+public class Outlet : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -66,6 +66,11 @@ public class Outlet
 
     [BsonElement("lastUpdated")]
     public DateTime LastUpdated { get; set; } = MongoService.GetIstNow();
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 /// <summary>

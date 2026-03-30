@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Cafe.Api.Models;
 
 [BsonIgnoreExtraElements]
-public class MenuCategory
+public class MenuCategory : ISoftDeletable
 {
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string Id { get; set; } = string.Empty;
@@ -18,4 +18,9 @@ public class MenuCategory
     [BsonRepresentation(BsonType.ObjectId)]
     [Required(ErrorMessage = "Outlet ID is required")]
     public string OutletId { get; set; } = string.Empty; // Multi-outlet support
+
+    // Soft-delete support
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedBy { get; set; }
 }

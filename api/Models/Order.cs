@@ -6,7 +6,7 @@ using Cafe.Api.Helpers;
 
 namespace Cafe.Api.Models;
 
-public class Order
+public class Order : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -117,6 +117,11 @@ public class Order
 
     [BsonElement("tableNumber")]
     public string? TableNumber { get; set; }
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 public class OrderItem

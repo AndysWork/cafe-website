@@ -14,7 +14,7 @@ public partial class MongoService : IStaffRepository
         if (outletId == null)
             return new List<BonusConfiguration>();
         
-        var filter = Builders<BonusConfiguration>.Filter.Eq(b => b.OutletId, outletId);
+        var filter = Builders<BonusConfiguration>.Filter.Eq(b => b.OutletId, outletId) & Builders<BonusConfiguration>.Filter.Ne(b => b.IsDeleted, true);
         return await _bonusConfigurations.Find(filter)
             .SortByDescending(b => b.CreatedAt)
             .ToListAsync();
@@ -28,7 +28,8 @@ public partial class MongoService : IStaffRepository
         
         var filter = Builders<BonusConfiguration>.Filter.And(
             Builders<BonusConfiguration>.Filter.Eq(b => b.OutletId, outletId),
-            Builders<BonusConfiguration>.Filter.Eq(b => b.IsActive, true)
+            Builders<BonusConfiguration>.Filter.Eq(b => b.IsActive, true),
+            Builders<BonusConfiguration>.Filter.Ne(b => b.IsDeleted, true)
         );
         
         return await _bonusConfigurations.Find(filter)
@@ -39,7 +40,7 @@ public partial class MongoService : IStaffRepository
     // Get bonus configuration by ID
     public async Task<BonusConfiguration?> GetBonusConfigurationByIdAsync(string id)
     {
-        return await _bonusConfigurations.Find(b => b.Id == id).FirstOrDefaultAsync();
+        return await _bonusConfigurations.Find(b => b.Id == id && b.IsDeleted != true).FirstOrDefaultAsync();
     }
 
     // Get bonus configurations applicable to a staff member
@@ -52,6 +53,7 @@ public partial class MongoService : IStaffRepository
         var filter = Builders<BonusConfiguration>.Filter.And(
             Builders<BonusConfiguration>.Filter.Eq(b => b.OutletId, outletId),
             Builders<BonusConfiguration>.Filter.Eq(b => b.IsActive, true),
+            Builders<BonusConfiguration>.Filter.Ne(b => b.IsDeleted, true),
             Builders<BonusConfiguration>.Filter.Or(
                 Builders<BonusConfiguration>.Filter.Eq(b => b.ApplicableToAllStaff, true),
                 Builders<BonusConfiguration>.Filter.AnyEq(b => b.ApplicablePositions, staff.Position)
@@ -78,11 +80,15 @@ public partial class MongoService : IStaffRepository
         return result.ModifiedCount > 0;
     }
 
-    // Delete bonus configuration
+    // Delete bonus configuration (soft-delete)
     public async Task<bool> DeleteBonusConfigurationAsync(string id)
     {
-        var result = await _bonusConfigurations.DeleteOneAsync(b => b.Id == id);
-        return result.DeletedCount > 0;
+        var update = Builders<BonusConfiguration>.Update
+            .Set(b => b.IsDeleted, true)
+            .Set(b => b.DeletedAt, DateTime.UtcNow)
+            .Set(b => b.IsActive, false);
+        var result = await _bonusConfigurations.UpdateOneAsync(b => b.Id == id && b.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     // Toggle bonus configuration active status

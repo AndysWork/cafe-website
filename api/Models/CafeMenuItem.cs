@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Cafe.Api.Models;
 
-public class CafeMenuItem
+public class CafeMenuItem : ISoftDeletable
 {
     [BsonId, BsonRepresentation(BsonType.ObjectId)]
     public string Id { get; set; } = string.Empty;
@@ -73,6 +73,11 @@ public class CafeMenuItem
     public DateTime CreatedDate { get; set; } = MongoService.GetIstNow();
     public string LastUpdatedBy { get; set; } = "System";
     public DateTime LastUpdated { get; set; } = MongoService.GetIstNow();
+
+    // Soft-delete support
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedBy { get; set; }
 }
 
 public class MenuItemVariant

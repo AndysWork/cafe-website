@@ -11,19 +11,19 @@ public partial class MongoService
 
     // Get all outlets
     public async Task<List<Outlet>> GetAllOutletsAsync() =>
-        await _outlets.Find(_ => true).ToListAsync();
+        await _outlets.Find(o => o.IsDeleted != true).ToListAsync();
 
     // Get active outlets only
     public async Task<List<Outlet>> GetActiveOutletsAsync() =>
-        await _outlets.Find(o => o.IsActive).ToListAsync();
+        await _outlets.Find(o => o.IsActive && o.IsDeleted != true).ToListAsync();
 
     // Get single outlet by ID
     public async Task<Outlet?> GetOutletByIdAsync(string id) =>
-        await _outlets.Find(o => o.Id == id).FirstOrDefaultAsync();
+        await _outlets.Find(o => o.Id == id && o.IsDeleted != true).FirstOrDefaultAsync();
 
     // Get outlet by code
     public async Task<Outlet?> GetOutletByCodeAsync(string code) =>
-        await _outlets.Find(o => o.OutletCode == code).FirstOrDefaultAsync();
+        await _outlets.Find(o => o.OutletCode == code && o.IsDeleted != true).FirstOrDefaultAsync();
 
     // Create new outlet
     public async Task<Outlet> CreateOutletAsync(CreateOutletRequest request, string userId)
@@ -101,13 +101,13 @@ public partial class MongoService
         return result.ModifiedCount > 0;
     }
 
-    // Delete outlet
+    // Delete outlet (soft-delete with dependency check)
     public async Task<bool> DeleteOutletAsync(string id)
     {
-        // Check if outlet has any associated data (parallel queries)
-        var hasSalesTask = _sales.Find(s => s.OutletId == id).AnyAsync();
-        var hasExpensesTask = _expenses.Find(e => e.OutletId == id).AnyAsync();
-        var hasOrdersTask = _orders.Find(o => o.OutletId == id).AnyAsync();
+        // Check if outlet has any associated active data (parallel queries)
+        var hasSalesTask = _sales.Find(s => s.OutletId == id && s.IsDeleted != true).AnyAsync();
+        var hasExpensesTask = _expenses.Find(e => e.OutletId == id && e.IsDeleted != true).AnyAsync();
+        var hasOrdersTask = _orders.Find(o => o.OutletId == id && o.IsDeleted != true).AnyAsync();
         var hasInventoryTask = _inventory.Find(i => i.OutletId == id).AnyAsync();
 
         await Task.WhenAll(hasSalesTask, hasExpensesTask, hasOrdersTask, hasInventoryTask);
@@ -117,8 +117,12 @@ public partial class MongoService
             throw new InvalidOperationException("Cannot delete outlet with associated data. Deactivate it instead.");
         }
 
-        var result = await _outlets.DeleteOneAsync(o => o.Id == id);
-        return result.DeletedCount > 0;
+        var update = Builders<Outlet>.Update
+            .Set(o => o.IsDeleted, true)
+            .Set(o => o.DeletedAt, DateTime.UtcNow)
+            .Set(o => o.IsActive, false);
+        var result = await _outlets.UpdateOneAsync(o => o.Id == id && o.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
     }
 
     // Toggle outlet active status

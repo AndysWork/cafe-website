@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Cafe.Api.Models;
 
-public class SubscriptionPlan
+public class SubscriptionPlan : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -51,6 +51,11 @@ public class SubscriptionPlan
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 public class SubscriptionItem

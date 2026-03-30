@@ -6,7 +6,7 @@ using Cafe.Api.Helpers;
 namespace Cafe.Api.Models;
 
 // Daily Sales Record
-public class Sales
+public class Sales : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -39,6 +39,11 @@ public class Sales
 
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; }
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 // Individual item in a sales record

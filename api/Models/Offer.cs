@@ -6,7 +6,7 @@ using Cafe.Api.Helpers;
 
 namespace Cafe.Api.Models;
 
-public class Offer
+public class Offer : ISoftDeletable
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -73,6 +73,11 @@ public class Offer
 
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
+
+    // Soft-delete support
+    [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
+    [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
+    [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
 public class OfferValidationRequest
