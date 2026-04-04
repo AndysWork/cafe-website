@@ -9,9 +9,9 @@ export interface TableReservation {
   id?: string;
   userId?: string;
   customerName: string;
-  phone: string;
+  customerPhone: string;
   partySize: number;
-  tableNumber?: number;
+  tableNumber?: string;
   reservationDate: string;
   timeSlot: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no-show';
@@ -22,9 +22,9 @@ export interface TableReservation {
 
 export interface CreateReservationRequest {
   customerName: string;
-  phone: string;
+  customerPhone: string;
   partySize: number;
-  tableNumber?: number;
+  tableNumber?: string;
   reservationDate: string;
   timeSlot: string;
   specialRequests?: string;

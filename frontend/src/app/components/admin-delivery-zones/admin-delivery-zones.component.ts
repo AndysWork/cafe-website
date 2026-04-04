@@ -24,10 +24,27 @@ export class AdminDeliveryZonesComponent implements OnInit, OnDestroy {
   showModal = false;
   isEditMode = false;
   currentZone: DeliveryZone | null = null;
+  searchTerm = '';
+  filterActive = '';
 
   zoneForm: DeliveryZone = this.getEmptyZone();
 
   constructor(private zoneService: DeliveryZoneService) {}
+
+  get filteredZones(): DeliveryZone[] {
+    return this.zones.filter(z => {
+      const matchesSearch = !this.searchTerm || z.zoneName.toLowerCase().includes(this.searchTerm.toLowerCase());
+      const matchesActive = this.filterActive === '' || (this.filterActive === 'active' ? z.isActive : !z.isActive);
+      return matchesSearch && matchesActive;
+    });
+  }
+
+  get activeCount(): number { return this.zones.filter(z => z.isActive).length; }
+  get inactiveCount(): number { return this.zones.filter(z => !z.isActive).length; }
+  get avgFee(): number {
+    const active = this.zones.filter(z => z.isActive);
+    return active.length ? active.reduce((sum, z) => sum + z.deliveryFee, 0) / active.length : 0;
+  }
 
   ngOnInit() {
     this.outletSub = this.outletService.selectedOutlet$

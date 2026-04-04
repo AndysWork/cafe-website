@@ -51,7 +51,7 @@ export class AdminCustomerSegmentsComponent implements OnInit, OnDestroy {
   refreshSegments() {
     this.refreshing = true;
     this.segmentService.refreshSegments().subscribe({
-      next: (res) => { this.uiStore.success(`Refreshed ${res.segmentsUpdated} segments`); this.refreshing = false; this.loadData(); },
+      next: (res) => { this.uiStore.success(`Refreshed ${res.customersProcessed || res.segmentsUpdated} segments`); this.refreshing = false; this.loadData(); },
       error: () => { this.uiStore.error('Failed to refresh'); this.refreshing = false; }
     });
   }

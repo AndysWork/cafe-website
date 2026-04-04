@@ -1,1 +1,13 @@
 @import '../admin-shared';
+
+.stat-revenue {
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.segment-badge {
+  font-weight: 700;
+  font-size: 0.9rem;
+}

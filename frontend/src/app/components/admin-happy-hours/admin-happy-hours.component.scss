@@ -1,1 +1,31 @@
 @import '../admin-shared';
+
+.day-toggle-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.day-chip {
+  border: 2px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.88rem;
+  transition: all 0.25s ease;
+
+  &.selected {
+    border-color: var(--brand, #0EA5E9);
+    background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+    color: #0369a1;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.2);
+  }
+
+  &:hover:not(.selected) {
+    border-color: var(--brand-light, #38BDF8);
+    background: #f0f9ff;
+  }
+}

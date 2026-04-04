@@ -10,7 +10,7 @@ export interface DeliveryPartner {
   name: string;
   phone: string;
   vehicleType: string;
-  status: 'available' | 'busy' | 'offline';
+  status: 'available' | 'on-delivery' | 'offline';
   currentOrderId?: string;
   totalDeliveries?: number;
   rating?: number;
@@ -55,6 +55,18 @@ export class DeliveryPartnerService {
   updatePartnerStatus(partnerId: string, status: string): Observable<{ message: string }> {
     return this.http.put<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/${partnerId}/status`, { status }).pipe(
       catchError(handleServiceError('DeliveryPartnerService.updatePartnerStatus'))
+    );
+  }
+
+  updatePartner(partnerId: string, partner: Partial<DeliveryPartner>): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/${partnerId}`, partner).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.updatePartner'))
+    );
+  }
+
+  deletePartner(partnerId: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/${partnerId}`).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.deletePartner'))
     );
   }
 }

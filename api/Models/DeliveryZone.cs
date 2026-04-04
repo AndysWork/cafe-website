@@ -71,4 +71,6 @@ public class CreateDeliveryZoneRequest
 
     [Range(5, 300)]
     public int EstimatedMinutes { get; set; } = 30;
+
+    public bool IsActive { get; set; } = true;
 }

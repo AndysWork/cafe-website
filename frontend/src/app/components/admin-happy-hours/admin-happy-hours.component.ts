@@ -84,6 +84,15 @@ export class AdminHappyHoursComponent implements OnInit, OnDestroy {
     }
   }
 
+  toggleActive(r: HappyHourRule) {
+    if (!r.id) return;
+    const updated = { ...r, isActive: !r.isActive };
+    this.happyHourService.updateHappyHour(r.id, updated).subscribe({
+      next: () => { this.uiStore.success(updated.isActive ? 'Activated' : 'Deactivated'); this.loadRules(); },
+      error: () => this.uiStore.error('Failed to update status')
+    });
+  }
+
   deleteRule(id: string) {
     if (!confirm('Delete this happy hour rule?')) return;
     this.happyHourService.deleteHappyHour(id).subscribe({

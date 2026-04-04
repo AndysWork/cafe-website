@@ -282,3 +282,10 @@ api/local.settings.json
 Thumbs.db
 azure-app-settings.json
 frontend/package-lock.json
+.azurite/__blobstorage__/46012948-909c-4865-bbdc-0651d02d3560
+.azurite/AzuriteConfig
+.azurite/__azurite_db_table__.json
+.azurite/__azurite_db_queue_extent__.json
+.azurite/__azurite_db_queue__.json
+.azurite/__azurite_db_blob_extent__.json
+.azurite/__azurite_db_blob__.json

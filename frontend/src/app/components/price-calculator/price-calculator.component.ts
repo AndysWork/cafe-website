@@ -256,6 +256,13 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   // ===== OVERHEAD COST MANAGEMENT =====
 
+  getTotalPerDayOverheadCost(): number {
+    return this.overheadCosts.reduce((total, cost) => {
+      const perDay = cost.costPerDay ?? (cost.monthlyCost / cost.workingDaysPerMonth);
+      return total + perDay;
+    }, 0);
+  }
+
   getEmptyOverheadCost(): OverheadCost {
     return {
       costType: '',
@@ -1451,6 +1458,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     // Menu item exists, update it with forecast prices
     const priceUpdate: any = {
+      ...menuItem,
       makingPrice: priceData.makingPrice,
       onlinePrice: priceData.onlinePrice,
       dineInPrice: priceData.dineInPrice,
@@ -1641,8 +1649,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Menu item exists, update it
+    // Menu item exists, update it with full object to pass validation
     const priceUpdate: any = {
+      ...menuItem,
       makingPrice: priceData.makingPrice,
       onlinePrice: priceData.onlinePrice,
       dineInPrice: priceData.dineInPrice,

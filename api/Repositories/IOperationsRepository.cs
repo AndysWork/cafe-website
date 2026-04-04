@@ -6,6 +6,7 @@ public interface IOperationsRepository
 {
     // Delivery Zones
     Task<List<DeliveryZone>> GetDeliveryZonesAsync(string outletId);
+    Task<List<DeliveryZone>> GetActiveDeliveryZonesAsync(string outletId);
     Task<DeliveryZone?> GetDeliveryZoneByIdAsync(string id);
     Task<DeliveryZone> CreateDeliveryZoneAsync(DeliveryZone zone);
     Task<bool> UpdateDeliveryZoneAsync(string id, DeliveryZone zone);
@@ -32,6 +33,7 @@ public interface IOperationsRepository
     Task<SubscriptionPlan> CreateSubscriptionPlanAsync(SubscriptionPlan plan);
     Task<List<SubscriptionPlan>> GetSubscriptionPlansAsync(string outletId, bool activeOnly = false);
     Task<SubscriptionPlan?> GetSubscriptionPlanByIdAsync(string id);
+    Task<bool> UpdateSubscriptionPlanAsync(string id, SubscriptionPlan plan);
     Task<bool> DeleteSubscriptionPlanAsync(string id);
     Task<CustomerSubscription> CreateCustomerSubscriptionAsync(CustomerSubscription sub);
     Task<CustomerSubscription?> GetActiveSubscriptionAsync(string userId);

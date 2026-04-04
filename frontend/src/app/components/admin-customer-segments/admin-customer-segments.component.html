@@ -11,7 +11,7 @@
       <div class="stat-icon">{{ getSegmentIcon(s.segment) }}</div>
       <div class="stat-value">{{ s.count }}</div>
       <div class="stat-label">{{ s.segment | titlecase }}</div>
-      <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px;">₹{{ s.totalRevenue | number:'1.0-0' }} revenue</div>
+      <div class="stat-revenue">₹{{ s.totalRevenue | number:'1.0-0' }} revenue</div>
     </div>
   </div>
 
@@ -39,7 +39,7 @@
         <tr *ngFor="let s of segments; trackBy: trackById">
           <td class="fw-bold">{{ s.username || s.userId }}</td>
           <td>{{ s.email || '-' }}</td>
-          <td><span [style.color]="getSegmentColor(s.segment)" style="font-weight: 600;">{{ getSegmentIcon(s.segment) }} {{ s.segment }}</span></td>
+          <td><span class="segment-badge" [style.color]="getSegmentColor(s.segment)">{{ getSegmentIcon(s.segment) }} {{ s.segment | titlecase }}</span></td>
           <td>{{ s.totalOrders }}</td>
           <td>₹{{ s.totalSpent | number:'1.0-0' }}</td>
           <td>₹{{ s.averageOrderValue | number:'1.0-0' }}</td>

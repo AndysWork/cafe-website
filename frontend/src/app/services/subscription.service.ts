@@ -12,7 +12,10 @@ export interface SubscriptionPlan {
   price: number;
   durationDays: number;
   benefits: string[];
-  items: SubscriptionItem[];
+  includedItems: SubscriptionItem[];
+  freeDelivery?: boolean;
+  discountPercent?: number;
+  dailyItemLimit?: number;
   isActive: boolean;
   outletId?: string;
   createdAt?: string;
@@ -61,6 +64,18 @@ export class SubscriptionService {
   createPlan(plan: Partial<SubscriptionPlan>): Observable<SubscriptionPlan> {
     return this.http.post<SubscriptionPlan>(`${this.apiUrl}/manage/subscriptions/plans`, plan).pipe(
       catchError(handleServiceError('SubscriptionService.createPlan'))
+    );
+  }
+
+  updatePlan(id: string, plan: Partial<SubscriptionPlan>): Observable<SubscriptionPlan> {
+    return this.http.put<SubscriptionPlan>(`${this.apiUrl}/manage/subscriptions/plans/${id}`, plan).pipe(
+      catchError(handleServiceError('SubscriptionService.updatePlan'))
+    );
+  }
+
+  deletePlan(id: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/manage/subscriptions/plans/${id}`).pipe(
+      catchError(handleServiceError('SubscriptionService.deletePlan'))
     );
   }
 

@@ -35,8 +35,19 @@ public class BranchComparisonFunction
             DateTime startDate = DateTime.TryParse(startDateStr, out var sd) ? sd : MongoService.GetIstNow().AddDays(-30);
             DateTime endDate = DateTime.TryParse(endDateStr, out var ed) ? ed : MongoService.GetIstNow();
 
-            // Get all outlets
+            // Parse optional outletIds filter
+            var outletIdsParam = req.Query["outletIds"];
+            var filterOutletIds = !string.IsNullOrWhiteSpace(outletIdsParam)
+                ? outletIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(id => id.Trim()).ToHashSet()
+                : null;
+
+            // Get all outlets, then filter if needed
             var outlets = await _mongo.GetAllOutletsAsync();
+            if (filterOutletIds != null && filterOutletIds.Count > 0)
+            {
+                outlets = outlets.Where(o => filterOutletIds.Contains(o.Id ?? "default")).ToList();
+            }
+
             var branchData = new List<object>();
 
             foreach (var outlet in outlets)
@@ -45,75 +56,58 @@ public class BranchComparisonFunction
 
                 // Sales data
                 var sales = await _mongo.GetSalesByDateRangeAsync(startDate, endDate, oid);
-                var totalRevenue = sales.Sum(s => s.TotalAmount);
+                var totalSales = sales.Sum(s => s.TotalAmount);
                 var totalOrders = sales.Count;
 
                 // Expenses
                 var expenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate, oid);
                 var totalExpenses = expenses.Sum(e => e.Amount);
 
-                // Menu items
-                var menuItems = await _mongo.GetMenuAsync(oid);
-                var topItems = menuItems
-                    .Take(5)
-                    .Select(m => new { m.Name, m.OnlinePrice })
-                    .ToList();
+                var netProfit = totalSales - totalExpenses;
+                var averageOrderValue = totalOrders > 0 ? Math.Round(totalSales / totalOrders, 2) : 0;
 
                 branchData.Add(new
                 {
                     outletId = oid,
                     outletName = outlet.OutletName ?? oid,
-                    metrics = new
-                    {
-                        totalRevenue,
-                        totalOrders,
-                        totalExpenses,
-                        profit = totalRevenue - totalExpenses,
-                        profitMargin = totalRevenue > 0
-                            ? Math.Round(((totalRevenue - totalExpenses) / totalRevenue) * 100, 1)
-                            : 0,
-                        averageOrderValue = totalOrders > 0
-                            ? Math.Round(totalRevenue / totalOrders, 2)
-                            : 0,
-                        menuItemCount = menuItems.Count
-                    },
-                    topSellingItems = topItems,
-                    period = new { startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd") }
+                    totalSales,
+                    totalOrders,
+                    totalExpenses,
+                    netProfit,
+                    averageOrderValue,
+                    profitMargin = totalSales > 0
+                        ? Math.Round((netProfit / totalSales) * 100, 1)
+                        : 0
                 });
             }
 
-            // If only one outlet, still return it
+            // Fallback if no outlets found
             if (!branchData.Any())
             {
                 var sales = await _mongo.GetSalesByDateRangeAsync(startDate, endDate);
                 var expenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate);
+                var totalSales = sales.Sum(s => s.TotalAmount);
+                var totalExpenses = expenses.Sum(e => e.Amount);
 
                 branchData.Add(new
                 {
                     outletId = "default",
                     outletName = "Main Branch",
-                    metrics = new
-                    {
-                        totalRevenue = sales.Sum(s => s.TotalAmount),
-                        totalOrders = sales.Count,
-                        totalExpenses = expenses.Sum(e => e.Amount),
-                        profit = sales.Sum(s => s.TotalAmount) - expenses.Sum(e => e.Amount),
-                        profitMargin = sales.Sum(s => s.TotalAmount) > 0
-                            ? Math.Round(((sales.Sum(s => s.TotalAmount) - expenses.Sum(e => e.Amount)) / sales.Sum(s => s.TotalAmount)) * 100, 1)
-                            : 0,
-                        averageOrderValue = sales.Count > 0
-                            ? Math.Round(sales.Sum(s => s.TotalAmount) / sales.Count, 2)
-                            : 0,
-                        menuItemCount = 0
-                    },
-                    topSellingItems = new List<object>(),
-                    period = new { startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd") }
+                    totalSales,
+                    totalOrders = sales.Count,
+                    totalExpenses,
+                    netProfit = totalSales - totalExpenses,
+                    averageOrderValue = sales.Count > 0 ? Math.Round(totalSales / sales.Count, 2) : 0,
+                    profitMargin = totalSales > 0
+                        ? Math.Round(((totalSales - totalExpenses) / totalSales) * 100, 1)
+                        : 0
                 });
             }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
+                period = $"{startDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd}",
                 branches = branchData,
                 totalBranches = branchData.Count
             });

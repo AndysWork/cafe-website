@@ -6,33 +6,39 @@ import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
 
 export interface WastageItem {
-  menuItemId: string;
-  menuItemName: string;
+  itemName: string;
+  menuItemId?: string;
+  ingredientId?: string;
   quantity: number;
-  unitCost: number;
+  unit: string;
+  costPerUnit: number;
   totalCost: number;
 }
 
 export interface WastageRecord {
   id?: string;
   outletId?: string;
+  date?: string;
   items: WastageItem[];
   totalValue: number;
   reason: string;
+  notes?: string;
   recordedBy?: string;
   createdAt?: string;
 }
 
 export interface CreateWastageRequest {
-  items: { menuItemId: string; menuItemName: string; quantity: number; unitCost: number }[];
+  date: string;
+  items: { itemName: string; quantity: number; unit: string; costPerUnit: number }[];
   reason: string;
+  notes?: string;
 }
 
 export interface WastageSummary {
+  totalWastageValue: number;
   totalRecords: number;
-  totalValue: number;
-  topWastedItems: { menuItemName: string; totalQuantity: number; totalCost: number }[];
-  dailyAverage: number;
+  byReason: { [key: string]: number };
+  records: WastageRecord[];
 }
 
 @Injectable({ providedIn: 'root' })

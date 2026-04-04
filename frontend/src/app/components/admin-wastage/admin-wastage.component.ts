@@ -27,7 +27,12 @@ export class AdminWastageComponent implements OnInit, OnDestroy {
   endDate = '';
   activeTab: 'records' | 'summary' = 'records';
 
-  wastageForm = { items: [{ menuItemId: '', menuItemName: '', quantity: 1, unitCost: 0 }], reason: '' };
+  wastageForm = {
+    date: new Date().toISOString().split('T')[0],
+    items: [{ itemName: '', unit: 'pcs', quantity: 1, costPerUnit: 0 }],
+    reason: '',
+    notes: ''
+  };
 
   constructor(private wastageService: WastageService) {
     const now = new Date();
@@ -61,13 +66,18 @@ export class AdminWastageComponent implements OnInit, OnDestroy {
   }
 
   openCreateModal() {
-    this.wastageForm = { items: [{ menuItemId: '', menuItemName: '', quantity: 1, unitCost: 0 }], reason: '' };
+    this.wastageForm = {
+      date: new Date().toISOString().split('T')[0],
+      items: [{ itemName: '', unit: 'pcs', quantity: 1, costPerUnit: 0 }],
+      reason: '',
+      notes: ''
+    };
     this.showModal = true;
   }
 
   closeModal() { this.showModal = false; }
 
-  addItem() { this.wastageForm.items.push({ menuItemId: '', menuItemName: '', quantity: 1, unitCost: 0 }); }
+  addItem() { this.wastageForm.items.push({ itemName: '', unit: 'pcs', quantity: 1, costPerUnit: 0 }); }
 
   removeItem(i: number) { this.wastageForm.items.splice(i, 1); }
 
@@ -79,7 +89,11 @@ export class AdminWastageComponent implements OnInit, OnDestroy {
   }
 
   getTotalValue(): number {
-    return this.wastageForm.items.reduce((sum, i) => sum + (i.quantity * i.unitCost), 0);
+    return this.wastageForm.items.reduce((sum, i) => sum + (i.quantity * i.costPerUnit), 0);
+  }
+
+  getReasonKeys(): string[] {
+    return this.summary ? Object.keys(this.summary.byReason) : [];
   }
 
   trackById(i: number) { return i; }

@@ -23,6 +23,7 @@ export class AdminSubscriptionsComponent implements OnInit, OnDestroy {
   loading = true;
   showModal = false;
   isEditMode = false;
+  currentPlan: SubscriptionPlan | null = null;
 
   planForm: any = this.getEmpty();
   benefitInput = '';
@@ -39,7 +40,7 @@ export class AdminSubscriptionsComponent implements OnInit, OnDestroy {
   ngOnDestroy() { this.outletSub?.unsubscribe(); }
 
   getEmpty() {
-    return { name: '', description: '', price: 0, durationDays: 30, benefits: [] as string[], items: [{ menuItemId: '', menuItemName: '', dailyQuantity: 1 }], isActive: true };
+    return { name: '', description: '', price: 0, durationDays: 30, benefits: [] as string[], includedItems: [{ menuItemId: '', menuItemName: '', dailyQuantity: 1 }], isActive: true };
   }
 
   loadPlans() {
@@ -50,8 +51,31 @@ export class AdminSubscriptionsComponent implements OnInit, OnDestroy {
     });
   }
 
-  openCreateModal() { this.isEditMode = false; this.planForm = this.getEmpty(); this.showModal = true; }
-  closeModal() { this.showModal = false; }
+  openCreateModal() {
+    this.isEditMode = false;
+    this.currentPlan = null;
+    this.planForm = this.getEmpty();
+    this.benefitInput = '';
+    this.showModal = true;
+  }
+
+  openEditModal(plan: SubscriptionPlan) {
+    this.isEditMode = true;
+    this.currentPlan = plan;
+    this.planForm = {
+      name: plan.name,
+      description: plan.description || '',
+      price: plan.price,
+      durationDays: plan.durationDays,
+      benefits: [...(plan.benefits || [])],
+      includedItems: plan.includedItems?.length ? plan.includedItems.map(i => ({ ...i })) : [{ menuItemId: '', menuItemName: '', dailyQuantity: 1 }],
+      isActive: plan.isActive
+    };
+    this.benefitInput = '';
+    this.showModal = true;
+  }
+
+  closeModal() { this.showModal = false; this.currentPlan = null; }
 
   addBenefit() {
     if (this.benefitInput.trim()) {
@@ -62,13 +86,38 @@ export class AdminSubscriptionsComponent implements OnInit, OnDestroy {
 
   removeBenefit(i: number) { this.planForm.benefits.splice(i, 1); }
 
-  addItem() { this.planForm.items.push({ menuItemId: '', menuItemName: '', dailyQuantity: 1 }); }
-  removeItem(i: number) { this.planForm.items.splice(i, 1); }
+  addItem() { this.planForm.includedItems.push({ menuItemId: '', menuItemName: '', dailyQuantity: 1 }); }
+  removeItem(i: number) { this.planForm.includedItems.splice(i, 1); }
 
   savePlan() {
-    this.subscriptionService.createPlan(this.planForm).subscribe({
-      next: () => { this.uiStore.success('Plan created'); this.loadPlans(); this.closeModal(); },
-      error: () => this.uiStore.error('Failed to create plan')
+    if (this.isEditMode && this.currentPlan?.id) {
+      this.subscriptionService.updatePlan(this.currentPlan.id, this.planForm).subscribe({
+        next: () => { this.uiStore.success('Plan updated'); this.loadPlans(); this.closeModal(); },
+        error: () => this.uiStore.error('Failed to update plan')
+      });
+    } else {
+      this.subscriptionService.createPlan(this.planForm).subscribe({
+        next: () => { this.uiStore.success('Plan created'); this.loadPlans(); this.closeModal(); },
+        error: () => this.uiStore.error('Failed to create plan')
+      });
+    }
+  }
+
+  toggleActive(plan: SubscriptionPlan) {
+    if (!plan.id) return;
+    const updated = { ...plan, isActive: !plan.isActive };
+    this.subscriptionService.updatePlan(plan.id, updated).subscribe({
+      next: () => { this.uiStore.success(updated.isActive ? 'Plan activated' : 'Plan deactivated'); this.loadPlans(); },
+      error: () => this.uiStore.error('Failed to update status')
+    });
+  }
+
+  deletePlan(plan: SubscriptionPlan) {
+    if (!plan.id) return;
+    if (!confirm(`Delete "${plan.name}"? This cannot be undone.`)) return;
+    this.subscriptionService.deletePlan(plan.id).subscribe({
+      next: () => { this.uiStore.success('Plan deleted'); this.loadPlans(); },
+      error: () => this.uiStore.error('Failed to delete — plan may have active subscribers')
     });
   }
 

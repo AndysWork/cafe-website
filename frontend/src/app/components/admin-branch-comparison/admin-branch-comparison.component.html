@@ -70,6 +70,10 @@
             <span class="value" [class.negative]="branch.netProfit < 0">{{ formatCurrency(branch.netProfit) }}</span>
           </div>
           <div class="branch-stat">
+            <span class="label">Margin</span>
+            <span class="value" [class.negative]="branch.profitMargin < 0">{{ branch.profitMargin }}%</span>
+          </div>
+          <div class="branch-stat">
             <span class="label">Avg Order</span>
             <span class="value">{{ formatCurrency(branch.averageOrderValue) }}</span>
           </div>
@@ -110,32 +114,38 @@
     </div>
 
     <!-- Data Table -->
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Outlet</th>
-          <th>Total Sales</th>
-          <th>Orders</th>
-          <th>Expenses</th>
-          <th>Net Profit</th>
-          <th>Avg Order</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let branch of comparison.branches">
-          <td>{{ branch.outletName }}</td>
-          <td>{{ formatCurrency(branch.totalSales) }}</td>
-          <td>{{ branch.totalOrders }}</td>
-          <td>{{ formatCurrency(branch.totalExpenses) }}</td>
-          <td [class.negative]="branch.netProfit < 0">{{ formatCurrency(branch.netProfit) }}</td>
-          <td>{{ formatCurrency(branch.averageOrderValue) }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="data-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Outlet</th>
+            <th>Total Sales</th>
+            <th>Orders</th>
+            <th>Expenses</th>
+            <th>Net Profit</th>
+            <th>Margin</th>
+            <th>Avg Order</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let branch of comparison.branches">
+            <td>{{ branch.outletName }}</td>
+            <td>{{ formatCurrency(branch.totalSales) }}</td>
+            <td>{{ branch.totalOrders }}</td>
+            <td>{{ formatCurrency(branch.totalExpenses) }}</td>
+            <td [class.negative]="branch.netProfit < 0">{{ formatCurrency(branch.netProfit) }}</td>
+            <td [class.negative]="branch.profitMargin < 0">{{ branch.profitMargin }}%</td>
+            <td>{{ formatCurrency(branch.averageOrderValue) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Empty State -->
   <div *ngIf="!comparison && !loading" class="empty-state">
+    <div class="empty-icon">📊</div>
+    <h3>No Comparison Data</h3>
     <p>Select at least 2 outlets and a date range, then click Compare.</p>
   </div>
 </div>

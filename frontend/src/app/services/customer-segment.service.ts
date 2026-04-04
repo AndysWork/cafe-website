@@ -42,8 +42,8 @@ export class CustomerSegmentService {
     );
   }
 
-  refreshSegments(): Observable<{ message: string; segmentsUpdated: number }> {
-    return this.http.post<{ message: string; segmentsUpdated: number }>(`${this.apiUrl}/manage/customer-segments/refresh`, {}).pipe(
+  refreshSegments(): Observable<{ message: string; customersProcessed: number; segmentsUpdated: number }> {
+    return this.http.post<{ message: string; customersProcessed: number; segmentsUpdated: number }>(`${this.apiUrl}/manage/customer-segments/refresh`, {}).pipe(
       catchError(handleServiceError('CustomerSegmentService.refreshSegments'))
     );
   }

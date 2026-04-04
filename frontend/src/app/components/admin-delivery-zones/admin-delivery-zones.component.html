@@ -4,6 +4,38 @@
     <button class="btn-create" (click)="openCreateModal()">➕ Add Zone</button>
   </div>
 
+  <div *ngIf="!loading && zones.length > 0" class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">🗺️</div>
+      <div class="stat-value">{{ zones.length }}</div>
+      <div class="stat-label">Total Zones</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value text-success">{{ activeCount }}</div>
+      <div class="stat-label">Active</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">⏸️</div>
+      <div class="stat-value text-muted">{{ inactiveCount }}</div>
+      <div class="stat-label">Inactive</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">💰</div>
+      <div class="stat-value">₹{{ avgFee | number:'1.0-0' }}</div>
+      <div class="stat-label">Avg Delivery Fee</div>
+    </div>
+  </div>
+
+  <div *ngIf="!loading && zones.length > 0" class="filter-bar">
+    <input type="text" placeholder="🔍 Search zones..." [(ngModel)]="searchTerm">
+    <select [(ngModel)]="filterActive">
+      <option value="">All Statuses</option>
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+    </select>
+  </div>
+
   <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading zones...</p></div>
 
   <div *ngIf="!loading && zones.length === 0" class="empty-state">
@@ -13,7 +45,13 @@
     <button class="btn-create-empty" (click)="openCreateModal()">Add First Zone</button>
   </div>
 
-  <div *ngIf="!loading && zones.length > 0" class="data-table">
+  <div *ngIf="!loading && zones.length > 0 && filteredZones.length === 0" class="empty-state">
+    <div class="empty-icon">🔍</div>
+    <h2>No Matching Zones</h2>
+    <p>Try adjusting your search or filter.</p>
+  </div>
+
+  <div *ngIf="!loading && filteredZones.length > 0" class="data-table">
     <table>
       <thead>
         <tr>
@@ -27,7 +65,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let zone of zones; trackBy: trackById">
+        <tr *ngFor="let zone of filteredZones; trackBy: trackById">
           <td class="fw-bold">{{ zone.zoneName }}</td>
           <td>{{ zone.minDistance }} - {{ zone.maxDistance }} km</td>
           <td>₹{{ zone.deliveryFee }}</td>

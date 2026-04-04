@@ -43,9 +43,9 @@
       </ul>
 
       <!-- Items -->
-      <div *ngIf="plan.items && plan.items.length > 0" class="plan-items">
+      <div *ngIf="plan.includedItems && plan.includedItems.length > 0" class="plan-items">
         <h4>Daily Items</h4>
-        <div *ngFor="let item of plan.items" class="plan-item">
+        <div *ngFor="let item of plan.includedItems" class="plan-item">
           <span class="item-qty">{{ item.dailyQuantity }}x</span>
           <span>{{ item.menuItemName }}</span>
         </div>

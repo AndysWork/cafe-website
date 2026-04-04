@@ -6,9 +6,10 @@
   <div class="tabs">
     <button class="tab" [class.active]="activeTab === 'reports'" (click)="activeTab = 'reports'">📥 Export Reports</button>
     <button class="tab" [class.active]="activeTab === 'gst'" (click)="activeTab = 'gst'">🧾 GST Reports</button>
+    <button class="tab" [class.active]="activeTab === 'staff-performance'" (click)="activeTab = 'staff-performance'">👤 Staff Performance</button>
   </div>
 
-  <div class="filter-bar">
+  <div class="filter-bar" *ngIf="activeTab !== 'staff-performance'">
     <input type="date" [(ngModel)]="startDate">
     <input type="date" [(ngModel)]="endDate">
     <select [(ngModel)]="exportFormat" *ngIf="activeTab === 'reports'">
@@ -22,6 +23,7 @@
       <div class="card-header"><span class="card-title">💰 Sales Report</span></div>
       <div class="card-body">Export detailed sales data with items, amounts, and payment methods.</div>
       <div class="card-footer">
+        <span></span>
         <button class="btn-create" (click)="exportSalesReport()" [disabled]="exporting">📥 Download</button>
       </div>
     </div>
@@ -29,6 +31,7 @@
       <div class="card-header"><span class="card-title">💸 Expense Report</span></div>
       <div class="card-body">Export all expenses including categories and payment details.</div>
       <div class="card-footer">
+        <span></span>
         <button class="btn-create" (click)="exportExpenseReport()" [disabled]="exporting">📥 Download</button>
       </div>
     </div>
@@ -36,6 +39,7 @@
       <div class="card-header"><span class="card-title">📦 Orders Report</span></div>
       <div class="card-body">Export complete order history with customer details and line items.</div>
       <div class="card-footer">
+        <span></span>
         <button class="btn-create" (click)="exportOrdersReport()" [disabled]="exporting">📥 Download</button>
       </div>
     </div>
@@ -43,6 +47,7 @@
       <div class="card-header"><span class="card-title">📈 Profit & Loss</span></div>
       <div class="card-body">Combined P&L report with revenue, expenses, and net profit.</div>
       <div class="card-footer">
+        <span></span>
         <button class="btn-create" (click)="exportProfitLossReport()" [disabled]="exporting">📥 Download</button>
       </div>
     </div>
@@ -51,7 +56,7 @@
   <div *ngIf="activeTab === 'gst'">
     <div class="header-actions" style="margin-bottom: 20px;">
       <button class="btn-create" (click)="loadGstSummary()" [disabled]="loadingGst">🔍 Load GST Summary</button>
-      <button class="btn-create" (click)="exportGstr1()" [disabled]="exporting" style="background: linear-gradient(135deg, #84CC16, #65a30d);">📥 Export GSTR-1</button>
+      <button class="btn-success" (click)="exportGstr1()" [disabled]="exporting">📥 Export GSTR-1</button>
     </div>
 
     <div *ngIf="loadingGst" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
@@ -87,6 +92,116 @@
         <div class="stat-value">₹{{ gstSummary.totalWithGst | number:'1.0-0' }}</div>
         <div class="stat-label">Total with GST</div>
       </div>
+    </div>
+  </div>
+
+  <!-- Staff Performance Tab -->
+  <div *ngIf="activeTab === 'staff-performance'">
+    <div class="filter-bar">
+      <input type="date" [(ngModel)]="staffPerformanceStartDate">
+      <input type="date" [(ngModel)]="staffPerformanceEndDate">
+      <select [(ngModel)]="selectedStaffId">
+        <option value="">All Employees</option>
+        <option *ngFor="let s of staffList" [value]="s.id || s._id">{{ s.firstName }} {{ s.lastName }}</option>
+      </select>
+      <button class="btn-create" (click)="fetchStaffPerformance()" [disabled]="loadingStaffPerformance">🔍 Fetch</button>
+    </div>
+
+    <div *ngIf="loadingStaffPerformance" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
+
+    <div *ngIf="staffPerformanceData.length > 0" class="staff-performance-section">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">📋</div>
+          <div class="stat-value">{{ staffPerformanceData.length }}</div>
+          <div class="stat-label">Entries</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📦</div>
+          <div class="stat-value">{{ getTotalOrders() }}</div>
+          <div class="stat-label">Total Orders</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-value">{{ getTotalGoodOrders() }}</div>
+          <div class="stat-label">Good Orders</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">❌</div>
+          <div class="stat-value">{{ getTotalBadOrders() }}</div>
+          <div class="stat-label">Bad Orders</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">💸</div>
+          <div class="stat-value">₹{{ getTotalRefundAmount() | number:'1.0-0' }}</div>
+          <div class="stat-label">Refund Recovery</div>
+        </div>
+      </div>
+
+      <div class="header-actions export-actions">
+        <button class="btn-create" (click)="exportStaffPerformanceCsv()">📥 Export CSV</button>
+        <button class="btn-danger" (click)="exportStaffPerformancePdf()">📄 Export PDF</button>
+      </div>
+
+      <div class="data-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Staff Name</th>
+              <th>Shift</th>
+              <th>In Time</th>
+              <th>Out Time</th>
+              <th>Working Hrs</th>
+              <th>Orders</th>
+              <th>Good</th>
+              <th>Bad</th>
+              <th>Refund Amt</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let entry of staffPerformanceData">
+              <ng-container *ngIf="entry.shifts && entry.shifts.length > 0; else legacyRow">
+                <tr *ngFor="let shift of entry.shifts">
+                  <td>{{ entry.date }}</td>
+                  <td>{{ entry.staffName || entry.staffId }}</td>
+                  <td>{{ shift.shiftName }}</td>
+                  <td>{{ shift.inTime }}</td>
+                  <td>{{ shift.outTime }}</td>
+                  <td>{{ shift.workingHours || 0 }}</td>
+                  <td>{{ shift.totalOrdersPrepared }}</td>
+                  <td>{{ shift.goodOrdersCount }}</td>
+                  <td>{{ shift.badOrdersCount }}</td>
+                  <td>₹{{ shift.refundAmountRecovery }}</td>
+                  <td>{{ shift.notes }}</td>
+                </tr>
+              </ng-container>
+              <ng-template #legacyRow>
+                <tr>
+                  <td>{{ entry.date }}</td>
+                  <td>{{ entry.staffName || entry.staffId }}</td>
+                  <td>-</td>
+                  <td>{{ entry.inTime || '-' }}</td>
+                  <td>{{ entry.outTime || '-' }}</td>
+                  <td>{{ entry.workingHours || 0 }}</td>
+                  <td>{{ entry.totalOrdersPrepared }}</td>
+                  <td>{{ entry.goodOrdersCount }}</td>
+                  <td>{{ entry.badOrdersCount }}</td>
+                  <td>₹{{ entry.refundAmountRecovery }}</td>
+                  <td>{{ entry.notes }}</td>
+                </tr>
+              </ng-template>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div *ngIf="!loadingStaffPerformance && staffPerformanceData.length === 0" class="empty-state">
+      <div class="empty-icon">📊</div>
+      <h2>No Performance Data</h2>
+      <p>Select a date range and optionally an employee, then click Fetch to view data.</p>
     </div>
   </div>
 </div>

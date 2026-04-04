@@ -120,6 +120,89 @@ public class SubscriptionFunction
         }
     }
 
+    [Function("UpdateSubscriptionPlan")]
+    public async Task<HttpResponseData> UpdateSubscriptionPlan(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/subscriptions/plans/{id}")] HttpRequestData req, string id)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateSubscriptionPlanRequest>(req);
+            if (validationError != null) return validationError;
+
+            var existing = await _mongo.GetSubscriptionPlanByIdAsync(id);
+            if (existing == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Subscription plan not found" });
+                return notFound;
+            }
+
+            existing.Name = InputSanitizer.Sanitize(request.Name);
+            existing.Description = request.Description != null ? InputSanitizer.Sanitize(request.Description) : null;
+            existing.Price = request.Price;
+            existing.DurationDays = request.DurationDays;
+            existing.Benefits = request.Benefits?.Select(InputSanitizer.Sanitize).ToList() ?? new List<string>();
+            existing.FreeDelivery = request.FreeDelivery;
+            existing.DiscountPercent = request.DiscountPercent;
+            existing.DailyItemLimit = request.DailyItemLimit;
+            existing.IncludedItems = request.IncludedItems?.Select(i => new SubscriptionItem
+            {
+                MenuItemId = i.MenuItemId,
+                MenuItemName = InputSanitizer.Sanitize(i.MenuItemName),
+                DailyQuantity = i.DailyQuantity
+            }).ToList();
+
+            await _mongo.UpdateSubscriptionPlanAsync(id, existing);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(existing);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating subscription plan");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("DeleteSubscriptionPlan")]
+    public async Task<HttpResponseData> DeleteSubscriptionPlan(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "manage/subscriptions/plans/{id}")] HttpRequestData req, string id)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            try
+            {
+                await _mongo.DeleteSubscriptionPlanAsync(id);
+            }
+            catch (InvalidOperationException iex)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = iex.Message });
+                return conflict;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Subscription plan deleted" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting subscription plan");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
     [Function("Subscribe")]
     public async Task<HttpResponseData> Subscribe(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "subscriptions/subscribe")] HttpRequestData req)

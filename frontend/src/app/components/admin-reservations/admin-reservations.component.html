@@ -33,7 +33,7 @@
       <tbody>
         <tr *ngFor="let r of reservations; trackBy: trackById">
           <td class="fw-bold">{{ r.customerName }}</td>
-          <td>{{ r.phone }}</td>
+          <td>{{ r.customerPhone }}</td>
           <td>{{ r.partySize }} guests</td>
           <td>{{ r.tableNumber || '-' }}</td>
           <td>{{ r.reservationDate | date:'mediumDate' }}</td>

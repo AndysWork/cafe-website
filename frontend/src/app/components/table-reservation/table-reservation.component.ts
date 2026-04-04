@@ -26,7 +26,7 @@ export class TableReservationComponent implements OnInit {
 
   form: CreateReservationRequest = {
     customerName: '',
-    phone: '',
+    customerPhone: '',
     partySize: 2,
     reservationDate: '',
     timeSlot: '',
@@ -65,7 +65,7 @@ export class TableReservationComponent implements OnInit {
   }
 
   submitReservation() {
-    if (!this.form.customerName || !this.form.phone || !this.form.reservationDate || !this.form.timeSlot) {
+    if (!this.form.customerName || !this.form.customerPhone || !this.form.reservationDate || !this.form.timeSlot) {
       this.uiStore.error('Please fill in all required fields');
       return;
     }
@@ -85,7 +85,7 @@ export class TableReservationComponent implements OnInit {
 
   bookAnother() {
     this.submitted = false;
-    this.form = { customerName: '', phone: '', partySize: 2, reservationDate: '', timeSlot: '', specialRequests: '' };
+    this.form = { customerName: '', customerPhone: '', partySize: 2, reservationDate: '', timeSlot: '', specialRequests: '' };
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     this.form.reservationDate = tomorrow.toISOString().split('T')[0];

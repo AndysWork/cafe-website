@@ -611,6 +611,7 @@
 
         .filter-select {
           min-width: 200px;
+          width: auto;
         }
       }
 
@@ -953,6 +954,7 @@
   // ===== COMMON FORM ELEMENTS =====
   .form-input,
   .form-select,
+  .filter-select,
   .form-textarea {
     width: 100%;
     padding: 0.75rem 1rem;
@@ -1944,6 +1946,75 @@
         p {
           color: #64748b;
           margin-bottom: 2rem;
+        }
+      }
+    }
+
+    .per-day-summary {
+      margin-top: 2rem;
+      padding: 1.5rem 2rem;
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border: 1px solid #bbf7d0;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+      .per-day-summary-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+
+        .summary-icon {
+          font-size: 1.4rem;
+        }
+
+        h3 {
+          margin: 0;
+          font-size: 1.1rem;
+          color: #166534;
+        }
+      }
+
+      .per-day-summary-body {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: center;
+
+        .per-day-item {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          padding: 0.5rem 1rem;
+          background: white;
+          border-radius: 8px;
+          border: 1px solid #d1fae5;
+
+          .per-day-label {
+            color: #64748b;
+            font-size: 0.9rem;
+          }
+
+          .per-day-value {
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 0.95rem;
+          }
+
+          &.per-day-total {
+            background: #166534;
+            border-color: #166534;
+
+            .per-day-label {
+              color: #d1fae5;
+              font-weight: 600;
+            }
+
+            .per-day-value {
+              color: #ffffff;
+              font-size: 1.1rem;
+            }
+          }
         }
       }
     }

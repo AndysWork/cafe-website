@@ -1239,15 +1239,21 @@
         </div>
       </div>
 
-      <!-- Info Banner -->
-      <div class="info-banner">
-        <div class="info-icon">ℹ️</div>
-        <div class="info-content">
-          <strong>How Auto-Calculation Works:</strong>
-          <p>Monthly Cost → Daily (÷{{overheadCosts[0]?.workingDaysPerMonth || 30}} days) →
-             Hourly (÷{{overheadCosts[0]?.operationalHoursPerDay || 11}} hrs) →
-             Per Minute (÷60) → Allocated (×prep_time)</p>
-          <p><strong>Example:</strong> Rent ₹6000/month → ₹200/day → ₹18.18/hr → ₹0.303/min → ₹1.82 for 6-min dish</p>
+      <!-- Per Day Overhead Cost Summary -->
+      <div class="per-day-summary" *ngIf="overheadCosts.length > 0">
+        <div class="per-day-summary-header">
+          <span class="summary-icon">📊</span>
+          <h3>Per Day Overhead Cost</h3>
+        </div>
+        <div class="per-day-summary-body">
+          <div class="per-day-item" *ngFor="let cost of overheadCosts; trackBy: trackByObjId">
+            <span class="per-day-label">{{cost.costType}}:</span>
+            <span class="per-day-value">₹{{(cost.costPerDay ?? (cost.monthlyCost / cost.workingDaysPerMonth)).toFixed(2)}}</span>
+          </div>
+          <div class="per-day-item per-day-total">
+            <span class="per-day-label">Total Per Day:</span>
+            <span class="per-day-value">₹{{getTotalPerDayOverheadCost().toFixed(2)}}</span>
+          </div>
         </div>
       </div>
 
@@ -1318,6 +1324,18 @@
           <button class="btn-primary" (click)="initializeDefaultOverheadCosts()">
             <span>🔄</span> Initialize Default Costs
           </button>
+        </div>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="info-banner">
+        <div class="info-icon">ℹ️</div>
+        <div class="info-content">
+          <strong>How Auto-Calculation Works:</strong>
+          <p>Monthly Cost → Daily (÷{{overheadCosts[0]?.workingDaysPerMonth || 30}} days) →
+             Hourly (÷{{overheadCosts[0]?.operationalHoursPerDay || 11}} hrs) →
+             Per Minute (÷60) → Allocated (×prep_time)</p>
+          <p><strong>Example:</strong> Rent ₹6000/month → ₹200/day → ₹18.18/hr → ₹0.303/min → ₹1.82 for 6-min dish</p>
         </div>
       </div>
 

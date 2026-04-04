@@ -6,7 +6,31 @@
     </button>
   </div>
 
+  <div *ngIf="!loading && purchaseOrders.length > 0" class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">📦</div>
+      <div class="stat-value">{{ purchaseOrders.length }}</div>
+      <div class="stat-label">Total Orders</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-value text-warning">{{ pendingCount }}</div>
+      <div class="stat-label">Pending Approval</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value text-info">{{ approvedCount }}</div>
+      <div class="stat-label">Approved</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">💰</div>
+      <div class="stat-value">₹{{ totalEstCost | number:'1.0-0' }}</div>
+      <div class="stat-label">Total Est. Cost</div>
+    </div>
+  </div>
+
   <div class="filter-bar">
+    <input type="text" placeholder="🔍 Search by ingredient, supplier, PO#..." [(ngModel)]="searchTerm">
     <select [(ngModel)]="filterStatus" (change)="loadOrders()">
       <option value="">All Statuses</option>
       <option value="pending">Pending</option>
@@ -24,11 +48,17 @@
     <p>Trigger auto-reorder to generate purchase orders for low-stock items.</p>
   </div>
 
-  <div *ngIf="!loading && purchaseOrders.length > 0" class="data-table">
+  <div *ngIf="!loading && purchaseOrders.length > 0 && filteredOrders.length === 0" class="empty-state">
+    <div class="empty-icon">🔍</div>
+    <h2>No Matching Orders</h2>
+    <p>Try adjusting your search term.</p>
+  </div>
+
+  <div *ngIf="!loading && filteredOrders.length > 0" class="data-table">
     <table>
       <thead><tr><th>PO #</th><th>Ingredient</th><th>Supplier</th><th>Qty</th><th>Est. Cost</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
-        <tr *ngFor="let po of purchaseOrders; trackBy: trackById">
+        <tr *ngFor="let po of filteredOrders; trackBy: trackById">
           <td class="fw-bold">{{ po.poNumber }}</td>
           <td>{{ po.ingredientName || po.ingredientId }}</td>
           <td>{{ po.supplierName }}</td>

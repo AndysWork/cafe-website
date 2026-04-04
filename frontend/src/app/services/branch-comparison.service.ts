@@ -13,6 +13,7 @@ export interface BranchMetrics {
   totalExpenses: number;
   netProfit: number;
   averageOrderValue: number;
+  profitMargin: number;
 }
 
 export interface BranchComparison {

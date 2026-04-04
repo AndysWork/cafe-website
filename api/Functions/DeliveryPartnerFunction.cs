@@ -219,6 +219,77 @@ public class DeliveryPartnerFunction
             return res;
         }
     }
+
+    [Function("UpdateDeliveryPartner")]
+    public async Task<HttpResponseData> UpdateDeliveryPartner(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/delivery-partners/{partnerId}")] HttpRequestData req, string partnerId)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateDeliveryPartnerRequest>(req);
+            if (validationError != null) return validationError;
+
+            var partners = await _mongo.GetDeliveryPartnersAsync("default");
+            var partner = partners.FirstOrDefault(p => p.Id == partnerId);
+            if (partner == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner not found" });
+                return notFound;
+            }
+
+            partner.Name = InputSanitizer.Sanitize(request.Name);
+            partner.Phone = InputSanitizer.Sanitize(request.Phone);
+            partner.VehicleType = InputSanitizer.Sanitize(request.VehicleType);
+            partner.VehicleNumber = request.VehicleNumber != null ? InputSanitizer.Sanitize(request.VehicleNumber) : null;
+
+            await _mongo.UpdateDeliveryPartnerAsync(partnerId, partner);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Delivery partner updated successfully" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating delivery partner");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("DeleteDeliveryPartner")]
+    public async Task<HttpResponseData> DeleteDeliveryPartner(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "manage/delivery-partners/{partnerId}")] HttpRequestData req, string partnerId)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var success = await _mongo.DeleteDeliveryPartnerAsync(partnerId);
+            if (!success)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner not found" });
+                return notFound;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Delivery partner deleted" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting delivery partner");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
 }
 
 public class UpdateDeliveryPartnerStatusRequest

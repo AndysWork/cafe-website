@@ -10,6 +10,13 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<List<DeliveryZone>> GetDeliveryZonesAsync(string outletId)
     {
+        return await _deliveryZones.Find(z => z.OutletId == outletId && z.IsDeleted != true)
+            .SortBy(z => z.MinDistance)
+            .ToListAsync();
+    }
+
+    public async Task<List<DeliveryZone>> GetActiveDeliveryZonesAsync(string outletId)
+    {
         return await _deliveryZones.Find(z => z.OutletId == outletId && z.IsActive && z.IsDeleted != true)
             .SortBy(z => z.MinDistance)
             .ToListAsync();
@@ -51,7 +58,7 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<decimal> CalculateDeliveryFeeAsync(string outletId, decimal orderSubtotal)
     {
-        var zones = await GetDeliveryZonesAsync(outletId);
+        var zones = await GetActiveDeliveryZonesAsync(outletId);
         if (zones.Count == 0) return 0;
 
         // Use the first (closest) zone as default
@@ -547,6 +554,13 @@ public partial class MongoService : IOperationsRepository
     public async Task<SubscriptionPlan?> GetSubscriptionPlanByIdAsync(string id)
     {
         return await _subscriptionPlans.Find(p => p.Id == id && p.IsDeleted != true).FirstOrDefaultAsync();
+    }
+
+    public async Task<bool> UpdateSubscriptionPlanAsync(string id, SubscriptionPlan plan)
+    {
+        var result = await _subscriptionPlans.ReplaceOneAsync(
+            p => p.Id == id && p.IsDeleted != true, plan);
+        return result.ModifiedCount > 0;
     }
 
     public async Task<bool> DeleteSubscriptionPlanAsync(string id)

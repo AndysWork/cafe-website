@@ -71,7 +71,8 @@ public class DeliveryZoneFunction
                 MaxDistance = request.MaxDistance,
                 DeliveryFee = request.DeliveryFee,
                 FreeDeliveryAbove = request.FreeDeliveryAbove,
-                EstimatedMinutes = request.EstimatedMinutes
+                EstimatedMinutes = request.EstimatedMinutes,
+                IsActive = request.IsActive
             };
 
             var created = await _mongo.CreateDeliveryZoneAsync(zone);
@@ -115,6 +116,7 @@ public class DeliveryZoneFunction
             existing.DeliveryFee = request.DeliveryFee;
             existing.FreeDeliveryAbove = request.FreeDeliveryAbove;
             existing.EstimatedMinutes = request.EstimatedMinutes;
+            existing.IsActive = request.IsActive;
 
             await _mongo.UpdateDeliveryZoneAsync(id, existing);
             var response = req.CreateResponse(HttpStatusCode.OK);

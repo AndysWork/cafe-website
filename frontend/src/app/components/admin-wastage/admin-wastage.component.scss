@@ -1,1 +1,29 @@
 @import '../admin-shared';
+
+.text-danger { color: #dc2626; }
+
+.wastage-reason-table { margin-top: 20px; }
+
+.section-title { padding: 16px 16px 8px; font-size: 1.1rem; color: var(--text, #1e293b); margin: 0; }
+
+.wastage-item-row { align-items: flex-end; }
+
+.form-group-sm { max-width: 90px; }
+
+.wastage-remove-btn { margin-bottom: 16px; }
+
+.btn-add-item {
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  background: rgba(14, 165, 233, 0.1);
+  color: var(--brand, #0EA5E9);
+  border: 1px dashed var(--brand, #0EA5E9);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  &:hover { background: rgba(14, 165, 233, 0.15); }
+}
+
+.wastage-total { font-weight: 700; color: #dc2626; font-size: 1.05rem; margin-top: 8px; }

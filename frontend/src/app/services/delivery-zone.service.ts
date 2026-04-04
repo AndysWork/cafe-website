@@ -43,8 +43,8 @@ export class DeliveryZoneService {
     );
   }
 
-  updateDeliveryZone(id: string, zone: DeliveryZone): Observable<DeliveryZone> {
-    return this.http.put<DeliveryZone>(`${this.apiUrl}/delivery-zones/${id}`, zone).pipe(
+  updateDeliveryZone(id: string, zone: DeliveryZone): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.apiUrl}/delivery-zones/${id}`, zone).pipe(
       catchError(handleServiceError('DeliveryZoneService.updateDeliveryZone'))
     );
   }

@@ -1,14 +1,59 @@
+// ═══════════════════════════════════════════════════════════
+// Admin Layout — Premium Theme (matches customer layout)
+// ═══════════════════════════════════════════════════════════
+
 .admin-layout {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #f7fafc;
+  background: linear-gradient(180deg, var(--bg-warm, #F0F9FF) 0%, var(--bg, #F8FAFC) 120px, var(--bg, #F8FAFC) 100%);
 }
 
-// Top Navbar
+// ── Animations ──────────────────────────────────────────
+@keyframes navbarEntrance {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes shimmerNav {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes accentFlow {
+  0%, 100% { background-position: 0% 0; }
+  50%      { background-position: 100% 0; }
+}
+
+@keyframes logoBreathe {
+  0%, 100% { filter: drop-shadow(0 4px 10px rgba(14, 165, 233, 0.2)); }
+  50%      { filter: drop-shadow(0 6px 16px rgba(14, 165, 233, 0.4)); }
+}
+
+@keyframes iconBounce {
+  0%, 100% { transform: scale(1.15) translateY(0); }
+  50%      { transform: scale(1.15) translateY(-3px); }
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.15); }
+}
+
+@keyframes shineSlide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+// ── Top Navbar ──────────────────────────────────────────
 .admin-navbar {
-  background: white;
-  border-bottom: 2px solid #e2e8f0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(240, 249, 255, 0.98) 50%,
+    rgba(255, 255, 255, 0.98) 100%
+  );
+  border-bottom: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -17,9 +62,50 @@
   position: sticky;
   top: 0;
   z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 4px 20px rgba(14, 165, 233, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
   gap: 20px;
   overflow: visible;
+  animation: navbarEntrance 0.5s ease-out;
+
+  // Subtle shimmer overlay
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(14, 165, 233, 0.04) 25%,
+      rgba(2, 132, 199, 0.04) 50%,
+      rgba(14, 165, 233, 0.04) 75%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmerNav 8s linear infinite;
+    pointer-events: none;
+  }
+
+  // Accent underline
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg,
+      transparent,
+      var(--brand-light, #38BDF8),
+      var(--brand, #0EA5E9),
+      var(--brand-dark, #0284C7),
+      var(--brand, #0EA5E9),
+      var(--brand-light, #38BDF8),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: accentFlow 4s ease-in-out infinite;
+  }
 }
 
 .navbar-left {
@@ -53,29 +139,43 @@
   white-space: nowrap;
 }
 
+// ── Logo ────────────────────────────────────────────────
 .logo {
   display: flex;
   align-items: center;
   gap: 12px;
+  transition: transform 0.4s ease;
+
+  &:hover {
+    transform: scale(1.05);
+
+    .logo-img {
+      filter: drop-shadow(0 8px 20px rgba(14, 165, 233, 0.45));
+      transform: rotate(3deg) scale(1.05);
+    }
+  }
 }
 
 .logo-img {
-  width: 45px;
-  height: 45px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(14, 165, 233, 0.2));
+  transition: all 0.4s ease;
+  animation: logoBreathe 4s ease-in-out infinite;
 }
 
 .logo-text {
   font-size: 1.3rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--brand, #0EA5E9) 0%, var(--brand-dark, #0284C7) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   white-space: nowrap;
 }
 
-// Horizontal Navigation Menu
+// ── Horizontal Navigation Menu ──────────────────────────
 .navbar-menu {
   display: flex;
   align-items: center;
@@ -84,6 +184,8 @@
   justify-content: center;
   overflow: visible;
   padding: 5px 0;
+  position: relative;
+  z-index: 1;
 }
 
 .nav-item {
@@ -93,8 +195,8 @@
   padding: 8px 14px;
   color: #4a5568;
   text-decoration: none;
-  border-radius: 8px;
-  transition: all 0.3s ease;
+  border-radius: 10px;
+  transition: all 0.35s ease;
   position: relative;
   white-space: nowrap;
   cursor: pointer;
@@ -103,39 +205,67 @@
   border: none;
   font-family: inherit;
   font-size: inherit;
+  overflow: hidden;
+
+  // Hover background fill
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(2, 132, 199, 0.06) 100%);
+    border-radius: 10px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+  }
+
+  // Glow underline on hover
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%) scaleX(0);
+    width: 60%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--brand, #0EA5E9), transparent);
+    transition: transform 0.3s ease;
+    border-radius: 2px;
+  }
 
   &:hover {
-    background: #f7fafc;
-    color: #0EA5E9;
+    color: var(--brand, #0EA5E9);
+    transform: translateY(-2px);
+
+    &::before { transform: scaleX(1); }
+    &::after  { transform: translateX(-50%) scaleX(1); }
 
     .nav-icon {
-      transform: scale(1.1);
+      transform: scale(1.2) rotate(3deg);
+      filter: drop-shadow(0 2px 4px rgba(14, 165, 233, 0.3));
     }
   }
 
   &.active {
-    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+    background: linear-gradient(135deg, var(--brand, #0EA5E9) 0%, var(--brand-dark, #0284C7) 100%);
     color: white;
-    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4), 0 0 20px rgba(14, 165, 233, 0.15);
+    transform: translateY(-1px);
 
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: -8px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 60%;
-      height: 3px;
-      background: #0EA5E9;
-      border-radius: 2px 2px 0 0;
+    &::before, &::after { display: none; }
+
+    .nav-icon {
+      transform: scale(1.15);
+      animation: iconBounce 2s ease-in-out infinite;
     }
   }
 }
 
 .nav-icon {
   font-size: 1.2rem;
-  transition: transform 0.3s ease;
+  transition: all 0.3s ease;
   line-height: 1;
+  display: inline-block;
 }
 
 .nav-label {
@@ -144,7 +274,7 @@
   line-height: 1;
 }
 
-// Dropdown menu
+// ── Dropdown Menu ───────────────────────────────────────
 .nav-item-dropdown {
   position: relative;
   display: inline-block;
@@ -156,9 +286,9 @@
   }
 
   .nav-item.dropdown-toggle.active {
-    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+    background: linear-gradient(135deg, var(--brand, #0EA5E9) 0%, var(--brand-dark, #0284C7) 100%);
     color: white;
-    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
   }
 }
 
@@ -175,40 +305,36 @@
 
 .dropdown-menu {
   position: absolute !important;
-  top: calc(100% + 5px) !important;
+  top: calc(100% + 8px) !important;
   left: 0 !important;
   margin-top: 0;
-  background: white !important;
-  border: 2px solid #0EA5E9 !important;
-  border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  min-width: 200px;
-  padding: 8px 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.97) 0%,
+    rgba(240, 249, 255, 0.97) 100%
+  ) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(14, 165, 233, 0.2) !important;
+  border-radius: 14px;
+  box-shadow:
+    0 10px 40px rgba(14, 165, 233, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+  min-width: 210px;
+  padding: 8px;
   z-index: 10000 !important;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(-10px);
-  transition: all 0.3s ease;
+  transform: translateY(-10px) scale(0.97);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
   &.show {
     opacity: 1 !important;
     visibility: visible !important;
     pointer-events: auto !important;
-    transform: translateY(0) !important;
+    transform: translateY(0) scale(1) !important;
     display: block !important;
-  }
-}
-
-@keyframes dropdownFade {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -216,24 +342,49 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 20px;
+  padding: 10px 16px;
   color: #4a5568;
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
   white-space: nowrap;
+  border-radius: 8px;
+  position: relative;
+
+  // Accent bar on hover
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    background: var(--brand, #0EA5E9);
+    border-radius: 0 3px 3px 0;
+    transform: scaleY(0);
+    transition: transform 0.2s ease;
+  }
 
   &:hover {
-    background: #f7fafc;
-    color: #0EA5E9;
+    background: rgba(14, 165, 233, 0.08);
+    color: var(--brand, #0EA5E9);
+    transform: translateX(4px);
+
+    &::before { transform: scaleY(1); }
+
+    .nav-icon { transform: scale(1.15); }
   }
 
   &.active {
-    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+    background: linear-gradient(135deg, var(--brand, #0EA5E9) 0%, var(--brand-dark, #0284C7) 100%);
     color: white;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+
+    &::before { display: none; }
   }
 
   .nav-icon {
     font-size: 1.2rem;
+    transition: transform 0.2s ease;
   }
 
   .nav-label {
@@ -241,14 +392,15 @@
   }
 }
 
-// Right side of navbar
+// ── Right Side of Navbar ────────────────────────────────
 .navbar-right {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 
-  // Outlet selector styling integration
   app-outlet-selector {
     flex-shrink: 0;
     margin-right: 10px;
@@ -257,22 +409,23 @@
 
 .btn-notification {
   position: relative;
-  background: white;
-  border: 1px solid #e2e8f0;
-  width: 45px;
-  height: 45px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.06) 0%, rgba(2, 132, 199, 0.04) 100%);
+  border: 1.5px solid rgba(14, 165, 233, 0.15);
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.3rem;
-  transition: all 0.3s ease;
+  transition: all 0.35s ease;
 
   &:hover {
-    background: #f7fafc;
-    border-color: #0EA5E9;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(2, 132, 199, 0.08) 100%);
+    border-color: rgba(14, 165, 233, 0.3);
     transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
   }
 }
 
@@ -280,7 +433,7 @@
   position: absolute;
   top: -5px;
   right: -5px;
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--rose, #F43F5E), #e11d48);
   color: white;
   font-size: 0.7rem;
   font-weight: 700;
@@ -291,9 +444,11 @@
   align-items: center;
   justify-content: center;
   border: 2px solid white;
+  animation: badgePulse 2s ease-in-out infinite;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.4);
 }
 
-// Profile Dropdown
+// ── Profile Dropdown ────────────────────────────────────
 .profile-dropdown-container {
   position: relative;
   display: flex;
@@ -302,7 +457,7 @@
   &.active .profile-dropdown-menu {
     opacity: 1;
     visibility: visible;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     pointer-events: auto;
   }
 
@@ -315,17 +470,36 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  background: #f7fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  padding: 6px 14px 6px 6px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(2, 132, 199, 0.04) 100%);
+  border: 1.5px solid rgba(14, 165, 233, 0.15);
+  border-radius: 50px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.35s ease;
+  position: relative;
+  overflow: hidden;
+
+  // Shine effect on hover
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+  }
 
   &:hover {
-    background: white;
-    border-color: #cbd5e0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.14) 0%, rgba(2, 132, 199, 0.08) 100%);
+    border-color: rgba(14, 165, 233, 0.3);
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.15);
+    transform: translateY(-1px);
+
+    &::before { transform: translateX(100%); }
+
+    .user-avatar {
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+    }
   }
 }
 
@@ -333,13 +507,15 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--brand, #0EA5E9), var(--brand-dark, #0284C7));
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 1.1rem;
+  transition: box-shadow 0.3s ease;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
 }
 
 .user-details {
@@ -348,8 +524,8 @@
 }
 
 .user-name {
-  font-weight: 600;
-  color: #0F172A;
+  font-weight: 700;
+  color: var(--text, #0F172A);
   font-size: 0.9rem;
   line-height: 1.2;
 }
@@ -359,7 +535,7 @@
   align-items: center;
   gap: 4px;
   font-size: 0.75rem;
-  color: #718096;
+  color: var(--text-mid, #475569);
   margin-top: 2px;
 
   .outlet-icon {
@@ -369,53 +545,64 @@
 
 .user-role {
   font-size: 0.75rem;
-  color: #718096;
+  color: var(--text-mid, #475569);
 }
 
 .profile-arrow {
   font-size: 0.7rem;
-  color: #718096;
+  color: var(--text-muted, #94A3B8);
   transition: transform 0.3s ease;
   margin-left: 4px;
 }
 
 .profile-dropdown-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   right: 0;
-  min-width: 250px;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  min-width: 260px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(240, 249, 255, 0.98) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(14, 165, 233, 0.12);
+  border-radius: 16px;
+  box-shadow:
+    0 15px 50px rgba(14, 165, 233, 0.12),
+    0 5px 15px rgba(0, 0, 0, 0.08);
   padding: 8px;
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-10px);
-  transition: all 0.3s ease;
+  transform: translateY(-10px) scale(0.97);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
   z-index: 1000;
 
   &.show {
     opacity: 1;
     visibility: visible;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     pointer-events: auto;
   }
 }
 
 .profile-dropdown-outlet {
   padding: 12px;
-  background: #f7fafc;
-  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.06) 0%, rgba(132, 204, 22, 0.04) 100%);
+  border-radius: 10px;
   margin-bottom: 8px;
+  border: 1px solid rgba(14, 165, 233, 0.08);
 
   .outlet-dropdown-label {
     display: block;
     font-size: 0.8rem;
-    font-weight: 600;
-    color: #4a5568;
+    font-weight: 700;
+    color: var(--text-mid, #475569);
     margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   app-outlet-selector {
@@ -427,10 +614,10 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 11px 16px;
   color: #4a5568;
   text-decoration: none;
-  border-radius: 8px;
+  border-radius: 10px;
   transition: all 0.3s ease;
   background: none;
   border: none;
@@ -438,25 +625,40 @@
   cursor: pointer;
   font-size: 0.95rem;
   font-family: inherit;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.5s ease;
+  }
 
   &:hover {
-    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+    background: linear-gradient(135deg, var(--brand, #0EA5E9) 0%, var(--brand-dark, #0284C7) 100%);
     color: white;
-    transform: translateX(5px);
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+
+    &::before { transform: translateX(100%); }
 
     .dropdown-icon {
-      transform: scale(1.2);
+      transform: scale(1.2) rotate(5deg);
     }
   }
 
   &.logout-item:hover {
     background: linear-gradient(135deg, #475569 0%, #334155 100%);
+    box-shadow: 0 4px 12px rgba(71, 85, 105, 0.3);
   }
 }
 
 .dropdown-icon {
   font-size: 1.3rem;
-  transition: transform 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .dropdown-label {
@@ -465,11 +667,11 @@
 
 .profile-dropdown-divider {
   height: 1px;
-  background: #e2e8f0;
-  margin: 8px 0;
+  background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.15), transparent);
+  margin: 6px 12px;
 }
 
-// Mobile menu toggle button (hidden on desktop)
+// ── Mobile Menu Toggle ──────────────────────────────────
 .mobile-menu-toggle {
   display: none;
   flex-direction: column;
@@ -481,18 +683,19 @@
   transition: all 0.3s ease;
 
   &:hover .hamburger-line {
-    background: #0EA5E9;
+    background: var(--brand, #0EA5E9);
+    box-shadow: 0 0 6px rgba(14, 165, 233, 0.3);
   }
 
   &.active .hamburger-line {
+    background: var(--brand, #0EA5E9);
+
     &:nth-child(1) {
       transform: rotate(45deg) translate(8px, 8px);
     }
-
     &:nth-child(2) {
       opacity: 0;
     }
-
     &:nth-child(3) {
       transform: rotate(-45deg) translate(7px, -7px);
     }
@@ -507,7 +710,7 @@
   transition: all 0.3s ease;
 }
 
-// Main Content Area
+// ── Main Content Area ───────────────────────────────────
 .admin-main {
   flex: 1;
   padding: 30px;
@@ -517,7 +720,7 @@
   width: 100%;
 }
 
-// Responsive Design
+// ── Responsive ──────────────────────────────────────────
 @media (min-width: 1025px) {
   .admin-navbar {
     padding: 0 15px;
@@ -579,14 +782,20 @@
     top: 65px;
     left: 0;
     right: 0;
-    background: white;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(240, 249, 255, 0.98) 100%
+    );
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     flex-direction: column;
     align-items: stretch;
-    padding: 20px;
-    gap: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 16px;
+    gap: 6px;
+    box-shadow: 0 10px 40px rgba(14, 165, 233, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
     transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     z-index: 999;
     max-height: calc(100vh - 65px);
     overflow-y: auto !important;
@@ -603,9 +812,7 @@
     justify-content: flex-start;
     padding: 12px 16px;
 
-    &.active::after {
-      display: none;
-    }
+    &.active::after { display: none; }
   }
 
   .nav-item-dropdown {
@@ -614,18 +821,20 @@
 
   .dropdown-menu {
     position: static !important;
-    margin-top: 8px;
-    box-shadow: none;
-    border-left: 3px solid #0EA5E9;
-    background: #f7fafc !important;
+    margin-top: 4px;
+    box-shadow: none !important;
+    background: rgba(14, 165, 233, 0.04) !important;
     border: none !important;
-    border-left: 3px solid #0EA5E9 !important;
-    border-radius: 0;
+    border-left: 3px solid var(--brand, #0EA5E9) !important;
+    border-radius: 0 !important;
+    backdrop-filter: none !important;
     transform: none !important;
   }
 
   .dropdown-item {
     padding: 10px 16px 10px 30px;
+
+    &::before { display: none; }
   }
 
   .profile-dropdown-container {
@@ -653,9 +862,7 @@
     padding: 8px 12px;
     font-size: 0.85rem;
 
-    .logout-text {
-      display: none;
-    }
+    .logout-text { display: none; }
   }
 
   .admin-main {
@@ -669,8 +876,8 @@
   }
 
   .logo-img {
-    width: 35px;
-    height: 35px;
+    width: 38px;
+    height: 38px;
   }
 
   .btn-logout .logout-icon {

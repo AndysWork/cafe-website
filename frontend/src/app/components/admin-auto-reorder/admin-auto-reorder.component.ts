@@ -23,8 +23,23 @@ export class AdminAutoReorderComponent implements OnInit, OnDestroy {
   loading = true;
   triggering = false;
   filterStatus = '';
+  searchTerm = '';
 
   constructor(private reorderService: AutoReorderService) {}
+
+  get filteredOrders(): PurchaseOrder[] {
+    return this.purchaseOrders.filter(po => {
+      const matchesSearch = !this.searchTerm ||
+        (po.ingredientName || '').toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+        po.supplierName.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+        po.poNumber.toLowerCase().includes(this.searchTerm.toLowerCase());
+      return matchesSearch;
+    });
+  }
+
+  get pendingCount(): number { return this.purchaseOrders.filter(po => po.status === 'pending').length; }
+  get approvedCount(): number { return this.purchaseOrders.filter(po => po.status === 'approved').length; }
+  get totalEstCost(): number { return this.purchaseOrders.reduce((sum, po) => sum + po.estimatedCost, 0); }
 
   ngOnInit() {
     this.outletSub = this.outletService.selectedOutlet$

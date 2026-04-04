@@ -1,1 +1,11 @@
 @import '../admin-shared';
+
+.staff-performance-section {
+  .data-table {
+    overflow-x: auto;
+  }
+
+  .export-actions {
+    margin: 20px 0;
+  }
+}
