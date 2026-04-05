@@ -207,7 +207,7 @@
               <div style="font-weight: 600; margin-bottom: 0.5rem; color: #2c3e50; font-size: 0.9rem;">
                 📊 Real KPT Data (from {{kptData.orderCount}} orders):
               </div>
-              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.85rem;">
+              <div class="kpt-grid">
                 <button
                   (click)="useKptValue('avg')"
                   class="kpt-btn"
@@ -565,7 +565,7 @@
         <div class="forecast-panel" *ngIf="calculation && priceForecast && showForecastPanel">
           <div class="panel-header">
             <h3>💰 Price Forecast & Profit Analysis</h3>
-            <div class="header-actions" style="display: flex; gap: 0.5rem;">
+            <div class="header-actions">
               <button class="btn-action btn-history"
                       (click)="viewPriceHistory()"
                       *ngIf="savedPriceForecast && savedPriceForecast.history && savedPriceForecast.history.length > 0"
@@ -701,7 +701,7 @@
               </h4>
               <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Set future prices to forecast profits when planning price increases</p>
 
-              <div class="forecast-grid" style="grid-template-columns: repeat(2, 1fr);">
+              <div class="forecast-grid future-pricing-grid">
                 <div class="form-group">
                   <label>🏪 Future Shop Price (₹)</label>
                   <input
@@ -738,7 +738,7 @@
               <div *ngIf="priceForecast.futureShopPrice || priceForecast.futureOnlinePrice"
                    style="margin-top: 0.75rem; padding: 0.75rem; background: white; border-radius: 6px; font-size: 0.85rem;">
                 <strong style="color: #1e40af;">💡 Price Comparison:</strong>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
+                <div class="price-comparison-grid">
                   <div *ngIf="priceForecast.futureShopPrice">
                     <span style="color: #64748b;">Shop:</span>
                     <span style="color: #dc2626;">₹{{priceForecast.shopPrice}}</span> →
