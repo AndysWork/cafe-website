@@ -94,7 +94,7 @@ public class SalesItemRequest
     [Range(1, 1000, ErrorMessage = "Quantity must be between 1 and 1000")]
     public int Quantity { get; set; }
     
-    [Range(0.01, 100000, ErrorMessage = "Unit price must be between 0.01 and 100,000")]
+    [Range(0, 100000, ErrorMessage = "Unit price must be between 0 and 100,000")]
     public decimal UnitPrice { get; set; }
 }
 

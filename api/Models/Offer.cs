@@ -28,7 +28,7 @@ public class Offer : ISoftDeletable
     public required string DiscountType { get; set; } // "percentage", "flat", "bogo"
 
     [BsonElement("discountValue")]
-    [Range(0.01, 100000, ErrorMessage = "Discount value must be between 0.01 and 100,000")]
+    [Range(0, 100000, ErrorMessage = "Discount value must be between 0 and 100,000")]
     public decimal DiscountValue { get; set; } // Percentage or flat amount
 
     [BsonElement("code")]

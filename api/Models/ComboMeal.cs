@@ -33,7 +33,7 @@ public class ComboMeal : ISoftDeletable
     public decimal OriginalPrice { get; set; }
 
     [BsonElement("comboPrice")]
-    [Range(0.01, 100000)]
+    [Range(0, 100000)]
     public decimal ComboPrice { get; set; }
 
     [BsonElement("savingsAmount")]
@@ -92,7 +92,7 @@ public class CreateComboMealRequest
     [Required] [MinLength(2, ErrorMessage = "Combo must have at least 2 items")]
     public List<ComboItemRequest> Items { get; set; } = new();
 
-    [Range(0.01, 100000)]
+    [Range(0, 100000)]
     public decimal ComboPrice { get; set; }
 
     public DateTime? ValidFrom { get; set; }

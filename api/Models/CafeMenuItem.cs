@@ -30,25 +30,24 @@ public class CafeMenuItem : ISoftDeletable
     
     [BsonElement("outletId")]
     [BsonRepresentation(BsonType.ObjectId)]
-    [Required(ErrorMessage = "Outlet ID is required")]
     public string OutletId { get; set; } = string.Empty; // Multi-outlet support
     
     [Range(0, int.MaxValue, ErrorMessage = "Quantity must be a positive number")]
     public int Quantity { get; set; }
     
-    [Range(0.01, 100000, ErrorMessage = "Making price must be between 0.01 and 100,000")]
+    [Range(0, 100000, ErrorMessage = "Making price must be between 0 and 100,000")]
     public decimal MakingPrice { get; set; }
     
     [Range(0, 10000, ErrorMessage = "Packaging charge must be between 0 and 10,000")]
     public decimal PackagingCharge { get; set; }
     
-    [Range(0.01, 100000, ErrorMessage = "Shop selling price must be between 0.01 and 100,000")]
+    [Range(0, 100000, ErrorMessage = "Shop selling price must be between 0 and 100,000")]
     public decimal ShopSellingPrice { get; set; }
     
-    [Range(0.01, 100000, ErrorMessage = "Online price must be between 0.01 and 100,000")]
+    [Range(0, 100000, ErrorMessage = "Online price must be between 0 and 100,000")]
     public decimal OnlinePrice { get; set; }
     
-    [Range(0.01, 100000, ErrorMessage = "Dine-in price must be between 0.01 and 100,000")]
+    [Range(0, 100000, ErrorMessage = "Dine-in price must be between 0 and 100,000")]
     public decimal DineInPrice { get; set; }
     
     // Future pricing for planning

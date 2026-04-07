@@ -64,7 +64,7 @@ public class CreateExpenseRequest
     [AllowedValuesList("Offline", "Online")]
     public string ExpenseSource { get; set; } = "Offline";
     
-    [Range(0.01, 10000000, ErrorMessage = "Amount must be between 0.01 and 10,000,000")]
+    [Range(0, 10000000, ErrorMessage = "Amount must be between 0 and 10,000,000")]
     public decimal Amount { get; set; }
     
     [Required(ErrorMessage = "Payment method is required")]
