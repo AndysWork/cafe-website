@@ -12,7 +12,6 @@ public class MenuSubCategory : ISoftDeletable
 
     [BsonElement("outletId")]
     [BsonRepresentation(BsonType.ObjectId)]
-    [Required(ErrorMessage = "Outlet ID is required")]
     public string OutletId { get; set; } = string.Empty;
 
     [BsonElement("categoryId")]

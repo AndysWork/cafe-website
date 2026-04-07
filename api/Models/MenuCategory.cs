@@ -16,7 +16,6 @@ public class MenuCategory : ISoftDeletable
 
     [BsonElement("outletId")]
     [BsonRepresentation(BsonType.ObjectId)]
-    [Required(ErrorMessage = "Outlet ID is required")]
     public string OutletId { get; set; } = string.Empty; // Multi-outlet support
 
     // Soft-delete support
