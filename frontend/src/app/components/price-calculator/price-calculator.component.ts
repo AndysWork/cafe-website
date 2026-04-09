@@ -91,10 +91,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   // Oil Usage Calculation
   fryingTimeMinutes = 0; // Optional frying time for items that use oil
-  oilCapacityLiters = 2.5; // Oil capacity in liters
-  oilPricePer750ml = 112; // Price for 750ml oil bottle
+  oilCapacityLiters = 7; // Oil capacity in liters
+  oilPricePer750ml = 130; // Price for 750ml oil bottle
   oilUsageDays = 7; // Number of days oil is used
-  oilUsageHoursPerDay = 9; // Operating hours per day
+  oilUsageHoursPerDay = 12; // Operating hours per day
   calculatedOilCost = 0; // Calculated oil cost for this item
 
   // KPT Analysis Integration
@@ -826,18 +826,18 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     // Load oil usage data if available
     if (recipe.oilUsage) {
       this.fryingTimeMinutes = recipe.oilUsage.fryingTimeMinutes || 0;
-      this.oilCapacityLiters = recipe.oilUsage.oilCapacityLiters || 2.5;
-      this.oilPricePer750ml = recipe.oilUsage.oilPricePer750ml || 112;
+      this.oilCapacityLiters = recipe.oilUsage.oilCapacityLiters || 7;
+      this.oilPricePer750ml = recipe.oilUsage.oilPricePer750ml || 130;
       this.oilUsageDays = recipe.oilUsage.oilUsageDays || 7;
-      this.oilUsageHoursPerDay = recipe.oilUsage.oilUsageHoursPerDay || 9;
+      this.oilUsageHoursPerDay = recipe.oilUsage.oilUsageHoursPerDay || 12;
       this.calculatedOilCost = recipe.oilUsage.calculatedOilCost || 0;
     } else {
       // Reset oil usage to defaults
       this.fryingTimeMinutes = 0;
-      this.oilCapacityLiters = 2.5;
-      this.oilPricePer750ml = 112;
+      this.oilCapacityLiters = 7;
+      this.oilPricePer750ml = 130;
       this.oilUsageDays = 7;
-      this.oilUsageHoursPerDay = 9;
+      this.oilUsageHoursPerDay = 12;
       this.calculatedOilCost = 0;
     }
 
