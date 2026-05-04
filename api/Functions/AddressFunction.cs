@@ -44,6 +44,12 @@ public class AddressFunction
 
         var (body, validationError) = await ValidationHelper.ValidateBody<AddDeliveryAddressRequest>(req);
         if (validationError != null) return validationError;
+        if (body == null)
+        {
+            var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+            await badRequest.WriteAsJsonAsync(new { error = "Invalid request body" });
+            return badRequest;
+        }
 
         var address = new DeliveryAddress
         {
@@ -72,6 +78,12 @@ public class AddressFunction
 
         var (body, validationError) = await ValidationHelper.ValidateBody<UpdateDeliveryAddressRequest>(req);
         if (validationError != null) return validationError;
+        if (body == null)
+        {
+            var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+            await badRequest.WriteAsJsonAsync(new { error = "Invalid request body" });
+            return badRequest;
+        }
 
         // Sanitize inputs
         if (body.Label != null) body.Label = InputSanitizer.Sanitize(body.Label);

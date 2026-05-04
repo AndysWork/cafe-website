@@ -88,6 +88,12 @@ public class AutoReorderFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<UpdatePurchaseOrderStatusRequest>(req);
             if (validationError != null) return validationError;
+            if (request == null)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
+                return badReq;
+            }
 
             var validStatuses = new[] { "approved", "ordered", "received", "cancelled" };
             if (!validStatuses.Contains(request.Status.ToLower()))

@@ -74,16 +74,16 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         var tier = ClassifyEndpoint(endpoint);
         var (limitPerMinute, limitPerHour) = TierLimits[(int)tier];
 
-        // Check if client is blocked
-        if (IsClientBlocked(clientId))
+        // Check if client is blocked for this specific tier
+        if (IsClientBlocked(clientId, tier))
         {
-            _logger.LogWarning("Blocked request from {ClientId} — rate limit exceeded", clientId);
+            _logger.LogWarning("Blocked request from {ClientId} in tier {Tier} — rate limit exceeded", clientId, tier);
             var response = requestData.CreateResponse(HttpStatusCode.TooManyRequests);
             await response.WriteAsJsonAsync(new
             {
                 success = false,
                 error = "Too many requests. Please try again later.",
-                retryAfter = GetBlockTimeRemaining(clientId)
+                retryAfter = GetBlockTimeRemaining(clientId, tier)
             });
             context.GetInvocationResult().Value = response;
             return;
@@ -99,7 +99,7 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         {
             _logger.LogWarning("Rate limit exceeded ({Tier}) for {ClientId} on {Endpoint} — {Limit}/min",
                 tier, clientId, endpoint, limitPerMinute);
-            BlockClient(clientId);
+            BlockClient(clientId, tier);
             var response = requestData.CreateResponse(HttpStatusCode.TooManyRequests);
             await response.WriteAsJsonAsync(new
             {
@@ -116,7 +116,7 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         {
             _logger.LogWarning("Rate limit exceeded ({Tier}) for {ClientId} on {Endpoint} — {Limit}/hr",
                 tier, clientId, endpoint, limitPerHour);
-            BlockClient(clientId);
+            BlockClient(clientId, tier);
             var response = requestData.CreateResponse(HttpStatusCode.TooManyRequests);
             await response.WriteAsJsonAsync(new
             {
@@ -195,9 +195,9 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         return "unknown";
     }
 
-    private bool IsClientBlocked(string clientId)
+    private bool IsClientBlocked(string clientId, EndpointTier tier)
     {
-        var blockKey = $"block:{clientId}";
+        var blockKey = $"block:{clientId}:{tier}";
         if (_rateLimits.TryGetValue(blockKey, out var blockInfo))
         {
             if (blockInfo.BlockedUntil > DateTime.UtcNow)
@@ -209,9 +209,9 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         return false;
     }
 
-    private void BlockClient(string clientId)
+    private void BlockClient(string clientId, EndpointTier tier)
     {
-        var blockKey = $"block:{clientId}";
+        var blockKey = $"block:{clientId}:{tier}";
         var blockInfo = new RateLimitInfo
         {
             BlockedUntil = DateTime.UtcNow.AddMinutes(BlockDurationMinutes)
@@ -219,9 +219,9 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         _rateLimits.AddOrUpdate(blockKey, blockInfo, (_, __) => blockInfo);
     }
 
-    private int GetBlockTimeRemaining(string clientId)
+    private int GetBlockTimeRemaining(string clientId, EndpointTier tier)
     {
-        var blockKey = $"block:{clientId}";
+        var blockKey = $"block:{clientId}:{tier}";
         if (_rateLimits.TryGetValue(blockKey, out var blockInfo))
         {
             return (int)(blockInfo.BlockedUntil - DateTime.UtcNow).TotalSeconds;

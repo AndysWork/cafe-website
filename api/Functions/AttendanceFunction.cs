@@ -33,6 +33,12 @@ public class AttendanceFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<ClockInOutRequest>(req);
             if (validationError != null) return validationError;
+            if (request == null)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
+                return badReq;
+            }
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var attendance = await _mongo.ClockInAsync(request.StaffId, "", outletId ?? "default");
@@ -61,6 +67,12 @@ public class AttendanceFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<ClockInOutRequest>(req);
             if (validationError != null) return validationError;
+            if (request == null)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
+                return badReq;
+            }
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var attendance = await _mongo.ClockOutAsync(request.StaffId, outletId ?? "default");
@@ -153,6 +165,12 @@ public class AttendanceFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<CreateLeaveRequestDto>(req);
             if (validationError != null) return validationError;
+            if (request == null)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
+                return badReq;
+            }
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
@@ -222,6 +240,12 @@ public class AttendanceFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<UpdateLeaveStatusRequest>(req);
             if (validationError != null) return validationError;
+            if (request == null)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Invalid request body" });
+                return badReq;
+            }
 
             var validStatuses = new[] { "approved", "rejected" };
             if (!validStatuses.Contains(request.Status.ToLower()))

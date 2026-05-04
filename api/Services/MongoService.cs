@@ -6068,8 +6068,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             catch (Exception ex)
             {
                 // Log error but continue with other outlets
-                _logger.LogDebug("[Recipe Copy] âŒ ERROR copying recipe to outlet {outlet.OutletName}: {ex.Message}");
-                _logger.LogDebug("[Recipe Copy] Stack trace: {ex.StackTrace}");
+                _logger.LogDebug(ex, "[Recipe Copy] Error copying recipe to outlet {OutletName}", outlet.OutletName);
             }
         }
         

@@ -42,6 +42,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   // UI State
   activeTab: 'calculator' | 'ingredients' | 'recipes' | 'overhead' | 'frozen' = 'calculator';
+  recipeViewMode: 'grid' | 'table' = 'table';
+  recipeSearchTerm = '';
 
   // Ingredient Management
   showIngredientModal = false;
@@ -989,6 +991,17 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     }
     return this.recipes.filter(recipe =>
       recipe.menuItemName.toLowerCase().includes(this.copyRecipeSearchTerm.toLowerCase())
+    );
+  }
+
+  get filteredRecipes(): MenuItemRecipe[] {
+    if (!this.recipeSearchTerm) {
+      return this.recipes;
+    }
+
+    const search = this.recipeSearchTerm.toLowerCase().trim();
+    return this.recipes.filter(recipe =>
+      recipe.menuItemName.toLowerCase().includes(search)
     );
   }
 

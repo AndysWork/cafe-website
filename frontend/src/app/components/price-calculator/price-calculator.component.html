@@ -924,7 +924,7 @@
             <!-- Display Mode -->
             <div class="price-display" *ngIf="!isEditingInline(ing)">
               <span class="price-label">Market Price:</span>
-              <span class="price-amount">₹{{ing.marketPrice || 0}}/{{ing.unit || 'kg'}}</span>
+              <span class="price-amount">₹{{(ing.marketPrice || 0).toFixed(2)}}/{{ing.unit || 'kg'}}</span>
               <span *ngIf="ing.priceChangePercentage"
                     class="price-change"
                     [ngClass]="getPriceChangeClass(ing.priceChangePercentage)">
@@ -981,8 +981,36 @@
   <!-- RECIPES TAB -->
   <div class="tab-content" *ngIf="activeTab === 'recipes'">
     <div class="recipes-management">
-      <div class="recipes-grid">
-        <div class="recipe-card" *ngFor="let recipe of recipes; trackBy: trackByObjId">
+      <div class="recipes-header">
+        <div class="recipes-header-info">
+          <h3>Saved Recipes</h3>
+          <p>{{filteredRecipes.length}} of {{recipes.length}} recipe{{recipes.length === 1 ? '' : 's'}}</p>
+        </div>
+        <input
+          type="text"
+          [(ngModel)]="recipeSearchTerm"
+          placeholder="🔍 Search recipes..."
+          class="recipes-search-input">
+        <div class="view-toggle" role="group" aria-label="Recipe view mode">
+          <button
+            type="button"
+            class="view-toggle-btn"
+            [class.active]="recipeViewMode === 'grid'"
+            (click)="recipeViewMode = 'grid'">
+            ⬜ Grid
+          </button>
+          <button
+            type="button"
+            class="view-toggle-btn"
+            [class.active]="recipeViewMode === 'table'"
+            (click)="recipeViewMode = 'table'">
+            ▦ Table
+          </button>
+        </div>
+      </div>
+
+      <div class="recipes-grid" *ngIf="recipeViewMode === 'grid'">
+        <div class="recipe-card" *ngFor="let recipe of filteredRecipes; trackBy: trackByObjId">
           <div class="card-header">
             <h4>{{recipe.menuItemName}}</h4>
           </div>
@@ -1064,12 +1092,71 @@
         </div>
       </div>
 
+      <div class="recipes-table-wrapper" *ngIf="recipeViewMode === 'table' && filteredRecipes.length > 0">
+        <table class="recipes-table">
+          <thead>
+            <tr>
+              <th>Recipe</th>
+              <th>Making Cost</th>
+              <th>Selling Price</th>
+              <th>Shop Price</th>
+              <th>Shop Profit</th>
+              <th>Online Price</th>
+              <th>Online Profit</th>
+              <th>Future Shop</th>
+              <th>Future Shop Profit</th>
+              <th>Future Online</th>
+              <th>Future Online Profit</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let recipe of filteredRecipes; trackBy: trackByObjId">
+              <td class="recipe-name-cell">{{recipe.menuItemName}}</td>
+              <td>₹{{(recipe.totalMakingCost || 0).toFixed(2)}}</td>
+              <td class="selling-cell">₹{{(recipe.suggestedSellingPrice || 0).toFixed(2)}}</td>
+              <td>₹{{(recipe.priceForecast?.shopPrice || 0).toFixed(2)}}</td>
+              <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.offlineProfit || 0) < 0">
+                {{(recipe.priceForecast?.offlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.offlineProfit || 0).toFixed(2)}}
+              </td>
+              <td>₹{{(recipe.priceForecast?.onlinePrice || 0).toFixed(2)}}</td>
+              <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.onlineProfit || 0) < 0">
+                {{(recipe.priceForecast?.onlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.onlineProfit || 0).toFixed(2)}}
+              </td>
+              <td>₹{{(recipe.priceForecast?.futureShopPrice || 0).toFixed(2)}}</td>
+              <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.futureShopProfit || 0) < 0">
+                {{(recipe.priceForecast?.futureShopProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureShopProfit || 0).toFixed(2)}}
+              </td>
+              <td>₹{{(recipe.priceForecast?.futureOnlinePrice || 0).toFixed(2)}}</td>
+              <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.futureOnlineProfit || 0) < 0">
+                {{(recipe.priceForecast?.futureOnlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureOnlineProfit || 0).toFixed(2)}}
+              </td>
+              <td>
+                <div class="table-actions">
+                  <button class="btn-edit" (click)="loadRecipe(recipe)">
+                    <span>📝</span> Edit
+                  </button>
+                  <button class="btn-delete" (click)="deleteRecipe(recipe.id)">
+                    <span>🗑️</span> Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <div class="no-data-state" *ngIf="recipes.length === 0">
         <span class="no-data-icon">📋</span>
         <p>No saved recipes yet</p>
         <button class="btn-primary" (click)="activeTab = 'calculator'">
           Create Your First Recipe
         </button>
+      </div>
+
+      <div class="no-data-state" *ngIf="recipes.length > 0 && filteredRecipes.length === 0">
+        <span class="no-data-icon">🔎</span>
+        <p>No recipes match your search</p>
       </div>
     </div>
   </div>
@@ -1479,7 +1566,7 @@
                 </div>
                 <div class="piece-item">
                   <span class="piece-label">Weight/Piece:</span>
-                  <strong>{{item.perPieceWeight}} gm</strong>
+                  <strong>{{(item.perPieceWeight || 0).toFixed(2)}} gm</strong>
                 </div>
               </div>
             </div>

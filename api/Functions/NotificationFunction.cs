@@ -9,6 +9,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.Extensions.Logging;
+using MongoDB.Driver;
 using Microsoft.OpenApi.Models;
 
 namespace Cafe.Api.Functions;
@@ -89,10 +90,20 @@ public class NotificationFunction
             return unauth;
         }
 
-        var count = await _mongo.GetUnreadNotificationCountAsync(userId);
-        var response = req.CreateResponse(HttpStatusCode.OK);
-        await response.WriteAsJsonAsync(new { unreadCount = count });
-        return response;
+        try
+        {
+            var count = await _mongo.GetUnreadNotificationCountAsync(userId);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { unreadCount = count });
+            return response;
+        }
+        catch (Exception ex) when (ex is TimeoutException || ex is MongoConnectionException || ex is MongoException)
+        {
+            _log.LogWarning(ex, "Transient MongoDB issue while fetching unread count for user {UserId}. Returning fallback count.", userId);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { unreadCount = 0, degraded = true });
+            return response;
+        }
     }
 
     /// <summary>
