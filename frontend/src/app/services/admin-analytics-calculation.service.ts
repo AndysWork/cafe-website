@@ -238,7 +238,8 @@ export class AdminAnalyticsCalculationService {
 
     const dailyMap = new Map<string, { income: number; orders: number }>();
     sales.forEach((sale) => {
-      const dateKey = new Date(sale.orderAt).toISOString().split('T')[0];
+      const istOrderDate = convertToIst(new Date(sale.orderAt));
+      const dateKey = getIstInputDate(istOrderDate);
       const existing = dailyMap.get(dateKey) || { income: 0, orders: 0 };
       const netPayout = (sale.billSubTotal || 0) + (sale.packagingCharges || 0) - (sale.discountAmount || 0) - (sale.platformDeduction || 0);
       dailyMap.set(dateKey, { income: existing.income + netPayout, orders: existing.orders + 1 });

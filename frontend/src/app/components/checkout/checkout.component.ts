@@ -13,6 +13,7 @@ import { WalletService, WalletResponse } from '../../services/wallet.service';
 import { DeliveryZoneService } from '../../services/delivery-zone.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-checkout',
@@ -413,9 +414,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   onScheduleToggle() {
     if (this.scheduleOrder) {
       const now = new Date();
-      this.minScheduleDate = now.toISOString().split('T')[0];
+      this.minScheduleDate = getIstInputDate(now);
       const maxDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-      this.maxScheduleDate = maxDate.toISOString().split('T')[0];
+      this.maxScheduleDate = getIstInputDate(maxDate);
       this.scheduledDate = '';
       this.scheduledTime = '';
       this.scheduleValidationError = '';

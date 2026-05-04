@@ -55,6 +55,7 @@ interface CashReconciliation {
   styleUrls: ['./cashier.component.scss']
 })
 export class CashierComponent implements OnInit, OnDestroy {
+  private readonly istTimeZone = 'Asia/Kolkata';
   private outletService = inject(OutletService);
   private outletSubscription?: Subscription;
 
@@ -113,9 +114,8 @@ export class CashierComponent implements OnInit, OnDestroy {
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
-    // Set today's date
-    const today = new Date();
-    this.selectedDate = today.toISOString().split('T')[0];
+    // Set today's date in IST
+    this.selectedDate = this.toIstInputDate(new Date());
 
     // Subscribe to outlet changes
     this.outletSubscription = this.outletService.selectedOutlet$
@@ -207,13 +207,13 @@ export class CashierComponent implements OnInit, OnDestroy {
       } else {
         // Reset reconciliation for new entry
         this.reconciliation.id = undefined;
-        this.reconciliation.date = new Date(this.selectedDate);
+        this.reconciliation.date = this.parseIstDateInput(this.selectedDate);
         this.reconciliation.isReconciled = false;
       }
     } catch (error) {
       // No reconciliation exists, that's okay
       this.reconciliation.id = undefined;
-      this.reconciliation.date = new Date(this.selectedDate);
+      this.reconciliation.date = this.parseIstDateInput(this.selectedDate);
     }
   }
 
@@ -291,12 +291,13 @@ export class CashierComponent implements OnInit, OnDestroy {
 
   async loadRecentReconciliations(): Promise<void> {
     try {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30); // Last 30 days
+      const endDate = this.toIstInputDate(new Date());
+      const startDateObj = this.parseIstDateInput(endDate);
+      startDateObj.setDate(startDateObj.getDate() - 30); // Last 30 days (IST)
+      const startDate = this.toIstInputDate(startDateObj);
 
       const response: any = await this.http.get(
-        `${environment.apiUrl}/cash-reconciliation?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`
+        `${environment.apiUrl}/cash-reconciliation?startDate=${startDate}&endDate=${endDate}`
       ).toPromise();
 
       if (response.success && response.data) {
@@ -419,7 +420,7 @@ export class CashierComponent implements OnInit, OnDestroy {
 
   exportTemplate(): void {
     const template = `Date,Collected Cash,Collected Coins,Collected Online,Notes
-${new Date().toISOString().split('T')[0]},0,0,0,Sample note
+${this.toIstInputDate(new Date())},0,0,0,Sample note
 # Instructions:
 # - Expected values (cash/coins/online) are AUTO-CALCULATED from sales minus expenses
 # - Enter only the COLLECTED amounts from physical counting
@@ -442,14 +443,44 @@ ${new Date().toISOString().split('T')[0]},0,0,0,Sample note
 
   formatDate(date: any): string {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('en-IN');
+
+    const dateObj = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? this.parseIstDateInput(date)
+      : new Date(date);
+
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: this.istTimeZone,
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).format(dateObj);
   }
 
   selectReconciliation(rec: CashReconciliation): void {
-    this.selectedDate = new Date(rec.date).toISOString().split('T')[0];
+    this.selectedDate = this.toIstInputDate(rec.date);
     this.reconciliation = { ...rec };
     this.viewMode = 'daily';
     this.loadSalesSummary();
+  }
+
+  private toIstInputDate(date: Date | string): string {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.istTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(dateObj);
+
+    const year = parts.find(p => p.type === 'year')?.value ?? '';
+    const month = parts.find(p => p.type === 'month')?.value ?? '';
+    const day = parts.find(p => p.type === 'day')?.value ?? '';
+
+    return `${year}-${month}-${day}`;
+  }
+
+  private parseIstDateInput(date: string): Date {
+    return new Date(`${date}T00:00:00+05:30`);
   }
 
   trackByIndex(index: number): number { return index; }

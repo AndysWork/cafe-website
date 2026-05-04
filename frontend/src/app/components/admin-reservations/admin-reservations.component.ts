@@ -6,6 +6,7 @@ import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-reservations',
@@ -21,7 +22,7 @@ export class AdminReservationsComponent implements OnInit, OnDestroy {
 
   reservations: TableReservation[] = [];
   loading = true;
-  filterDate = new Date().toISOString().split('T')[0];
+  filterDate = getIstInputDate(new Date());
 
   constructor(private reservationService: TableReservationService) {}
 

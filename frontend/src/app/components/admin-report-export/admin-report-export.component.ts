@@ -12,6 +12,7 @@ import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-report-export',
@@ -51,8 +52,8 @@ export class AdminReportExportComponent implements OnInit, OnDestroy {
   ) {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    this.startDate = firstDay.toISOString().split('T')[0];
-    this.endDate = now.toISOString().split('T')[0];
+    this.startDate = getIstInputDate(firstDay);
+    this.endDate = getIstInputDate(now);
     this.staffPerformanceStartDate = this.startDate;
     this.staffPerformanceEndDate = this.endDate;
   }

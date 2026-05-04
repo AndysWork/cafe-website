@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { BranchComparisonService, BranchComparison, BranchMetrics } from '../../services/branch-comparison.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-branch-comparison',
@@ -29,10 +30,10 @@ export class AdminBranchComparisonComponent implements OnInit {
 
   ngOnInit() {
     const now = new Date();
-    this.endDate = now.toISOString().split('T')[0];
+    this.endDate = getIstInputDate(now);
     const start = new Date(now);
     start.setDate(start.getDate() - 30);
-    this.startDate = start.toISOString().split('T')[0];
+    this.startDate = getIstInputDate(start);
 
     this.outletService.getAllOutlets().subscribe({
       next: (outlets: any[]) => {

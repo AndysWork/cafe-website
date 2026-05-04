@@ -7,6 +7,7 @@ import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-attendance',
@@ -39,8 +40,8 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
     private staffService: StaffService
   ) {
     const now = new Date();
-    this.startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    this.endDate = now.toISOString().split('T')[0];
+    this.startDate = getIstInputDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    this.endDate = getIstInputDate(now);
   }
 
   ngOnInit() {

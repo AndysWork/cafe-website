@@ -6,6 +6,7 @@ import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-wastage',
@@ -28,7 +29,7 @@ export class AdminWastageComponent implements OnInit, OnDestroy {
   activeTab: 'records' | 'summary' = 'records';
 
   wastageForm = {
-    date: new Date().toISOString().split('T')[0],
+    date: getIstInputDate(new Date()),
     items: [{ itemName: '', unit: 'pcs', quantity: 1, costPerUnit: 0 }],
     reason: '',
     notes: ''
@@ -37,8 +38,8 @@ export class AdminWastageComponent implements OnInit, OnDestroy {
   constructor(private wastageService: WastageService) {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    this.startDate = firstDay.toISOString().split('T')[0];
-    this.endDate = now.toISOString().split('T')[0];
+    this.startDate = getIstInputDate(firstDay);
+    this.endDate = getIstInputDate(now);
   }
 
   ngOnInit() {
@@ -67,7 +68,7 @@ export class AdminWastageComponent implements OnInit, OnDestroy {
 
   openCreateModal() {
     this.wastageForm = {
-      date: new Date().toISOString().split('T')[0],
+      date: getIstInputDate(new Date()),
       items: [{ itemName: '', unit: 'pcs', quantity: 1, costPerUnit: 0 }],
       reason: '',
       notes: ''

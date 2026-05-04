@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { TableReservationService, TableReservation, CreateReservationRequest } from '../../services/table-reservation.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-table-reservation',
@@ -44,7 +45,7 @@ export class TableReservationComponent implements OnInit {
   ngOnInit() {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    this.form.reservationDate = tomorrow.toISOString().split('T')[0];
+    this.form.reservationDate = getIstInputDate(tomorrow);
 
     this.outletService.getAllOutlets().subscribe({
       next: (outlets: any[]) => this.outlets = outlets
@@ -88,7 +89,7 @@ export class TableReservationComponent implements OnInit {
     this.form = { customerName: '', customerPhone: '', partySize: 2, reservationDate: '', timeSlot: '', specialRequests: '' };
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    this.form.reservationDate = tomorrow.toISOString().split('T')[0];
+    this.form.reservationDate = getIstInputDate(tomorrow);
   }
 
   cancelReservation(id: string) {
@@ -99,7 +100,7 @@ export class TableReservationComponent implements OnInit {
   }
 
   getMinDate(): string {
-    return new Date().toISOString().split('T')[0];
+    return getIstInputDate(new Date());
   }
 
   getStatusClass(status: string): string {
@@ -108,6 +109,11 @@ export class TableReservationComponent implements OnInit {
 
   formatDate(dateStr?: string): string {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata'
+    });
   }
 }

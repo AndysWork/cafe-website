@@ -22,6 +22,7 @@ import {
   INGREDIENT_CATEGORIES,
   MEASUREMENT_UNITS
 } from '../../models/ingredient.model';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-price-calculator',
@@ -895,8 +896,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     startDate.setDate(startDate.getDate() - 90);
 
     const params = new URLSearchParams();
-    params.append('startDate', startDate.toISOString().split('T')[0]);
-    params.append('endDate', endDate.toISOString().split('T')[0]);
+    params.append('startDate', getIstInputDate(startDate));
+    params.append('endDate', getIstInputDate(endDate));
 
     this.http.get<any>(`${environment.apiUrl}/online-sales/kpt-analysis?${params.toString()}`)
       .subscribe({

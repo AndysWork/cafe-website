@@ -7,6 +7,7 @@ import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { getIstInputDate, getIstStartOfDay, getIstEndOfDay } from '../../utils/date-utils';
 
 interface ProfitData {
   totalRevenue: number;
@@ -87,31 +88,31 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
 
   setDefaultDateRange(): void {
     const now = new Date();
-    this.endDate = now.toISOString().split('T')[0];
+    this.endDate = getIstInputDate(now);
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    this.startDate = startOfMonth.toISOString().split('T')[0];
+    this.startDate = getIstInputDate(startOfMonth);
   }
 
   onDateRangeChange(): void {
     const now = new Date();
-    this.endDate = now.toISOString().split('T')[0];
+    this.endDate = getIstInputDate(now);
 
     switch (this.dateRange) {
       case 'today':
-        this.startDate = now.toISOString().split('T')[0];
+        this.startDate = getIstInputDate(now);
         break;
       case 'week':
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        this.startDate = weekAgo.toISOString().split('T')[0];
+        this.startDate = getIstInputDate(weekAgo);
         break;
       case 'month':
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        this.startDate = monthAgo.toISOString().split('T')[0];
+        this.startDate = getIstInputDate(monthAgo);
         break;
       case 'year':
         const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        this.startDate = yearAgo.toISOString().split('T')[0];
+        this.startDate = getIstInputDate(yearAgo);
         break;
     }
 
@@ -144,9 +145,8 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
   }
 
   calculateProfitData(orders: any[], expenses: any[]): void {
-    const startDate = new Date(this.startDate);
-    const endDate = new Date(this.endDate);
-    endDate.setHours(23, 59, 59, 999);
+    const startDate = getIstStartOfDay(this.startDate);
+    const endDate = getIstEndOfDay(this.endDate);
 
     // Filter orders and expenses by date range
     const filteredOrders = orders.filter(order => {

@@ -20,6 +20,7 @@ import {
   DEFAULT_BONUS_TIERS,
   BonusTier,
 } from '../../models/bonus.model';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-bonus-calculation',
@@ -131,8 +132,8 @@ export class BonusCalculationComponent implements OnInit {
       0
     );
 
-    this.startDate = firstDayOfMonth.toISOString().split('T')[0];
-    this.endDate = lastDayOfMonth.toISOString().split('T')[0];
+    this.startDate = getIstInputDate(firstDayOfMonth);
+    this.endDate = getIstInputDate(lastDayOfMonth);
   }
 
   loadStaff(): void {

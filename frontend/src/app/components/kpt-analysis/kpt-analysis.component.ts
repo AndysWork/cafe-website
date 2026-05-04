@@ -232,7 +232,7 @@ export class KptAnalysisComponent implements OnInit, OnDestroy {
       .map(row => row.map(cell => `"${cell}"`).join(','))
       .join('\n');
 
-    downloadFile(csvContent, `kpt-analysis-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
+    downloadFile(csvContent, `kpt-analysis-${getIstInputDate(new Date())}.csv`, 'text/csv;charset=utf-8;');
   }
 
   trackByIndex(index: number): number { return index; }

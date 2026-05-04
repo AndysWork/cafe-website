@@ -5687,33 +5687,121 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // isUpdate: if true, only updates existing recipes; if false, creates new recipes in outlets that don't have them
     private async Task CopyRecipeToOtherOutletsAsync(MenuItemRecipe sourceRecipe, bool isUpdate = false)
     {
-        if (string.IsNullOrEmpty(sourceRecipe.MenuItemName) || string.IsNullOrEmpty(sourceRecipe.OutletId))
+        if (string.IsNullOrEmpty(sourceRecipe.MenuItemName))
         {
-            _logger.LogDebug("[Recipe Copy] Skipping copy - MenuItemName: {sourceRecipe.MenuItemName}, OutletId: {sourceRecipe.OutletId}");
+            _logger.LogDebug("[Recipe Copy] Skipping copy - MenuItemName is missing");
             return;
         }
 
+        // Resolve outlet/menu context so copy still works when the client doesn't send outletId.
+        var allOutlets = await GetAllOutletsAsync();
+        var sourceOutletId = sourceRecipe.OutletId;
+
         _logger.LogDebug("[Recipe Copy] Starting automatic {Action} for recipe: {RecipeName} from outlet: {OutletId}", 
-            isUpdate ? "update" : "copy", sourceRecipe.MenuItemName, sourceRecipe.OutletId);
+            isUpdate ? "update" : "copy", sourceRecipe.MenuItemName, sourceOutletId);
 
         // Get source menu item to copy its details
         CafeMenuItem? sourceMenuItem = null;
         if (!string.IsNullOrEmpty(sourceRecipe.MenuItemId))
         {
             sourceMenuItem = await GetMenuItemAsync(sourceRecipe.MenuItemId);
+            if (sourceMenuItem != null && string.IsNullOrEmpty(sourceOutletId))
+            {
+                sourceOutletId = sourceMenuItem.OutletId;
+            }
         }
-        else
+
+        if (sourceMenuItem == null && !string.IsNullOrEmpty(sourceOutletId))
         {
-            sourceMenuItem = await GetMenuItemsByNameAndOutletAsync(sourceRecipe.MenuItemName, sourceRecipe.OutletId);
+            sourceMenuItem = await GetMenuItemsByNameAndOutletAsync(sourceRecipe.MenuItemName, sourceOutletId);
         }
 
         if (sourceMenuItem == null)
         {
-            _logger.LogDebug("[Recipe Copy] Warning: Source menu item not found for recipe: {sourceRecipe.MenuItemName}");
+            var escapedName = System.Text.RegularExpressions.Regex.Escape(sourceRecipe.MenuItemName.Trim());
+            var activeOutletIds = allOutlets
+                .Where(o => o.IsActive && !string.IsNullOrEmpty(o.Id))
+                .Select(o => o.Id!)
+                .ToList();
+
+            if (activeOutletIds.Any())
+            {
+                var sourceFilter = Builders<CafeMenuItem>.Filter.And(
+                    Builders<CafeMenuItem>.Filter.Regex(
+                        m => m.Name,
+                        new MongoDB.Bson.BsonRegularExpression($"^{escapedName}$", "i")
+                    ),
+                    Builders<CafeMenuItem>.Filter.In(m => m.OutletId, activeOutletIds),
+                    Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true)
+                );
+
+                sourceMenuItem = await _menu.Find(sourceFilter).FirstOrDefaultAsync();
+                if (sourceMenuItem != null)
+                {
+                    sourceOutletId = sourceMenuItem.OutletId;
+                }
+            }
+        }
+
+        if (string.IsNullOrEmpty(sourceOutletId))
+        {
+            sourceOutletId = allOutlets.FirstOrDefault(o => o.IsActive && !string.IsNullOrEmpty(o.Id))?.Id;
+        }
+
+        if (string.IsNullOrEmpty(sourceOutletId))
+        {
+            _logger.LogDebug("[Recipe Copy] Skipping copy - unable to resolve source outlet for recipe: {RecipeName}", sourceRecipe.MenuItemName);
+            return;
+        }
+
+        // Persist resolved context for downstream logic.
+        sourceRecipe.OutletId = sourceOutletId;
+        if (string.IsNullOrEmpty(sourceRecipe.MenuItemId) && !string.IsNullOrEmpty(sourceMenuItem?.Id))
+        {
+            sourceRecipe.MenuItemId = sourceMenuItem.Id;
+        }
+
+        if (sourceMenuItem == null)
+        {
+            _logger.LogDebug("[Recipe Copy] Source menu item not found for recipe: {sourceRecipe.MenuItemName}. Creating base menu item in source outlet.");
+
+            var fallbackSellingPrice = sourceRecipe.PriceForecast?.ShopPrice
+                ?? sourceRecipe.ActualSellingPrice
+                ?? sourceRecipe.SuggestedSellingPrice;
+
+            var newSourceMenuItem = new CafeMenuItem
+            {
+                Name = sourceRecipe.MenuItemName,
+                Description = sourceRecipe.Notes ?? string.Empty,
+                Category = "General",
+                OutletId = sourceRecipe.OutletId!,
+                MakingPrice = sourceRecipe.TotalMakingCost,
+                OnlinePrice = sourceRecipe.PriceForecast?.OnlinePrice ?? fallbackSellingPrice,
+                DineInPrice = fallbackSellingPrice,
+                ShopSellingPrice = fallbackSellingPrice,
+                PackagingCharge = sourceRecipe.PriceForecast?.PackagingCost ?? 0,
+                IsAvailable = true,
+                FutureShopPrice = sourceRecipe.PriceForecast?.FutureShopPrice,
+                FutureOnlinePrice = sourceRecipe.PriceForecast?.FutureOnlinePrice,
+                CreatedBy = "System - Auto Create",
+                LastUpdatedBy = "System - Auto Create"
+            };
+
+            sourceMenuItem = await CreateMenuItemAsync(newSourceMenuItem);
+            sourceRecipe.MenuItemId = sourceMenuItem.Id;
+            _logger.LogDebug("[Recipe Copy] Created source menu item for recipe: {RecipeName}, MenuItemId: {MenuItemId}", sourceRecipe.MenuItemName, sourceMenuItem.Id);
+
+            // Keep the source recipe linked to the newly created menu item.
+            if (!string.IsNullOrEmpty(sourceRecipe.Id) && !string.IsNullOrEmpty(sourceRecipe.MenuItemId))
+            {
+                var linkUpdate = Builders<MenuItemRecipe>.Update
+                    .Set(r => r.MenuItemId, sourceRecipe.MenuItemId)
+                    .Set(r => r.UpdatedAt, GetIstNow());
+                await _recipes.UpdateOneAsync(r => r.Id == sourceRecipe.Id, linkUpdate);
+            }
         }
 
         // Get all active outlets except the source outlet
-        var allOutlets = await GetAllOutletsAsync();
         var targetOutlets = allOutlets.Where(o => o.IsActive && o.Id != sourceRecipe.OutletId).ToList();
 
         _logger.LogDebug("[Recipe Copy] Found {targetOutlets.Count} target outlets to copy to");

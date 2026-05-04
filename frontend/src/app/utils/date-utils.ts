@@ -18,8 +18,7 @@ export function getIstNow(): Date {
  * Get current IST date in YYYY-MM-DD format
  */
 export function getIstDateString(): string {
-  const istNow = getIstNow();
-  return istNow.toISOString().split('T')[0];
+  return getIstInputDate(getIstNow());
 }
 
 /**
