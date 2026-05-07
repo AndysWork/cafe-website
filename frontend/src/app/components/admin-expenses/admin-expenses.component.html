@@ -561,7 +561,7 @@
                 (change)="calculateRent()"
                 required
               >
-                <option *ngFor="let month of months; trackBy: trackByIndex" [value]="month.value">
+                <option *ngFor="let month of months; trackBy: trackByIndex" [ngValue]="month.value">
                   {{ month.name }}
                 </option>
               </select>

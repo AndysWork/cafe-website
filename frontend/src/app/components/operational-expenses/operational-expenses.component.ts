@@ -229,7 +229,17 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
         }
       });
     } else {
-      this.operationalExpenseService.createOperationalExpense(this.formData).subscribe({
+      const createRequest: CreateOperationalExpenseRequest = {
+        month: Number(this.formData.month),
+        year: Number(this.formData.year),
+        cookSalary: Number(this.formData.cookSalary),
+        helperSalary: Number(this.formData.helperSalary),
+        electricity: Number(this.formData.electricity),
+        machineMaintenance: Number(this.formData.machineMaintenance),
+        misc: Number(this.formData.misc),
+        notes: this.formData.notes
+      };
+      this.operationalExpenseService.createOperationalExpense(createRequest).subscribe({
         next: () => {
           this.loadExpenses();
           this.closeModal();

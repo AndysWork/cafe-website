@@ -34,6 +34,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return TimeZoneInfo.ConvertTimeToUtc(istDateTime, IstTimeZone);
     }
 
+    // Get UTC range for a given IST calendar day [start, end)
+    private static (DateTime utcStart, DateTime utcEnd) GetUtcRangeForIstDay(DateTime istDate)
+    {
+        var istStart = new DateTime(istDate.Year, istDate.Month, istDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
+        var utcStart = TimeZoneInfo.ConvertTimeToUtc(istStart, IstTimeZone);
+        var utcEnd = utcStart.AddDays(1);
+        return (utcStart, utcEnd);
+    }
+
     private readonly IMongoCollection<CafeMenuItem> _menu;
     private readonly IMongoCollection<MenuCategory> _categories;
     private readonly IMongoCollection<MenuSubCategory> _subCategories;
@@ -4300,8 +4309,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         }
         
         // Get today's expenses to calculate closing online balance
-        var startOfDay = reconciliation.Date.Date;
-        var endOfDay = startOfDay.AddDays(1);
+        var (startOfDay, endOfDay) = GetUtcRangeForIstDay(reconciliation.Date);
         var expenses = await _expenses
             .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
             .ToListAsync();
@@ -4332,11 +4340,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Get reconciliation for a specific date
     public async Task<DailyCashReconciliation?> GetCashReconciliationByDateAsync(DateTime date, string? outletId = null)
     {
-        var startOfDay = date.Date;
-        var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+        var (startOfDay, endOfDay) = GetUtcRangeForIstDay(date);
         
         var filterBuilder = Builders<DailyCashReconciliation>.Filter;
-        var filter = filterBuilder.Gte(r => r.Date, startOfDay) & filterBuilder.Lte(r => r.Date, endOfDay);
+        var filter = filterBuilder.Gte(r => r.Date, startOfDay) & filterBuilder.Lt(r => r.Date, endOfDay);
         
         if (!string.IsNullOrEmpty(outletId))
             filter &= filterBuilder.Eq(r => r.OutletId, outletId);
@@ -4353,14 +4360,14 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         
         if (startDate.HasValue)
         {
-            var start = startDate.Value.Date;
+            var (start, _) = GetUtcRangeForIstDay(startDate.Value);
             filter &= Builders<DailyCashReconciliation>.Filter.Gte(r => r.Date, start);
         }
         
         if (endDate.HasValue)
         {
-            var end = endDate.Value.Date.AddDays(1).AddTicks(-1);
-            filter &= Builders<DailyCashReconciliation>.Filter.Lte(r => r.Date, end);
+            var (_, endExclusive) = GetUtcRangeForIstDay(endDate.Value);
+            filter &= Builders<DailyCashReconciliation>.Filter.Lt(r => r.Date, endExclusive);
         }
         
         if (!string.IsNullOrEmpty(outletId))
@@ -4391,8 +4398,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         }
         
         // Get today's expenses to calculate closing online balance
-        var startOfDay = reconciliation.Date.Date;
-        var endOfDay = startOfDay.AddDays(1);
+        var (startOfDay, endOfDay) = GetUtcRangeForIstDay(reconciliation.Date);
         var expenses = await _expenses
             .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
             .ToListAsync();
@@ -4537,8 +4543,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Get sales summary for expected values calculation
     public async Task<object> GetDailySalesSummaryForReconciliationAsync(DateTime date, string? outletId = null)
     {
-        var startOfDay = date.Date;
-        var endOfDay = startOfDay.AddDays(1);
+        var (startOfDay, endOfDay) = GetUtcRangeForIstDay(date);
         
         // Build filters with outlet ID
         var filterBuilder = Builders<Sales>.Filter;

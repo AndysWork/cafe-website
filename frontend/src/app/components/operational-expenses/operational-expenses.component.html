@@ -121,7 +121,7 @@
             <div class="form-group">
               <label>Month *</label>
               <select [(ngModel)]="formData.month" name="month" [disabled]="isEditMode" (change)="calculateRent()" required>
-                <option *ngFor="let month of months; trackBy: trackByIndex" [value]="month.value">{{ month.name }}</option>
+                <option *ngFor="let month of months; trackBy: trackByIndex" [ngValue]="month.value">{{ month.name }}</option>
               </select>
             </div>
             <div class="form-group">
