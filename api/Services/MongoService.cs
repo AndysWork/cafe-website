@@ -4327,8 +4327,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         reconciliation.TotalDeficit = reconciliation.ExpectedTotal - reconciliation.CountedTotal;
         
         // Closing balances
-        // Cash & Coins = Today's collected amounts
-        reconciliation.ClosingCashBalance = reconciliation.CountedCash;
+        // Cash & Coins = Today's collected amounts minus savings transferred out
+        reconciliation.ClosingCashBalance = reconciliation.CountedCash - reconciliation.SavingsAmount;
         reconciliation.ClosingCoinBalance = reconciliation.CountedCoins;
         // Online = Previous online balance + today's online collection - online expenses
         reconciliation.ClosingOnlineBalance = reconciliation.OpeningOnlineBalance + reconciliation.ActualOnline - onlineExpenses;
@@ -4416,8 +4416,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         reconciliation.TotalDeficit = reconciliation.ExpectedTotal - reconciliation.CountedTotal;
         
         // Closing balances
-        // Cash & Coins = Today's collected amounts
-        reconciliation.ClosingCashBalance = reconciliation.CountedCash;
+        // Cash & Coins = Today's collected amounts minus savings transferred out
+        reconciliation.ClosingCashBalance = reconciliation.CountedCash - reconciliation.SavingsAmount;
         reconciliation.ClosingCoinBalance = reconciliation.CountedCoins;
         // Online = Previous online balance + today's online collection - online expenses
         reconciliation.ClosingOnlineBalance = reconciliation.OpeningOnlineBalance + reconciliation.ActualOnline - onlineExpenses;
@@ -4492,8 +4492,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             reconciliation.TotalDeficit = reconciliation.ExpectedTotal - reconciliation.CountedTotal;
             
             // Closing balances
-            // Cash & Coins = Today's collected amounts
-            reconciliation.ClosingCashBalance = reconciliation.CountedCash;
+            // Cash & Coins = Today's collected amounts minus savings transferred out
+            reconciliation.ClosingCashBalance = reconciliation.CountedCash - reconciliation.SavingsAmount;
             reconciliation.ClosingCoinBalance = reconciliation.CountedCoins;
             // Online = Previous online balance + today's online collection - online expenses
             reconciliation.ClosingOnlineBalance = reconciliation.OpeningOnlineBalance + reconciliation.ActualOnline - onlineExpenses;
@@ -4535,6 +4535,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             TotalCoinDeficit = reconciliations.Sum(r => r.CoinDeficit),
             TotalOnlineDeficit = reconciliations.Sum(r => r.OnlineDeficit),
             TotalDeficit = reconciliations.Sum(r => r.TotalDeficit),
+            TotalSavings = reconciliations.Sum(r => r.SavingsAmount),
             ReconciledDays = reconciliations.Count(r => r.IsReconciled),
             UnreconciledDays = reconciliations.Count(r => !r.IsReconciled)
         };

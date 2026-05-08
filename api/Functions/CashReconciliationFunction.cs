@@ -166,6 +166,7 @@ public class CashReconciliationFunction
                 CountedCash = request.CountedCash,
                 CountedCoins = request.CountedCoins,
                 ActualOnline = request.ActualOnline,
+                SavingsAmount = request.SavingsAmount,
                 Notes = request.Notes
             };
 
@@ -213,6 +214,7 @@ public class CashReconciliationFunction
             current.CountedCash = request.CountedCash;
             current.CountedCoins = request.CountedCoins;
             current.ActualOnline = request.ActualOnline;
+            current.SavingsAmount = request.SavingsAmount;
             current.Notes = request.Notes;
             current.IsReconciled = request.IsReconciled;
 

@@ -33,6 +33,7 @@ interface CashReconciliation {
   countedCoins: number;
   actualOnline: number;
   countedTotal: number;
+  savingsAmount: number;
   cashDeficit: number;
   coinDeficit: number;
   onlineDeficit: number;
@@ -76,6 +77,7 @@ export class CashierComponent implements OnInit, OnDestroy {
     countedCoins: 0,
     actualOnline: 0,
     countedTotal: 0,
+    savingsAmount: 0,
     cashDeficit: 0,
     coinDeficit: 0,
     onlineDeficit: 0,
@@ -144,6 +146,7 @@ export class CashierComponent implements OnInit, OnDestroy {
     this.reconciliation.countedCash = 0;
     this.reconciliation.countedCoins = 0;
     this.reconciliation.actualOnline = 0;
+    this.reconciliation.savingsAmount = 0;
     this.reconciliation.openingCashBalance = 0;
     this.reconciliation.openingCoinBalance = 0;
     this.reconciliation.openingOnlineBalance = 0;
@@ -255,6 +258,7 @@ export class CashierComponent implements OnInit, OnDestroy {
         countedCash: this.reconciliation.countedCash,
         countedCoins: this.reconciliation.countedCoins,
         actualOnline: this.reconciliation.actualOnline,
+        savingsAmount: this.reconciliation.savingsAmount,
         notes: this.reconciliation.notes,
         isReconciled: this.reconciliation.isReconciled
       };

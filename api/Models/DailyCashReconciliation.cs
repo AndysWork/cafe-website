@@ -77,6 +77,10 @@ public class DailyCashReconciliation
     [BsonElement("closingOnlineBalance")]
     public decimal ClosingOnlineBalance { get; set; }
 
+    // Savings Transfer
+    [BsonElement("savingsAmount")]
+    public decimal SavingsAmount { get; set; } // Cash taken out of till into savings account
+
     // Additional Information
     [BsonElement("notes")]
     public string? Notes { get; set; }
@@ -118,6 +122,9 @@ public class CreateDailyCashReconciliationRequest
     [Range(0, 10000000, ErrorMessage = "Actual online must be between 0 and 10,000,000")]
     public decimal ActualOnline { get; set; }
 
+    [Range(0, 10000000, ErrorMessage = "Savings amount must be between 0 and 10,000,000")]
+    public decimal SavingsAmount { get; set; }
+
     [StringLength(1000, ErrorMessage = "Notes cannot exceed 1000 characters")]
     public string? Notes { get; set; }
 }
@@ -132,6 +139,9 @@ public class UpdateDailyCashReconciliationRequest
 
     [Range(0, 10000000, ErrorMessage = "Actual online must be between 0 and 10,000,000")]
     public decimal ActualOnline { get; set; }
+
+    [Range(0, 10000000, ErrorMessage = "Savings amount must be between 0 and 10,000,000")]
+    public decimal SavingsAmount { get; set; }
 
     [StringLength(1000, ErrorMessage = "Notes cannot exceed 1000 characters")]
     public string? Notes { get; set; }

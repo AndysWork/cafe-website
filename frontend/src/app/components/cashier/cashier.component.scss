@@ -356,6 +356,14 @@
       resize: vertical;
       min-height: 80px;
     }
+
+    .form-hint {
+      display: block;
+      margin-top: 0.4rem;
+      font-size: 0.8rem;
+      color: #64748b;
+      font-style: italic;
+    }
   }
 
   .checkbox-label {

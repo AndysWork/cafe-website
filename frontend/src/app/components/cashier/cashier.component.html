@@ -229,6 +229,20 @@
               placeholder="Enter collected online payments"
             />
           </div>
+          <div class="form-group">
+            <label for="savingsAmount">🏦 Transferred to Savings</label>
+            <input
+              type="number"
+              id="savingsAmount"
+              [(ngModel)]="reconciliation.savingsAmount"
+              (ngModelChange)="calculateTotals()"
+              min="0"
+              step="0.01"
+              class="form-control"
+              placeholder="Cash taken from till into savings account"
+            />
+            <small class="form-hint">Amount withdrawn from cash till and deposited into savings account. This will be deducted from the closing cash balance.</small>
+          </div>
           <div class="total-display">
             <span class="label">Collected Total:</span>
             <span class="value">₹{{ reconciliation.countedTotal | number:'1.2-2' }}</span>
@@ -270,10 +284,14 @@
               <span class="label">Online:</span>
               <span class="value">₹{{ reconciliation.closingOnlineBalance | number:'1.2-2' }}</span>
             </div>
+            <div class="balance-item" *ngIf="reconciliation.savingsAmount > 0">
+              <span class="label">🏦 Savings Transfer:</span>
+              <span class="value" style="color:#f59e0b">−₹{{ reconciliation.savingsAmount | number:'1.2-2' }}</span>
+            </div>
           </div>
         </div>
         <p class="info-text">
-          <em>💡 Opening balances are auto-calculated from previous day's closing balances. Closing balances = Opening + Collected amounts.</em>
+          <em>💡 Opening balances are auto-calculated from previous day's closing balances. Closing cash = Collected cash − Savings transferred. Closing online = Opening + Collected − Online expenses.</em>
         </p>
       </div>
 
