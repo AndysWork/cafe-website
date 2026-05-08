@@ -124,9 +124,9 @@ public static class ValidationHelper
     /// <summary>
     /// Reads, sanitizes, and validates a JSON request body in a single call.
     /// Replaces the per-function pattern of ReadFromJsonAsync + null check + sanitize + validate.
-    /// Returns either the validated model or an HttpResponseData error.
+    /// Returns either the validated non-null model or an HttpResponseData error.
     /// </summary>
-    public static async Task<(T? Model, HttpResponseData? ErrorResponse)> ValidateBody<T>(HttpRequestData req) where T : class
+    public static async Task<(T Model, HttpResponseData? ErrorResponse)> ValidateBody<T>(HttpRequestData req) where T : class
     {
         T? model;
         try
@@ -137,14 +137,14 @@ public static class ValidationHelper
         {
             var error = req.CreateResponse(HttpStatusCode.BadRequest);
             await error.WriteAsJsonAsync(new { success = false, error = "Invalid JSON format" });
-            return (null, error);
+            return (default!, error);
         }
 
         if (model == null)
         {
             var error = req.CreateResponse(HttpStatusCode.BadRequest);
             await error.WriteAsJsonAsync(new { success = false, error = "Request body is required" });
-            return (null, error);
+            return (default!, error);
         }
 
         // Sanitize all string properties recursively
@@ -163,7 +163,7 @@ public static class ValidationHelper
 
             var error = req.CreateResponse(HttpStatusCode.BadRequest);
             await error.WriteAsJsonAsync(new { success = false, message = "Validation failed", errors });
-            return (null, error);
+            return (default!, error);
         }
 
         return (model, null);

@@ -72,22 +72,28 @@
         <!-- Menu Item Name -->
         <div class="form-section">
           <label>Menu Item Name <span class="required">*</span></label>
-          <input
-            type="text"
-            list="menuItemsList"
-            [(ngModel)]="currentRecipe.menuItemName"
-            (change)="onMenuItemNameChange()"
-            placeholder="e.g., Chicken Biryani, Paneer Butter Masala"
-            class="form-input">
-          <datalist id="menuItemsList">
-            <!-- Show existing menu items -->
-            <option *ngFor="let item of menuItems; trackBy: trackByObjId" [value]="item.name"></option>
-            <!-- Show recipe names that aren't in menu yet -->
-            <ng-container *ngFor="let recipe of recipes; trackBy: trackByObjId">
-              <option *ngIf="isRecipeNotInMenu(recipe)"
-                      [value]="recipe.menuItemName"></option>
-            </ng-container>
-          </datalist>
+          <div class="menu-item-search">
+            <input
+              type="text"
+              [(ngModel)]="currentRecipe.menuItemName"
+              (input)="onMenuItemNameInput()"
+              (focus)="onMenuItemNameFocus()"
+              (blur)="hideMenuItemSuggestions()"
+              (change)="onMenuItemNameChange()"
+              placeholder="e.g., Chicken Biryani, Paneer Butter Masala"
+              class="form-input">
+
+            <div class="menu-item-suggestions" *ngIf="showMenuItemSuggestions && menuItemSuggestions.length > 0">
+              <button
+                type="button"
+                class="menu-item-suggestion"
+                *ngFor="let suggestion of menuItemSuggestions; trackBy: trackByIndex"
+                (mousedown)="selectMenuItemSuggestion(suggestion.name, $event)">
+                <span>{{suggestion.name}}</span>
+                <small>{{suggestion.source === 'menu' ? 'Existing menu item' : 'Saved recipe only'}}</small>
+              </button>
+            </div>
+          </div>
           <small class="form-hint">💡 Start typing to select from existing menu items or recipes, or enter a new name</small>
           <small class="form-hint" style="color: #10b981; font-weight: 600;" *ngIf="isMenuItemLinked()">
             ✅ Linked to menu - prices will auto-update when saved

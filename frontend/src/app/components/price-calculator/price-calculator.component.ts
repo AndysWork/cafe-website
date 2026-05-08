@@ -84,6 +84,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   // Recipe/Calculator
   currentRecipe: MenuItemRecipe = this.getEmptyRecipe();
   selectedIngredient: Ingredient | null = null;
+  showMenuItemSuggestions = false;
   isCalculatingOverhead = false;
   selectedIngredientId: string = '';
   ingredientQuantity = 0;
@@ -238,6 +239,27 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       .subscribe(items => {
         this.menuItems = items;
       });
+  }
+
+  onMenuItemNameInput(): void {
+    this.showMenuItemSuggestions = true;
+  }
+
+  onMenuItemNameFocus(): void {
+    this.showMenuItemSuggestions = true;
+  }
+
+  hideMenuItemSuggestions(): void {
+    setTimeout(() => {
+      this.showMenuItemSuggestions = false;
+    }, 150);
+  }
+
+  selectMenuItemSuggestion(name: string, event?: Event): void {
+    event?.preventDefault();
+    this.currentRecipe.menuItemName = name;
+    this.showMenuItemSuggestions = false;
+    this.onMenuItemNameChange();
   }
 
   loadOverheadCosts(): void {
@@ -862,6 +884,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   onMenuItemNameChange(): void {
+    this.showMenuItemSuggestions = false;
+
     // Check if a recipe exists for this menu item
     const existingRecipe = this.recipes.find(
       r => r.menuItemName.toLowerCase() === this.currentRecipe.menuItemName.toLowerCase()
@@ -1719,6 +1743,38 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     return !this.menuItems.some(m =>
       m.name.toLowerCase() === recipe.menuItemName.toLowerCase()
     );
+  }
+
+  get menuItemSuggestions(): Array<{ name: string; source: 'menu' | 'recipe' }> {
+    const searchTerm = this.currentRecipe.menuItemName.trim().toLowerCase();
+    const suggestions: Array<{ name: string; source: 'menu' | 'recipe' }> = [];
+    const seen = new Set<string>();
+
+    for (const item of this.menuItems) {
+      const normalizedName = item.name.trim().toLowerCase();
+      if (!normalizedName || seen.has(normalizedName)) {
+        continue;
+      }
+
+      if (!searchTerm || normalizedName.includes(searchTerm)) {
+        suggestions.push({ name: item.name, source: 'menu' });
+        seen.add(normalizedName);
+      }
+    }
+
+    for (const recipe of this.recipes) {
+      const normalizedName = recipe.menuItemName.trim().toLowerCase();
+      if (!normalizedName || seen.has(normalizedName)) {
+        continue;
+      }
+
+      if (!searchTerm || normalizedName.includes(searchTerm)) {
+        suggestions.push({ name: recipe.menuItemName, source: 'recipe' });
+        seen.add(normalizedName);
+      }
+    }
+
+    return suggestions.sort((left, right) => left.name.localeCompare(right.name));
   }
 
   getCategoryLabel(value: string): string {
