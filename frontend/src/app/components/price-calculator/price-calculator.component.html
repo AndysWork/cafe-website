@@ -89,14 +89,19 @@
                 class="menu-item-suggestion"
                 *ngFor="let suggestion of menuItemSuggestions; trackBy: trackByIndex"
                 (mousedown)="selectMenuItemSuggestion(suggestion.name, $event)">
-                <span>{{suggestion.name}}</span>
-                <small>{{suggestion.source === 'menu' ? 'Existing menu item' : 'Saved recipe only'}}</small>
+                <span class="suggestion-title">{{suggestion.name}}</span>
+                <span class="suggestion-badge" [class.existing]="suggestion.recipeExists" [class.missing]="!suggestion.recipeExists">
+                  {{suggestion.recipeExists ? 'Recipe exists' : 'No recipe yet'}}
+                </span>
               </button>
             </div>
           </div>
           <small class="form-hint">💡 Start typing to select from existing menu items or recipes, or enter a new name</small>
           <small class="form-hint" style="color: #10b981; font-weight: 600;" *ngIf="isMenuItemLinked()">
             ✅ Linked to menu - prices will auto-update when saved
+          </small>
+          <small class="form-hint" style="color: #8b5cf6; font-weight: 600;" *ngIf="currentRecipe.menuItemName && hasRecipeForMenuItem(currentRecipe.menuItemName)">
+            📋 Recipe already exists for this menu item
           </small>
           <small class="form-hint" style="color: #3b82f6; font-weight: 600;" *ngIf="currentRecipe.menuItemName && !isMenuItemLinked()">
             ➕ New menu item will be created when saved

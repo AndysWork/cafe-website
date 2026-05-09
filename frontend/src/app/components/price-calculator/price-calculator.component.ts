@@ -1731,6 +1731,15 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   // ===== UTILITY METHODS =====
 
+  hasRecipeForMenuItem(menuItemName: string): boolean {
+    const normalizedName = menuItemName.trim().toLowerCase();
+    if (!normalizedName) return false;
+
+    return this.recipes.some(recipe =>
+      recipe.menuItemName.trim().toLowerCase() === normalizedName
+    );
+  }
+
   isMenuItemLinked(): boolean {
     if (!this.currentRecipe.menuItemName) return false;
     return this.menuItems.some(m =>
@@ -1745,9 +1754,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     );
   }
 
-  get menuItemSuggestions(): Array<{ name: string; source: 'menu' | 'recipe' }> {
+  get menuItemSuggestions(): Array<{ name: string; source: 'menu' | 'recipe'; recipeExists: boolean }> {
     const searchTerm = this.currentRecipe.menuItemName.trim().toLowerCase();
-    const suggestions: Array<{ name: string; source: 'menu' | 'recipe' }> = [];
+    const suggestions: Array<{ name: string; source: 'menu' | 'recipe'; recipeExists: boolean }> = [];
     const seen = new Set<string>();
 
     for (const item of this.menuItems) {
@@ -1757,7 +1766,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       }
 
       if (!searchTerm || normalizedName.includes(searchTerm)) {
-        suggestions.push({ name: item.name, source: 'menu' });
+        suggestions.push({
+          name: item.name,
+          source: 'menu',
+          recipeExists: this.hasRecipeForMenuItem(item.name)
+        });
         seen.add(normalizedName);
       }
     }
@@ -1769,7 +1782,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       }
 
       if (!searchTerm || normalizedName.includes(searchTerm)) {
-        suggestions.push({ name: recipe.menuItemName, source: 'recipe' });
+        suggestions.push({
+          name: recipe.menuItemName,
+          source: 'recipe',
+          recipeExists: true
+        });
         seen.add(normalizedName);
       }
     }

@@ -214,14 +214,31 @@
       cursor: pointer;
       text-align: left;
 
-      span {
+      .suggestion-title {
         color: #0f172a;
         font-weight: 600;
       }
 
-      small {
-        color: #64748b;
+      .suggestion-badge {
+        flex-shrink: 0;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 0.25rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
         white-space: nowrap;
+
+        &.existing {
+          background: #ecfdf5;
+          color: #047857;
+          border-color: #a7f3d0;
+        }
+
+        &.missing {
+          background: #fef3c7;
+          color: #92400e;
+          border-color: #fcd34d;
+        }
       }
 
       &:hover {
