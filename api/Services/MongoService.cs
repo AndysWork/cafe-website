@@ -5373,6 +5373,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await _ingredients.Find(i => i.Id == id && i.OutletId == outletId && i.IsDeleted != true).FirstOrDefaultAsync();
     }
 
+    // Raw lookup ignoring soft-delete and outlet — used for update pre-check
+    public async Task<Ingredient?> GetIngredientByIdRawAsync(string id)
+    {
+        return await _ingredients.Find(i => i.Id == id).FirstOrDefaultAsync();
+    }
+
     public async Task<List<Ingredient>> GetIngredientsByCategoryAsync(string category, string? outletId = null)
     {
         if (string.IsNullOrEmpty(outletId))
@@ -5406,17 +5412,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<bool> UpdateIngredientAsync(string id, Ingredient ingredient, string? outletId = null)
     {
-        FilterDefinition<Ingredient> filter;
-        if (string.IsNullOrEmpty(outletId))
-            filter = Builders<Ingredient>.Filter.Eq(i => i.Id, id);
-        else
-            filter = Builders<Ingredient>.Filter.And(
-                Builders<Ingredient>.Filter.Eq(i => i.Id, id),
-                Builders<Ingredient>.Filter.Eq(i => i.OutletId, outletId)
-            );
-        
-        var result = await _ingredients.ReplaceOneAsync(filter, ingredient);
-        return result.ModifiedCount > 0;
+        // Ingredients are global — upsert by ID so localStorage-only ingredients get persisted
+        var filter = Builders<Ingredient>.Filter.Eq(i => i.Id, id);
+        var options = new ReplaceOptions { IsUpsert = true };
+        var result = await _ingredients.ReplaceOneAsync(filter, ingredient, options);
+        return result.ModifiedCount > 0 || result.UpsertedId != null;
     }
 
     public async Task<bool> DeleteIngredientAsync(string id, string? outletId = null)

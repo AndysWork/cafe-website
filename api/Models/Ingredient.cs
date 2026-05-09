@@ -11,7 +11,8 @@ namespace Cafe.Api.Models
 
         [BsonElement("outletId")]
         [BsonRepresentation(BsonType.ObjectId)]
-        public string OutletId { get; set; } = string.Empty;
+        [BsonIgnoreIfNull]
+        public string? OutletId { get; set; }
 
         [BsonElement("name")]
         public required string Name { get; set; }

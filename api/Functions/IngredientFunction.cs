@@ -212,26 +212,25 @@ namespace Cafe.Api.Functions
                     return badRequest;
                 }
 
-                var currentIngredient = await _mongoService.GetIngredientByIdAsync(id, outletId);
-                if (currentIngredient == null)
-                {
-                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                    await notFound.WriteAsJsonAsync(new { error = "Ingredient not found" });
-                    return notFound;
-                }
+                // Ingredients are global — find by ID only (ignore outlet & soft-delete for update pre-check)
+                // currentIngredient may be null if it only exists in frontend localStorage — handled via upsert below
+                var currentIngredient = await _mongoService.GetIngredientByIdRawAsync(id);
 
                 ingredient.Name = InputSanitizer.Sanitize(ingredient.Name);
                 ingredient.Category = InputSanitizer.Sanitize(ingredient.Category);
                 ingredient.Unit = InputSanitizer.Sanitize(ingredient.Unit);
 
                 ingredient.Id = id;
+                ingredient.OutletId = currentIngredient?.OutletId; // Preserve original OutletId
+                ingredient.CreatedAt = currentIngredient?.CreatedAt ?? DateTime.UtcNow;
                 ingredient.UpdatedAt = DateTime.UtcNow;
                 ingredient.LastUpdated = DateTime.UtcNow;
+                ingredient.IsDeleted = false; // Restore if soft-deleted
 
                 bool isMajorPriceChange = false;
                 decimal priceChangePercentage = 0;
                 
-                if (currentIngredient.MarketPrice > 0 && ingredient.MarketPrice != currentIngredient.MarketPrice)
+                if (currentIngredient != null && currentIngredient.MarketPrice > 0 && ingredient.MarketPrice != currentIngredient.MarketPrice)
                 {
                     priceChangePercentage = ((ingredient.MarketPrice - currentIngredient.MarketPrice) / currentIngredient.MarketPrice) * 100;
                     isMajorPriceChange = Math.Abs(priceChangePercentage) >= MAJOR_PRICE_CHANGE_THRESHOLD;
@@ -258,9 +257,10 @@ namespace Cafe.Api.Functions
                 var updated = await _mongoService.UpdateIngredientAsync(id, ingredient, outletId);
                 if (!updated)
                 {
-                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                    await notFound.WriteAsJsonAsync(new { error = "Ingredient not found" });
-                    return notFound;
+                    _logger.LogError("UpdateIngredient: upsert failed unexpectedly for id {Id}", id);
+                    var serverError = req.CreateResponse(HttpStatusCode.InternalServerError);
+                    await serverError.WriteAsJsonAsync(new { error = "Failed to save ingredient" });
+                    return serverError;
                 }
 
                 if (isMajorPriceChange)

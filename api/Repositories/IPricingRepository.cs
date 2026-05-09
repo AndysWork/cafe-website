@@ -19,6 +19,7 @@ public interface IPricingRepository
     Task<List<Ingredient>> GetAllIngredientsAsync(int? page = null, int? pageSize = null);
     Task<long> GetAllIngredientsCountAsync();
     Task<Ingredient?> GetIngredientByIdAsync(string id, string? outletId = null);
+    Task<Ingredient?> GetIngredientByIdRawAsync(string id);
     Task<List<Ingredient>> GetIngredientsByCategoryAsync(string category, string? outletId = null);
     Task<List<Ingredient>> SearchIngredientsAsync(string searchTerm, string? outletId = null);
     Task<Ingredient> CreateIngredientAsync(Ingredient ingredient);
