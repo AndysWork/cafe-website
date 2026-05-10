@@ -1,212 +1,183 @@
-<div class="menu-management-container">
-  <div class="header">
-    <div class="header-content">
-      <h1>🍽️ Menu Management</h1>
-      <p>Manage your cafe menu items, variants, and pricing</p>
+﻿<div class="menu-mgmt">
+
+  <!-- ───── Header ───── -->
+  <div class="page-header">
+    <div class="header-left">
+      <h1 class="page-title">Menu Management</h1>
+      <p class="page-sub">Manage items, variants &amp; pricing across all outlets</p>
     </div>
-    <div class="header-actions">
-      <button class="btn-refresh" (click)="refreshMenuItems()" [disabled]="loading" title="Refresh menu items">
-        <span class="icon">🔄</span>
-        Refresh
+    <div class="header-right">
+      <button class="btn btn-icon" (click)="refreshMenuItems()" [disabled]="loading" title="Refresh">
+        <span [class.spinning]="loading">🔄</span>
       </button>
-      <button class="btn-sync-prices" (click)="syncRecipePricesToMenu()" [disabled]="loading || syncingRecipePrices" title="Sync recipe prices to menu items in all outlets">
-        <span class="icon">🔁</span>
-        {{ syncingRecipePrices ? 'Syncing...' : 'Re-sync Recipe Prices' }}
+      <button class="btn btn-warn" (click)="syncRecipePricesToMenu()" [disabled]="loading || syncingRecipePrices">
+        {{ syncingRecipePrices ? '⏳ Syncing…' : '🔁 Sync Recipe Prices' }}
       </button>
-      <button class="btn-upload" (click)="openUploadModal()">
-        <span class="icon">📤</span>
-        Upload Excel
-      </button>
-      <button class="btn-create" (click)="openCreateModal()">
-        <span class="icon">➕</span>
-        Add Menu Item
-      </button>
+      <button class="btn btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
+      <button class="btn btn-primary" (click)="openCreateModal()">➕ Add Item</button>
     </div>
   </div>
 
-  <!-- Filters -->
-  <div class="filters">
-    <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input
-        type="text"
-        [(ngModel)]="searchTerm"
-        placeholder="Search menu items..."
-        class="search-input">
+  <!-- ───── Filters Bar ───── -->
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <span class="search-ico">🔍</span>
+      <input type="text" [(ngModel)]="searchTerm" placeholder="Search menu items…" class="search-inp" />
+      <button *ngIf="searchTerm" class="search-clear" (click)="searchTerm = ''">✕</button>
     </div>
-    <div class="filter-group">
-      <label>Filter by Category:</label>
-      <select [(ngModel)]="filterCategory" class="filter-select">
-        <option value="">All Categories</option>
-        <option *ngFor="let cat of categories; trackBy: trackByObjId" [value]="cat.id">{{ cat.name }}</option>
-      </select>
-    </div>
+
+    <select [(ngModel)]="filterCategory" class="cat-select">
+      <option value="">All Categories</option>
+      <option *ngFor="let cat of categories; trackBy: trackByObjId" [value]="cat.id">{{ cat.name }}</option>
+    </select>
+
+    <span class="item-count">{{ filteredMenuItems.length }} item{{ filteredMenuItems.length !== 1 ? 's' : '' }}</span>
   </div>
 
-  <!-- Loading State -->
-  <div class="loading" *ngIf="loading && menuItems.length === 0">
-    <div class="spinner">⏳</div>
-    <p>Loading menu items...</p>
+  <!-- ───── Loading ───── -->
+  <div class="state-box" *ngIf="loading && menuItems.length === 0">
+    <div class="spinner-lg">⏳</div>
+    <p>Loading menu items…</p>
   </div>
 
-  <!-- Menu Items Table -->
-  <div class="table-container" *ngIf="!loading || menuItems.length > 0">
-    <table class="menu-table">
-      <thead>
-        <tr>
-          <th>Item Name</th>
-          <th>Status</th>
-          <th>Category</th>
-          <th>Description</th>
-          <th>Variants</th>
-          <th>Online Price</th>
-          <th>Shop Price</th>
-          <th>Future Online</th>
-          <th>Future Shop</th>
-          <th>Packaging</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let item of filteredMenuItems; trackBy: trackByObjId" class="menu-row">
-          <td class="item-name">
-            <div class="name-cell">
-              <img *ngIf="item.imageUrl" [src]="item.imageUrl" [alt]="item.name" class="item-thumbnail" loading="lazy" />
-              <span *ngIf="!item.imageUrl" class="item-thumbnail-placeholder">🍽️</span>
-              <span class="name">{{ item.name }}</span>
-            </div>
-          </td>
-          <td>
-            <span class="stock-badge" [ngClass]="{'in-stock': item.isAvailable !== false, 'out-of-stock': item.isAvailable === false}">
-              {{ item.isAvailable !== false ? 'In Stock' : 'Out of Stock' }}
+  <!-- ───── Empty States ───── -->
+  <div class="state-box" *ngIf="!loading && filteredMenuItems.length === 0 && menuItems.length > 0">
+    <div class="empty-icon">🔍</div>
+    <p>No items match your filters.</p>
+    <button class="btn btn-secondary" (click)="searchTerm = ''; filterCategory = ''">Clear Filters</button>
+  </div>
+
+  <div class="state-box" *ngIf="!loading && menuItems.length === 0">
+    <div class="empty-icon">🍽️</div>
+    <p>No menu items yet.</p>
+    <button class="btn btn-primary" (click)="openCreateModal()">➕ Add your first item</button>
+  </div>
+
+  <!-- ───── Cards Grid ───── -->
+  <div class="cards-grid" *ngIf="filteredMenuItems.length > 0">
+    <div class="menu-card" *ngFor="let item of filteredMenuItems; trackBy: trackByObjId"
+         [class.unavailable]="item.isAvailable === false">
+
+      <!-- Card Image -->
+      <div class="card-image">
+        <img *ngIf="item.imageUrl" [src]="item.imageUrl" [alt]="item.name" loading="lazy" />
+        <span *ngIf="!item.imageUrl" class="img-placeholder">🍽️</span>
+        <span class="stock-pill" [class.out]="item.isAvailable === false">
+          {{ item.isAvailable !== false ? 'In Stock' : 'Out of Stock' }}
+        </span>
+      </div>
+
+      <!-- Card Body -->
+      <div class="card-body">
+        <div class="card-top">
+          <div class="card-title-group">
+            <h3 class="item-name">{{ item.name }}</h3>
+            <span class="cat-pill">{{ item.category }}</span>
+          </div>
+          <div class="card-actions">
+            <button class="icon-btn toggle-btn"
+              (click)="toggleAvailability(item)"
+              [title]="item.isAvailable !== false ? 'Mark Out of Stock' : 'Mark In Stock'"
+              [class.is-out]="item.isAvailable !== false">
+              {{ item.isAvailable !== false ? '🚫' : '✅' }}
+            </button>
+            <button class="icon-btn edit-btn" (click)="openEditModal(item)" title="Edit">✏️</button>
+            <button class="icon-btn del-btn" (click)="deleteMenuItem(item)" title="Delete">🗑️</button>
+          </div>
+        </div>
+
+        <p class="item-desc" *ngIf="item.description">{{ item.description }}</p>
+
+        <!-- Pricing row -->
+        <div class="price-row">
+          <div class="price-block">
+            <span class="price-label">Online</span>
+            <span class="price-val">₹{{ item.onlinePrice }}</span>
+            <span class="future-price" *ngIf="item.futureOnlinePrice && item.futureOnlinePrice !== item.onlinePrice">
+              → ₹{{ item.futureOnlinePrice }}
+              <span [class.up]="item.futureOnlinePrice > item.onlinePrice"
+                    [class.dn]="item.futureOnlinePrice < item.onlinePrice">
+                {{ item.futureOnlinePrice > item.onlinePrice ? '↑' : '↓' }}
+              </span>
             </span>
-          </td>
-          <td>
-            <span class="category-badge">{{ item.category }}</span>
-          </td>
-          <td class="description">{{ item.description || 'No description' }}</td>
-          <td>
-            <div class="variants-cell">
-              <span class="variant-count" *ngIf="item.variants && item.variants.length > 0">
-                {{ item.variants.length }} variant(s)
+          </div>
+          <div class="price-block">
+            <span class="price-label">Shop</span>
+            <span class="price-val">₹{{ item.shopSellingPrice }}</span>
+            <span class="future-price" *ngIf="item.futureShopPrice && item.futureShopPrice !== item.shopSellingPrice">
+              → ₹{{ item.futureShopPrice }}
+              <span [class.up]="item.futureShopPrice > item.shopSellingPrice"
+                    [class.dn]="item.futureShopPrice < item.shopSellingPrice">
+                {{ item.futureShopPrice > item.shopSellingPrice ? '↑' : '↓' }}
               </span>
-              <div class="variant-list" *ngIf="item.variants && item.variants.length > 0">
-                <div class="variant-item" *ngFor="let variant of item.variants; trackBy: trackByIndex">
-                  <span class="variant-name">{{ variant.variantName }}</span>
-                  <span class="variant-price">₹{{ variant.price }}</span>
-                  <span class="variant-qty" *ngIf="variant.quantity">({{ variant.quantity }})</span>
-                </div>
-              </div>
-              <span class="no-variants" *ngIf="!item.variants || item.variants.length === 0">
-                No variants
-              </span>
-            </div>
-          </td>
-          <td>
-            <div class="price-cell">
-              <span class="price">₹{{ item.onlinePrice }}</span>
-            </div>
-          </td>
-          <td>
-            <div class="price-cell">
-              <span class="price">₹{{ item.shopSellingPrice }}</span>
-            </div>
-          </td>
-          <td>
-            <div class="price-cell future-price">
-              <span class="price" *ngIf="item.futureOnlinePrice">₹{{ item.futureOnlinePrice }}</span>
-              <span class="no-future" *ngIf="!item.futureOnlinePrice">—</span>
-              <span class="price-indicator" *ngIf="item.futureOnlinePrice && item.futureOnlinePrice !== item.onlinePrice">
-                <span class="increase" *ngIf="item.futureOnlinePrice > item.onlinePrice">↑</span>
-                <span class="decrease" *ngIf="item.futureOnlinePrice < item.onlinePrice">↓</span>
-              </span>
-            </div>
-          </td>
-          <td>
-            <div class="price-cell future-price">
-              <span class="price" *ngIf="item.futureShopPrice">₹{{ item.futureShopPrice }}</span>
-              <span class="no-future" *ngIf="!item.futureShopPrice">—</span>
-              <span class="price-indicator" *ngIf="item.futureShopPrice && item.futureShopPrice !== item.shopSellingPrice">
-                <span class="increase" *ngIf="item.futureShopPrice > item.shopSellingPrice">↑</span>
-                <span class="decrease" *ngIf="item.futureShopPrice < item.shopSellingPrice">↓</span>
-              </span>
-            </div>
-          </td>
-          <td>
-            <div class="price-cell">
-              <span class="price">₹{{ item.packagingCharge }}</span>
-            </div>
-          </td>
-          <td>
-            <div class="actions">
-              <button
-                class="btn-toggle"
-                (click)="toggleAvailability(item)"
-                [title]="item.isAvailable !== false ? 'Mark as Out of Stock' : 'Mark as In Stock'"
-                [ngClass]="{'out-of-stock-btn': item.isAvailable !== false, 'in-stock-btn': item.isAvailable === false}">
-                {{ item.isAvailable !== false ? '🚫' : '✅' }}
-              </button>
-              <button class="btn-edit" (click)="openEditModal(item)" title="Edit">
-                ✏️
-              </button>
-              <button class="btn-delete" (click)="deleteMenuItem(item)" title="Delete">
-                🗑️
-              </button>
-            </div>
-          </td>
-        </tr>
-        <tr *ngIf="filteredMenuItems.length === 0">
-          <td colspan="11" class="no-data">
-            <div class="no-data-content">
-              <span class="icon">📭</span>
-              <p>No menu items found</p>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            </span>
+          </div>
+          <div class="price-block" *ngIf="item.packagingCharge">
+            <span class="price-label">Pkg</span>
+            <span class="price-val secondary">₹{{ item.packagingCharge }}</span>
+          </div>
+        </div>
+
+        <!-- Variants -->
+        <div class="variants-wrap" *ngIf="item.variants && item.variants.length > 0">
+          <span class="variants-label">Variants</span>
+          <div class="variant-chips">
+            <span class="v-chip" *ngFor="let v of item.variants; trackBy: trackByIndex">
+              {{ v.variantName }} <strong>₹{{ v.price }}</strong><em *ngIf="v.quantity"> ({{ v.quantity }})</em>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Modal -->
-  <div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <!-- ───── Add / Edit Modal ───── -->
+  <div class="overlay" *ngIf="showModal" (click)="closeModal()">
     <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h2>{{ isEditMode ? '✏️ Edit Menu Item' : '➕ Add Menu Item' }}</h2>
-        <button class="btn-close" (click)="closeModal()">✕</button>
+
+      <div class="modal-head">
+        <h2>{{ isEditMode ? '✏️ Edit Item' : '➕ Add Menu Item' }}</h2>
+        <button class="close-btn" (click)="closeModal()">✕</button>
       </div>
 
       <div class="modal-body">
-        <form class="menu-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Item Name *</label>
-              <input type="text" [(ngModel)]="formData.name" name="name" placeholder="e.g., Cappuccino" required>
-            </div>
+        <form class="mform">
+
+          <!-- Name -->
+          <div class="fg full">
+            <label>Item Name <span class="req">*</span></label>
+            <input type="text" [(ngModel)]="formData.name" name="name" placeholder="e.g. Cappuccino" required />
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label>Category *</label>
-              <select [(ngModel)]="formData.categoryId" name="categoryId" (change)="onCategoryChange(formData.categoryId!)" required>
+          <!-- Category + SubCategory -->
+          <div class="fg-row">
+            <div class="fg">
+              <label>Category <span class="req">*</span></label>
+              <select [(ngModel)]="formData.categoryId" name="categoryId"
+                      (change)="onCategoryChange(formData.categoryId!)" required>
                 <option value="">Select Category</option>
                 <option *ngFor="let cat of categories; trackBy: trackByObjId" [value]="cat.id">{{ cat.name }}</option>
               </select>
             </div>
-            <div class="form-group">
+            <div class="fg">
               <label>Sub Category</label>
-              <select [(ngModel)]="formData.subCategoryId" name="subCategoryId" [disabled]="!formData.categoryId">
-                <option [value]="undefined">Select Sub Category</option>
-                <option *ngFor="let subCat of filteredSubCategories; trackBy: trackByObjId" [value]="subCat.id">{{ subCat.name }}</option>
+              <select [(ngModel)]="formData.subCategoryId" name="subCategoryId"
+                      [disabled]="!formData.categoryId || filteredSubCategories.length === 0">
+                <option [ngValue]="undefined">– None –</option>
+                <option *ngFor="let sc of filteredSubCategories; trackBy: trackByObjId" [value]="sc.id">{{ sc.name }}</option>
               </select>
             </div>
           </div>
 
-          <div class="form-group">
+          <!-- Description -->
+          <div class="fg full">
             <label>Description</label>
-            <textarea [(ngModel)]="formData.description" name="description" rows="3" placeholder="Item description..."></textarea>
+            <textarea [(ngModel)]="formData.description" name="description" rows="2"
+                      placeholder="Brief description of the item…"></textarea>
           </div>
 
-          <div class="form-group">
+          <!-- Dietary Type -->
+          <div class="fg">
             <label>Dietary Type</label>
             <select [(ngModel)]="formData.dietaryType" name="dietaryType">
               <option value="veg">🟢 Veg</option>
@@ -216,253 +187,184 @@
             </select>
           </div>
 
-          <!-- Image Upload Section -->
-          <div class="form-group image-upload-section">
+          <!-- Image -->
+          <div class="fg full img-section">
             <label>Item Image</label>
-            <div class="image-upload-area">
-              <!-- Existing/Preview Image -->
-              <div *ngIf="imagePreview" class="image-preview-container">
-                <img [src]="imagePreview" alt="Menu item image" class="image-preview" />
-                <div class="image-preview-actions">
-                  <button type="button" class="btn-remove-image" (click)="removeImage()" *ngIf="imageFile" title="Remove selected image">
-                    ✕ Remove
-                  </button>
-                  <button type="button" class="btn-remove-image delete" (click)="deleteExistingImage()" *ngIf="!imageFile && isEditMode && selectedItem?.imageUrl" [disabled]="uploadingImage" title="Delete image from server">
-                    🗑️ Delete
-                  </button>
-                  <label for="imageFileInput" class="btn-change-image">
-                    📷 Change
-                  </label>
+            <div class="img-area">
+              <div *ngIf="imagePreview" class="img-preview">
+                <img [src]="imagePreview" alt="Preview" />
+                <div class="img-actions">
+                  <button type="button" class="btn btn-sm btn-danger" (click)="removeImage()" *ngIf="imageFile">✕ Remove</button>
+                  <button type="button" class="btn btn-sm btn-danger" (click)="deleteExistingImage()"
+                          *ngIf="!imageFile && isEditMode && selectedItem?.imageUrl" [disabled]="uploadingImage">🗑️ Delete</button>
+                  <label for="imgInput" class="btn btn-sm btn-secondary">📷 Change</label>
                 </div>
               </div>
-              <!-- Upload Prompt -->
-              <div *ngIf="!imagePreview" class="image-upload-prompt">
-                <label for="imageFileInput" class="btn-select-image">
-                  <span class="upload-icon">📷</span>
-                  <span>Choose Image</span>
+              <div *ngIf="!imagePreview" class="img-placeholder-area">
+                <label for="imgInput" class="btn btn-secondary">
+                  <span>📷</span> Choose Image
                 </label>
-                <p class="image-hint">JPEG, PNG, WebP, GIF — Max 5MB</p>
+                <p class="hint">JPEG, PNG, WebP, GIF — max 5 MB</p>
               </div>
-              <input
-                type="file"
-                id="imageFileInput"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                (change)="onImageSelected($event)"
-                style="display: none;">
+              <input type="file" id="imgInput" accept="image/jpeg,image/png,image/webp,image/gif"
+                     (change)="onImageSelected($event)" style="display:none" />
             </div>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label>Online Price *</label>
-              <input type="number" [(ngModel)]="formData.onlinePrice" name="onlinePrice" placeholder="0.00" step="0.01" required>
+          <!-- Pricing -->
+          <div class="section-divider">Pricing</div>
+
+          <div class="fg-row">
+            <div class="fg">
+              <label>Online Price <span class="req">*</span></label>
+              <input type="number" [(ngModel)]="formData.onlinePrice" name="onlinePrice" placeholder="0.00" step="0.01" required />
             </div>
-            <div class="form-group">
+            <div class="fg">
               <label>Shop Price</label>
-              <input type="number" [(ngModel)]="formData.shopSellingPrice" name="shopSellingPrice" placeholder="0.00" step="0.01">
+              <input type="number" [(ngModel)]="formData.shopSellingPrice" name="shopSellingPrice" placeholder="0.00" step="0.01" />
             </div>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
+          <div class="fg-row">
+            <div class="fg">
               <label>Making Price</label>
-              <input type="number" [(ngModel)]="formData.makingPrice" name="makingPrice" placeholder="0.00" step="0.01">
+              <input type="number" [(ngModel)]="formData.makingPrice" name="makingPrice" placeholder="0.00" step="0.01" />
             </div>
-            <div class="form-group">
+            <div class="fg">
               <label>Packaging Charge</label>
-              <input type="number" [(ngModel)]="formData.packagingCharge" name="packagingCharge" placeholder="0.00" step="0.01">
+              <input type="number" [(ngModel)]="formData.packagingCharge" name="packagingCharge" placeholder="0.00" step="0.01" />
             </div>
           </div>
 
-          <!-- Future Prices Section -->
-          <div class="form-row future-prices-section">
-            <div class="form-group">
-              <label>Future Online Price</label>
-              <input type="number" [(ngModel)]="formData.futureOnlinePrice" name="futureOnlinePrice" placeholder="0.00" step="0.01">
-              <small *ngIf="formData.futureOnlinePrice && formData.onlinePrice" class="price-change">
-                Change: ₹{{ (formData.futureOnlinePrice - formData.onlinePrice).toFixed(2) }}
-              </small>
-            </div>
-            <div class="form-group">
-              <label>Future Shop Price</label>
-              <input type="number" [(ngModel)]="formData.futureShopPrice" name="futureShopPrice" placeholder="0.00" step="0.01">
-              <small *ngIf="formData.futureShopPrice && formData.shopSellingPrice" class="price-change">
-                Change: ₹{{ (formData.futureShopPrice - formData.shopSellingPrice).toFixed(2) }}
-              </small>
-            </div>
-          </div>
-
-          <!-- Variants Section -->
-          <div class="variants-section">
-            <h3>Variants</h3>
-            <div class="variant-form">
-              <input
-                type="text"
-                [(ngModel)]="newVariant.variantName"
-                name="variantName"
-                placeholder="Variant name (e.g., 250ml)">
-              <input
-                type="number"
-                [(ngModel)]="newVariant.price"
-                name="variantPrice"
-                placeholder="Price"
-                step="0.01">
-              <input
-                type="number"
-                [(ngModel)]="newVariant.quantity"
-                name="variantQuantity"
-                placeholder="Quantity (optional)">
-              <button type="button" class="btn-add-variant" (click)="addVariant()">
-                ➕ Add
-              </button>
-            </div>
-
-            <div class="variants-list" *ngIf="formData.variants && formData.variants.length > 0">
-              <div class="variant-chip" *ngFor="let variant of formData.variants; let i = index; trackBy: trackByIndex">
-                <span class="variant-info">
-                  <strong>{{ variant.variantName }}</strong> - ₹{{ variant.price }}
-                  <span *ngIf="variant.quantity"> ({{ variant.quantity }})</span>
-                </span>
-                <button type="button" class="btn-remove-variant" (click)="removeVariant(i)">✕</button>
+          <!-- Future Prices -->
+          <div class="future-section">
+            <div class="future-label">📅 Future Pricing <small>(optional)</small></div>
+            <div class="fg-row">
+              <div class="fg">
+                <label>Future Online Price</label>
+                <input type="number" [(ngModel)]="formData.futureOnlinePrice" name="futureOnlinePrice" placeholder="0.00" step="0.01" />
+                <small *ngIf="formData.futureOnlinePrice && formData.onlinePrice" class="price-diff"
+                       [class.pos]="(formData.futureOnlinePrice - formData.onlinePrice) > 0"
+                       [class.neg]="(formData.futureOnlinePrice - formData.onlinePrice) < 0">
+                  Δ ₹{{ (formData.futureOnlinePrice - formData.onlinePrice).toFixed(2) }}
+                </small>
+              </div>
+              <div class="fg">
+                <label>Future Shop Price</label>
+                <input type="number" [(ngModel)]="formData.futureShopPrice" name="futureShopPrice" placeholder="0.00" step="0.01" />
+                <small *ngIf="formData.futureShopPrice && formData.shopSellingPrice" class="price-diff"
+                       [class.pos]="(formData.futureShopPrice - formData.shopSellingPrice) > 0"
+                       [class.neg]="(formData.futureShopPrice - formData.shopSellingPrice) < 0">
+                  Δ ₹{{ (formData.futureShopPrice - formData.shopSellingPrice).toFixed(2) }}
+                </small>
               </div>
             </div>
           </div>
+
+          <!-- Variants -->
+          <div class="section-divider">Variants</div>
+          <div class="variant-form">
+            <input type="text" [(ngModel)]="newVariant.variantName" name="vName" placeholder="Name (e.g. 250ml)" />
+            <input type="number" [(ngModel)]="newVariant.price" name="vPrice" placeholder="Price" step="0.01" />
+            <input type="number" [(ngModel)]="newVariant.quantity" name="vQty" placeholder="Qty (opt.)" />
+            <button type="button" class="btn btn-primary" (click)="addVariant()">➕ Add</button>
+          </div>
+
+          <div class="variant-chips-edit" *ngIf="formData.variants && formData.variants.length > 0">
+            <div class="v-chip editable" *ngFor="let v of formData.variants; let i = index; trackBy: trackByIndex">
+              <span>{{ v.variantName }} — ₹{{ v.price }}<em *ngIf="v.quantity"> ({{ v.quantity }})</em></span>
+              <button type="button" (click)="removeVariant(i)">✕</button>
+            </div>
+          </div>
+
         </form>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn-cancel" (click)="closeModal()">Cancel</button>
-        <button class="btn-save" (click)="saveMenuItem()" [disabled]="loading || uploadingImage">
-          {{ uploadingImage ? 'Uploading Image...' : (loading ? 'Saving...' : (isEditMode ? 'Update' : 'Create')) }}
+      <div class="modal-foot">
+        <button class="btn btn-ghost" (click)="closeModal()">Cancel</button>
+        <button class="btn btn-primary" (click)="saveMenuItem()" [disabled]="loading || uploadingImage">
+          {{ uploadingImage ? '⏳ Uploading…' : loading ? '⏳ Saving…' : isEditMode ? '💾 Update' : '✅ Create' }}
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Upload Modal -->
-  <div class="modal-overlay" *ngIf="showUploadModal" (click)="closeUploadModal()">
+  <!-- ───── Upload Modal ───── -->
+  <div class="overlay" *ngIf="showUploadModal" (click)="closeUploadModal()">
     <div class="modal upload-modal" (click)="$event.stopPropagation()">
-      <div class="modal-header">
+
+      <div class="modal-head">
         <h2>📤 Upload Menu Items</h2>
-        <button class="btn-close" (click)="closeUploadModal()">✕</button>
+        <button class="close-btn" (click)="closeUploadModal()">✕</button>
       </div>
 
       <div class="modal-body">
-        <!-- Instructions -->
-        <div class="upload-instructions">
-          <h3>📋 Excel File Format</h3>
-          <p>Your Excel file should have the following columns:</p>
-          <div class="column-tags">
-            <span class="column-tag">category_name</span>
-            <span class="column-tag">subcategory_name</span>
-            <span class="column-tag">catalogue_name</span>
-            <span class="column-tag">variant_name</span>
-            <span class="column-tag">current_price</span>
-            <span class="column-tag">description</span>
+        <!-- Format hint -->
+        <div class="upload-hint-box">
+          <p class="hint-title">📋 Required Excel columns:</p>
+          <div class="col-tags">
+            <span *ngFor="let c of ['category_name','subcategory_name','catalogue_name','variant_name','current_price','description']">{{ c }}</span>
           </div>
-          <button class="btn-template" (click)="downloadTemplate()">
-            <span class="icon">📥</span>
-            Download CSV Template
-          </button>
+          <button class="btn btn-sm btn-secondary" (click)="downloadTemplate()">📥 Download Template</button>
         </div>
 
-        <!-- Upload Area -->
-        <div class="upload-area"
-             [class.drag-over]="dragOver"
-             (dragover)="onDragOver($event)"
-             (dragleave)="onDragLeave($event)"
-             (drop)="onDrop($event)">
-
-          <div *ngIf="!selectedFile" class="upload-prompt">
-            <div class="upload-icon">📁</div>
-            <h3>Drag & Drop Excel File Here</h3>
-            <p>or</p>
-            <label for="uploadFileInput" class="btn-select-file">
-              <span class="icon">📂</span>
-              Browse Files
-            </label>
-            <input
-              type="file"
-              id="uploadFileInput"
-              accept=".xlsx,.xls"
-              (change)="onFileSelected($event)"
-              style="display: none;">
-            <p class="file-info">Supported formats: .xlsx, .xls</p>
+        <!-- Drop Zone -->
+        <div class="drop-zone" [class.active]="dragOver"
+             (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+          <div *ngIf="!selectedFile" class="drop-prompt">
+            <div class="drop-ico">📁</div>
+            <p>Drag &amp; drop an Excel file, or</p>
+            <label for="uploadInput" class="btn btn-primary">Browse File</label>
+            <input type="file" id="uploadInput" accept=".xlsx,.xls" (change)="onFileSelected($event)" style="display:none" />
+            <p class="hint">.xlsx / .xls supported</p>
           </div>
-
-          <div *ngIf="selectedFile" class="file-selected">
-            <div class="file-icon">📄</div>
-            <div class="file-details">
-              <h4>{{ selectedFile.name }}</h4>
-              <p>{{ (selectedFile.size / 1024).toFixed(2) }} KB</p>
+          <div *ngIf="selectedFile" class="file-chip">
+            <span class="file-ico">📄</span>
+            <div class="file-info">
+              <strong>{{ selectedFile.name }}</strong>
+              <small>{{ (selectedFile.size / 1024).toFixed(2) }} KB</small>
             </div>
-            <button class="btn-remove" (click)="clearUploadSelection()" [disabled]="uploading">
-              ✕
-            </button>
+            <button class="icon-btn" (click)="clearUploadSelection()" [disabled]="uploading">✕</button>
           </div>
         </div>
 
-        <!-- Clear Existing Option -->
-        <div class="upload-options" *ngIf="selectedFile">
-          <label class="checkbox-label">
-            <input
-              type="checkbox"
-              [(ngModel)]="clearExisting"
-              [disabled]="uploading">
+        <!-- Options -->
+        <div class="upload-opts" *ngIf="selectedFile">
+          <label class="check-label">
+            <input type="checkbox" [(ngModel)]="clearExisting" [disabled]="uploading" />
             <span>Clear existing menu items before upload</span>
           </label>
-          <p class="option-hint">⚠️ This will delete all current menu items from the database</p>
+          <p class="warn-hint">⚠️ This will delete all current menu items</p>
         </div>
 
-        <!-- Upload Button -->
-        <div class="upload-actions" *ngIf="selectedFile">
-          <button
-            class="btn-upload-file"
-            (click)="uploadFile()"
-            [disabled]="uploading">
-            <span class="icon" *ngIf="!uploading">🚀</span>
-            <span class="spinner" *ngIf="uploading">⏳</span>
-            {{ uploading ? 'Uploading...' : 'Upload Menu Items' }}
+        <div class="upload-act" *ngIf="selectedFile">
+          <button class="btn btn-primary" (click)="uploadFile()" [disabled]="uploading">
+            {{ uploading ? '⏳ Uploading…' : '🚀 Upload Menu Items' }}
           </button>
         </div>
 
-        <!-- Error Message -->
-        <div class="error-message" *ngIf="uploadError">
-          <span class="error-icon">⚠️</span>
-          <p>{{ uploadError }}</p>
-        </div>
+        <!-- Error -->
+        <div class="alert-box error" *ngIf="uploadError">⚠️ {{ uploadError }}</div>
 
-        <!-- Upload Result -->
+        <!-- Result -->
         <div class="upload-result" *ngIf="uploadResult">
-          <div class="result-success">
-            <span class="success-icon">✅</span>
-            <h3>Upload Successful!</h3>
-          </div>
-          <p class="result-message">{{ uploadResult.message }}</p>
+          <div class="result-head">✅ Upload Successful!</div>
+          <p>{{ uploadResult.message }}</p>
           <div class="result-stats">
-            <div class="stat">
-              <strong>{{ uploadResult.processedItems }}</strong>
-              <span>Items Processed</span>
-            </div>
-            <div class="stat">
-              <strong>{{ uploadResult.savedItems }}</strong>
-              <span>Items Saved</span>
-            </div>
+            <div class="stat-item"><strong>{{ uploadResult.processedItems }}</strong><span>Processed</span></div>
+            <div class="stat-item"><strong>{{ uploadResult.savedItems }}</strong><span>Saved</span></div>
           </div>
-          <div class="errors-section" *ngIf="uploadResult.errors && uploadResult.errors.length > 0">
+          <div *ngIf="uploadResult.errors?.length > 0" class="errors-box">
             <h4>⚠️ Errors ({{ uploadResult.errors.length }})</h4>
-            <div class="error-list">
-              <div class="error-item" *ngFor="let err of uploadResult.errors; trackBy: trackByIndex">
-                {{ err }}
-              </div>
-            </div>
+            <div class="err-item" *ngFor="let e of uploadResult.errors; trackBy: trackByIndex">{{ e }}</div>
           </div>
         </div>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn-cancel" (click)="closeUploadModal()">Close</button>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" (click)="closeUploadModal()">Close</button>
       </div>
     </div>
   </div>
+
 </div>

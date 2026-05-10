@@ -315,9 +315,12 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     this.loading = true;
 
     // Prepare the payload - convert empty strings to null for ObjectId fields
+    // Strip zero future prices so null is sent (and omitted by WhenWritingNull) instead of 0
     const payload = {
       ...this.formData,
       subCategoryId: this.formData.subCategoryId || undefined,
+      futureShopPrice: this.formData.futureShopPrice || undefined,
+      futureOnlinePrice: this.formData.futureOnlinePrice || undefined,
       variants: this.formData.variants || []
     };
 

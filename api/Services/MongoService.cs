@@ -295,17 +295,27 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .AppendStage<BsonDocument>(groupStage)
             .ToListAsync();
 
+        // Safely convert BsonNull → null; only non-null values override the item's stored prices
+        static decimal? SafeDecimal(BsonDocument doc, string field)
+        {
+            var v = doc.GetValue(field, BsonNull.Value);
+            return v == BsonNull.Value || v.BsonType == BsonType.Null ? null : v.ToDecimal();
+        }
+
         var latestForecasts = results.ToDictionary(
             r => r["_id"].ToString()!,
-            r => new { FutureShopPrice = r["FutureShopPrice"].ToDecimal(), FutureOnlinePrice = r["FutureOnlinePrice"].ToDecimal() }
+            r => new { FutureShopPrice = SafeDecimal(r, "FutureShopPrice"), FutureOnlinePrice = SafeDecimal(r, "FutureOnlinePrice") }
         );
 
         foreach (var item in menuItems)
         {
             if (!string.IsNullOrEmpty(item.Id) && latestForecasts.TryGetValue(item.Id, out var forecast))
             {
-                item.FutureShopPrice = forecast.FutureShopPrice;
-                item.FutureOnlinePrice = forecast.FutureOnlinePrice;
+                // Only override the stored value when the forecast actually has a non-zero future price
+                if (forecast.FutureShopPrice.HasValue && forecast.FutureShopPrice.Value > 0)
+                    item.FutureShopPrice = forecast.FutureShopPrice;
+                if (forecast.FutureOnlinePrice.HasValue && forecast.FutureOnlinePrice.Value > 0)
+                    item.FutureOnlinePrice = forecast.FutureOnlinePrice;
             }
         }
     }
@@ -663,24 +673,16 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var recipes = await _recipes.Find(_ => true).ToListAsync();
         int updated = 0;
 
-        foreach (var recipe in recipes)
+        // Group recipes by normalized MenuItemName so we apply the best recipe per item name
+        var recipesByName = recipes
+            .Where(r => !string.IsNullOrWhiteSpace(r.MenuItemName))
+            .GroupBy(r => r.MenuItemName!.Trim().ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.UpdatedAt).First());
+
+        foreach (var (normalizedName, recipe) in recipesByName)
         {
             try
             {
-                // Match by MenuItemId first, then fallback to name + outletId
-                CafeMenuItem? menuItem = null;
-                if (!string.IsNullOrEmpty(recipe.MenuItemId))
-                    menuItem = await GetMenuItemAsync(recipe.MenuItemId);
-
-                if (menuItem == null && !string.IsNullOrEmpty(recipe.MenuItemName) && !string.IsNullOrEmpty(recipe.OutletId))
-                    menuItem = await GetMenuItemsByNameAndOutletAsync(recipe.MenuItemName, recipe.OutletId);
-
-                if (menuItem == null) continue;
-
-                var shopPrice = recipe.PriceForecast?.ShopPrice > 0
-                    ? recipe.PriceForecast!.ShopPrice
-                    : menuItem.ShopSellingPrice;
-
                 var updateDef = Builders<CafeMenuItem>.Update
                     .Set(x => x.MakingPrice, recipe.TotalMakingCost)
                     .Set(x => x.LastUpdated, GetIstNow());
@@ -694,8 +696,30 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 if (recipe.PriceForecast?.PackagingCost > 0)
                     updateDef = updateDef.Set(x => x.PackagingCharge, recipe.PriceForecast!.PackagingCost);
 
-                var result = await _menu.UpdateOneAsync(x => x.Id == menuItem.Id, updateDef);
-                if (result.ModifiedCount > 0) updated++;
+                // Build a case-insensitive name filter to match across ALL outlets
+                var escapedName = System.Text.RegularExpressions.Regex.Escape(recipe.MenuItemName!.Trim());
+                var nameFilter = Builders<CafeMenuItem>.Filter.And(
+                    Builders<CafeMenuItem>.Filter.Regex(m => m.Name, new MongoDB.Bson.BsonRegularExpression($"^{escapedName}$", "i")),
+                    Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true)
+                );
+
+                // Also try to match by explicit MenuItemId if available
+                FilterDefinition<CafeMenuItem> combinedFilter;
+                if (!string.IsNullOrEmpty(recipe.MenuItemId))
+                {
+                    combinedFilter = Builders<CafeMenuItem>.Filter.Or(
+                        Builders<CafeMenuItem>.Filter.Eq(m => m.Id, recipe.MenuItemId),
+                        nameFilter
+                    );
+                }
+                else
+                {
+                    combinedFilter = nameFilter;
+                }
+
+                var result = await _menu.UpdateManyAsync(combinedFilter, updateDef);
+                if (result.ModifiedCount > 0)
+                    updated += (int)result.ModifiedCount;
             }
             catch (Exception ex)
             {
@@ -703,7 +727,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             }
         }
 
-        _logger.LogInformation("[SyncPrices] Synced {Count} menu items from recipes", updated);
+        _logger.LogInformation("[SyncPrices] Synced {Count} menu item rows from recipes", updated);
         return updated;
     }
     
