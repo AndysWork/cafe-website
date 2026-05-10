@@ -1,1 +1,468 @@
 @import '../admin-shared';
+
+// Wide modal for combo form
+.wide-modal {
+  max-width: 900px !important;
+  max-height: 90vh !important;
+  overflow-y: auto;
+}
+
+// Form sections
+.form-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+
+  h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+// Item making cost display
+.item-making-cost {
+  background: #fffbeb;
+  border-left: 4px solid #fbbf24;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+
+  .cost-value {
+    font-size: 0.9rem;
+    color: #78350f;
+    font-weight: 500;
+
+    strong {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #b45309;
+    }
+  }
+}
+
+// Pricing decisions section
+.pricing-decisions {
+  margin-top: 1rem;
+}
+
+// Price decision grid
+.price-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.price-decision-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem;
+
+  label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.5rem;
+  }
+
+  .price-input-field {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 0.5rem;
+    box-sizing: border-box;
+
+    &:focus {
+      outline: none;
+      border-color: #6366f1;
+      background: #fff;
+    }
+  }
+
+  .profit-display {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.4rem;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #475569;
+
+    &.positive {
+      background: #f0fdf4;
+      color: #16a34a;
+    }
+
+    &.negative {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+  }
+
+  .platform-note {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-style: italic;
+    margin-top: 0.3rem;
+  }
+}
+
+// Menu item picker
+.item-picker-wrapper {
+  position: relative;
+}
+
+.item-select-btn {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: #6366f1;
+    background: #f8fafc;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+}
+
+.item-picker-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-height: 300px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  .search-box {
+    padding: 0.6rem;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.85rem;
+    background: #f8fafc;
+
+    &:focus {
+      outline: none;
+      background: #fff;
+    }
+  }
+
+  .item-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .item-option {
+    padding: 0.6rem;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: 1px solid #f1f5f9;
+
+    &:hover {
+      background: #f8fafc;
+    }
+
+    .item-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 0.15rem;
+    }
+
+    .item-meta {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+  }
+
+  .no-results {
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #94a3b8;
+  }
+}
+
+// Item picker row
+.item-picker-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 40px;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.item-selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+
+  label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.qty-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+
+  label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.qty-input {
+  padding: 0.6rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  text-align: center;
+
+  &:focus {
+    outline: none;
+    border-color: #6366f1;
+  }
+}
+
+// Combo item card
+.combo-item-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+// Pricing breakdown
+.pricing-breakdown {
+  background: #fff;
+  border: 1px solid #f1f5f9;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.price-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem;
+  text-align: center;
+
+  &.profit {
+    border-color: #fcd34d;
+    background: #fffbeb;
+  }
+
+  .price-label {
+    font-size: 0.7rem;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.3rem;
+  }
+
+  .price-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+
+    &.positive {
+      color: #16a34a;
+    }
+
+    &.negative {
+      color: #dc2626;
+    }
+  }
+}
+
+// Summary grid
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.summary-card {
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.9rem;
+  text-align: center;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  &.positive {
+    border-color: #22c55e;
+    background: #f0fdf4;
+  }
+
+  &.negative {
+    border-color: #ef4444;
+    background: #fef2f2;
+  }
+
+  .summary-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.3rem;
+  }
+
+  .summary-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+
+    &.highlight {
+      color: #6366f1;
+    }
+  }
+}
+
+// Price input
+.price-input {
+  padding: 0.75rem;
+  border: 2px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+
+  &:focus {
+    outline: none;
+    border-color: #6366f1;
+    background: #f8fafc;
+  }
+}
+
+// Future combo pricing section
+.pricing-breakdown-future {
+  background: #f0f4ff;
+  border: 1px solid #a5b4fc;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.future-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4c1d95;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.combo-future {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+// Future combo pricing boxes
+.price-box.future {
+  background: #ffffff;
+  border: 2px solid #a5b4fc;
+  border-radius: 6px;
+  padding: 0.75rem;
+  text-align: center;
+
+  .price-label {
+    font-size: 0.7rem;
+    color: #4c1d95;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.3rem;
+  }
+
+  .price-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  &.positive {
+    border-color: #86efac;
+    background: #f0fdf4;
+
+    .price-label {
+      color: #16a34a;
+    }
+
+    .price-value {
+      color: #16a34a;
+    }
+  }
+
+  &.negative {
+    border-color: #fca5a5;
+    background: #fef2f2;
+
+    .price-label {
+      color: #dc2626;
+    }
+
+    .price-value {
+      color: #dc2626;
+    }
+  }
+}

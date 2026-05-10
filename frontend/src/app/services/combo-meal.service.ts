@@ -29,7 +29,7 @@ export interface ComboMeal {
 export interface CreateComboRequest {
   name: string;
   description?: string;
-  items: { menuItemId: string; quantity: number }[];
+  items: { menuItemId: string; quantity: number; shopPrice: number; onlinePrice: number; packagingCharge: number }[];
   comboPrice: number;
   imageUrl?: string;
 }

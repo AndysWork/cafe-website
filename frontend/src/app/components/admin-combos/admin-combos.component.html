@@ -42,20 +42,115 @@
 </div>
 
 <div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
-  <div class="modal-content" (click)="$event.stopPropagation()">
+  <div class="modal-content wide-modal" (click)="$event.stopPropagation()">
     <div class="modal-header"><h2>{{ isEditMode ? 'Edit' : 'Create' }} Combo</h2><button class="btn-close" (click)="closeModal()">✕</button></div>
     <div class="modal-body">
       <form (ngSubmit)="saveCombo()">
-        <div class="form-group"><label>Combo Name *</label><input type="text" [(ngModel)]="comboForm.name" name="name" required></div>
-        <div class="form-group"><label>Description</label><textarea [(ngModel)]="comboForm.description" name="description" rows="2"></textarea></div>
-        <h4 style="margin: 16px 0 8px;">Items</h4>
-        <div *ngFor="let item of comboForm.items; let i = index; trackBy: trackByIndex" class="form-row" style="align-items: flex-end;">
-          <div class="form-group"><label>Menu Item ID</label><input type="text" [(ngModel)]="item.menuItemId" [name]="'itemId'+i" required placeholder="Paste menu item ID"></div>
-          <div class="form-group" style="max-width: 80px;"><label>Qty</label><input type="number" [(ngModel)]="item.quantity" [name]="'qty'+i" min="1"></div>
-          <button type="button" class="btn-delete" (click)="removeItem(i)" style="margin-bottom: 16px;" *ngIf="comboForm.items.length > 1">🗑️</button>
+        <!-- Combo Details -->
+        <div class="form-section">
+          <h3>Combo Details</h3>
+          <div class="form-group"><label>Combo Name *</label><input type="text" [(ngModel)]="comboForm.name" name="name" required></div>
+          <div class="form-group"><label>Description</label><textarea [(ngModel)]="comboForm.description" name="description" rows="2"></textarea></div>
         </div>
-        <button type="button" class="btn-create" style="margin-bottom: 16px; font-size: 0.85rem; padding: 8px 16px;" (click)="addItem()">➕ Add Item</button>
-        <div class="form-group"><label>Combo Price (₹) *</label><input type="number" [(ngModel)]="comboForm.comboPrice" name="comboPrice" min="0" required></div>
+
+        <!-- Items with Pricing -->
+        <div class="form-section">
+          <h3>Items in Combo</h3>
+          <div *ngFor="let item of comboForm.items; let i = index; trackBy: trackByIndex" class="combo-item-card">
+            <div class="item-picker-row">
+              <div class="item-selector-group">
+                <label>Menu Item *</label>
+                <div class="item-picker-wrapper">
+                  <button type="button" class="item-select-btn" (click)="openItemPicker(i)">
+                    {{ getMenuItemName(item.menuItemId) || 'Select Item...' }}
+                  </button>
+                  <div class="item-picker-dropdown" *ngIf="showItemPickerAt === i">
+                    <input type="text" class="search-box" [(ngModel)]="itemSearchFilter" (ngModelChange)="updateFilteredItems()" placeholder="Search items..." [ngModelOptions]="{standalone: true}">
+                    <div class="item-list">
+                      <div *ngFor="let m of itemPickerFiltered; trackBy: trackByIndex" class="item-option" (click)="selectMenuItem(m, i)">
+                        <div class="item-name">{{ m.name }}</div>
+                        <div class="item-meta">{{ m.categoryName }} • ₹{{ m.onlinePrice }}</div>
+                      </div>
+                      <div *ngIf="itemPickerFiltered.length === 0" class="no-results">No items found</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="qty-group">
+                <label>Qty</label>
+                <input type="number" [(ngModel)]="item.quantity" [name]="'qty'+i" min="1" class="qty-input">
+              </div>
+              <button type="button" class="btn-delete" (click)="removeItem(i)" *ngIf="comboForm.items.length > 1">🗑️</button>
+            </div>
+
+            <!-- Making Cost & Pricing Decisions -->
+            <div *ngIf="item.menuItemId && getMenuItemDetail(item.menuItemId)" class="pricing-decisions">
+              <div class="item-making-cost">
+                <div class="cost-value">Making Cost: <strong>₹{{ (getMakingCost(item.menuItemId) * item.quantity) | number:'1.2-2' }}</strong></div>
+              </div>
+
+              <!-- Price Decision Inputs -->
+              <div class="price-decision-grid">
+                <div class="price-decision-item">
+                  <label>Shop Price (₹)</label>
+                  <input type="number" [(ngModel)]="item.shopPrice" [name]="'shopPrice'+i" min="0" step="0.01" class="price-input-field">
+                  <div class="profit-display" [class.positive]="getItemProfit(i).shopProfit > 0" [class.negative]="getItemProfit(i).shopProfit < 0">
+                    Shop Profit: ₹{{ (getItemProfit(i).shopProfit) | number:'1.2-2' }}
+                  </div>
+                </div>
+
+                <div class="price-decision-item">
+                  <label>Combo Item Online Selling Price (₹)</label>
+                  <input type="number" [(ngModel)]="item.onlinePrice" [name]="'onlinePrice'+i" min="0" step="0.01" class="price-input-field">
+                  <div class="platform-note">Online Profit = Making Cost - ((Online Selling Price + Packaging Cost) x 0.42)</div>
+                </div>
+
+                <div class="price-decision-item">
+                  <label>Packaging (₹)</label>
+                  <input type="number" [(ngModel)]="item.packagingCharge" [name]="'packaging'+i" min="0" step="0.01" class="price-input-field">
+                  <div class="profit-display" [class.positive]="getItemProfit(i).onlineProfit > 0" [class.negative]="getItemProfit(i).onlineProfit < 0">
+                    Online Profit: ₹{{ (getItemProfit(i).onlineProfit) | number:'1.2-2' }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn-create" style="margin: 12px 0; font-size: 0.85rem; padding: 8px 16px;" (click)="addItem()">➕ Add Item</button>
+        </div>
+
+        <!-- Combo Price & Profit Summary -->
+        <div class="form-section">
+          <h3>Combo Pricing & Profit</h3>
+          <div class="form-group">
+            <label>Combo Price (₹) *</label>
+            <input type="number" [(ngModel)]="comboForm.comboPrice" name="comboPrice" min="0" required class="price-input">
+          </div>
+
+          <!-- Summary Cards -->
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div class="summary-label">Total Making Cost</div>
+              <div class="summary-value">₹{{ calculateComboPricings().totalMakingCost | number:'1.2-2' }}</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Total Packaging</div>
+              <div class="summary-value">₹{{ calculateComboPricings().totalPackaging | number:'1.2-2' }}</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Combo Selling Price</div>
+              <div class="summary-value highlight">₹{{ calculateComboPricings().comboPrice | number:'1.2-2' }}</div>
+            </div>
+            <div class="summary-card" [class.positive]="calculateComboPricings().shopProfit > 0" [class.negative]="calculateComboPricings().shopProfit < 0">
+              <div class="summary-label">Shop Profit</div>
+              <div class="summary-value">₹{{ calculateComboPricings().shopProfit | number:'1.2-2' }}</div>
+            </div>
+            <div class="summary-card" [class.positive]="calculateComboPricings().onlineProfit > 0" [class.negative]="calculateComboPricings().onlineProfit < 0">
+              <div class="summary-label">Online Profit (42% on Online + Packaging)</div>
+              <div class="summary-value">₹{{ calculateComboPricings().onlineProfit | number:'1.2-2' }}</div>
+            </div>
+          </div>
+        </div>
+
         <div class="modal-actions">
           <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
           <button type="submit" class="btn-save">{{ isEditMode ? 'Update' : 'Create' }}</button>

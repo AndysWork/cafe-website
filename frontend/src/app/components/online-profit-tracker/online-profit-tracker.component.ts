@@ -9,25 +9,59 @@ import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { getIstInputDate, getIstStartOfDay, getIstEndOfDay } from '../../utils/date-utils';
 
-interface ProfitData {
-  totalRevenue: number;
-  totalExpenses: number;
-  grossProfit: number;
-  profitMargin: number;
-  itemsProfitability: Array<{
-    itemName: string;
-    revenue: number;
-    cost: number;
-    profit: number;
-    margin: number;
-    quantity: number;
-  }>;
+interface OnlineSale {
+  id: string;
+  orderId: string;
+  platform: string;
+  customerName: string;
+  orderAt: string;
+  orderedItems: Array<{ itemName: string; quantity: number; menuItemId?: string }>;
+  billSubTotal: number;
+  packagingCharges: number;
+  discountAmount: number;
+  platformDeduction: number;
+  payout: number;
+  investment: number; // cost of goods
+  rating?: number;
+  discountCoupon?: string;
+  freebies?: string;
 }
 
-interface ExpenseCategory {
-  category: string;
-  amount: number;
-  percentage: number;
+interface OrderProfit {
+  sale: OnlineSale;
+  revenue: number;      // payout (what restaurant receives)
+  cost: number;         // derived order making cost from recipe items
+  profit: number;       // payout - investment
+  margin: number;       // profit / payout * 100
+  hasCost: boolean;     // derived cost available for at least one ordered item
+  costCoverage: number; // percentage of ordered quantity covered by recipe making cost
+}
+
+interface ItemProfit {
+  itemName: string;
+  quantity: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+  margin: number;
+  hasCost: boolean;
+}
+
+interface PeriodSummary {
+  totalOrders: number;
+  totalBillValue: number;     // sum of billSubTotal
+  totalPayout: number;        // sum of payout (revenue received)
+  totalInvestment: number;    // sum of investment
+  totalProfit: number;        // totalPayout - totalInvestment
+  profitMargin: number;
+  totalPlatformDeduction: number;
+  totalDiscount: number;
+  totalPackaging: number;
+  zomatoOrders: number;
+  swiggyOrders: number;
+  zomatoPayout: number;
+  swiggyPayout: number;
+  ordersWithCost: number;     // orders where investment > 0
 }
 
 @Component({
@@ -41,44 +75,42 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
   private outletSubscription?: Subscription;
 
-  // Expose Math object to template
   Math = Math;
 
-  profitData: ProfitData = {
-    totalRevenue: 0,
-    totalExpenses: 0,
-    grossProfit: 0,
-    profitMargin: 0,
-    itemsProfitability: []
-  };
-
-  expenseCategories: ExpenseCategory[] = [];
-
   // Filters
-  dateRange = 'month'; // today, week, month, year, custom
+  dateRange = 'month';
   startDate = '';
   endDate = '';
+  platform = 'all'; // all | Zomato | Swiggy
 
   isLoading = false;
   errorMessage = '';
 
-  // Chart view toggle
-  viewMode: 'summary' | 'items' | 'expenses' = 'summary';
+  viewMode: 'summary' | 'orders' | 'items' = 'summary';
+
+  // Search/sort for order table
+  orderSearch = '';
+  sortField = 'orderAt';
+  sortDir: 'asc' | 'desc' = 'desc';
+
+  // Data
+  allSales: OnlineSale[] = [];
+  orderProfits: OrderProfit[] = [];
+  itemProfits: ItemProfit[] = [];
+  summary: PeriodSummary = this.emptyS();
+  private recipeCostByMenuId = new Map<string, number>();
+  private recipeCostByName = new Map<string, number>();
 
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
     this.setDefaultDateRange();
-    // Subscribe to outlet changes
     this.outletSubscription = this.outletService.selectedOutlet$
-      .pipe(filter(outlet => outlet !== null))
-      .subscribe(() => {
-        this.loadProfitData();
-      });
+      .pipe(filter(o => o !== null))
+      .subscribe(() => this.loadData());
 
-    // Load immediately if outlet is already selected
     if (this.outletService.getSelectedOutlet()) {
-      this.loadProfitData();
+      this.loadData();
     }
   }
 
@@ -86,10 +118,19 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
     this.outletSubscription?.unsubscribe();
   }
 
+  private emptyS(): PeriodSummary {
+    return {
+      totalOrders: 0, totalBillValue: 0, totalPayout: 0,
+      totalInvestment: 0, totalProfit: 0, profitMargin: 0,
+      totalPlatformDeduction: 0, totalDiscount: 0, totalPackaging: 0,
+      zomatoOrders: 0, swiggyOrders: 0, zomatoPayout: 0, swiggyPayout: 0,
+      ordersWithCost: 0
+    };
+  }
+
   setDefaultDateRange(): void {
     const now = new Date();
     this.endDate = getIstInputDate(now);
-
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     this.startDate = getIstInputDate(startOfMonth);
   }
@@ -97,192 +138,254 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
   onDateRangeChange(): void {
     const now = new Date();
     this.endDate = getIstInputDate(now);
-
     switch (this.dateRange) {
       case 'today':
         this.startDate = getIstInputDate(now);
         break;
       case 'week':
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        this.startDate = getIstInputDate(weekAgo);
+        this.startDate = getIstInputDate(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
         break;
       case 'month':
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        this.startDate = getIstInputDate(monthAgo);
+        this.startDate = getIstInputDate(new Date(now.getFullYear(), now.getMonth(), 1));
         break;
       case 'year':
-        const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        this.startDate = getIstInputDate(yearAgo);
+        this.startDate = getIstInputDate(new Date(now.getFullYear(), 0, 1));
         break;
     }
-
     if (this.dateRange !== 'custom') {
-      this.loadProfitData();
+      this.loadData();
     }
   }
 
-  async loadProfitData(): Promise<void> {
+  async loadData(): Promise<void> {
     this.isLoading = true;
     this.errorMessage = '';
-
     try {
-      // Fetch orders and expenses data
-      const [ordersResponse, expensesResponse]: any[] = await Promise.all([
-        this.http.get(`${environment.apiUrl}/orders/all`).toPromise(),
-        this.http.get(`${environment.apiUrl}/expenses/all`).toPromise()
+      const params: any = { startDate: this.startDate, endDate: this.endDate };
+      if (this.platform !== 'all') params.platform = this.platform;
+
+      const [salesResult, recipesResult] = await Promise.all([
+        this.http.get(`${environment.apiUrl}/online-sales/date-range`, { params }).toPromise(),
+        this.http.get(`${environment.apiUrl}/recipes`).toPromise().catch(() => [])
       ]);
 
-      const orders = ordersResponse.data || ordersResponse || [];
-      const expenses = expensesResponse.data || expensesResponse || [];
+      const result: any = salesResult;
+      const recipes: any[] = Array.isArray(recipesResult)
+        ? recipesResult
+        : Array.isArray((recipesResult as any)?.data)
+          ? (recipesResult as any).data
+          : [];
 
-      this.calculateProfitData(orders, expenses);
-    } catch (error: any) {
-      this.errorMessage = error.error?.message || 'Failed to load profit data';
-      console.error('Error loading profit data:', error);
+      this.buildRecipeCostLookup(recipes);
+
+      this.allSales = (Array.isArray(result) ? result : result?.data || []) as OnlineSale[];
+      this.compute();
+    } catch (err: any) {
+      this.errorMessage = err?.error?.error || err?.message || 'Failed to load online sales data';
     } finally {
       this.isLoading = false;
     }
   }
 
-  calculateProfitData(orders: any[], expenses: any[]): void {
-    const startDate = getIstStartOfDay(this.startDate);
-    const endDate = getIstEndOfDay(this.endDate);
+  private buildRecipeCostLookup(recipes: any[]): void {
+    this.recipeCostByMenuId.clear();
+    this.recipeCostByName.clear();
 
-    // Filter orders and expenses by date range
-    const filteredOrders = orders.filter(order => {
-      const orderDate = new Date(order.date);
-      return orderDate >= startDate && orderDate <= endDate;
-    });
+    for (const recipe of recipes || []) {
+      const makingCost = Number(recipe?.totalMakingCost || 0);
+      if (makingCost <= 0) continue;
 
-    const filteredExpenses = expenses.filter(expense => {
-      const expenseDate = new Date(expense.date);
-      return expenseDate >= startDate && expenseDate <= endDate;
-    });
+      const menuItemId = recipe?.menuItemId ? String(recipe.menuItemId) : '';
+      const menuItemName = this.normalizeItemName(String(recipe?.menuItemName || ''));
 
-    // Calculate total revenue
-    this.profitData.totalRevenue = filteredOrders.reduce((sum, order) => {
-      return sum + (order.total || 0);
-    }, 0);
-
-    // Calculate total expenses
-    this.profitData.totalExpenses = filteredExpenses.reduce((sum, expense) => {
-      return sum + (expense.amount || 0);
-    }, 0);
-
-    // Calculate gross profit and margin
-    this.profitData.grossProfit = this.profitData.totalRevenue - this.profitData.totalExpenses;
-    this.profitData.profitMargin = this.profitData.totalRevenue > 0
-      ? (this.profitData.grossProfit / this.profitData.totalRevenue) * 100
-      : 0;
-
-    // Calculate item-level profitability
-    this.calculateItemProfitability(filteredOrders);
-
-    // Calculate expense categories
-    this.calculateExpenseCategories(filteredExpenses);
+      if (menuItemId) this.recipeCostByMenuId.set(menuItemId, makingCost);
+      if (menuItemName) this.recipeCostByName.set(menuItemName, makingCost);
+    }
   }
 
-  calculateItemProfitability(orders: any[]): void {
-    const itemsMap = new Map<string, {
-      revenue: number;
-      quantity: number;
-      cost: number;
-    }>();
+  private normalizeItemName(name: string): string {
+    return (name || '').trim().toLowerCase();
+  }
 
-    orders.forEach(order => {
-      if (order.items && Array.isArray(order.items)) {
-        order.items.forEach((item: any) => {
-          const itemName = item.name || 'Unknown';
-          const existing = itemsMap.get(itemName) || { revenue: 0, quantity: 0, cost: 0 };
+  private deriveOrderCost(sale: OnlineSale): { cost: number; hasCost: boolean; costCoverage: number } {
+    const items = sale.orderedItems || [];
+    if (!items.length) return { cost: 0, hasCost: false, costCoverage: 0 };
 
-          const itemRevenue = (item.price || 0) * (item.quantity || 0);
-          // Assuming cost is 60% of price (you can adjust this or fetch real cost data)
-          const itemCost = itemRevenue * 0.6;
+    let totalQty = 0;
+    let coveredQty = 0;
+    let cost = 0;
 
-          itemsMap.set(itemName, {
-            revenue: existing.revenue + itemRevenue,
-            quantity: existing.quantity + (item.quantity || 0),
-            cost: existing.cost + itemCost
-          });
+    for (const item of items) {
+      const qty = Number(item.quantity || 1);
+      totalQty += qty;
+
+      const byId = item.menuItemId ? this.recipeCostByMenuId.get(String(item.menuItemId)) : undefined;
+      const byName = this.recipeCostByName.get(this.normalizeItemName(item.itemName));
+      const makingCost = byId ?? byName;
+
+      if (makingCost && makingCost > 0) {
+        cost += makingCost * qty;
+        coveredQty += qty;
+      }
+    }
+
+    const coverage = totalQty > 0 ? (coveredQty / totalQty) * 100 : 0;
+    return { cost, hasCost: coveredQty > 0, costCoverage: coverage };
+  }
+
+  private compute(): void {
+    const s = this.emptyS();
+    const orderProfits: OrderProfit[] = [];
+    const itemMap = new Map<string, { qty: number; rev: number; cost: number; hasCost: boolean }>();
+
+    for (const sale of this.allSales) {
+      const revenue = sale.payout || 0;
+      const derived = this.deriveOrderCost(sale);
+      const cost = derived.cost;
+      const profit = revenue - cost;
+      const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+      const hasCost = derived.hasCost;
+      const costCoverage = derived.costCoverage;
+
+      orderProfits.push({ sale, revenue, cost, profit, margin, hasCost, costCoverage });
+
+      s.totalOrders++;
+      s.totalBillValue += sale.billSubTotal || 0;
+      s.totalPayout += revenue;
+      s.totalInvestment += cost;
+      s.totalPlatformDeduction += sale.platformDeduction || 0;
+      s.totalDiscount += sale.discountAmount || 0;
+      s.totalPackaging += sale.packagingCharges || 0;
+      if (hasCost) s.ordersWithCost++;
+
+      if (sale.platform?.toLowerCase() === 'zomato') {
+        s.zomatoOrders++; s.zomatoPayout += revenue;
+      } else if (sale.platform?.toLowerCase() === 'swiggy') {
+        s.swiggyOrders++; s.swiggyPayout += revenue;
+      }
+
+      // Aggregate per item. Revenue/cost are distributed by ordered quantity share.
+      for (const item of (sale.orderedItems || [])) {
+        const key = item.itemName;
+        const existing = itemMap.get(key) || { qty: 0, rev: 0, cost: 0, hasCost: false };
+        const itemCount = (sale.orderedItems || []).reduce((t, i) => t + (i.quantity || 1), 0);
+        const share = itemCount > 0 ? ((item.quantity || 1) / itemCount) : 0;
+        const itemRev = itemCount > 0 ? revenue * share : 0;
+        const itemCost = hasCost && itemCount > 0 ? cost * share : 0;
+        itemMap.set(key, {
+          qty: existing.qty + (item.quantity || 1),
+          rev: existing.rev + itemRev,
+          cost: existing.cost + itemCost,
+          hasCost: existing.hasCost || hasCost
         });
       }
-    });
+    }
 
-    this.profitData.itemsProfitability = Array.from(itemsMap.entries()).map(([itemName, data]) => ({
+    s.totalProfit = s.totalPayout - s.totalInvestment;
+    s.profitMargin = s.totalPayout > 0 ? (s.totalProfit / s.totalPayout) * 100 : 0;
+
+    this.summary = s;
+    this.orderProfits = orderProfits;
+    this.itemProfits = Array.from(itemMap.entries()).map(([itemName, d]) => ({
       itemName,
-      revenue: data.revenue,
-      cost: data.cost,
-      profit: data.revenue - data.cost,
-      margin: data.revenue > 0 ? ((data.revenue - data.cost) / data.revenue) * 100 : 0,
-      quantity: data.quantity
-    })).sort((a, b) => b.profit - a.profit);
+      quantity: d.qty,
+      revenue: d.rev,
+      cost: d.cost,
+      profit: d.rev - d.cost,
+      margin: d.rev > 0 ? ((d.rev - d.cost) / d.rev) * 100 : 0,
+      hasCost: d.hasCost
+    })).sort((a, b) => b.revenue - a.revenue);
   }
 
-  calculateExpenseCategories(expenses: any[]): void {
-    const categoriesMap = new Map<string, number>();
-
-    expenses.forEach(expense => {
-      const category = expense.category || expense.type || 'Other';
-      const amount = expense.amount || 0;
-      categoriesMap.set(category, (categoriesMap.get(category) || 0) + amount);
+  // Filtered & sorted order list for the table
+  get filteredOrders(): OrderProfit[] {
+    let list = this.orderProfits;
+    if (this.orderSearch.trim()) {
+      const q = this.orderSearch.toLowerCase();
+      list = list.filter(op =>
+        op.sale.orderId?.toLowerCase().includes(q) ||
+        op.sale.customerName?.toLowerCase().includes(q) ||
+        op.sale.orderedItems?.some(i => i.itemName?.toLowerCase().includes(q))
+      );
+    }
+    return list.sort((a, b) => {
+      let av: any, bv: any;
+      switch (this.sortField) {
+        case 'orderAt': av = a.sale.orderAt; bv = b.sale.orderAt; break;
+        case 'payout': av = a.revenue; bv = b.revenue; break;
+        case 'profit': av = a.profit; bv = b.profit; break;
+        case 'margin': av = a.margin; bv = b.margin; break;
+        default: av = a.sale.orderAt; bv = b.sale.orderAt;
+      }
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return this.sortDir === 'asc' ? cmp : -cmp;
     });
-
-    this.expenseCategories = Array.from(categoriesMap.entries()).map(([category, amount]) => ({
-      category,
-      amount,
-      percentage: this.profitData.totalExpenses > 0
-        ? (amount / this.profitData.totalExpenses) * 100
-        : 0
-    })).sort((a, b) => b.amount - a.amount);
   }
 
-  exportReport(): void {
-    const report = `
-Online Profit Report
-Date Range: ${this.startDate} to ${this.endDate}
-
-SUMMARY
--------
-Total Revenue: ₹${this.profitData.totalRevenue.toFixed(2)}
-Total Expenses: ₹${this.profitData.totalExpenses.toFixed(2)}
-Gross Profit: ₹${this.profitData.grossProfit.toFixed(2)}
-Profit Margin: ${this.profitData.profitMargin.toFixed(2)}%
-
-ITEM PROFITABILITY
-------------------
-${this.profitData.itemsProfitability.map(item =>
-  `${item.itemName}: Revenue ₹${item.revenue.toFixed(2)}, Cost ₹${item.cost.toFixed(2)}, Profit ₹${item.profit.toFixed(2)} (${item.margin.toFixed(2)}%)`
-).join('\n')}
-
-EXPENSE CATEGORIES
-------------------
-${this.expenseCategories.map(cat =>
-  `${cat.category}: ₹${cat.amount.toFixed(2)} (${cat.percentage.toFixed(2)}%)`
-).join('\n')}
-    `.trim();
-
-    downloadFile(report, `profit-report-${this.startDate}-to-${this.endDate}.txt`, 'text/plain');
+  sort(field: string): void {
+    if (this.sortField === field) {
+      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortField = field;
+      this.sortDir = 'desc';
+    }
   }
 
-  getProfitClass(): string {
-    return this.profitData.grossProfit >= 0 ? 'profit-positive' : 'profit-negative';
+  sortIcon(field: string): string {
+    if (this.sortField !== field) return '↕';
+    return this.sortDir === 'asc' ? '↑' : '↓';
   }
 
-  getMarginClass(): string {
-    if (this.profitData.profitMargin >= 30) return 'margin-excellent';
-    if (this.profitData.profitMargin >= 20) return 'margin-good';
-    if (this.profitData.profitMargin >= 10) return 'margin-fair';
+  profitClass(profit: number): string {
+    return profit > 0 ? 'profit-pos' : profit < 0 ? 'profit-neg' : 'profit-zero';
+  }
+
+  marginClass(margin: number): string {
+    if (margin >= 30) return 'margin-excellent';
+    if (margin >= 20) return 'margin-good';
+    if (margin >= 10) return 'margin-fair';
     return 'margin-poor';
   }
 
-  getProfitPerSale(): string {
-    const totalSales = this.profitData.itemsProfitability.reduce((sum, item) => sum + item.quantity, 0);
-    if (totalSales === 0) {
-      return '0.00';
-    }
-    const profitPerSale = this.profitData.grossProfit / totalSales;
-    return profitPerSale.toFixed(2);
+  itemsLabel(sale: OnlineSale): string {
+    return (sale.orderedItems || []).map(i => `${i.itemName}${i.quantity > 1 ? ' ×' + i.quantity : ''}`).join(', ') || '—';
   }
 
-  trackByIndex(index: number): number { return index; }
+  exportReport(): void {
+    const s = this.summary;
+    const lines: string[] = [
+      `Online Profit Report`,
+      `Period: ${this.startDate} to ${this.endDate}   Platform: ${this.platform}`,
+      `Generated: ${new Date().toLocaleString('en-IN')}`,
+      ``,
+      `SUMMARY`,
+      `-------`,
+      `Total Orders       : ${s.totalOrders}`,
+      `Total Bill Value   : ₹${s.totalBillValue.toFixed(2)}`,
+      `Total Payout       : ₹${s.totalPayout.toFixed(2)}`,
+      `Platform Deductions: ₹${s.totalPlatformDeduction.toFixed(2)}`,
+      `Discounts          : ₹${s.totalDiscount.toFixed(2)}`,
+      `Packaging          : ₹${s.totalPackaging.toFixed(2)}`,
+      `Total Investment   : ₹${s.totalInvestment.toFixed(2)}  (${s.ordersWithCost}/${s.totalOrders} orders)`,
+      `Total Profit       : ₹${s.totalProfit.toFixed(2)}`,
+      `Profit Margin      : ${s.profitMargin.toFixed(2)}%`,
+      ``,
+      `PLATFORM BREAKDOWN`,
+      `------------------`,
+      `Zomato : ${s.zomatoOrders} orders  ₹${s.zomatoPayout.toFixed(2)} payout`,
+      `Swiggy : ${s.swiggyOrders} orders  ₹${s.swiggyPayout.toFixed(2)} payout`,
+      ``,
+      `ORDER-WISE DETAIL`,
+      `-----------------`,
+      ...this.filteredOrders.map(op =>
+        `${op.sale.orderAt?.slice(0,10)}  ${op.sale.platform?.padEnd(8)}  #${op.sale.orderId}  ` +
+        `Payout ₹${op.revenue.toFixed(2)}  Cost ₹${op.cost.toFixed(2)}  ` +
+        `Profit ₹${op.profit.toFixed(2)}  (${op.margin.toFixed(1)}%)`
+      )
+    ];
+    downloadFile(lines.join('\n'), `online-profit-${this.startDate}-to-${this.endDate}.txt`, 'text/plain');
+  }
+
+  trackById(index: number, op: OrderProfit): string { return op.sale.id || String(index); }
+  trackByName(index: number, item: ItemProfit): string { return item.itemName; }
 }
