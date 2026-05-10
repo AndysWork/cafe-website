@@ -53,6 +53,17 @@
   margin-top: 1rem;
 }
 
+.items-warning {
+  font-size: 0.8rem;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  margin-top: 0.5rem;
+  display: inline-block;
+}
+
 // Price decision grid
 .price-decision-grid {
   display: grid;

@@ -20,7 +20,7 @@ public interface IMenuRepository
     Task ClearMenuItemsAsync();
     Task ClearMenuItemsByOutletAsync(string outletId);
     Task<bool> ToggleMenuItemAvailabilityAsync(string id);
-    Task<bool> UpdateMenuItemShopPriceAsync(string menuItemId, decimal shopPrice);
+    Task<bool> UpdateMenuItemShopPriceAsync(string menuItemId, decimal shopPrice, decimal? makingPrice = null);
 
     // Categories
     Task<List<MenuCategory>> GetCategoriesAsync(string? outletId = null);

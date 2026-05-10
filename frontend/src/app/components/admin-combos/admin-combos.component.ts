@@ -119,7 +119,13 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     this.comboForm = {
       name: c.name,
       description: c.description,
-      items: c.items.map(i => ({ menuItemId: i.menuItemId, quantity: i.quantity })),
+      items: c.items.map(i => ({
+        menuItemId: i.menuItemId,
+        quantity: i.quantity,
+        shopPrice: (i as any).shopPrice || 0,
+        onlinePrice: (i as any).onlinePrice || i.originalPrice || 0,
+        packagingCharge: (i as any).packagingCharge || 0
+      })),
       comboPrice: c.comboPrice
     };
     this.showModal = true;
@@ -257,6 +263,10 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     this.comboForm.items.push({ menuItemId: '', quantity: 1, shopPrice: 0, onlinePrice: 0, packagingCharge: 0 });
   }
 
+  getSelectedItemCount(): number {
+    return this.comboForm.items.filter(item => !!item.menuItemId?.trim()).length;
+  }
+
   getItemProfit(index: number): { shopProfit: number; onlineProfit: number } {
     const item = this.comboForm.items[index];
     if (!item.menuItemId) return { shopProfit: 0, onlineProfit: 0 };
@@ -274,15 +284,32 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
   }
 
   saveCombo() {
+    if (!this.comboForm.name?.trim()) {
+      this.uiStore.error('Combo name is required');
+      return;
+    }
+
+    const validItems = this.comboForm.items.filter(i => i.menuItemId?.trim());
+    if (validItems.length === 0) {
+      this.uiStore.error('Add at least one menu item to the combo');
+      return;
+    }
+    if (validItems.length < 2) {
+      this.uiStore.error('A combo must have at least 2 items');
+      return;
+    }
+
+    const payload: CreateComboRequest = { ...this.comboForm, items: validItems };
+
     if (this.isEditMode && this.currentCombo?.id) {
-      this.comboService.updateCombo(this.currentCombo.id, this.comboForm).subscribe({
+      this.comboService.updateCombo(this.currentCombo.id, payload).subscribe({
         next: () => { this.uiStore.success('Combo updated'); this.loadCombos(); this.closeModal(); },
-        error: () => this.uiStore.error('Failed to update combo')
+        error: (err) => this.uiStore.error(err?.message || 'Failed to update combo')
       });
     } else {
-      this.comboService.createCombo(this.comboForm).subscribe({
+      this.comboService.createCombo(payload).subscribe({
         next: () => { this.uiStore.success('Combo created'); this.loadCombos(); this.closeModal(); },
-        error: () => this.uiStore.error('Failed to create combo')
+        error: (err) => this.uiStore.error(err?.message || 'Failed to create combo')
       });
     }
   }

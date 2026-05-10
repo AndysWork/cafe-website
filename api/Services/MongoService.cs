@@ -643,15 +643,68 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
     
-    // Update menu item shop price (called when recipe is saved)
-    public async Task<bool> UpdateMenuItemShopPriceAsync(string menuItemId, decimal shopPrice)
+    // Update menu item shop price and making price (called when recipe is saved)
+    public async Task<bool> UpdateMenuItemShopPriceAsync(string menuItemId, decimal shopPrice, decimal? makingPrice = null)
     {
-        var update = Builders<CafeMenuItem>.Update
+        var updateDef = Builders<CafeMenuItem>.Update
             .Set(x => x.ShopSellingPrice, shopPrice)
             .Set(x => x.LastUpdated, GetIstNow());
 
-        var result = await _menu.UpdateOneAsync(x => x.Id == menuItemId, update);
+        if (makingPrice.HasValue && makingPrice.Value > 0)
+            updateDef = updateDef.Set(x => x.MakingPrice, makingPrice.Value);
+
+        var result = await _menu.UpdateOneAsync(x => x.Id == menuItemId, updateDef);
         return result.ModifiedCount > 0;
+    }
+
+    // Bulk sync all recipe making costs + shop prices → menu items across all outlets
+    public async Task<int> SyncAllRecipePricesToMenuItemsAsync()
+    {
+        var recipes = await _recipes.Find(_ => true).ToListAsync();
+        int updated = 0;
+
+        foreach (var recipe in recipes)
+        {
+            try
+            {
+                // Match by MenuItemId first, then fallback to name + outletId
+                CafeMenuItem? menuItem = null;
+                if (!string.IsNullOrEmpty(recipe.MenuItemId))
+                    menuItem = await GetMenuItemAsync(recipe.MenuItemId);
+
+                if (menuItem == null && !string.IsNullOrEmpty(recipe.MenuItemName) && !string.IsNullOrEmpty(recipe.OutletId))
+                    menuItem = await GetMenuItemsByNameAndOutletAsync(recipe.MenuItemName, recipe.OutletId);
+
+                if (menuItem == null) continue;
+
+                var shopPrice = recipe.PriceForecast?.ShopPrice > 0
+                    ? recipe.PriceForecast!.ShopPrice
+                    : menuItem.ShopSellingPrice;
+
+                var updateDef = Builders<CafeMenuItem>.Update
+                    .Set(x => x.MakingPrice, recipe.TotalMakingCost)
+                    .Set(x => x.LastUpdated, GetIstNow());
+
+                if (recipe.PriceForecast?.ShopPrice > 0)
+                    updateDef = updateDef.Set(x => x.ShopSellingPrice, recipe.PriceForecast!.ShopPrice);
+
+                if (recipe.PriceForecast?.OnlinePrice > 0)
+                    updateDef = updateDef.Set(x => x.OnlinePrice, recipe.PriceForecast!.OnlinePrice);
+
+                if (recipe.PriceForecast?.PackagingCost > 0)
+                    updateDef = updateDef.Set(x => x.PackagingCharge, recipe.PriceForecast!.PackagingCost);
+
+                var result = await _menu.UpdateOneAsync(x => x.Id == menuItem.Id, updateDef);
+                if (result.ModifiedCount > 0) updated++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[SyncPrices] Failed for recipe {RecipeName}", recipe.MenuItemName);
+            }
+        }
+
+        _logger.LogInformation("[SyncPrices] Synced {Count} menu items from recipes", updated);
+        return updated;
     }
     
     #endregion
@@ -5546,10 +5599,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         await _recipes.InsertOneAsync(recipe);
         
-        // Update the shop price in the menu item if recipe has price forecast
-        if (recipe.PriceForecast != null && recipe.PriceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(recipe.MenuItemId))
+        // Update shop price and making price in the source menu item
+        if (!string.IsNullOrEmpty(recipe.MenuItemId))
         {
-            await UpdateMenuItemShopPriceAsync(recipe.MenuItemId, recipe.PriceForecast.ShopPrice);
+            var shopPrice = recipe.PriceForecast?.ShopPrice > 0 ? recipe.PriceForecast!.ShopPrice : 0;
+            await UpdateMenuItemShopPriceAsync(recipe.MenuItemId, shopPrice, recipe.TotalMakingCost);
         }
         
         // Copy recipe to other outlets with the same menu item name (allow creating new recipes)
@@ -5562,10 +5616,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var result = await _recipes.ReplaceOneAsync(r => r.Id == id, recipe);
         
-        // Update the shop price in the menu item if recipe has price forecast
-        if (result.ModifiedCount > 0 && recipe.PriceForecast != null && recipe.PriceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(recipe.MenuItemId))
+        // Update shop price and making price in the source menu item
+        if (result.ModifiedCount > 0 && !string.IsNullOrEmpty(recipe.MenuItemId))
         {
-            await UpdateMenuItemShopPriceAsync(recipe.MenuItemId, recipe.PriceForecast.ShopPrice);
+            var shopPrice = recipe.PriceForecast?.ShopPrice > 0 ? recipe.PriceForecast!.ShopPrice : 0;
+            await UpdateMenuItemShopPriceAsync(recipe.MenuItemId, shopPrice, recipe.TotalMakingCost);
         }
         
         // Update recipe in other outlets where it already exists (don't create new ones)
@@ -6102,11 +6157,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     _logger.LogDebug("[Recipe Copy]    - Total Making Cost: â‚¹{totalMakingCost}");
                     _logger.LogDebug("[Recipe Copy]    - Overhead Costs: â‚¹{totalOverheadCost}");
                     
-                    // Update menu item shop price for this outlet
-                    if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem?.Id))
+                    // Update menu item shop price and making price for this outlet
+                    if (!string.IsNullOrEmpty(menuItem?.Id))
                     {
-                        await UpdateMenuItemShopPriceAsync(menuItem.Id!, priceForecast.ShopPrice);
-                        _logger.LogDebug("[Recipe Copy]    - Updated menu item shop price: â‚¹{priceForecast.ShopPrice}");
+                        var shopP = priceForecast?.ShopPrice > 0 ? priceForecast!.ShopPrice : 0;
+                        await UpdateMenuItemShopPriceAsync(menuItem.Id!, shopP, totalMakingCost);
+                        _logger.LogDebug("[Recipe Copy]    - Updated menu item shop price: â‚¹{ShopPrice}, making cost: â‚¹{MakingCost}", shopP, totalMakingCost);
                     }
                 }
                 else
@@ -6151,11 +6207,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     _logger.LogDebug("[Recipe Copy]    - Total Making Cost: â‚¹{totalMakingCost}");
                     _logger.LogDebug("[Recipe Copy]    - Overhead Costs: â‚¹{totalOverheadCost}");
                     
-                    // Update menu item shop price for this outlet
-                    if (priceForecast != null && priceForecast.ShopPrice > 0 && !string.IsNullOrEmpty(menuItem?.Id))
+                    // Update menu item shop price and making price for this outlet
+                    if (!string.IsNullOrEmpty(menuItem?.Id))
                     {
-                        await UpdateMenuItemShopPriceAsync(menuItem.Id!, priceForecast.ShopPrice);
-                        _logger.LogDebug("[Recipe Copy]    - Updated menu item shop price: â‚¹{priceForecast.ShopPrice}");
+                        var shopP = priceForecast?.ShopPrice > 0 ? priceForecast!.ShopPrice : 0;
+                        await UpdateMenuItemShopPriceAsync(menuItem.Id!, shopP, totalMakingCost);
+                        _logger.LogDebug("[Recipe Copy]    - Updated menu item shop price: â‚¹{ShopPrice}, making cost: â‚¹{MakingCost}", shopP, totalMakingCost);
                     }
                 }
             }

@@ -453,5 +453,36 @@ namespace Cafe.Api.Functions
                 return response;
             }
         }
+
+        [Function("SyncRecipePrices")]
+        public async Task<HttpResponseData> SyncRecipePrices(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "recipes/sync-prices")] HttpRequestData req)
+        {
+            try
+            {
+                var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                if (!isAuthorized) return errorResponse!;
+
+                _logger.LogInformation("Admin triggered recipe price sync to all menu items");
+
+                var updated = await _mongoService.SyncAllRecipePricesToMenuItemsAsync();
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(new
+                {
+                    success = true,
+                    message = $"Successfully synced prices for {updated} menu items from their recipes",
+                    updatedCount = updated
+                });
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing recipe prices to menu items");
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = "An error occurred while syncing recipe prices" });
+                return response;
+            }
+        }
     }
 }

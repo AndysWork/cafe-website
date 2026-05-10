@@ -9,6 +9,10 @@
         <span class="icon">🔄</span>
         Refresh
       </button>
+      <button class="btn-sync-prices" (click)="syncRecipePricesToMenu()" [disabled]="loading || syncingRecipePrices" title="Sync recipe prices to menu items in all outlets">
+        <span class="icon">🔁</span>
+        {{ syncingRecipePrices ? 'Syncing...' : 'Re-sync Recipe Prices' }}
+      </button>
       <button class="btn-upload" (click)="openUploadModal()">
         <span class="icon">📤</span>
         Upload Excel

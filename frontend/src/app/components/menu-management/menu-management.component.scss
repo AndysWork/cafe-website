@@ -129,6 +129,33 @@
   }
 }
 
+.btn-sync-prices {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(234, 88, 12, 0.3);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(234, 88, 12, 0.4);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
 .filters {
   display: flex;
   gap: 20px;

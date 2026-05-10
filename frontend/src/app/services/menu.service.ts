@@ -133,6 +133,13 @@ export class MenuService {
       catchError(handleServiceError('MenuService.copyMenuItemFromOutlet'))
     );
   }
+
+  syncRecipePrices(): Observable<SyncRecipePricesResponse> {
+    return this.http.post<SyncRecipePricesResponse>(`${this.apiUrl}/recipes/sync-prices`, {}).pipe(
+      tap(() => this.notifyMenuItemsUpdated()),
+      catchError(handleServiceError('MenuService.syncRecipePrices'))
+    );
+  }
 }
 
 export interface CopyMenuItemResponse {
@@ -148,4 +155,10 @@ export interface CopyMenuItemResponse {
     copiedForecastId?: string;
     futurePricesUpdated: boolean;
   };
+}
+
+export interface SyncRecipePricesResponse {
+  success: boolean;
+  message: string;
+  updatedCount: number;
 }

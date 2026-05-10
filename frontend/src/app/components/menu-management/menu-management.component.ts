@@ -72,6 +72,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   private menuRefreshSubscription?: Subscription;
 
   loading = false;
+  syncingRecipePrices = false;
   showModal = false;
   showUploadModal = false;
   isEditMode = false;
@@ -152,6 +153,25 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
   refreshMenuItems(): void {
     this.loadMenuItems();
+  }
+
+  syncRecipePricesToMenu(): void {
+    if (!confirm('Re-sync recipe prices to menu items for all outlets?')) {
+      return;
+    }
+
+    this.syncingRecipePrices = true;
+    this.menuService.syncRecipePrices().subscribe({
+      next: (response) => {
+        this.syncingRecipePrices = false;
+        this.uiStore.success(response?.message || 'Recipe prices synced to menu items');
+        this.loadMenuItems();
+      },
+      error: (error) => {
+        this.syncingRecipePrices = false;
+        this.uiStore.error(error?.message || error?.error?.error || 'Failed to sync recipe prices');
+      }
+    });
   }
 
   loadMenuItems(): void {

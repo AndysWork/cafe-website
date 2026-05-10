@@ -116,6 +116,9 @@
             </div>
           </div>
           <button type="button" class="btn-create" style="margin: 12px 0; font-size: 0.85rem; padding: 8px 16px;" (click)="addItem()">➕ Add Item</button>
+          <div *ngIf="getSelectedItemCount() < 2" class="items-warning">
+            ⚠️ At least 2 items required for a combo
+          </div>
         </div>
 
         <!-- Combo Price & Profit Summary -->
