@@ -5181,18 +5181,27 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .ToListAsync();
     }
 
-    public async Task<PlatformCharge?> GetPlatformChargeByKeyAsync(string platform, int year, int month)
+    public async Task<PlatformCharge?> GetPlatformChargeByKeyAsync(string platform, int year, int month, string? outletId = null)
     {
-        return await _platformCharges.Find(c => 
-            c.Platform == platform && 
-            c.Year == year && 
-            c.Month == month
-        ).FirstOrDefaultAsync();
+        var filter = Builders<PlatformCharge>.Filter.Where(c =>
+            c.Platform == platform &&
+            c.Year == year &&
+            c.Month == month);
+
+        if (!string.IsNullOrEmpty(outletId))
+            filter &= Builders<PlatformCharge>.Filter.Eq(c => c.OutletId, outletId);
+
+        return await _platformCharges.Find(filter).FirstOrDefaultAsync();
     }
 
-    public async Task<List<PlatformCharge>> GetPlatformChargesByPlatformAsync(string platform)
+    public async Task<List<PlatformCharge>> GetPlatformChargesByPlatformAsync(string platform, string? outletId = null)
     {
-        return await _platformCharges.Find(c => c.Platform == platform)
+        var filter = Builders<PlatformCharge>.Filter.Eq(c => c.Platform, platform);
+
+        if (!string.IsNullOrEmpty(outletId))
+            filter &= Builders<PlatformCharge>.Filter.Eq(c => c.OutletId, outletId);
+
+        return await _platformCharges.Find(filter)
             .SortByDescending(c => c.Year)
             .ThenByDescending(c => c.Month)
             .ToListAsync();

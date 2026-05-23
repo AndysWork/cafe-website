@@ -124,7 +124,20 @@ public class MigrateOutletIdsFunction
                 results.Errors.Add($"SubCategories: {ex.Message}");
             }
 
-            results.TotalRecordsUpdated = results.FrozenItemsUpdated + results.IngredientsUpdated + results.CategoriesUpdated + results.SubCategoriesUpdated;
+            // Migrate PlatformCharges
+            try
+            {
+                var platformChargesUpdated = await _mongoService.MigratePlatformChargesOutletIdAsync(outletId);
+                results.PlatformChargesUpdated = platformChargesUpdated;
+                _logger.LogInformation("Migrated {Count} platform charges", platformChargesUpdated);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error migrating platform charges");
+                results.Errors.Add($"PlatformCharges: {ex.Message}");
+            }
+
+            results.TotalRecordsUpdated = results.FrozenItemsUpdated + results.IngredientsUpdated + results.CategoriesUpdated + results.SubCategoriesUpdated + results.PlatformChargesUpdated;
             results.Success = results.Errors.Count == 0;
             results.Message = results.Success 
                 ? $"Successfully migrated {results.TotalRecordsUpdated} records to outlet '{outlet.OutletName}'"
@@ -190,6 +203,7 @@ public class MigrateOutletIdsFunction
         public int IngredientsUpdated { get; set; }
         public int CategoriesUpdated { get; set; }
         public int SubCategoriesUpdated { get; set; }
+        public int PlatformChargesUpdated { get; set; }
         public int TotalRecordsUpdated { get; set; }
         public List<string> Errors { get; set; } = new();
     }

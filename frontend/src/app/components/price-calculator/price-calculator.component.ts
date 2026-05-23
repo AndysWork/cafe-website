@@ -45,6 +45,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   activeTab: 'calculator' | 'ingredients' | 'recipes' | 'overhead' | 'frozen' = 'calculator';
   recipeViewMode: 'grid' | 'table' = 'table';
   recipeSearchTerm = '';
+  recipeSortBy: 'name' | 'price' | 'category' | 'futureShopProfit' | 'futureOnlineProfit' = 'name';
+  recipeSortDir: 'asc' | 'desc' = 'asc';
 
   // Ingredient Management
   showIngredientModal = false;
@@ -1019,15 +1021,46 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     );
   }
 
-  get filteredRecipes(): MenuItemRecipe[] {
-    if (!this.recipeSearchTerm) {
-      return this.recipes;
-    }
-
-    const search = this.recipeSearchTerm.toLowerCase().trim();
-    return this.recipes.filter(recipe =>
-      recipe.menuItemName.toLowerCase().includes(search)
+  getMenuItemCategory(recipe: MenuItemRecipe): string {
+    const match = this.menuItems.find(m =>
+      (recipe.menuItemId && m.id === recipe.menuItemId) ||
+      m.name.toLowerCase() === recipe.menuItemName.toLowerCase()
     );
+    if (!match) return '—';
+    // API returns 'category' (string) on CafeMenuItem; categoryName is an optional mapped field
+    return match.categoryName || match.category || '—';
+  }
+
+  get filteredRecipes(): MenuItemRecipe[] {
+    const search = this.recipeSearchTerm.toLowerCase().trim();
+    const filtered = search
+      ? this.recipes.filter(recipe => recipe.menuItemName.toLowerCase().includes(search))
+      : [...this.recipes];
+
+    const dir = this.recipeSortDir === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      if (this.recipeSortBy === 'name') {
+        return dir * a.menuItemName.localeCompare(b.menuItemName);
+      } else if (this.recipeSortBy === 'category') {
+        const catA = this.getMenuItemCategory(a);
+        const catB = this.getMenuItemCategory(b);
+        return dir * catA.localeCompare(catB);
+      } else if (this.recipeSortBy === 'futureShopProfit') {
+        const valA = a.priceForecast?.futureShopProfit ?? -Infinity;
+        const valB = b.priceForecast?.futureShopProfit ?? -Infinity;
+        return dir * (valA - valB);
+      } else if (this.recipeSortBy === 'futureOnlineProfit') {
+        const valA = a.priceForecast?.futureOnlineProfit ?? -Infinity;
+        const valB = b.priceForecast?.futureOnlineProfit ?? -Infinity;
+        return dir * (valA - valB);
+      } else {
+        const priceA = a.totalMakingCost ?? 0;
+        const priceB = b.totalMakingCost ?? 0;
+        return dir * (priceA - priceB);
+      }
+    });
+
+    return filtered;
   }
 
   copyFromRecipe(): void {

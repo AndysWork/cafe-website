@@ -24,6 +24,7 @@ export interface MenuItem {
   id: string;
   name: string;
   description?: string;
+  category?: string;       // raw field returned by API (CafeMenuItem.Category)
   categoryId: string;
   categoryName?: string;
   subCategoryId?: string;

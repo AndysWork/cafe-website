@@ -92,8 +92,8 @@ public interface IFinanceRepository
 
     // Platform Charges
     Task<List<PlatformCharge>> GetAllPlatformChargesAsync(string? outletId = null);
-    Task<PlatformCharge?> GetPlatformChargeByKeyAsync(string platform, int year, int month);
-    Task<List<PlatformCharge>> GetPlatformChargesByPlatformAsync(string platform);
+    Task<PlatformCharge?> GetPlatformChargeByKeyAsync(string platform, int year, int month, string? outletId = null);
+    Task<List<PlatformCharge>> GetPlatformChargesByPlatformAsync(string platform, string? outletId = null);
     Task CreatePlatformChargeAsync(PlatformCharge charge);
     Task<bool> UpdatePlatformChargeAsync(string id, UpdatePlatformChargeRequest request);
     Task<bool> DeletePlatformChargeAsync(string id);

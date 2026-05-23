@@ -12,7 +12,6 @@ public partial class MongoService
     {
         var filter = Builders<FrozenItem>.Filter.Or(
             Builders<FrozenItem>.Filter.Eq(item => item.OutletId, null),
-            Builders<FrozenItem>.Filter.Eq(item => item.OutletId, ""),
             Builders<FrozenItem>.Filter.Exists(item => item.OutletId, false)
         );
 
@@ -31,7 +30,6 @@ public partial class MongoService
     {
         var filter = Builders<Ingredient>.Filter.Or(
             Builders<Ingredient>.Filter.Eq(item => item.OutletId, null),
-            Builders<Ingredient>.Filter.Eq(item => item.OutletId, ""),
             Builders<Ingredient>.Filter.Exists(item => item.OutletId, false)
         );
 
@@ -50,7 +48,6 @@ public partial class MongoService
     {
         var filter = Builders<MenuCategory>.Filter.Or(
             Builders<MenuCategory>.Filter.Eq(item => item.OutletId, null),
-            Builders<MenuCategory>.Filter.Eq(item => item.OutletId, ""),
             Builders<MenuCategory>.Filter.Exists(item => item.OutletId, false)
         );
 
@@ -68,7 +65,6 @@ public partial class MongoService
     {
         var filter = Builders<MenuSubCategory>.Filter.Or(
             Builders<MenuSubCategory>.Filter.Eq(item => item.OutletId, null),
-            Builders<MenuSubCategory>.Filter.Eq(item => item.OutletId, ""),
             Builders<MenuSubCategory>.Filter.Exists(item => item.OutletId, false)
         );
 
@@ -76,6 +72,24 @@ public partial class MongoService
             .Set(item => item.OutletId, outletId);
 
         var result = await _subCategories.UpdateManyAsync(filter, update);
+        return (int)result.ModifiedCount;
+    }
+
+    /// <summary>
+    /// Migrates PlatformCharges without OutletId to specified outlet
+    /// </summary>
+    public async Task<int> MigratePlatformChargesOutletIdAsync(string outletId)
+    {
+        var filter = Builders<PlatformCharge>.Filter.Or(
+            Builders<PlatformCharge>.Filter.Eq(c => c.OutletId, null),
+            Builders<PlatformCharge>.Filter.Exists(c => c.OutletId, false)
+        );
+
+        var update = Builders<PlatformCharge>.Update
+            .Set(c => c.OutletId, outletId)
+            .Set(c => c.UpdatedAt, GetIstNow());
+
+        var result = await _platformCharges.UpdateManyAsync(filter, update);
         return (int)result.ModifiedCount;
     }
 
@@ -89,61 +103,70 @@ public partial class MongoService
         // Count FrozenItems
         var frozenItemsNoOutlet = Builders<FrozenItem>.Filter.Or(
             Builders<FrozenItem>.Filter.Eq(item => item.OutletId, null),
-            Builders<FrozenItem>.Filter.Eq(item => item.OutletId, ""),
             Builders<FrozenItem>.Filter.Exists(item => item.OutletId, false)
         );
         status.FrozenItemsWithoutOutlet = (int)await _frozenItems.CountDocumentsAsync(frozenItemsNoOutlet);
         status.FrozenItemsWithOutlet = (int)await _frozenItems.CountDocumentsAsync(
             Builders<FrozenItem>.Filter.And(
                 Builders<FrozenItem>.Filter.Exists(item => item.OutletId, true),
-                Builders<FrozenItem>.Filter.Ne(item => item.OutletId, "")
+                Builders<FrozenItem>.Filter.Ne(item => item.OutletId, null)
             )
         );
 
         // Count Ingredients
         var ingredientsNoOutlet = Builders<Ingredient>.Filter.Or(
             Builders<Ingredient>.Filter.Eq(item => item.OutletId, null),
-            Builders<Ingredient>.Filter.Eq(item => item.OutletId, ""),
             Builders<Ingredient>.Filter.Exists(item => item.OutletId, false)
         );
         status.IngredientsWithoutOutlet = (int)await _ingredients.CountDocumentsAsync(ingredientsNoOutlet);
         status.IngredientsWithOutlet = (int)await _ingredients.CountDocumentsAsync(
             Builders<Ingredient>.Filter.And(
                 Builders<Ingredient>.Filter.Exists(item => item.OutletId, true),
-                Builders<Ingredient>.Filter.Ne(item => item.OutletId, "")
+                Builders<Ingredient>.Filter.Ne(item => item.OutletId, null)
             )
         );
 
         // Count Categories
         var categoriesNoOutlet = Builders<MenuCategory>.Filter.Or(
             Builders<MenuCategory>.Filter.Eq(item => item.OutletId, null),
-            Builders<MenuCategory>.Filter.Eq(item => item.OutletId, ""),
             Builders<MenuCategory>.Filter.Exists(item => item.OutletId, false)
         );
         status.CategoriesWithoutOutlet = (int)await _categories.CountDocumentsAsync(categoriesNoOutlet);
         status.CategoriesWithOutlet = (int)await _categories.CountDocumentsAsync(
             Builders<MenuCategory>.Filter.And(
                 Builders<MenuCategory>.Filter.Exists(item => item.OutletId, true),
-                Builders<MenuCategory>.Filter.Ne(item => item.OutletId, "")
+                Builders<MenuCategory>.Filter.Ne(item => item.OutletId, null)
             )
         );
 
         // Count SubCategories
         var subCategoriesNoOutlet = Builders<MenuSubCategory>.Filter.Or(
             Builders<MenuSubCategory>.Filter.Eq(item => item.OutletId, null),
-            Builders<MenuSubCategory>.Filter.Eq(item => item.OutletId, ""),
             Builders<MenuSubCategory>.Filter.Exists(item => item.OutletId, false)
         );
         status.SubCategoriesWithoutOutlet = (int)await _subCategories.CountDocumentsAsync(subCategoriesNoOutlet);
         status.SubCategoriesWithOutlet = (int)await _subCategories.CountDocumentsAsync(
             Builders<MenuSubCategory>.Filter.And(
                 Builders<MenuSubCategory>.Filter.Exists(item => item.OutletId, true),
-                Builders<MenuSubCategory>.Filter.Ne(item => item.OutletId, "")
+                Builders<MenuSubCategory>.Filter.Ne(item => item.OutletId, null)
             )
         );
 
-        status.TotalWithoutOutlet = status.FrozenItemsWithoutOutlet + status.IngredientsWithoutOutlet + status.CategoriesWithoutOutlet + status.SubCategoriesWithoutOutlet;
-        status.TotalWithOutlet = status.FrozenItemsWithOutlet + status.IngredientsWithOutlet + status.CategoriesWithOutlet + status.SubCategoriesWithOutlet;
+        // Count PlatformCharges
+        var platformChargesNoOutlet = Builders<PlatformCharge>.Filter.Or(
+            Builders<PlatformCharge>.Filter.Eq(c => c.OutletId, null),
+            Builders<PlatformCharge>.Filter.Exists(c => c.OutletId, false)
+        );
+        status.PlatformChargesWithoutOutlet = (int)await _platformCharges.CountDocumentsAsync(platformChargesNoOutlet);
+        status.PlatformChargesWithOutlet = (int)await _platformCharges.CountDocumentsAsync(
+            Builders<PlatformCharge>.Filter.And(
+                Builders<PlatformCharge>.Filter.Exists(c => c.OutletId, true),
+                Builders<PlatformCharge>.Filter.Ne(c => c.OutletId, null)
+            )
+        );
+
+        status.TotalWithoutOutlet = status.FrozenItemsWithoutOutlet + status.IngredientsWithoutOutlet + status.CategoriesWithoutOutlet + status.SubCategoriesWithoutOutlet + status.PlatformChargesWithoutOutlet;
+        status.TotalWithOutlet = status.FrozenItemsWithOutlet + status.IngredientsWithOutlet + status.CategoriesWithOutlet + status.SubCategoriesWithOutlet + status.PlatformChargesWithOutlet;
         status.NeedsMigration = status.TotalWithoutOutlet > 0;
 
         return status;
@@ -159,6 +182,8 @@ public partial class MongoService
         public int CategoriesWithOutlet { get; set; }
         public int SubCategoriesWithoutOutlet { get; set; }
         public int SubCategoriesWithOutlet { get; set; }
+        public int PlatformChargesWithoutOutlet { get; set; }
+        public int PlatformChargesWithOutlet { get; set; }
         public int TotalWithoutOutlet { get; set; }
         public int TotalWithOutlet { get; set; }
         public bool NeedsMigration { get; set; }

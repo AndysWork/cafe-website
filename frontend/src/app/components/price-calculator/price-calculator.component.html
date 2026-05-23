@@ -1002,6 +1002,22 @@
           [(ngModel)]="recipeSearchTerm"
           placeholder="🔍 Search recipes..."
           class="recipes-search-input">
+        <div class="sort-controls" role="group" aria-label="Sort recipes">
+          <select [(ngModel)]="recipeSortBy" class="sort-select" title="Sort by">
+            <option value="name">Name</option>
+            <option value="price">Price</option>
+            <option value="category">Category</option>
+            <option value="futureShopProfit">Future Shop Profit</option>
+            <option value="futureOnlineProfit">Future Online Profit</option>
+          </select>
+          <button
+            type="button"
+            class="sort-dir-btn"
+            (click)="recipeSortDir = recipeSortDir === 'asc' ? 'desc' : 'asc'"
+            [title]="recipeSortDir === 'asc' ? 'Ascending' : 'Descending'">
+            {{ recipeSortDir === 'asc' ? '↑ Asc' : '↓ Desc' }}
+          </button>
+        </div>
         <div class="view-toggle" role="group" aria-label="Recipe view mode">
           <button
             type="button"
@@ -1024,6 +1040,7 @@
         <div class="recipe-card" *ngFor="let recipe of filteredRecipes; trackBy: trackByObjId">
           <div class="card-header">
             <h4>{{recipe.menuItemName}}</h4>
+            <span class="category-badge">{{ getMenuItemCategory(recipe) }}</span>
           </div>
           <div class="card-body">
             <!-- Basic Cost Info -->
@@ -1108,6 +1125,7 @@
           <thead>
             <tr>
               <th>Recipe</th>
+              <th>Category</th>
               <th>Making Cost</th>
               <th>Selling Price</th>
               <th>Shop Price</th>
@@ -1124,6 +1142,7 @@
           <tbody>
             <tr *ngFor="let recipe of filteredRecipes; trackBy: trackByObjId">
               <td class="recipe-name-cell">{{recipe.menuItemName}}</td>
+              <td class="recipe-category-cell">{{ getMenuItemCategory(recipe) }}</td>
               <td>₹{{(recipe.totalMakingCost || 0).toFixed(2)}}</td>
               <td class="selling-cell">₹{{(recipe.suggestedSellingPrice || 0).toFixed(2)}}</td>
               <td>₹{{(recipe.priceForecast?.shopPrice || 0).toFixed(2)}}</td>

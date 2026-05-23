@@ -43,11 +43,9 @@ public class NotificationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "notifications")] HttpRequestData req)
     {
         var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuth || string.IsNullOrEmpty(userId))
         {
-            var unauth = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await unauth.WriteAsJsonAsync(new { error = "Authentication required" });
-            return unauth;
+            return authError!;
         }
 
         var page = 1;
@@ -83,11 +81,9 @@ public class NotificationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "notifications/unread-count")] HttpRequestData req)
     {
         var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuth || string.IsNullOrEmpty(userId))
         {
-            var unauth = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await unauth.WriteAsJsonAsync(new { error = "Authentication required" });
-            return unauth;
+            return authError!;
         }
 
         try
@@ -117,11 +113,9 @@ public class NotificationFunction
         string id)
     {
         var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuth || string.IsNullOrEmpty(userId))
         {
-            var unauth = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await unauth.WriteAsJsonAsync(new { error = "Authentication required" });
-            return unauth;
+            return authError!;
         }
 
         var success = await _mongo.MarkNotificationAsReadAsync(id, userId);
@@ -147,11 +141,9 @@ public class NotificationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "notifications/read-all")] HttpRequestData req)
     {
         var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuth || string.IsNullOrEmpty(userId))
         {
-            var unauth = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await unauth.WriteAsJsonAsync(new { error = "Authentication required" });
-            return unauth;
+            return authError!;
         }
 
         var count = await _mongo.MarkAllNotificationsAsReadAsync(userId);
@@ -171,11 +163,9 @@ public class NotificationFunction
         string id)
     {
         var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuth || string.IsNullOrEmpty(userId))
         {
-            var unauth = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await unauth.WriteAsJsonAsync(new { error = "Authentication required" });
-            return unauth;
+            return authError!;
         }
 
         var success = await _mongo.DeleteNotificationAsync(id, userId);
@@ -201,11 +191,9 @@ public class NotificationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "notifications/all")] HttpRequestData req)
     {
         var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuth || string.IsNullOrEmpty(userId))
         {
-            var unauth = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await unauth.WriteAsJsonAsync(new { error = "Authentication required" });
-            return unauth;
+            return authError!;
         }
 
         var count = await _mongo.DeleteAllNotificationsAsync(userId);
@@ -225,11 +213,9 @@ public class NotificationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "notifications/preferences")] HttpRequestData req)
     {
         var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuth || string.IsNullOrEmpty(userId))
         {
-            var unauth = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await unauth.WriteAsJsonAsync(new { error = "Authentication required" });
-            return unauth;
+            return authError!;
         }
 
         var prefs = await _mongo.GetNotificationPreferencesAsync(userId);
@@ -249,11 +235,9 @@ public class NotificationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "notifications/preferences")] HttpRequestData req)
     {
         var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuth || string.IsNullOrEmpty(userId))
         {
-            var unauth = req.CreateResponse(HttpStatusCode.Unauthorized);
-            await unauth.WriteAsJsonAsync(new { error = "Authentication required" });
-            return unauth;
+            return authError!;
         }
 
         var body = await req.ReadAsStringAsync();

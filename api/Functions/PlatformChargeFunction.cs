@@ -83,7 +83,8 @@ public class PlatformChargeFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var charge = await _mongoService.GetPlatformChargeByKeyAsync(platform, year, month);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var charge = await _mongoService.GetPlatformChargeByKeyAsync(platform, year, month, outletId);
             
             if (charge == null)
             {
@@ -139,7 +140,8 @@ public class PlatformChargeFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var charges = await _mongoService.GetPlatformChargesByPlatformAsync(platform);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _authService);
+            var charges = await _mongoService.GetPlatformChargesByPlatformAsync(platform, outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
@@ -210,8 +212,8 @@ public class PlatformChargeFunction
                 return forbidden;
             }
 
-            // Check if charge already exists for this month/year/platform
-            var existing = await _mongoService.GetPlatformChargeByKeyAsync(request.Platform, request.Year, request.Month);
+            // Check if charge already exists for this month/year/platform for the SAME outlet
+            var existing = await _mongoService.GetPlatformChargeByKeyAsync(request.Platform, request.Year, request.Month, outletId);
             if (existing != null)
             {
                 return await CreateErrorResponse(req, $"Platform charge already exists for {request.Platform} {request.Month}/{request.Year}. Use update instead.");
