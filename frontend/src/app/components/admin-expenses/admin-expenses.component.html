@@ -58,6 +58,14 @@
         📤 Upload Excel
       </button>
       <button
+        class="btn-warning"
+        (click)="openRepairModal()"
+        *ngIf="currentExpenseSource !== 'Operational'"
+        title="Fix expenses that were uploaded without an outlet (not visible in the list)"
+      >
+        🔧 Repair Expenses
+      </button>
+      <button
         class="btn-info"
         (click)="loadSummary()"
         *ngIf="currentExpenseSource !== 'Operational'"
@@ -479,6 +487,23 @@
       </div>
 
       <div class="modal-body">
+        <!-- Upload context info -->
+        <div class="upload-context-info">
+          <div class="context-item">
+            <span class="context-label">Outlet:</span>
+            <span class="context-value" *ngIf="outletService.getSelectedOutlet()">
+              ✅ {{ outletService.getSelectedOutlet()?.outletName }}
+            </span>
+            <span class="context-value context-missing" *ngIf="!outletService.getSelectedOutlet()">
+              ⚠️ No outlet selected — upload will be blocked
+            </span>
+          </div>
+          <div class="context-item">
+            <span class="context-label">Source:</span>
+            <span class="context-value">{{ currentExpenseSource }}</span>
+          </div>
+        </div>
+
         <div class="upload-instructions">
           <h3>Excel Format</h3>
           <p>Columns: Date, ExpenseType, Amount, PaymentMethod</p>
@@ -757,6 +782,123 @@
 
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeExpenseTypeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Repair Orphaned Expenses Modal -->
+  <div *ngIf="showRepairModal" class="modal-overlay" (click)="closeRepairModal()">
+    <div class="modal-content repair-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>🔧 Repair Expenses</h2>
+        <button class="btn-close" (click)="closeRepairModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="repair-info">
+          <p>
+            Use this to fix expenses that are <strong>not showing in the list</strong>. Common causes:
+          </p>
+          <ul style="margin: 0.5rem 0; padding-left: 1.2rem; font-size: 0.875rem; color: #92400e;">
+            <li>Expenses uploaded without an outlet selected (no outlet assigned)</li>
+            <li>Expenses uploaded from the wrong tab (e.g. saved as <em>Offline</em> but should be <em>Online</em>)</li>
+          </ul>
+          <p>
+            Target outlet: <strong>{{ outletService.getSelectedOutlet()?.outletName || '— no outlet selected —' }}</strong>
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label>Start Date *</label>
+          <input type="date" [(ngModel)]="repairForm.startDate" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>End Date *</label>
+          <input type="date" [(ngModel)]="repairForm.endDate" class="form-control" />
+        </div>
+
+        <!-- Step 1: Diagnose -->
+        <div class="diagnose-section">
+          <button class="btn-info" (click)="diagnoseExpenses()" [disabled]="diagnosing || !repairForm.startDate || !repairForm.endDate">
+            {{ diagnosing ? '🔍 Searching...' : '🔍 Find Expenses in Date Range' }}
+          </button>
+          <span style="font-size:0.8rem; color:#64748b; margin-left:0.5rem;">Run this first to see what's stored in the database</span>
+        </div>
+
+        <!-- Diagnose results -->
+        <div *ngIf="diagnoseResult" class="diagnose-results">
+          <h4>📊 Found {{ diagnoseResult.totalRecords }} expense records</h4>
+          <div *ngIf="diagnoseResult.totalRecords === 0" class="diagnose-empty">
+            No expenses found for this date range in the database at all.
+          </div>
+          <table *ngIf="diagnoseResult.totalRecords > 0" class="diagnose-table">
+            <thead>
+              <tr>
+                <th>Outlet</th>
+                <th>Source</th>
+                <th>Count</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let g of diagnoseResult.groups">
+                <td [class.text-warning]="!g.outletId">{{ g.outletName }}</td>
+                <td>{{ g.expenseSource }}</td>
+                <td>{{ g.count }}</td>
+                <td>{{ formatCurrency(g.totalAmount) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Step 2: Repair options (only show after diagnose) -->
+        <div *ngIf="diagnoseResult && diagnoseResult.totalRecords > 0">
+          <hr style="margin: 1rem 0;" />
+          <h4 style="margin-bottom:0.75rem;">🔧 Repair Options</h4>
+
+          <div class="form-group">
+            <label>Filter: only fix expenses currently saved as</label>
+            <select [(ngModel)]="repairForm.filterBySource" class="form-control">
+              <option value="">Any source (Offline + Online)</option>
+              <option value="Offline">Offline</option>
+              <option value="Online">Online</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Set source to (leave blank to keep existing source)</label>
+            <select [(ngModel)]="repairForm.targetExpenseSource" class="form-control">
+              <option value="">Keep as-is</option>
+              <option value="Offline">Offline</option>
+              <option value="Online">Online</option>
+            </select>
+          </div>
+          <div class="form-group" style="display:flex; align-items:center; gap:0.5rem;">
+            <input type="checkbox" id="forceAllOutlets" [(ngModel)]="repairForm.forceAllOutlets" />
+            <label for="forceAllOutlets" style="margin:0; font-weight:500;">
+              Force-assign all matching expenses to selected outlet
+              <span style="font-size:0.8rem; color:#64748b;">(use if diagnose shows expenses under a different outlet)</span>
+            </label>
+          </div>
+        </div>
+
+        <div *ngIf="repairError" class="error-message">{{ repairError }}</div>
+
+        <div *ngIf="repairResult" class="success-message">
+          <h3>✅ Repair Complete!</h3>
+          <p>{{ repairResult.message }}</p>
+          <p *ngIf="repairResult.updatedCount === 0">
+            No matching expenses were updated. Run <strong>Find Expenses</strong> above to see what's stored and adjust the filters.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeRepairModal()">Close</button>
+        <button
+          class="btn-warning"
+          (click)="repairExpenses()"
+          [disabled]="repairing || !outletService.getSelectedOutlet() || !repairForm.startDate || !repairForm.endDate"
+        >
+          {{ repairing ? 'Repairing...' : '🔧 Repair Expenses' }}
+        </button>
       </div>
     </div>
   </div>

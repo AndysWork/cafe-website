@@ -94,3 +94,27 @@ public class ExpenseSummary
     public decimal TotalExpenses { get; set; }
     public Dictionary<string, decimal> ExpenseTypeBreakdown { get; set; } = new();
 }
+
+public class ExpenseDiagnoseGroup
+{
+    public string? OutletId { get; set; }
+    public string ExpenseSource { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public decimal TotalAmount { get; set; }
+}
+
+public class RepairExpensesRequest
+{
+    public string StartDate { get; set; } = string.Empty;
+    public string EndDate { get; set; } = string.Empty;
+    public string TargetOutletId { get; set; } = string.Empty;
+    /// <summary>Optional: filter — only repair expenses that currently have this source.</summary>
+    public string? FilterBySource { get; set; }
+    /// <summary>Optional: set expenseSource to this value ("Offline" or "Online") during repair.</summary>
+    public string? TargetExpenseSource { get; set; }
+    /// <summary>
+    /// When true: targets ALL expenses in the date range regardless of outletId.
+    /// Use when expenses have the wrong outletId (not null, not target).
+    /// </summary>
+    public bool ForceAllOutlets { get; set; }
+}

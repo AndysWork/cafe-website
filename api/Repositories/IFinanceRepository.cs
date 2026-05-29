@@ -24,7 +24,9 @@ public interface IFinanceRepository
     Task<Expense> CreateExpenseAsync(Expense expense);
     Task<bool> UpdateExpenseAsync(string id, Expense expense);
     Task<bool> DeleteExpenseAsync(string id);
-    Task<ExpenseSummary> GetExpenseSummaryByDateAsync(DateTime date);
+    Task<long> BulkRepairExpensesAsync(DateTime startDate, DateTime endDate, string targetOutletId, string? filterBySource = null, string? targetExpenseSource = null, bool forceAllOutlets = false);
+    Task<List<ExpenseDiagnoseGroup>> DiagnoseExpensesAsync(DateTime startDate, DateTime endDate);
+    Task<ExpenseSummary> GetExpenseSummaryByDateAsync(DateTime date, string? outletId = null);
     Task<BsonDocument?> GetExpenseAnalyticsAggregationAsync(DateTime startDate, DateTime endDate, string? source, string? outletId);
 
     // Operational Expenses
@@ -71,7 +73,7 @@ public interface IFinanceRepository
     Task<DailyCashReconciliation?> UpdateCashReconciliationAsync(string id, DailyCashReconciliation reconciliation);
     Task<List<DailyCashReconciliation>> BulkCreateCashReconciliationsAsync(List<DailyCashReconciliation> reconciliations, string userId);
     Task<bool> DeleteCashReconciliationAsync(string id);
-    Task<object> GetCashReconciliationSummaryAsync(DateTime startDate, DateTime endDate);
+    Task<object> GetCashReconciliationSummaryAsync(DateTime startDate, DateTime endDate, string? outletId = null);
     Task<object> GetDailySalesSummaryForReconciliationAsync(DateTime date, string? outletId = null);
 
     // Online Sales

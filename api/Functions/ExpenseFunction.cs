@@ -196,7 +196,8 @@ public class ExpenseFunction
             // Convert to IST date (date-only, no time component)
             date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
 
-            var summary = await _mongo.GetExpenseSummaryByDateAsync(date);
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            var summary = await _mongo.GetExpenseSummaryByDateAsync(date, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(summary);
@@ -658,6 +659,123 @@ public class ExpenseFunction
         }
     }
 
+    // GET: Diagnose — find expenses in a date range with NO outlet/source filter (Admin only)
+    // Returns a breakdown by outletId + expenseSource so you can see what's actually stored
+    [Function("DiagnoseExpenses")]
+    public async Task<HttpResponseData> DiagnoseExpenses(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "expenses/diagnose")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) =
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            if (!DateTime.TryParse(query["startDate"], out var startDate) ||
+                !DateTime.TryParse(query["endDate"], out var endDate))
+            {
+                var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                await bad.WriteAsJsonAsync(new { error = "startDate and endDate are required (YYYY-MM-DD)" });
+                return bad;
+            }
+
+            startDate = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
+            endDate   = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, DateTimeKind.Unspecified);
+
+            var result = await _mongo.DiagnoseExpensesAsync(startDate, endDate);
+
+            // Enrich with outlet names
+            var allOutlets = await _mongo.GetAllOutletsAsync();
+            var outletMap = allOutlets.ToDictionary(o => o.Id ?? "", o => o.OutletName);
+
+            var enriched = result.Select(g => new
+            {
+                outletId    = g.OutletId,
+                outletName  = string.IsNullOrEmpty(g.OutletId) ? "⚠️ No Outlet (null)" : (outletMap.TryGetValue(g.OutletId, out var name) ? name : $"Unknown ({g.OutletId})"),
+                expenseSource = g.ExpenseSource,
+                count       = g.Count,
+                totalAmount = g.TotalAmount
+            });
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                startDate = startDate.ToString("yyyy-MM-dd"),
+                endDate   = endDate.ToString("yyyy-MM-dd"),
+                groups    = enriched,
+                totalRecords = result.Sum(g => g.Count)
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error diagnosing expenses");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to diagnose expenses" });
+            return error;
+        }
+    }
+
+    // POST: Bulk repair expenses — fix null outletId for expenses in a date range (Admin only)
+    [Function("RepairExpenses")]
+    public async Task<HttpResponseData> RepairExpenses(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "expenses/repair")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) =
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var body = await req.ReadFromJsonAsync<RepairExpensesRequest>();
+            if (body == null || string.IsNullOrWhiteSpace(body.TargetOutletId))
+            {
+                var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                await bad.WriteAsJsonAsync(new { error = "targetOutletId is required" });
+                return bad;
+            }
+
+            if (!DateTime.TryParse(body.StartDate, out var startDate) ||
+                !DateTime.TryParse(body.EndDate, out var endDate))
+            {
+                var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                await bad.WriteAsJsonAsync(new { error = "Invalid startDate or endDate" });
+                return bad;
+            }
+
+            startDate = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
+            endDate   = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, DateTimeKind.Unspecified);
+
+            var outlet = await _mongo.GetOutletByIdAsync(body.TargetOutletId);
+            if (outlet == null)
+            {
+                var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                await bad.WriteAsJsonAsync(new { error = $"Outlet {body.TargetOutletId} not found" });
+                return bad;
+            }
+
+            var updated = await _mongo.BulkRepairExpensesAsync(startDate, endDate, body.TargetOutletId, body.FilterBySource, body.TargetExpenseSource, body.ForceAllOutlets);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = $"Successfully repaired {updated} expense records.",
+                updatedCount = updated,
+                targetOutletId = body.TargetOutletId,
+                outletName = outlet.OutletName
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error repairing expenses");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to repair expenses" });
+            return error;
+        }
+    }
+
     // POST: Upload expenses from Excel (Admin only)
     [Function("UploadExpensesExcel")]
     public async Task<HttpResponseData> UploadExpensesExcel(
@@ -674,6 +792,23 @@ public class ExpenseFunction
             // Get username for recordedBy
             var user = await _mongo.GetUserByIdAsync(userId!);
             var username = user?.Username ?? "Admin";
+
+            // Validate outlet access
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
+
+            // Require outlet selection to prevent orphaned expenses
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                await bad.WriteAsJsonAsync(new { error = "Please select an outlet before uploading expenses. No outlet context was provided." });
+                return bad;
+            }
 
             // Get expense source from query parameter (default to Offline)
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
@@ -697,7 +832,7 @@ public class ExpenseFunction
                 return badRequest;
             }
 
-            var result = await ProcessExpensesExcel(fileBytes, username, expenseSource);
+            var result = await ProcessExpensesExcel(fileBytes, username, expenseSource, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(result);
@@ -712,7 +847,7 @@ public class ExpenseFunction
         }
     }
 
-    private async Task<object> ProcessExpensesExcel(byte[] fileBytes, string recordedBy, string expenseSource = "Offline")
+    private async Task<object> ProcessExpensesExcel(byte[] fileBytes, string recordedBy, string expenseSource = "Offline", string? outletId = null)
     {
         using var package = new ExcelPackage(new MemoryStream(fileBytes));
         var worksheet = package.Workbook.Worksheets.FirstOrDefault();
@@ -774,6 +909,7 @@ public class ExpenseFunction
 
             expenses.Add(new Expense
             {
+                OutletId = outletId,
                 Date = istDate,
                 ExpenseType = expenseType,
                 ExpenseSource = expenseSource,

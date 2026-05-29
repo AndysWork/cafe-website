@@ -199,8 +199,10 @@ public class CashReconciliationFunction
             var (request, validationError) = await ValidationHelper.ValidateBody<UpdateDailyCashReconciliationRequest>(req);
             if (validationError != null) return validationError;
 
-            // Get existing reconciliation
-            var existing = await _mongo.GetCashReconciliationsAsync();
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+
+            // Get existing reconciliation scoped to the current outlet
+            var existing = await _mongo.GetCashReconciliationsAsync(null, null, outletId);
             var current = existing.FirstOrDefault(r => r.Id == id);
             
             if (current == null)
@@ -253,8 +255,11 @@ public class CashReconciliationFunction
                 return badRequest;
             }
 
+            var bulkOutletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+
             var reconciliations = request.Records.Select(r => new DailyCashReconciliation
             {
+                OutletId = bulkOutletId,
                 Date = r.Date,
                 ExpectedCash = r.ExpectedCash,
                 ExpectedCoins = r.ExpectedCoins,
@@ -333,7 +338,8 @@ public class CashReconciliationFunction
                 return badRequest;
             }
 
-            var summary = await _mongo.GetCashReconciliationSummaryAsync(startDate, endDate);
+            var summaryOutletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var summary = await _mongo.GetCashReconciliationSummaryAsync(startDate, endDate, summaryOutletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = summary });
@@ -373,8 +379,11 @@ public class CashReconciliationFunction
                 return badRequest;
             }
 
-            // Extract file from multipart
-            var fileData = ExtractFileFromMultipart(fileBytes);
+            // Extract file from multipart using Content-Type boundary
+            var contentType = req.Headers.TryGetValues("Content-Type", out var ctValues)
+                ? ctValues.FirstOrDefault() ?? string.Empty
+                : string.Empty;
+            var fileData = ExtractFileFromMultipart(fileBytes, contentType);
             
             if (fileData == null || fileData.Length == 0)
             {
@@ -393,6 +402,11 @@ public class CashReconciliationFunction
                 return badRequest;
             }
 
+            // Stamp every parsed record with the current outlet ID
+            var uploadOutletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            foreach (var rec in reconciliations)
+                rec.OutletId = uploadOutletId;
+
             // Save reconciliations
             var result = await _mongo.BulkCreateCashReconciliationsAsync(reconciliations, userId!);
 
@@ -409,13 +423,56 @@ public class CashReconciliationFunction
         }
     }
 
-    private byte[] ExtractFileFromMultipart(byte[] data)
+    private byte[] ExtractFileFromMultipart(byte[] data, string contentTypeHeader = "")
     {
         try
         {
-            // Look for Excel file signature (PK\x03\x04 for .xlsx files)
+            // Try to extract boundary from Content-Type header (e.g. "multipart/form-data; boundary=----WebKitFormBoundaryXXX")
+            string? boundary = null;
+            if (!string.IsNullOrEmpty(contentTypeHeader))
+            {
+                var idx = contentTypeHeader.IndexOf("boundary=", StringComparison.OrdinalIgnoreCase);
+                if (idx >= 0)
+                {
+                    boundary = contentTypeHeader.Substring(idx + 9).Trim().Trim('"').Split(';')[0].Trim();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(boundary))
+            {
+                // Use Latin1 so each byte maps 1-to-1 to a char, preserving binary data positions
+                var bodyText = System.Text.Encoding.Latin1.GetString(data);
+                var partBoundary = "--" + boundary;
+
+                // Find the first part's header section
+                var partStart = bodyText.IndexOf(partBoundary + "\r\n", StringComparison.Ordinal);
+                if (partStart >= 0)
+                {
+                    // Skip past all part headers to the blank line separating headers from body
+                    var headersEnd = bodyText.IndexOf("\r\n\r\n", partStart, StringComparison.Ordinal);
+                    if (headersEnd >= 0)
+                    {
+                        var fileContentStart = headersEnd + 4; // skip \r\n\r\n
+
+                        // File content ends just before \r\n--boundary (next part or closing boundary)
+                        var closingMarker = "\r\n" + partBoundary;
+                        var fileContentEnd = bodyText.IndexOf(closingMarker, fileContentStart, StringComparison.Ordinal);
+
+                        if (fileContentEnd > fileContentStart)
+                        {
+                            var fileLength = fileContentEnd - fileContentStart;
+                            var fileBytes2 = new byte[fileLength];
+                            Array.Copy(data, fileContentStart, fileBytes2, 0, fileLength);
+                            _log.LogInformation($"Extracted {fileLength} bytes from multipart using boundary");
+                            return fileBytes2;
+                        }
+                    }
+                }
+            }
+
+            // Fallback: Look for Excel file signature (PK\x03\x04) — note this does NOT trim the trailing
+            // boundary so Excel parsing may still fail; boundary-based extraction above is preferred.
             var excelSignature = new byte[] { 0x50, 0x4B, 0x03, 0x04 };
-            
             for (int i = 0; i < data.Length - 4; i++)
             {
                 if (data[i] == excelSignature[0] &&
@@ -429,7 +486,7 @@ public class CashReconciliationFunction
                 }
             }
 
-            // If no Excel signature, might be CSV - return entire body
+            // If no Excel signature, might be CSV — return entire body
             return data;
         }
         catch

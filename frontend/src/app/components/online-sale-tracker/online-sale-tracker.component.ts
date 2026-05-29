@@ -120,6 +120,12 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
     return Math.ceil(this.sales.length / this.ordersPerPage);
   }
 
+  get discountPercentage(): number {
+    const base = this.itemSubtotal + this.packagingCharge;
+    if (base === 0) return 0;
+    return (this.totalPayout / base) * 100;
+  }
+
   // Summary stats
   totalOrders = 0;
   itemSubtotal = 0;

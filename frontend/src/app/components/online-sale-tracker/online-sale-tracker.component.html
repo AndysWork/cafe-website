@@ -96,6 +96,10 @@
       <div class="stat-value">{{ formatCurrency(totalPayout) }}</div>
     </div>
     <div class="stat-card">
+      <div class="stat-label">💸 Discount %</div>
+      <div class="stat-value">{{ discountPercentage | number:'1.1-1' }}%</div>
+    </div>
+    <div class="stat-card">
       <div class="stat-label">⭐ Average Rating</div>
       <div class="stat-value">{{ averageRating | number:'1.1-1' }} ⭐</div>
     </div>

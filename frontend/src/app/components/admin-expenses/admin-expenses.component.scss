@@ -1320,7 +1320,7 @@
 
 .btn-warning {
   background: #FACC15;
-  color: white;
+  color: #1a1a1a;
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 8px;
@@ -1330,8 +1330,109 @@
 
   &:hover {
     background: #d97706;
+    color: white;
     transform: translateY(-1px);
     box-shadow: 0 4px 6px rgba(245, 158, 11, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+// Upload context info banner
+.upload-context-info {
+  display: flex;
+  gap: 1.5rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+
+  .context-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .context-label {
+    font-weight: 600;
+    color: #0369a1;
+    font-size: 0.875rem;
+  }
+
+  .context-value {
+    color: #0c4a6e;
+    font-size: 0.875rem;
+
+    &.context-missing {
+      color: #b45309;
+      font-weight: 500;
+    }
+  }
+}
+
+// Repair modal styles
+.repair-modal {
+  max-width: 560px;
+}
+
+.diagnose-section {
+  margin: 1rem 0;
+}
+
+.diagnose-results {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-top: 0.75rem;
+
+  h4 { margin: 0 0 0.5rem; font-size: 0.9rem; }
+
+  .diagnose-empty {
+    color: #64748b;
+    font-size: 0.875rem;
+    font-style: italic;
+  }
+}
+
+.diagnose-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th {
+    background: #e2e8f0;
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid #f1f5f9;
+
+    &.text-warning { color: #d97706; font-weight: 500; }
+  }
+}
+
+.repair-info {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+
+  p {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    color: #92400e;
+
+    &:last-child { margin-bottom: 0; }
   }
 }
 

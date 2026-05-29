@@ -20,7 +20,7 @@ import { getIstDateString, formatIstDate, convertToIst, getIstNow, extractIstDat
   styleUrl: './admin-expenses.component.scss'
 })
 export class AdminExpensesComponent implements OnInit, OnDestroy {
-  private outletService = inject(OutletService);
+  protected outletService = inject(OutletService);
   private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
@@ -56,6 +56,23 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
   uploading = false;
   uploadError = '';
   uploadResult: any = null;
+
+  // Repair orphaned expenses
+  showRepairModal = false;
+  repairForm = {
+    startDate: '',
+    endDate: '',
+    filterBySource: '' as '' | 'Offline' | 'Online',
+    targetExpenseSource: '' as '' | 'Offline' | 'Online',
+    forceAllOutlets: false
+  };
+  repairing = false;
+  repairResult: { message: string; updatedCount: number; outletName: string } | null = null;
+  repairError = '';
+
+  // Diagnose
+  diagnosing = false;
+  diagnoseResult: { totalRecords: number; groups: { outletId: string | null; outletName: string; expenseSource: string; count: number; totalAmount: number }[] } | null = null;
 
   // Operational Expenses
   showOperationalModal = false;
@@ -530,8 +547,87 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     });
   }
 
-  downloadTemplate() {
-    // Use actual expense types from the database for better examples
+  openRepairModal() {
+    const today = getIstDateString();
+    this.repairForm = { startDate: '', endDate: today, filterBySource: '', targetExpenseSource: '', forceAllOutlets: false };
+    this.repairResult = null;
+    this.repairError = '';
+    this.diagnoseResult = null;
+    this.showRepairModal = true;
+  }
+
+  closeRepairModal() {
+    this.showRepairModal = false;
+    this.repairResult = null;
+    this.repairError = '';
+    this.diagnoseResult = null;
+  }
+
+  diagnoseExpenses() {
+    if (!this.repairForm.startDate || !this.repairForm.endDate) {
+      this.repairError = 'Please provide both start date and end date before diagnosing.';
+      return;
+    }
+    this.diagnosing = true;
+    this.diagnoseResult = null;
+    this.repairError = '';
+    this.expenseService.diagnoseExpenses(this.repairForm.startDate, this.repairForm.endDate).subscribe({
+      next: (result) => {
+        this.diagnosing = false;
+        this.diagnoseResult = result;
+      },
+      error: (error) => {
+        this.diagnosing = false;
+        this.repairError = error.error?.error || 'Failed to diagnose expenses.';
+      }
+    });
+  }
+
+  repairExpenses() {
+    const outlet = this.outletService.getSelectedOutlet();
+    if (!outlet) {
+      this.repairError = 'Please select an outlet first.';
+      return;
+    }
+    if (!this.repairForm.startDate || !this.repairForm.endDate) {
+      this.repairError = 'Please provide both start date and end date.';
+      return;
+    }
+
+    this.repairing = true;
+    this.repairError = '';
+    this.repairResult = null;
+
+    const payload: any = {
+      startDate: this.repairForm.startDate,
+      endDate: this.repairForm.endDate,
+      targetOutletId: outlet.id || outlet._id,
+      forceAllOutlets: this.repairForm.forceAllOutlets
+    };
+    if (this.repairForm.filterBySource) {
+      payload.filterBySource = this.repairForm.filterBySource;
+    }
+    if (this.repairForm.targetExpenseSource) {
+      payload.targetExpenseSource = this.repairForm.targetExpenseSource;
+    }
+
+    this.expenseService.repairExpenses(payload).subscribe({
+      next: (result) => {
+        this.repairing = false;
+        this.repairResult = result;
+        if (result.updatedCount > 0) {
+          this.uiStore.success(result.message);
+          this.loadExpenses();
+        }
+      },
+      error: (error) => {
+        this.repairing = false;
+        this.repairError = error.error?.error || 'Failed to repair expenses.';
+      }
+    });
+  }
+
+  downloadTemplate() {    // Use actual expense types from the database for better examples
     const exampleTypes = this.currentExpenseTypes.length > 0
       ? [this.currentExpenseTypes[0]?.expenseType || 'Milk',
          this.currentExpenseTypes[1]?.expenseType || 'Tea',

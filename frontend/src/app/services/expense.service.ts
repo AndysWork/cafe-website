@@ -198,4 +198,18 @@ export class ExpenseService {
   getExpenseTypes(): string[] {
     return ['Inventory', 'Salary', 'Rent', 'Utilities', 'Maintenance', 'Marketing', 'Other'];
   }
+
+  // Repair orphaned expenses — set outletId for expenses uploaded without an outlet context
+  repairExpenses(payload: { startDate: string; endDate: string; targetOutletId: string; filterBySource?: string; targetExpenseSource?: string; forceAllOutlets?: boolean }): Observable<{ message: string; updatedCount: number; targetOutletId: string; outletName: string }> {
+    return this.http.post<any>(`${this.apiUrl}/repair`, payload).pipe(
+      catchError(handleServiceError('ExpenseService.repairExpenses'))
+    );
+  }
+
+  // Diagnose: get all expenses in a date range with no outlet/source filter
+  diagnoseExpenses(startDate: string, endDate: string): Observable<{ startDate: string; endDate: string; totalRecords: number; groups: { outletId: string | null; outletName: string; expenseSource: string; count: number; totalAmount: number }[] }> {
+    return this.http.get<any>(`${this.apiUrl}/diagnose?startDate=${startDate}&endDate=${endDate}`).pipe(
+      catchError(handleServiceError('ExpenseService.diagnoseExpenses'))
+    );
+  }
 }

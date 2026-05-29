@@ -3772,17 +3772,116 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
+    // Diagnose: return all expenses in a date range grouped by outletId + expenseSource (no filters)
+    public async Task<List<ExpenseDiagnoseGroup>> DiagnoseExpensesAsync(DateTime startDate, DateTime endDate)
+    {
+        var pipeline = new[]
+        {
+            new BsonDocument("$match", new BsonDocument
+            {
+                { "date", new BsonDocument { { "$gte", startDate }, { "$lte", endDate } } },
+                { "isDeleted", new BsonDocument("$ne", true) }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", new BsonDocument { { "outletId", "$outletId" }, { "expenseSource", "$expenseSource" } } },
+                { "count", new BsonDocument("$sum", 1) },
+                { "totalAmount", new BsonDocument("$sum", "$amount") }
+            }),
+            new BsonDocument("$sort", new BsonDocument
+            {
+                { "_id.outletId", 1 },
+                { "_id.expenseSource", 1 }
+            })
+        };
+
+        var raw = await _expenses.Aggregate<BsonDocument>(pipeline).ToListAsync();
+        var groups = new List<ExpenseDiagnoseGroup>();
+
+        foreach (var doc in raw)
+        {
+            try
+            {
+                var idDoc    = doc["_id"].AsBsonDocument;
+                var oidValue = idDoc.GetValue("outletId", BsonNull.Value);
+                var srcValue = idDoc.GetValue("expenseSource", BsonNull.Value);
+
+                string? outletId      = (oidValue.IsBsonNull || oidValue == BsonNull.Value) ? null : oidValue.AsString;
+                string  expenseSource = (srcValue.IsBsonNull || srcValue == BsonNull.Value) ? "Unknown" : srcValue.AsString;
+
+                // count: MongoDB returns Int32 for $sum:1 but guard with ToInt64 in case
+                int     count       = (int)doc["count"].ToInt64();
+                // totalAmount: $sum on numeric fields returns Double
+                decimal totalAmount = (decimal)doc["totalAmount"].ToDouble();
+
+                groups.Add(new ExpenseDiagnoseGroup
+                {
+                    OutletId      = outletId,
+                    ExpenseSource = expenseSource,
+                    Count         = count,
+                    TotalAmount   = totalAmount
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "DiagnoseExpensesAsync: skipping malformed group doc: {doc}", doc);
+            }
+        }
+
+        return groups;
+    }
+
+    // Bulk repair: assign outletId and/or expenseSource to expenses in a date range
+    public async Task<long> BulkRepairExpensesAsync(
+        DateTime startDate, DateTime endDate, string targetOutletId,
+        string? filterBySource = null, string? targetExpenseSource = null,
+        bool forceAllOutlets = false)
+    {
+        var builder = Builders<Expense>.Filter;
+        var filter = builder.And(
+            builder.Gte(e => e.Date, startDate),
+            builder.Lte(e => e.Date, endDate),
+            builder.Ne(e => e.IsDeleted, true)
+        );
+
+        if (!forceAllOutlets)
+        {
+            // Default: only target expenses with null outletId OR the target outletId
+            filter = builder.And(filter, builder.Or(
+                builder.Eq(e => e.OutletId, (string?)null),
+                builder.Eq(e => e.OutletId, targetOutletId)
+            ));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filterBySource))
+            filter = builder.And(filter, builder.Eq(e => e.ExpenseSource, filterBySource));
+
+        var updateDef = Builders<Expense>.Update
+            .Set(e => e.OutletId, targetOutletId)
+            .Set(e => e.UpdatedAt, GetIstNow());
+
+        if (!string.IsNullOrWhiteSpace(targetExpenseSource))
+            updateDef = updateDef.Set(e => e.ExpenseSource, targetExpenseSource);
+
+        var result = await _expenses.UpdateManyAsync(filter, updateDef);
+        return result.ModifiedCount;
+    }
+
     // Get expense summary by date using MongoDB aggregation
-    public async Task<ExpenseSummary> GetExpenseSummaryByDateAsync(DateTime date)
+    public async Task<ExpenseSummary> GetExpenseSummaryByDateAsync(DateTime date, string? outletId = null)
     {
         var startOfDay = date.Date;
         var endOfDay = startOfDay.AddDays(1);
 
-        var filter = Builders<Expense>.Filter.And(
-            Builders<Expense>.Filter.Gte(e => e.Date, startOfDay),
-            Builders<Expense>.Filter.Lt(e => e.Date, endOfDay),
-            Builders<Expense>.Filter.Ne(e => e.IsDeleted, true)
+        var builder = Builders<Expense>.Filter;
+        var filter = builder.And(
+            builder.Gte(e => e.Date, startOfDay),
+            builder.Lt(e => e.Date, endOfDay),
+            builder.Ne(e => e.IsDeleted, true)
         );
+
+        if (!string.IsNullOrWhiteSpace(outletId))
+            filter = builder.And(filter, builder.Eq(e => e.OutletId, outletId));
 
         // MongoDB aggregation: $match → $facet (total + type breakdown)
         var facetStage = new BsonDocument("$facet", new BsonDocument
@@ -4593,9 +4692,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     }
 
     // Get reconciliation summary for a date range
-    public async Task<object> GetCashReconciliationSummaryAsync(DateTime startDate, DateTime endDate)
+    public async Task<object> GetCashReconciliationSummaryAsync(DateTime startDate, DateTime endDate, string? outletId = null)
     {
-        var reconciliations = await GetCashReconciliationsAsync(startDate, endDate);
+        var reconciliations = await GetCashReconciliationsAsync(startDate, endDate, outletId);
         
         return new
         {
