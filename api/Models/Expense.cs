@@ -67,7 +67,7 @@ public class CreateExpenseRequest
     public decimal Amount { get; set; }
     
     [Required(ErrorMessage = "Payment method is required")]
-    [AllowedValuesList("Cash", "Card", "UPI", "Bank Transfer")]
+    [AllowedValuesList("Cash", "Card", "UPI", "Online", "Bank Transfer")]
     public string PaymentMethod { get; set; } = "Cash";
     
     [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
