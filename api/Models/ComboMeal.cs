@@ -21,7 +21,7 @@ public class ComboMeal : ISoftDeletable
 
     [BsonElement("description")]
     [StringLength(500)]
-    public string Description { get; set; } = string.Empty;
+    public string? Description { get; set; }
 
     [BsonElement("imageUrl")]
     public string? ImageUrl { get; set; }
@@ -35,6 +35,10 @@ public class ComboMeal : ISoftDeletable
     [BsonElement("comboPrice")]
     [Range(0, 100000)]
     public decimal ComboPrice { get; set; }
+
+    [BsonElement("comboOnlinePrice")]
+    [Range(0, 100000)]
+    public decimal ComboOnlinePrice { get; set; }
 
     [BsonElement("savingsAmount")]
     public decimal SavingsAmount { get; set; }
@@ -75,6 +79,15 @@ public class ComboItem
     [BsonElement("quantity")]
     public int Quantity { get; set; } = 1;
 
+    [BsonElement("selectedPieces")]
+    public int SelectedPieces { get; set; } = 1;
+
+    [BsonElement("basePieces")]
+    public int BasePieces { get; set; } = 1;
+
+    [BsonElement("portionFactor")]
+    public decimal PortionFactor { get; set; } = 1;
+
     [BsonElement("originalPrice")]
     public decimal OriginalPrice { get; set; }
 }
@@ -85,7 +98,7 @@ public class CreateComboMealRequest
     public string Name { get; set; } = string.Empty;
 
     [StringLength(500)]
-    public string Description { get; set; } = string.Empty;
+    public string? Description { get; set; }
 
     public string? ImageUrl { get; set; }
 
@@ -94,6 +107,9 @@ public class CreateComboMealRequest
 
     [Range(0, 100000)]
     public decimal ComboPrice { get; set; }
+
+    [Range(0, 100000)]
+    public decimal? ComboOnlinePrice { get; set; }
 
     public DateTime? ValidFrom { get; set; }
     public DateTime? ValidTill { get; set; }
@@ -106,4 +122,7 @@ public class ComboItemRequest
 
     [Range(1, 10)]
     public int Quantity { get; set; } = 1;
+
+    [Range(1, 1000)]
+    public int? SelectedPieces { get; set; }
 }

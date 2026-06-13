@@ -29,6 +29,7 @@ export interface MenuItem {
   categoryName?: string;
   subCategoryId?: string;
   subCategoryName?: string;
+  quantity?: number;
   onlinePrice: number;
   dineInPrice?: number;
   imageUrl?: string;

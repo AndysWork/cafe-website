@@ -68,12 +68,13 @@
 			}
 		},
 		{
-			"type": "func",
+			"label": "start (functions)",
+			"type": "shell",
 			"dependsOn": "build (functions)",
 			"options": {
 				"cwd": "${workspaceFolder}/api/bin/Debug/net9.0"
 			},
-			"command": "host start",
+			"command": "func host start",
 			"isBackground": true,
 			"problemMatcher": "$func-dotnet-watch"
 		}

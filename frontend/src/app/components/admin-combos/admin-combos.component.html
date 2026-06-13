@@ -80,37 +80,48 @@
                 <label>Qty</label>
                 <input type="number" [(ngModel)]="item.quantity" [name]="'qty'+i" min="1" class="qty-input">
               </div>
+              <div class="piece-group">
+                <div class="piece-label-row">
+                  <label>Pieces</label>
+                  <span class="piece-hint" *ngIf="item.menuItemId">
+                    of {{ item.basePieces > 0 ? item.basePieces : getMenuItemBasePieces(item.menuItemId) }} pcs
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  [(ngModel)]="item.selectedPieces"
+                  [name]="'pieces'+i"
+                  min="1"
+                  [max]="item.basePieces > 0 ? item.basePieces : getMenuItemBasePieces(item.menuItemId)"
+                  step="1"
+                  class="qty-input"
+                  [disabled]="!item.menuItemId"
+                  (ngModelChange)="onSelectedPiecesChange(item)">
+              </div>
               <button type="button" class="btn-delete" (click)="removeItem(i)" *ngIf="comboForm.items.length > 1">🗑️</button>
             </div>
 
             <!-- Making Cost & Pricing Decisions -->
             <div *ngIf="item.menuItemId && getMenuItemDetail(item.menuItemId)" class="pricing-decisions">
-              <div class="item-making-cost">
-                <div class="cost-value">Making Cost: <strong>₹{{ (getMakingCost(item.menuItemId) * item.quantity) | number:'1.2-2' }}</strong></div>
-              </div>
-
-              <!-- Price Decision Inputs -->
               <div class="price-decision-grid">
                 <div class="price-decision-item">
-                  <label>Shop Price (₹)</label>
-                  <input type="number" [(ngModel)]="item.shopPrice" [name]="'shopPrice'+i" min="0" step="0.01" class="price-input-field">
-                  <div class="profit-display" [class.positive]="getItemProfit(i).shopProfit > 0" [class.negative]="getItemProfit(i).shopProfit < 0">
-                    Shop Profit: ₹{{ (getItemProfit(i).shopProfit) | number:'1.2-2' }}
-                  </div>
+                  <label>Making Cost</label>
+                  <div class="price-value">₹{{ getItemSnapshot(item).makingCost | number:'1.2-2' }}</div>
                 </div>
 
                 <div class="price-decision-item">
-                  <label>Combo Item Online Selling Price (₹)</label>
-                  <input type="number" [(ngModel)]="item.onlinePrice" [name]="'onlinePrice'+i" min="0" step="0.01" class="price-input-field">
-                  <div class="platform-note">Online Profit = Making Cost - ((Online Selling Price + Packaging Cost) x 0.42)</div>
+                  <label>Shop Selling Price</label>
+                  <div class="price-value">₹{{ getItemSnapshot(item).shopPrice | number:'1.2-2' }}</div>
                 </div>
 
                 <div class="price-decision-item">
-                  <label>Packaging (₹)</label>
-                  <input type="number" [(ngModel)]="item.packagingCharge" [name]="'packaging'+i" min="0" step="0.01" class="price-input-field">
-                  <div class="profit-display" [class.positive]="getItemProfit(i).onlineProfit > 0" [class.negative]="getItemProfit(i).onlineProfit < 0">
-                    Online Profit: ₹{{ (getItemProfit(i).onlineProfit) | number:'1.2-2' }}
-                  </div>
+                  <label>Online Selling Price</label>
+                  <div class="price-value">₹{{ getItemSnapshot(item).onlinePrice | number:'1.2-2' }}</div>
+                </div>
+
+                <div class="price-decision-item">
+                  <label>Packaging Cost</label>
+                  <div class="price-value">₹{{ getItemSnapshot(item).packagingCost | number:'1.2-2' }}</div>
                 </div>
               </div>
             </div>
@@ -125,33 +136,55 @@
         <div class="form-section">
           <h3>Combo Pricing & Profit</h3>
           <div class="form-group">
-            <label>Combo Price (₹) *</label>
+            <label>Combo Shop Price (₹) *</label>
             <input type="number" [(ngModel)]="comboForm.comboPrice" name="comboPrice" min="0" required class="price-input">
           </div>
-
-          <!-- Summary Cards -->
-          <div class="summary-grid">
-            <div class="summary-card">
-              <div class="summary-label">Total Making Cost</div>
-              <div class="summary-value">₹{{ calculateComboPricings().totalMakingCost | number:'1.2-2' }}</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-label">Total Packaging</div>
-              <div class="summary-value">₹{{ calculateComboPricings().totalPackaging | number:'1.2-2' }}</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-label">Combo Selling Price</div>
-              <div class="summary-value highlight">₹{{ calculateComboPricings().comboPrice | number:'1.2-2' }}</div>
-            </div>
-            <div class="summary-card" [class.positive]="calculateComboPricings().shopProfit > 0" [class.negative]="calculateComboPricings().shopProfit < 0">
-              <div class="summary-label">Shop Profit</div>
-              <div class="summary-value">₹{{ calculateComboPricings().shopProfit | number:'1.2-2' }}</div>
-            </div>
-            <div class="summary-card" [class.positive]="calculateComboPricings().onlineProfit > 0" [class.negative]="calculateComboPricings().onlineProfit < 0">
-              <div class="summary-label">Online Profit (42% on Online + Packaging)</div>
-              <div class="summary-value">₹{{ calculateComboPricings().onlineProfit | number:'1.2-2' }}</div>
-            </div>
+          <div class="form-group">
+            <label>Combo Online Price (₹)</label>
+            <input type="number" [(ngModel)]="comboForm.comboOnlinePrice" name="comboOnlinePrice" min="0" class="price-input">
           </div>
+
+          <ng-container *ngIf="calculateComboPricings() as summary">
+            <h4 class="section-subtitle">Combo Pricing Section</h4>
+            <div class="summary-grid">
+              <div class="summary-card">
+                <div class="summary-label">Total Making Cost</div>
+                <div class="summary-value">₹{{ summary.totalMakingCost | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Combo Packaging Price</div>
+                <div class="summary-value">₹{{ summary.comboPackagingPrice | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Combo Shop Price</div>
+                <div class="summary-value highlight">₹{{ summary.comboShopPrice | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Combo Takeaway Price</div>
+                <div class="summary-value">₹{{ summary.comboTakeawayPrice | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Combo Online Price</div>
+                <div class="summary-value">₹{{ summary.comboOnlinePrice | number:'1.2-2' }}</div>
+              </div>
+            </div>
+
+            <h4 class="section-subtitle">Profit Section</h4>
+            <div class="summary-grid">
+              <div class="summary-card" [class.positive]="summary.comboShopProfit > 0" [class.negative]="summary.comboShopProfit < 0">
+                <div class="summary-label">Combo Shop Profit</div>
+                <div class="summary-value">₹{{ summary.comboShopProfit | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card" [class.positive]="summary.comboTakeawayProfit > 0" [class.negative]="summary.comboTakeawayProfit < 0">
+                <div class="summary-label">Combo Takeaway Profit</div>
+                <div class="summary-value">₹{{ summary.comboTakeawayProfit | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card" [class.positive]="summary.comboOnlineProfit > 0" [class.negative]="summary.comboOnlineProfit < 0">
+                <div class="summary-label">Combo Online Profit</div>
+                <div class="summary-value">₹{{ summary.comboOnlineProfit | number:'1.2-2' }}</div>
+              </div>
+            </div>
+          </ng-container>
         </div>
 
         <div class="modal-actions">

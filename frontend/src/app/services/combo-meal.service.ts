@@ -9,6 +9,9 @@ export interface ComboItem {
   menuItemId: string;
   menuItemName?: string;
   quantity: number;
+  selectedPieces?: number;
+  basePieces?: number;
+  portionFactor?: number;
   originalPrice?: number;
 }
 
@@ -19,6 +22,7 @@ export interface ComboMeal {
   items: ComboItem[];
   originalPrice: number;
   comboPrice: number;
+  comboOnlinePrice?: number;
   savingsAmount: number;
   imageUrl?: string;
   isActive: boolean;
@@ -29,9 +33,12 @@ export interface ComboMeal {
 export interface CreateComboRequest {
   name: string;
   description?: string;
-  items: { menuItemId: string; quantity: number; shopPrice: number; onlinePrice: number; packagingCharge: number }[];
+  items: { menuItemId: string; quantity: number; selectedPieces?: number }[];
   comboPrice: number;
+  comboOnlinePrice?: number;
   imageUrl?: string;
+  validFrom?: string;
+  validTill?: string;
 }
 
 @Injectable({ providedIn: 'root' })

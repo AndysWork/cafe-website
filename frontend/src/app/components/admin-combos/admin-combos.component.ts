@@ -18,14 +18,36 @@ interface ComboItemDetail {
   menuItem?: MenuItem;
 }
 
+interface ComboFormItem {
+  menuItemId: string;
+  quantity: number;
+  selectedPieces: number;
+  basePieces: number;
+  shopPrice: number;
+  onlinePrice: number;
+  packagingCharge: number;
+}
+
+interface ComboFormModel {
+  name: string;
+  description?: string;
+  items: ComboFormItem[];
+  comboPrice: number;
+  comboOnlinePrice: number;
+  imageUrl?: string;
+  validFrom?: string;
+  validTill?: string;
+}
+
 interface PricingSummary {
   totalMakingCost: number;
-  avgShopPrice: number;
-  avgOnlinePrice: number;
-  totalPackaging: number;
-  comboPrice: number;
-  shopProfit: number;
-  onlineProfit: number;
+  comboPackagingPrice: number;
+  comboShopPrice: number;
+  comboTakeawayPrice: number;
+  comboOnlinePrice: number;
+  comboShopProfit: number;
+  comboTakeawayProfit: number;
+  comboOnlineProfit: number;
 }
 
 @Component({
@@ -52,7 +74,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
   isEditMode = false;
   currentCombo: ComboMeal | null = null;
 
-  comboForm: CreateComboRequest = this.getEmpty();
+  comboForm: ComboFormModel = this.getEmpty();
 
   // For menu item picker dropdown
   showItemPickerAt: number | null = null;
@@ -93,8 +115,14 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     });
   }
 
-  getEmpty(): CreateComboRequest {
-    return { name: '', description: '', items: [{ menuItemId: '', quantity: 1, shopPrice: 0, onlinePrice: 0, packagingCharge: 0 }], comboPrice: 0 };
+  getEmpty(): ComboFormModel {
+    return {
+      name: '',
+      description: '',
+      items: [{ menuItemId: '', quantity: 1, selectedPieces: 1, basePieces: 1, shopPrice: 0, onlinePrice: 0, packagingCharge: 0 }],
+      comboPrice: 0,
+      comboOnlinePrice: 0
+    };
   }
 
   loadCombos() {
@@ -122,11 +150,14 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
       items: c.items.map(i => ({
         menuItemId: i.menuItemId,
         quantity: i.quantity,
+        selectedPieces: (i as any).selectedPieces || (i as any).basePieces || this.getMenuItemBasePieces(i.menuItemId),
+        basePieces: (i as any).basePieces || this.getMenuItemBasePieces(i.menuItemId),
         shopPrice: (i as any).shopPrice || 0,
         onlinePrice: (i as any).onlinePrice || i.originalPrice || 0,
         packagingCharge: (i as any).packagingCharge || 0
       })),
-      comboPrice: c.comboPrice
+      comboPrice: c.comboPrice,
+      comboOnlinePrice: c.comboOnlinePrice ?? c.comboPrice
     };
     this.showModal = true;
     this.showItemPickerAt = null;
@@ -155,12 +186,52 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
   }
 
   selectMenuItem(item: MenuItem, index: number): void {
+    const basePieces = this.getMenuItemBasePiecesFromMenuItem(item);
     this.comboForm.items[index].menuItemId = item.id;
+    this.comboForm.items[index].basePieces = basePieces;
+    this.comboForm.items[index].selectedPieces = basePieces;
     this.comboForm.items[index].shopPrice = item.dineInPrice || item.shopSellingPrice || 0;
     this.comboForm.items[index].onlinePrice = item.onlinePrice || 0;
     this.comboForm.items[index].packagingCharge = item.packagingCharge || 0;
     this.showItemPickerAt = null;
     this.itemSearchFilter = '';
+  }
+
+  getMenuItemBasePiecesFromMenuItem(item?: MenuItem): number {
+    if (!item?.quantity || item.quantity < 1) return 1;
+    return Math.floor(item.quantity);
+  }
+
+  getMenuItemBasePieces(menuItemId: string): number {
+    const item = this.getMenuItemDetail(menuItemId);
+    return this.getMenuItemBasePiecesFromMenuItem(item);
+  }
+
+  getEffectiveMultiplier(item: ComboFormItem): number {
+    const basePieces = item.basePieces > 0 ? item.basePieces : this.getMenuItemBasePieces(item.menuItemId);
+    const selectedPieces = Math.max(1, Math.floor(item.selectedPieces || basePieces));
+    return item.quantity * (selectedPieces / basePieces);
+  }
+
+  onSelectedPiecesChange(item: ComboFormItem): void {
+    const basePieces = item.basePieces > 0 ? item.basePieces : this.getMenuItemBasePieces(item.menuItemId);
+    if (!Number.isFinite(item.selectedPieces)) {
+      item.selectedPieces = basePieces;
+      return;
+    }
+
+    const normalized = Math.floor(item.selectedPieces);
+    if (normalized < 1) {
+      item.selectedPieces = 1;
+      return;
+    }
+
+    if (normalized > basePieces) {
+      item.selectedPieces = basePieces;
+      return;
+    }
+
+    item.selectedPieces = normalized;
   }
 
   getMenuItemName(menuItemId: string): string {
@@ -175,6 +246,27 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     const recipe = this.recipeMap.get(menuItemId);
     if (recipe) return recipe.totalMakingCost || 0;
     return 0;
+  }
+
+  getItemSnapshot(item: ComboFormItem): {
+    makingCost: number;
+    shopPrice: number;
+    onlinePrice: number;
+    packagingCost: number;
+  } {
+    const menuItem = this.getMenuItemDetail(item.menuItemId);
+    const unitShopPrice = item.shopPrice || menuItem?.dineInPrice || menuItem?.shopSellingPrice || 0;
+    const unitOnlinePrice = item.onlinePrice || menuItem?.onlinePrice || 0;
+    const unitPackaging = item.packagingCharge || menuItem?.packagingCharge || 0;
+    const unitMakingCost = this.getMakingCost(item.menuItemId);
+    const multiplier = this.getEffectiveMultiplier(item);
+
+    return {
+      makingCost: unitMakingCost * multiplier,
+      shopPrice: unitShopPrice * multiplier,
+      onlinePrice: unitOnlinePrice * multiplier,
+      packagingCost: unitPackaging * multiplier
+    };
   }
 
   calculateItemPricings(menuItemId: string, quantity: number): {
@@ -228,39 +320,38 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
   }
 
   calculateComboPricings(): PricingSummary {
-    let totalMaking = 0, totalShop = 0, totalOnline = 0, totalPackaging = 0, totalShopProfit = 0, totalOnlineProfit = 0;
-    let count = 0;
+    let totalMaking = 0;
+    let totalPackaging = 0;
 
     for (const item of this.comboForm.items) {
       if (!item.menuItemId) continue;
-      const makingCost = this.getMakingCost(item.menuItemId) * item.quantity;
-      const itemShopTotal = item.shopPrice * item.quantity;
-      const itemOnlineTotal = item.onlinePrice * item.quantity;
-      const itemPackagingTotal = item.packagingCharge * item.quantity;
-      const itemOnlineProfit = makingCost - ((itemOnlineTotal + itemPackagingTotal) * 0.42);
-
-      totalMaking += makingCost;
-      totalShop += itemShopTotal;
-      totalOnline += itemOnlineTotal;
-      totalPackaging += itemPackagingTotal;
-      totalShopProfit += itemShopTotal - makingCost;
-      totalOnlineProfit += itemOnlineProfit;
-      count++;
+      const snapshot = this.getItemSnapshot(item);
+      totalMaking += snapshot.makingCost;
+      totalPackaging += snapshot.packagingCost;
     }
+
+    const comboShopPrice = this.comboForm.comboPrice || 0;
+    const comboOnlinePrice = this.comboForm.comboOnlinePrice || 0;
+    const comboTakeawayPrice = comboShopPrice + totalPackaging;
+
+    const comboShopProfit = comboShopPrice - totalMaking;
+    const comboTakeawayProfit = (comboShopPrice + totalPackaging) - totalMaking;
+    const comboOnlineProfit = ((comboOnlinePrice + totalPackaging) * 0.58) - totalMaking;
 
     return {
       totalMakingCost: totalMaking,
-      avgShopPrice: count > 0 ? totalShop / count : 0,
-      avgOnlinePrice: count > 0 ? totalOnline / count : 0,
-      totalPackaging,
-      comboPrice: this.comboForm.comboPrice,
-      shopProfit: totalShopProfit,
-      onlineProfit: totalOnlineProfit
+      comboPackagingPrice: totalPackaging,
+      comboShopPrice,
+      comboTakeawayPrice,
+      comboOnlinePrice,
+      comboShopProfit,
+      comboTakeawayProfit,
+      comboOnlineProfit
     };
   }
 
   addItem() {
-    this.comboForm.items.push({ menuItemId: '', quantity: 1, shopPrice: 0, onlinePrice: 0, packagingCharge: 0 });
+    this.comboForm.items.push({ menuItemId: '', quantity: 1, selectedPieces: 1, basePieces: 1, shopPrice: 0, onlinePrice: 0, packagingCharge: 0 });
   }
 
   getSelectedItemCount(): number {
@@ -270,12 +361,9 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
   getItemProfit(index: number): { shopProfit: number; onlineProfit: number } {
     const item = this.comboForm.items[index];
     if (!item.menuItemId) return { shopProfit: 0, onlineProfit: 0 };
-    const makingCost = this.getMakingCost(item.menuItemId);
-    const totalMakingCost = makingCost * item.quantity;
-    const shopProfit = (item.shopPrice * item.quantity) - totalMakingCost;
-    const onlineSellingPriceTotal = item.onlinePrice * item.quantity;
-    const packagingTotal = item.packagingCharge * item.quantity;
-    const onlineProfit = totalMakingCost - ((onlineSellingPriceTotal + packagingTotal) * 0.42);
+    const snapshot = this.getItemSnapshot(item);
+    const shopProfit = snapshot.shopPrice - snapshot.makingCost;
+    const onlineProfit = ((snapshot.onlinePrice + snapshot.packagingCost) * 0.58) - snapshot.makingCost;
     return { shopProfit, onlineProfit };
   }
 
@@ -299,7 +387,70 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const payload: CreateComboRequest = { ...this.comboForm, items: validItems };
+    const normalizedIds = validItems.map(i => i.menuItemId.trim());
+    if (new Set(normalizedIds).size !== normalizedIds.length) {
+      this.uiStore.error('Duplicate menu items are not allowed in a combo');
+      return;
+    }
+
+    if (validItems.some(i => !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > 10)) {
+      this.uiStore.error('Each combo item quantity must be between 1 and 10');
+      return;
+    }
+
+    if (validItems.some(i => !Number.isInteger(i.selectedPieces) || i.selectedPieces < 1)) {
+      this.uiStore.error('Selected pieces must be a whole number greater than or equal to 1');
+      return;
+    }
+
+    const invalidPiecesItem = validItems.find(i => {
+      const base = i.basePieces > 0 ? i.basePieces : this.getMenuItemBasePieces(i.menuItemId.trim());
+      return i.selectedPieces > base;
+    });
+    if (invalidPiecesItem) {
+      this.uiStore.error('Selected pieces cannot be greater than total pieces in the dish');
+      return;
+    }
+
+    if (this.comboForm.comboPrice < 0) {
+      this.uiStore.error('Combo price cannot be negative');
+      return;
+    }
+
+    if (this.comboForm.comboOnlinePrice < 0) {
+      this.uiStore.error('Combo online price cannot be negative');
+      return;
+    }
+
+    const totalOriginalPrice = validItems.reduce((sum, i) => {
+      const menuItem = this.getMenuItemDetail(i.menuItemId.trim());
+      return sum + (menuItem?.onlinePrice || 0) * this.getEffectiveMultiplier(i);
+    }, 0);
+
+    if (this.comboForm.comboPrice > totalOriginalPrice) {
+      this.uiStore.error('Combo price cannot be greater than the total original price');
+      return;
+    }
+
+    if (this.comboForm.validFrom && this.comboForm.validTill) {
+      const validFrom = new Date(this.comboForm.validFrom).getTime();
+      const validTill = new Date(this.comboForm.validTill).getTime();
+      if (!Number.isNaN(validFrom) && !Number.isNaN(validTill) && validFrom > validTill) {
+        this.uiStore.error('validFrom cannot be later than validTill');
+        return;
+      }
+    }
+
+    const payload: CreateComboRequest = {
+      name: this.comboForm.name,
+      description: this.comboForm.description,
+      comboPrice: this.comboForm.comboPrice,
+      comboOnlinePrice: this.comboForm.comboOnlinePrice,
+      imageUrl: this.comboForm.imageUrl,
+      validFrom: this.comboForm.validFrom,
+      validTill: this.comboForm.validTill,
+      items: validItems.map(i => ({ menuItemId: i.menuItemId.trim(), quantity: i.quantity, selectedPieces: i.selectedPieces }))
+    };
 
     if (this.isEditMode && this.currentCombo?.id) {
       this.comboService.updateCombo(this.currentCombo.id, payload).subscribe({
