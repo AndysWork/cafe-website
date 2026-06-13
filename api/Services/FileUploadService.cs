@@ -23,6 +23,12 @@ public class FileUploadService
         public string Message { get; set; } = string.Empty;
     }
 
+    private static string NormalizeKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        return string.Join(' ', value.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
     public async Task<UploadResult> ProcessExcelFile(Stream fileStream, MongoService mongoService, string uploadedBy, string outletId)
     {
         var result = new UploadResult();
@@ -44,6 +50,17 @@ public class FileUploadService
             var subCategories = new List<MenuSubCategory>();
             var subCategoryKeys = new HashSet<string>(); // Track unique subcategories
 
+            var existingCategories = await mongoService.GetCategoriesAsync(outletId);
+            var existingCategoryByName = existingCategories
+                .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+                .GroupBy(c => NormalizeKey(c.Name))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var existingSubCategoryKeys = (await mongoService.GetSubCategoriesAsync(outletId))
+                .Where(sc => !string.IsNullOrWhiteSpace(sc.Name) && !string.IsNullOrWhiteSpace(sc.CategoryId))
+                .Select(sc => $"{sc.CategoryId}:{NormalizeKey(sc.Name)}")
+                .ToHashSet();
+
             for (int row = 2; row <= rowCount; row++)
             {
                 try
@@ -57,12 +74,14 @@ public class FileUploadService
                         continue;
                     }
 
-                    // Add or get category (skip if already exists)
-                    if (!categories.ContainsKey(categoryName))
+                    var normalizedCategoryName = NormalizeKey(categoryName);
+
+                    // Add or get category from upload payload (skip if already exists in this file)
+                    if (!categories.ContainsKey(normalizedCategoryName))
                     {
-                        categories[categoryName] = new MenuCategory
+                        categories[normalizedCategoryName] = new MenuCategory
                         {
-                            Name = categoryName,
+                            Name = categoryName.Trim(),
                             OutletId = outletId
                         };
                     }
@@ -71,16 +90,16 @@ public class FileUploadService
                     if (!string.IsNullOrEmpty(subCategoryName) && 
                         !subCategoryName.Equals(categoryName, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Create unique key for subcategory (category:subcategory)
-                        var subCategoryKey = $"{categoryName}:{subCategoryName}";
+                        // Create unique key for subcategory (normalized category:normalized subcategory)
+                        var subCategoryKey = $"{normalizedCategoryName}:{NormalizeKey(subCategoryName)}";
                         
                         // Only add if not duplicate
                         if (!subCategoryKeys.Contains(subCategoryKey))
                         {
                             subCategories.Add(new MenuSubCategory
                             {
-                                CategoryName = categoryName,
-                                Name = subCategoryName,
+                                CategoryName = categoryName.Trim(),
+                                Name = subCategoryName.Trim(),
                                 OutletId = outletId
                             });
                             subCategoryKeys.Add(subCategoryKey);
@@ -93,16 +112,49 @@ public class FileUploadService
                 }
             }
 
-            // Save categories first
-            foreach (var category in categories.Values)
+            // Save categories first (skip existing ones)
+            var categoryIdByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (normalizedCategoryName, category) in categories)
             {
-                var created = await mongoService.CreateCategoryAsync(category);
-                result.CategoriesProcessed++;
-
-                // Update subcategories with the created category ID
-                foreach (var subCat in subCategories.Where(sc => sc.CategoryName == category.Name))
+                if (existingCategoryByName.TryGetValue(normalizedCategoryName, out var existingCategory))
                 {
-                    subCat.CategoryId = created.Id;
+                    categoryIdByName[normalizedCategoryName] = existingCategory.Id;
+                    continue;
+                }
+
+                try
+                {
+                    var created = await mongoService.CreateCategoryAsync(category);
+                    categoryIdByName[normalizedCategoryName] = created.Id;
+                    result.CategoriesProcessed++;
+                }
+                catch (Exception ex) when (ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Category already exists due to race/parallel upload; resolve from DB.
+                    var resolved = (await mongoService.GetCategoriesAsync(outletId))
+                        .FirstOrDefault(c => NormalizeKey(c.Name) == normalizedCategoryName);
+                    if (resolved != null)
+                    {
+                        categoryIdByName[normalizedCategoryName] = resolved.Id;
+                    }
+                    else
+                    {
+                        result.Errors.Add($"Category '{category.Name}' already exists but could not be resolved.");
+                    }
+                }
+            }
+
+            // Update subcategories with resolved category IDs
+            foreach (var subCat in subCategories)
+            {
+                var key = NormalizeKey(subCat.CategoryName);
+                if (categoryIdByName.TryGetValue(key, out var categoryId))
+                {
+                    subCat.CategoryId = categoryId;
+                }
+                else
+                {
+                    result.Errors.Add($"Subcategory '{subCat.Name}' skipped: category '{subCat.CategoryName}' not found.");
                 }
             }
 
@@ -111,8 +163,21 @@ public class FileUploadService
             {
                 if (!string.IsNullOrEmpty(subCat.CategoryId))
                 {
-                    await mongoService.CreateSubCategoryAsync(subCat);
-                    result.SubCategoriesProcessed++;
+                    var subKey = $"{subCat.CategoryId}:{NormalizeKey(subCat.Name)}";
+                    if (existingSubCategoryKeys.Contains(subKey))
+                        continue;
+
+                    try
+                    {
+                        await mongoService.CreateSubCategoryAsync(subCat);
+                        existingSubCategoryKeys.Add(subKey);
+                        result.SubCategoriesProcessed++;
+                    }
+                    catch (Exception ex) when (ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Treat as skipped duplicate.
+                        existingSubCategoryKeys.Add(subKey);
+                    }
                 }
             }
 
@@ -120,6 +185,11 @@ public class FileUploadService
             {
                 result.Success = true;
                 result.Message = $"Successfully imported {result.CategoriesProcessed} categories and {result.SubCategoriesProcessed} subcategories";
+            }
+            else if (!result.Errors.Any())
+            {
+                result.Success = true;
+                result.Message = "No new data imported. Categories and subcategories already exist.";
             }
             else
             {
@@ -162,6 +232,17 @@ public class FileUploadService
             var subCategories = new List<MenuSubCategory>();
             var subCategoryKeys = new HashSet<string>(); // Track unique subcategories
 
+            var existingCategories = await mongoService.GetCategoriesAsync(outletId);
+            var existingCategoryByName = existingCategories
+                .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+                .GroupBy(c => NormalizeKey(c.Name))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var existingSubCategoryKeys = (await mongoService.GetSubCategoriesAsync(outletId))
+                .Where(sc => !string.IsNullOrWhiteSpace(sc.Name) && !string.IsNullOrWhiteSpace(sc.CategoryId))
+                .Select(sc => $"{sc.CategoryId}:{NormalizeKey(sc.Name)}")
+                .ToHashSet();
+
             foreach (var record in records)
             {
                 try
@@ -172,12 +253,14 @@ public class FileUploadService
                         continue;
                     }
 
-                    // Add or get category (skip if already exists)
-                    if (!categories.ContainsKey(record.CategoryName))
+                    var normalizedCategoryName = NormalizeKey(record.CategoryName);
+
+                    // Add or get category from upload payload (skip if already exists in this file)
+                    if (!categories.ContainsKey(normalizedCategoryName))
                     {
-                        categories[record.CategoryName] = new MenuCategory
+                        categories[normalizedCategoryName] = new MenuCategory
                         {
-                            Name = record.CategoryName,
+                            Name = record.CategoryName.Trim(),
                             OutletId = outletId
                         };
                     }
@@ -186,16 +269,16 @@ public class FileUploadService
                     if (!string.IsNullOrEmpty(record.SubCategoryName) && 
                         !record.SubCategoryName.Equals(record.CategoryName, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Create unique key for subcategory (category:subcategory)
-                        var subCategoryKey = $"{record.CategoryName}:{record.SubCategoryName}";
+                        // Create unique key for subcategory (normalized category:normalized subcategory)
+                        var subCategoryKey = $"{normalizedCategoryName}:{NormalizeKey(record.SubCategoryName)}";
                         
                         // Only add if not duplicate
                         if (!subCategoryKeys.Contains(subCategoryKey))
                         {
                             subCategories.Add(new MenuSubCategory
                             {
-                                CategoryName = record.CategoryName,
-                                Name = record.SubCategoryName,
+                                CategoryName = record.CategoryName.Trim(),
+                                Name = record.SubCategoryName.Trim(),
                                 OutletId = outletId
                             });
                             subCategoryKeys.Add(subCategoryKey);
@@ -208,16 +291,49 @@ public class FileUploadService
                 }
             }
 
-            // Save categories first
-            foreach (var category in categories.Values)
+            // Save categories first (skip existing ones)
+            var categoryIdByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (normalizedCategoryName, category) in categories)
             {
-                var created = await mongoService.CreateCategoryAsync(category);
-                result.CategoriesProcessed++;
-
-                // Update subcategories with the created category ID
-                foreach (var subCat in subCategories.Where(sc => sc.CategoryName == category.Name))
+                if (existingCategoryByName.TryGetValue(normalizedCategoryName, out var existingCategory))
                 {
-                    subCat.CategoryId = created.Id;
+                    categoryIdByName[normalizedCategoryName] = existingCategory.Id;
+                    continue;
+                }
+
+                try
+                {
+                    var created = await mongoService.CreateCategoryAsync(category);
+                    categoryIdByName[normalizedCategoryName] = created.Id;
+                    result.CategoriesProcessed++;
+                }
+                catch (Exception ex) when (ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Category already exists due to race/parallel upload; resolve from DB.
+                    var resolved = (await mongoService.GetCategoriesAsync(outletId))
+                        .FirstOrDefault(c => NormalizeKey(c.Name) == normalizedCategoryName);
+                    if (resolved != null)
+                    {
+                        categoryIdByName[normalizedCategoryName] = resolved.Id;
+                    }
+                    else
+                    {
+                        result.Errors.Add($"Category '{category.Name}' already exists but could not be resolved.");
+                    }
+                }
+            }
+
+            // Update subcategories with resolved category IDs
+            foreach (var subCat in subCategories)
+            {
+                var key = NormalizeKey(subCat.CategoryName);
+                if (categoryIdByName.TryGetValue(key, out var categoryId))
+                {
+                    subCat.CategoryId = categoryId;
+                }
+                else
+                {
+                    result.Errors.Add($"Subcategory '{subCat.Name}' skipped: category '{subCat.CategoryName}' not found.");
                 }
             }
 
@@ -226,8 +342,21 @@ public class FileUploadService
             {
                 if (!string.IsNullOrEmpty(subCat.CategoryId))
                 {
-                    await mongoService.CreateSubCategoryAsync(subCat);
-                    result.SubCategoriesProcessed++;
+                    var subKey = $"{subCat.CategoryId}:{NormalizeKey(subCat.Name)}";
+                    if (existingSubCategoryKeys.Contains(subKey))
+                        continue;
+
+                    try
+                    {
+                        await mongoService.CreateSubCategoryAsync(subCat);
+                        existingSubCategoryKeys.Add(subKey);
+                        result.SubCategoriesProcessed++;
+                    }
+                    catch (Exception ex) when (ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Treat as skipped duplicate.
+                        existingSubCategoryKeys.Add(subKey);
+                    }
                 }
             }
 
@@ -235,6 +364,11 @@ public class FileUploadService
             {
                 result.Success = true;
                 result.Message = $"Successfully imported {result.CategoriesProcessed} categories and {result.SubCategoriesProcessed} subcategories";
+            }
+            else if (!result.Errors.Any())
+            {
+                result.Success = true;
+                result.Message = "No new data imported. Categories and subcategories already exist.";
             }
             else
             {

@@ -687,14 +687,19 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     .Set(x => x.MakingPrice, recipe.TotalMakingCost)
                     .Set(x => x.LastUpdated, GetIstNow());
 
-                if (recipe.PriceForecast?.ShopPrice > 0)
-                    updateDef = updateDef.Set(x => x.ShopSellingPrice, recipe.PriceForecast!.ShopPrice);
+                var forecast = recipe.PriceForecast;
+                if (forecast?.FutureShopPrice > 0)
+                    updateDef = updateDef.Set(x => x.ShopSellingPrice, forecast.FutureShopPrice.Value);
+                else if (forecast?.ShopPrice > 0)
+                    updateDef = updateDef.Set(x => x.ShopSellingPrice, forecast.ShopPrice);
 
-                if (recipe.PriceForecast?.OnlinePrice > 0)
-                    updateDef = updateDef.Set(x => x.OnlinePrice, recipe.PriceForecast!.OnlinePrice);
+                if (forecast?.FutureOnlinePrice > 0)
+                    updateDef = updateDef.Set(x => x.OnlinePrice, forecast.FutureOnlinePrice.Value);
+                else if (forecast?.OnlinePrice > 0)
+                    updateDef = updateDef.Set(x => x.OnlinePrice, forecast.OnlinePrice);
 
-                if (recipe.PriceForecast?.PackagingCost > 0)
-                    updateDef = updateDef.Set(x => x.PackagingCharge, recipe.PriceForecast!.PackagingCost);
+                if (forecast?.PackagingCost > 0)
+                    updateDef = updateDef.Set(x => x.PackagingCharge, forecast.PackagingCost);
 
                 // Build a case-insensitive name filter to match across ALL outlets
                 var escapedName = System.Text.RegularExpressions.Regex.Escape(recipe.MenuItemName!.Trim());
@@ -768,6 +773,22 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Create new category
     public async Task<MenuCategory> CreateCategoryAsync(MenuCategory category)
     {
+        var normalizedName = category.Name?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedName))
+            throw new InvalidOperationException("Category name is required.");
+
+        category.Name = normalizedName;
+
+        var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
+        var duplicateFilter = Builders<MenuCategory>.Filter.And(
+            Builders<MenuCategory>.Filter.Eq(x => x.OutletId, category.OutletId),
+            Builders<MenuCategory>.Filter.Regex(x => x.Name, new BsonRegularExpression($"^{escapedName}$", "i")),
+            Builders<MenuCategory>.Filter.Ne(x => x.IsDeleted, true)
+        );
+        var duplicateExists = await _categories.Find(duplicateFilter).AnyAsync();
+        if (duplicateExists)
+            throw new InvalidOperationException($"Category '{category.Name}' already exists for this outlet.");
+
         // Generate ID if not already set
         if (string.IsNullOrEmpty(category.Id))
         {
@@ -871,6 +892,23 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Create new subcategory
     public async Task<MenuSubCategory> CreateSubCategoryAsync(MenuSubCategory subCategory)
     {
+        var normalizedName = subCategory.Name?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedName))
+            throw new InvalidOperationException("Subcategory name is required.");
+
+        subCategory.Name = normalizedName;
+
+        var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
+        var duplicateFilter = Builders<MenuSubCategory>.Filter.And(
+            Builders<MenuSubCategory>.Filter.Eq(x => x.OutletId, subCategory.OutletId),
+            Builders<MenuSubCategory>.Filter.Eq(x => x.CategoryId, subCategory.CategoryId),
+            Builders<MenuSubCategory>.Filter.Regex(x => x.Name, new BsonRegularExpression($"^{escapedName}$", "i")),
+            Builders<MenuSubCategory>.Filter.Ne(x => x.IsDeleted, true)
+        );
+        var duplicateExists = await _subCategories.Find(duplicateFilter).AnyAsync();
+        if (duplicateExists)
+            throw new InvalidOperationException($"Subcategory '{subCategory.Name}' already exists under this category for this outlet.");
+
         // Generate ID if not already set
         if (string.IsNullOrEmpty(subCategory.Id))
         {

@@ -86,7 +86,11 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.outletSub = this.outletService.selectedOutlet$
       .pipe(filter(o => o !== null))
-      .subscribe(() => this.loadCombos());
+      .subscribe(() => {
+        this.loadCombos();
+        this.loadMenuItems();
+        this.priceService.reloadData();
+      });
     if (this.outletService.getSelectedOutlet()) this.loadCombos();
     this.loadMenuItems();
     this.loadRecipes();
@@ -190,7 +194,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     this.comboForm.items[index].menuItemId = item.id;
     this.comboForm.items[index].basePieces = basePieces;
     this.comboForm.items[index].selectedPieces = basePieces;
-    this.comboForm.items[index].shopPrice = item.dineInPrice || item.shopSellingPrice || 0;
+    this.comboForm.items[index].shopPrice = item.shopSellingPrice || 0;
     this.comboForm.items[index].onlinePrice = item.onlinePrice || 0;
     this.comboForm.items[index].packagingCharge = item.packagingCharge || 0;
     this.showItemPickerAt = null;
@@ -244,7 +248,17 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
 
   getMakingCost(menuItemId: string): number {
     const recipe = this.recipeMap.get(menuItemId);
-    if (recipe) return recipe.totalMakingCost || 0;
+    if (recipe?.totalMakingCost !== undefined && recipe?.totalMakingCost !== null) {
+      const recipeCost = Number(recipe.totalMakingCost);
+      if (Number.isFinite(recipeCost) && recipeCost > 0) return recipeCost;
+    }
+
+    const menuItem = this.getMenuItemDetail(menuItemId);
+    if (menuItem?.makingPrice !== undefined && menuItem?.makingPrice !== null) {
+      const menuCost = Number(menuItem.makingPrice);
+      if (Number.isFinite(menuCost) && menuCost > 0) return menuCost;
+    }
+
     return 0;
   }
 
@@ -255,7 +269,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     packagingCost: number;
   } {
     const menuItem = this.getMenuItemDetail(item.menuItemId);
-    const unitShopPrice = item.shopPrice || menuItem?.dineInPrice || menuItem?.shopSellingPrice || 0;
+    const unitShopPrice = menuItem?.shopSellingPrice || item.shopPrice || 0;
     const unitOnlinePrice = item.onlinePrice || menuItem?.onlinePrice || 0;
     const unitPackaging = item.packagingCharge || menuItem?.packagingCharge || 0;
     const unitMakingCost = this.getMakingCost(item.menuItemId);
@@ -282,10 +296,10 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
 
     return {
       makingCost: makingCost * quantity,
-      shopPrice: (item?.dineInPrice || item?.shopSellingPrice || 0) * quantity,
+      shopPrice: (item?.shopSellingPrice || 0) * quantity,
       onlinePrice: (item?.onlinePrice || 0) * quantity,
       packaging: (item?.packagingCharge || 0) * quantity,
-      shopProfit: ((item?.dineInPrice || item?.shopSellingPrice || 0) - makingCost) * quantity,
+      shopProfit: ((item?.shopSellingPrice || 0) - makingCost) * quantity,
       onlineProfit: ((item?.onlinePrice || 0) - makingCost - (item?.packagingCharge || 0)) * quantity
     };
   }
@@ -304,12 +318,12 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     for (const comboItem of this.comboForm.items) {
       if (!comboItem.menuItemId) continue;
       const m = this.getMenuItemDetail(comboItem.menuItemId);
-      const shopVal = (m?.dineInPrice || m?.shopSellingPrice || 0) * comboItem.quantity;
+      const shopVal = (m?.shopSellingPrice || 0) * comboItem.quantity;
       totalIndividualValue += shopVal;
     }
 
     // Allocate combo price proportionally
-    const thisItemIndividualValue = (item?.dineInPrice || item?.shopSellingPrice || 0) * quantity;
+    const thisItemIndividualValue = (item?.shopSellingPrice || 0) * quantity;
     const ratio = totalIndividualValue > 0 ? this.comboForm.comboPrice / totalIndividualValue : 0;
     const futureShopPrice = thisItemIndividualValue * ratio;
     const futureOnlinePrice = (item?.onlinePrice || 0) * quantity * ratio;

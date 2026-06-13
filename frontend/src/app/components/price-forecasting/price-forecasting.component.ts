@@ -5,6 +5,9 @@ import { UIStore } from '../../store/ui.store';
 import { PriceForecastService, PriceForecast, PriceHistory } from '../../services/price-forecast.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { DiscountCouponService, DiscountCoupon } from '../../services/discount-coupon.service';
+import { PriceCalculatorService } from '../../services/price-calculator.service';
+import { MenuItemRecipe } from '../../models/ingredient.model';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-price-forecasting',
@@ -16,6 +19,10 @@ import { DiscountCouponService, DiscountCoupon } from '../../services/discount-c
 export class PriceForecastingComponent implements OnInit, OnDestroy {
   forecasts: PriceForecast[] = [];
   menuItems: MenuItem[] = [];
+  private allForecasts: PriceForecast[] = [];
+  private allMenuItems: MenuItem[] = [];
+  private savedRecipes: MenuItemRecipe[] = [];
+  private readonly subscriptions: Subscription[] = [];
   activeCoupons: DiscountCoupon[] = [];
   selectedCouponId: string = '';
   discountWarning: string = '';
@@ -32,18 +39,59 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
   constructor(
     private forecastService: PriceForecastService,
     private menuService: MenuService,
-    private couponService: DiscountCouponService
+    private couponService: DiscountCouponService,
+    private priceCalculatorService: PriceCalculatorService
   ) {}
 
   ngOnInit() {
     // Price forecasts are global - load data once on component init
+    this.loadSavedRecipes();
     this.loadMenuItems();
     this.loadForecasts();
     this.loadActiveCoupons();
   }
 
   ngOnDestroy(): void {
-    // Cleanup if needed
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
+
+  private normalize(value?: string): string {
+    return (value || '').trim().toLowerCase();
+  }
+
+  private isRecipeBackedItem(menuItemId?: string, menuItemName?: string): boolean {
+    const normalizedId = this.normalize(menuItemId);
+    const normalizedName = this.normalize(menuItemName);
+
+    return this.savedRecipes.some(recipe => {
+      const recipeId = this.normalize(recipe.menuItemId);
+      const recipeName = this.normalize(recipe.menuItemName);
+      return (!!normalizedId && recipeId === normalizedId) || (!!normalizedName && recipeName === normalizedName);
+    });
+  }
+
+  private applySavedRecipeFilter(): void {
+    this.menuItems = this.allMenuItems.filter(item => this.isRecipeBackedItem(item.id, item.name));
+    this.forecasts = this.allForecasts.filter(forecast => this.isRecipeBackedItem(forecast.menuItemId, forecast.menuItemName));
+
+    if (this.forecastForm.menuItemId && !this.menuItems.some(item => item.id === this.forecastForm.menuItemId)) {
+      this.forecastForm.menuItemId = '';
+      this.forecastForm.menuItemName = '';
+    }
+  }
+
+  loadSavedRecipes() {
+    const sub = this.priceCalculatorService.getRecipes().subscribe({
+      next: (recipes) => {
+        this.savedRecipes = recipes || [];
+        this.applySavedRecipeFilter();
+      },
+      error: (err) => {
+        console.error('Error loading saved recipes:', err);
+        this.uiStore.error('Failed to load saved recipes');
+      }
+    });
+    this.subscriptions.push(sub);
   }
 
   loadActiveCoupons() {
@@ -62,7 +110,8 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
   loadMenuItems() {
     this.menuService.getMenuItems().subscribe({
       next: (items) => {
-        this.menuItems = items;
+        this.allMenuItems = items;
+        this.applySavedRecipeFilter();
       },
       error: (err) => {
         console.error('Error loading menu items:', err);
@@ -73,11 +122,13 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
 
   loadForecasts() {
     this.loading = true;
+    this.allForecasts = [];
     this.forecasts = [];
 
     this.forecastService.getPriceForecasts().subscribe({
       next: (forecasts) => {
-        this.forecasts = forecasts;
+        this.allForecasts = forecasts;
+        this.applySavedRecipeFilter();
         this.loading = false;
       },
       error: (err) => {
