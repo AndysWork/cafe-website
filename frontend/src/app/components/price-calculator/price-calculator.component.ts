@@ -1945,6 +1945,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       perPiecePrice: 0,
       perPieceWeight: 0,
       vendor: '',
+      expiryDate: undefined,
       category: 'frozen',
       isActive: true
     };
@@ -2079,8 +2080,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   downloadExcelTemplate(): void {
     // Create a simple CSV template
-    const headers = 'ItemName,Quantity,PacketWeight,BuyPrice,PerPiecePrice,PerPieceWeight,Vendor\n';
-    const example = 'Frozen Chicken Wings,10,1000,500,50,100,ABC Suppliers\n';
+    const headers = 'ItemName,Quantity,PacketWeight,BuyPrice,PerPiecePrice,PerPieceWeight,Vendor,ExpiryDate\n';
+    const example = 'Frozen Chicken Wings,10,1000,500,50,100,ABC Suppliers,2026-12-31\n';
     const csvContent = headers + example;
 
     const blob = new Blob([csvContent], { type: 'text/csv' });

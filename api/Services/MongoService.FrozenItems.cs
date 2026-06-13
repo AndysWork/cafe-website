@@ -163,6 +163,7 @@ public partial class MongoService
             existingInventory.TotalValue = frozenItem.BuyPrice;
             existingInventory.LastRestockDate = DateTime.UtcNow;
             existingInventory.IsActive = frozenItem.IsActive;
+            existingInventory.ExpiryDate = frozenItem.ExpiryDate;
             existingInventory.UpdatedAt = DateTime.UtcNow;
             existingInventory.Notes = $"Packet Weight: {frozenItem.PacketWeight}kg, Per Piece Price: ₹{perPiecePrice:F2}, Per Piece Weight: {frozenItem.PerPieceWeight}gm";
 
@@ -193,6 +194,7 @@ public partial class MongoService
                 TotalValue = frozenItem.BuyPrice,
                 Status = StockStatus.InStock,
                 IsActive = frozenItem.IsActive,
+                ExpiryDate = frozenItem.ExpiryDate,
                 LastRestockDate = DateTime.UtcNow,
                 Notes = $"Packet Weight: {frozenItem.PacketWeight}kg, Per Piece Price: ₹{perPiecePrice:F2}, Per Piece Weight: {frozenItem.PerPieceWeight}gm",
                 CreatedAt = DateTime.UtcNow,
@@ -245,6 +247,7 @@ public partial class MongoService
                     existingItem.BuyPrice = item.BuyPrice;
                     existingItem.PerPiecePrice = item.PerPiecePrice;
                     existingItem.PerPieceWeight = item.PerPieceWeight;
+                    existingItem.ExpiryDate = item.ExpiryDate;
                     existingItem.UpdatedAt = DateTime.UtcNow;
 
                     await _frozenItems.ReplaceOneAsync(f => f.Id == existingItem.Id, existingItem);
@@ -264,6 +267,7 @@ public partial class MongoService
                         PerPiecePrice = item.PerPiecePrice,
                         PerPieceWeight = item.PerPieceWeight,
                         Vendor = item.Vendor,
+                        ExpiryDate = item.ExpiryDate,
                         Category = "frozen",
                         IsActive = true,
                         OutletId = outletId,

@@ -324,6 +324,25 @@ public class FrozenItemFunction
                         var itemName = worksheet.Cells[row, 1].Text?.Trim();
                         if (string.IsNullOrEmpty(itemName)) continue; // Skip empty rows
 
+                        DateTime? expiryDate = null;
+                        var expiryCell = worksheet.Cells[row, 8];
+                        if (expiryCell != null)
+                        {
+                            // Support typed Excel dates and string dates (e.g., yyyy-MM-dd, dd/MM/yyyy)
+                            if (expiryCell.Value is DateTime dt)
+                            {
+                                expiryDate = dt;
+                            }
+                            else if (double.TryParse(expiryCell.Text, out var oaDate) && oaDate > 0)
+                            {
+                                expiryDate = DateTime.FromOADate(oaDate);
+                            }
+                            else if (DateTime.TryParse(expiryCell.Text, out var parsedDate))
+                            {
+                                expiryDate = parsedDate;
+                            }
+                        }
+
                         var item = new FrozenItemUpload
                         {
                             ItemName = itemName,
@@ -332,7 +351,8 @@ public class FrozenItemFunction
                             BuyPrice = decimal.TryParse(worksheet.Cells[row, 4].Text, out decimal buyPr) ? buyPr : 0,
                             PerPiecePrice = decimal.TryParse(worksheet.Cells[row, 5].Text, out decimal ppPrice) ? ppPrice : 0,
                             PerPieceWeight = decimal.TryParse(worksheet.Cells[row, 6].Text, out decimal ppWeight) ? ppWeight : 0,
-                            Vendor = worksheet.Cells[row, 7].Text?.Trim() ?? ""
+                            Vendor = worksheet.Cells[row, 7].Text?.Trim() ?? "",
+                            ExpiryDate = expiryDate
                         };
 
                         items.Add(item);

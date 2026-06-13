@@ -1585,6 +1585,10 @@
                 <span class="detail-label">Buy Price:</span>
                 <span class="detail-value primary">₹{{item.buyPrice.toFixed(2)}}</span>
               </div>
+              <div class="detail-row" *ngIf="item.expiryDate">
+                <span class="detail-label">Expiry Date:</span>
+                <span class="detail-value">{{item.expiryDate | date:'dd MMM yyyy'}}</span>
+              </div>
             </div>
 
             <div class="per-piece-info">
@@ -1707,6 +1711,14 @@
             type="text"
             [(ngModel)]="frozenForm.vendor"
             placeholder="e.g., ABC Suppliers"
+            class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label>Expiry Date (Optional)</label>
+          <input
+            type="date"
+            [(ngModel)]="frozenForm.expiryDate"
             class="form-input">
         </div>
 

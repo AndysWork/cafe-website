@@ -219,6 +219,7 @@ export interface FrozenItem {
   createdAt?: Date;
   updatedAt?: Date;
   notes?: string;
+  expiryDate?: Date | string;
 }
 
 export interface FrozenItemUpload {
@@ -229,4 +230,5 @@ export interface FrozenItemUpload {
   perPiecePrice: number;
   perPieceWeight: number;
   vendor: string;
+  expiryDate?: Date | string;
 }

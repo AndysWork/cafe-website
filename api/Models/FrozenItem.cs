@@ -43,6 +43,9 @@ public class FrozenItem
     [BsonElement("notes")]
     public string? Notes { get; set; }
 
+    [BsonElement("expiryDate")]
+    public DateTime? ExpiryDate { get; set; }
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -59,4 +62,5 @@ public class FrozenItemUpload
     public decimal PerPiecePrice { get; set; }
     public decimal PerPieceWeight { get; set; }
     public string Vendor { get; set; } = string.Empty;
+    public DateTime? ExpiryDate { get; set; }
 }
