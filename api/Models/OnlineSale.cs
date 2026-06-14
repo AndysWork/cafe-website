@@ -263,3 +263,45 @@ public class BulkInsertResult
     public string? ErrorMessage { get; set; }
 }
 
+public class PayoutVarianceSummaryResponse
+{
+    public int TotalOrders { get; set; }
+    public decimal ExpectedPayout { get; set; }
+    public decimal ActualPayout { get; set; }
+    public decimal TotalVariance { get; set; }
+    public decimal VariancePercent { get; set; }
+    public int OverpaidOrders { get; set; }
+    public int UnderpaidOrders { get; set; }
+    public int PerfectMatchOrders { get; set; }
+}
+
+public class PayoutVarianceOrderResponse
+{
+    public string OrderId { get; set; } = string.Empty;
+    public string Platform { get; set; } = string.Empty;
+    public DateTime OrderAt { get; set; }
+    public decimal BillSubTotal { get; set; }
+    public decimal PackagingCharges { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal PlatformDeduction { get; set; }
+    public decimal ExpectedPayout { get; set; }
+    public decimal ActualPayout { get; set; }
+    public decimal Variance { get; set; }
+}
+
+public class OutletOnlineProfitBenchmarkResponse
+{
+    public string OutletId { get; set; } = string.Empty;
+    public string OutletName { get; set; } = string.Empty;
+    public int TotalOrders { get; set; }
+    public decimal TotalBillValue { get; set; }
+    public decimal TotalPayout { get; set; }
+    public decimal ExpectedPayout { get; set; }
+    public decimal PayoutVariance { get; set; }
+    public decimal PayoutVariancePercent { get; set; }
+    public decimal TotalDeduction { get; set; }
+    public decimal TotalDiscount { get; set; }
+    public decimal TotalPackaging { get; set; }
+    public decimal AverageOrderValue { get; set; }
+}
+

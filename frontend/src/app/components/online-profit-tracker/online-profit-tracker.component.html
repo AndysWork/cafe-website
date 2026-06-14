@@ -1,17 +1,15 @@
 <div class="profit-tracker-container">
   <div class="tracker-header">
-    <h1>💹 Online Profit Tracker</h1>
-    <p>Order-wise profit &amp; loss for Zomato and Swiggy</p>
+    <h1>Online Profit Tracker</h1>
+    <p>Decision-grade profitability analytics for Zomato and Swiggy</p>
   </div>
 
-  <!-- Filters -->
   <div class="filters-section">
     <div class="filters-row">
-
       <select [(ngModel)]="platform" (ngModelChange)="loadData()" class="filter-select platform-select">
-        <option value="all">🌐 All Platforms</option>
-        <option value="Zomato">🔴 Zomato</option>
-        <option value="Swiggy">🟠 Swiggy</option>
+        <option value="all">All Platforms</option>
+        <option value="Zomato">Zomato</option>
+        <option value="Swiggy">Swiggy</option>
       </select>
 
       <select [(ngModel)]="dateRange" (ngModelChange)="onDateRangeChange()" class="filter-select">
@@ -29,187 +27,239 @@
         <button class="btn-apply" (click)="loadData()" [disabled]="isLoading">Apply</button>
       </ng-container>
 
-      <button class="btn-export btn-export-filter" (click)="exportReport()" [disabled]="isLoading">📥 Export</button>
+      <button class="btn-export btn-export-filter" (click)="exportReport()" [disabled]="isLoading">Export</button>
+
+      <button class="btn-apply" (click)="showThresholds = !showThresholds" [disabled]="isLoading">
+        {{ showThresholds ? 'Hide' : 'Show' }} Thresholds
+      </button>
+
+      <label class="inline-toggle">
+        <input type="checkbox" [(ngModel)]="compareAcrossOutlets" (change)="loadData()" />
+        Compare Across Outlets
+      </label>
+    </div>
+
+    <div class="threshold-panel" *ngIf="showThresholds">
+      <h4>Configurable Alert Thresholds</h4>
+      <div class="threshold-grid">
+        <label>Min Cost Coverage %
+          <input type="number" [(ngModel)]="alertThresholds.minCostCoveragePercent" min="0" max="100" step="1" />
+        </label>
+        <label>Max Deduction Rate %
+          <input type="number" [(ngModel)]="alertThresholds.maxDeductionRate" min="0" max="100" step="0.1" />
+        </label>
+        <label>Max Discount Rate %
+          <input type="number" [(ngModel)]="alertThresholds.maxDiscountRate" min="0" max="100" step="0.1" />
+        </label>
+        <label>Long Distance KM
+          <input type="number" [(ngModel)]="alertThresholds.longDistanceKm" min="0" max="100" step="0.5" />
+        </label>
+        <label>Max Payout Variance %
+          <input type="number" [(ngModel)]="alertThresholds.maxPayoutVariancePercent" min="0" max="100" step="0.1" />
+        </label>
+        <label>Min Coupon Profit/Discount
+          <input type="number" [(ngModel)]="alertThresholds.minCouponProfitPerDiscount" min="-10" max="20" step="0.1" />
+        </label>
+      </div>
     </div>
   </div>
 
-  <!-- Loading -->
   <div class="loading-state" *ngIf="isLoading">
     <div class="spinner"></div>
-    <p>Loading sales data…</p>
+    <p>Loading sales data...</p>
   </div>
 
-  <!-- Error -->
   <div class="alert alert-error" *ngIf="errorMessage && !isLoading">{{ errorMessage }}</div>
 
   <div *ngIf="!isLoading && !errorMessage">
-
-    <!-- Summary Cards -->
     <div class="summary-cards">
       <div class="stat-card">
-        <div class="stat-icon">🛍️</div>
-        <div class="stat-body">
-          <div class="stat-label">Total Orders</div>
-          <div class="stat-value">{{ summary.totalOrders }}</div>
-          <div class="stat-sub">🔴 {{ summary.zomatoOrders }} &nbsp; 🟠 {{ summary.swiggyOrders }}</div>
-        </div>
+        <div class="stat-label">Total Orders</div>
+        <div class="stat-value">{{ summary.totalOrders }}</div>
+        <div class="stat-sub">Zomato {{ summary.zomatoOrders }} | Swiggy {{ summary.swiggyOrders }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">🧾</div>
-        <div class="stat-body">
-          <div class="stat-label">Total Bill Value</div>
-          <div class="stat-value">₹{{ summary.totalBillValue | number:'1.2-2' }}</div>
-          <div class="stat-sub">Online price × qty</div>
-        </div>
+        <div class="stat-label">Total Payout</div>
+        <div class="stat-value">{{ summary.totalPayout | number:'1.0-0' }}</div>
+        <div class="stat-sub">Avg {{ summary.avgPayoutPerOrder | number:'1.0-0' }} / order</div>
       </div>
-      <div class="stat-card payout-card">
-        <div class="stat-icon">💰</div>
-        <div class="stat-body">
-          <div class="stat-label">Total Payout Received</div>
-          <div class="stat-value">₹{{ summary.totalPayout | number:'1.2-2' }}</div>
-          <div class="stat-sub">After deductions &amp; discounts</div>
-        </div>
-      </div>
-      <div class="stat-card cost-card">
-        <div class="stat-icon">🏭</div>
-        <div class="stat-body">
-          <div class="stat-label">Total Investment (COGS)</div>
-          <div class="stat-value">₹{{ summary.totalInvestment | number:'1.2-2' }}</div>
-          <div class="stat-sub">{{ summary.ordersWithCost }}/{{ summary.totalOrders }} orders have cost</div>
-        </div>
+      <div class="stat-card">
+        <div class="stat-label">True Cost (COGS + Misc + Freebies)</div>
+        <div class="stat-value">{{ summary.totalTrueCost | number:'1.0-0' }}</div>
+        <div class="stat-sub">COGS {{ summary.totalInvestment | number:'1.0-0' }}, Misc {{ summary.totalMiscCharges | number:'1.0-0' }}, Freebies {{ summary.totalFreebies | number:'1.0-0' }}</div>
       </div>
       <div class="stat-card" [ngClass]="summary.totalProfit >= 0 ? 'profit-pos-card' : 'profit-neg-card'">
-        <div class="stat-icon">{{ summary.totalProfit >= 0 ? '📈' : '📉' }}</div>
-        <div class="stat-body">
-          <div class="stat-label">Net Profit / Loss</div>
-          <div class="stat-value">₹{{ summary.totalProfit | number:'1.2-2' }}</div>
-          <div class="stat-sub">{{ summary.profitMargin | number:'1.1-1' }}% margin</div>
-        </div>
+        <div class="stat-label">True Net Profit</div>
+        <div class="stat-value">{{ summary.totalProfit | number:'1.0-0' }}</div>
+        <div class="stat-sub">{{ summary.profitMargin | number:'1.1-1' }}% margin | {{ summary.avgTrueProfitPerOrder | number:'1.0-0' }} / order</div>
       </div>
-      <div class="stat-card deduction-card">
-        <div class="stat-icon">✂️</div>
-        <div class="stat-body">
-          <div class="stat-label">Platform Deductions</div>
-          <div class="stat-value">₹{{ summary.totalPlatformDeduction | number:'1.2-2' }}</div>
-          <div class="stat-sub">Disc ₹{{ summary.totalDiscount | number:'1.0-0' }} + Pkg ₹{{ summary.totalPackaging | number:'1.0-0' }}</div>
-        </div>
+      <div class="stat-card">
+        <div class="stat-label">Deduction and Discount Pressure</div>
+        <div class="stat-value">{{ (summary.totalPlatformDeduction + summary.totalDiscount) | number:'1.0-0' }}</div>
+        <div class="stat-sub">Deduction {{ summary.deductionRate | number:'1.1-1' }}% | Discount {{ summary.discountRate | number:'1.1-1' }}%</div>
       </div>
-    </div>
-
-    <!-- Platform Comparison Bar -->
-    <div class="platform-bar-wrap" *ngIf="summary.totalPayout > 0 && platform === 'all'">
-      <div class="platform-bar">
-        <div class="pbar-seg zomato-seg"
-             [style.width.%]="(summary.zomatoPayout / summary.totalPayout) * 100"
-             [title]="'Zomato ₹' + summary.zomatoPayout">
-          <span *ngIf="summary.zomatoPayout > 0">🔴 Zomato ₹{{ summary.zomatoPayout | number:'1.0-0' }}</span>
-        </div>
-        <div class="pbar-seg swiggy-seg"
-             [style.width.%]="(summary.swiggyPayout / summary.totalPayout) * 100"
-             [title]="'Swiggy ₹' + summary.swiggyPayout">
-          <span *ngIf="summary.swiggyPayout > 0">🟠 Swiggy ₹{{ summary.swiggyPayout | number:'1.0-0' }}</span>
-        </div>
+      <div class="stat-card">
+        <div class="stat-label">Risk Flags</div>
+        <div class="stat-value">{{ summary.negativeMarginOrders }}</div>
+        <div class="stat-sub">Negative margin orders | Coverage {{ summary.costCoveragePercent | number:'1.0-0' }}%</div>
       </div>
     </div>
 
-    <!-- Warning: no cost data -->
-    <div class="alert alert-warning" *ngIf="summary.totalOrders > 0 && summary.ordersWithCost === 0">
-      ⚠️ No recipe making-cost data matched for the selected orders. Add or fix recipes to calculate accurate order-level P&amp;L.
+    <div class="alert alert-warning" *ngIf="summary.totalOrders > 0 && summary.costCoveragePercent < 95">
+      Cost coverage is {{ summary.costCoveragePercent | number:'1.0-0' }}%. Target at least 95% recipe mapping for decision-grade profit accuracy.
     </div>
 
-    <!-- Tab Bar -->
+    <div class="alert alert-warning" *ngIf="configuredAlerts.length > 0">
+      <strong>Configured alerts:</strong>
+      <ul>
+        <li *ngFor="let alert of configuredAlerts">{{ alert }}</li>
+      </ul>
+    </div>
+
+    <div class="view-panel" *ngIf="viewMode === 'summary' && payoutVarianceSummary">
+      <h3>Payout Variance Monitor</h3>
+      <div class="metrics-row">
+        <div class="metric-box"><div class="metric-label">Expected Payout</div><div class="metric-value">{{ payoutVarianceSummary.expectedPayout | number:'1.0-0' }}</div></div>
+        <div class="metric-box"><div class="metric-label">Actual Payout</div><div class="metric-value">{{ payoutVarianceSummary.actualPayout | number:'1.0-0' }}</div></div>
+        <div class="metric-box"><div class="metric-label">Variance</div><div class="metric-value" [ngClass]="profitClass(payoutVarianceSummary.totalVariance)">{{ payoutVarianceSummary.totalVariance | number:'1.0-0' }}</div></div>
+        <div class="metric-box"><div class="metric-label">Variance %</div><div class="metric-value" [ngClass]="profitClass(payoutVarianceSummary.variancePercent)">{{ payoutVarianceSummary.variancePercent | number:'1.2-2' }}%</div></div>
+      </div>
+
+      <div class="table-wrap" *ngIf="payoutVarianceOrders.length > 0">
+        <table class="data-table">
+          <thead>
+            <tr><th>Date</th><th>Platform</th><th>Order</th><th>Expected</th><th>Actual</th><th>Variance</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of topPayoutVarianceOrders">
+              <td>{{ row.orderAt | date:'dd MMM, h:mm a' }}</td>
+              <td>{{ row.platform }}</td>
+              <td>#{{ row.orderId }}</td>
+              <td class="amount">{{ row.expectedPayout | number:'1.0-0' }}</td>
+              <td class="amount">{{ row.actualPayout | number:'1.0-0' }}</td>
+              <td class="amount" [ngClass]="profitClass(row.variance)">{{ row.variance | number:'1.0-0' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view-panel" *ngIf="viewMode === 'summary' && compareAcrossOutlets">
+      <h3>Outlet Benchmark (Online)</h3>
+      <p class="helper-text">Select outlets to include in comparison:</p>
+      <div class="outlet-selector">
+        <label *ngFor="let outlet of availableOutlets">
+          <input
+            type="checkbox"
+            [checked]="selectedComparisonOutletIds.includes(outlet.id || outlet._id || '')"
+            (change)="toggleOutletSelection(outlet.id || outlet._id || '')" />
+          {{ outlet.outletName }}
+        </label>
+        <button class="btn-apply" (click)="loadOutletBenchmark()" [disabled]="isComparisonLoading">Refresh Benchmark</button>
+      </div>
+
+      <div class="loading-state" *ngIf="isComparisonLoading">
+        <div class="spinner"></div>
+        <p>Loading outlet benchmark...</p>
+      </div>
+
+      <div class="table-wrap" *ngIf="!isComparisonLoading && outletBenchmarkRows.length > 0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Outlet</th>
+              <th>Orders</th>
+              <th>Payout</th>
+              <th>Expected Payout</th>
+              <th>Variance</th>
+              <th>Variance %</th>
+              <th>Deduction</th>
+              <th>Discount</th>
+              <th>Avg Order</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of outletBenchmarkRows; trackBy: trackByOutlet">
+              <td>{{ row.outletName }}</td>
+              <td>{{ row.totalOrders }}</td>
+              <td class="amount">{{ row.totalPayout | number:'1.0-0' }}</td>
+              <td class="amount">{{ row.expectedPayout | number:'1.0-0' }}</td>
+              <td class="amount" [ngClass]="profitClass(row.payoutVariance)">{{ row.payoutVariance | number:'1.0-0' }}</td>
+              <td [ngClass]="profitClass(row.payoutVariancePercent)">{{ row.payoutVariancePercent | number:'1.2-2' }}%</td>
+              <td class="amount">{{ row.totalDeduction | number:'1.0-0' }}</td>
+              <td class="amount">{{ row.totalDiscount | number:'1.0-0' }}</td>
+              <td>{{ row.averageOrderValue | number:'1.0-0' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="tab-bar">
-      <button [class.active]="viewMode === 'summary'" (click)="viewMode = 'summary'">📊 Summary</button>
-      <button [class.active]="viewMode === 'orders'" (click)="viewMode = 'orders'">
-        📋 Order-wise P&amp;L <span class="badge">{{ summary.totalOrders }}</span>
-      </button>
-      <button [class.active]="viewMode === 'items'" (click)="viewMode = 'items'">🍽️ Item-wise P&amp;L</button>
+      <button [class.active]="viewMode === 'summary'" (click)="viewMode = 'summary'">Summary</button>
+      <button [class.active]="viewMode === 'orders'" (click)="viewMode = 'orders'">Order wise P and L</button>
+      <button [class.active]="viewMode === 'items'" (click)="viewMode = 'items'">Menu Engineering</button>
+      <button [class.active]="viewMode === 'insights'" (click)="viewMode = 'insights'">Insights</button>
     </div>
 
-    <!-- SUMMARY VIEW -->
     <div class="view-panel" *ngIf="viewMode === 'summary'">
       <div class="card">
         <h3>Profit Waterfall</h3>
         <div class="waterfall">
           <div class="wf-row">
-            <span class="wf-label">Bill Value (Online Price)</span>
+            <span class="wf-label">Bill Value</span>
             <span class="wf-bar"><div class="wf-fill bill-fill" style="width:100%"></div></span>
-            <span class="wf-amount">₹{{ summary.totalBillValue | number:'1.0-0' }}</span>
+            <span class="wf-amount">{{ summary.totalBillValue | number:'1.0-0' }}</span>
           </div>
           <div class="wf-row minus">
-            <span class="wf-label">− Platform Deductions</span>
-            <span class="wf-bar"><div class="wf-fill deduct-fill"
-              [style.width.%]="summary.totalBillValue > 0 ? (summary.totalPlatformDeduction / summary.totalBillValue) * 100 : 0"></div></span>
-            <span class="wf-amount neg">−₹{{ summary.totalPlatformDeduction | number:'1.0-0' }}</span>
+            <span class="wf-label">Platform Deductions</span>
+            <span class="wf-bar"><div class="wf-fill deduct-fill" [style.width.%]="summary.totalBillValue > 0 ? (summary.totalPlatformDeduction / summary.totalBillValue) * 100 : 0"></div></span>
+            <span class="wf-amount">-{{ summary.totalPlatformDeduction | number:'1.0-0' }}</span>
           </div>
           <div class="wf-row minus">
-            <span class="wf-label">− Discounts</span>
-            <span class="wf-bar"><div class="wf-fill discount-fill"
-              [style.width.%]="summary.totalBillValue > 0 ? (summary.totalDiscount / summary.totalBillValue) * 100 : 0"></div></span>
-            <span class="wf-amount neg">−₹{{ summary.totalDiscount | number:'1.0-0' }}</span>
+            <span class="wf-label">Discounts</span>
+            <span class="wf-bar"><div class="wf-fill discount-fill" [style.width.%]="summary.totalBillValue > 0 ? (summary.totalDiscount / summary.totalBillValue) * 100 : 0"></div></span>
+            <span class="wf-amount">-{{ summary.totalDiscount | number:'1.0-0' }}</span>
           </div>
           <div class="wf-row payout-row">
-            <span class="wf-label">= Payout Received</span>
-            <span class="wf-bar"><div class="wf-fill payout-fill"
-              [style.width.%]="summary.totalBillValue > 0 ? (summary.totalPayout / summary.totalBillValue) * 100 : 0"></div></span>
-            <span class="wf-amount">₹{{ summary.totalPayout | number:'1.0-0' }}</span>
+            <span class="wf-label">Payout Received</span>
+            <span class="wf-bar"><div class="wf-fill payout-fill" [style.width.%]="summary.totalBillValue > 0 ? (summary.totalPayout / summary.totalBillValue) * 100 : 0"></div></span>
+            <span class="wf-amount">{{ summary.totalPayout | number:'1.0-0' }}</span>
           </div>
-          <div class="wf-row minus" *ngIf="summary.ordersWithCost > 0">
-            <span class="wf-label">− Cost of Goods</span>
-            <span class="wf-bar"><div class="wf-fill cost-fill"
-              [style.width.%]="summary.totalBillValue > 0 ? (summary.totalInvestment / summary.totalBillValue) * 100 : 0"></div></span>
-            <span class="wf-amount neg">−₹{{ summary.totalInvestment | number:'1.0-0' }}</span>
+          <div class="wf-row minus">
+            <span class="wf-label">COGS</span>
+            <span class="wf-bar"><div class="wf-fill cost-fill" [style.width.%]="summary.totalBillValue > 0 ? (summary.totalInvestment / summary.totalBillValue) * 100 : 0"></div></span>
+            <span class="wf-amount">-{{ summary.totalInvestment | number:'1.0-0' }}</span>
           </div>
-          <div class="wf-row profit-row" *ngIf="summary.ordersWithCost > 0">
-            <span class="wf-label">= Net Profit</span>
-            <span class="wf-bar"><div class="wf-fill"
-              [ngClass]="summary.totalProfit >= 0 ? 'profit-fill' : 'loss-fill'"
-              [style.width.%]="summary.totalBillValue > 0 ? (Math.abs(summary.totalProfit) / summary.totalBillValue) * 100 : 0"></div></span>
-            <span class="wf-amount" [ngClass]="summary.totalProfit >= 0 ? 'pos' : 'neg'">
-              ₹{{ summary.totalProfit | number:'1.0-0' }}
-            </span>
+          <div class="wf-row minus">
+            <span class="wf-label">Misc + Freebies</span>
+            <span class="wf-bar"><div class="wf-fill discount-fill" [style.width.%]="summary.totalBillValue > 0 ? ((summary.totalMiscCharges + summary.totalFreebies) / summary.totalBillValue) * 100 : 0"></div></span>
+            <span class="wf-amount">-{{ (summary.totalMiscCharges + summary.totalFreebies) | number:'1.0-0' }}</span>
+          </div>
+          <div class="wf-row profit-row">
+            <span class="wf-label">True Net Profit</span>
+            <span class="wf-bar"><div class="wf-fill" [ngClass]="summary.totalProfit >= 0 ? 'profit-fill' : 'loss-fill'" [style.width.%]="summary.totalBillValue > 0 ? (Math.abs(summary.totalProfit) / summary.totalBillValue) * 100 : 0"></div></span>
+            <span class="wf-amount" [ngClass]="summary.totalProfit >= 0 ? 'profit-pos' : 'profit-neg'">{{ summary.totalProfit | number:'1.0-0' }}</span>
           </div>
         </div>
       </div>
 
       <div class="metrics-row">
-        <div class="metric-box">
-          <div class="metric-label">Avg Payout / Order</div>
-          <div class="metric-value">₹{{ summary.totalOrders > 0 ? (summary.totalPayout / summary.totalOrders | number:'1.2-2') : '0.00' }}</div>
-        </div>
-        <div class="metric-box" *ngIf="summary.ordersWithCost > 0">
-          <div class="metric-label">Avg Profit / Order</div>
-          <div class="metric-value" [ngClass]="summary.totalProfit >= 0 ? 'pos' : 'neg'">
-            ₹{{ summary.totalProfit / summary.totalOrders | number:'1.2-2' }}
-          </div>
-        </div>
-        <div class="metric-box">
-          <div class="metric-label">Deduction Rate</div>
-          <div class="metric-value">
-            {{ summary.totalBillValue > 0 ? ((summary.totalPlatformDeduction / summary.totalBillValue) * 100 | number:'1.1-1') : '0' }}%
-          </div>
-        </div>
-        <div class="metric-box">
-          <div class="metric-label">Discount Rate</div>
-          <div class="metric-value">
-            {{ summary.totalBillValue > 0 ? ((summary.totalDiscount / summary.totalBillValue) * 100 | number:'1.1-1') : '0' }}%
-          </div>
-        </div>
-        <div class="metric-box" [ngClass]="marginClass(summary.profitMargin)">
-          <div class="metric-label">Profit Margin</div>
-          <div class="metric-value">{{ summary.ordersWithCost > 0 ? (summary.profitMargin | number:'1.1-1') + '%' : 'N/A' }}</div>
-        </div>
+        <div class="metric-box"><div class="metric-label">Deduction Rate</div><div class="metric-value">{{ summary.deductionRate | number:'1.1-1' }}%</div></div>
+        <div class="metric-box"><div class="metric-label">Discount Rate</div><div class="metric-value">{{ summary.discountRate | number:'1.1-1' }}%</div></div>
+        <div class="metric-box"><div class="metric-label">Freebie Rate</div><div class="metric-value">{{ summary.freebieRate | number:'1.1-1' }}%</div></div>
+        <div class="metric-box"><div class="metric-label">Misc Cost Rate</div><div class="metric-value">{{ summary.miscRate | number:'1.1-1' }}%</div></div>
+        <div class="metric-box" [ngClass]="marginClass(summary.profitMargin)"><div class="metric-label">Profit Margin</div><div class="metric-value">{{ summary.profitMargin | number:'1.1-1' }}%</div></div>
       </div>
     </div>
 
-    <!-- ORDER-WISE P&L VIEW -->
     <div class="view-panel" *ngIf="viewMode === 'orders'">
       <div class="table-toolbar">
-        <input type="text" [(ngModel)]="orderSearch" placeholder="Search order ID, customer, item…" class="search-input" />
+        <input type="text" [(ngModel)]="orderSearch" placeholder="Search order ID, customer, item" class="search-input" />
         <span class="result-count">{{ filteredOrders.length }} orders</span>
       </div>
       <div class="table-wrap">
-        <table class="data-table" *ngIf="filteredOrders.length > 0">
+        <table class="data-table orders-table" *ngIf="filteredOrders.length > 0">
           <thead>
             <tr>
               <th>Platform</th>
@@ -217,86 +267,188 @@
               <th>Order ID</th>
               <th>Items</th>
               <th class="sortable" (click)="sort('payout')">Payout {{ sortIcon('payout') }}</th>
-              <th>COGS</th>
-              <th class="sortable" (click)="sort('profit')">Profit {{ sortIcon('profit') }}</th>
+              <th class="sortable" (click)="sort('trueCost')">True Cost {{ sortIcon('trueCost') }}</th>
+              <th class="sortable" (click)="sort('profit')">Order-wise P&L {{ sortIcon('profit') }}</th>
               <th class="sortable" (click)="sort('margin')">Margin {{ sortIcon('margin') }}</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let op of filteredOrders; trackBy: trackById"
-                [ngClass]="op.hasCost ? (op.profit >= 0 ? 'row-profit' : 'row-loss') : ''">
-              <td>
-                <span class="platform-badge" [ngClass]="op.sale.platform.toLowerCase()">{{ op.sale.platform }}</span>
-              </td>
+            <tr *ngFor="let op of filteredOrders; trackBy: trackById" [ngClass]="op.hasCost ? (op.profit >= 0 ? 'row-profit' : 'row-loss') : ''">
+              <td><span class="platform-badge" [ngClass]="op.sale.platform.toLowerCase()">{{ op.sale.platform }}</span></td>
               <td class="date-cell">{{ op.sale.orderAt | date:'dd MMM, h:mm a' }}</td>
               <td class="order-id">#{{ op.sale.orderId || '—' }}</td>
               <td class="items-cell" [title]="itemsLabel(op.sale)">{{ itemsLabel(op.sale) }}</td>
-              <td class="amount">₹{{ op.revenue | number:'1.2-2' }}</td>
-              <td class="amount" [ngClass]="op.hasCost ? '' : 'na-cell'">
-                {{ op.hasCost ? ('₹' + (op.cost | number:'1.2-2')) : '—' }}
-              </td>
-              <td class="amount" [ngClass]="op.hasCost ? profitClass(op.profit) : 'na-cell'">
-                {{ op.hasCost ? ('₹' + (op.profit | number:'1.2-2')) : '—' }}
-              </td>
-              <td [ngClass]="op.hasCost ? marginClass(op.margin) : 'na-cell'">
-                {{ op.hasCost ? (op.margin | number:'1.1-1') + '%' : '—' }}
-              </td>
-              <td>
+              <td class="amount">{{ op.revenue | number:'1.2-2' }}</td>
+              <td class="amount">{{ op.trueCost | number:'1.2-2' }}</td>
+              <td class="amount order-pl" [ngClass]="profitClass(op.profit)">{{ op.profit | number:'1.2-2' }}</td>
+              <td class="margin-cell" [ngClass]="marginClass(op.margin)">{{ op.margin | number:'1.1-1' }}%</td>
+              <td class="status-cell">
                 <span *ngIf="!op.hasCost" class="badge badge-gray">No Cost</span>
-                <span *ngIf="op.hasCost && op.costCoverage < 100" class="badge badge-gray">Partial Cost {{ op.costCoverage | number:'1.0-0' }}%</span>
+                <span *ngIf="op.hasCost && op.costCoverage < 100" class="badge badge-gray">Partial {{ op.costCoverage | number:'1.0-0' }}%</span>
                 <span *ngIf="op.hasCost && op.profit > 0" class="badge badge-green">Profit</span>
                 <span *ngIf="op.hasCost && op.profit < 0" class="badge badge-red">Loss</span>
-                <span *ngIf="op.hasCost && op.profit === 0" class="badge badge-gray">Break-even</span>
               </td>
             </tr>
           </tbody>
         </table>
-        <div class="empty-state" *ngIf="filteredOrders.length === 0">
-          <p>No orders found for the selected filters</p>
-        </div>
+        <div class="empty-state" *ngIf="filteredOrders.length === 0"><p>No orders found for selected filters</p></div>
       </div>
     </div>
 
-    <!-- ITEM-WISE P&L VIEW -->
     <div class="view-panel" *ngIf="viewMode === 'items'">
+      <h3>Menu Engineering Matrix</h3>
+      <div class="metrics-row">
+        <div class="metric-box"><div class="metric-label">Stars</div><div class="metric-value">{{ menuStars.length }}</div></div>
+        <div class="metric-box"><div class="metric-label">Volume Traps</div><div class="metric-value">{{ menuVolumeTraps.length }}</div></div>
+        <div class="metric-box"><div class="metric-label">Hidden Gems</div><div class="metric-value">{{ menuHiddenGems.length }}</div></div>
+      </div>
+
       <div class="table-wrap">
         <table class="data-table" *ngIf="itemProfits.length > 0">
           <thead>
             <tr>
               <th>Item Name</th>
-              <th>Qty Sold</th>
-              <th>Revenue (Payout Share)</th>
-              <th>COGS</th>
+              <th>Qty</th>
+              <th>Revenue</th>
+              <th>Cost</th>
               <th>Profit</th>
               <th>Margin</th>
+              <th>Quadrant</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let item of itemProfits; trackBy: trackByName">
               <td class="item-name">{{ item.itemName }}</td>
               <td>{{ item.quantity }}</td>
-              <td class="amount">₹{{ item.revenue | number:'1.2-2' }}</td>
-              <td class="amount" [ngClass]="item.hasCost ? '' : 'na-cell'">
-                {{ item.hasCost ? ('₹' + (item.cost | number:'1.2-2')) : '—' }}
-              </td>
-              <td class="amount" [ngClass]="item.hasCost ? profitClass(item.profit) : 'na-cell'">
-                {{ item.hasCost ? ('₹' + (item.profit | number:'1.2-2')) : '—' }}
-              </td>
+              <td class="amount">{{ item.revenue | number:'1.0-0' }}</td>
+              <td class="amount">{{ item.cost | number:'1.0-0' }}</td>
+              <td class="amount" [ngClass]="profitClass(item.profit)">{{ item.profit | number:'1.0-0' }}</td>
+              <td [ngClass]="marginClass(item.margin)">{{ item.margin | number:'1.1-1' }}%</td>
               <td>
-                <div class="margin-pill" [ngClass]="item.hasCost ? marginClass(item.margin) : 'na-cell'">
-                  {{ item.hasCost ? (item.margin | number:'1.1-1') + '%' : '—' }}
-                </div>
+                <span class="badge" [ngClass]="
+                  item.quadrant === 'Star' ? 'badge-green' :
+                  item.quadrant === 'Volume Trap' ? 'badge-red' :
+                  item.quadrant === 'Hidden Gem' ? 'badge-gray' : 'badge-gray'">
+                  {{ item.quadrant }}
+                </span>
               </td>
             </tr>
           </tbody>
         </table>
-        <div class="empty-state" *ngIf="itemProfits.length === 0">
-          <p>No items data available</p>
-        </div>
       </div>
     </div>
 
-  </div><!-- end !isLoading -->
+    <div class="view-panel" *ngIf="viewMode === 'insights'">
+      <h3>Strategic Insights</h3>
 
+      <h4>Platform Profitability</h4>
+      <div class="table-wrap">
+        <table class="data-table" *ngIf="platformInsights.length > 0">
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Orders</th>
+              <th>Payout</th>
+              <th>True Profit</th>
+              <th>Margin</th>
+              <th>Deduction %</th>
+              <th>Discount %</th>
+              <th>Negative Orders</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of platformInsights; trackBy: trackByPlatform">
+              <td>{{ row.platform }}</td>
+              <td>{{ row.orders }}</td>
+              <td class="amount">{{ row.payout | number:'1.0-0' }}</td>
+              <td class="amount" [ngClass]="profitClass(row.trueProfit)">{{ row.trueProfit | number:'1.0-0' }}</td>
+              <td [ngClass]="marginClass(row.margin)">{{ row.margin | number:'1.1-1' }}%</td>
+              <td>{{ row.deductionRate | number:'1.1-1' }}%</td>
+              <td>{{ row.discountRate | number:'1.1-1' }}%</td>
+              <td>{{ row.negativeOrders }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Daypart Economics</h4>
+      <div class="table-wrap">
+        <table class="data-table" *ngIf="daypartInsights.length > 0">
+          <thead>
+            <tr><th>Daypart</th><th>Orders</th><th>Payout</th><th>True Profit</th><th>Margin</th><th>Avg Payout</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of daypartInsights; trackBy: trackByDaypart">
+              <td>{{ row.daypart }}</td>
+              <td>{{ row.orders }}</td>
+              <td class="amount">{{ row.payout | number:'1.0-0' }}</td>
+              <td class="amount" [ngClass]="profitClass(row.trueProfit)">{{ row.trueProfit | number:'1.0-0' }}</td>
+              <td [ngClass]="marginClass(row.margin)">{{ row.margin | number:'1.1-1' }}%</td>
+              <td>{{ row.avgPayout | number:'1.0-0' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Distance Economics</h4>
+      <div class="table-wrap">
+        <table class="data-table" *ngIf="distanceInsights.length > 0">
+          <thead>
+            <tr><th>Distance Band</th><th>Orders</th><th>Payout</th><th>True Profit</th><th>Margin</th><th>Avg Payout</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of distanceInsights; trackBy: trackByDistance">
+              <td>{{ row.band }}</td>
+              <td>{{ row.orders }}</td>
+              <td class="amount">{{ row.payout | number:'1.0-0' }}</td>
+              <td class="amount" [ngClass]="profitClass(row.trueProfit)">{{ row.trueProfit | number:'1.0-0' }}</td>
+              <td [ngClass]="marginClass(row.margin)">{{ row.margin | number:'1.1-1' }}%</td>
+              <td>{{ row.avgPayout | number:'1.0-0' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Coupon Efficiency</h4>
+      <div class="table-wrap">
+        <table class="data-table" *ngIf="couponInsights.length > 0">
+          <thead>
+            <tr><th>Coupon</th><th>Orders</th><th>Total Discount</th><th>Payout</th><th>True Profit</th><th>Avg Profit/Order</th><th>Discount Share</th><th>Profit/Discount</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of couponInsights; trackBy: trackByCoupon">
+              <td>{{ row.coupon }}</td>
+              <td>{{ row.orders }}</td>
+              <td class="amount">{{ row.totalDiscount | number:'1.0-0' }}</td>
+              <td class="amount">{{ row.payout | number:'1.0-0' }}</td>
+              <td class="amount" [ngClass]="profitClass(row.trueProfit)">{{ row.trueProfit | number:'1.0-0' }}</td>
+              <td [ngClass]="profitClass(row.avgProfitPerOrder)">{{ row.avgProfitPerOrder | number:'1.0-0' }}</td>
+              <td>{{ row.discountShare | number:'1.1-1' }}%</td>
+              <td [ngClass]="profitClass(row.profitPerDiscount)">{{ row.profitPerDiscount | number:'1.2-2' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Top Loss Orders with Root-Cause Hints</h4>
+      <div class="table-wrap">
+        <table class="data-table" *ngIf="topLossOrders.length > 0">
+          <thead>
+            <tr><th>Platform</th><th>Order</th><th>Customer</th><th>Profit</th><th>Margin</th><th>Likely Reasons</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of topLossOrders; let i = index">
+              <td>{{ row.platform }}</td>
+              <td>#{{ row.orderId }}</td>
+              <td>{{ row.customerName }}</td>
+              <td class="amount profit-neg">{{ row.profit | number:'1.0-0' }}</td>
+              <td class="profit-neg">{{ row.margin | number:'1.1-1' }}%</td>
+              <td>{{ row.reasons }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>

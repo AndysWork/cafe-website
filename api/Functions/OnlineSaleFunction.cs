@@ -25,6 +25,13 @@ public class OnlineSaleFunction
         _auth = auth;
     }
 
+    private static decimal CalculateExpectedPayout(OnlineSale sale)
+    {
+        // Expected payout based on upload sheet arithmetic
+        // = Bill subtotal + packaging - discount - platform deduction
+        return sale.BillSubTotal + sale.PackagingCharges - sale.DiscountAmount - sale.PlatformDeduction;
+    }
+
     // GET /api/online-sales - Get all online sales with optional platform filter
     [Function("GetOnlineSales")]
     [OpenApiOperation(operationId: "GetOnlineSales", tags: new[] { "OnlineSales" }, Summary = "Get online sales", Description = "Retrieves all online sales with optional platform filter (Admin only)")]
@@ -173,6 +180,217 @@ public class OnlineSaleFunction
         catch (Exception ex)
         {
             _log.LogError(ex, "Error getting daily online income");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
+            return errorResponse;
+        }
+    }
+
+    // GET /api/online-sales/payout-variance - Detect payout settlement variance
+    [Function("GetOnlineSalesPayoutVariance")]
+    public async Task<HttpResponseData> GetOnlineSalesPayoutVariance(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales/payout-variance")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var platform = query["platform"];
+            var startDateStr = query["startDate"];
+            var endDateStr = query["endDate"];
+            var outletIdFromQuery = query["outletId"];
+
+            if (string.IsNullOrWhiteSpace(startDateStr) || string.IsNullOrWhiteSpace(endDateStr))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, message = "startDate and endDate are required" });
+                return badRequest;
+            }
+
+            if (!DateTime.TryParse(startDateStr, out var startDate) || !DateTime.TryParse(endDateStr, out var endDate))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, message = "Invalid date format" });
+                return badRequest;
+            }
+
+            var outletId = !string.IsNullOrWhiteSpace(outletIdFromQuery)
+                ? outletIdFromQuery
+                : OutletHelper.GetOutletIdForAdmin(req, _auth);
+
+            var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId);
+
+            var varianceRows = sales.Select(sale =>
+            {
+                var expected = CalculateExpectedPayout(sale);
+                var variance = sale.Payout - expected;
+                return new PayoutVarianceOrderResponse
+                {
+                    OrderId = sale.OrderId,
+                    Platform = sale.Platform,
+                    OrderAt = sale.OrderAt,
+                    BillSubTotal = sale.BillSubTotal,
+                    PackagingCharges = sale.PackagingCharges,
+                    DiscountAmount = sale.DiscountAmount,
+                    PlatformDeduction = sale.PlatformDeduction,
+                    ExpectedPayout = expected,
+                    ActualPayout = sale.Payout,
+                    Variance = variance
+                };
+            }).ToList();
+
+            var expectedTotal = varianceRows.Sum(x => x.ExpectedPayout);
+            var actualTotal = varianceRows.Sum(x => x.ActualPayout);
+            var varianceTotal = actualTotal - expectedTotal;
+
+            var summary = new PayoutVarianceSummaryResponse
+            {
+                TotalOrders = varianceRows.Count,
+                ExpectedPayout = expectedTotal,
+                ActualPayout = actualTotal,
+                TotalVariance = varianceTotal,
+                VariancePercent = expectedTotal > 0 ? Math.Round((varianceTotal / expectedTotal) * 100, 2) : 0,
+                OverpaidOrders = varianceRows.Count(x => x.Variance > 0.01m),
+                UnderpaidOrders = varianceRows.Count(x => x.Variance < -0.01m),
+                PerfectMatchOrders = varianceRows.Count(x => Math.Abs(x.Variance) <= 0.01m)
+            };
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                data = new
+                {
+                    summary,
+                    orders = varianceRows
+                        .OrderByDescending(x => Math.Abs(x.Variance))
+                        .Take(200)
+                        .ToList()
+                }
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting payout variance");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
+            return errorResponse;
+        }
+    }
+
+    // GET /api/online-sales/benchmark - Compare online metrics across outlets
+    [Function("GetOnlineSalesOutletBenchmark")]
+    public async Task<HttpResponseData> GetOnlineSalesOutletBenchmark(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales/benchmark")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var platform = query["platform"];
+            var startDateStr = query["startDate"];
+            var endDateStr = query["endDate"];
+            var outletIdsParam = query["outletIds"];
+
+            if (string.IsNullOrWhiteSpace(startDateStr) || string.IsNullOrWhiteSpace(endDateStr))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, message = "startDate and endDate are required" });
+                return badRequest;
+            }
+
+            if (!DateTime.TryParse(startDateStr, out var startDate) || !DateTime.TryParse(endDateStr, out var endDate))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, message = "Invalid date format" });
+                return badRequest;
+            }
+
+            var filterOutletIds = !string.IsNullOrWhiteSpace(outletIdsParam)
+                ? outletIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(id => id.Trim()).ToHashSet()
+                : null;
+
+            var outlets = await _mongo.GetAllOutletsAsync();
+            if (filterOutletIds != null && filterOutletIds.Count > 0)
+            {
+                outlets = outlets.Where(o => filterOutletIds.Contains(o.Id ?? "default")).ToList();
+            }
+
+            var rows = new List<OutletOnlineProfitBenchmarkResponse>();
+            foreach (var outlet in outlets)
+            {
+                var outletId = outlet.Id ?? "default";
+                var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId);
+
+                var totalBill = sales.Sum(s => s.BillSubTotal);
+                var totalPayout = sales.Sum(s => s.Payout);
+                var expectedPayout = sales.Sum(CalculateExpectedPayout);
+                var totalDeduction = sales.Sum(s => s.PlatformDeduction);
+                var totalDiscount = sales.Sum(s => s.DiscountAmount);
+                var totalPackaging = sales.Sum(s => s.PackagingCharges);
+                var variance = totalPayout - expectedPayout;
+
+                rows.Add(new OutletOnlineProfitBenchmarkResponse
+                {
+                    OutletId = outletId,
+                    OutletName = outlet.OutletName,
+                    TotalOrders = sales.Count,
+                    TotalBillValue = totalBill,
+                    TotalPayout = totalPayout,
+                    ExpectedPayout = expectedPayout,
+                    PayoutVariance = variance,
+                    PayoutVariancePercent = expectedPayout > 0 ? Math.Round((variance / expectedPayout) * 100, 2) : 0,
+                    TotalDeduction = totalDeduction,
+                    TotalDiscount = totalDiscount,
+                    TotalPackaging = totalPackaging,
+                    AverageOrderValue = sales.Count > 0 ? Math.Round(totalPayout / sales.Count, 2) : 0
+                });
+            }
+
+            if (!rows.Any())
+            {
+                var fallbackOutletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+                var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, fallbackOutletId);
+                var totalBill = sales.Sum(s => s.BillSubTotal);
+                var totalPayout = sales.Sum(s => s.Payout);
+                var expectedPayout = sales.Sum(CalculateExpectedPayout);
+                var variance = totalPayout - expectedPayout;
+
+                rows.Add(new OutletOnlineProfitBenchmarkResponse
+                {
+                    OutletId = fallbackOutletId ?? "default",
+                    OutletName = "Current Outlet",
+                    TotalOrders = sales.Count,
+                    TotalBillValue = totalBill,
+                    TotalPayout = totalPayout,
+                    ExpectedPayout = expectedPayout,
+                    PayoutVariance = variance,
+                    PayoutVariancePercent = expectedPayout > 0 ? Math.Round((variance / expectedPayout) * 100, 2) : 0,
+                    TotalDeduction = sales.Sum(s => s.PlatformDeduction),
+                    TotalDiscount = sales.Sum(s => s.DiscountAmount),
+                    TotalPackaging = sales.Sum(s => s.PackagingCharges),
+                    AverageOrderValue = sales.Count > 0 ? Math.Round(totalPayout / sales.Count, 2) : 0
+                });
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                period = new { startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd") },
+                totalOutlets = rows.Count,
+                data = rows.OrderByDescending(r => r.TotalPayout).ToList()
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting outlet benchmark");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
             await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
