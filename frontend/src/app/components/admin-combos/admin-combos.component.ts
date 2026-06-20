@@ -41,6 +41,10 @@ interface ComboFormModel {
 
 interface PricingSummary {
   totalMakingCost: number;
+  currentShopSellingPrice: number;
+  currentOnlineSellingPrice: number;
+  currentShopProfit: number;
+  currentOnlineProfit: number;
   comboPackagingPrice: number;
   comboShopPrice: number;
   comboTakeawayPrice: number;
@@ -336,17 +340,24 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
   calculateComboPricings(): PricingSummary {
     let totalMaking = 0;
     let totalPackaging = 0;
+    let currentShopSellingPrice = 0;
+    let currentOnlineSellingPrice = 0;
 
     for (const item of this.comboForm.items) {
       if (!item.menuItemId) continue;
       const snapshot = this.getItemSnapshot(item);
       totalMaking += snapshot.makingCost;
       totalPackaging += snapshot.packagingCost;
+      currentShopSellingPrice += snapshot.shopPrice;
+      currentOnlineSellingPrice += snapshot.onlinePrice;
     }
 
     const comboShopPrice = this.comboForm.comboPrice || 0;
     const comboOnlinePrice = this.comboForm.comboOnlinePrice || 0;
     const comboTakeawayPrice = comboShopPrice + totalPackaging;
+
+    const currentShopProfit = currentShopSellingPrice - totalMaking;
+    const currentOnlineProfit = ((currentOnlineSellingPrice + totalPackaging) * 0.58) - totalMaking;
 
     const comboShopProfit = comboShopPrice - totalMaking;
     const comboTakeawayProfit = (comboShopPrice + totalPackaging) - totalMaking;
@@ -354,6 +365,10 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
 
     return {
       totalMakingCost: totalMaking,
+      currentShopSellingPrice,
+      currentOnlineSellingPrice,
+      currentShopProfit,
+      currentOnlineProfit,
       comboPackagingPrice: totalPackaging,
       comboShopPrice,
       comboTakeawayPrice,

@@ -145,6 +145,26 @@
           </div>
 
           <ng-container *ngIf="calculateComboPricings() as summary">
+            <h4 class="section-subtitle">Current Selling Prices</h4>
+            <div class="summary-grid">
+              <div class="summary-card">
+                <div class="summary-label">Current Shop Selling Price</div>
+                <div class="summary-value">₹{{ summary.currentShopSellingPrice | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Current Online Selling Price</div>
+                <div class="summary-value">₹{{ summary.currentOnlineSellingPrice | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card" [class.positive]="summary.currentShopProfit > 0" [class.negative]="summary.currentShopProfit < 0">
+                <div class="summary-label">Current Shop Profit</div>
+                <div class="summary-value">₹{{ summary.currentShopProfit | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card" [class.positive]="summary.currentOnlineProfit > 0" [class.negative]="summary.currentOnlineProfit < 0">
+                <div class="summary-label">Current Online Profit</div>
+                <div class="summary-value">₹{{ summary.currentOnlineProfit | number:'1.2-2' }}</div>
+              </div>
+            </div>
+
             <h4 class="section-subtitle">Combo Pricing Section</h4>
             <div class="summary-grid">
               <div class="summary-card">
