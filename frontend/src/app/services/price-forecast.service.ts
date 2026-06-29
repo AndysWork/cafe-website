@@ -97,12 +97,11 @@ export class PriceForecastService {
   calculatePayout(forecast: Partial<PriceForecast>): number {
     // Use updatedOnlinePrice if available, otherwise use onlinePrice
     const onlinePrice = forecast.updatedOnlinePrice || forecast.onlinePrice || 0;
-    const packagingCost = forecast.packagingCost || 0;
     const onlineDeduction = forecast.onlineDeduction || 0;
     const onlineDiscount = forecast.onlineDiscount || 0;
 
-    // Calculate: ((Online Price + Packaging) - Discount%) - (((Online Price + Packaging) - Discount%) × Deduction%)
-    const baseAmount = onlinePrice + packagingCost;
+    // Calculate: (Online Price - Discount%) - ((Online Price - Discount%) × Deduction%)
+    const baseAmount = onlinePrice;
     const discountAmount = (baseAmount * onlineDiscount) / 100;
     const afterDiscount = baseAmount - discountAmount;
     const deductionAmount = (afterDiscount * onlineDeduction) / 100;
@@ -127,8 +126,8 @@ export class PriceForecastService {
     const shopPrice = forecast.shopPrice || 0;
     const shopDeliveryPrice = forecast.shopDeliveryPrice || 0;
 
-    // Online Payout = ((Online Price + Packaging) - Discount%) - (((Online Price + Packaging) - Discount%) × Deduction%)
-    const baseAmount = onlinePrice + packagingCost;
+    // Online Payout = (Online Price - Discount%) - ((Online Price - Discount%) × Deduction%)
+    const baseAmount = onlinePrice;
     const discountAmount = (baseAmount * onlineDiscount) / 100;
     const afterDiscount = baseAmount - discountAmount;
     const deductionAmount = (afterDiscount * onlineDeduction) / 100;

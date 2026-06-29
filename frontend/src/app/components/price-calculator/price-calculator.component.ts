@@ -32,6 +32,7 @@ import { getIstInputDate } from '../../utils/date-utils';
   styleUrls: ['./price-calculator.component.scss']
 })
 export class PriceCalculatorComponent implements OnInit, OnDestroy {
+  private readonly defaultOnlineDeduction = 44;
   private uiStore = inject(UIStore);
   private destroy$ = new Subject<void>();
 
@@ -170,6 +171,15 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     private outletService: OutletService,
     private http: HttpClient
   ) {}
+
+  private resolveOnlineDeduction(value?: number | null): number {
+    if (value === null || value === undefined) {
+      return this.defaultOnlineDeduction;
+    }
+
+    // Migrate older default deduction value to current default.
+    return value === 48 ? this.defaultOnlineDeduction : value;
+  }
 
   ngOnInit(): void {
     this.loadIngredients();
@@ -870,7 +880,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     // Load price forecast data if available
     if (recipe.priceForecast) {
-      this.priceForecast = { ...recipe.priceForecast };
+      this.priceForecast = {
+        ...recipe.priceForecast,
+        onlineDeduction: this.resolveOnlineDeduction(recipe.priceForecast.onlineDeduction)
+      };
     } else {
       // Initialize price forecast if not present
       this.initializePriceForecast();
@@ -1183,15 +1196,15 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     if (!this.calculation) return;
 
     const makePrice = this.calculation.breakdown.makingCost;
-    const packagingCost = 6; // Default ₹16
-    const onlineDeduction = 42; // Default 42%
+    const packagingCost = 0; // No default packaging cost
+    const onlineDeduction = this.defaultOnlineDeduction; // Default 44%
     const onlineDiscount = 0; // Default 0%
 
     // Calculate suggested prices with 25% profit margin
     const suggestedPrice = this.calculation.breakdown.sellingPrice;
     const shopPrice = suggestedPrice;
     const shopDeliveryPrice = suggestedPrice + packagingCost;
-    const onlinePrice = suggestedPrice + packagingCost;
+    const onlinePrice = suggestedPrice;
 
     // Use service to calculate profits
     const profits = this.priceForecastService.calculateProfits({
@@ -1223,15 +1236,15 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     if (!this.calculation) return;
 
     const makePrice = this.calculation.breakdown.makingCost;
-    const packagingCost = this.priceForecast?.packagingCost || 6; // Default ₹6
-    const onlineDeduction = this.priceForecast?.onlineDeduction || 42; // Default 42%
+    const packagingCost = this.priceForecast?.packagingCost || 0; // No default packaging cost
+    const onlineDeduction = this.resolveOnlineDeduction(this.priceForecast?.onlineDeduction); // Default 44%
     const onlineDiscount = this.priceForecast?.onlineDiscount || 0; // Default 0%
 
     // Calculate suggested prices with 25% profit margin
     const suggestedPrice = this.calculation.breakdown.sellingPrice;
     const shopPrice = this.priceForecast?.shopPrice || suggestedPrice;
     const shopDeliveryPrice = this.priceForecast?.shopDeliveryPrice || (suggestedPrice + packagingCost);
-    const onlinePrice = this.priceForecast?.onlinePrice || (suggestedPrice + packagingCost);
+    const onlinePrice = this.priceForecast?.onlinePrice || suggestedPrice;
 
     // Use service to calculate profits
     const profits = this.priceForecastService.calculateProfits({
@@ -1271,18 +1284,16 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     if (!this.priceForecast || !this.calculation) return;
 
     const makePrice = this.calculation.breakdown.makingCost;
-    const packagingCost = this.priceForecast.packagingCost;
-
     // Calculate future shop profit (Shop Price - Making Price)
     if (this.priceForecast.futureShopPrice) {
       this.priceForecast.futureShopProfit = this.priceForecast.futureShopPrice - makePrice;
     }
 
     // Calculate future online profit using the same formula as current prices
-    // Online Payout = ((Online Price + Packaging) - Discount%) - Deduction%
+    // Online Payout = (Online Price - Discount%) - Deduction%
     // Online Profit = Online Payout - Making Price
     if (this.priceForecast.futureOnlinePrice) {
-      const baseAmount = this.priceForecast.futureOnlinePrice + packagingCost;
+      const baseAmount = this.priceForecast.futureOnlinePrice;
       const discountAmount = (baseAmount * this.priceForecast.onlineDiscount) / 100;
       const afterDiscount = baseAmount - discountAmount;
       const deductionAmount = (afterDiscount * this.priceForecast.onlineDeduction) / 100;
@@ -1338,7 +1349,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
             // Pre-populate forecast values if they exist
             if (this.priceForecast) {
               this.priceForecast.packagingCost = latestForecast.packagingCost;
-              this.priceForecast.onlineDeduction = latestForecast.onlineDeduction;
+              this.priceForecast.onlineDeduction = this.resolveOnlineDeduction(latestForecast.onlineDeduction);
               this.priceForecast.onlineDiscount = latestForecast.onlineDiscount;
               this.priceForecast.shopPrice = latestForecast.shopPrice;
               this.priceForecast.shopDeliveryPrice = latestForecast.shopDeliveryPrice;

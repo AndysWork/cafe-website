@@ -17,6 +17,7 @@ import { Subscription } from 'rxjs';
   styleUrls: ['./price-forecasting.component.scss']
 })
 export class PriceForecastingComponent implements OnInit, OnDestroy {
+  private readonly defaultOnlineDeduction = 44;
   forecasts: PriceForecast[] = [];
   menuItems: MenuItem[] = [];
   private allForecasts: PriceForecast[] = [];
@@ -42,6 +43,15 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
     private couponService: DiscountCouponService,
     private priceCalculatorService: PriceCalculatorService
   ) {}
+
+  private resolveOnlineDeduction(value?: number | null): number {
+    if (value === null || value === undefined) {
+      return this.defaultOnlineDeduction;
+    }
+
+    // Migrate older default deduction value to current default.
+    return value === 48 ? this.defaultOnlineDeduction : value;
+  }
 
   ngOnInit() {
     // Price forecasts are global - load data once on component init
@@ -127,7 +137,10 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
 
     this.forecastService.getPriceForecasts().subscribe({
       next: (forecasts) => {
-        this.allForecasts = forecasts;
+        this.allForecasts = forecasts.map(f => ({
+          ...f,
+          onlineDeduction: this.resolveOnlineDeduction(f.onlineDeduction)
+        }));
         this.applySavedRecipeFilter();
         this.loading = false;
       },
@@ -150,7 +163,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
       onlinePrice: 0,
       updatedShopPrice: 0,
       updatedOnlinePrice: 0,
-      onlineDeduction: 42, // Default 42% deduction for online orders
+      onlineDeduction: 44, // Default 44% deduction for online orders
       onlineDiscount: 0,
       payoutCalculation: 0,
       onlinePayout: 0,
@@ -177,7 +190,10 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
     }
     this.isEditMode = true;
     this.currentForecast = forecast;
-    this.forecastForm = { ...forecast };
+    this.forecastForm = {
+      ...forecast,
+      onlineDeduction: this.resolveOnlineDeduction(forecast.onlineDeduction)
+    };
     this.selectedCouponId = '';
     this.discountWarning = '';
     this.showModal = true;
@@ -202,9 +218,9 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
       // Sync Takeaway price with Shop price
       this.forecastForm.shopDeliveryPrice = this.forecastForm.shopPrice;
       this.forecastForm.onlinePrice = selectedItem.onlinePrice || 0;
-      // Set default 42% online deduction if not already set
+      // Set default 44% online deduction if not already set
       if (!this.isEditMode) {
-        this.forecastForm.onlineDeduction = 42;
+        this.forecastForm.onlineDeduction = this.defaultOnlineDeduction;
       }
       // Calculate payout with populated values
       this.onPriceChange();

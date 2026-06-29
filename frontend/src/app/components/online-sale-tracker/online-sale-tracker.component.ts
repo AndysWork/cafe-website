@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -252,12 +252,22 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
     this.uploadSuccess = false;
 
     try {
+      const outletId = this.outletService.getSelectedOutletId();
+      if (!outletId) {
+        this.uploadMessage = 'Please select an outlet before uploading';
+        this.uploadSuccess = false;
+        this.isUploading = false;
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', this.selectedFile);
       formData.append('platform', this.selectedPlatform);
 
+      const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
+
       const response: any = await this.http
-        .post(`${environment.apiUrl}/upload/online-sales`, formData)
+        .post(`${environment.apiUrl}/upload/online-sales`, formData, { headers })
         .toPromise();
 
       if (response.success) {
@@ -320,16 +330,26 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
 
     try {
+      const outletId = this.outletService.getSelectedOutletId();
+      if (!outletId) {
+        this.errorMessage = 'Please select an outlet to view sales';
+        this.isLoading = false;
+        return;
+      }
+
       const params = new URLSearchParams({
         platform: this.selectedPlatform,
         startDate: this.startDate,
         endDate: this.endDate,
       });
 
+      const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
+
 
       const response: any = await this.http
         .get(
-          `${environment.apiUrl}/online-sales/date-range?${params.toString()}`
+          `${environment.apiUrl}/online-sales/date-range?${params.toString()}`,
+          { headers }
         )
         .toPromise();
 
@@ -352,14 +372,24 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
 
     try {
+      const outletId = this.outletService.getSelectedOutletId();
+      if (!outletId) {
+        this.errorMessage = 'Please select an outlet to view daily income';
+        this.isLoading = false;
+        return;
+      }
+
       const params = new URLSearchParams({
         startDate: this.startDate,
         endDate: this.endDate,
       });
 
+      const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
+
       const response: any = await this.http
         .get(
-          `${environment.apiUrl}/online-sales/daily-income?${params.toString()}`
+          `${environment.apiUrl}/online-sales/daily-income?${params.toString()}`,
+          { headers }
         )
         .toPromise();
 
@@ -448,15 +478,26 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
     this.deleteSuccess = false;
 
     try {
+      const outletId = this.outletService.getSelectedOutletId();
+      if (!outletId) {
+        this.deleteSuccess = false;
+        this.deleteMessage = 'Please select an outlet before deleting sales';
+        this.isDeleting = false;
+        return;
+      }
+
       const params = new URLSearchParams({
         platform: this.selectedPlatform,
         startDate: this.deleteStartDate,
         endDate: this.deleteEndDate,
       });
 
+      const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
+
       const response: any = await this.http
         .delete(
-          `${environment.apiUrl}/online-sales/bulk?${params.toString()}`
+          `${environment.apiUrl}/online-sales/bulk?${params.toString()}`,
+          { headers }
         )
         .toPromise();
 

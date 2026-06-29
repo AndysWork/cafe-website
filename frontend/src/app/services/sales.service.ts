@@ -1,9 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
+import { OutletService } from './outlet.service';
 
 export interface SalesItem {
   menuItemId?: string;
@@ -49,6 +50,7 @@ export interface SalesSummary {
 })
 export class SalesService {
   private http = inject(HttpClient);
+  private outletService = inject(OutletService);
   private apiUrl = `${environment.apiUrl}/sales`;
 
   // Get all sales
@@ -97,7 +99,14 @@ export class SalesService {
   uploadSalesExcel(file: File): Observable<any> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post(`${this.apiUrl}/upload`, formData).pipe(
+
+    const outletId = this.outletService.getSelectedOutletId();
+    let headers = new HttpHeaders();
+    if (outletId) {
+      headers = headers.set('X-Outlet-Id', outletId);
+    }
+
+    return this.http.post(`${this.apiUrl}/upload`, formData, { headers }).pipe(
       catchError(handleServiceError('SalesService.uploadSalesExcel'))
     );
   }

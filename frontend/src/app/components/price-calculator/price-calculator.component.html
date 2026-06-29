@@ -842,9 +842,9 @@
             <div class="online-calc-details" style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 8px; font-size: 0.85rem;">
               <h5 style="margin: 0 0 0.5rem 0; font-size: 0.9rem;">🧮 Online Payout Calculation:</h5>
               <div style="display: flex; flex-direction: column; gap: 0.25rem; color: #666;">
-                <div>Base Amount: ₹{{priceForecast.onlinePrice.toFixed(2)}} + ₹{{priceForecast.packagingCost.toFixed(2)}} = ₹{{(priceForecast.onlinePrice + priceForecast.packagingCost).toFixed(2)}}</div>
+                <div>Base Amount: ₹{{priceForecast.onlinePrice.toFixed(2)}}</div>
                 <div *ngIf="priceForecast.onlineDiscount > 0">
-                  After {{priceForecast.onlineDiscount}}% Discount: ₹{{((priceForecast.onlinePrice + priceForecast.packagingCost) * (1 - priceForecast.onlineDiscount/100)).toFixed(2)}}
+                  After {{priceForecast.onlineDiscount}}% Discount: ₹{{(priceForecast.onlinePrice * (1 - priceForecast.onlineDiscount/100)).toFixed(2)}}
                 </div>
                 <div>Platform Deduction ({{priceForecast.onlineDeduction}}%): -₹{{(priceForecast.onlinePayout * priceForecast.onlineDeduction / (100 - priceForecast.onlineDeduction)).toFixed(2)}}</div>
                 <div style="font-weight: bold; color: #2c3e50; margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px solid #ccc;">

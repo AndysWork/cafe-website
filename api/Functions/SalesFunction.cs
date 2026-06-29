@@ -143,7 +143,8 @@ public class SalesFunction
                 return badRequest;
             }
 
-            var summary = await _mongo.GetSalesSummaryByDateAsync(date);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var summary = await _mongo.GetSalesSummaryByDateAsync(date, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(summary);
@@ -362,10 +363,38 @@ public class SalesFunction
             // Set EPPlus license context
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
-            // Read the file
+            // Read file bytes from multipart body (preferred) with raw-body fallback.
             byte[] fileBytes;
-            using (var memoryStream = new MemoryStream())
+            if (!req.Headers.TryGetValues("Content-Type", out var contentTypes))
             {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Content-Type header missing" });
+                return badRequest;
+            }
+
+            var contentType = contentTypes.FirstOrDefault() ?? string.Empty;
+            if (contentType.Contains("multipart/form-data", StringComparison.OrdinalIgnoreCase) &&
+                contentType.Contains("boundary=", StringComparison.OrdinalIgnoreCase))
+            {
+                var boundary = contentType.Split("boundary=")[1];
+                using var bodyStream = new MemoryStream();
+                await req.Body.CopyToAsync(bodyStream);
+                bodyStream.Position = 0;
+                var parts = ParseMultipartFormData(bodyStream, boundary);
+
+                if (!parts.ContainsKey("file") || parts["file"].Data == null || parts["file"].Data.Length == 0)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "No file uploaded" });
+                    return badRequest;
+                }
+
+                fileBytes = parts["file"].Data!;
+            }
+            else
+            {
+                // Backward compatibility for direct binary upload.
+                using var memoryStream = new MemoryStream();
                 await req.Body.CopyToAsync(memoryStream);
                 fileBytes = memoryStream.ToArray();
             }
@@ -377,7 +406,23 @@ public class SalesFunction
                 return badRequest;
             }
 
-            var result = await ProcessSalesExcel(fileBytes, username);
+            const int maxFileSizeBytes = 10 * 1024 * 1024;
+            if (fileBytes.Length > maxFileSizeBytes)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "File size exceeds 10MB limit" });
+                return badRequest;
+            }
+
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet ID is required. Provide X-Outlet-Id header or ensure user has a default outlet." });
+                return badRequest;
+            }
+
+            var result = await ProcessSalesExcel(fileBytes, username, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(result);
@@ -392,7 +437,100 @@ public class SalesFunction
         }
     }
 
-    private async Task<object> ProcessSalesExcel(byte[] fileBytes, string recordedBy)
+    private class MultipartPart
+    {
+        public string? FileName { get; set; }
+        public byte[]? Data { get; set; }
+        public string? Text { get; set; }
+    }
+
+    private static Dictionary<string, MultipartPart> ParseMultipartFormData(Stream stream, string boundary)
+    {
+        var parts = new Dictionary<string, MultipartPart>();
+        var boundaryBytes = System.Text.Encoding.UTF8.GetBytes("--" + boundary);
+
+        stream.Position = 0;
+        var buffer = new byte[stream.Length];
+        var bytesRead = stream.Read(buffer, 0, buffer.Length);
+        if (bytesRead != buffer.Length)
+            throw new InvalidOperationException("Failed to read complete stream");
+
+        var boundaryPositions = new List<int>();
+        for (int i = 0; i <= buffer.Length - boundaryBytes.Length; i++)
+        {
+            bool match = true;
+            for (int j = 0; j < boundaryBytes.Length; j++)
+            {
+                if (buffer[i + j] != boundaryBytes[j])
+                {
+                    match = false;
+                    break;
+                }
+            }
+            if (match)
+                boundaryPositions.Add(i);
+        }
+
+        for (int i = 0; i < boundaryPositions.Count - 1; i++)
+        {
+            var start = boundaryPositions[i] + boundaryBytes.Length;
+            var end = boundaryPositions[i + 1];
+            var sectionBytes = new byte[end - start];
+            Array.Copy(buffer, start, sectionBytes, 0, sectionBytes.Length);
+
+            int headerEnd = -1;
+            for (int j = 0; j < sectionBytes.Length - 3; j++)
+            {
+                if ((sectionBytes[j] == '\r' && sectionBytes[j + 1] == '\n' && sectionBytes[j + 2] == '\r' && sectionBytes[j + 3] == '\n') ||
+                    (sectionBytes[j] == '\n' && sectionBytes[j + 1] == '\n'))
+                {
+                    headerEnd = j;
+                    break;
+                }
+            }
+
+            if (headerEnd < 0) continue;
+
+            var headerBytes = new byte[headerEnd];
+            Array.Copy(sectionBytes, 0, headerBytes, 0, headerEnd);
+            var headers = System.Text.Encoding.UTF8.GetString(headerBytes);
+
+            var dispositionMatch = System.Text.RegularExpressions.Regex.Match(headers, @"name=""([^""]+)""");
+            if (!dispositionMatch.Success) continue;
+
+            var fieldName = dispositionMatch.Groups[1].Value;
+            var fileNameMatch = System.Text.RegularExpressions.Regex.Match(headers, @"filename=""([^""]+)""");
+
+            var part = new MultipartPart();
+
+            int bodyStart = headerEnd + (sectionBytes[headerEnd] == '\r' ? 4 : 2);
+            int bodyLength = sectionBytes.Length - bodyStart;
+
+            while (bodyLength > 0 && (sectionBytes[bodyStart + bodyLength - 1] == '\n' || sectionBytes[bodyStart + bodyLength - 1] == '\r'))
+            {
+                bodyLength--;
+            }
+
+            if (fileNameMatch.Success)
+            {
+                part.FileName = fileNameMatch.Groups[1].Value;
+                part.Data = new byte[bodyLength];
+                Array.Copy(sectionBytes, bodyStart, part.Data, 0, bodyLength);
+            }
+            else
+            {
+                var textBytes = new byte[bodyLength];
+                Array.Copy(sectionBytes, bodyStart, textBytes, 0, bodyLength);
+                part.Text = System.Text.Encoding.UTF8.GetString(textBytes).Trim();
+            }
+
+            parts[fieldName] = part;
+        }
+
+        return parts;
+    }
+
+    private async Task<object> ProcessSalesExcel(byte[] fileBytes, string recordedBy, string outletId)
     {
         using var package = new ExcelPackage(new MemoryStream(fileBytes));
         var worksheet = package.Workbook.Worksheets.FirstOrDefault();
@@ -426,6 +564,7 @@ public class SalesFunction
                 {
                     salesRecords.Add(new Sales
                     {
+                        OutletId = outletId,
                         Date = currentDate,
                         Items = new List<SalesItem>(currentItems),
                         TotalAmount = currentItems.Sum(i => i.TotalPrice),
@@ -469,6 +608,7 @@ public class SalesFunction
         {
             salesRecords.Add(new Sales
             {
+                OutletId = outletId,
                 Date = currentDate,
                 Items = new List<SalesItem>(currentItems),
                 TotalAmount = currentItems.Sum(i => i.TotalPrice),

@@ -5132,8 +5132,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (!sales.Any())
             return result;
 
-        // Get all existing order IDs with their dates for the same platform to check for duplicates
-        // We check based on Platform + OrderId + OrderAt (date only) combination
+        static string NormalizeOutletKey(string? outletId) =>
+            string.IsNullOrWhiteSpace(outletId) ? "__NO_OUTLET__" : outletId.Trim();
+
+        // Get all existing order IDs with their dates for the same platform+outlet to check for duplicates.
+        // We check based on OutletId + Platform + OrderId + OrderAt(date only) combination.
         var platforms = sales.Select(s => s.Platform).Distinct();
         var existingOrderKeys = new HashSet<string>();
         
@@ -5141,14 +5144,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         {
             var filter = Builders<OnlineSale>.Filter.Eq(s => s.Platform, platform);
             var existingOrders = await _onlineSales.Find(filter)
-                .Project(s => new { s.OrderId, s.OrderAt })
+                .Project(s => new { s.OrderId, s.OrderAt, s.OutletId })
                 .ToListAsync();
             
             foreach (var order in existingOrders)
             {
-                // Use Platform:OrderId:Date as the unique key
+                // Use OutletId:Platform:OrderId:Date as the unique key
                 var dateKey = order.OrderAt.Date.ToString("yyyy-MM-dd");
-                existingOrderKeys.Add($"{platform}:{order.OrderId}:{dateKey}");
+                var outletKey = NormalizeOutletKey(order.OutletId);
+                existingOrderKeys.Add($"{outletKey}:{platform}:{order.OrderId}:{dateKey}");
             }
         }
 
@@ -5159,14 +5163,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         foreach (var sale in sales)
         {
-            // Use Platform:OrderId:Date as the unique key
+            // Use OutletId:Platform:OrderId:Date as the unique key
             var dateKey = sale.OrderAt.Date.ToString("yyyy-MM-dd");
-            var key = $"{sale.Platform}:{sale.OrderId}:{dateKey}";
+            var outletKey = NormalizeOutletKey(sale.OutletId);
+            var key = $"{outletKey}:{sale.Platform}:{sale.OrderId}:{dateKey}";
             
             // Check if already exists in database
             if (existingOrderKeys.Contains(key))
             {
-                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) on {dateKey} - already exists in database");
+                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) on {dateKey} for outlet {outletKey} - already exists in database");
                 result.SkippedCount++;
                 continue;
             }
@@ -5174,7 +5179,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             // Check if duplicate within current batch
             if (seenInCurrentBatch.Contains(key))
             {
-                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) on {dateKey} - duplicate in upload file");
+                duplicates.Add($"Order {sale.OrderId} ({sale.Platform}) on {dateKey} for outlet {outletKey} - duplicate in upload file");
                 result.SkippedCount++;
                 continue;
             }
