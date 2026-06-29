@@ -95,6 +95,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<CustomerSubscription> _customerSubscriptions;
     private readonly IMongoCollection<DeliveryPartner> _deliveryPartners;
     private readonly IMongoCollection<CustomerSegment> _customerSegments;
+    private readonly IMongoCollection<HomeContentConfig> _homeContentConfigs;
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
     
@@ -204,6 +205,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _customerSubscriptions = db.GetCollection<CustomerSubscription>("CustomerSubscriptions");
         _deliveryPartners = db.GetCollection<DeliveryPartner>("DeliveryPartners");
         _customerSegments = db.GetCollection<CustomerSegment>("CustomerSegments");
+        _homeContentConfigs = db.GetCollection<HomeContentConfig>("HomeContentConfigs");
     }
 
     /// <summary>

@@ -1,0 +1,114 @@
+<div class="admin-announcement-page">
+  <div class="page-header">
+    <div class="header-chip">Home Experience Manager</div>
+    <h2>Announcement & Fresh Additions</h2>
+    <p>Design the landing experience by publishing a customer announcement and curating featured dishes.</p>
+  </div>
+
+  <div *ngIf="isLoading" class="state loading">Loading configuration...</div>
+  <div *ngIf="saveError && !isLoading" class="state error">{{ saveError }}</div>
+  <div *ngIf="saveMessage && !isLoading" class="state success">{{ saveMessage }}</div>
+
+  <div *ngIf="!isLoading" class="config-grid">
+    <section class="panel announcement-panel">
+      <div class="panel-head">
+        <h3>Announcement</h3>
+        <span class="status-pill" [class.active]="announcementEnabled">
+          {{ announcementEnabled ? 'Live' : 'Hidden' }}
+        </span>
+      </div>
+
+      <label class="toggle-row">
+        <input type="checkbox" [(ngModel)]="announcementEnabled" />
+        <span>Show announcement banner on home page</span>
+      </label>
+
+      <label class="field-label">Title</label>
+      <input
+        type="text"
+        maxlength="120"
+        [(ngModel)]="announcementTitle"
+        placeholder="Example: Weekend Special Offer"
+      />
+      <div class="field-meta">{{ announcementTitle.length }}/120</div>
+
+      <label class="field-label">Message</label>
+      <textarea
+        rows="4"
+        maxlength="500"
+        [(ngModel)]="announcementMessage"
+        placeholder="Write your announcement for customers"
+      ></textarea>
+      <div class="field-meta">{{ announcementMessage.length }}/500</div>
+
+      <div class="announcement-preview">
+        <div class="preview-label">Live Preview</div>
+        <div class="preview-surface" [class.disabled]="!announcementEnabled">
+          <div class="announcement-card">
+            <div class="announcement-icon">📢</div>
+            <div class="announcement-content">
+              <h3>{{ announcementTitle || 'Your announcement title' }}</h3>
+              <p>{{ announcementMessage || 'Your announcement message will appear here for customers.' }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel featured-panel">
+      <div class="panel-head">
+        <h3>Fresh Additions</h3>
+        <span class="count-pill">{{ selectedCount }}/{{ maxFeaturedItems }} selected</span>
+      </div>
+      <p class="hint">Select up to {{ maxFeaturedItems }} menu items and drag to set display order.</p>
+
+      <div class="selected-count">
+        Selected: {{ selectedCount }} / {{ maxFeaturedItems }}
+      </div>
+
+      <div class="selected-order" *ngIf="selectedMenuItems.length > 0">
+        <h4>Display Order</h4>
+        <div class="selected-order-list" cdkDropList [cdkDropListData]="selectedItemIds" (cdkDropListDropped)="dropSelectedItems($event)">
+          <div class="selected-order-item" cdkDrag *ngFor="let item of selectedMenuItems; let i = index; trackBy: trackById">
+            <div class="selected-order-meta">
+              <button type="button" class="drag-handle" cdkDragHandle title="Drag to reorder">⋮⋮</button>
+              <span class="selected-order-index">{{ i + 1 }}.</span>
+              <div class="selected-order-text">
+                <span class="selected-order-name">{{ item.name }}</span>
+                <span class="selected-order-category">{{ item.category || 'Uncategorized' }}</span>
+              </div>
+            </div>
+            <div class="selected-order-actions">
+              <button type="button" (click)="moveSelectedItem(item.id, 'up')" [disabled]="i === 0">↑</button>
+              <button type="button" (click)="moveSelectedItem(item.id, 'down')" [disabled]="i === selectedMenuItems.length - 1">↓</button>
+              <button type="button" class="remove" (click)="removeSelected(item.id)">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="items-list">
+        <label class="item" *ngFor="let item of menuItems; trackBy: trackById">
+          <input
+            type="checkbox"
+            [checked]="isSelected(item.id)"
+            (change)="toggleFeatured(item.id)"
+          />
+          <div class="item-meta">
+            <div class="item-name">{{ item.name }}</div>
+            <div class="item-sub">
+              <span>{{ item.category || 'Uncategorized' }}</span>
+              <span *ngIf="item.onlinePrice != null">₹{{ item.onlinePrice }}</span>
+            </div>
+          </div>
+        </label>
+      </div>
+    </section>
+  </div>
+
+  <div class="actions" *ngIf="!isLoading">
+    <button type="button" (click)="save()" [disabled]="isSaving">
+      {{ isSaving ? 'Saving...' : 'Save Home Content' }}
+    </button>
+  </div>
+</div>

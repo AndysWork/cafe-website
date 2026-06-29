@@ -69,6 +69,7 @@ export const routes: Routes = [
       { path: 'customer-segments', loadComponent: () => import('./components/admin-customer-segments/admin-customer-segments.component').then(m => m.AdminCustomerSegmentsComponent) },
       { path: 'kitchen-display', loadComponent: () => import('./components/kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent) },
       { path: 'branch-comparison', loadComponent: () => import('./components/admin-branch-comparison/admin-branch-comparison.component').then(m => m.AdminBranchComparisonComponent) },
+      { path: 'announcements', loadComponent: () => import('./components/admin-announcements/admin-announcements.component').then(m => m.AdminAnnouncementsComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

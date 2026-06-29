@@ -41,6 +41,16 @@
     </div>
   </section>
 
+  <section class="announcement-section" *ngIf="announcementEnabled && (announcementTitle || announcementMessage)">
+    <div class="announcement-card">
+      <div class="announcement-icon">📢</div>
+      <div class="announcement-content">
+        <h3 *ngIf="announcementTitle">{{ announcementTitle }}</h3>
+        <p *ngIf="announcementMessage">{{ announcementMessage }}</p>
+      </div>
+    </div>
+  </section>
+
   <!-- Outlets Section -->
   <section id="outlets" class="outlets-section">
     <div class="section-header">

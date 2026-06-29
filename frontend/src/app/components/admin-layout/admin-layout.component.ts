@@ -246,6 +246,11 @@ export class AdminLayoutComponent implements OnDestroy {
           icon: '📥',
           label: 'Export Reports',
           route: '/admin/reports'
+        },
+        {
+          icon: '📢',
+          label: 'Announcement',
+          route: '/admin/announcements'
         }
       ]
     }

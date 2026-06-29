@@ -7,6 +7,7 @@ import { CustomerReviewsComponent } from '../customer-reviews/customer-reviews.c
 import { OutletService } from '../../services/outlet.service';
 import { Outlet } from '../../models/outlet.model';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
+import { HomeContentConfigService, HomeContentConfig } from '../../services/home-content-config.service';
 
 declare const L: any;
 
@@ -58,6 +59,10 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   latestMenuItems: any[] = [];
   outlets: Outlet[] = [];
   currentYear = new Date().getFullYear();
+  homeContentConfig: HomeContentConfig | null = null;
+  announcementEnabled = false;
+  announcementTitle = '';
+  announcementMessage = '';
 
   testimonials = [
     {
@@ -146,7 +151,8 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor(
     private http: HttpClient,
-    private outletService: OutletService
+    private outletService: OutletService,
+    private homeContentConfigService: HomeContentConfigService
   ) {}
 
   ngOnInit() {
@@ -330,29 +336,60 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
         this.loadStats();
 
         // Get latest 6 menu items with real data
-        if (this.menuItems && this.menuItems.length > 0) {
-          const latestItems = this.menuItems.slice(0, 6);
-          this.latestMenuItems = latestItems.map((item: any, index: number) => {
-            const categoryName = this.getCategoryNameById(item.categoryId);
-            const tags = ['NEW', 'POPULAR', 'BESTSELLER', 'CHEF SPECIAL', 'TRENDING', 'HOT'];
-            const processedItem = {
-              name: item.name || item.catalogueName || item.description || 'Menu Item',
-              category: categoryName || 'Special',
-              price: `₹${item.onlinePrice || item.shopSellingPrice || 99}`,
-              image: this.getCategoryIcon(categoryName),
-              tag: tags[index % tags.length]
-            };
-            return processedItem;
-          });
-        } else {
-        }
+        this.loadHomeContentConfig();
       },
       error: (error) => {
         console.error('Error loading menu items:', error);
         console.error('Error details:', error.message, error.status);
         // Still try to load stats
         this.loadStats();
+        this.loadHomeContentConfig();
       }
+    });
+  }
+
+  loadHomeContentConfig() {
+    this.homeContentConfigService.getPublicConfig().subscribe({
+      next: (res) => {
+        const config = res?.data || null;
+        this.homeContentConfig = config;
+        this.announcementEnabled = !!config?.announcementEnabled;
+        this.announcementTitle = config?.announcementTitle || '';
+        this.announcementMessage = config?.announcementMessage || '';
+        this.applyLatestMenuItems(config);
+      },
+      error: () => {
+        this.applyLatestMenuItems(null);
+      }
+    });
+  }
+
+  private applyLatestMenuItems(config: HomeContentConfig | null) {
+    if (!this.menuItems || this.menuItems.length === 0) {
+      this.latestMenuItems = [];
+      return;
+    }
+
+    const selectedIdOrder = (config?.featuredMenuItemIds || []).map(id => this.normalizeId(id));
+    const menuItemById = new Map(this.menuItems.map(item => [this.normalizeId((item as any).id), item]));
+
+    const selectedItems = selectedIdOrder.length > 0
+      ? selectedIdOrder
+          .map(id => menuItemById.get(id))
+          .filter((item): item is MenuItem => !!item)
+          .slice(0, 6)
+      : this.menuItems.slice(0, 6);
+
+    const tags = ['NEW', 'POPULAR', 'BESTSELLER', 'CHEF SPECIAL', 'TRENDING', 'HOT'];
+    this.latestMenuItems = selectedItems.map((item: any, index: number) => {
+      const categoryName = this.getCategoryNameById(item.categoryId);
+      return {
+        name: item.name || item.catalogueName || item.description || 'Menu Item',
+        category: categoryName || 'Special',
+        price: `₹${item.onlinePrice || item.shopSellingPrice || 99}`,
+        image: this.getCategoryIcon(categoryName),
+        tag: tags[index % tags.length]
+      };
     });
   }
 
