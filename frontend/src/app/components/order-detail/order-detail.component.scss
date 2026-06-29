@@ -322,6 +322,187 @@ $shadow-md: 0 4px 14px rgba(0,0,0,0.1);
   .item-name { font-weight: 500; color: $text-primary; font-size: 0.92rem; }
   .item-qty { color: $text-secondary; font-size: 0.85rem; }
   .item-price { font-weight: 600; color: $text-primary; }
+
+  .item-right {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .btn-item-cancel {
+    border: 1px solid #fecaca;
+    background: #fff1f2;
+    color: #be123c;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+  }
+}
+
+.tracking-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.tracking-item {
+  background: #f8fbff;
+  border: 1px solid #e0f2fe;
+  border-radius: 12px;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+
+  small {
+    color: $text-secondary;
+    font-size: 0.78rem;
+  }
+}
+
+.tracking-label {
+  color: $text-secondary;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.tracking-value {
+  color: $text-primary;
+  font-weight: 700;
+
+  &.highlight {
+    color: #0c4a6e;
+  }
+}
+
+.btn-inline-map {
+  margin-top: 0.8rem;
+  border: none;
+  background: #0ea5e9;
+  color: white;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tracking-note {
+  margin-top: 0.55rem;
+  color: $text-secondary;
+  font-size: 0.85rem;
+}
+
+.support-actions {
+  display: flex;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+.btn-support {
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  font-weight: 700;
+
+  &.call {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  &.email {
+    background: #e0f2fe;
+    color: #075985;
+  }
+}
+
+.issue-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+
+  label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: $text-primary;
+  }
+
+  select,
+  textarea {
+    border: 1px solid #dbe3ef;
+    border-radius: 10px;
+    padding: 0.55rem 0.7rem;
+    font-family: inherit;
+  }
+}
+
+.btn-submit-issue {
+  align-self: flex-start;
+  border: none;
+  border-radius: 999px;
+  background: #0ea5e9;
+  color: white;
+  font-weight: 700;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.issue-history {
+  margin-top: 0.9rem;
+
+  h4 {
+    margin: 0 0 0.5rem;
+    color: $text-primary;
+    font-size: 0.9rem;
+  }
+}
+
+.issue-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.55rem;
+
+  p {
+    margin: 0.35rem 0;
+    color: $text-primary;
+    font-size: 0.88rem;
+  }
+
+  small {
+    color: $text-secondary;
+  }
+}
+
+.issue-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.issue-category,
+.issue-status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+}
+
+.issue-category {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.issue-status {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 // Price summary
@@ -428,6 +609,12 @@ $shadow-md: 0 4px 14px rgba(0,0,0,0.1);
       background: #fef2f2;
       color: #dc2626;
       border: 1px solid #fecaca;
+    }
+
+    &.support {
+      background: #eef2ff;
+      color: #4338ca;
+      border: 1px solid #c7d2fe;
     }
   }
 }
@@ -551,4 +738,5 @@ $shadow-md: 0 4px 14px rgba(0,0,0,0.1);
   }
 
   .actions-bar { flex-direction: column; }
+  .support-actions { flex-direction: column; }
 }

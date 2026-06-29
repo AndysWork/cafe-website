@@ -21,6 +21,7 @@ public class OrderFunction
     private readonly IOfferRepository _offerRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
     private readonly IUserRepository _userRepo;
+    private readonly IOperationsRepository _operationsRepo;
     private readonly MongoService _mongo;  // retained for OutletHelper compatibility and static helpers
     private readonly AuthService _auth;
     private readonly ILogger _log;
@@ -33,6 +34,7 @@ public class OrderFunction
         IOfferRepository offerRepo,
         ILoyaltyRepository loyaltyRepo,
         IUserRepository userRepo,
+        IOperationsRepository operationsRepo,
         MongoService mongo,
         AuthService auth,
         EventLogService eventLog,
@@ -44,6 +46,7 @@ public class OrderFunction
         _offerRepo = offerRepo;
         _loyaltyRepo = loyaltyRepo;
         _userRepo = userRepo;
+        _operationsRepo = operationsRepo;
         _mongo = mongo;
         _auth = auth;
         _eventLog = eventLog;
@@ -575,6 +578,364 @@ public class OrderFunction
         }
     }
 
+    [Function("GetOrderTracking")]
+    public async Task<HttpResponseData> GetOrderTracking(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "orders/{id}/tracking")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Authentication required" });
+                return unauthorized;
+            }
+
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            var principal = _auth.ValidateToken(token);
+            if (principal == null)
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid or expired token" });
+                return unauthorized;
+            }
+
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+
+            var order = await _orderRepo.GetOrderByIdAsync(id);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (role != "admin" && order.UserId != userId)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Access denied" });
+                return forbidden;
+            }
+
+            var estimatedAt = EstimateDeliveryTime(order);
+            int? etaMinutes = estimatedAt.HasValue
+                ? Math.Max(0, (int)Math.Ceiling((estimatedAt.Value - MongoService.GetIstNow()).TotalMinutes))
+                : null;
+
+            DeliveryTrackingPartnerInfo? partnerInfo = null;
+            if (!string.IsNullOrWhiteSpace(order.DeliveryPartnerId))
+            {
+                var partner = await _operationsRepo.GetDeliveryPartnerByIdAsync(order.DeliveryPartnerId);
+                if (partner != null)
+                {
+                    partnerInfo = new DeliveryTrackingPartnerInfo
+                    {
+                        Id = partner.Id,
+                        Name = partner.Name,
+                        Phone = partner.Phone,
+                        VehicleType = partner.VehicleType,
+                        VehicleNumber = partner.VehicleNumber,
+                        Status = partner.Status,
+                        CurrentLatitude = partner.CurrentLatitude,
+                        CurrentLongitude = partner.CurrentLongitude,
+                        LastLocationUpdatedAt = partner.LastLocationUpdatedAt
+                    };
+                }
+            }
+
+            var hasLocation = partnerInfo?.CurrentLatitude.HasValue == true && partnerInfo?.CurrentLongitude.HasValue == true;
+
+            var payload = new OrderTrackingResponse
+            {
+                OrderId = order.Id ?? id,
+                Status = order.Status,
+                OrderType = order.OrderType,
+                IsScheduled = order.IsScheduled,
+                ScheduledFor = order.ScheduledFor,
+                EstimatedDeliveryAt = estimatedAt,
+                EtaMinutes = etaMinutes,
+                EtaLabel = BuildEtaLabel(order.Status, etaMinutes, estimatedAt),
+                LiveLocationAvailable = hasLocation,
+                LiveLocationMapUrl = hasLocation
+                    ? $"https://maps.google.com/?q={partnerInfo!.CurrentLatitude!.Value},{partnerInfo.CurrentLongitude!.Value}"
+                    : null,
+                DeliveryPartner = partnerInfo,
+                SupportPhone = "+91-9876543210",
+                SupportEmail = "support@cafemanagement.com"
+            };
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(payload);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting tracking for order {OrderId}", id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while retrieving tracking" });
+            return res;
+        }
+    }
+
+    [Function("CreateOrderIssue")]
+    public async Task<HttpResponseData> CreateOrderIssue(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders/{id}/issues")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Authentication required" });
+                return unauthorized;
+            }
+
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            var principal = _auth.ValidateToken(token);
+            if (principal == null)
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid or expired token" });
+                return unauthorized;
+            }
+
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var username = principal.FindFirst(ClaimTypes.Name)?.Value;
+            var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+
+            var order = await _orderRepo.GetOrderByIdAsync(id);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (role != "admin" && order.UserId != userId)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Access denied" });
+                return forbidden;
+            }
+
+            var (issueRequest, validationError) = await ValidationHelper.ValidateBody<CreateOrderIssueRequest>(req);
+            if (validationError != null) return validationError;
+
+            var validCategories = new[] { "missing-item", "wrong-item", "damaged-item", "delay", "quality", "other" };
+            var category = issueRequest.Category.Trim().ToLowerInvariant();
+            if (!validCategories.Contains(category))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid issue category" });
+                return badRequest;
+            }
+
+            var issue = new OrderIssue
+            {
+                OrderId = id,
+                OutletId = order.OutletId,
+                UserId = userId ?? order.UserId,
+                Username = username ?? order.Username,
+                Category = category,
+                Description = issueRequest.Description.Trim(),
+                Status = "open",
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
+            };
+
+            var created = await _orderRepo.CreateOrderIssueAsync(issue);
+
+            await _outbox.EnqueueAsync("OrderIssueNotification", "Order", id,
+                new { OrderId = id, Category = category, Description = issue.Description, Username = issue.Username });
+
+            var response = req.CreateResponse(HttpStatusCode.Created);
+            await response.WriteAsJsonAsync(created);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error creating issue for order {OrderId}", id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while creating issue" });
+            return res;
+        }
+    }
+
+    [Function("GetOrderIssues")]
+    public async Task<HttpResponseData> GetOrderIssues(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "orders/{id}/issues")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Authentication required" });
+                return unauthorized;
+            }
+
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            var principal = _auth.ValidateToken(token);
+            if (principal == null)
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid or expired token" });
+                return unauthorized;
+            }
+
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+
+            var order = await _orderRepo.GetOrderByIdAsync(id);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (role != "admin" && order.UserId != userId)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Access denied" });
+                return forbidden;
+            }
+
+            var issues = await _orderRepo.GetOrderIssuesAsync(id);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(issues);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting issues for order {OrderId}", id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while retrieving issues" });
+            return res;
+        }
+    }
+
+    [Function("CancelOrderItem")]
+    public async Task<HttpResponseData> CancelOrderItem(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders/{id}/items/{menuItemId}/cancel")] HttpRequestData req,
+        string id,
+        string menuItemId)
+    {
+        try
+        {
+            var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Authentication required" });
+                return unauthorized;
+            }
+
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            var principal = _auth.ValidateToken(token);
+            if (principal == null)
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid or expired token" });
+                return unauthorized;
+            }
+
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+
+            var order = await _orderRepo.GetOrderByIdAsync(id);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (role != "admin" && order.UserId != userId)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Access denied" });
+                return forbidden;
+            }
+
+            if (order.Status != "pending" && order.Status != "confirmed" && order.Status != "scheduled")
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = $"Cannot modify items when order is '{order.Status}'" });
+                return badRequest;
+            }
+
+            var (cancelRequest, validationError) = await ValidationHelper.ValidateBody<CancelOrderItemRequest>(req);
+            if (validationError != null) return validationError;
+
+            var item = order.Items.FirstOrDefault(i => i.MenuItemId == menuItemId);
+            if (item == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Item is not part of this order" });
+                return badRequest;
+            }
+
+            var qtyToCancel = Math.Min(item.Quantity, Math.Max(1, cancelRequest.Quantity));
+            if (qtyToCancel >= item.Quantity)
+            {
+                order.Items.Remove(item);
+            }
+            else
+            {
+                item.Quantity -= qtyToCancel;
+                item.Total = Math.Round(item.Price * item.Quantity, 2);
+            }
+
+            if (order.Items.Count == 0)
+            {
+                order.Status = "cancelled";
+            }
+
+            order.Subtotal = Math.Round(order.Items.Sum(i => i.Total), 2);
+            order.Tax = Math.Round(order.Subtotal * 0.025m, 2);
+            order.PlatformCharge = Math.Round(order.Subtotal * 0.025m, 2);
+            order.DiscountAmount = Math.Min(order.DiscountAmount, order.Subtotal);
+
+            var loyaltyCap = Math.Max(0, order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee - order.DiscountAmount);
+            order.LoyaltyDiscountAmount = Math.Min(order.LoyaltyDiscountAmount, loyaltyCap);
+            order.Total = Math.Max(0, order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee - order.DiscountAmount - order.LoyaltyDiscountAmount);
+            order.UpdatedAt = MongoService.GetIstNow();
+
+            var updated = await _orderRepo.UpdateOrderAsync(order);
+            if (!updated)
+            {
+                var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await error.WriteAsJsonAsync(new { error = "Failed to update order" });
+                return error;
+            }
+
+            _ = _eventLog.LogEventAsync("Order", id, "ItemCancelled",
+                actorId: userId,
+                actorRole: role,
+                newState: new { MenuItemId = menuItemId, QuantityCancelled = qtyToCancel, Subtotal = order.Subtotal, Total = order.Total },
+                outletId: order.OutletId);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(MapToOrderResponse(order));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error cancelling order item {MenuItemId} for order {OrderId}", menuItemId, id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while cancelling item" });
+            return res;
+        }
+    }
+
     /// <summary>
     /// Updates the status of an order (Admin only)
     /// </summary>
@@ -814,5 +1175,37 @@ public class OrderFunction
             DeliveryPartnerName = order.DeliveryPartnerName,
             TableNumber = order.TableNumber
         };
+    }
+
+    private static DateTime? EstimateDeliveryTime(Order order)
+    {
+        var now = MongoService.GetIstNow();
+
+        if (order.Status == "delivered" || order.Status == "cancelled") return now;
+
+        if (order.IsScheduled && order.ScheduledFor.HasValue && order.ScheduledFor.Value > now)
+        {
+            return order.ScheduledFor.Value.AddMinutes(35);
+        }
+
+        var baseMinutes = order.Status switch
+        {
+            "pending" => 35,
+            "confirmed" => 28,
+            "preparing" => 18,
+            "ready" => order.OrderType == "delivery" ? 10 : 0,
+            _ => 25
+        };
+
+        return now.AddMinutes(baseMinutes);
+    }
+
+    private static string BuildEtaLabel(string status, int? etaMinutes, DateTime? estimatedAt)
+    {
+        if (status == "delivered") return "Delivered";
+        if (status == "cancelled") return "Cancelled";
+        if (!etaMinutes.HasValue || !estimatedAt.HasValue) return "ETA unavailable";
+        if (etaMinutes.Value <= 1) return "Arriving now";
+        return $"Arriving in {etaMinutes.Value} min";
     }
 }

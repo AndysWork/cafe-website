@@ -12,6 +12,9 @@ export interface DeliveryPartner {
   vehicleType: string;
   status: 'available' | 'on-delivery' | 'offline';
   currentOrderId?: string;
+  currentLatitude?: number;
+  currentLongitude?: number;
+  lastLocationUpdatedAt?: string;
   totalDeliveries?: number;
   rating?: number;
   outletId?: string;
@@ -61,6 +64,15 @@ export class DeliveryPartnerService {
   updatePartner(partnerId: string, partner: Partial<DeliveryPartner>): Observable<{ message: string }> {
     return this.http.put<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/${partnerId}`, partner).pipe(
       catchError(handleServiceError('DeliveryPartnerService.updatePartner'))
+    );
+  }
+
+  updatePartnerLocation(partnerId: string, latitude: number, longitude: number): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(
+      `${this.apiUrl}/manage/delivery-partners/${partnerId}/location`,
+      { latitude, longitude }
+    ).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.updatePartnerLocation'))
     );
   }
 

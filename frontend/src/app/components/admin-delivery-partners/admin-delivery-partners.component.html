@@ -23,6 +23,25 @@
       <div class="card-body">
         <p *ngIf="p.currentOrderId" class="text-warning">📦 On delivery: {{ p.currentOrderId }}</p>
         <p>Total deliveries: {{ p.totalDeliveries || 0 }}</p>
+
+        <div class="location-panel" *ngIf="p.id as partnerId">
+          <div class="location-inputs">
+            <div class="location-field">
+              <label>Lat</label>
+              <input type="number" step="any" [(ngModel)]="locationDraft[partnerId].latitude" [name]="'lat-' + partnerId" placeholder="12.9716" />
+            </div>
+            <div class="location-field">
+              <label>Lng</label>
+              <input type="number" step="any" [(ngModel)]="locationDraft[partnerId].longitude" [name]="'lng-' + partnerId" placeholder="77.5946" />
+            </div>
+          </div>
+          <button class="btn-action btn-location" (click)="updateLocation(p)">📍 Update Location</button>
+
+          <p class="location-meta" *ngIf="p.currentLatitude != null && p.currentLongitude != null">
+            Current: {{ p.currentLatitude }}, {{ p.currentLongitude }}
+            <span *ngIf="p.lastLocationUpdatedAt"> · {{ p.lastLocationUpdatedAt | date:'short' }}</span>
+          </p>
+        </div>
       </div>
       <div class="card-footer">
         <div class="actions-cell">

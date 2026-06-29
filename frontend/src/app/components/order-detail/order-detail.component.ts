@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { OrderService, Order } from '../../services/order.service';
+import { OrderService, Order, OrderIssue, OrderTrackingResponse } from '../../services/order.service';
 import { CartService } from '../../services/cart.service';
 import { CustomerReviewService, CustomerReview } from '../../services/customer-review.service';
 import { AuthService } from '../../services/auth.service';
@@ -27,6 +27,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
   // Real-time tracking
   pollingActive = false;
+  trackingData: OrderTrackingResponse | null = null;
   private pollSub?: Subscription;
   private routeSub?: Subscription;
 
@@ -39,6 +40,12 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
   // PDF download
   downloadingPdf = false;
+
+  // Support and issue state
+  supportIssueCategory: 'missing-item' | 'wrong-item' | 'damaged-item' | 'delay' | 'quality' | 'other' = 'other';
+  supportIssueDescription = '';
+  issueSubmitting = false;
+  orderIssues: OrderIssue[] = [];
 
   // Status timeline
   statusSteps = [
@@ -100,6 +107,9 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
         if (order.status === 'delivered' && !this.existingReview) {
           this.loadReview();
         }
+
+        this.loadTracking();
+        this.loadOrderIssues();
       },
       error: (err) => {
         this.errorMessage = err.error?.error || 'Failed to load order';
@@ -118,6 +128,8 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       next: (order) => {
         const previousStatus = this.order?.status;
         this.order = order;
+
+        this.loadTracking();
 
         if (previousStatus && previousStatus !== order.status) {
           this.uiStore.success(`Order status updated to ${this.orderService.getStatusDisplayText(order.status)}`);
@@ -167,6 +179,32 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
         this.loadOrder();
       },
       error: (err) => this.uiStore.error(err.error?.error || 'Failed to cancel order')
+    });
+  }
+
+  canCancelItems(): boolean {
+    if (!this.order || this.isAdmin) return false;
+    return this.order.status === 'pending' || this.order.status === 'confirmed' || this.order.status === 'scheduled';
+  }
+
+  cancelOrderItem(menuItemId: string, itemName: string, maxQty: number) {
+    if (!this.order || !this.canCancelItems()) return;
+
+    const input = prompt(`How many '${itemName}' do you want to cancel? (1-${maxQty})`, '1');
+    if (input === null) return;
+
+    const quantity = Number(input);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > maxQty) {
+      this.uiStore.error(`Enter a valid quantity between 1 and ${maxQty}`);
+      return;
+    }
+
+    this.orderService.cancelOrderItem(this.order.id, menuItemId, quantity).subscribe({
+      next: (updated) => {
+        this.order = updated;
+        this.uiStore.success('Item updated successfully');
+      },
+      error: (err) => this.uiStore.error(err.error?.error || 'Failed to cancel item')
     });
   }
 
@@ -245,6 +283,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
   trackByName(index: number, item: any): string { return item.name; }
   trackByKey(index: number, item: any): string { return item.key; }
+  trackByIssueId(index: number, item: OrderIssue): string { return item.id || `${item.category}-${index}`; }
 
   downloadReceipt() {
     if (!this.order || this.downloadingPdf) return;
@@ -264,5 +303,65 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
         this.downloadingPdf = false;
       }
     });
+  }
+
+  loadTracking() {
+    if (!this.orderId) return;
+    this.orderService.getOrderTracking(this.orderId).subscribe({
+      next: (tracking) => this.trackingData = tracking,
+      error: () => {}
+    });
+  }
+
+  loadOrderIssues() {
+    if (!this.orderId) return;
+    this.orderService.getOrderIssues(this.orderId).subscribe({
+      next: (issues) => this.orderIssues = issues,
+      error: () => {}
+    });
+  }
+
+  submitIssue() {
+    if (!this.order || this.issueSubmitting) return;
+    const description = this.supportIssueDescription.trim();
+    if (description.length < 5) {
+      this.uiStore.error('Please describe the issue with at least 5 characters');
+      return;
+    }
+
+    this.issueSubmitting = true;
+    this.orderService.createOrderIssue(this.order.id, {
+      category: this.supportIssueCategory,
+      description
+    }).subscribe({
+      next: (issue) => {
+        this.orderIssues = [issue, ...this.orderIssues];
+        this.supportIssueDescription = '';
+        this.supportIssueCategory = 'other';
+        this.issueSubmitting = false;
+        this.uiStore.success('Issue submitted. Support will contact you soon.');
+      },
+      error: (err) => {
+        this.issueSubmitting = false;
+        this.uiStore.error(err.error?.error || 'Failed to submit issue');
+      }
+    });
+  }
+
+  callSupport() {
+    const phone = this.trackingData?.supportPhone || '+91-9876543210';
+    window.location.href = `tel:${phone}`;
+  }
+
+  emailSupport() {
+    const email = this.trackingData?.supportEmail || 'support@cafemanagement.com';
+    const subject = this.order ? `Support needed for order #${this.order.id.slice(-6)}` : 'Order support request';
+    window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+  }
+
+  openLiveTrackingMap() {
+    if (this.trackingData?.liveLocationMapUrl) {
+      window.open(this.trackingData.liveLocationMapUrl, '_blank', 'noopener');
+    }
   }
 }

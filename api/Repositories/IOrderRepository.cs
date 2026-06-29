@@ -11,6 +11,7 @@ public interface IOrderRepository
     Task<long> GetAllOrdersCountAsync(string? outletId = null);
     Task<Order?> GetOrderByIdAsync(string orderId);
     Task<bool> UpdateOrderStatusAsync(string orderId, string status);
+    Task<bool> UpdateOrderAsync(Order order);
     Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null);
     Task<bool> UpdateRefundIdAsync(string orderId, string refundId);
     Task<bool> UpdateReceiptImageUrlAsync(string orderId, string? receiptImageUrl);
@@ -25,4 +26,8 @@ public interface IOrderRepository
     Task<List<CustomerReview>> GetReviewsByUserIdAsync(string userId);
     Task<List<CustomerReview>> GetAllReviewsAsync(string? outletId = null, int page = 1, int pageSize = 50);
     Task<double> GetAverageRatingAsync(string? outletId = null);
+
+    // Order issues
+    Task<OrderIssue> CreateOrderIssueAsync(OrderIssue issue);
+    Task<List<OrderIssue>> GetOrderIssuesAsync(string orderId);
 }

@@ -3,3 +3,43 @@
 .text-warning { color: #d97706; }
 
 .badge.on-delivery { background: #fff7ed; color: #c2410c; }
+
+.location-panel {
+	margin-top: 0.75rem;
+	padding-top: 0.7rem;
+	border-top: 1px dashed #e5e7eb;
+}
+
+.location-inputs {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.5rem;
+}
+
+.location-field {
+	label {
+		display: block;
+		font-size: 0.72rem;
+		font-weight: 600;
+		color: #64748b;
+		margin-bottom: 0.2rem;
+	}
+
+	input {
+		width: 100%;
+		border: 1px solid #d1d5db;
+		border-radius: 8px;
+		padding: 0.35rem 0.45rem;
+		font-size: 0.82rem;
+	}
+}
+
+.btn-location {
+	margin-top: 0.55rem;
+}
+
+.location-meta {
+	margin-top: 0.45rem;
+	font-size: 0.76rem;
+	color: #475569;
+}

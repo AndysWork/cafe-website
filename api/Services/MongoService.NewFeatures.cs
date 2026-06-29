@@ -623,8 +623,19 @@ public partial class MongoService : IOperationsRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<DeliveryPartner?> GetDeliveryPartnerByIdAsync(string partnerId)
+    {
+        return await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
+    }
+
     public async Task<bool> AssignDeliveryPartnerAsync(string partnerId, string orderId)
     {
+        var partner = await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
+        if (partner == null)
+        {
+            return false;
+        }
+
         var update = Builders<DeliveryPartner>.Update
             .Set(p => p.Status, "on-delivery")
             .Set(p => p.CurrentOrderId, orderId);
@@ -635,8 +646,21 @@ public partial class MongoService : IOperationsRepository
             await _orders.UpdateOneAsync(
                 o => o.Id == orderId,
                 Builders<Order>.Update
-                    .Set(o => o.DeliveryPartnerId, partnerId));
+                    .Set(o => o.DeliveryPartnerId, partnerId)
+                    .Set(o => o.DeliveryPartnerName, partner.Name)
+                    .Set(o => o.UpdatedAt, GetIstNow()));
         }
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> UpdateDeliveryPartnerLocationAsync(string partnerId, double latitude, double longitude)
+    {
+        var update = Builders<DeliveryPartner>.Update
+            .Set(p => p.CurrentLatitude, latitude)
+            .Set(p => p.CurrentLongitude, longitude)
+            .Set(p => p.LastLocationUpdatedAt, GetIstNow());
+
+        var result = await _deliveryPartners.UpdateOneAsync(p => p.Id == partnerId && p.IsActive, update);
         return result.ModifiedCount > 0;
     }
 

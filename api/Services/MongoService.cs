@@ -81,6 +81,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<AppNotification> _notifications;
     private readonly IMongoCollection<ExternalOrderClaim> _externalClaims;
     private readonly IMongoCollection<CustomerReview> _customerReviews;
+    private readonly IMongoCollection<OrderIssue> _orderIssues;
     private readonly IMongoCollection<DeliveryZone> _deliveryZones;
     private readonly IMongoCollection<TableReservation> _tableReservations;
     private readonly IMongoCollection<CustomerWallet> _customerWallets;
@@ -191,6 +192,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _notifications = db.GetCollection<AppNotification>("Notifications");
         _externalClaims = db.GetCollection<ExternalOrderClaim>("ExternalOrderClaims");
         _customerReviews = db.GetCollection<CustomerReview>("CustomerReviews");
+        _orderIssues = db.GetCollection<OrderIssue>("OrderIssues");
         _deliveryZones = db.GetCollection<DeliveryZone>("DeliveryZones");
         _tableReservations = db.GetCollection<TableReservation>("TableReservations");
         _customerWallets = db.GetCollection<CustomerWallet>("CustomerWallets");
@@ -1669,6 +1671,13 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
+    // Replace full order document
+    public async Task<bool> UpdateOrderAsync(Order order)
+    {
+        var result = await _orders.ReplaceOneAsync(x => x.Id == order.Id, order);
+        return result.ModifiedCount > 0;
+    }
+
     // Update payment status after Razorpay verification
     public async Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null)
     {
@@ -1705,6 +1714,19 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
         return result.ModifiedCount > 0;
+    }
+
+    public async Task<OrderIssue> CreateOrderIssueAsync(OrderIssue issue)
+    {
+        await _orderIssues.InsertOneAsync(issue);
+        return issue;
+    }
+
+    public async Task<List<OrderIssue>> GetOrderIssuesAsync(string orderId)
+    {
+        return await _orderIssues.Find(x => x.OrderId == orderId)
+            .SortByDescending(x => x.CreatedAt)
+            .ToListAsync();
     }
 
     #endregion

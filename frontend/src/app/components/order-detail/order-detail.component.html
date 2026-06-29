@@ -70,6 +70,38 @@
       </div>
     </div>
 
+    <!-- Tracking Card -->
+    <div class="section-card" *ngIf="trackingData && order.status !== 'cancelled'">
+      <h3 class="section-title">🧭 Live Tracking</h3>
+      <div class="tracking-grid">
+        <div class="tracking-item">
+          <span class="tracking-label">ETA</span>
+          <span class="tracking-value highlight">{{ trackingData.etaLabel }}</span>
+          <small *ngIf="trackingData.estimatedDeliveryAt">Expected by {{ trackingData.estimatedDeliveryAt | date:'shortTime' }}</small>
+        </div>
+
+        <div class="tracking-item" *ngIf="trackingData.deliveryPartner">
+          <span class="tracking-label">Delivery Partner</span>
+          <span class="tracking-value">{{ trackingData.deliveryPartner.name || 'Assigned' }}</span>
+          <small *ngIf="trackingData.deliveryPartner.phone">📞 {{ trackingData.deliveryPartner.phone }}</small>
+          <small *ngIf="trackingData.deliveryPartner.vehicleType || trackingData.deliveryPartner.vehicleNumber">
+            🚲 {{ trackingData.deliveryPartner.vehicleType || 'vehicle' }}
+            <span *ngIf="trackingData.deliveryPartner.vehicleNumber"> · {{ trackingData.deliveryPartner.vehicleNumber }}</span>
+          </small>
+        </div>
+      </div>
+
+      <button
+        *ngIf="trackingData.liveLocationAvailable"
+        class="btn-inline-map"
+        (click)="openLiveTrackingMap()">
+        📍 Open Live Location
+      </button>
+      <p class="tracking-note" *ngIf="trackingData.deliveryPartner && !trackingData.liveLocationAvailable">
+        Live location is currently unavailable. ETA will keep updating.
+      </p>
+    </div>
+
     <!-- Cancelled Banner -->
     <div class="cancelled-banner" *ngIf="order.status === 'cancelled'">
       <span>❌</span>
@@ -85,7 +117,15 @@
             <span class="item-name">{{ item.name }}</span>
             <span class="item-qty">× {{ item.quantity }}</span>
           </div>
-          <span class="item-price">₹{{ item.total }}</span>
+          <div class="item-right">
+            <span class="item-price">₹{{ item.total }}</span>
+            <button
+              *ngIf="canCancelItems()"
+              class="btn-item-cancel"
+              (click)="cancelOrderItem(item.menuItemId, item.name, item.quantity)">
+              Cancel Item
+            </button>
+          </div>
         </div>
       </div>
 
@@ -196,12 +236,58 @@
       </div>
     </div>
 
+    <!-- Support and Issues -->
+    <div class="section-card" *ngIf="!isAdmin">
+      <h3 class="section-title">🆘 Need Help?</h3>
+
+      <div class="support-actions">
+        <button class="btn-support call" (click)="callSupport()">📞 Call Support</button>
+        <button class="btn-support email" (click)="emailSupport()">✉️ Email Support</button>
+      </div>
+
+      <div class="issue-form">
+        <label>Report an issue for this order</label>
+        <select [(ngModel)]="supportIssueCategory" name="supportIssueCategory">
+          <option value="missing-item">Missing item</option>
+          <option value="wrong-item">Wrong item delivered</option>
+          <option value="damaged-item">Damaged/spilled item</option>
+          <option value="delay">Delayed delivery</option>
+          <option value="quality">Food quality issue</option>
+          <option value="other">Other</option>
+        </select>
+
+        <textarea
+          [(ngModel)]="supportIssueDescription"
+          name="supportIssueDescription"
+          rows="3"
+          maxlength="1000"
+          placeholder="Describe the issue so support can help quickly..."></textarea>
+
+        <button class="btn-submit-issue" (click)="submitIssue()" [disabled]="issueSubmitting">
+          {{ issueSubmitting ? '⏳ Submitting...' : 'Submit Issue' }}
+        </button>
+      </div>
+
+      <div class="issue-history" *ngIf="orderIssues.length > 0">
+        <h4>Recent Support Requests</h4>
+        <div class="issue-item" *ngFor="let issue of orderIssues; trackBy: trackByIssueId">
+          <div class="issue-meta">
+            <span class="issue-category">{{ issue.category | titlecase }}</span>
+            <span class="issue-status">{{ issue.status | titlecase }}</span>
+          </div>
+          <p>{{ issue.description }}</p>
+          <small>{{ formatDate(issue.createdAt) }}</small>
+        </div>
+      </div>
+    </div>
+
     <!-- Actions -->
     <div class="actions-bar" *ngIf="!isAdmin">
       <button class="btn-action download" (click)="downloadReceipt()" [disabled]="downloadingPdf">
         {{ downloadingPdf ? '⏳ Generating...' : '📄 Download Receipt' }}
       </button>
       <button class="btn-action reorder" (click)="reorder()">🔄 Reorder</button>
+      <button class="btn-action support" (click)="callSupport()">🆘 Support</button>
       <button *ngIf="canCancel()" class="btn-action cancel" (click)="cancelOrder()">✕ Cancel Order</button>
     </div>
   </div>

@@ -24,7 +24,9 @@ public interface IOperationsRepository
     Task<DeliveryPartner> CreateDeliveryPartnerAsync(DeliveryPartner partner);
     Task<List<DeliveryPartner>> GetDeliveryPartnersAsync(string outletId);
     Task<DeliveryPartner?> GetAvailableDeliveryPartnerAsync(string outletId);
+    Task<DeliveryPartner?> GetDeliveryPartnerByIdAsync(string partnerId);
     Task<bool> AssignDeliveryPartnerAsync(string partnerId, string orderId);
+    Task<bool> UpdateDeliveryPartnerLocationAsync(string partnerId, double latitude, double longitude);
     Task<bool> CompleteDeliveryAsync(string partnerId);
     Task<bool> UpdateDeliveryPartnerAsync(string id, DeliveryPartner partner);
     Task<bool> DeleteDeliveryPartnerAsync(string id);

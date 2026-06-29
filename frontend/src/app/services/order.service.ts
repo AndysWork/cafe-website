@@ -75,6 +75,52 @@ export interface UpdateOrderStatusRequest {
   status: string;
 }
 
+export interface DeliveryTrackingPartnerInfo {
+  id?: string;
+  name?: string;
+  phone?: string;
+  vehicleType?: string;
+  vehicleNumber?: string;
+  status?: string;
+  currentLatitude?: number;
+  currentLongitude?: number;
+  lastLocationUpdatedAt?: string;
+}
+
+export interface OrderTrackingResponse {
+  orderId: string;
+  status: string;
+  orderType: string;
+  isScheduled: boolean;
+  scheduledFor?: string;
+  estimatedDeliveryAt?: string;
+  etaMinutes?: number;
+  etaLabel: string;
+  liveLocationAvailable: boolean;
+  liveLocationMapUrl?: string;
+  deliveryPartner?: DeliveryTrackingPartnerInfo;
+  supportPhone: string;
+  supportEmail: string;
+}
+
+export interface OrderIssue {
+  id?: string;
+  orderId: string;
+  outletId?: string;
+  userId: string;
+  username: string;
+  category: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOrderIssueRequest {
+  category: 'missing-item' | 'wrong-item' | 'damaged-item' | 'delay' | 'quality' | 'other';
+  description: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -183,5 +229,29 @@ export class OrderService {
   // Helper: Check if order can be cancelled
   canCancelOrder(status: string): boolean {
     return status === 'pending' || status === 'confirmed' || status === 'scheduled';
+  }
+
+  getOrderTracking(orderId: string): Observable<OrderTrackingResponse> {
+    return this.http.get<OrderTrackingResponse>(`${this.apiUrl}/orders/${orderId}/tracking`).pipe(
+      catchError(handleServiceError('OrderService.getOrderTracking'))
+    );
+  }
+
+  cancelOrderItem(orderId: string, menuItemId: string, quantity: number): Observable<Order> {
+    return this.http.post<Order>(`${this.apiUrl}/orders/${orderId}/items/${menuItemId}/cancel`, { quantity }).pipe(
+      catchError(handleServiceError('OrderService.cancelOrderItem'))
+    );
+  }
+
+  createOrderIssue(orderId: string, payload: CreateOrderIssueRequest): Observable<OrderIssue> {
+    return this.http.post<OrderIssue>(`${this.apiUrl}/orders/${orderId}/issues`, payload).pipe(
+      catchError(handleServiceError('OrderService.createOrderIssue'))
+    );
+  }
+
+  getOrderIssues(orderId: string): Observable<OrderIssue[]> {
+    return this.http.get<OrderIssue[]>(`${this.apiUrl}/orders/${orderId}/issues`).pipe(
+      catchError(handleServiceError('OrderService.getOrderIssues'))
+    );
   }
 }

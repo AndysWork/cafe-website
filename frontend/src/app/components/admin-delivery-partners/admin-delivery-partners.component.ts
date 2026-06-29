@@ -29,6 +29,7 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
 
   showAssignModal = false;
   assignForm = { orderId: '', deliveryPartnerId: '' };
+  locationDraft: Record<string, { latitude: string; longitude: string }> = {};
 
   constructor(private partnerService: DeliveryPartnerService) {}
 
@@ -44,7 +45,18 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
   loadPartners() {
     this.loading = true;
     this.partnerService.getDeliveryPartners().subscribe({
-      next: p => { this.partners = p; this.loading = false; },
+      next: p => {
+        this.partners = p;
+        this.locationDraft = {};
+        for (const partner of this.partners) {
+          if (!partner.id) continue;
+          this.locationDraft[partner.id] = {
+            latitude: partner.currentLatitude != null ? String(partner.currentLatitude) : '',
+            longitude: partner.currentLongitude != null ? String(partner.currentLongitude) : ''
+          };
+        }
+        this.loading = false;
+      },
       error: () => { this.uiStore.error('Failed to load delivery partners'); this.loading = false; }
     });
   }
@@ -102,6 +114,33 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
     this.partnerService.assignDeliveryPartner(this.assignForm).subscribe({
       next: () => { this.uiStore.success('Partner assigned'); this.showAssignModal = false; this.loadPartners(); },
       error: () => this.uiStore.error('Failed to assign partner')
+    });
+  }
+
+  updateLocation(partner: DeliveryPartner) {
+    const partnerId = partner.id;
+    if (!partnerId) return;
+
+    const draft = this.locationDraft[partnerId] || { latitude: '', longitude: '' };
+    const latitude = Number(draft.latitude);
+    const longitude = Number(draft.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      this.uiStore.error('Enter valid latitude and longitude values');
+      return;
+    }
+
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      this.uiStore.error('Latitude must be between -90 and 90, longitude between -180 and 180');
+      return;
+    }
+
+    this.partnerService.updatePartnerLocation(partnerId, latitude, longitude).subscribe({
+      next: () => {
+        this.uiStore.success('Live location updated');
+        this.loadPartners();
+      },
+      error: () => this.uiStore.error('Failed to update location')
     });
   }
 

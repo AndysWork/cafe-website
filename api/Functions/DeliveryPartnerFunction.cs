@@ -261,6 +261,39 @@ public class DeliveryPartnerFunction
         }
     }
 
+    [Function("UpdateDeliveryPartnerLocation")]
+    public async Task<HttpResponseData> UpdateDeliveryPartnerLocation(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/delivery-partners/{partnerId}/location")] HttpRequestData req, string partnerId)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateDeliveryPartnerLocationRequest>(req);
+            if (validationError != null) return validationError;
+
+            var success = await _mongo.UpdateDeliveryPartnerLocationAsync(partnerId, request.Latitude, request.Longitude);
+            if (!success)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner not found" });
+                return notFound;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Location updated" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating delivery partner location");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
     [Function("DeleteDeliveryPartner")]
     public async Task<HttpResponseData> DeleteDeliveryPartner(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "manage/delivery-partners/{partnerId}")] HttpRequestData req, string partnerId)

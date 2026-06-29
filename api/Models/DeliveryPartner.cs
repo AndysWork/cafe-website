@@ -36,6 +36,15 @@ public class DeliveryPartner
     [BsonElement("currentOrderId")]
     public string? CurrentOrderId { get; set; }
 
+    [BsonElement("currentLatitude")]
+    public double? CurrentLatitude { get; set; }
+
+    [BsonElement("currentLongitude")]
+    public double? CurrentLongitude { get; set; }
+
+    [BsonElement("lastLocationUpdatedAt")]
+    public DateTime? LastLocationUpdatedAt { get; set; }
+
     [BsonElement("totalDeliveries")]
     public int TotalDeliveries { get; set; }
 
@@ -68,4 +77,13 @@ public class AssignDeliveryRequest
 
     [Required]
     public string DeliveryPartnerId { get; set; } = string.Empty;
+}
+
+public class UpdateDeliveryPartnerLocationRequest
+{
+    [Range(-90, 90)]
+    public double Latitude { get; set; }
+
+    [Range(-180, 180)]
+    public double Longitude { get; set; }
 }
