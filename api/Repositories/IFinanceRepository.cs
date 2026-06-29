@@ -81,8 +81,8 @@ public interface IFinanceRepository
     Task<long> GetOnlineSalesCountAsync(string? platform = null, string? outletId = null, bool includeWebSales = false);
     Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false);
     Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false);
-    Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10, string? outletId = null);
-    Task<List<DiscountCouponResponse>> GetUniqueDiscountCouponsAsync(string? outletId = null);
+    Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10, string? outletId = null, bool includeWebSales = false);
+    Task<List<DiscountCouponResponse>> GetUniqueDiscountCouponsAsync(string? outletId = null, bool includeWebSales = false);
     Task<List<DiscountCouponResponse>> GetActiveDiscountCouponsAsync();
     Task<OnlineSale?> GetOnlineSaleByIdAsync(string id);
     Task<OnlineSale> CreateOnlineSaleAsync(OnlineSale sale, string userId);

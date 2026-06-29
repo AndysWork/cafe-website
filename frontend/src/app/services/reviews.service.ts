@@ -31,6 +31,10 @@ export class ReviewsService {
   constructor(private http: HttpClient) {}
 
   getFiveStarReviews(limit: number = 10): Observable<ReviewsResponse> {
-    return this.http.get<ReviewsResponse>(`${this.apiUrl}/five-star?limit=${limit}`);
+    return this.http.get<ReviewsResponse>(`${this.apiUrl}/five-star?limit=${limit}&includeWebSales=true`, {
+      headers: {
+        'X-Outlet-Id': ''
+      }
+    });
   }
 }

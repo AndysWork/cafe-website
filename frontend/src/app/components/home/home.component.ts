@@ -42,6 +42,7 @@ interface MenuItem {
   id: string;
   categoryId: string;
   subCategoryId: string;
+  categoryName?: string;
   catalogueName: string;
 }
 
@@ -109,6 +110,8 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   categories: Category[] = [];
   subCategories: SubCategory[] = [];
   menuItems: MenuItem[] = [];
+  private categoryIdToName = new Map<string, string>();
+  private categoryNameToCanonicalId = new Map<string, string>();
   categoryIcons: { [key: string]: string } = {
     'Starters': '🥗',
     'Burgers': '🍔',
@@ -261,7 +264,33 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   loadCategories() {
     this.http.get<Category[]>(`${environment.apiUrl}/categories`).subscribe({
       next: (data) => {
-        this.categories = data || [];
+        const normalizedCategories = (data || []).map((category: any) => ({
+          ...category,
+          id: this.normalizeId(category.id ?? category._id),
+          name: (category.name || category.categoryName || 'Category').toString().trim(),
+        }));
+
+        this.categoryIdToName.clear();
+        this.categoryNameToCanonicalId.clear();
+
+        for (const category of normalizedCategories) {
+          if (!category.id || !category.name) continue;
+
+          this.categoryIdToName.set(category.id, category.name);
+          const normalizedName = this.normalizeCategoryName(category.name);
+          if (!this.categoryNameToCanonicalId.has(normalizedName)) {
+            this.categoryNameToCanonicalId.set(normalizedName, category.id);
+          }
+        }
+
+        const seenNames = new Set<string>();
+        this.categories = normalizedCategories.filter((category) => {
+          const normalizedName = this.normalizeCategoryName(category.name);
+          if (seenNames.has(normalizedName)) return false;
+          seenNames.add(normalizedName);
+          return true;
+        });
+
         // Load menu items after categories are loaded
         this.loadMenuItems();
       },
@@ -277,15 +306,25 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   loadMenuItems() {
     this.http.get<any>(`${environment.apiUrl}/menu`).subscribe({
       next: (data) => {
-        const allItems = data || [];
-        // Deduplicate menu items by name across outlets
+        const allItems = Array.isArray(data) ? data : (data?.data || []);
+        // Deduplicate menu items by category + name across outlets.
         const seen = new Set<string>();
         this.menuItems = allItems.filter((item: any) => {
+          const rawCategoryId = this.normalizeId(item.categoryId ?? item.CategoryId ?? item.category?.id ?? item.category?._id);
+          const categoryName = (item.categoryName || item.category?.name || this.categoryIdToName.get(rawCategoryId) || '').toString().trim();
           const name = (item.name || item.catalogueName || '').toLowerCase();
-          if (!name || seen.has(name)) return false;
-          seen.add(name);
+          const dedupeKey = `${this.normalizeCategoryName(categoryName || rawCategoryId)}::${name}`;
+
+          if (!name || seen.has(dedupeKey)) return false;
+          seen.add(dedupeKey);
           return true;
-        });
+        }).map((item: any) => ({
+          ...item,
+          id: this.normalizeId(item.id ?? item._id),
+          categoryId: this.getCanonicalCategoryId(item),
+          categoryName: (item.categoryName || item.category?.name || this.categoryIdToName.get(this.normalizeId(item.categoryId ?? item.CategoryId ?? item.category?.id ?? item.category?._id)) || '').toString().trim(),
+          subCategoryId: this.normalizeId(item.subCategoryId ?? item.SubCategoryId ?? item.subCategory?.id ?? item.subCategory?._id),
+        }));
 
         // Update stats after menu items are loaded
         this.loadStats();
@@ -379,7 +418,16 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getMenuItemCount(categoryId: string): number {
-    return this.menuItems.filter(item => item.categoryId === categoryId).length;
+    const normalizedCategoryId = this.normalizeId(categoryId);
+    if (!normalizedCategoryId) return 0;
+
+    const categoryName = this.getCategoryNameById(normalizedCategoryId);
+    const normalizedCategoryName = this.normalizeCategoryName(categoryName);
+
+    return this.menuItems.filter(item =>
+      this.normalizeId((item as any).categoryId) === normalizedCategoryId ||
+      this.normalizeCategoryName((item as any).categoryName) === normalizedCategoryName
+    ).length;
   }
 
   getGalleryItems() {
@@ -388,8 +436,47 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getCategoryNameById(categoryId: string): string {
-    const category = this.categories.find(c => c.id === categoryId);
+    const normalizedCategoryId = this.normalizeId(categoryId);
+    if (this.categoryIdToName.has(normalizedCategoryId)) {
+      return this.categoryIdToName.get(normalizedCategoryId) || '';
+    }
+
+    const category = this.categories.find(c => this.normalizeId((c as any).id) === normalizedCategoryId);
     return category ? category.name : '';
+  }
+
+  private getCanonicalCategoryId(item: any): string {
+    const rawCategoryId = this.normalizeId(item.categoryId ?? item.CategoryId ?? item.category?.id ?? item.category?._id);
+    const rawCategoryName = (item.categoryName || item.category?.name || this.categoryIdToName.get(rawCategoryId) || '').toString().trim();
+
+    if (rawCategoryName) {
+      const normalizedName = this.normalizeCategoryName(rawCategoryName);
+      if (this.categoryNameToCanonicalId.has(normalizedName)) {
+        return this.categoryNameToCanonicalId.get(normalizedName) || rawCategoryId;
+      }
+    }
+
+    return rawCategoryId;
+  }
+
+  private normalizeCategoryName(name: string): string {
+    return (name || '').trim().toLowerCase();
+  }
+
+  private normalizeId(value: any): string {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+
+    if (typeof value === 'object') {
+      if (typeof value.$oid === 'string') return value.$oid;
+      if (typeof value.id === 'string') return value.id;
+      if (typeof value._id === 'string') return value._id;
+      if (value._id && typeof value._id === 'object' && typeof value._id.$oid === 'string') {
+        return value._id.$oid;
+      }
+    }
+
+    return String(value);
   }
 
   startTestimonialRotation() {
@@ -434,11 +521,11 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     return parts.join(', ');
   }
 
-  trackByIndex(index: number): number { return index; }
+  trackByIndex = (index: number): number => index;
 
-  trackById(index: number, item: any): string { return item._id; }
+  trackById = (index: number, item: any): string => item._id;
 
-  trackByObjId(index: number, item: any): string { return item.id; }
+  trackByObjId = (index: number, item: any): string => this.normalizeId(item.id ?? item._id) || String(index);
 
-  trackByName(index: number, item: any): string { return item.name; }
+  trackByName = (index: number, item: any): string => item.name;
 }

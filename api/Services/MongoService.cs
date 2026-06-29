@@ -5121,34 +5121,39 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         }).ToList();
     }
 
-    public async Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10, string? outletId = null)
+    public async Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10, string? outletId = null, bool includeWebSales = false)
     {
+        var safeLimit = limit <= 0 ? 10 : Math.Min(limit, 100);
+
         var filterBuilder = Builders<OnlineSale>.Filter;
-        var filter = filterBuilder.Eq(s => s.Rating, 5) &
-                     filterBuilder.Ne(s => s.Review, null) &
-                     filterBuilder.Ne(s => s.Review, "");
-
-        // Add outlet filter if provided
-        if (!string.IsNullOrWhiteSpace(outletId))
+        var filters = new List<FilterDefinition<OnlineSale>>
         {
-            filter &= filterBuilder.Eq(s => s.OutletId, outletId);
-        }
+            filterBuilder.Eq(s => s.Rating, 5m)
+        };
 
-        var sales = await _onlineSales
-            .Find(filter)
+        if (!string.IsNullOrWhiteSpace(outletId))
+            filters.Add(filterBuilder.Eq(s => s.OutletId, outletId));
+
+        var dbFilter = filters.Count > 0 ? filterBuilder.And(filters) : filterBuilder.Empty;
+
+        var dbFiveStar = await _onlineSales.Find(dbFilter)
             .SortByDescending(s => s.OrderAt)
-            .Limit(limit)
+            .Limit(safeLimit)
             .ToListAsync();
 
-        return sales.Select(s => new OnlineSaleResponse
+        var topFiveStarReviews = new List<OnlineSaleResponse>();
+
+        topFiveStarReviews.AddRange(dbFiveStar.Select(s => new OnlineSaleResponse
         {
             Id = s.Id?.ToString() ?? string.Empty,
             Platform = s.Platform,
             OrderId = s.OrderId,
-            CustomerName = s.CustomerName,
+            CustomerName = !string.IsNullOrWhiteSpace(s.CustomerName)
+                ? s.CustomerName
+                : "Anonymous",
             OrderAt = s.OrderAt,
             Distance = s.Distance,
-            OrderedItems = s.OrderedItems.Select(item => new OrderedItem
+            OrderedItems = (s.OrderedItems ?? new List<OrderedItem>()).Select(item => new OrderedItem
             {
                 Quantity = item.Quantity,
                 ItemName = item.ItemName,
@@ -5169,11 +5174,92 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             KPT = s.KPT,
             RWT = s.RWT,
             OrderMarking = s.OrderMarking,
-            Complain = s.Complain
-        }).ToList();
+            Complain = s.Complain,
+            CreatedAt = s.CreatedAt,
+            UpdatedAt = s.UpdatedAt,
+            UploadedBy = s.UploadedBy
+        }));
+
+        if (includeWebSales)
+        {
+            var reviewFilterBuilder = Builders<CustomerReview>.Filter;
+            var reviewFilters = new List<FilterDefinition<CustomerReview>>
+            {
+                reviewFilterBuilder.Eq(r => r.Rating, 5)
+            };
+
+            if (!string.IsNullOrWhiteSpace(outletId))
+                reviewFilters.Add(reviewFilterBuilder.Eq(r => r.OutletId, outletId));
+
+            var customerReviewFilter = reviewFilters.Count > 0
+                ? reviewFilterBuilder.And(reviewFilters)
+                : reviewFilterBuilder.Empty;
+
+            var customerFiveStar = await _customerReviews.Find(customerReviewFilter)
+                .SortByDescending(r => r.CreatedAt)
+                .Limit(safeLimit)
+                .ToListAsync();
+
+            var reviewOrderIds = customerFiveStar
+                .Select(r => r.OrderId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct()
+                .ToList();
+
+            var ordersById = reviewOrderIds.Count > 0
+                ? (await _orders.Find(Builders<Order>.Filter.In(o => o.Id, reviewOrderIds)).ToListAsync())
+                    .Where(o => !string.IsNullOrWhiteSpace(o.Id))
+                    .ToDictionary(o => o.Id!, o => o)
+                : new Dictionary<string, Order>();
+
+            foreach (var review in customerFiveStar)
+            {
+                ordersById.TryGetValue(review.OrderId, out var matchedOrder);
+
+                topFiveStarReviews.Add(new OnlineSaleResponse
+                {
+                    Id = review.Id ?? string.Empty,
+                    Platform = "Web Sales",
+                    OrderId = review.OrderId,
+                    CustomerName = !string.IsNullOrWhiteSpace(review.Username)
+                        ? review.Username
+                        : (!string.IsNullOrWhiteSpace(matchedOrder?.Username) ? matchedOrder!.Username : "Anonymous"),
+                    OrderAt = matchedOrder?.CreatedAt ?? review.CreatedAt,
+                    OrderedItems = matchedOrder?.Items?.Select(i => new OrderedItem
+                    {
+                        Quantity = i.Quantity,
+                        ItemName = i.Name,
+                        MenuItemId = i.MenuItemId
+                    }).ToList() ?? new List<OrderedItem>(),
+                    Rating = review.Rating,
+                    Review = string.IsNullOrWhiteSpace(review.Comment) ? null : review.Comment,
+                    BillSubTotal = matchedOrder?.Subtotal ?? 0,
+                    PackagingCharges = (matchedOrder?.Tax ?? 0) + (matchedOrder?.PlatformCharge ?? 0) + (matchedOrder?.DeliveryFee ?? 0),
+                    DiscountAmount = (matchedOrder?.DiscountAmount ?? 0) + (matchedOrder?.LoyaltyDiscountAmount ?? 0) + (matchedOrder?.WalletAmountUsed ?? 0),
+                    TotalCommissionable = matchedOrder?.Subtotal ?? 0,
+                    Payout = matchedOrder?.Total ?? 0,
+                    PlatformDeduction = 0,
+                    Distance = 0,
+                    Investment = 0,
+                    MiscCharges = 0,
+                    KPT = null,
+                    RWT = null,
+                    OrderMarking = null,
+                    Complain = null,
+                    CreatedAt = review.CreatedAt,
+                    UpdatedAt = review.UpdatedAt,
+                    UploadedBy = review.Username
+                });
+            }
+        }
+
+        return topFiveStarReviews
+            .OrderByDescending(s => s.OrderAt)
+            .Take(safeLimit)
+            .ToList();
     }
 
-    public async Task<List<DiscountCouponResponse>> GetUniqueDiscountCouponsAsync(string? outletId = null)
+    public async Task<List<DiscountCouponResponse>> GetUniqueDiscountCouponsAsync(string? outletId = null, bool includeWebSales = false)
     {
         // Get all discount coupon management records
         var couponManagement = await _discountCoupons.Find(_ => true).ToListAsync();
@@ -5182,58 +5268,42 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             c => new { c.IsActive, c.Id, c.MaxValue, c.DiscountPercentage }
         );
 
-        // Filter for sales that have discount coupons
-        var filter = Builders<OnlineSale>.Filter.And(
-            Builders<OnlineSale>.Filter.Ne(s => s.DiscountCoupon, null),
-            Builders<OnlineSale>.Filter.Ne(s => s.DiscountCoupon, "")
-        );
-        
-        if (!string.IsNullOrEmpty(outletId))
-        {
-            filter &= Builders<OnlineSale>.Filter.Eq(s => s.OutletId, outletId);
-        }
+        var sales = await GetOnlineSalesAsync(outletId: outletId, includeWebSales: includeWebSales);
 
-        // MongoDB aggregation: $match → $group by (coupon, platform) with stats
-        var groupStage = new BsonDocument("$group", new BsonDocument
-        {
-            { "_id", new BsonDocument { { "coupon", "$discountCoupon" }, { "platform", "$platform" } } },
-            { "usageCount", new BsonDocument("$sum", 1) },
-            { "totalDiscount", new BsonDocument("$sum", "$discountAmount") },
-            { "avgDiscount", new BsonDocument("$avg", "$discountAmount") },
-            { "firstUsed", new BsonDocument("$min", "$orderAt") },
-            { "lastUsed", new BsonDocument("$max", "$orderAt") }
-        });
-        var sortStage = new BsonDocument("$sort", new BsonDocument { { "_id.platform", 1 }, { "usageCount", -1 } });
-
-        var results = await _onlineSales.Aggregate()
-            .Match(filter)
-            .AppendStage<BsonDocument>(groupStage)
-            .AppendStage<BsonDocument>(sortStage)
-            .ToListAsync();
-
-        // Enrich aggregation results with coupon management data (in-memory join)
-        return results.Select(r =>
-        {
-            var coupon = r["_id"].AsBsonDocument["coupon"].AsString;
-            var platform = r["_id"].AsBsonDocument["platform"].AsString;
-            var key = $"{coupon}|{platform}";
-            var hasStatus = couponStatusMap.ContainsKey(key);
-
-            return new DiscountCouponResponse
+        var couponRows = sales
+            .Where(s => !string.IsNullOrWhiteSpace(s.DiscountCoupon))
+            .GroupBy(s => new
             {
-                Id = hasStatus ? couponStatusMap[key].Id : null,
-                CouponCode = coupon,
-                Platform = platform,
-                UsageCount = r["usageCount"].ToInt32(),
-                TotalDiscountAmount = r["totalDiscount"].ToDecimal(),
-                AverageDiscountAmount = r["avgDiscount"].ToDecimal(),
-                FirstUsed = r["firstUsed"].ToUniversalTime(),
-                LastUsed = r["lastUsed"].ToUniversalTime(),
-                IsActive = hasStatus ? couponStatusMap[key].IsActive : true,
-                MaxValue = hasStatus ? couponStatusMap[key].MaxValue : null,
-                DiscountPercentage = hasStatus ? couponStatusMap[key].DiscountPercentage : null
-            };
-        }).ToList();
+                Coupon = s.DiscountCoupon!.Trim(),
+                Platform = string.IsNullOrWhiteSpace(s.Platform) ? "Unknown" : s.Platform.Trim()
+            })
+            .Select(g =>
+            {
+                var ordered = g.OrderBy(x => x.OrderAt).ToList();
+                var key = $"{g.Key.Coupon}|{g.Key.Platform}";
+                var hasStatus = couponStatusMap.ContainsKey(key);
+
+                var totalDiscount = g.Sum(x => x.DiscountAmount);
+                return new DiscountCouponResponse
+                {
+                    Id = hasStatus ? couponStatusMap[key].Id : null,
+                    CouponCode = g.Key.Coupon,
+                    Platform = g.Key.Platform,
+                    UsageCount = g.Count(),
+                    TotalDiscountAmount = totalDiscount,
+                    AverageDiscountAmount = g.Any() ? totalDiscount / g.Count() : 0,
+                    FirstUsed = ordered.First().OrderAt.ToUniversalTime(),
+                    LastUsed = ordered.Last().OrderAt.ToUniversalTime(),
+                    IsActive = hasStatus ? couponStatusMap[key].IsActive : true,
+                    MaxValue = hasStatus ? couponStatusMap[key].MaxValue : null,
+                    DiscountPercentage = hasStatus ? couponStatusMap[key].DiscountPercentage : null
+                };
+            })
+            .OrderBy(r => r.Platform)
+            .ThenByDescending(r => r.UsageCount)
+            .ToList();
+
+        return couponRows;
     }
 
     public async Task<List<DiscountCouponResponse>> GetActiveDiscountCouponsAsync()

@@ -669,11 +669,12 @@ public class OnlineSaleFunction
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var limitStr = query["limit"] ?? "10";
             var limit = int.TryParse(limitStr, out var l) ? l : 10;
+            var includeWebSales = bool.TryParse(query["includeWebSales"], out var includeWeb) && includeWeb;
 
             // Extract outlet ID from request header (optional)
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
 
-            var reviews = await _mongo.GetFiveStarReviewsAsync(limit, outletId);
+            var reviews = await _mongo.GetFiveStarReviewsAsync(limit, outletId, includeWebSales);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = reviews });
@@ -698,8 +699,10 @@ public class OnlineSaleFunction
             var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var includeWebSales = bool.TryParse(query["includeWebSales"], out var includeWeb) && includeWeb;
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var coupons = await _mongo.GetUniqueDiscountCouponsAsync(outletId);
+            var coupons = await _mongo.GetUniqueDiscountCouponsAsync(outletId, includeWebSales);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = coupons });
