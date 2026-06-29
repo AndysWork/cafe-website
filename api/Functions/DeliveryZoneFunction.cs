@@ -35,6 +35,13 @@ public class DeliveryZoneFunction
                 return forbidden;
             }
 
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet context is required" });
+                return badRequest;
+            }
+
             var zones = await _mongo.GetDeliveryZonesAsync(outletId);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(zones);
@@ -170,11 +177,24 @@ public class DeliveryZoneFunction
                 return forbidden;
             }
 
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Outlet context is required" });
+                return badRequest;
+            }
+
             var subtotalStr = req.Query["subtotal"];
+            if (string.IsNullOrWhiteSpace(subtotalStr))
+            {
+                // Backward compatibility for older clients.
+                subtotalStr = req.Query["orderAmount"];
+            }
+
             if (!decimal.TryParse(subtotalStr, out var subtotal))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid subtotal" });
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid subtotal or orderAmount" });
                 return badRequest;
             }
 

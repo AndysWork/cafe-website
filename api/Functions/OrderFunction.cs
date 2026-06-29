@@ -113,6 +113,42 @@ public class OrderFunction
                 return forbidden;
             }
 
+            var orderType = string.IsNullOrWhiteSpace(orderRequest.OrderType)
+                ? "delivery"
+                : orderRequest.OrderType.Trim().ToLowerInvariant();
+
+            if (orderType != "delivery" && orderType != "pickup" && orderType != "dine-in")
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid order type" });
+                return badRequest;
+            }
+
+            var normalizedPhone = orderRequest.PhoneNumber?.Trim() ?? string.Empty;
+            if (orderType == "delivery")
+            {
+                if (string.IsNullOrWhiteSpace(orderRequest.DeliveryAddress))
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Delivery address is required for delivery orders" });
+                    return badRequest;
+                }
+
+                if (string.IsNullOrWhiteSpace(normalizedPhone))
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Phone number is required for delivery orders" });
+                    return badRequest;
+                }
+            }
+
+            if (orderType == "dine-in" && string.IsNullOrWhiteSpace(orderRequest.TableNumber))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Table number is required for dine-in orders" });
+                return badRequest;
+            }
+
             // Validate and build order items
             var orderItems = new List<OrderItem>();
             decimal subtotal = 0;
@@ -140,6 +176,13 @@ public class OrderFunction
                 {
                     var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                     await badRequest.WriteAsJsonAsync(new { error = $"Menu item {item.MenuItemId} not found" });
+                    return badRequest;
+                }
+
+                if (!menuItem.IsAvailable)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = $"{menuItem.Name} is currently unavailable" });
                     return badRequest;
                 }
 
@@ -218,7 +261,8 @@ public class OrderFunction
                 }
             }
 
-            var total = Math.Max(0, subtotal + tax + platformCharge - discountAmount - loyaltyDiscountAmount);
+            var deliveryFee = orderType == "delivery" ? Math.Max(0, orderRequest.DeliveryFee) : 0;
+            var total = Math.Max(0, subtotal + tax + platformCharge + deliveryFee - discountAmount - loyaltyDiscountAmount);
 
             // Get user email
             var user = await _userRepo.GetUserByIdAsync(userId);
@@ -287,13 +331,17 @@ public class OrderFunction
                 RazorpayOrderId = razorpayOrderId,
                 RazorpayPaymentId = razorpayPaymentId,
                 RazorpaySignature = razorpaySignature,
-                DeliveryAddress = orderRequest.DeliveryAddress,
-                PhoneNumber = orderRequest.PhoneNumber,
+                DeliveryAddress = orderType == "delivery" ? orderRequest.DeliveryAddress?.Trim() : null,
+                PhoneNumber = string.IsNullOrWhiteSpace(normalizedPhone) ? null : normalizedPhone,
                 Notes = orderRequest.Notes,
                 CouponCode = couponCode,
                 DiscountAmount = discountAmount,
                 LoyaltyPointsUsed = loyaltyPointsUsed,
                 LoyaltyDiscountAmount = loyaltyDiscountAmount,
+                DeliveryFee = deliveryFee,
+                OrderType = orderType,
+                TableNumber = orderType == "dine-in" ? orderRequest.TableNumber?.Trim() : null,
+                WalletAmountUsed = Math.Max(0, orderRequest.WalletAmountUsed),
                 ScheduledFor = scheduledFor,
                 IsScheduled = isScheduled,
                 CreatedAt = MongoService.GetIstNow(),
@@ -689,7 +737,7 @@ public class OrderFunction
             }
 
             // Can only cancel pending or confirmed orders
-            if (order.Status != "pending" && order.Status != "confirmed")
+            if (order.Status != "pending" && order.Status != "confirmed" && order.Status != "scheduled")
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = $"Cannot cancel order with status '{order.Status}'" });

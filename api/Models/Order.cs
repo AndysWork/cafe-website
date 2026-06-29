@@ -184,6 +184,9 @@ public class CreateOrderRequest
 
     public DateTime? ScheduledFor { get; set; }
 
+    [Range(0, 10000, ErrorMessage = "Delivery fee must be between 0 and 10,000")]
+    public decimal DeliveryFee { get; set; }
+
     public decimal WalletAmountUsed { get; set; }
 
     [StringLength(20, ErrorMessage = "Table number cannot exceed 20 characters")]

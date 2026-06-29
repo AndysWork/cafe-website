@@ -65,7 +65,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   // Order type
   orderType: 'delivery' | 'pickup' | 'dine-in' = 'delivery';
-  tableNumber: number | null = null;
+  tableNumber = '';
 
   // Scheduling
   scheduleOrder = false;
@@ -183,21 +183,37 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   placeOrder() {
-    // Validate form
-    if (!this.deliveryAddress.trim()) {
-      this.errorMessage = 'Please enter a delivery address';
-      return;
-    }
-
-    if (!this.phoneNumber.trim()) {
-      this.errorMessage = 'Please enter a phone number';
-      return;
-    }
-
-    // Validate phone number format (basic)
+    const normalizedPhone = this.phoneNumber.trim().replace(/\s/g, '');
     const phoneRegex = /^[0-9]{10}$/;
-    if (!phoneRegex.test(this.phoneNumber.replace(/\s/g, ''))) {
-      this.errorMessage = 'Please enter a valid 10-digit phone number';
+
+    // Delivery requires both address and phone.
+    if (this.orderType === 'delivery') {
+      if (!this.deliveryAddress.trim()) {
+        this.errorMessage = 'Please enter a delivery address';
+        return;
+      }
+
+      if (!normalizedPhone) {
+        this.errorMessage = 'Please enter a phone number';
+        return;
+      }
+
+      if (!phoneRegex.test(normalizedPhone)) {
+        this.errorMessage = 'Please enter a valid 10-digit phone number';
+        return;
+      }
+    } else {
+      // Non-delivery orders can proceed without address.
+      this.deliveryAddress = '';
+
+      if (normalizedPhone && !phoneRegex.test(normalizedPhone)) {
+        this.errorMessage = 'Please enter a valid 10-digit phone number';
+        return;
+      }
+    }
+
+    if (this.orderType === 'dine-in' && !this.tableNumber.trim()) {
+      this.errorMessage = 'Please enter your table number';
       return;
     }
 
@@ -331,7 +347,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         quantity: item.quantity
       })),
       deliveryAddress: this.orderType === 'delivery' ? this.deliveryAddress.trim() : undefined,
-      phoneNumber: this.phoneNumber.trim(),
+      phoneNumber: this.phoneNumber.trim() || undefined,
       notes: this.notes.trim() || undefined,
       paymentMethod: this.paymentMethod,
       razorpayPaymentId,
@@ -343,7 +359,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       scheduledFor: this.getScheduledDateTime(),
       deliveryFee: this.orderType === 'delivery' ? this.deliveryFee : undefined,
       walletAmountUsed: this.useWallet ? this.walletAmountToUse : undefined,
-      tableNumber: this.orderType === 'dine-in' && this.tableNumber ? this.tableNumber : undefined
+      tableNumber: this.orderType === 'dine-in' && this.tableNumber.trim() ? this.tableNumber.trim() : undefined
     };
 
     // Submit order
@@ -389,7 +405,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       return;
     }
     this.calculatingFee = true;
-    this.deliveryZoneService.calculateDeliveryFee(0, this.cart.subtotal).subscribe({
+    this.deliveryZoneService.calculateDeliveryFee(this.cart.subtotal).subscribe({
       next: (res: any) => {
         this.deliveryFee = res.deliveryFee || 0;
         this.calculatingFee = false;

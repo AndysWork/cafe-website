@@ -48,7 +48,20 @@
         <!-- Dine-in Table Number -->
         <div *ngIf="orderType === 'dine-in'" class="form-group">
           <label>Table Number</label>
-          <input type="number" [(ngModel)]="tableNumber" name="tableNumber" placeholder="Enter table number" min="1" />
+          <input type="text" [(ngModel)]="tableNumber" name="tableNumber" placeholder="Enter table number" maxlength="20" required />
+        </div>
+
+        <div *ngIf="orderType !== 'delivery'" class="form-group">
+          <label for="phoneNumber">Contact Phone Number (Optional)</label>
+          <input
+            type="tel"
+            id="phoneNumber"
+            name="phoneNumber"
+            [(ngModel)]="phoneNumber"
+            placeholder="Enter your 10-digit phone number"
+            pattern="[0-9]{10}"
+            [disabled]="isSubmitting" />
+          <small>Used for pickup/dine-in updates and support</small>
         </div>
 
         <!-- Saved Addresses (delivery only) -->
@@ -186,7 +199,7 @@
 
         <!-- Wallet Section -->
         <div *ngIf="walletData?.balance && walletData!.balance > 0" class="wallet-section">
-          <label class="section-label">💰 Wallet Balance: ₹{{ walletData?.balance | number:'1.0-0' }}</label>
+          <label class="section-label">💰 Wallet Balance: ₹{{ walletData!.balance | number:'1.0-0' }}</label>
           <div class="wallet-toggle">
             <label class="checkbox-label">
               <input type="checkbox" [(ngModel)]="useWallet" name="useWallet" (change)="toggleWallet()" />

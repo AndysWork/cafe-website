@@ -44,7 +44,7 @@ export interface Order {
   orderType?: string;
   deliveryFee?: number;
   walletAmountUsed?: number;
-  tableNumber?: number;
+  tableNumber?: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -68,7 +68,7 @@ export interface CreateOrderRequest {
   scheduledFor?: string;
   deliveryFee?: number;
   walletAmountUsed?: number;
-  tableNumber?: number;
+  tableNumber?: string;
 }
 
 export interface UpdateOrderStatusRequest {

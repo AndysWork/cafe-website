@@ -55,8 +55,8 @@ export class DeliveryZoneService {
     );
   }
 
-  calculateDeliveryFee(distance: number, orderAmount: number): Observable<DeliveryFeeResult> {
-    return this.http.get<DeliveryFeeResult>(`${this.apiUrl}/delivery-zones/calculate-fee?distance=${distance}&orderAmount=${orderAmount}`).pipe(
+  calculateDeliveryFee(subtotal: number): Observable<DeliveryFeeResult> {
+    return this.http.get<DeliveryFeeResult>(`${this.apiUrl}/delivery-zones/calculate-fee?subtotal=${subtotal}`).pipe(
       catchError(handleServiceError('DeliveryZoneService.calculateDeliveryFee'))
     );
   }
