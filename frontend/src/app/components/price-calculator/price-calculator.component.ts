@@ -937,6 +937,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     const params = new URLSearchParams();
     params.append('startDate', getIstInputDate(startDate));
     params.append('endDate', getIstInputDate(endDate));
+    params.append('includeWebSales', 'true');
 
     this.http.get<any>(`${environment.apiUrl}/online-sales/kpt-analysis?${params.toString()}`)
       .subscribe({

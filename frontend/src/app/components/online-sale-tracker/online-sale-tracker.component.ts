@@ -82,7 +82,7 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
   private uiStore = inject(UIStore);
   private outletSubscription?: Subscription;
 
-  selectedPlatform: 'Zomato' | 'Swiggy' = 'Zomato';
+  selectedPlatform: 'Zomato' | 'Swiggy' | 'Web Sales' = 'Zomato';
   selectedFile: File | null = null;
   isUploading = false;
   uploadMessage = '';
@@ -217,7 +217,12 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
   }
 
   onPlatformChange(): void {
+    this.selectedFile = null;
     this.loadData();
+  }
+
+  get isWebSalesSelected(): boolean {
+    return this.selectedPlatform === 'Web Sales';
   }
 
   onFileSelected(event: any): void {
@@ -241,6 +246,12 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
   }
 
   async uploadFile(): Promise<void> {
+    if (this.isWebSalesSelected) {
+      this.uploadMessage = 'Web Sales data is synced from website orders and cannot be uploaded via Excel.';
+      this.uploadSuccess = false;
+      return;
+    }
+
     if (!this.selectedFile) {
       this.uploadMessage = 'Please select a file first';
       this.uploadSuccess = false;
@@ -342,6 +353,7 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
         startDate: this.startDate,
         endDate: this.endDate,
       });
+      params.append('includeWebSales', 'true');
 
       const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
 
@@ -383,6 +395,7 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
         startDate: this.startDate,
         endDate: this.endDate,
       });
+      params.append('includeWebSales', 'true');
 
       const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
 
@@ -469,6 +482,12 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
   }
 
   async deleteSalesByDateRange(): Promise<void> {
+    if (this.isWebSalesSelected) {
+      this.deleteSuccess = false;
+      this.deleteMessage = 'Web Sales records come from website orders and are not deletable from Online Sales Tracker.';
+      return;
+    }
+
     if (!confirm(`Are you sure you want to delete all ${this.selectedPlatform} sales from ${this.deleteStartDate} to ${this.deleteEndDate}? This action cannot be undone.`)) {
       return;
     }
@@ -672,6 +691,12 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
   }
 
   async deleteSalesData(): Promise<void> {
+    if (this.isWebSalesSelected) {
+      this.uploadSuccess = false;
+      this.uploadMessage = 'Web Sales records come from website orders and are not deletable from Online Sales Tracker.';
+      return;
+    }
+
     const confirmMessage = `Are you sure you want to delete all ${this.selectedPlatform} sales from ${this.startDate} to ${this.endDate}?\n\nThis will delete ${this.sales.length} order(s). This action cannot be undone!`;
 
     if (!confirm(confirmMessage)) {
@@ -781,6 +806,11 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
   }
 
   openAddChargeModal(): void {
+    if (this.isWebSalesSelected) {
+      this.uiStore.error('Platform monthly charges are not applicable for Web Sales.');
+      return;
+    }
+
     this.isEditingCharge = false;
     this.currentChargeId = null;
     this.chargeFormData = {

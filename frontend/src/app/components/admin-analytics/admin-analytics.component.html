@@ -1344,6 +1344,17 @@
             <span class="card-subtext">No orders in 60+ days</span>
           </div>
         </div>
+
+        <div class="summary-card">
+          <div class="card-icon">🌐</div>
+          <div class="card-content">
+            <h3>Web Sales Users</h3>
+            <p class="card-value">{{ customerAnalytics.webSalesUsersCount }}</p>
+            <span class="card-subtext"
+              >{{ customerAnalytics.webSalesOrders }} website orders</span
+            >
+          </div>
+        </div>
       </div>
 
       <!-- Platform Preference -->
@@ -1585,6 +1596,93 @@
         </div>
       </div>
 
+      <!-- Web Sales Users: Top Spenders -->
+      <div class="insight-section" *ngIf="getTopWebSalesUsersBySpending().length > 0">
+        <h3>🌐 Top Web Sales Users by Spending</h3>
+        <div class="customer-table-wrapper">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Customer Name</th>
+                <th>Orders</th>
+                <th>Total Spent</th>
+                <th>Avg Order</th>
+                <th>Rating</th>
+                <th>Platforms</th>
+                <th>Last Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let customer of getTopWebSalesUsersBySpending(); let i = index; trackBy: trackByName">
+                <td class="rank">{{ i + 1 }}</td>
+                <td class="customer-name">{{ customer.name }}</td>
+                <td class="text-center">{{ customer.orders }}</td>
+                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
+                <td class="amount">{{ formatCurrency(customer.avgOrderValue) }}</td>
+                <td class="text-center">
+                  <span *ngIf="customer.avgRating > 0" class="rating"
+                    >{{ customer.avgRating | number:'1.1-1' }} ⭐</span
+                  >
+                  <span *ngIf="customer.avgRating === 0" class="no-rating"
+                    >N/A</span
+                  >
+                </td>
+                <td>
+                  <span
+                    *ngFor="let platform of customer.platforms; trackBy: trackByIndex"
+                    [class]="'platform-badge ' + platform.toLowerCase()"
+                  >
+                    {{ platform }}
+                  </span>
+                </td>
+                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Web Sales Users: Repeat -->
+      <div class="insight-section" *ngIf="getRepeatWebSalesUsers().length > 0">
+        <h3>🌐🔄 Repeat Web Sales Users ({{ getRepeatWebSalesUsers().length }})</h3>
+        <div class="customer-table-wrapper">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Customer Name</th>
+                <th>Orders</th>
+                <th>Total Spent</th>
+                <th>Avg Order</th>
+                <th>Platforms</th>
+                <th>Last Order</th>
+                <th>Days Ago</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let customer of getRepeatWebSalesUsers(); let i = index; trackBy: trackByName">
+                <td class="rank">{{ i + 1 }}</td>
+                <td class="customer-name">{{ customer.name }}</td>
+                <td class="text-center highlight">{{ customer.orders }}</td>
+                <td class="amount">{{ formatCurrency(customer.totalSpent) }}</td>
+                <td class="amount">{{ formatCurrency(customer.avgOrderValue) }}</td>
+                <td>
+                  <span
+                    *ngFor="let platform of customer.platforms; trackBy: trackByIndex"
+                    [class]="'platform-badge ' + platform.toLowerCase()"
+                  >
+                    {{ platform }}
+                  </span>
+                </td>
+                <td class="date-cell">{{ formatShortDate(customer.lastOrderDate.toString()) }}</td>
+                <td class="text-center">{{ customer.daysSinceLastOrder }}d</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- All Customers with Search -->
       <div class="insight-section">
         <div
@@ -1625,6 +1723,8 @@
               <option value="single">Single Order</option>
               <option value="active">Active (30d)</option>
               <option value="inactive">Inactive (60d+)</option>
+              <option value="web-sales-users">Web Sales Users (Any)</option>
+              <option value="web-sales-only">Web Sales Only</option>
             </select>
           </div>
         </div>

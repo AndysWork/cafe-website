@@ -1121,7 +1121,10 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       if (sale.rating && sale.rating > 0) {
         existing.ratings.push(sale.rating);
       }
-      existing.platforms.add(sale.platform);
+      const platformName = (sale.platform || '').toString().trim();
+      if (platformName) {
+        existing.platforms.add(platformName);
+      }
 
       // Track last order date
       const orderDate = new Date(sale.orderAt);
@@ -1200,6 +1203,16 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       Both: customers.filter((c) => c.platforms.length > 1).length,
     };
 
+    // Web Sales user tracking
+    // Web sales users: customers who placed at least one website order.
+    const webSalesUsers = customers.filter((c) => c.platforms.includes('Web Sales'));
+    const webSalesOnlyUsers = customers.filter(
+      (c) => c.platforms.length === 1 && c.platforms.includes('Web Sales')
+    );
+    const webSalesOrders = salesWithCustomers.filter(
+      (s) => (s.platform || '').toString().trim().toLowerCase() === 'web sales'
+    ).length;
+
     // Recent vs inactive customers
     const recentCustomers = customers.filter(
       (c) => c.daysSinceLastOrder <= 30
@@ -1219,6 +1232,9 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       topCustomersByOrders,
       topRatedCustomers,
       platformCounts,
+      webSalesUsersCount: webSalesUsers.length,
+      webSalesOnlyUsersCount: webSalesOnlyUsers.length,
+      webSalesOrders,
       recentCustomers,
       inactiveCustomers,
       customers,
@@ -1231,6 +1247,35 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
 
   getTopItems(items: string[], limit: number): string[] {
     return this.calcService.getTopItems(items, limit);
+  }
+
+  private hasWebSalesPlatform(customer: any): boolean {
+    const platforms = Array.isArray(customer?.platforms) ? customer.platforms : [];
+    return platforms.some(
+      (p: string) => (p || '').toString().trim().toLowerCase() === 'web sales'
+    );
+  }
+
+  getWebSalesUsers(): any[] {
+    if (!this.customerAnalytics || !this.customerAnalytics.customers) {
+      return [];
+    }
+
+    return this.customerAnalytics.customers.filter((c: any) => this.hasWebSalesPlatform(c));
+  }
+
+  getTopWebSalesUsersBySpending(limit: number = 10): any[] {
+    return [...this.getWebSalesUsers()]
+      .sort((a: any, b: any) => b.totalSpent - a.totalSpent)
+      .slice(0, limit);
+  }
+
+  getRepeatWebSalesUsers(limit?: number): any[] {
+    const repeatUsers = this.getWebSalesUsers()
+      .filter((c: any) => c.orders > 1)
+      .sort((a: any, b: any) => b.orders - a.orders);
+
+    return typeof limit === 'number' ? repeatUsers.slice(0, limit) : repeatUsers;
   }
 
   // Get all repeat customers (more than 1 order)
@@ -1273,6 +1318,14 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         break;
       case 'inactive':
         filtered = filtered.filter((c: any) => c.daysSinceLastOrder > 60);
+        break;
+      case 'web-sales-users':
+        filtered = filtered.filter((c: any) => c.platforms.includes('Web Sales'));
+        break;
+      case 'web-sales-only':
+        filtered = filtered.filter(
+          (c: any) => c.platforms.length === 1 && c.platforms.includes('Web Sales')
+        );
         break;
       default:
         // 'all' - no additional filter

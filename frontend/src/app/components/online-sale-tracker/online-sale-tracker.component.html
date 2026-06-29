@@ -1,7 +1,10 @@
 <div class="online-sale-tracker">
   <div class="header">
     <h1>📱 Online Sales Tracker</h1>
-    <p class="subtitle">Track Zomato & Swiggy Orders</p>
+    <p class="subtitle">Track Zomato, Swiggy, and Web Sales orders</p>
+    <div *ngIf="isWebSalesSelected" class="web-sales-source-badge">
+      Data Source: Website Orders Sync
+    </div>
   </div>
 
   <!-- Platform Selection & Upload -->
@@ -27,6 +30,20 @@
         />
         <span class="platform-label swiggy">🍕 Swiggy</span>
       </label>
+      <label>
+        <input
+          type="radio"
+          name="platform"
+          value="Web Sales"
+          [(ngModel)]="selectedPlatform"
+          (change)="onPlatformChange()"
+        />
+        <span class="platform-label">🌐 Web Sales</span>
+      </label>
+    </div>
+
+    <div *ngIf="isWebSalesSelected" class="message success">
+      Web Sales data is auto-synced from website orders. Upload/Delete actions are disabled.
     </div>
 
     <div class="upload-controls">
@@ -36,10 +53,11 @@
         accept=".xlsx,.xls"
         (change)="onFileSelected($event)"
         class="file-input"
+        [disabled]="isWebSalesSelected"
       />
       <button
         (click)="uploadFile()"
-        [disabled]="!selectedFile || isUploading || isDeleting"
+        [disabled]="!selectedFile || isUploading || isDeleting || isWebSalesSelected"
         class="btn btn-primary upload-btn"
       >
         <span *ngIf="!isUploading">📤 Upload {{ selectedPlatform }} Excel</span>
@@ -47,7 +65,7 @@
       </button>
       <button
         (click)="deleteSalesData()"
-        [disabled]="isUploading || isDeleting || sales.length === 0"
+        [disabled]="isUploading || isDeleting || sales.length === 0 || isWebSalesSelected"
         class="btn btn-danger delete-btn"
         title="Delete all {{ selectedPlatform }} sales in the selected date range"
       >
@@ -130,7 +148,7 @@
     <button (click)="exportToCSV()" class="btn btn-secondary export-btn">
       📊 Export to CSV
     </button>
-    <button (click)="toggleDeleteSection()" class="btn btn-danger export-btn">
+    <button (click)="toggleDeleteSection()" class="btn btn-danger export-btn" [disabled]="isWebSalesSelected">
       🗑️ Delete Sales
     </button>
   </div>
@@ -169,7 +187,7 @@
       <button
         (click)="deleteSalesByDateRange()"
         class="btn btn-danger"
-        [disabled]="isDeleting"
+        [disabled]="isDeleting || isWebSalesSelected"
       >
         {{ isDeleting ? 'Deleting...' : 'Delete Sales' }}
       </button>
@@ -195,14 +213,17 @@
     <div class="section-header" (click)="togglePlatformCharges()">
       <h2>💳 Monthly Platform Charges - {{ selectedPlatform }}</h2>
       <div class="header-actions">
-        <button (click)="openAddChargeModal(); $event.stopPropagation()" class="btn btn-primary">
+        <button (click)="openAddChargeModal(); $event.stopPropagation()" class="btn btn-primary" [disabled]="isWebSalesSelected">
           ➕ Add Charge
         </button>
         <span class="toggle-icon">{{ showPlatformCharges ? '▼' : '▶' }}</span>
       </div>
     </div>
     <div *ngIf="showPlatformCharges" class="charges-container">
-      <div *ngIf="getChargesByPlatform().length === 0" class="empty-state-small">
+      <div *ngIf="isWebSalesSelected" class="empty-state-small">
+        <p>Monthly platform charges are not applicable for Web Sales.</p>
+      </div>
+      <div *ngIf="!isWebSalesSelected && getChargesByPlatform().length === 0" class="empty-state-small">
         <p>No charges recorded for {{ selectedPlatform }}</p>
       </div>
       <div class="charges-grid">
