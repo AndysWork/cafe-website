@@ -77,10 +77,10 @@ public interface IFinanceRepository
     Task<object> GetDailySalesSummaryForReconciliationAsync(DateTime date, string? outletId = null);
 
     // Online Sales
-    Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null, int? page = null, int? pageSize = null);
-    Task<long> GetOnlineSalesCountAsync(string? platform = null, string? outletId = null);
-    Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null);
-    Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate, string? outletId = null);
+    Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null, int? page = null, int? pageSize = null, bool includeWebSales = false);
+    Task<long> GetOnlineSalesCountAsync(string? platform = null, string? outletId = null, bool includeWebSales = false);
+    Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false);
+    Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false);
     Task<List<OnlineSaleResponse>> GetFiveStarReviewsAsync(int limit = 10, string? outletId = null);
     Task<List<DiscountCouponResponse>> GetUniqueDiscountCouponsAsync(string? outletId = null);
     Task<List<DiscountCouponResponse>> GetActiveDiscountCouponsAsync();

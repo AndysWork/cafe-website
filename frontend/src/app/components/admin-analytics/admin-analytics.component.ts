@@ -80,7 +80,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
   // Online Sales Analytics
   onlineAnalytics: any = null;
   onlineLoading = false;
-  selectedPlatform: 'All' | 'Zomato' | 'Swiggy' = 'All';
+  selectedPlatform: 'All' | 'Zomato' | 'Swiggy' | 'Web Sales' = 'All';
 
   // Customer Analytics
   customerAnalytics: any = null;
@@ -382,7 +382,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     Promise.all([
       this.http
         .get<any>(
-          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`
+          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}&includeWebSales=true`
         )
         .toPromise(),
       this.platformChargeService.getAllPlatformCharges().toPromise(),
@@ -398,7 +398,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       });
   }
 
-  switchPlatform(platform: 'All' | 'Zomato' | 'Swiggy') {
+  switchPlatform(platform: 'All' | 'Zomato' | 'Swiggy' | 'Web Sales') {
     this.selectedPlatform = platform;
   }
 
@@ -414,11 +414,15 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     const swiggySales = sales.filter(
       (s) => s.platform?.toLowerCase() === 'swiggy'
     );
+    const webSales = sales.filter(
+      (s) => s.platform?.toLowerCase() === 'web sales'
+    );
 
     this.onlineAnalytics = {
       all: this.calcService.calculatePlatformMetrics(sales, 'All', platformCharges, this.dateRange),
       zomato: this.calcService.calculatePlatformMetrics(zomatoSales, 'Zomato', platformCharges, this.dateRange),
       swiggy: this.calcService.calculatePlatformMetrics(swiggySales, 'Swiggy', platformCharges, this.dateRange),
+      webSales: this.calcService.calculatePlatformMetrics(webSales, 'Web Sales', platformCharges, this.dateRange),
     };
   }
 
@@ -462,7 +466,8 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
 
     if (this.selectedPlatform === 'All') return this.onlineAnalytics.all;
     if (this.selectedPlatform === 'Zomato') return this.onlineAnalytics.zomato;
-    return this.onlineAnalytics.swiggy;
+    if (this.selectedPlatform === 'Swiggy') return this.onlineAnalytics.swiggy;
+    return this.onlineAnalytics.webSales;
   }
 
   formatShortDate(date: string): string {
@@ -560,7 +565,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         .toPromise(),
       this.http
         .get(
-          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`
+          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}&includeWebSales=true`
         )
         .toPromise(),
       // Previous period for comparison
@@ -576,7 +581,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         .toPromise(),
       this.http
         .get(
-          `${environment.apiUrl}/online-sales/date-range?startDate=${prevStartStr}&endDate=${prevEndStr}`
+          `${environment.apiUrl}/online-sales/date-range?startDate=${prevStartStr}&endDate=${prevEndStr}&includeWebSales=true`
         )
         .toPromise(),
     ])
@@ -692,6 +697,9 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     const swiggySales = onlineSales.filter(
       (s) => s.platform?.toLowerCase() === 'swiggy'
     );
+    const webSales = onlineSales.filter(
+      (s) => s.platform?.toLowerCase() === 'web sales'
+    );
 
 
     const zomatoIncome = zomatoSales.reduce((sum, s) => {
@@ -710,6 +718,15 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         (s.platformDeduction || 0);
       return sum + netPayout;
     }, 0);
+    const webSalesIncome = webSales.reduce((sum, s) => {
+      const netPayout =
+        (s.billSubTotal || 0) +
+        (s.packagingCharges || 0) -
+        (s.discountAmount || 0) -
+        (s.platformDeduction || 0);
+      return sum + netPayout;
+    }, 0);
+    const webSalesOrders = webSales.length;
 
 
     // Calculate total expenses
@@ -767,13 +784,15 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         const swiggyIncomeAfterCharges = swiggyIncome - swiggyMonthlyCharges;
         const zomatoSwiggyIncomeAfterCharges =
           zomatoIncomeAfterCharges + swiggyIncomeAfterCharges;
+        const totalPlatformIncomeAfterCharges =
+          zomatoSwiggyIncomeAfterCharges + webSalesIncome;
 
 
         // Recalculate revenue after deducting monthly charges from platform income
         const totalRevenueAfterCharges =
           totalCashCollection +
           totalOnlineCollection +
-          zomatoSwiggyIncomeAfterCharges;
+          totalPlatformIncomeAfterCharges;
 
         // Recalculate totals with proportional monthly expenses
         const totalExpensesWithMonthly =
@@ -791,11 +810,13 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
           zomatoIncome: zomatoIncomeAfterCharges,
           swiggyIncome: swiggyIncomeAfterCharges,
           zomatoSwiggyIncome: zomatoSwiggyIncomeAfterCharges,
-          onlinePlatformCollection: zomatoSwiggyIncomeAfterCharges,
+          webSalesIncome,
+          webSalesOrders,
+          onlinePlatformCollection: totalPlatformIncomeAfterCharges,
           totalCollection:
             totalCashCollection +
             totalOnlineCollection +
-            zomatoSwiggyIncomeAfterCharges,
+            totalPlatformIncomeAfterCharges,
           totalRevenue: totalRevenueAfterCharges,
           totalExpenses: totalExpensesWithMonthly,
           regularExpenses: totalExpenses,
@@ -874,8 +895,8 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       0
     );
 
-    // Online platform collection = Zomato/Swiggy income
-    const onlinePlatformCollection = zomatoSwiggyIncome;
+    // Online platform collection = Zomato/Swiggy + Web Sales income
+    const onlinePlatformCollection = zomatoSwiggyIncome + webSalesIncome;
 
     // Calculate total revenue based on actual collections
     const totalRevenue =
@@ -930,7 +951,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
         0
       );
 
-      const prevZomatoSwiggyIncome = prevOnlineSales.reduce((sum, s) => {
+      const prevPlatformIncome = prevOnlineSales.reduce((sum, s) => {
         const netPayout =
           (s.billSubTotal || 0) +
           (s.packagingCharges || 0) -
@@ -942,7 +963,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       const prevTotalRevenue =
         prevTotalCashCollection +
         prevTotalOnlineCollection +
-        prevZomatoSwiggyIncome;
+        prevPlatformIncome;
       const prevNetProfitLoss = prevTotalRevenue - prevTotalExpenses;
       const prevProfitMargin =
         prevTotalRevenue > 0 ? (prevNetProfitLoss / prevTotalRevenue) * 100 : 0;
@@ -971,6 +992,8 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       zomatoSwiggyFreebies,
       zomatoIncome,
       swiggyIncome,
+      webSalesIncome,
+      webSalesOrders,
 
       // Expenses (will be updated with operational expenses and platform charges)
       totalExpenses,
@@ -1024,7 +1047,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     // Load online sales for the date range
     this.http
       .get(
-        `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`
+        `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}&includeWebSales=true`
       )
       .toPromise()
       .then((response: any) => {
@@ -1171,6 +1194,9 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       Swiggy: customers.filter(
         (c) => c.platforms.length === 1 && c.platforms.includes('Swiggy')
       ).length,
+      WebSales: customers.filter(
+        (c) => c.platforms.length === 1 && c.platforms.includes('Web Sales')
+      ).length,
       Both: customers.filter((c) => c.platforms.length > 1).length,
     };
 
@@ -1293,7 +1319,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
       // Online sales data
       this.http
         .get<any>(
-          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}`,
+          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}&includeWebSales=true`,
           { headers }
         )
         .toPromise(),

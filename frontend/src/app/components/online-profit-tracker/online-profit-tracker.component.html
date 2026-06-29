@@ -1,7 +1,7 @@
 <div class="profit-tracker-container">
   <div class="tracker-header">
     <h1>Online Profit Tracker</h1>
-    <p>Decision-grade profitability analytics for Zomato and Swiggy</p>
+    <p>Decision-grade profitability analytics for Zomato, Swiggy, and Web Sales</p>
   </div>
 
   <div class="filters-section">
@@ -10,6 +10,7 @@
         <option value="all">All Platforms</option>
         <option value="Zomato">Zomato</option>
         <option value="Swiggy">Swiggy</option>
+        <option value="Web Sales">Web Sales</option>
       </select>
 
       <select [(ngModel)]="dateRange" (ngModelChange)="onDateRangeChange()" class="filter-select">
@@ -76,7 +77,7 @@
       <div class="stat-card">
         <div class="stat-label">Total Orders</div>
         <div class="stat-value">{{ summary.totalOrders }}</div>
-        <div class="stat-sub">Zomato {{ summary.zomatoOrders }} | Swiggy {{ summary.swiggyOrders }}</div>
+        <div class="stat-sub">Zomato {{ summary.zomatoOrders }} | Swiggy {{ summary.swiggyOrders }} | Web Sales {{ summary.webSalesOrders }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Total Payout</div>

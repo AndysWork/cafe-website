@@ -72,8 +72,10 @@ interface PeriodSummary {
   totalPackaging: number;
   zomatoOrders: number;
   swiggyOrders: number;
+  webSalesOrders: number;
   zomatoPayout: number;
   swiggyPayout: number;
+  webSalesPayout: number;
   ordersWithCost: number;
   costCoveragePercent: number;
   negativeMarginOrders: number;
@@ -280,8 +282,10 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
       totalPackaging: 0,
       zomatoOrders: 0,
       swiggyOrders: 0,
+      webSalesOrders: 0,
       zomatoPayout: 0,
       swiggyPayout: 0,
+      webSalesPayout: 0,
       ordersWithCost: 0,
       costCoveragePercent: 0,
       negativeMarginOrders: 0,
@@ -339,7 +343,7 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
 
     try {
-      const params: any = { startDate: this.startDate, endDate: this.endDate };
+      const params: any = { startDate: this.startDate, endDate: this.endDate, includeWebSales: true };
       if (this.platform !== 'all') params.platform = this.platform;
 
       const [salesResult, recipesResult, varianceResult] = await Promise.all([
@@ -379,7 +383,7 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
   async loadOutletBenchmark(): Promise<void> {
     this.isComparisonLoading = true;
     try {
-      const params: any = { startDate: this.startDate, endDate: this.endDate };
+      const params: any = { startDate: this.startDate, endDate: this.endDate, includeWebSales: true };
       if (this.platform !== 'all') params.platform = this.platform;
       if (this.selectedComparisonOutletIds.length > 0) {
         params.outletIds = this.selectedComparisonOutletIds.join(',');
@@ -578,6 +582,9 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
       } else if (platformName.toLowerCase() === 'swiggy') {
         s.swiggyOrders += 1;
         s.swiggyPayout += revenue;
+      } else if (platformName.toLowerCase() === 'web sales') {
+        s.webSalesOrders += 1;
+        s.webSalesPayout += revenue;
       }
 
       const daypart = this.getDaypart(sale.orderAt);

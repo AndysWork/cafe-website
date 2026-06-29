@@ -50,16 +50,17 @@ public class OnlineSaleFunction
             if (!isAuthorized) return errorResponse!;
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
-            var platform = query["platform"]; // Optional: "Zomato" or "Swiggy"
+            var platform = query["platform"]; // Optional: "Zomato", "Swiggy", or "Web Sales"
+            var includeWebSales = bool.TryParse(query["includeWebSales"], out var includeWeb) && includeWeb;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
-            var sales = await _mongo.GetOnlineSalesAsync(platform, outletId, page, pageSize);
+            var sales = await _mongo.GetOnlineSalesAsync(platform, outletId, page, pageSize, includeWebSales);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             if (page.HasValue && pageSize.HasValue)
             {
-                var totalCount = await _mongo.GetOnlineSalesCountAsync(platform, outletId);
+                var totalCount = await _mongo.GetOnlineSalesCountAsync(platform, outletId, includeWebSales);
                 PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
             }
             await response.WriteAsJsonAsync(new { success = true, data = sales });
@@ -95,6 +96,7 @@ public class OnlineSaleFunction
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var platform = query["platform"];
+            var includeWebSales = bool.TryParse(query["includeWebSales"], out var includeWeb) && includeWeb;
             var startDateStr = query["startDate"];
             var endDateStr = query["endDate"];
 
@@ -120,7 +122,7 @@ public class OnlineSaleFunction
             }
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId);
+            var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId, includeWebSales);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = sales });
@@ -146,6 +148,7 @@ public class OnlineSaleFunction
             if (!isAuthorized) return errorResponse!;
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var includeWebSales = bool.TryParse(query["includeWebSales"], out var includeWeb) && includeWeb;
             var startDateStr = query["startDate"];
             var endDateStr = query["endDate"];
 
@@ -171,7 +174,7 @@ public class OnlineSaleFunction
             }
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var dailyIncome = await _mongo.GetDailyOnlineIncomeAsync(startDate, endDate, outletId);
+            var dailyIncome = await _mongo.GetDailyOnlineIncomeAsync(startDate, endDate, outletId, includeWebSales);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, data = dailyIncome });
@@ -198,6 +201,7 @@ public class OnlineSaleFunction
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var platform = query["platform"];
+            var includeWebSales = bool.TryParse(query["includeWebSales"], out var includeWeb) && includeWeb;
             var startDateStr = query["startDate"];
             var endDateStr = query["endDate"];
             var outletIdFromQuery = query["outletId"];
@@ -220,7 +224,7 @@ public class OnlineSaleFunction
                 ? outletIdFromQuery
                 : OutletHelper.GetOutletIdForAdmin(req, _auth);
 
-            var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId);
+            var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId, includeWebSales);
 
             var varianceRows = sales.Select(sale =>
             {
@@ -293,6 +297,7 @@ public class OnlineSaleFunction
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var platform = query["platform"];
+            var includeWebSales = bool.TryParse(query["includeWebSales"], out var includeWeb) && includeWeb;
             var startDateStr = query["startDate"];
             var endDateStr = query["endDate"];
             var outletIdsParam = query["outletIds"];
@@ -325,7 +330,7 @@ public class OnlineSaleFunction
             foreach (var outlet in outlets)
             {
                 var outletId = outlet.Id ?? "default";
-                var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId);
+                var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId, includeWebSales);
 
                 var totalBill = sales.Sum(s => s.BillSubTotal);
                 var totalPayout = sales.Sum(s => s.Payout);
@@ -355,7 +360,7 @@ public class OnlineSaleFunction
             if (!rows.Any())
             {
                 var fallbackOutletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-                var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, fallbackOutletId);
+                var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, fallbackOutletId, includeWebSales);
                 var totalBill = sales.Sum(s => s.BillSubTotal);
                 var totalPayout = sales.Sum(s => s.Payout);
                 var expectedPayout = sales.Sum(CalculateExpectedPayout);
@@ -863,7 +868,8 @@ public class OnlineSaleFunction
             if (!isAuthorized) return errorResponse!;
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
-            var platform = query["platform"]; // Optional: "Zomato" or "Swiggy"
+            var platform = query["platform"]; // Optional: "Zomato", "Swiggy", or "Web Sales"
+            var includeWebSales = bool.TryParse(query["includeWebSales"], out var includeWeb) && includeWeb;
             var startDateStr = query["startDate"];
             var endDateStr = query["endDate"];
 
@@ -884,7 +890,7 @@ public class OnlineSaleFunction
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
             // Get sales with KPT data
-            var sales = await _mongo.GetOnlineSalesAsync(platform, outletId);
+            var sales = await _mongo.GetOnlineSalesAsync(platform, outletId, includeWebSales: includeWebSales);
             
             // Filter by date range if provided
             if (startDate.HasValue)

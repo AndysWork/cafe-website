@@ -17,6 +17,41 @@ public partial class MongoService : IAnalyticsRepository
     private IMongoCollection<UserSession> UserSessions =>
         _userSessions ??= _database.GetCollection<UserSession>("UserSessions");
 
+    private static string GetSafeString(BsonValue value, string fallback = "Unknown")
+    {
+        if (value == null || value.IsBsonNull) return fallback;
+        return value.BsonType switch
+        {
+            BsonType.String => value.AsString ?? fallback,
+            BsonType.ObjectId => value.AsObjectId.ToString(),
+            _ => value.ToString() ?? fallback
+        };
+    }
+
+    private static List<double> GetNumericBsonArrayValues(BsonValue value)
+    {
+        if (value == null || value.IsBsonNull || !value.IsBsonArray) return new List<double>();
+
+        var result = new List<double>();
+        foreach (var item in value.AsBsonArray)
+        {
+            if (item == null || item.IsBsonNull) continue;
+
+            if (item.IsNumeric)
+            {
+                result.Add(item.ToDouble());
+                continue;
+            }
+
+            if (double.TryParse(item.ToString(), out var parsed))
+            {
+                result.Add(parsed);
+            }
+        }
+
+        return result;
+    }
+
     // ─── Event Tracking ───
 
     public async Task TrackEventAsync(UserActivityEvent evt)
@@ -212,7 +247,7 @@ public partial class MongoService : IAnalyticsRepository
 
         return results.Select(r => new FeatureUsageStat
         {
-            FeatureName = r.GetValue("FeatureName", "Unknown").AsString,
+            FeatureName = GetSafeString(r.GetValue("FeatureName", BsonNull.Value), "Unknown"),
             UsageCount = r.GetValue("UsageCount", 0).ToInt64(),
             UniqueUsers = r.GetValue("UniqueUsers", 0).ToInt64()
         }).ToList();
@@ -252,14 +287,15 @@ public partial class MongoService : IAnalyticsRepository
 
         return results.Select(r =>
         {
-            var responseTimes = r.GetValue("ResponseTimes", new BsonArray())
-                .AsBsonArray.Select(v => v.ToDouble()).OrderBy(v => v).ToList();
+            var responseTimes = GetNumericBsonArrayValues(r.GetValue("ResponseTimes", BsonNull.Value))
+                .OrderBy(v => v)
+                .ToList();
             var p95Index = (int)(responseTimes.Count * 0.95);
             var p95 = responseTimes.Count > 0 ? responseTimes[Math.Min(p95Index, responseTimes.Count - 1)] : 0;
 
             return new ApiPerformanceStat
             {
-                Endpoint = r.GetValue("_id", "Unknown").AsString,
+                Endpoint = GetSafeString(r.GetValue("_id", BsonNull.Value), "Unknown"),
                 TotalCalls = r.GetValue("TotalCalls", 0).ToInt64(),
                 AvgResponseTimeMs = Math.Round(r.GetValue("AvgResponseTimeMs", 0).ToDouble(), 1),
                 MaxResponseTimeMs = r.GetValue("MaxResponseTimeMs", 0).ToDouble(),
@@ -316,7 +352,7 @@ public partial class MongoService : IAnalyticsRepository
             UniqueUsersWhoBrowsed = uniqueBrowsed.Count(u => u != null),
             TopCartedItems = topItems.Select(r => new CartItemStat
             {
-                ItemName = r.GetValue("_id", "Unknown").AsString,
+                ItemName = GetSafeString(r.GetValue("_id", BsonNull.Value), "Unknown"),
                 AddCount = r.GetValue("AddCount", 0).ToInt64()
             }).ToList()
         };

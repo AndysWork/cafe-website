@@ -50,7 +50,7 @@ export class KptAnalysisComponent implements OnInit, OnDestroy {
   errorMessage = '';
 
   // Filters
-  selectedPlatform: 'All' | 'Zomato' | 'Swiggy' = 'All';
+  selectedPlatform: 'All' | 'Zomato' | 'Swiggy' | 'Web Sales' = 'All';
   startDate = getIstInputDate(new Date(getIstNow().getFullYear(), 0, 1));
   endDate = getIstDateString();
 
@@ -109,6 +109,7 @@ export class KptAnalysisComponent implements OnInit, OnDestroy {
       if (this.selectedPlatform !== 'All') {
         params.append('platform', this.selectedPlatform);
       }
+      params.append('includeWebSales', 'true');
       params.append('startDate', this.startDate);
       params.append('endDate', this.endDate);
 

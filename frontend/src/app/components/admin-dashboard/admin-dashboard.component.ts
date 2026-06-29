@@ -33,6 +33,7 @@ interface MonthlyTrend {
   offlineSales: number;
   zomatoSales: number;
   swiggySales: number;
+  webSales: number;
   totalSales: number;
 }
 
@@ -130,7 +131,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     forkJoin({
       orders: this.orderService.getAllOrders(),
       menuItems: this.menuService.getMenuItems(),
-      onlineSales: this.http.get<{ success: boolean; data: OnlineSale[] }>(`${environment.apiUrl}/online-sales`),
+      onlineSales: this.http.get<{ success: boolean; data: OnlineSale[] }>(`${environment.apiUrl}/online-sales?includeWebSales=true`),
       offlineSales: this.salesService.getAllSales(),
       expenses: this.expenseService.getAllExpenses()
     }).subscribe({
@@ -211,11 +212,8 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       ? totalExpenses / uniqueExpenseDays
       : 0;
 
-    // Total Revenue (Online + Offline)
-    const orderRevenue = this.allOrders
-      .filter(o => o.paymentStatus === 'paid')
-      .reduce((sum, o) => sum + o.total, 0);
-    const totalRevenue = this.onlineStats.totalRevenue + this.offlineStats.totalRevenue + orderRevenue;
+    // Total Revenue (Online + Offline). Web orders are included in online sales analytics.
+    const totalRevenue = this.onlineStats.totalRevenue + this.offlineStats.totalRevenue;
     this.stats[3].value = `₹${totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
   }
 
@@ -234,6 +232,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         offlineSales: 0,
         zomatoSales: 0,
         swiggySales: 0,
+        webSales: 0,
         totalSales: 0
       };
     }
@@ -257,13 +256,15 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
           monthlyData[monthKey].zomatoSales += payout;
         } else if (sale.platform?.toLowerCase() === 'swiggy') {
           monthlyData[monthKey].swiggySales += payout;
+        } else if (sale.platform?.toLowerCase() === 'web sales') {
+          monthlyData[monthKey].webSales += payout;
         }
       }
     });
 
     // Calculate totals
     Object.values(monthlyData).forEach(data => {
-      data.totalSales = data.offlineSales + data.zomatoSales + data.swiggySales;
+      data.totalSales = data.offlineSales + data.zomatoSales + data.swiggySales + data.webSales;
     });
 
     this.monthlyTrends = Object.values(monthlyData);
@@ -371,7 +372,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     return 300 - (ratio * chartHeight);
   }
 
-  getLinePoints(type: 'offline' | 'zomato' | 'swiggy' | 'total'): string {
+  getLinePoints(type: 'offline' | 'zomato' | 'swiggy' | 'web' | 'total'): string {
     return this.monthlyTrends
       .map((trend, index) => {
         const x = this.getXPosition(index);
@@ -385,6 +386,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
             break;
           case 'swiggy':
             y = this.getYPosition(trend.swiggySales);
+            break;
+          case 'web':
+            y = this.getYPosition(trend.webSales);
             break;
           case 'total':
             y = this.getYPosition(trend.totalSales);

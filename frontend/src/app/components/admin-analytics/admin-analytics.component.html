@@ -607,6 +607,7 @@
                 {{ (earningsData?.profitMarginGrowth || 0) >= 0 ? "+" : ""
                 }}{{ (earningsData?.profitMarginGrowth || 0) | number:'1.1-1' }}% vs.
                 last month
+              >
               </span>
               <span
                 class="card-subtext"
@@ -644,9 +645,9 @@
             </div>
 
             <div class="breakdown-card online-platform">
-              <h4>📱 Online Platforms</h4>
+              <h4>📱 Online Platforms + Web</h4>
               <p class="amount">
-                {{ formatCurrency(earningsData?.zomatoSwiggyIncome || 0) }}
+                {{ formatCurrency(earningsData?.onlinePlatformCollection || 0) }}
               </p>
               <div class="breakdown-details">
                 <span
@@ -657,8 +658,12 @@
                   >🍕 Swiggy:
                   {{ formatCurrency(earningsData?.swiggyIncome || 0) }}</span
                 >
+                <span
+                  >🌐 Web Sales:
+                  {{ formatCurrency(earningsData?.webSalesIncome || 0) }}</span
+                >
                 <span class="orders-count"
-                  >{{ earningsData?.zomatoSwiggyOrders || 0 }} orders</span
+                  >{{ (earningsData?.zomatoSwiggyOrders || 0) + (earningsData?.webSalesOrders || 0) }} orders</span
                 >
               </div>
             </div>
@@ -668,14 +673,14 @@
         <!-- Online Platform Details -->
         <div
           class="insight-section"
-          *ngIf="(earningsData?.zomatoSwiggyOrders || 0) > 0"
+          *ngIf="((earningsData?.zomatoSwiggyOrders || 0) + (earningsData?.webSalesOrders || 0)) > 0"
         >
           <h3>📱 Online Platform Analysis</h3>
           <div class="platform-details">
             <div class="detail-card">
               <span class="label">Platform Income (Payout)</span>
               <span class="value income-amount">{{
-                formatCurrency(earningsData?.zomatoSwiggyIncome || 0)
+                formatCurrency(earningsData?.onlinePlatformCollection || 0)
               }}</span>
             </div>
             <div class="detail-card">
@@ -791,7 +796,7 @@
                   formatCurrency(earningsData?.onlinePlatformCollection || 0)
                 }}
               </p>
-              <span class="subtext">Zomato/Swiggy</span>
+              <span class="subtext">Zomato/Swiggy/Web Sales</span>
             </div>
 
             <div class="collection-card total">
@@ -843,6 +848,13 @@
           (click)="switchPlatform('Swiggy')"
         >
           🍕 Swiggy
+        </button>
+        <button
+          class="platform-btn"
+          [class.active]="selectedPlatform === 'Web Sales'"
+          (click)="switchPlatform('Web Sales')"
+        >
+          🌐 Web Sales
         </button>
       </div>
 
@@ -1060,6 +1072,60 @@
                 <span>Freebies:</span>
                 <strong>{{
                   formatCurrency(onlineAnalytics.swiggy.totalFreebies)
+                }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="comparison-card">
+            <h3>🌐 Web Sales</h3>
+            <div class="comparison-stats">
+              <div class="stat-row">
+                <span>Orders:</span>
+                <strong>{{ onlineAnalytics.webSales.totalOrders }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Income:</span>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.webSales.totalIncome)
+                }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Avg/Order:</span>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.webSales.avgIncomePerOrder)
+                }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Rating:</span>
+                <strong
+                  >{{ onlineAnalytics.webSales.avgRating | number:'1.1-1' }} ⭐</strong
+                >
+              </div>
+              <div class="stat-row">
+                <span>Deduction %:</span>
+                <strong
+                  >{{
+                    onlineAnalytics.webSales.avgDeductionPercent | number:'1.1-1'
+                  }}%</strong
+                >
+              </div>
+              <div class="stat-row">
+                <span>Total Discount:</span>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.webSales.totalDiscount)
+                }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Packaging:</span>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.webSales.totalPackaging)
+                }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Freebies:</span>
+                <strong>{{
+                  formatCurrency(onlineAnalytics.webSales.totalFreebies)
                 }}</strong>
               </div>
             </div>
@@ -1302,6 +1368,13 @@
             <h4>🤝 Both Platforms</h4>
             <p class="preference-value">
               {{ customerAnalytics.platformCounts.Both }}
+            </p>
+            <span class="preference-subtext">Customers</span>
+          </div>
+          <div class="preference-card">
+            <h4>🌐 Web Sales Only</h4>
+            <p class="preference-value">
+              {{ customerAnalytics.platformCounts.WebSales }}
             </p>
             <span class="preference-subtext">Customers</span>
           </div>

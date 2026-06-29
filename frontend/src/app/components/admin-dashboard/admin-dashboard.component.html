@@ -87,6 +87,15 @@
                 class="trend-line"
               />
 
+              <!-- Web Sales Line -->
+              <polyline
+                [attr.points]="getLinePoints('web')"
+                fill="none"
+                stroke="#2980b9"
+                stroke-width="3"
+                class="trend-line"
+              />
+
               <!-- Total Sales Line -->
               <polyline
                 [attr.points]="getLinePoints('total')"
@@ -133,6 +142,18 @@
                 <title>{{trend.month}}: Swiggy ₹{{trend.swiggySales | number}}</title>
               </circle>
 
+              <!-- Data points for Web Sales -->
+              <circle
+                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
+                [attr.cx]="getXPosition(i)"
+                [attr.cy]="getYPosition(trend.webSales)"
+                r="5"
+                fill="#2980b9"
+                class="data-point"
+              >
+                <title>{{trend.month}}: Web Sales ₹{{trend.webSales | number}}</title>
+              </circle>
+
               <!-- Data points for Total -->
               <circle
                 *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
@@ -171,6 +192,10 @@
               <span>Swiggy</span>
             </div>
             <div class="legend-item">
+              <span class="legend-color" style="background: #2980b9;"></span>
+              <span>Web Sales</span>
+            </div>
+            <div class="legend-item">
               <span class="legend-color" style="background: #2ecc71;"></span>
               <span>Total (Dashed)</span>
             </div>
@@ -181,7 +206,7 @@
 
     <!-- ONLINE SALES SECTION -->
     <div class="section-divider">
-      <h2 class="section-title">🌐 Online Sales (Zomato & Swiggy)</h2>
+      <h2 class="section-title">🌐 Online Sales (Zomato, Swiggy & Web Sales)</h2>
     </div>
 
     <!-- Online Stats Cards -->

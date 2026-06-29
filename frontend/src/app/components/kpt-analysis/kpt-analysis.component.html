@@ -1,7 +1,7 @@
 <div class="kpt-analysis-container">
   <div class="header">
     <h1>📊 Kitchen Preparation Time (KPT) Analysis</h1>
-    <p class="subtitle">Analyze menu items preparation time based on Zomato/Swiggy order data</p>
+    <p class="subtitle">Analyze menu items preparation time based on Zomato, Swiggy, and Web Sales order data</p>
   </div>
 
   <!-- Filters Section -->
@@ -12,6 +12,7 @@
         <option value="All">All Platforms</option>
         <option value="Zomato">Zomato</option>
         <option value="Swiggy">Swiggy</option>
+        <option value="Web Sales">Web Sales</option>
       </select>
     </div>
 
@@ -278,7 +279,7 @@
   <!-- No Data Message -->
   <div class="no-data" *ngIf="!isLoading && menuItems.length === 0 && !errorMessage">
     <p>📊 No KPT data available for the selected filters.</p>
-    <p>Make sure you have uploaded Zomato/Swiggy orders with KPT information.</p>
+    <p>Make sure online orders with KPT information are available for the selected platform(s).</p>
   </div>
 
   <!-- Legend -->

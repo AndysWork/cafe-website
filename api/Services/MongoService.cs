@@ -4853,8 +4853,82 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     #region Online Sales Management
 
-    public async Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null, int? page = null, int? pageSize = null)
+    private static bool IsWebSalesPlatform(string? platform)
+        => string.Equals(platform?.Trim(), "Web Sales", StringComparison.OrdinalIgnoreCase);
+
+    private static OnlineSale MapOrderToWebSale(Order order)
     {
+        var totalDiscount = (order.DiscountAmount) + (order.LoyaltyDiscountAmount) + (order.WalletAmountUsed);
+        var packagingLikeCharges = (order.Tax) + (order.PlatformCharge) + (order.DeliveryFee);
+
+        return new OnlineSale
+        {
+            Id = null,
+            OutletId = order.OutletId,
+            Platform = "Web Sales",
+            OrderId = order.Id ?? string.Empty,
+            CustomerName = order.Username,
+            OrderAt = order.CreatedAt,
+            OrderedItems = order.Items?.Select(i => new OrderedItem
+            {
+                Quantity = i.Quantity,
+                ItemName = i.Name,
+                MenuItemId = i.MenuItemId
+            }).ToList() ?? new List<OrderedItem>(),
+            BillSubTotal = order.Subtotal,
+            PackagingCharges = packagingLikeCharges,
+            DiscountAmount = totalDiscount,
+            TotalCommissionable = order.Subtotal,
+            Payout = order.Total,
+            PlatformDeduction = 0,
+            Distance = 0,
+            Freebies = 0,
+            UploadedBy = order.Username,
+            CreatedAt = order.CreatedAt,
+            UpdatedAt = order.UpdatedAt
+        };
+    }
+
+    private async Task<List<OnlineSale>> GetWebSalesFromOrdersAsync(DateTime? startOfDay = null, DateTime? endOfDay = null, string? outletId = null)
+    {
+        var orderFilters = new List<FilterDefinition<Order>>
+        {
+            Builders<Order>.Filter.Ne(o => o.Status, "cancelled"),
+            Builders<Order>.Filter.Ne(o => o.Status, "rejected"),
+            Builders<Order>.Filter.Ne(o => o.IsDeleted, true)
+        };
+
+        if (startOfDay.HasValue)
+            orderFilters.Add(Builders<Order>.Filter.Gte(o => o.CreatedAt, startOfDay.Value));
+        if (endOfDay.HasValue)
+            orderFilters.Add(Builders<Order>.Filter.Lte(o => o.CreatedAt, endOfDay.Value));
+        if (!string.IsNullOrWhiteSpace(outletId))
+            orderFilters.Add(Builders<Order>.Filter.Eq(o => o.OutletId, outletId));
+
+        var orderFilter = Builders<Order>.Filter.And(orderFilters);
+        var orders = await _orders.Find(orderFilter)
+            .SortByDescending(o => o.CreatedAt)
+            .Limit(Helpers.PaginationHelper.SafetyLimit)
+            .ToListAsync();
+
+        return orders.Select(MapOrderToWebSale).ToList();
+    }
+
+    public async Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null, int? page = null, int? pageSize = null, bool includeWebSales = false)
+    {
+        var webOnly = IsWebSalesPlatform(platform);
+
+        if (!includeWebSales || webOnly)
+        {
+            if (includeWebSales && webOnly)
+            {
+                var webSales = await GetWebSalesFromOrdersAsync(outletId: outletId);
+                if (page.HasValue && pageSize.HasValue)
+                    return webSales.Skip((page.Value - 1) * pageSize.Value).Take(pageSize.Value).ToList();
+
+                return webSales;
+            }
+
         var filterBuilder = Builders<OnlineSale>.Filter;
         var filters = new List<FilterDefinition<OnlineSale>>();
         
@@ -4872,14 +4946,39 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .SortByDescending(s => s.OrderAt)
             .Project<OnlineSale>(_onlineSaleListProjection);
 
-        if (page.HasValue && pageSize.HasValue)
-            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+            if (page.HasValue && pageSize.HasValue)
+                return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
 
-        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+            return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+        }
+
+        var dbSales = await GetOnlineSalesAsync(platform, outletId, null, null, includeWebSales: false);
+        var webOnlyFilter = string.IsNullOrWhiteSpace(platform) || IsWebSalesPlatform(platform);
+        var webSalesMerged = webOnlyFilter
+            ? await GetWebSalesFromOrdersAsync(outletId: outletId)
+            : new List<OnlineSale>();
+
+        var merged = dbSales
+            .Concat(webSalesMerged)
+            .OrderByDescending(s => s.OrderAt)
+            .ToList();
+
+        if (page.HasValue && pageSize.HasValue)
+            return merged.Skip((page.Value - 1) * pageSize.Value).Take(pageSize.Value).ToList();
+
+        return merged.Take(Helpers.PaginationHelper.SafetyLimit).ToList();
     }
 
-    public async Task<long> GetOnlineSalesCountAsync(string? platform = null, string? outletId = null)
+    public async Task<long> GetOnlineSalesCountAsync(string? platform = null, string? outletId = null, bool includeWebSales = false)
     {
+        var webOnly = IsWebSalesPlatform(platform);
+
+        if (includeWebSales && webOnly)
+        {
+            var webCount = await GetWebSalesFromOrdersAsync(outletId: outletId);
+            return webCount.Count;
+        }
+
         var filterBuilder = Builders<OnlineSale>.Filter;
         var filters = new List<FilterDefinition<OnlineSale>>();
         if (!string.IsNullOrEmpty(platform))
@@ -4887,14 +4986,28 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (!string.IsNullOrEmpty(outletId))
             filters.Add(filterBuilder.Eq(s => s.OutletId, outletId));
         var filter = filters.Count > 0 ? filterBuilder.And(filters) : filterBuilder.Empty;
-        return await _onlineSales.CountDocumentsAsync(filter);
+        var dbCount = await _onlineSales.CountDocumentsAsync(filter);
+
+        if (!includeWebSales)
+            return dbCount;
+
+        if (!string.IsNullOrWhiteSpace(platform) && !IsWebSalesPlatform(platform))
+            return dbCount;
+
+        var webCountAll = await GetWebSalesFromOrdersAsync(outletId: outletId);
+        return dbCount + webCountAll.Count;
     }
 
-    public async Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null)
+    public async Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false)
     {
         // Dates are received as IST dates (YYYY-MM-DD), treat them as IST for filtering
         var startOfDay = startDate.Date;
         var endOfDay = endDate.Date.AddDays(1).AddTicks(-1);
+
+        if (includeWebSales && IsWebSalesPlatform(platform))
+        {
+            return await GetWebSalesFromOrdersAsync(startOfDay, endOfDay, outletId);
+        }
 
         var filterBuilder = Builders<OnlineSale>.Filter;
         var filters = new List<FilterDefinition<OnlineSale>>
@@ -4911,17 +5024,55 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         var filter = filterBuilder.And(filters);
 
-        return await _onlineSales.Find(filter)
+        var dbSales = await _onlineSales.Find(filter)
             .SortByDescending(s => s.OrderAt)
             .Project<OnlineSale>(_onlineSaleListProjection)
             .ToListAsync();
+
+        if (!includeWebSales)
+            return dbSales;
+
+        if (!string.IsNullOrWhiteSpace(platform) && !IsWebSalesPlatform(platform))
+            return dbSales;
+
+        var webSales = await GetWebSalesFromOrdersAsync(startOfDay, endOfDay, outletId);
+        return dbSales
+            .Concat(webSales)
+            .OrderByDescending(s => s.OrderAt)
+            .ToList();
     }
 
-    public async Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate, string? outletId = null)
+    public async Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false)
     {
         // Dates are received as IST dates (YYYY-MM-DD), treat them as IST for filtering
         var startOfDay = startDate.Date;
         var endOfDay = endDate.Date.AddDays(1).AddTicks(-1);
+
+        if (includeWebSales)
+        {
+            var combinedSales = await GetOnlineSalesByDateRangeAsync(null, startDate, endDate, outletId, includeWebSales: true);
+            return combinedSales
+                .GroupBy(s => new { Date = s.OrderAt.Date, Platform = s.Platform })
+                .OrderBy(g => g.Key.Date)
+                .ThenBy(g => g.Key.Platform)
+                .Select(g =>
+                {
+                    var ratingRows = g.Where(x => x.Rating.HasValue && x.Rating.Value > 0).ToList();
+                    return new DailyOnlineIncomeResponse
+                    {
+                        Date = g.Key.Date,
+                        Platform = g.Key.Platform,
+                        TotalPayout = g.Sum(x => x.Payout),
+                        TotalOrders = g.Count(),
+                        TotalDeduction = g.Sum(x => x.PlatformDeduction),
+                        TotalDiscount = g.Sum(x => x.DiscountAmount),
+                        TotalPackaging = g.Sum(x => x.PackagingCharges),
+                        TotalFreebies = g.Sum(x => x.Freebies),
+                        AverageRating = ratingRows.Count > 0 ? ratingRows.Average(x => x.Rating!.Value) : 0m
+                    };
+                })
+                .ToList();
+        }
 
         var filter = Builders<OnlineSale>.Filter.Gte(s => s.OrderAt, startOfDay) &
                      Builders<OnlineSale>.Filter.Lte(s => s.OrderAt, endOfDay);
