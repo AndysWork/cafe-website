@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { CartService, Cart } from '../../services/cart.service';
 import { OrderService, CreateOrderRequest } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
-import { AddressService, DeliveryAddress, AddAddressRequest } from '../../services/address.service';
+import { AddressService, DeliveryAddress, AddAddressRequest, UpdateAddressRequest } from '../../services/address.service';
 import { AuthService } from '../../services/auth.service';
 import { OffersService, OfferValidationResponse } from '../../services/offers.service';
 import { LoyaltyService, LoyaltyAccount } from '../../services/loyalty.service';
@@ -43,6 +43,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   showNewAddressForm = false;
   saveNewAddress = false;
   newAddressLabel = '';
+  editingAddressId: string | null = null;
+  editAddressForm: UpdateAddressRequest = {};
+  savingAddressEdit = false;
 
   isSubmitting = false;
   errorMessage = '';
@@ -168,6 +171,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   selectSavedAddress(addressId: string): void {
     this.selectedAddressId = addressId;
     this.showNewAddressForm = false;
+    this.editingAddressId = null;
     const addr = this.savedAddresses.find(a => a.id === addressId);
     if (addr) {
       this.deliveryAddress = addr.fullAddress;
@@ -178,8 +182,71 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   useNewAddress(): void {
     this.selectedAddressId = null;
     this.showNewAddressForm = true;
+    this.editingAddressId = null;
     this.deliveryAddress = '';
     this.phoneNumber = '';
+  }
+
+  startEditAddress(address: DeliveryAddress, event: Event): void {
+    event.stopPropagation();
+    this.editingAddressId = address.id;
+    this.editAddressForm = {
+      label: address.label,
+      fullAddress: address.fullAddress,
+      city: address.city,
+      pinCode: address.pinCode,
+      collectorName: address.collectorName,
+      collectorPhone: address.collectorPhone,
+      isDefault: address.isDefault
+    };
+  }
+
+  cancelEditAddress(event?: Event): void {
+    event?.stopPropagation();
+    this.editingAddressId = null;
+    this.editAddressForm = {};
+  }
+
+  saveAddressEdit(addressId: string, event: Event): void {
+    event.stopPropagation();
+    if (this.savingAddressEdit) return;
+
+    if (!this.editAddressForm.fullAddress?.trim()) {
+      this.uiStore.error('Address cannot be empty');
+      return;
+    }
+
+    if (!this.editAddressForm.collectorPhone?.trim()) {
+      this.uiStore.error('Collector phone is required');
+      return;
+    }
+
+    this.savingAddressEdit = true;
+    this.addressService.updateAddress(addressId, this.editAddressForm).subscribe({
+      next: () => {
+        const idx = this.savedAddresses.findIndex(a => a.id === addressId);
+        if (idx >= 0) {
+          this.savedAddresses[idx] = {
+            ...this.savedAddresses[idx],
+            ...this.editAddressForm,
+            id: this.savedAddresses[idx].id,
+            createdAt: this.savedAddresses[idx].createdAt
+          } as DeliveryAddress;
+        }
+
+        if (this.selectedAddressId === addressId) {
+          this.selectSavedAddress(addressId);
+        }
+
+        this.savingAddressEdit = false;
+        this.cancelEditAddress();
+        this.uiStore.success('Address updated');
+      },
+      error: () => {
+        this.savingAddressEdit = false;
+        this.uiStore.error('Failed to update address');
+      }
+    });
   }
 
   placeOrder() {

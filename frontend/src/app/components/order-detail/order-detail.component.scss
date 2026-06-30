@@ -394,6 +394,42 @@ $shadow-md: 0 4px 14px rgba(0,0,0,0.1);
   font-size: 0.85rem;
 }
 
+.delay-banner {
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #fdba74;
+  background: #fff7ed;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+
+  strong {
+    display: block;
+    color: #9a3412;
+    font-size: 0.86rem;
+  }
+
+  span {
+    display: block;
+    color: #b45309;
+    font-size: 0.78rem;
+    margin-top: 2px;
+  }
+}
+
+.btn-delay-escalate {
+  border: none;
+  background: #ea580c;
+  color: white;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .support-actions {
   display: flex;
   gap: 0.65rem;

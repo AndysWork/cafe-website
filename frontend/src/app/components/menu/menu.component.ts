@@ -6,6 +6,7 @@ import { MenuService, MenuItem, MenuCategory } from '../../services/menu.service
 import { CartService, Cart } from '../../services/cart.service';
 import { FavoriteService } from '../../services/favorite.service';
 import { AuthService } from '../../services/auth.service';
+import { CustomerReviewService } from '../../services/customer-review.service';
 import { UIStore } from '../../store/ui.store';
 import { Router } from '@angular/router';
 
@@ -37,6 +38,13 @@ export class MenuComponent implements OnInit, OnDestroy {
   // Favorites
   favoriteIds: Set<string> = new Set();
 
+  // Social proof
+  averageRating = 0;
+  totalReviews = 0;
+
+  // Unavailable item substitution panel
+  expandedUnavailableSuggestions: Set<string> = new Set();
+
   private menuRefreshSubscription?: Subscription;
   private cartSubscription?: Subscription;
 
@@ -45,6 +53,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     private cartService: CartService,
     private favoriteService: FavoriteService,
     private authService: AuthService,
+    private reviewService: CustomerReviewService,
     private uiStore: UIStore,
     private router: Router
   ) {}
@@ -52,6 +61,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.loadMenu();
     this.loadFavorites();
+    this.loadSocialProof();
 
     this.cartSubscription = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
@@ -190,6 +200,50 @@ export class MenuComponent implements OnInit, OnDestroy {
   closeDetail() {
     this.showDetailModal = false;
     this.selectedMenuItem = null;
+  }
+
+  loadSocialProof() {
+    this.reviewService.getAllReviews(1, 50).subscribe({
+      next: (res) => {
+        this.averageRating = Number.isFinite(res.averageRating) ? res.averageRating : 0;
+        this.totalReviews = res.count || 0;
+      },
+      error: () => {
+        this.averageRating = 0;
+        this.totalReviews = 0;
+      }
+    });
+  }
+
+  toggleUnavailableSuggestions(itemId: string, event: Event) {
+    event.stopPropagation();
+    if (this.expandedUnavailableSuggestions.has(itemId)) {
+      this.expandedUnavailableSuggestions.delete(itemId);
+    } else {
+      this.expandedUnavailableSuggestions.add(itemId);
+    }
+    this.expandedUnavailableSuggestions = new Set(this.expandedUnavailableSuggestions);
+  }
+
+  isUnavailableSuggestionsOpen(itemId: string): boolean {
+    return this.expandedUnavailableSuggestions.has(itemId);
+  }
+
+  getSubstituteItems(item: MenuItem, limit = 3): MenuItem[] {
+    const sameCategory = this.menuItems.filter(m =>
+      m.id !== item.id &&
+      m.isAvailable !== false &&
+      m.categoryId === item.categoryId
+    );
+
+    const sameDiet = sameCategory.filter(m => (m.dietaryType || 'veg') === (item.dietaryType || 'veg'));
+    const pool = sameDiet.length > 0 ? sameDiet : sameCategory;
+    return pool.slice(0, limit);
+  }
+
+  addSubstituteToCart(substitute: MenuItem, event: Event) {
+    event.stopPropagation();
+    this.addToCart(substitute);
   }
 
   getCategoryItemCount(categoryId: string | null): number {

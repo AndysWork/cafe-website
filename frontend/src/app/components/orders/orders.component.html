@@ -20,6 +20,16 @@
   </div>
 
   <div class="orders-content">
+    <div *ngIf="!isAdmin && quickReorderPresets.length > 0" class="quick-reorder-section">
+      <h3>⚡ Quick Reorder Presets</h3>
+      <div class="quick-preset-list">
+        <button class="quick-preset" *ngFor="let preset of quickReorderPresets; trackBy: trackByKey" (click)="reorderPreset(preset)">
+          <span class="preset-title">{{ preset.label }}</span>
+          <span class="preset-meta">Ordered {{ preset.occurrenceCount }} times</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Filter Tabs -->
     <div *ngIf="orders.length > 0" class="filter-tabs">
       <button

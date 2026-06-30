@@ -364,4 +364,26 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       window.open(this.trackingData.liveLocationMapUrl, '_blank', 'noopener');
     }
   }
+
+  isDelayLikely(): boolean {
+    if (!this.order || !this.trackingData?.estimatedDeliveryAt) return false;
+    if (this.order.status === 'delivered' || this.order.status === 'cancelled') return false;
+
+    const eta = new Date(this.trackingData.estimatedDeliveryAt).getTime();
+    return Date.now() > eta;
+  }
+
+  getDelayMinutes(): number {
+    if (!this.trackingData?.estimatedDeliveryAt) return 0;
+    const eta = new Date(this.trackingData.estimatedDeliveryAt).getTime();
+    return Math.max(0, Math.round((Date.now() - eta) / 60000));
+  }
+
+  escalateDelayIssue() {
+    this.supportIssueCategory = 'delay';
+    if (!this.supportIssueDescription.trim()) {
+      this.supportIssueDescription = `Order appears delayed by about ${this.getDelayMinutes()} minutes. Please assist.`;
+    }
+    this.submitIssue();
+  }
 }

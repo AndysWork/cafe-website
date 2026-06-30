@@ -39,6 +39,11 @@
     </div>
   </div>
 
+  <div class="social-proof-strip" *ngIf="totalReviews > 0">
+    <span class="proof-stars">⭐ {{ averageRating | number:'1.1-1' }}</span>
+    <span class="proof-text">Loved by {{ totalReviews }} customers</span>
+  </div>
+
   <!-- Category Pills -->
   <div class="category-scroll-section">
     <div class="category-pills" role="tablist" aria-label="Menu categories">
@@ -125,6 +130,26 @@
         <div class="card-body" (click)="openDetail(item)">
           <h3 class="card-title">{{ item.name }}</h3>
           <p class="card-description" *ngIf="item.description">{{ item.description }}</p>
+          <div class="card-social-proof" *ngIf="totalReviews > 0">
+            ⭐ {{ averageRating | number:'1.1-1' }} · {{ totalReviews }} reviews
+          </div>
+
+          <div *ngIf="item.isAvailable === false" class="substitute-box" (click)="$event.stopPropagation()">
+            <button class="btn-substitute" (click)="toggleUnavailableSuggestions(item.id, $event)">
+              {{ isUnavailableSuggestionsOpen(item.id) ? 'Hide alternatives' : 'See alternatives' }}
+            </button>
+            <div *ngIf="isUnavailableSuggestionsOpen(item.id)" class="substitute-list">
+              <button
+                *ngFor="let alt of getSubstituteItems(item)"
+                class="substitute-chip"
+                (click)="addSubstituteToCart(alt, $event)">
+                {{ alt.name }} · ₹{{ alt.onlinePrice }}
+              </button>
+              <span *ngIf="getSubstituteItems(item).length === 0" class="substitute-empty">
+                No close alternatives right now.
+              </span>
+            </div>
+          </div>
 
           <div class="card-footer">
             <div class="price-block">
@@ -230,6 +255,21 @@
           <span class="avail-badge" [class.available]="selectedMenuItem.isAvailable !== false" [class.out-of-stock]="selectedMenuItem.isAvailable === false">
             {{ selectedMenuItem.isAvailable !== false ? '✅ Available' : '❌ Out of Stock' }}
           </span>
+        </div>
+
+        <div class="detail-substitutes" *ngIf="selectedMenuItem.isAvailable === false">
+          <h4 class="detail-section-title">Try these instead</h4>
+          <div class="substitute-list">
+            <button
+              *ngFor="let alt of getSubstituteItems(selectedMenuItem, 4)"
+              class="substitute-chip"
+              (click)="addSubstituteToCart(alt, $event)">
+              {{ alt.name }} · ₹{{ alt.onlinePrice }}
+            </button>
+            <span *ngIf="getSubstituteItems(selectedMenuItem, 4).length === 0" class="substitute-empty">
+              No alternatives available currently.
+            </span>
+          </div>
         </div>
 
         <!-- Add to Cart from Modal -->

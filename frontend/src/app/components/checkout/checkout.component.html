@@ -80,6 +80,35 @@
                 <span class="addr-collector">👤 {{ addr.collectorName }} · 📱 {{ addr.collectorPhone }}</span>
               </div>
               <span class="addr-badge" *ngIf="addr.isDefault">Default</span>
+
+              <button class="btn-address-edit" type="button" (click)="startEditAddress(addr, $event)">✏️ Edit</button>
+
+              <div class="address-inline-edit" *ngIf="editingAddressId === addr.id" (click)="$event.stopPropagation()">
+                <div class="form-group">
+                  <label>Label</label>
+                  <input type="text" [(ngModel)]="editAddressForm.label" [name]="'editLabel-' + addr.id" />
+                </div>
+                <div class="form-group">
+                  <label>Full Address</label>
+                  <textarea rows="2" [(ngModel)]="editAddressForm.fullAddress" [name]="'editAddress-' + addr.id"></textarea>
+                </div>
+                <div class="inline-row">
+                  <div class="form-group">
+                    <label>Collector Name</label>
+                    <input type="text" [(ngModel)]="editAddressForm.collectorName" [name]="'editCollector-' + addr.id" />
+                  </div>
+                  <div class="form-group">
+                    <label>Collector Phone</label>
+                    <input type="tel" [(ngModel)]="editAddressForm.collectorPhone" [name]="'editPhone-' + addr.id" />
+                  </div>
+                </div>
+                <div class="inline-actions">
+                  <button type="button" class="btn-inline-cancel" (click)="cancelEditAddress($event)">Cancel</button>
+                  <button type="button" class="btn-inline-save" (click)="saveAddressEdit(addr.id, $event)" [disabled]="savingAddressEdit">
+                    {{ savingAddressEdit ? 'Saving...' : 'Save' }}
+                  </button>
+                </div>
+              </div>
             </label>
             <label class="address-option" [class.active]="showNewAddressForm" (click)="useNewAddress()">
               <input type="radio" name="savedAddress" value="new" [checked]="showNewAddressForm" />

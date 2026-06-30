@@ -9,6 +9,13 @@ import { UIStore } from '../../store/ui.store';
 import { formatIstDateTime } from '../../utils/date-utils';
 import { Subscription } from 'rxjs';
 
+interface QuickReorderPreset {
+  key: string;
+  label: string;
+  occurrenceCount: number;
+  items: Order['items'];
+}
+
 @Component({
   selector: 'app-orders',
   standalone: true,
@@ -25,6 +32,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   successMessage = '';
   expandedOrderId: string | null = null;
   activeFilter: string = 'all';
+  quickReorderPresets: QuickReorderPreset[] = [];
   private routeSub?: Subscription;
   private successTimeout?: ReturnType<typeof setTimeout>;
 
@@ -73,6 +81,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
     ordersObservable.subscribe({
       next: (orders) => {
         this.orders = orders;
+        if (!this.isAdmin) {
+          this.buildQuickReorderPresets();
+        }
         this.isLoading = false;
       },
       error: (error) => {
@@ -242,6 +253,54 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }
     this.uiStore.success(`${order.items.length} item(s) added to cart`);
     this.router.navigate(['/cart']);
+  }
+
+  reorderPreset(preset: QuickReorderPreset) {
+    for (const item of preset.items) {
+      this.cartService.addItem({
+        menuItemId: item.menuItemId,
+        name: item.name,
+        description: item.description,
+        categoryName: item.categoryName,
+        price: item.price,
+        imageUrl: undefined,
+        packagingCharge: 0,
+      }, item.quantity);
+    }
+    this.uiStore.success(`Added preset: ${preset.label}`);
+    this.router.navigate(['/cart']);
+  }
+
+  private buildQuickReorderPresets() {
+    const deliveredOrders = this.orders.filter(o => o.status === 'delivered' && o.items?.length > 0);
+    const grouped = new Map<string, { count: number; items: Order['items'] }>();
+
+    for (const order of deliveredOrders) {
+      const normalized = [...order.items]
+        .map(i => `${i.menuItemId}:${i.quantity}`)
+        .sort()
+        .join('|');
+
+      if (!normalized) continue;
+
+      const existing = grouped.get(normalized);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        grouped.set(normalized, { count: 1, items: order.items });
+      }
+    }
+
+    this.quickReorderPresets = [...grouped.entries()]
+      .filter(([, v]) => v.count >= 2)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 4)
+      .map(([key, value]) => ({
+        key,
+        occurrenceCount: value.count,
+        items: value.items,
+        label: value.items.slice(0, 2).map(i => i.name).join(' + ') + (value.items.length > 2 ? '...' : '')
+      }));
   }
 
   trackByKey(index: number, item: any): string { return item.key; }
