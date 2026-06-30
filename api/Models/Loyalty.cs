@@ -125,6 +125,40 @@ public class PointsTransaction
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 }
 
+public class LoyaltyTierRule
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? Id { get; set; }
+
+    [BsonElement("tier")]
+    public string Tier { get; set; } = string.Empty;
+
+    [BsonElement("minPoints")]
+    public int MinPoints { get; set; }
+
+    [BsonElement("multiplier")]
+    public double Multiplier { get; set; } = 1.0;
+
+    [BsonElement("birthdayBonusPoints")]
+    public int BirthdayBonusPoints { get; set; }
+
+    [BsonElement("benefits")]
+    public List<string> Benefits { get; set; } = new();
+
+    [BsonElement("color")]
+    public string Color { get; set; } = "#94a3b8";
+
+    [BsonElement("displayOrder")]
+    public int DisplayOrder { get; set; }
+
+    [BsonElement("isActive")]
+    public bool IsActive { get; set; } = true;
+
+    [BsonElement("updatedAt")]
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
+}
+
 // DTOs for API responses
 public class LoyaltyAccountResponse
 {
@@ -190,4 +224,16 @@ public class SetBirthdayRequest
 public class ApplyReferralRequest
 {
     public string ReferralCode { get; set; } = string.Empty;
+}
+
+public class UpdateLoyaltyTierRuleRequest
+{
+    public string Tier { get; set; } = string.Empty;
+    public int MinPoints { get; set; }
+    public double Multiplier { get; set; }
+    public int BirthdayBonusPoints { get; set; }
+    public List<string> Benefits { get; set; } = new();
+    public string Color { get; set; } = "#94a3b8";
+    public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; } = true;
 }

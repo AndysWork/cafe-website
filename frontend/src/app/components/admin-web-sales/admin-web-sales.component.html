@@ -105,7 +105,12 @@
               </td>
               <td>{{ order.orderType || '-' }}</td>
               <td>{{ getOrderItemsSummary(order) }}</td>
-              <td>{{ formatCurrency(order.total) }}</td>
+              <td>
+                <div>{{ formatCurrency(order.total) }}</div>
+                <small>Gross: {{ formatCurrency(getGrossBeforeDiscounts(order)) }}</small>
+                <small *ngIf="getLoyaltyRedemptionAmount(order) > 0">Loyalty Redemption: -{{ formatCurrency(getLoyaltyRedemptionAmount(order)) }}</small>
+                <small>Net Paid: {{ formatCurrency(getNetPaidValue(order)) }}</small>
+              </td>
               <td>
                 <div>{{ order.paymentMethod || '-' }}</div>
                 <small>{{ order.paymentStatus || '-' }}</small>

@@ -101,6 +101,30 @@ export interface ReviewClaimResponse {
   pointsAwarded: number;
 }
 
+export interface LoyaltyTierRule {
+  id?: string;
+  tier: string;
+  minPoints: number;
+  multiplier: number;
+  birthdayBonusPoints: number;
+  benefits: string[];
+  color: string;
+  displayOrder: number;
+  isActive: boolean;
+  updatedAt?: string;
+}
+
+export interface UpdateLoyaltyTierRuleRequest {
+  tier: string;
+  minPoints: number;
+  multiplier: number;
+  birthdayBonusPoints: number;
+  benefits: string[];
+  color: string;
+  displayOrder: number;
+  isActive: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -182,6 +206,20 @@ export class LoyaltyService {
   getAllRedemptions(): Observable<PointsTransaction[]> {
     return this.http.get<PointsTransaction[]>(`${this.apiUrl}/manage/loyalty/redemptions`).pipe(
       catchError(handleServiceError('LoyaltyService.getAllRedemptions'))
+    );
+  }
+
+  // Admin: Get tier configuration
+  getLoyaltyTierConfig(): Observable<LoyaltyTierRule[]> {
+    return this.http.get<LoyaltyTierRule[]>(`${this.apiUrl}/manage/loyalty/tier-config`).pipe(
+      catchError(handleServiceError('LoyaltyService.getLoyaltyTierConfig'))
+    );
+  }
+
+  // Admin: Update tier configuration
+  updateLoyaltyTierConfig(rules: UpdateLoyaltyTierRuleRequest[]): Observable<{ success: boolean; message: string; rules: LoyaltyTierRule[] }> {
+    return this.http.put<{ success: boolean; message: string; rules: LoyaltyTierRule[] }>(`${this.apiUrl}/manage/loyalty/tier-config`, rules).pipe(
+      catchError(handleServiceError('LoyaltyService.updateLoyaltyTierConfig'))
     );
   }
 

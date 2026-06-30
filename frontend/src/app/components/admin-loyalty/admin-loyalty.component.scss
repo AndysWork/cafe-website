@@ -81,6 +81,10 @@
   align-items: center;
   margin-bottom: 25px;
 
+  &.compact {
+    margin-bottom: 16px;
+  }
+
   h2 {
     font-size: 1.5rem;
     color: #0F172A;
@@ -303,6 +307,15 @@
 
       strong {
         color: #0F172A;
+      }
+
+      input {
+        width: 100%;
+        margin-top: 6px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 0.9rem;
       }
     }
   }

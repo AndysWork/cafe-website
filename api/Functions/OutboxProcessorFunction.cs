@@ -118,6 +118,12 @@ public class OutboxProcessorFunction
                     await _loyaltyRepo.AwardPointsAsync(loyalty.UserId, loyalty.Points, loyalty.Reason, loyalty.OrderId);
                 break;
 
+            case "LoyaltyPointsAwardExact":
+                var loyaltyExact = JsonSerializer.Deserialize<LoyaltyPointsPayload>(message.Payload);
+                if (loyaltyExact != null)
+                    await _loyaltyRepo.AwardExactPointsAsync(loyaltyExact.UserId, loyaltyExact.Points, loyaltyExact.Reason, loyaltyExact.OrderId);
+                break;
+
             case "LoyaltyWhatsApp":
                 var loyaltyWa = JsonSerializer.Deserialize<LoyaltyWhatsAppPayload>(message.Payload);
                 if (loyaltyWa != null)

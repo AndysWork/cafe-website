@@ -49,6 +49,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<User> _users;
     private readonly IMongoCollection<Order> _orders;
     private readonly IMongoCollection<LoyaltyAccount> _loyaltyAccounts;
+    private readonly IMongoCollection<LoyaltyTierRule> _loyaltyTierRules;
     private readonly IMongoCollection<Reward> _rewards;
     private readonly IMongoCollection<PointsTransaction> _transactions;
     private readonly IMongoCollection<Offer> _offers;
@@ -97,6 +98,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<DeliveryPartner> _deliveryPartners;
     private readonly IMongoCollection<CustomerSegment> _customerSegments;
     private readonly IMongoCollection<HomeContentConfig> _homeContentConfigs;
+    private readonly object _tierRulesLock = new();
+    private List<LoyaltyTierRule>? _tierRulesCache;
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
     
@@ -160,6 +163,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _users = db.GetCollection<User>("Users");
         _orders = db.GetCollection<Order>("Orders");
         _loyaltyAccounts = db.GetCollection<LoyaltyAccount>("LoyaltyAccounts");
+        _loyaltyTierRules = db.GetCollection<LoyaltyTierRule>("LoyaltyTierRules");
         _rewards = db.GetCollection<Reward>("Rewards");
         _transactions = db.GetCollection<PointsTransaction>("PointsTransactions");
         _offers = db.GetCollection<Offer>("Offers");
@@ -1867,12 +1871,26 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Award points to user (with tier multiplier and expiry)
     public async Task<LoyaltyAccount?> AwardPointsAsync(string userId, int points, string description, string? orderId = null)
     {
+        return await AwardPointsInternalAsync(userId, points, description, orderId, applyTierMultiplier: true);
+    }
+
+    // Award exact points to user (no tier multiplier)
+    public async Task<LoyaltyAccount?> AwardExactPointsAsync(string userId, int points, string description, string? orderId = null)
+    {
+        return await AwardPointsInternalAsync(userId, points, description, orderId, applyTierMultiplier: false);
+    }
+
+    private async Task<LoyaltyAccount?> AwardPointsInternalAsync(string userId, int points, string description, string? orderId, bool applyTierMultiplier)
+    {
         var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
         if (account == null) return null;
 
-        // Apply tier multiplier
-        double multiplier = GetTierMultiplier(account.Tier);
+        double multiplier = applyTierMultiplier ? GetTierMultiplier(account.Tier) : 1.0;
         int adjustedPoints = (int)Math.Floor(points * multiplier);
+        if (adjustedPoints <= 0)
+        {
+            return account;
+        }
 
         // Update account
         account.CurrentPoints += adjustedPoints;
@@ -2249,13 +2267,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public int GetBirthdayBonusPoints(string tier)
     {
-        return tier switch
-        {
-            "Platinum" => 500,
-            "Gold" => 200,
-            "Silver" => 100,
-            _ => 50 // Bronze
-        };
+        var normalized = NormalizeTierName(tier);
+        return GetTierRulesSnapshot()
+            .FirstOrDefault(r => NormalizeTierName(r.Tier) == normalized)?.BirthdayBonusPoints ?? 50;
     }
 
     // ─── Points Expiry ───
@@ -2318,24 +2332,17 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // ─── Tier Helpers ───
     public double GetTierMultiplier(string tier)
     {
-        return tier switch
-        {
-            "Platinum" => 2.0,
-            "Gold" => 1.5,
-            "Silver" => 1.2,
-            _ => 1.0 // Bronze
-        };
+        var normalized = NormalizeTierName(tier);
+        return GetTierRulesSnapshot()
+            .FirstOrDefault(r => NormalizeTierName(r.Tier) == normalized)?.Multiplier ?? 1.0;
     }
 
     public string[] GetTierBenefits(string tier)
     {
-        return tier switch
-        {
-            "Platinum" => new[] { "2× points on every order", "Free packaging", "Priority support", "Exclusive offers", "Birthday 500 pts" },
-            "Gold" => new[] { "1.5× points on every order", "Free packaging", "Priority support", "Birthday 200 pts" },
-            "Silver" => new[] { "1.2× points on every order", "Free packaging", "Birthday 100 pts" },
-            _ => new[] { "1× points on every order", "Birthday 50 pts" }
-        };
+        var normalized = NormalizeTierName(tier);
+        return GetTierRulesSnapshot()
+            .FirstOrDefault(r => NormalizeTierName(r.Tier) == normalized)?.Benefits?.ToArray()
+            ?? Array.Empty<string>();
     }
 
     // ─── Code Generation Helpers ───
@@ -2359,10 +2366,194 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Calculate tier based on total points earned
     private string CalculateTier(int totalPoints)
     {
-        if (totalPoints >= 3000) return "Platinum";
-        if (totalPoints >= 1500) return "Gold";
-        if (totalPoints >= 500) return "Silver";
-        return "Bronze";
+        var rules = GetTierRulesSnapshot();
+        var rule = rules
+            .Where(r => r.IsActive && totalPoints >= r.MinPoints)
+            .OrderByDescending(r => r.MinPoints)
+            .ThenByDescending(r => r.DisplayOrder)
+            .FirstOrDefault();
+
+        return rule?.Tier ?? "Bronze";
+    }
+
+    public async Task<List<LoyaltyTierRule>> GetLoyaltyTierRulesAsync()
+    {
+        var defaults = BuildDefaultTierRules();
+        var rules = await _loyaltyTierRules
+            .Find(x => x.IsActive)
+            .SortBy(x => x.MinPoints)
+            .ThenBy(x => x.DisplayOrder)
+            .ToListAsync();
+
+        if (rules.Count == 0)
+        {
+            await _loyaltyTierRules.InsertManyAsync(defaults);
+            rules = defaults;
+        }
+
+        lock (_tierRulesLock)
+        {
+            _tierRulesCache = rules
+                .OrderBy(x => x.MinPoints)
+                .ThenBy(x => x.DisplayOrder)
+                .ToList();
+        }
+
+        return rules;
+    }
+
+    public async Task<bool> UpdateLoyaltyTierRulesAsync(List<LoyaltyTierRule> rules)
+    {
+        var sanitized = rules
+            .Where(r => !string.IsNullOrWhiteSpace(r.Tier))
+            .Select(r => new LoyaltyTierRule
+            {
+                Tier = NormalizeTierName(r.Tier),
+                MinPoints = Math.Max(0, r.MinPoints),
+                Multiplier = Math.Max(1.0, Math.Round(r.Multiplier, 2)),
+                BirthdayBonusPoints = Math.Max(0, r.BirthdayBonusPoints),
+                Benefits = (r.Benefits ?? new List<string>())
+                    .Select(b => (b ?? string.Empty).Trim())
+                    .Where(b => !string.IsNullOrWhiteSpace(b))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                Color = string.IsNullOrWhiteSpace(r.Color) ? "#94a3b8" : r.Color.Trim(),
+                DisplayOrder = r.DisplayOrder,
+                IsActive = r.IsActive,
+                UpdatedAt = GetIstNow()
+            })
+            .OrderBy(r => r.MinPoints)
+            .ThenBy(r => r.DisplayOrder)
+            .ToList();
+
+        if (sanitized.Count == 0)
+        {
+            return false;
+        }
+
+        await _loyaltyTierRules.DeleteManyAsync(FilterDefinition<LoyaltyTierRule>.Empty);
+        await _loyaltyTierRules.InsertManyAsync(sanitized);
+
+        lock (_tierRulesLock)
+        {
+            _tierRulesCache = sanitized;
+        }
+
+        return true;
+    }
+
+    public (string? NextTier, int? PointsToNextTier) GetNextTierInfo(int totalPoints)
+    {
+        var nextRule = GetTierRulesSnapshot()
+            .Where(r => r.IsActive && r.MinPoints > totalPoints)
+            .OrderBy(r => r.MinPoints)
+            .ThenBy(r => r.DisplayOrder)
+            .FirstOrDefault();
+
+        if (nextRule == null)
+        {
+            return (null, null);
+        }
+
+        return (nextRule.Tier, Math.Max(0, nextRule.MinPoints - totalPoints));
+    }
+
+    private List<LoyaltyTierRule> GetTierRulesSnapshot()
+    {
+        if (_tierRulesCache != null && _tierRulesCache.Count > 0)
+        {
+            return _tierRulesCache;
+        }
+
+        lock (_tierRulesLock)
+        {
+            if (_tierRulesCache != null && _tierRulesCache.Count > 0)
+            {
+                return _tierRulesCache;
+            }
+
+            try
+            {
+                var rules = _loyaltyTierRules
+                    .Find(x => x.IsActive)
+                    .SortBy(x => x.MinPoints)
+                    .ThenBy(x => x.DisplayOrder)
+                    .ToList();
+
+                _tierRulesCache = rules.Count > 0 ? rules : BuildDefaultTierRules();
+            }
+            catch
+            {
+                _tierRulesCache = BuildDefaultTierRules();
+            }
+
+            return _tierRulesCache;
+        }
+    }
+
+    private static string NormalizeTierName(string tier)
+    {
+        var value = (tier ?? string.Empty).Trim();
+        if (value.Equals("bronze", StringComparison.OrdinalIgnoreCase)) return "Bronze";
+        if (value.Equals("silver", StringComparison.OrdinalIgnoreCase)) return "Silver";
+        if (value.Equals("gold", StringComparison.OrdinalIgnoreCase)) return "Gold";
+        if (value.Equals("platinum", StringComparison.OrdinalIgnoreCase)) return "Platinum";
+        return value;
+    }
+
+    private static List<LoyaltyTierRule> BuildDefaultTierRules()
+    {
+        return new List<LoyaltyTierRule>
+        {
+            new LoyaltyTierRule
+            {
+                Tier = "Bronze",
+                MinPoints = 0,
+                Multiplier = 1.0,
+                BirthdayBonusPoints = 50,
+                Benefits = new List<string> { "1× points on every order", "Birthday 50 pts" },
+                Color = "#cd7f32",
+                DisplayOrder = 1,
+                IsActive = true,
+                UpdatedAt = GetIstNow()
+            },
+            new LoyaltyTierRule
+            {
+                Tier = "Silver",
+                MinPoints = 500,
+                Multiplier = 1.2,
+                BirthdayBonusPoints = 100,
+                Benefits = new List<string> { "1.2× points on every order", "Free packaging", "Birthday 100 pts" },
+                Color = "#c0c0c0",
+                DisplayOrder = 2,
+                IsActive = true,
+                UpdatedAt = GetIstNow()
+            },
+            new LoyaltyTierRule
+            {
+                Tier = "Gold",
+                MinPoints = 1500,
+                Multiplier = 1.5,
+                BirthdayBonusPoints = 200,
+                Benefits = new List<string> { "1.5× points on every order", "Free packaging", "Priority support", "Birthday 200 pts" },
+                Color = "#ffd700",
+                DisplayOrder = 3,
+                IsActive = true,
+                UpdatedAt = GetIstNow()
+            },
+            new LoyaltyTierRule
+            {
+                Tier = "Platinum",
+                MinPoints = 3000,
+                Multiplier = 2.0,
+                BirthdayBonusPoints = 500,
+                Benefits = new List<string> { "2× points on every order", "Free packaging", "Priority support", "Exclusive offers", "Birthday 500 pts" },
+                Color = "#e5e4e2",
+                DisplayOrder = 4,
+                IsActive = true,
+                UpdatedAt = GetIstNow()
+            }
+        };
     }
 
     // Ensure database indexes for performance

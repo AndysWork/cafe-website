@@ -39,7 +39,7 @@ public class LoyaltyAdminFunction
 
             var accountResponses = accounts.Select(a =>
             {
-                var (nextTier, pointsToNextTier) = LoyaltyHelper.CalculateNextTierInfo(a.TotalPointsEarned);
+                var (nextTier, pointsToNextTier) = _mongo.GetNextTierInfo(a.TotalPointsEarned);
                 return new LoyaltyAccountResponse
                 {
                     Id = a.Id!,
@@ -71,6 +71,100 @@ public class LoyaltyAdminFunction
             _log.LogError(ex, "Error getting all loyalty accounts");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { error = "Failed to get loyalty accounts" });
+            return error;
+        }
+    }
+
+    [Function("GetLoyaltyTierConfig")]
+    public async Task<HttpResponseData> GetLoyaltyTierConfig(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/tier-config")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) =
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+
+            if (!isAuthorized)
+                return errorResponse!;
+
+            var rules = await _mongo.GetLoyaltyTierRulesAsync();
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(rules.OrderBy(x => x.MinPoints).ThenBy(x => x.DisplayOrder));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error fetching loyalty tier config");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to get loyalty tier config" });
+            return error;
+        }
+    }
+
+    [Function("UpdateLoyaltyTierConfig")]
+    public async Task<HttpResponseData> UpdateLoyaltyTierConfig(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/loyalty/tier-config")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) =
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+
+            if (!isAuthorized)
+                return errorResponse!;
+
+            var (rules, validationError) = await ValidationHelper.ValidateBody<List<UpdateLoyaltyTierRuleRequest>>(req);
+            if (validationError != null) return validationError;
+
+            if (rules == null || rules.Count == 0)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "At least one tier configuration is required" });
+                return badRequest;
+            }
+
+            var duplicatedTier = rules
+                .GroupBy(r => (r.Tier ?? string.Empty).Trim().ToLowerInvariant())
+                .FirstOrDefault(g => g.Key != string.Empty && g.Count() > 1);
+
+            if (duplicatedTier != null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = $"Duplicate tier found: {duplicatedTier.Key}" });
+                return badRequest;
+            }
+
+            var models = rules.Select(r => new LoyaltyTierRule
+            {
+                Tier = r.Tier,
+                MinPoints = r.MinPoints,
+                Multiplier = r.Multiplier,
+                BirthdayBonusPoints = r.BirthdayBonusPoints,
+                Benefits = r.Benefits ?? new List<string>(),
+                Color = r.Color,
+                DisplayOrder = r.DisplayOrder,
+                IsActive = r.IsActive
+            }).ToList();
+
+            var updated = await _mongo.UpdateLoyaltyTierRulesAsync(models);
+
+            if (!updated)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Failed to update loyalty tier config" });
+                return badRequest;
+            }
+
+            var refreshed = await _mongo.GetLoyaltyTierRulesAsync();
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, message = "Tier configuration updated", rules = refreshed });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating loyalty tier config");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to update loyalty tier config" });
             return error;
         }
     }

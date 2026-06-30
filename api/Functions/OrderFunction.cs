@@ -16,6 +16,9 @@ namespace Cafe.Api.Functions;
 
 public class OrderFunction
 {
+    private const decimal BillToPointRate = 0.10m; // ₹1 = 0.1 loyalty points
+    private const int ReviewWithItemRatingsBonusPoints = 3;
+
     private readonly IOrderRepository _orderRepo;
     private readonly IMenuRepository _menuRepo;
     private readonly IOfferRepository _offerRepo;
@@ -1408,12 +1411,15 @@ public class OrderFunction
         var review = await _orderRepo.GetReviewByOrderIdAsync(order.Id!);
         if (review == null) return;
 
-        var basePoints = (int)Math.Floor(order.Total * 0.10m);
-        var ratingBonus = review.Rating > 0 ? 2 : 0;
-        var pointsToAward = Math.Max(0, basePoints + ratingBonus);
+        var paidBillValue = GetEligiblePaidBillValue(order);
+        var pointsToAward = (int)Math.Floor(paidBillValue * BillToPointRate);
+        if (HasOrderAndItemRatings(order, review))
+        {
+            pointsToAward += ReviewWithItemRatingsBonusPoints;
+        }
         if (pointsToAward <= 0) return;
 
-        await _outbox.EnqueueAsync("LoyaltyPointsAward", "Order", order.Id!,
+        await _outbox.EnqueueAsync("LoyaltyPointsAwardExact", "Order", order.Id!,
             new { UserId = order.UserId, Points = pointsToAward, Reason = $"Order #{order.Id} completion", OrderId = order.Id });
 
         if (!string.IsNullOrEmpty(order.PhoneNumber))
@@ -1434,6 +1440,34 @@ public class OrderFunction
             actorId: null, actorRole: "system",
             newState: new { Points = pointsToAward, Reason = $"Order #{order.Id} completion" },
             outletId: order.OutletId);
+    }
+
+    private static decimal GetEligiblePaidBillValue(Order order)
+    {
+        // The payable amount is already net of loyalty/wallet/coupon redemption.
+        // Award points only on this paid amount.
+        return Math.Max(0m, order.Total);
+    }
+
+    private static bool HasOrderAndItemRatings(Order order, CustomerReview review)
+    {
+        if (review.Rating < 1) return false;
+
+        var uniqueOrderItems = order.Items
+            .Select(i => i.MenuItemId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (uniqueOrderItems.Count == 0) return false;
+
+        var ratedItemIds = (review.ItemRatings ?? new List<ItemRating>())
+            .Where(r => !string.IsNullOrWhiteSpace(r.MenuItemId) && r.Rating >= 1)
+            .Select(r => r.MenuItemId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return uniqueOrderItems.All(id => ratedItemIds.Contains(id));
     }
 
     private static bool IsValidStatusTransition(string current, string next)

@@ -10,6 +10,7 @@ public interface ILoyaltyRepository
     Task<List<LoyaltyAccount>> GetAllLoyaltyAccountsAsync(int? page = null, int? pageSize = null);
     Task<long> GetAllLoyaltyAccountsCountAsync();
     Task<LoyaltyAccount?> AwardPointsAsync(string userId, int points, string description, string? orderId = null);
+    Task<LoyaltyAccount?> AwardExactPointsAsync(string userId, int points, string description, string? orderId = null);
     Task<(bool Success, string Message, LoyaltyAccount? Account)> RedeemRewardAsync(string userId, string rewardId);
     Task<List<PointsTransaction>> GetUserTransactionsAsync(string userId);
     Task<LoyaltyAccount?> GetLoyaltyAccountAsync(string userId);

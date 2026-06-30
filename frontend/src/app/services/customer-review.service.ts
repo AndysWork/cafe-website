@@ -10,14 +10,24 @@ export interface CustomerReview {
   orderId: string;
   rating: number;
   comment?: string;
+  itemRatings?: ItemRating[];
+  loyaltyBonusAwarded?: boolean;
+  loyaltyBonusPoints?: number;
   username: string;
   createdAt: string;
+}
+
+export interface ItemRating {
+  menuItemId: string;
+  itemName?: string;
+  rating: number;
 }
 
 export interface CreateReviewRequest {
   orderId: string;
   rating: number;
   comment?: string;
+  itemRatings?: Array<{ menuItemId: string; rating: number }>;
 }
 
 export interface ReviewResponse {

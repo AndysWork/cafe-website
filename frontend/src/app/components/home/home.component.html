@@ -51,6 +51,107 @@
     </div>
   </section>
 
+  <section class="highlights-section">
+    <div class="section-header">
+      <h2>Loyalty & Offers</h2>
+      <p>Rewards, level perks, and latest deals for your next order</p>
+    </div>
+
+    <div class="highlights-grid">
+      <article class="highlight-card loyalty-card">
+        <div class="highlight-head">
+          <h3>🎖️ Loyalty Rewards</h3>
+          <a routerLink="/loyalty" class="link-chip">View all</a>
+        </div>
+
+        <div class="public-level-grid">
+          <div class="level-card" *ngFor="let level of loyaltyLevelPerks">
+            <div class="level-head">
+              <span>{{ level.icon }} {{ level.tier }}</span>
+              <small>{{ level.pointsBand }}</small>
+            </div>
+            <small *ngFor="let perk of level.perks" class="level-perk">• {{ perk }}</small>
+          </div>
+        </div>
+
+        <div *ngIf="!isLoggedIn" class="muted-note">
+          Login to see your personal loyalty points, progress, rewards eligibility, and referral details.
+        </div>
+        <div *ngIf="isLoggedIn && loyaltyLoading" class="muted-note">Loading loyalty details...</div>
+
+        <ng-container *ngIf="isLoggedIn && !loyaltyLoading">
+          <div *ngIf="loyaltyAccount" class="loyalty-tier-row">
+            <span class="tier-pill">{{ loyaltyAccount.tier | titlecase }} Tier</span>
+            <strong>{{ loyaltyAccount.currentPoints }} pts</strong>
+          </div>
+
+          <div *ngIf="loyaltyAccount" class="personal-loyalty-grid">
+            <div class="personal-loyalty-item">
+              <small>Total Earned</small>
+              <strong>{{ loyaltyAccount.totalPointsEarned }} pts</strong>
+            </div>
+            <div class="personal-loyalty-item">
+              <small>Total Redeemed</small>
+              <strong>{{ loyaltyAccount.totalPointsRedeemed }} pts</strong>
+            </div>
+            <div class="personal-loyalty-item" *ngIf="loyaltyAccount.nextTier">
+              <small>Next Level</small>
+              <strong>{{ loyaltyAccount.nextTier | titlecase }}</strong>
+            </div>
+            <div class="personal-loyalty-item" *ngIf="loyaltyAccount.pointsToNextTier !== undefined">
+              <small>Points to Next</small>
+              <strong>{{ loyaltyAccount.pointsToNextTier }} pts</strong>
+            </div>
+            <div class="personal-loyalty-item" *ngIf="loyaltyAccount.referralCode">
+              <small>Referral Code</small>
+              <strong>{{ loyaltyAccount.referralCode }}</strong>
+            </div>
+            <div class="personal-loyalty-item">
+              <small>Birthday Bonus</small>
+              <strong>{{ loyaltyAccount.birthdayBonusAvailable ? 'Available' : 'Not available' }}</strong>
+            </div>
+          </div>
+
+          <div *ngIf="loyaltyPerks.length > 0" class="perk-list">
+            <p class="perk-title">Level perks</p>
+            <span *ngFor="let perk of loyaltyPerks | slice:0:4" class="perk-chip">{{ perk }}</span>
+          </div>
+
+          <div *ngIf="loyaltyRewards.length > 0" class="reward-list">
+            <div class="reward-row" *ngFor="let reward of loyaltyRewards | slice:0:4">
+              <span>{{ reward.icon }} {{ reward.name }}</span>
+              <span class="reward-points">{{ reward.pointsCost }} pts</span>
+            </div>
+          </div>
+
+          <div *ngIf="!loyaltyAccount && loyaltyRewards.length === 0" class="muted-note">No loyalty rewards available right now.</div>
+        </ng-container>
+      </article>
+
+      <article class="highlight-card offers-card">
+        <div class="highlight-head">
+          <h3>🏷️ Offers Available</h3>
+          <a routerLink="/offers" class="link-chip">Browse offers</a>
+        </div>
+
+        <div *ngIf="offersLoading" class="muted-note">Loading offers...</div>
+
+        <div *ngIf="!offersLoading && activeOffers.length > 0" class="offer-list">
+          <div class="offer-row" *ngFor="let offer of activeOffers | slice:0:4">
+            <div>
+              <strong>{{ offer.title }}</strong>
+              <small>{{ offer.description }}</small>
+              <small>{{ formatOfferValidTill(offer.validTill) }}</small>
+            </div>
+            <span class="offer-badge">{{ getOfferDiscountLabel(offer) }}</span>
+          </div>
+        </div>
+
+        <div *ngIf="!offersLoading && activeOffers.length === 0" class="muted-note">No active offers at the moment.</div>
+      </article>
+    </div>
+  </section>
+
   <!-- Outlets Section -->
   <section id="outlets" class="outlets-section">
     <div class="section-header">

@@ -96,15 +96,42 @@
     </div>
 
     <div class="tier-config-section">
-      <h2>Tier Configuration</h2>
+      <div class="section-header compact">
+        <h2>Tier Configuration</h2>
+        <button class="btn-create" (click)="saveTierConfig()" [disabled]="tierConfigSaving || tierConfigDraft.length === 0">
+          {{ tierConfigSaving ? 'Saving...' : 'Save Tier Config' }}
+        </button>
+      </div>
       <div class="tier-grid">
-        <div *ngFor="let tier of tierConfig; trackBy: trackByName" class="tier-card" [style.border-color]="tier.color">
+        <div *ngFor="let tier of tierConfigDraft; let i = index; trackBy: trackByIndex" class="tier-card" [style.border-color]="tier.color">
           <div class="tier-header" [style.background]="tier.color">
-            <span class="tier-name">{{ tier.name }}</span>
+            <span class="tier-name">{{ tier.tier }}</span>
           </div>
           <div class="tier-details">
-            <p><strong>Min Points:</strong> {{ tier.minPoints }}</p>
-            <p><strong>Benefits:</strong> {{ tier.benefits }}</p>
+            <p>
+              <strong>Min Points:</strong>
+              <input type="number" [(ngModel)]="tier.minPoints" min="0" />
+            </p>
+            <p>
+              <strong>Multiplier:</strong>
+              <input type="number" step="0.1" [(ngModel)]="tier.multiplier" min="1" />
+            </p>
+            <p>
+              <strong>Birthday Bonus:</strong>
+              <input type="number" [(ngModel)]="tier.birthdayBonusPoints" min="0" />
+            </p>
+            <p>
+              <strong>Color:</strong>
+              <input type="text" [(ngModel)]="tier.color" placeholder="#hex" />
+            </p>
+            <p>
+              <strong>Benefits (comma separated):</strong>
+              <input
+                type="text"
+                [ngModel]="(tier.benefits || []).join(', ')"
+                (ngModelChange)="tier.benefits = parseBenefitsInput($event)"
+                placeholder="Benefit 1, Benefit 2" />
+            </p>
           </div>
         </div>
       </div>

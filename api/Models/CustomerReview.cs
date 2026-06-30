@@ -34,6 +34,15 @@ public class CustomerReview
     [StringLength(1000)]
     public string? Comment { get; set; }
 
+    [BsonElement("itemRatings")]
+    public List<ItemRating> ItemRatings { get; set; } = new();
+
+    [BsonElement("loyaltyBonusAwarded")]
+    public bool LoyaltyBonusAwarded { get; set; }
+
+    [BsonElement("loyaltyBonusPoints")]
+    public int LoyaltyBonusPoints { get; set; }
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -52,4 +61,29 @@ public class CreateReviewRequest
 
     [StringLength(1000)]
     public string? Comment { get; set; }
+
+    public List<CreateItemRatingRequest>? ItemRatings { get; set; }
+}
+
+public class ItemRating
+{
+    [BsonElement("menuItemId")]
+    [Required]
+    public string MenuItemId { get; set; } = string.Empty;
+
+    [BsonElement("itemName")]
+    public string ItemName { get; set; } = string.Empty;
+
+    [BsonElement("rating")]
+    [Range(1, 5)]
+    public int Rating { get; set; }
+}
+
+public class CreateItemRatingRequest
+{
+    [Required]
+    public string MenuItemId { get; set; } = string.Empty;
+
+    [Range(1, 5)]
+    public int Rating { get; set; }
 }

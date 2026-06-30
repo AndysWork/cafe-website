@@ -245,6 +245,18 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return `₹${(value || 0).toFixed(2)}`;
   }
 
+  getGrossBeforeDiscounts(order: Order): number {
+    return (order.subtotal || 0) + (order.tax || 0) + (order.platformCharge || 0) + (order.deliveryFee || 0);
+  }
+
+  getLoyaltyRedemptionAmount(order: Order): number {
+    return order.loyaltyDiscountAmount || 0;
+  }
+
+  getNetPaidValue(order: Order): number {
+    return order.total || 0;
+  }
+
   formatDate(value?: string): string {
     if (!value) return '-';
     return formatIstDateTime(value);

@@ -484,6 +484,215 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   color: #78350f;
 }
 
+.highlights-section {
+  max-width: 1200px;
+  margin: 1.5rem auto 0;
+  padding: 0 1rem;
+}
+
+.highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.highlight-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: $shadow-sm;
+}
+
+.loyalty-card {
+  background: linear-gradient(135deg, #eff6ff 0%, #fdf4ff 100%);
+}
+
+.offers-card {
+  background: linear-gradient(135deg, #fff7ed 0%, #fefce8 100%);
+}
+
+.highlight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .75rem;
+
+  h3 {
+    margin: 0;
+    color: $text;
+    font-size: 1rem;
+  }
+}
+
+.link-chip {
+  font-size: .78rem;
+  font-weight: 700;
+  color: $brand-dark;
+  text-decoration: none;
+  background: rgba($brand, .14);
+  padding: .35rem .6rem;
+  border-radius: 999px;
+}
+
+.muted-note {
+  color: $text-muted;
+  font-size: .85rem;
+}
+
+.public-level-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  margin-bottom: .8rem;
+}
+
+.level-card {
+  background: rgba(255, 255, 255, .85);
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: .5rem .6rem;
+}
+
+.level-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .25rem;
+
+  span {
+    font-size: .82rem;
+    font-weight: 700;
+    color: $text;
+  }
+
+  small {
+    font-size: .72rem;
+    color: $text-muted;
+  }
+}
+
+.level-perk {
+  display: block;
+  color: $text-light;
+  font-size: .72rem;
+}
+
+.loyalty-tier-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .75rem;
+}
+
+.personal-loyalty-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.personal-loyalty-item {
+  background: rgba(255, 255, 255, .88);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: .45rem .55rem;
+
+  small {
+    display: block;
+    color: $text-muted;
+    font-size: .7rem;
+  }
+
+  strong {
+    color: $text;
+    font-size: .82rem;
+  }
+}
+
+.tier-pill {
+  background: rgba($brand, .2);
+  color: $brand-dark;
+  border-radius: 999px;
+  padding: .25rem .6rem;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.perk-title {
+  margin: 0 0 .5rem;
+  font-size: .8rem;
+  color: $text-light;
+}
+
+.perk-list {
+  margin-bottom: .75rem;
+}
+
+.perk-chip {
+  display: inline-block;
+  margin: 0 .45rem .45rem 0;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: .28rem .55rem;
+  font-size: .75rem;
+  color: $text;
+}
+
+.reward-list,
+.offer-list {
+  display: grid;
+  gap: .5rem;
+}
+
+.reward-row,
+.offer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: .5rem;
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: .55rem .65rem;
+}
+
+.reward-points {
+  font-weight: 700;
+  color: $brand-dark;
+  white-space: nowrap;
+}
+
+.offer-row small {
+  display: block;
+  color: $text-muted;
+  font-size: .75rem;
+}
+
+.offer-badge {
+  background: #f97316;
+  color: #fff;
+  border-radius: 999px;
+  padding: .25rem .55rem;
+  font-size: .72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .highlights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .public-level-grid,
+  .personal-loyalty-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @keyframes gradientShift {
 
   0%,

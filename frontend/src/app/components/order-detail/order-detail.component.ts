@@ -37,6 +37,8 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   reviewComment = '';
   reviewSubmitting = false;
   reviewHoverRating = 0;
+  itemReviewRatings: Record<string, number> = {};
+  itemReviewHoverRatings: Record<string, number> = {};
 
   // PDF download
   downloadingPdf = false;
@@ -265,10 +267,15 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       return;
     }
     this.reviewSubmitting = true;
+    const itemRatingsPayload = this.order?.items
+      .map(i => ({ menuItemId: i.menuItemId, rating: this.itemReviewRatings[i.menuItemId] || 0 }))
+      .filter(i => i.rating > 0) || [];
+
     this.reviewService.createReview({
       orderId: this.orderId,
       rating: this.reviewRating,
-      comment: this.reviewComment.trim() || undefined
+      comment: this.reviewComment.trim() || undefined,
+      itemRatings: itemRatingsPayload.length > 0 ? itemRatingsPayload : undefined
     }).subscribe({
       next: (res) => {
         this.existingReview = res.review;
@@ -280,6 +287,23 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
         this.uiStore.error(err.error?.error || 'Failed to submit review');
       }
     });
+  }
+
+  setItemRating(menuItemId: string, star: number) {
+    this.itemReviewRatings[menuItemId] = star;
+  }
+
+  getItemRating(menuItemId: string): number {
+    return this.itemReviewRatings[menuItemId] || 0;
+  }
+
+  getItemHoverRating(menuItemId: string): number {
+    return this.itemReviewHoverRatings[menuItemId] || 0;
+  }
+
+  hasAllItemRatings(): boolean {
+    if (!this.order || !this.order.items || this.order.items.length === 0) return false;
+    return this.order.items.every(i => (this.itemReviewRatings[i.menuItemId] || 0) > 0);
   }
 
   trackByName(index: number, item: any): string { return item.name; }

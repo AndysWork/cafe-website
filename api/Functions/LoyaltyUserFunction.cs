@@ -84,7 +84,7 @@ public class LoyaltyUserFunction
             var (expiringPoints, expiringDate) = await _mongo.GetExpiringPointsInfoAsync(userId);
 
             // Calculate next tier info
-            var (nextTier, pointsToNextTier) = LoyaltyHelper.CalculateNextTierInfo(account.TotalPointsEarned);
+            var (nextTier, pointsToNextTier) = _mongo.GetNextTierInfo(account.TotalPointsEarned);
 
             var response = new LoyaltyAccountResponse
             {
@@ -289,7 +289,7 @@ public class LoyaltyUserFunction
             }
 
             // Calculate next tier info
-            var (nextTier, pointsToNextTier) = LoyaltyHelper.CalculateNextTierInfo(redemptionResult.Account!.TotalPointsEarned);
+            var (nextTier, pointsToNextTier) = _mongo.GetNextTierInfo(redemptionResult.Account!.TotalPointsEarned);
 
             var accountResponse = new LoyaltyAccountResponse
             {

@@ -211,17 +211,17 @@
 
         <!-- Loyalty Points Section -->
         <div *ngIf="loyaltyLoaded && loyaltyAccount && loyaltyAccount.currentPoints > 0" class="loyalty-section">
-          <label class="section-label">⭐ Loyalty Points</label>
+          <label class="section-label">⭐ Loyalty Points Payment</label>
           <div class="loyalty-toggle">
             <label class="checkbox-label">
               <input type="checkbox" [(ngModel)]="useLoyaltyPoints" name="useLoyaltyPoints" (change)="toggleLoyaltyPoints()" />
               <span>
-                Use loyalty points
+                Use loyalty points as payment
                 <small class="loyalty-balance">({{ loyaltyAccount.currentPoints }} pts available = ₹{{ (loyaltyAccount.currentPoints * 0.25) | number:'1.0-0' }})</small>
               </span>
             </label>
             <div *ngIf="useLoyaltyPoints" class="loyalty-info">
-              Using <strong>{{ loyaltyPointsToUse }}</strong> points (−₹{{ loyaltyDiscount }})
+              Using <strong>{{ loyaltyPointsToUse }}</strong> points (−₹{{ loyaltyDiscount }}) as redemption for this order
             </div>
           </div>
         </div>

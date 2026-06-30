@@ -8,6 +8,9 @@ import { OutletService } from '../../services/outlet.service';
 import { Outlet } from '../../models/outlet.model';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { HomeContentConfigService, HomeContentConfig } from '../../services/home-content-config.service';
+import { LoyaltyService, LoyaltyAccount, Reward } from '../../services/loyalty.service';
+import { OffersService, Offer } from '../../services/offers.service';
+import { AuthService } from '../../services/auth.service';
 
 declare const L: any;
 
@@ -47,6 +50,13 @@ interface MenuItem {
   catalogueName: string;
 }
 
+interface LoyaltyLevelPerk {
+  tier: string;
+  icon: string;
+  pointsBand: string;
+  perks: string[];
+}
+
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -63,6 +73,37 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   announcementEnabled = false;
   announcementTitle = '';
   announcementMessage = '';
+  loyaltyAccount: LoyaltyAccount | null = null;
+  loyaltyRewards: Reward[] = [];
+  activeOffers: Offer[] = [];
+  loyaltyLoading = false;
+  offersLoading = false;
+  loyaltyLevelPerks: LoyaltyLevelPerk[] = [
+    {
+      tier: 'Bronze',
+      icon: '🥉',
+      pointsBand: '0+ pts',
+      perks: ['Base rewards', 'Birthday bonus eligibility']
+    },
+    {
+      tier: 'Silver',
+      icon: '🥈',
+      pointsBand: '1,000+ pts',
+      perks: ['Faster points multiplier', 'Priority support during peak hours']
+    },
+    {
+      tier: 'Gold',
+      icon: '🥇',
+      pointsBand: '3,000+ pts',
+      perks: ['Higher rewards multiplier', 'Exclusive campaign access']
+    },
+    {
+      tier: 'Platinum',
+      icon: '💎',
+      pointsBand: '7,000+ pts',
+      perks: ['Top rewards multiplier', 'Premium member-only drops']
+    }
+  ];
 
   testimonials = [
     {
@@ -152,7 +193,10 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private http: HttpClient,
     private outletService: OutletService,
-    private homeContentConfigService: HomeContentConfigService
+    private homeContentConfigService: HomeContentConfigService,
+    private loyaltyService: LoyaltyService,
+    private offersService: OffersService,
+    private authService: AuthService
   ) {}
 
   ngOnInit() {
@@ -163,6 +207,91 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadOutlets();
     // Load real stats from public API
     this.loadPublicStats();
+    this.loadOffersHighlights();
+    this.loadLoyaltyHighlights();
+  }
+
+  get isLoggedIn(): boolean {
+    return this.authService.isLoggedIn();
+  }
+
+  get loyaltyPerks(): string[] {
+    return this.loyaltyAccount?.tierBenefits || [];
+  }
+
+  private loadLoyaltyHighlights() {
+    if (!this.authService.isLoggedIn()) {
+      this.loyaltyAccount = null;
+      this.loyaltyRewards = [];
+      return;
+    }
+
+    this.loyaltyLoading = true;
+
+    this.loyaltyService.getLoyaltyAccount().subscribe({
+      next: (account) => {
+        this.loyaltyAccount = account;
+        this.loyaltyLoading = false;
+      },
+      error: () => {
+        this.loyaltyAccount = null;
+        this.loyaltyLoading = false;
+      }
+    });
+
+    this.loadLoyaltyRewards();
+  }
+
+  private loadLoyaltyRewards() {
+    this.loyaltyService.getAvailableRewards().subscribe({
+      next: (rewards) => {
+        this.loyaltyRewards = [...(rewards || [])]
+          .filter(r => r.isActive)
+          .sort((a, b) => {
+            if (a.canRedeem === b.canRedeem) return a.pointsCost - b.pointsCost;
+            return a.canRedeem ? -1 : 1;
+          })
+          .slice(0, 6);
+      },
+      error: () => {
+        this.loyaltyRewards = [];
+      }
+    });
+  }
+
+  private loadOffersHighlights() {
+    this.offersLoading = true;
+    this.offersService.getActiveOffers().subscribe({
+      next: (offers) => {
+        const now = new Date();
+        this.activeOffers = [...(offers || [])]
+          .filter(offer => {
+            if (!offer.isActive) return false;
+            if (!offer.validTill) return true;
+            return new Date(offer.validTill as any) >= now;
+          })
+          .sort((a, b) => new Date(b.validTill as any).getTime() - new Date(a.validTill as any).getTime())
+          .slice(0, 6);
+        this.offersLoading = false;
+      },
+      error: () => {
+        this.activeOffers = [];
+        this.offersLoading = false;
+      }
+    });
+  }
+
+  getOfferDiscountLabel(offer: Offer): string {
+    if (offer.discountType === 'percentage') return `${offer.discountValue}% OFF`;
+    if (offer.discountType === 'flat') return `₹${offer.discountValue} OFF`;
+    return 'BOGO';
+  }
+
+  formatOfferValidTill(value: any): string {
+    if (!value) return 'Limited period';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Limited period';
+    return `Valid till ${date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
   }
 
   ngAfterViewInit() {

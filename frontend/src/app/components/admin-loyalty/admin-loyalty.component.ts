@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LoyaltyService, Reward, LoyaltyAccount, PointsTransaction, ExternalOrderClaim, AdminClaimsResponse } from '../../services/loyalty.service';
+import { LoyaltyService, Reward, LoyaltyAccount, PointsTransaction, ExternalOrderClaim, AdminClaimsResponse, LoyaltyTierRule, UpdateLoyaltyTierRuleRequest } from '../../services/loyalty.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
@@ -57,6 +57,8 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
     { name: 'Gold', minPoints: 1500, color: '#ffd700', benefits: 'Premium perks' },
     { name: 'Platinum', minPoints: 3000, color: '#e5e4e2', benefits: 'VIP treatment' }
   ];
+  tierConfigDraft: LoyaltyTierRule[] = [];
+  tierConfigSaving = false;
 
   constructor(private loyaltyService: LoyaltyService) {}
 
@@ -107,6 +109,23 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
   }
 
   loadAccounts() {
+    this.loyaltyService.getLoyaltyTierConfig().subscribe({
+      next: (rules) => {
+        const sorted = [...(rules || [])].sort((a, b) => a.minPoints - b.minPoints || a.displayOrder - b.displayOrder);
+        this.tierConfigDraft = sorted;
+        this.tierConfig = sorted.map(rule => ({
+          name: rule.tier,
+          minPoints: rule.minPoints,
+          color: rule.color,
+          benefits: (rule.benefits || []).join(', ')
+        }));
+      },
+      error: (err) => {
+        console.error('Error loading tier config:', err);
+        this.uiStore.error('Failed to load tier config');
+      }
+    });
+
     this.loyaltyService.getAllLoyaltyAccounts().subscribe({
       next: (accounts) => {
         this.loyaltyAccounts = accounts;
@@ -118,6 +137,65 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
         this.loading = false;
       }
     });
+  }
+
+  saveTierConfig() {
+    if (!this.tierConfigDraft || this.tierConfigDraft.length === 0) {
+      this.uiStore.error('Tier configuration is empty');
+      return;
+    }
+
+    const hasInvalid = this.tierConfigDraft.some(rule =>
+      !rule.tier?.trim() || rule.minPoints < 0 || rule.multiplier < 1 || rule.birthdayBonusPoints < 0
+    );
+
+    if (hasInvalid) {
+      this.uiStore.error('Please provide valid values for all tier settings');
+      return;
+    }
+
+    const payload: UpdateLoyaltyTierRuleRequest[] = this.tierConfigDraft
+      .map((rule, idx) => ({
+        tier: rule.tier.trim(),
+        minPoints: Number(rule.minPoints) || 0,
+        multiplier: Number(rule.multiplier) || 1,
+        birthdayBonusPoints: Number(rule.birthdayBonusPoints) || 0,
+        benefits: (rule.benefits || [])
+          .map(b => (b || '').trim())
+          .filter(Boolean),
+        color: rule.color || '#94a3b8',
+        displayOrder: Number.isFinite(rule.displayOrder) ? rule.displayOrder : idx + 1,
+        isActive: rule.isActive !== false
+      }))
+      .sort((a, b) => a.minPoints - b.minPoints || a.displayOrder - b.displayOrder);
+
+    this.tierConfigSaving = true;
+    this.loyaltyService.updateLoyaltyTierConfig(payload).subscribe({
+      next: (res) => {
+        const refreshed = [...(res.rules || [])].sort((a, b) => a.minPoints - b.minPoints || a.displayOrder - b.displayOrder);
+        this.tierConfigDraft = refreshed;
+        this.tierConfig = refreshed.map(rule => ({
+          name: rule.tier,
+          minPoints: rule.minPoints,
+          color: rule.color,
+          benefits: (rule.benefits || []).join(', ')
+        }));
+        this.uiStore.success('Tier configuration saved successfully');
+        this.tierConfigSaving = false;
+      },
+      error: (err) => {
+        console.error('Error updating tier config:', err);
+        this.uiStore.error(err.error?.error || 'Failed to save tier configuration');
+        this.tierConfigSaving = false;
+      }
+    });
+  }
+
+  parseBenefitsInput(value: string): string[] {
+    return (value || '')
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean);
   }
 
   loadRedemptions() {

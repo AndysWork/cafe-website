@@ -7,11 +7,15 @@ using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
 using System.Linq;
+using System.ComponentModel.DataAnnotations;
 
 namespace Cafe.Api.Functions;
 
 public class ReviewFunction
 {
+    private const decimal BillToPointRate = 0.10m; // ₹1 = 0.1 loyalty points
+    private const int ReviewWithItemRatingsBonusPoints = 3;
+
     private readonly IOrderRepository _mongo;
     private readonly AuthService _auth;
     private readonly OutboxService _outbox;
@@ -82,9 +86,18 @@ public class ReviewFunction
                 OutletId = order.OutletId,
                 Rating = request.Rating,
                 Comment = InputSanitizer.Sanitize(request.Comment ?? ""),
+                ItemRatings = BuildItemRatings(order, request.ItemRatings),
+                LoyaltyBonusAwarded = false,
+                LoyaltyBonusPoints = 0,
                 CreatedAt = MongoService.GetIstNow(),
                 UpdatedAt = MongoService.GetIstNow()
             };
+
+            if (HasOrderAndItemRatings(order, review))
+            {
+                review.LoyaltyBonusAwarded = true;
+                review.LoyaltyBonusPoints = ReviewWithItemRatingsBonusPoints;
+            }
 
             var created = await _mongo.CreateReviewAsync(review);
             await TryAwardWorkflowLoyaltyPointsAsync(order, created);
@@ -100,6 +113,9 @@ public class ReviewFunction
                     orderId = created.OrderId,
                     rating = created.Rating,
                     comment = created.Comment,
+                        itemRatings = created.ItemRatings,
+                        loyaltyBonusAwarded = created.LoyaltyBonusAwarded,
+                        loyaltyBonusPoints = created.LoyaltyBonusPoints,
                     username = created.Username,
                     createdAt = created.CreatedAt
                 }
@@ -143,6 +159,9 @@ public class ReviewFunction
                         orderId = review.OrderId,
                         rating = review.Rating,
                         comment = review.Comment,
+                        itemRatings = review.ItemRatings,
+                        loyaltyBonusAwarded = review.LoyaltyBonusAwarded,
+                        loyaltyBonusPoints = review.LoyaltyBonusPoints,
                         username = review.Username,
                         createdAt = review.CreatedAt
                     }
@@ -183,6 +202,9 @@ public class ReviewFunction
                     orderId = r.OrderId,
                     rating = r.Rating,
                     comment = r.Comment,
+                    itemRatings = r.ItemRatings,
+                    loyaltyBonusAwarded = r.LoyaltyBonusAwarded,
+                    loyaltyBonusPoints = r.LoyaltyBonusPoints,
                     username = r.Username,
                     createdAt = r.CreatedAt
                 }),
@@ -208,12 +230,15 @@ public class ReviewFunction
         var hasOpenIssue = issues.Any(i => i.Status == "open" || i.Status == "in-progress");
         if (hasOpenIssue) return;
 
-        var basePoints = (int)Math.Floor(order.Total * 0.10m);
-        var ratingBonus = review.Rating > 0 ? 2 : 0;
-        var pointsToAward = Math.Max(0, basePoints + ratingBonus);
+        var paidBillValue = Math.Max(0m, order.Total);
+        var pointsToAward = (int)Math.Floor(paidBillValue * BillToPointRate);
+        if (HasOrderAndItemRatings(order, review))
+        {
+            pointsToAward += ReviewWithItemRatingsBonusPoints;
+        }
         if (pointsToAward <= 0) return;
 
-        await _outbox.EnqueueAsync("LoyaltyPointsAward", "Order", order.Id!,
+        await _outbox.EnqueueAsync("LoyaltyPointsAwardExact", "Order", order.Id!,
             new { UserId = order.UserId, Points = pointsToAward, Reason = $"Order #{order.Id} completion", OrderId = order.Id });
 
         if (!string.IsNullOrEmpty(order.PhoneNumber))
@@ -229,5 +254,71 @@ public class ReviewFunction
         order.LoyaltyPointsAwardedValue = pointsToAward;
         order.UpdatedAt = MongoService.GetIstNow();
         await _mongo.UpdateOrderAsync(order);
+    }
+
+    private static List<ItemRating> BuildItemRatings(Order order, List<CreateItemRatingRequest>? itemRatings)
+    {
+        if (itemRatings == null || itemRatings.Count == 0)
+        {
+            return new List<ItemRating>();
+        }
+
+        var menuItemMap = order.Items
+            .GroupBy(i => i.MenuItemId)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var normalized = itemRatings
+            .Where(r => !string.IsNullOrWhiteSpace(r.MenuItemId))
+            .GroupBy(r => r.MenuItemId.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.Last())
+            .ToList();
+
+        foreach (var rating in normalized)
+        {
+            if (rating.Rating < 1 || rating.Rating > 5)
+            {
+                throw new ValidationException("Item rating must be between 1 and 5");
+            }
+
+            if (!menuItemMap.ContainsKey(rating.MenuItemId.Trim()))
+            {
+                throw new ValidationException($"Item rating contains invalid menu item: {rating.MenuItemId}");
+            }
+        }
+
+        return normalized
+            .Select(r =>
+            {
+                var key = r.MenuItemId.Trim();
+                var orderItem = menuItemMap[key];
+                return new ItemRating
+                {
+                    MenuItemId = orderItem.MenuItemId,
+                    ItemName = orderItem.Name,
+                    Rating = r.Rating
+                };
+            })
+            .ToList();
+    }
+
+    private static bool HasOrderAndItemRatings(Order order, CustomerReview review)
+    {
+        if (review.Rating < 1) return false;
+
+        var uniqueOrderItems = order.Items
+            .Select(i => i.MenuItemId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (uniqueOrderItems.Count == 0) return false;
+
+        var ratedItemIds = (review.ItemRatings ?? new List<ItemRating>())
+            .Where(r => !string.IsNullOrWhiteSpace(r.MenuItemId) && r.Rating >= 1)
+            .Select(r => r.MenuItemId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return uniqueOrderItems.All(id => ratedItemIds.Contains(id));
     }
 }

@@ -213,6 +213,9 @@
         <div class="review-stars-display">
           <span *ngFor="let s of [1,2,3,4,5]" class="star filled" [class.filled]="s <= existingReview.rating">★</span>
         </div>
+        <div *ngIf="existingReview.loyaltyBonusAwarded" class="bonus-badge">
+          +{{ existingReview.loyaltyBonusPoints || 3 }} loyalty points bonus awarded
+        </div>
         <p class="review-comment" *ngIf="existingReview.comment">{{ existingReview.comment }}</p>
         <span class="review-thanks">Thanks for your feedback! 🎉</span>
       </div>
@@ -238,6 +241,26 @@
           maxlength="1000"
           rows="3">
         </textarea>
+
+        <div class="item-rating-section" *ngIf="order.items?.length">
+          <p class="review-prompt">Rate individual items (submit all item ratings to earn +3 loyalty points):</p>
+          <div class="item-rating-row" *ngFor="let item of order.items; trackBy: trackByName">
+            <span class="item-rating-name">{{ item.name }}</span>
+            <div class="star-selector compact">
+              <span
+                *ngFor="let s of [1,2,3,4,5]"
+                class="star selectable"
+                [class.active]="s <= (getItemHoverRating(item.menuItemId) || getItemRating(item.menuItemId))"
+                (click)="setItemRating(item.menuItemId, s)"
+                (mouseenter)="itemReviewHoverRatings[item.menuItemId] = s"
+                (mouseleave)="itemReviewHoverRatings[item.menuItemId] = 0">
+                ★
+              </span>
+            </div>
+          </div>
+          <small class="item-rating-hint" *ngIf="!hasAllItemRatings()">Rate each item to qualify for the +3 points bonus.</small>
+        </div>
+
         <button class="btn-submit-review" (click)="submitReview()" [disabled]="reviewSubmitting || reviewRating === 0">
           {{ reviewSubmitting ? '⏳ Submitting...' : '📝 Submit Review' }}
         </button>
