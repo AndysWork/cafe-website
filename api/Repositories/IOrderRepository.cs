@@ -12,7 +12,7 @@ public interface IOrderRepository
     Task<Order?> GetOrderByIdAsync(string orderId);
     Task<bool> UpdateOrderStatusAsync(string orderId, string status);
     Task<bool> UpdateOrderAsync(Order order);
-    Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null);
+    Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null, string? razorpayOrderId = null);
     Task<bool> UpdateRefundIdAsync(string orderId, string refundId);
     Task<bool> UpdateReceiptImageUrlAsync(string orderId, string? receiptImageUrl);
     Task<bool> DeleteOrderAsync(string orderId);

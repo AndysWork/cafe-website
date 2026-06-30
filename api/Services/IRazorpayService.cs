@@ -4,6 +4,7 @@ public interface IRazorpayService
 {
     Task<RazorpayOrderResponse> CreateOrderAsync(decimal amount, string receipt, string currency = "INR");
     bool VerifyPaymentSignature(string orderId, string paymentId, string signature);
+    bool VerifyWebhookSignature(string payload, string signature);
     Task<RazorpayRefundResponse> RefundPaymentAsync(string paymentId, decimal amount, string? reason = null);
     string GetKeyId();
 }

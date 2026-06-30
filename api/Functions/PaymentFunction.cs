@@ -9,6 +9,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
+using System.Text.Json;
 
 namespace Cafe.Api.Functions;
 
@@ -267,6 +268,151 @@ public class PaymentFunction
             await res.WriteAsJsonAsync(new { error = "Failed to process refund" });
             return res;
         }
+    }
+
+    /// <summary>
+    /// Receives Razorpay webhook events and marks related orders as paid.
+    /// </summary>
+    [Function("RazorpayWebhook")]
+    [OpenApiOperation(operationId: "RazorpayWebhook", tags: new[] { "Payments" }, Summary = "Razorpay webhook callback")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(object), Required = true)]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Webhook processed")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "Invalid webhook signature")]
+    public async Task<HttpResponseData> RazorpayWebhook(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "payments/webhook/razorpay")] HttpRequestData req)
+    {
+        try
+        {
+            var payload = await new StreamReader(req.Body).ReadToEndAsync();
+            var signature = req.Headers.TryGetValues("X-Razorpay-Signature", out var sigValues)
+                ? sigValues.FirstOrDefault()
+                : null;
+
+            if (!_razorpay.VerifyWebhookSignature(payload, signature ?? string.Empty))
+            {
+                _log.LogWarning("Rejected Razorpay webhook due to invalid signature");
+                return req.CreateResponse(HttpStatusCode.Unauthorized);
+            }
+
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+            var eventName = TryGetString(root, "event") ?? string.Empty;
+
+            if (!IsPaymentSuccessEvent(eventName))
+            {
+                var ignored = req.CreateResponse(HttpStatusCode.OK);
+                await ignored.WriteAsJsonAsync(new { success = true, ignored = true, eventName });
+                return ignored;
+            }
+
+            var orderId = ExtractInternalOrderId(root);
+            var razorpayPaymentId = ExtractRazorpayPaymentId(root);
+            var razorpayOrderId = ExtractRazorpayOrderId(root);
+
+            if (string.IsNullOrWhiteSpace(orderId))
+            {
+                _log.LogWarning("Razorpay webhook {EventName} could not be mapped to internal order", eventName);
+                var accepted = req.CreateResponse(HttpStatusCode.OK);
+                await accepted.WriteAsJsonAsync(new { success = true, mapped = false, eventName });
+                return accepted;
+            }
+
+            var updated = await _mongo.UpdatePaymentStatusAsync(
+                orderId,
+                "paid",
+                razorpayPaymentId,
+                signature,
+                razorpayOrderId);
+
+            if (!updated)
+            {
+                _log.LogInformation("Razorpay webhook received for order {OrderId}, but payment status was already up-to-date", orderId);
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                mapped = true,
+                orderId,
+                eventName
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error processing Razorpay webhook");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "Failed to process webhook" });
+            return res;
+        }
+    }
+
+    private static bool IsPaymentSuccessEvent(string eventName)
+    {
+        return eventName == "payment.captured"
+            || eventName == "order.paid"
+            || eventName == "payment_link.paid";
+    }
+
+    private static string? ExtractInternalOrderId(JsonElement root)
+    {
+        // Priority order: explicit notes.orderId, payment_link reference_id, and fallback notes aliases.
+        var candidates = new[]
+        {
+            "payload.payment.entity.notes.orderId",
+            "payload.payment.entity.notes.order_id",
+            "payload.payment.entity.notes.internalOrderId",
+            "payload.payment_link.entity.reference_id",
+            "payload.payment_link.entity.notes.orderId",
+            "payload.order.entity.notes.orderId"
+        };
+
+        foreach (var path in candidates)
+        {
+            var value = TryGetNestedString(root, path);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ExtractRazorpayPaymentId(JsonElement root)
+    {
+        return TryGetNestedString(root, "payload.payment.entity.id");
+    }
+
+    private static string? ExtractRazorpayOrderId(JsonElement root)
+    {
+        return TryGetNestedString(root, "payload.payment.entity.order_id")
+            ?? TryGetNestedString(root, "payload.order.entity.id");
+    }
+
+    private static string? TryGetNestedString(JsonElement root, string dottedPath)
+    {
+        var current = root;
+        foreach (var segment in dottedPath.Split('.'))
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out current))
+            {
+                return null;
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
+    }
+
+    private static string? TryGetString(JsonElement obj, string propertyName)
+    {
+        if (obj.ValueKind != JsonValueKind.Object || !obj.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     }
 }
 

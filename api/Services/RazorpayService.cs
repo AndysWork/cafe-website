@@ -13,6 +13,7 @@ public class RazorpayService : IRazorpayService
     private readonly HttpClient _httpClient;
     private readonly string _keyId;
     private readonly string _keySecret;
+    private readonly string _webhookSecret;
     private readonly ILogger<RazorpayService> _logger;
     private const string RazorpayBaseUrl = "https://api.razorpay.com/v1";
 
@@ -21,6 +22,7 @@ public class RazorpayService : IRazorpayService
         _httpClient = httpClientFactory.CreateClient("Razorpay");
         _keyId = config["Razorpay__KeyId"] ?? throw new InvalidOperationException("Razorpay__KeyId not configured");
         _keySecret = config["Razorpay__KeySecret"] ?? throw new InvalidOperationException("Razorpay__KeySecret not configured");
+        _webhookSecret = config["Razorpay__WebhookSecret"] ?? string.Empty;
         _logger = logger;
 
         // Set Basic Auth header
@@ -75,6 +77,23 @@ public class RazorpayService : IRazorpayService
         return CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(computedSignature),
             Encoding.UTF8.GetBytes(signature?.ToLowerInvariant() ?? ""));
+    }
+
+    public bool VerifyWebhookSignature(string payload, string signature)
+    {
+        if (string.IsNullOrWhiteSpace(_webhookSecret) || string.IsNullOrWhiteSpace(signature) || payload == null)
+        {
+            _logger.LogWarning("Razorpay webhook secret/signature/payload missing. Verification failed.");
+            return false;
+        }
+
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_webhookSecret));
+        var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+        var computedSignature = BitConverter.ToString(computedHash).Replace("-", "").ToLowerInvariant();
+
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(computedSignature),
+            Encoding.UTF8.GetBytes(signature.ToLowerInvariant()));
     }
 
     public async Task<RazorpayRefundResponse> RefundPaymentAsync(string paymentId, decimal amount, string? reason = null)

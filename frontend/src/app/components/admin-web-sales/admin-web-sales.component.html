@@ -87,6 +87,7 @@
             <th>Type</th>
             <th>Items</th>
             <th>Total</th>
+            <th>Payment</th>
             <th>Status</th>
             <th>Compliance</th>
             <th>Partner</th>
@@ -105,6 +106,10 @@
               <td>{{ order.orderType || '-' }}</td>
               <td>{{ getOrderItemsSummary(order) }}</td>
               <td>{{ formatCurrency(order.total) }}</td>
+              <td>
+                <div>{{ order.paymentMethod || '-' }}</div>
+                <small>{{ order.paymentStatus || '-' }}</small>
+              </td>
               <td>
                 <select [(ngModel)]="statusDraft[order.id]">
                   <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
@@ -134,6 +139,13 @@
               <td>{{ formatDate(order.createdAt) }}</td>
               <td>
                 <div class="action-row">
+                  <div *ngIf="canBypassConfirmPayment(order)" class="payment-bypass">
+                    <input
+                      type="text"
+                      [(ngModel)]="paymentRefDraft[order.id]"
+                      placeholder="UTR/Ref (optional)" />
+                    <button (click)="confirmPayment(order)" [disabled]="saving">Confirm Payment</button>
+                  </div>
                   <button (click)="updateOrderStatus(order)" [disabled]="saving">Save Status</button>
                   <button *ngIf="canAssignPartner(order)" (click)="assignPartner(order)" [disabled]="saving || !partnerDraft[order.id]">
                     Assign
@@ -147,7 +159,7 @@
               </td>
             </tr>
             <tr *ngIf="isIssuePanelOpen(order.id)" class="issue-row">
-              <td colspan="10">
+              <td colspan="11">
                 <div class="issue-panel">
                   <div class="issue-head">
                     <h3>Issue Resolution Workflow</h3>

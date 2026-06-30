@@ -47,7 +47,7 @@ public class Order : ISoftDeletable
     public string PaymentStatus { get; set; } = "pending"; // pending, paid, refunded
 
     [BsonElement("paymentMethod")]
-    public string PaymentMethod { get; set; } = "cod"; // cod, razorpay
+    public string PaymentMethod { get; set; } = "cod"; // cod, razorpay, upi-qr
 
     [BsonElement("razorpayOrderId")]
     public string? RazorpayOrderId { get; set; }
@@ -170,7 +170,7 @@ public class CreateOrderRequest
     [StringLength(500, ErrorMessage = "Delivery address cannot exceed 500 characters")]
     public string? DeliveryAddress { get; set; }
 
-    [AllowedValuesList("cod", "razorpay")]
+    [AllowedValuesList("cod", "razorpay", "upi-qr")]
     public string PaymentMethod { get; set; } = "cod";
 
     public string? RazorpayPaymentId { get; set; }
@@ -219,6 +219,15 @@ public class UpdateOrderStatusRequest
     [Required(ErrorMessage = "Status is required")]
     [AllowedValuesList("pending", "confirmed", "preparing", "ready", "out-for-delivery", "delivered", "cancelled")]
     public string Status { get; set; } = string.Empty;
+}
+
+public class AdminConfirmPaymentRequest
+{
+    [StringLength(100, ErrorMessage = "Payment reference cannot exceed 100 characters")]
+    public string? PaymentReference { get; set; }
+
+    [StringLength(300, ErrorMessage = "Admin note cannot exceed 300 characters")]
+    public string? AdminNote { get; set; }
 }
 
 public class OrderResponse

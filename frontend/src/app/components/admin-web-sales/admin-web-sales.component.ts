@@ -97,6 +97,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   issueResolutionDraft: Record<string, string> = {};
   issueRefundDraft: Record<string, boolean> = {};
   issueRefunding: Record<string, boolean> = {};
+  paymentRefDraft: Record<string, string> = {};
 
   readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled'];
 
@@ -170,9 +171,11 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   initializeDrafts(): void {
     this.statusDraft = {};
     this.partnerDraft = {};
+    this.paymentRefDraft = {};
     for (const order of this.orders) {
       this.statusDraft[order.id] = order.status;
       this.partnerDraft[order.id] = '';
+      this.paymentRefDraft[order.id] = '';
     }
   }
 
@@ -262,6 +265,37 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       error: (error) => {
         console.error('Error updating status:', error);
         this.uiStore.error(error.error?.error || 'Failed to update order status');
+        this.saving = false;
+      }
+    });
+  }
+
+  canBypassConfirmPayment(order: Order): boolean {
+    const method = (order.paymentMethod || '').toLowerCase();
+    return (method === 'razorpay' || method === 'upi-qr') && order.paymentStatus === 'pending';
+  }
+
+  confirmPayment(order: Order): void {
+    if (!this.canBypassConfirmPayment(order)) {
+      return;
+    }
+
+    this.saving = true;
+    const paymentReference = (this.paymentRefDraft[order.id] || '').trim();
+
+    this.orderService.confirmOrderPayment(order.id, {
+      paymentReference: paymentReference || undefined,
+      adminNote: 'Manual payment confirmation bypass from Web Sales Control Center'
+    }).subscribe({
+      next: async () => {
+        this.uiStore.success(`Payment confirmed for order ${order.id.slice(-6)}`);
+        await this.loadDashboardData();
+        this.initializeDrafts();
+        this.saving = false;
+      },
+      error: (error) => {
+        console.error('Error confirming payment:', error);
+        this.uiStore.error(error.error?.error || 'Failed to confirm payment');
         this.saving = false;
       }
     });

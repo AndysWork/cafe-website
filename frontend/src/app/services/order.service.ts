@@ -33,7 +33,7 @@ export interface Order {
   loyaltyDiscountAmount?: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'scheduled';
   paymentStatus: 'pending' | 'paid' | 'refunded';
-  paymentMethod: 'cod' | 'razorpay';
+  paymentMethod: 'cod' | 'razorpay' | 'upi-qr';
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   deliveryAddress?: string;
@@ -64,7 +64,7 @@ export interface CreateOrderRequest {
   deliveryAddress?: string;
   phoneNumber?: string;
   notes?: string;
-  paymentMethod?: 'cod' | 'razorpay';
+  paymentMethod?: 'cod' | 'razorpay' | 'upi-qr';
   razorpayPaymentId?: string;
   razorpayOrderId?: string;
   razorpaySignature?: string;
@@ -80,6 +80,11 @@ export interface CreateOrderRequest {
 
 export interface UpdateOrderStatusRequest {
   status: string;
+}
+
+export interface AdminConfirmPaymentRequest {
+  paymentReference?: string;
+  adminNote?: string;
 }
 
 export interface DeliveryTrackingPartnerInfo {
@@ -190,6 +195,15 @@ export class OrderService {
       { params }
     ).pipe(
       catchError(handleServiceError('OrderService.updateOrderStatus'))
+    );
+  }
+
+  confirmOrderPayment(orderId: string, payload: AdminConfirmPaymentRequest): Observable<{ success: boolean; message: string; paymentStatus: string }> {
+    return this.http.put<{ success: boolean; message: string; paymentStatus: string }>(
+      `${this.apiUrl}/orders/${orderId}/payment/confirm`,
+      payload
+    ).pipe(
+      catchError(handleServiceError('OrderService.confirmOrderPayment'))
     );
   }
 

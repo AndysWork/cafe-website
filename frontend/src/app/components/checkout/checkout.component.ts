@@ -14,6 +14,8 @@ import { DeliveryZoneService } from '../../services/delivery-zone.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { getIstInputDate } from '../../utils/date-utils';
+import QRCode from 'qrcode';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-checkout',
@@ -35,7 +37,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   deliveryAddress = '';
   phoneNumber = '';
   notes = '';
-  paymentMethod: 'cod' | 'razorpay' = 'cod';
+  paymentMethod: 'cod' | 'razorpay' | 'upi-qr' = 'cod';
+  upiQrCodeDataUrl = '';
+  upiPaymentLink = '';
+  upiConfigMissing = false;
+  upiPaymentConfirmed = false;
+  upiTransactionRef = '';
 
   // Saved addresses
   savedAddresses: DeliveryAddress[] = [];
@@ -130,6 +137,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.cart = cart;
       if (cart.items.length === 0) {
         this.router.navigate(['/cart']);
+      }
+
+      if (this.paymentMethod === 'upi-qr') {
+        this.refreshUpiQrCode();
       }
     });
 
@@ -293,6 +304,20 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.isSubmitting = true;
     this.errorMessage = '';
 
+    if (this.paymentMethod === 'upi-qr') {
+      if (this.upiConfigMissing) {
+        this.errorMessage = 'UPI QR is not configured yet. Please use Pay Online or Cash on Delivery.';
+        this.isSubmitting = false;
+        return;
+      }
+
+      if (!this.upiPaymentConfirmed) {
+        this.errorMessage = 'Please confirm UPI payment completion before placing the order.';
+        this.isSubmitting = false;
+        return;
+      }
+    }
+
     if (this.paymentMethod === 'razorpay') {
       this.processRazorpayPayment();
     } else {
@@ -338,6 +363,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.couponMessage = '';
     this.couponValid = false;
     this.appliedCouponOfferId = '';
+
+    if (this.paymentMethod === 'upi-qr') {
+      this.refreshUpiQrCode();
+    }
   }
 
   // Loyalty methods
@@ -352,6 +381,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.maxLoyaltyDiscount = this.loyaltyPointsToUse * 0.25;
     } else {
       this.loyaltyPointsToUse = 0;
+    }
+
+    if (this.paymentMethod === 'upi-qr') {
+      this.refreshUpiQrCode();
     }
   }
 
@@ -408,6 +441,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   private submitOrder(razorpayPaymentId?: string, razorpayOrderId?: string, razorpaySignature?: string) {
+    const paymentMethodForOrder: 'cod' | 'razorpay' | 'upi-qr' = this.paymentMethod;
+
+    const upiRefText = this.paymentMethod === 'upi-qr'
+      ? `UPI QR payment marked complete${this.upiTransactionRef.trim() ? ` | UTR/Ref: ${this.upiTransactionRef.trim()}` : ''}`
+      : '';
+
     const orderRequest: CreateOrderRequest = {
       items: this.cart.items.map(item => ({
         menuItemId: item.menuItemId,
@@ -415,8 +454,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       })),
       deliveryAddress: this.orderType === 'delivery' ? this.deliveryAddress.trim() : undefined,
       phoneNumber: this.phoneNumber.trim() || undefined,
-      notes: this.notes.trim() || undefined,
-      paymentMethod: this.paymentMethod,
+      notes: [this.notes.trim(), upiRefText].filter(Boolean).join(' | ') || undefined,
+      paymentMethod: paymentMethodForOrder,
       razorpayPaymentId,
       razorpayOrderId,
       razorpaySignature,
@@ -465,6 +504,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     } else {
       this.deliveryFee = 0;
     }
+
+    if (this.paymentMethod === 'upi-qr') {
+      this.refreshUpiQrCode();
+    }
   }
 
   calculateDeliveryFee() {
@@ -477,10 +520,18 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       next: (res: any) => {
         this.deliveryFee = res.deliveryFee || 0;
         this.calculatingFee = false;
+
+        if (this.paymentMethod === 'upi-qr') {
+          this.refreshUpiQrCode();
+        }
       },
       error: () => {
         this.deliveryFee = 0;
         this.calculatingFee = false;
+
+        if (this.paymentMethod === 'upi-qr') {
+          this.refreshUpiQrCode();
+        }
       }
     });
   }
@@ -492,6 +543,51 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.walletAmountToUse = Math.min(this.walletData.balance, Math.max(0, totalBeforeWallet));
     } else {
       this.walletAmountToUse = 0;
+    }
+
+    if (this.paymentMethod === 'upi-qr') {
+      this.refreshUpiQrCode();
+    }
+  }
+
+  onPaymentMethodChange(method: 'cod' | 'razorpay' | 'upi-qr') {
+    this.paymentMethod = method;
+    this.errorMessage = '';
+
+    if (method === 'upi-qr') {
+      this.upiPaymentConfirmed = false;
+      this.refreshUpiQrCode();
+    }
+  }
+
+  private async refreshUpiQrCode() {
+    const upiId = (environment as any).cafeUpiId as string | undefined;
+    const payeeName = ((environment as any).cafeUpiPayeeName as string | undefined) || 'Cafe';
+
+    if (!upiId || !upiId.includes('@')) {
+      this.upiConfigMissing = true;
+      this.upiPaymentLink = '';
+      this.upiQrCodeDataUrl = '';
+      return;
+    }
+
+    this.upiConfigMissing = false;
+    const amount = this.grandTotal.toFixed(2);
+    const transactionRef = `CAFE-${Date.now()}`;
+    const note = `Cafe order payment`;
+
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&tr=${encodeURIComponent(transactionRef)}&tn=${encodeURIComponent(note)}&am=${encodeURIComponent(amount)}&cu=INR`;
+    this.upiPaymentLink = upiUrl;
+
+    try {
+      this.upiQrCodeDataUrl = await QRCode.toDataURL(upiUrl, {
+        width: 240,
+        margin: 1,
+        errorCorrectionLevel: 'M'
+      });
+    } catch {
+      this.upiQrCodeDataUrl = '';
+      this.upiConfigMissing = true;
     }
   }
 

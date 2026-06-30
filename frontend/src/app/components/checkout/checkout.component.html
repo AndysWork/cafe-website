@@ -273,7 +273,7 @@
         <div class="payment-section">
           <label class="section-label" id="payment-method-label">💳 Payment Method</label>
           <div class="payment-options" role="radiogroup" aria-labelledby="payment-method-label">
-            <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" (click)="paymentMethod = 'razorpay'">
+            <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" (click)="onPaymentMethodChange('razorpay')">
               <input type="radio" name="paymentMethod" value="razorpay" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
               <div class="option-content">
                 <span class="option-icon">🔒</span>
@@ -284,7 +284,18 @@
               </div>
               <span class="recommended-badge" *ngIf="paymentMethod === 'razorpay'">✓</span>
             </label>
-            <label class="payment-option" [class.active]="paymentMethod === 'cod'" (click)="paymentMethod = 'cod'">
+            <label class="payment-option" [class.active]="paymentMethod === 'upi-qr'" (click)="onPaymentMethodChange('upi-qr')">
+              <input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
+              <div class="option-content">
+                <span class="option-icon">📱</span>
+                <div>
+                  <strong>Pay via QR</strong>
+                  <p>Scan exact bill amount with any UPI app</p>
+                </div>
+              </div>
+              <span class="recommended-badge" *ngIf="paymentMethod === 'upi-qr'">✓</span>
+            </label>
+            <label class="payment-option" [class.active]="paymentMethod === 'cod'" (click)="onPaymentMethodChange('cod')">
               <input type="radio" name="paymentMethod" value="cod" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
               <div class="option-content">
                 <span class="option-icon">💵</span>
@@ -296,6 +307,32 @@
               <span class="recommended-badge" *ngIf="paymentMethod === 'cod'">✓</span>
             </label>
           </div>
+
+          <div *ngIf="paymentMethod === 'upi-qr'" class="upi-qr-box">
+            <div *ngIf="upiConfigMissing" class="upi-warning">
+              UPI QR is not configured yet. Please set cafeUpiId and cafeUpiPayeeName in environment config.
+            </div>
+
+            <ng-container *ngIf="!upiConfigMissing">
+              <div class="upi-amount-line">
+                Pay exactly <strong>₹{{ grandTotal }}</strong>
+              </div>
+
+              <img *ngIf="upiQrCodeDataUrl" [src]="upiQrCodeDataUrl" alt="UPI QR Code" class="upi-qr-image" />
+
+              <a *ngIf="upiPaymentLink" class="upi-link" [href]="upiPaymentLink">Open UPI App</a>
+
+              <label class="checkbox-label upi-confirm">
+                <input type="checkbox" [(ngModel)]="upiPaymentConfirmed" name="upiPaymentConfirmed" />
+                <span>I have completed payment using this QR</span>
+              </label>
+
+              <div class="form-group upi-ref-input">
+                <label>UPI Ref/UTR (Optional but recommended)</label>
+                <input type="text" [(ngModel)]="upiTransactionRef" name="upiTransactionRef" placeholder="Enter transaction reference" [disabled]="isSubmitting" maxlength="50" />
+              </div>
+            </ng-container>
+          </div>
         </div>
 
         <!-- Action Buttons -->
@@ -304,7 +341,7 @@
             ← Back to Cart
           </button>
           <button type="submit" class="btn-place" [disabled]="!checkoutForm.valid || isSubmitting">
-            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay ₹' + grandTotal : '🎉 Place Order') }}
+            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay ₹' + grandTotal : paymentMethod === 'upi-qr' ? '✅ Confirm & Place Order' : '🎉 Place Order') }}
           </button>
         </div>
       </form>

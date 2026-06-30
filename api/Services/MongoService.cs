@@ -1728,7 +1728,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     }
 
     // Update payment status after Razorpay verification
-    public async Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null)
+    public async Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null, string? razorpayOrderId = null)
     {
         var update = Builders<Order>.Update
             .Set(x => x.PaymentStatus, paymentStatus)
@@ -1738,6 +1738,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             update = update.Set(x => x.RazorpayPaymentId, razorpayPaymentId);
         if (razorpaySignature != null)
             update = update.Set(x => x.RazorpaySignature, razorpaySignature);
+        if (razorpayOrderId != null)
+            update = update.Set(x => x.RazorpayOrderId, razorpayOrderId);
 
         var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
         return result.ModifiedCount > 0;

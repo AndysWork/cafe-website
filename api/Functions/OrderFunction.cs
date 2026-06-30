@@ -1069,6 +1069,13 @@ public class OrderFunction
                 return badTransition;
             }
 
+            if (RequiresPaymentConfirmationBeforeProgress(oldOrder, nextStatus))
+            {
+                var paymentRequired = req.CreateResponse(HttpStatusCode.BadRequest);
+                await paymentRequired.WriteAsJsonAsync(new { error = "Payment is pending. Confirm payment before moving this order to next workflow step." });
+                return paymentRequired;
+            }
+
             if (nextStatus == "out-for-delivery" && oldOrder.OrderType == "delivery" && string.IsNullOrWhiteSpace(oldOrder.DeliveryPartnerId))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -1132,6 +1139,97 @@ public class OrderFunction
             _log.LogError(ex, "Error updating order status {OrderId}", id);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred while updating the order status" });
+            return res;
+        }
+    }
+
+    /// <summary>
+    /// Confirms payment for an order (Admin bypass for non-integrated payment rails)
+    /// </summary>
+    [Function("AdminConfirmOrderPayment")]
+    public async Task<HttpResponseData> AdminConfirmOrderPayment(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "orders/{id}/payment/confirm")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (confirmRequest, validationError) = await ValidationHelper.ValidateBody<AdminConfirmPaymentRequest>(req);
+            if (validationError != null) return validationError;
+
+            var order = await _orderRepo.GetOrderByIdAsync(id);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (order.PaymentStatus == "paid")
+            {
+                var ok = req.CreateResponse(HttpStatusCode.OK);
+                await ok.WriteAsJsonAsync(new { success = true, message = "Payment already confirmed", paymentStatus = order.PaymentStatus });
+                return ok;
+            }
+
+            if (order.PaymentStatus == "refunded")
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Cannot confirm payment for a refunded order" });
+                return badRequest;
+            }
+
+            var adminAuditNote = $"Admin payment confirmation by {userId ?? "admin"}";
+            if (!string.IsNullOrWhiteSpace(confirmRequest.PaymentReference))
+            {
+                adminAuditNote += $" | Ref: {confirmRequest.PaymentReference.Trim()}";
+            }
+            if (!string.IsNullOrWhiteSpace(confirmRequest.AdminNote))
+            {
+                adminAuditNote += $" | Note: {confirmRequest.AdminNote.Trim()}";
+            }
+
+            var updated = await _orderRepo.UpdatePaymentStatusAsync(
+                id,
+                "paid",
+                razorpayPaymentId: string.IsNullOrWhiteSpace(confirmRequest.PaymentReference) ? null : confirmRequest.PaymentReference.Trim(),
+                razorpaySignature: "admin-bypass-confirmed",
+                razorpayOrderId: order.RazorpayOrderId);
+
+            if (!updated)
+            {
+                var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await error.WriteAsJsonAsync(new { error = "Failed to confirm payment" });
+                return error;
+            }
+
+            if (!string.IsNullOrWhiteSpace(adminAuditNote))
+            {
+                order.Notes = string.IsNullOrWhiteSpace(order.Notes)
+                    ? adminAuditNote
+                    : $"{order.Notes} | {adminAuditNote}";
+                order.UpdatedAt = MongoService.GetIstNow();
+                await _orderRepo.UpdateOrderAsync(order);
+            }
+
+            _ = _eventLog.LogEventAsync("Order", id, "PaymentConfirmedByAdmin",
+                actorId: userId,
+                actorRole: "admin",
+                oldState: new { PaymentStatus = order.PaymentStatus },
+                newState: new { PaymentStatus = "paid", PaymentReference = confirmRequest.PaymentReference },
+                outletId: order.OutletId);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, message = "Payment confirmed. Order can now continue in workflow.", paymentStatus = "paid" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error confirming payment for order {OrderId}", id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while confirming payment" });
             return res;
         }
     }
@@ -1404,5 +1502,19 @@ public class OrderFunction
     private static bool IsChannelMatch(string? orderChannel, string targetChannel)
     {
         return string.Equals((orderChannel ?? "web").Trim(), targetChannel, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool RequiresPaymentConfirmationBeforeProgress(Order order, string nextStatus)
+    {
+        if (nextStatus == "pending" || nextStatus == "cancelled")
+        {
+            return false;
+        }
+
+        var paymentMethod = (order.PaymentMethod ?? "").Trim().ToLowerInvariant();
+        var paymentPending = !string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase);
+
+        var needsOnlinePayment = paymentMethod == "razorpay" || paymentMethod == "upi-qr";
+        return needsOnlinePayment && paymentPending;
     }
 }
