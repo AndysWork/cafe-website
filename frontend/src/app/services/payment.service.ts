@@ -57,6 +57,12 @@ export interface RazorpayPaymentResult {
   razorpay_signature: string;
 }
 
+export interface UpiConfigResponse {
+  configured: boolean;
+  upiId: string;
+  payeeName: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -71,6 +77,13 @@ export class PaymentService {
       receipt
     }).pipe(
       catchError(handleServiceError('PaymentService.createPaymentOrder'))
+    );
+  }
+
+  // Runtime UPI config for QR-based payments
+  getUpiConfig(): Observable<UpiConfigResponse> {
+    return this.http.get<UpiConfigResponse>(`${this.apiUrl}/payments/upi-config`).pipe(
+      catchError(handleServiceError('PaymentService.getUpiConfig'))
     );
   }
 

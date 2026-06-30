@@ -10,6 +10,7 @@ using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace Cafe.Api.Functions;
 
@@ -18,14 +19,39 @@ public class PaymentFunction
     private readonly IRazorpayService _razorpay;
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
+    private readonly IConfiguration _config;
     private readonly ILogger _log;
 
-    public PaymentFunction(IRazorpayService razorpay, MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public PaymentFunction(IRazorpayService razorpay, MongoService mongo, AuthService auth, IConfiguration config, ILoggerFactory loggerFactory)
     {
         _razorpay = razorpay;
         _mongo = mongo;
         _auth = auth;
+        _config = config;
         _log = loggerFactory.CreateLogger<PaymentFunction>();
+    }
+
+    /// <summary>
+    /// Returns runtime UPI payment configuration for QR rendering.
+    /// </summary>
+    [Function("GetUpiConfig")]
+    [OpenApiOperation(operationId: "GetUpiConfig", tags: new[] { "Payments" }, Summary = "Get runtime UPI config")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(UpiConfigResponse), Description = "UPI config response")]
+    public async Task<HttpResponseData> GetUpiConfig(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "payments/upi-config")] HttpRequestData req)
+    {
+        var upiId = (_config["Upi__Id"] ?? string.Empty).Trim();
+        var payeeName = (_config["Upi__PayeeName"] ?? "Cafe").Trim();
+        var configured = !string.IsNullOrWhiteSpace(upiId) && upiId.Contains('@');
+
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(new UpiConfigResponse
+        {
+            Configured = configured,
+            UpiId = configured ? upiId : string.Empty,
+            PayeeName = payeeName
+        });
+        return response;
     }
 
     /// <summary>
@@ -450,4 +476,11 @@ public class RefundPaymentRequest
     public string OrderId { get; set; } = string.Empty;
     public decimal Amount { get; set; } // 0 = full refund
     public string? Reason { get; set; }
+}
+
+public class UpiConfigResponse
+{
+    public bool Configured { get; set; }
+    public string UpiId { get; set; } = string.Empty;
+    public string PayeeName { get; set; } = "Cafe";
 }

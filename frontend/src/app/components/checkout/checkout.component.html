@@ -310,7 +310,7 @@
 
           <div *ngIf="paymentMethod === 'upi-qr'" class="upi-qr-box">
             <div *ngIf="upiConfigMissing" class="upi-warning">
-              UPI QR is not configured yet. Please set cafeUpiId and cafeUpiPayeeName in environment config.
+              UPI QR is not configured yet. Please ask admin to configure UPI settings on the server.
             </div>
 
             <ng-container *ngIf="!upiConfigMissing">

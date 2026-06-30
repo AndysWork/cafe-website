@@ -15,7 +15,6 @@ import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { getIstInputDate } from '../../utils/date-utils';
 import QRCode from 'qrcode';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-checkout',
@@ -43,6 +42,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   upiConfigMissing = false;
   upiPaymentConfirmed = false;
   upiTransactionRef = '';
+  private upiId = '';
+  private upiPayeeName = 'Cafe';
 
   // Saved addresses
   savedAddresses: DeliveryAddress[] = [];
@@ -133,6 +134,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
+    this.loadUpiRuntimeConfig();
+
     this.cartSub = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
       if (cart.items.length === 0) {
@@ -561,10 +564,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   private async refreshUpiQrCode() {
-    const upiId = (environment as any).cafeUpiId as string | undefined;
-    const payeeName = ((environment as any).cafeUpiPayeeName as string | undefined) || 'Cafe';
-
-    if (!upiId || !upiId.includes('@')) {
+    if (!this.upiId || !this.upiId.includes('@')) {
       this.upiConfigMissing = true;
       this.upiPaymentLink = '';
       this.upiQrCodeDataUrl = '';
@@ -576,7 +576,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     const transactionRef = `CAFE-${Date.now()}`;
     const note = `Cafe order payment`;
 
-    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&tr=${encodeURIComponent(transactionRef)}&tn=${encodeURIComponent(note)}&am=${encodeURIComponent(amount)}&cu=INR`;
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(this.upiId)}&pn=${encodeURIComponent(this.upiPayeeName)}&tr=${encodeURIComponent(transactionRef)}&tn=${encodeURIComponent(note)}&am=${encodeURIComponent(amount)}&cu=INR`;
     this.upiPaymentLink = upiUrl;
 
     try {
@@ -589,6 +589,25 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.upiQrCodeDataUrl = '';
       this.upiConfigMissing = true;
     }
+  }
+
+  private loadUpiRuntimeConfig() {
+    this.paymentService.getUpiConfig().subscribe({
+      next: (config) => {
+        this.upiId = (config.upiId || '').trim();
+        this.upiPayeeName = (config.payeeName || 'Cafe').trim() || 'Cafe';
+        this.upiConfigMissing = !config.configured;
+
+        if (this.paymentMethod === 'upi-qr' && !this.upiConfigMissing) {
+          this.refreshUpiQrCode();
+        }
+      },
+      error: () => {
+        this.upiId = '';
+        this.upiPayeeName = 'Cafe';
+        this.upiConfigMissing = true;
+      }
+    });
   }
 
   onScheduleToggle() {
