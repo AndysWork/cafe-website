@@ -36,6 +36,7 @@ export const routes: Routes = [
       { path: 'menu/upload', loadComponent: () => import('./components/menu-upload/menu-upload.component').then(m => m.MenuUploadComponent) },
       { path: 'menu', loadComponent: () => import('./components/menu-management/menu-management.component').then(m => m.MenuManagementComponent) },
       { path: 'offers', loadComponent: () => import('./components/admin-offers/admin-offers.component').then(m => m.AdminOffersComponent) },
+      { path: 'web-sales', loadComponent: () => import('./components/admin-web-sales/admin-web-sales.component').then(m => m.AdminWebSalesComponent) },
       { path: 'loyalty', loadComponent: () => import('./components/admin-loyalty/admin-loyalty.component').then(m => m.AdminLoyaltyComponent) },
       { path: 'sales', loadComponent: () => import('./components/admin-sales/admin-sales.component').then(m => m.AdminSalesComponent) },
       { path: 'expenses', loadComponent: () => import('./components/admin-expenses/admin-expenses.component').then(m => m.AdminExpensesComponent) },

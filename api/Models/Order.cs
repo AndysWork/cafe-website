@@ -100,6 +100,9 @@ public class Order : ISoftDeletable
     [BsonElement("orderType")]
     public string OrderType { get; set; } = "delivery"; // delivery, pickup, dine-in
 
+    [BsonElement("channel")]
+    public string Channel { get; set; } = "web"; // web, shop, partner
+
     [BsonElement("scheduledFor")]
     public DateTime? ScheduledFor { get; set; }
 
@@ -182,6 +185,9 @@ public class CreateOrderRequest
     [AllowedValuesList("delivery", "pickup", "dine-in")]
     public string OrderType { get; set; } = "delivery";
 
+    [AllowedValuesList("web", "shop", "partner")]
+    public string? Channel { get; set; }
+
     public DateTime? ScheduledFor { get; set; }
 
     [Range(0, 10000, ErrorMessage = "Delivery fee must be between 0 and 10,000")]
@@ -238,6 +244,7 @@ public class OrderResponse
     public string? ReceiptImageUrl { get; set; }
     public decimal DeliveryFee { get; set; }
     public string OrderType { get; set; } = "delivery";
+    public string Channel { get; set; } = "web";
     public DateTime? ScheduledFor { get; set; }
     public bool IsScheduled { get; set; }
     public decimal WalletAmountUsed { get; set; }

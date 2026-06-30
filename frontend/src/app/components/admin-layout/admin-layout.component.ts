@@ -159,6 +159,11 @@ export class AdminLayoutComponent implements OnDestroy {
       active: false,
       children: [
         {
+          icon: '🌐',
+          label: 'Web Sales Center',
+          route: '/admin/web-sales'
+        },
+        {
           icon: '🎁',
           label: 'Offers',
           route: '/admin/offers'

@@ -423,6 +423,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       couponCode: this.couponValid ? this.couponCode.trim() : undefined,
       loyaltyPointsUsed: this.useLoyaltyPoints ? this.loyaltyPointsToUse : undefined,
       orderType: this.orderType,
+      channel: 'web',
       scheduledFor: this.getScheduledDateTime(),
       deliveryFee: this.orderType === 'delivery' ? this.deliveryFee : undefined,
       walletAmountUsed: this.useWallet ? this.walletAmountToUse : undefined,

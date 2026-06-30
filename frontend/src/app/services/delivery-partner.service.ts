@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
@@ -43,8 +44,13 @@ export class DeliveryPartnerService {
     );
   }
 
-  assignDeliveryPartner(request: AssignDeliveryRequest): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/assign`, request).pipe(
+  assignDeliveryPartner(request: AssignDeliveryRequest, channel?: 'web' | 'shop' | 'partner'): Observable<{ message: string }> {
+    let params = new HttpParams();
+    if (channel) {
+      params = params.set('channel', channel);
+    }
+
+    return this.http.post<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/assign`, request, { params }).pipe(
       catchError(handleServiceError('DeliveryPartnerService.assignDeliveryPartner'))
     );
   }

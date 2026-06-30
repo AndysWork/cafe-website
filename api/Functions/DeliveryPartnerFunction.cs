@@ -12,12 +12,14 @@ namespace Cafe.Api.Functions;
 public class DeliveryPartnerFunction
 {
     private readonly IOperationsRepository _mongo;
+    private readonly IOrderRepository _orderRepo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public DeliveryPartnerFunction(IOperationsRepository mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public DeliveryPartnerFunction(IOperationsRepository mongo, IOrderRepository orderRepo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
+        _orderRepo = orderRepo;
         _auth = auth;
         _log = loggerFactory.CreateLogger<DeliveryPartnerFunction>();
     }
@@ -100,6 +102,30 @@ public class DeliveryPartnerFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<AssignDeliveryRequest>(req);
             if (validationError != null) return validationError;
+
+            var order = await _orderRepo.GetOrderByIdAsync(request.OrderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var requiredChannel = query["channel"]?.Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(requiredChannel) && (requiredChannel == "web" || requiredChannel == "shop" || requiredChannel == "partner"))
+            {
+                var orderChannel = string.IsNullOrWhiteSpace(order.Channel)
+                    ? (order.OrderType == "dine-in" ? "shop" : "web")
+                    : order.Channel.Trim().ToLowerInvariant();
+
+                if (!string.Equals(orderChannel, requiredChannel, StringComparison.OrdinalIgnoreCase))
+                {
+                    var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                    await forbidden.WriteAsJsonAsync(new { error = $"Order channel does not match required '{requiredChannel}'" });
+                    return forbidden;
+                }
+            }
 
             string? partnerId = request.DeliveryPartnerId;
             string? partnerName = null;

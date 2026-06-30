@@ -119,6 +119,7 @@ public class OrderFunction
             var orderType = string.IsNullOrWhiteSpace(orderRequest.OrderType)
                 ? "delivery"
                 : orderRequest.OrderType.Trim().ToLowerInvariant();
+            var channel = NormalizeOrderChannel(orderRequest.Channel, orderType);
 
             if (orderType != "delivery" && orderType != "pickup" && orderType != "dine-in")
             {
@@ -346,6 +347,7 @@ public class OrderFunction
                 LoyaltyDiscountAmount = loyaltyDiscountAmount,
                 DeliveryFee = deliveryFee,
                 OrderType = orderType,
+                Channel = channel,
                 TableNumber = orderType == "dine-in" ? orderRequest.TableNumber?.Trim() : null,
                 WalletAmountUsed = Math.Max(0, orderRequest.WalletAmountUsed),
                 ScheduledFor = scheduledFor,
@@ -490,11 +492,25 @@ public class OrderFunction
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
-            var orders = await _orderRepo.GetAllOrdersAsync(outletId, page, pageSize);
+            var channel = ParseChannelQuery(req.Url.Query);
+
+            List<Order> orders;
+            if (!string.IsNullOrWhiteSpace(channel))
+            {
+                var allOrders = await _orderRepo.GetAllOrdersAsync(outletId, null, null);
+                orders = allOrders
+                    .Where(o => IsChannelMatch(o.Channel, channel!))
+                    .ToList();
+            }
+            else
+            {
+                orders = await _orderRepo.GetAllOrdersAsync(outletId, page, pageSize);
+            }
+
             var orderResponses = orders.Select(MapToOrderResponse).ToList();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
-            if (page.HasValue && pageSize.HasValue)
+            if (string.IsNullOrWhiteSpace(channel) && page.HasValue && pageSize.HasValue)
             {
                 var totalCount = await _orderRepo.GetAllOrdersCountAsync(outletId);
                 PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
@@ -974,6 +990,21 @@ public class OrderFunction
             }
 
             var oldOrder = await _orderRepo.GetOrderByIdAsync(id);
+            if (oldOrder == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            var requiredChannel = ParseChannelQuery(req.Url.Query);
+            if (!string.IsNullOrWhiteSpace(requiredChannel) && !IsChannelMatch(oldOrder.Channel, requiredChannel))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = $"Order channel does not match required '{requiredChannel}'" });
+                return forbidden;
+            }
+
             var oldStatus = oldOrder?.Status;
 
             var success = await _orderRepo.UpdateOrderStatusAsync(id, statusRequest.Status.ToLower());
@@ -1171,6 +1202,7 @@ public class OrderFunction
             ReceiptImageUrl = order.ReceiptImageUrl,
             DeliveryFee = order.DeliveryFee,
             OrderType = order.OrderType,
+            Channel = string.IsNullOrWhiteSpace(order.Channel) ? "web" : order.Channel,
             ScheduledFor = order.ScheduledFor,
             IsScheduled = order.IsScheduled,
             WalletAmountUsed = order.WalletAmountUsed,
@@ -1210,5 +1242,49 @@ public class OrderFunction
         if (!etaMinutes.HasValue || !estimatedAt.HasValue) return "ETA unavailable";
         if (etaMinutes.Value <= 1) return "Arriving now";
         return $"Arriving in {etaMinutes.Value} min";
+    }
+
+    private static string NormalizeOrderChannel(string? requestedChannel, string orderType)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedChannel))
+        {
+            var value = requestedChannel.Trim().ToLowerInvariant();
+            if (value == "web" || value == "shop" || value == "partner")
+            {
+                return value;
+            }
+        }
+
+        return orderType == "dine-in" ? "shop" : "web";
+    }
+
+    private static string? ParseChannelQuery(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return null;
+        var trimmed = query.TrimStart('?');
+        if (string.IsNullOrWhiteSpace(trimmed)) return null;
+
+        foreach (var segment in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = segment.Split('=', 2);
+            if (parts.Length == 0) continue;
+
+            var key = Uri.UnescapeDataString(parts[0]);
+            if (!string.Equals(key, "channel", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var raw = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+            var value = raw.Trim().ToLowerInvariant();
+            if (value == "web" || value == "shop" || value == "partner")
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsChannelMatch(string? orderChannel, string targetChannel)
+    {
+        return string.Equals((orderChannel ?? "web").Trim(), targetChannel, StringComparison.OrdinalIgnoreCase);
     }
 }

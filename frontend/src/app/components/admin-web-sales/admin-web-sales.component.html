@@ -1,0 +1,143 @@
+<div class="web-sales-admin">
+  <div class="page-header">
+    <div>
+      <h1>Web Sales Control Center</h1>
+      <p>Unified admin view for website orders, revenue signals, partner assignment, and growth controls.</p>
+    </div>
+    <div class="quick-links">
+      <a routerLink="/admin/online-sale-tracker" class="link-btn">Sales Tracker</a>
+      <a routerLink="/admin/online-profit-tracker" class="link-btn">Profit Tracker</a>
+      <a routerLink="/admin/offers" class="link-btn">Offers</a>
+      <a routerLink="/admin/discount-mapping" class="link-btn">Coupons</a>
+      <a routerLink="/admin/loyalty" class="link-btn">Loyalty and Referrals</a>
+      <a routerLink="/admin/delivery-partners" class="link-btn">Delivery Partners</a>
+      <a routerLink="/admin/announcements" class="link-btn">Home Merchandising</a>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <span class="label">Total Orders</span>
+      <strong>{{ totalOrders }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="label">Active Orders</span>
+      <strong>{{ activeOrders }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="label">Delivered</span>
+      <strong>{{ deliveredOrders }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="label">Cancelled</span>
+      <strong>{{ cancelledOrders }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="label">Gross Order Value</span>
+      <strong>{{ formatCurrency(totalOrderValue) }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="label">Avg Order Value</span>
+      <strong>{{ formatCurrency(averageOrderValue) }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="label">Web Sales Payout</span>
+      <strong>{{ formatCurrency(webSalesPayout) }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="label">Discount Burn</span>
+      <strong>{{ formatCurrency(webSalesDiscount) }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="label">Platform Deductions</span>
+      <strong>{{ formatCurrency(webSalesDeductions) }}</strong>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Web Sales Date Window</h2>
+      <div class="date-row">
+        <input type="date" [(ngModel)]="startDate" (change)="onDateRangeChange()" />
+        <input type="date" [(ngModel)]="endDate" (change)="onDateRangeChange()" />
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Web Order Management</h2>
+      <div class="filters">
+        <select [(ngModel)]="statusFilter">
+          <option value="all">All Statuses</option>
+          <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
+        </select>
+        <input type="text" [(ngModel)]="searchTerm" placeholder="Search by order ID / user / phone" />
+      </div>
+    </div>
+
+    <div *ngIf="loading" class="state">Loading web orders...</div>
+
+    <div class="table-wrap" *ngIf="!loading && filteredOrders.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th>Customer</th>
+            <th>Type</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Status</th>
+            <th>Partner</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let order of filteredOrders; trackBy: trackById">
+            <td>#{{ order.id.slice(-6) }}</td>
+            <td>
+              <div>{{ order.username }}</div>
+              <small>{{ order.phoneNumber || '-' }}</small>
+            </td>
+            <td>{{ order.orderType || '-' }}</td>
+            <td>{{ getOrderItemsSummary(order) }}</td>
+            <td>{{ formatCurrency(order.total) }}</td>
+            <td>
+              <select [(ngModel)]="statusDraft[order.id]">
+                <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
+              </select>
+            </td>
+            <td>
+              <ng-container *ngIf="canAssignPartner(order); else fixedPartner">
+                <select [(ngModel)]="partnerDraft[order.id]">
+                  <option value="">Select partner</option>
+                  <option *ngFor="let p of availablePartners; trackBy: trackByPartnerId" [value]="p.id">
+                    {{ p.name }} ({{ p.status }})
+                  </option>
+                </select>
+              </ng-container>
+              <ng-template #fixedPartner>
+                {{ getAssignedPartnerDisplay(order) }}
+              </ng-template>
+            </td>
+            <td>{{ formatDate(order.createdAt) }}</td>
+            <td>
+              <div class="action-row">
+                <button (click)="updateOrderStatus(order)" [disabled]="saving">Save Status</button>
+                <button *ngIf="canAssignPartner(order)" (click)="assignPartner(order)" [disabled]="saving || !partnerDraft[order.id]">
+                  Assign
+                </button>
+                <a [routerLink]="['/orders', order.id]">Open</a>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!loading && filteredOrders.length === 0" class="state">
+      No orders found for current filters.
+    </div>
+  </div>
+</div>

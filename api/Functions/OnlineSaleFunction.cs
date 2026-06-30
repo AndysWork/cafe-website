@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using Cafe.Api.Models;
+using Cafe.Api.Repositories;
 using Cafe.Api.Services;
 using Cafe.Api.Helpers;
 using System.Text.Json;
@@ -17,12 +18,21 @@ public class OnlineSaleFunction
     private readonly ILogger<OnlineSaleFunction> _log;
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
+    private readonly IOrderRepository _orderRepo;
+    private readonly IOperationsRepository _operationsRepo;
 
-    public OnlineSaleFunction(ILogger<OnlineSaleFunction> log, MongoService mongo, AuthService auth)
+    public OnlineSaleFunction(
+        ILogger<OnlineSaleFunction> log,
+        MongoService mongo,
+        AuthService auth,
+        IOrderRepository orderRepo,
+        IOperationsRepository operationsRepo)
     {
         _log = log;
         _mongo = mongo;
         _auth = auth;
+        _orderRepo = orderRepo;
+        _operationsRepo = operationsRepo;
     }
 
     private static decimal CalculateExpectedPayout(OnlineSale sale)
@@ -30,6 +40,132 @@ public class OnlineSaleFunction
         // Expected payout based on upload sheet arithmetic
         // = Bill subtotal + packaging - discount - platform deduction
         return sale.BillSubTotal + sale.PackagingCharges - sale.DiscountAmount - sale.PlatformDeduction;
+    }
+
+    // GET /api/online-sales/web-dashboard - Aggregate Web Sales admin dashboard in one call
+    [Function("GetWebSalesDashboard")]
+    [OpenApiOperation(operationId: "GetWebSalesDashboard", tags: new[] { "OnlineSales" }, Summary = "Get web sales dashboard aggregate", Description = "Returns Web Sales dashboard data in one response (summary, web orders, partners, web sales and daily income)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "startDate", In = ParameterLocation.Query, Required = false, Type = typeof(string), Description = "Start date (yyyy-MM-dd). Defaults to month start.")]
+    [OpenApiParameter(name: "endDate", In = ParameterLocation.Query, Required = false, Type = typeof(string), Description = "End date (yyyy-MM-dd). Defaults to today.")]
+    [OpenApiParameter(name: "page", In = ParameterLocation.Query, Required = false, Type = typeof(int), Description = "Order page number")]
+    [OpenApiParameter(name: "pageSize", In = ParameterLocation.Query, Required = false, Type = typeof(int), Description = "Order page size (max 500)")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Dashboard aggregate fetched successfully")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid input")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    public async Task<HttpResponseData> GetWebSalesDashboard(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "online-sales/web-dashboard")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var startDateStr = query["startDate"];
+            var endDateStr = query["endDate"];
+            var (page, pageSize) = PaginationHelper.ParsePagination(req);
+
+            var now = MongoService.GetIstNow();
+            var startDate = string.IsNullOrWhiteSpace(startDateStr)
+                ? new DateTime(now.Year, now.Month, 1)
+                : DateTime.TryParse(startDateStr, out var parsedStart)
+                    ? parsedStart
+                    : DateTime.MinValue;
+            var endDate = string.IsNullOrWhiteSpace(endDateStr)
+                ? now.Date
+                : DateTime.TryParse(endDateStr, out var parsedEnd)
+                    ? parsedEnd
+                    : DateTime.MinValue;
+
+            if (startDate == DateTime.MinValue || endDate == DateTime.MinValue)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, message = "Invalid date format" });
+                return badRequest;
+            }
+
+            if (endDate < startDate)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, message = "endDate must be greater than or equal to startDate" });
+                return badRequest;
+            }
+
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var outletForPartners = string.IsNullOrWhiteSpace(outletId) ? "default" : outletId;
+
+            var sales = await _mongo.GetOnlineSalesByDateRangeAsync("Web Sales", startDate, endDate, outletId, includeWebSales: true);
+            var dailyIncome = await _mongo.GetDailyOnlineIncomeAsync(startDate, endDate, outletId, includeWebSales: true);
+            var webDailyIncome = dailyIncome
+                .Where(x => string.Equals(x.Platform, "Web Sales", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var allOrders = await _orderRepo.GetAllOrdersAsync(outletId, null, null);
+            var webOrdersAll = allOrders
+                .Where(IsWebOrderChannel)
+                .OrderByDescending(o => o.CreatedAt)
+                .ToList();
+
+            var effectivePage = page ?? 1;
+            var effectivePageSize = pageSize ?? 100;
+            var totalWebOrders = webOrdersAll.Count;
+            var webOrders = webOrdersAll
+                .Skip((effectivePage - 1) * effectivePageSize)
+                .Take(effectivePageSize)
+                .ToList();
+
+            var partners = await _operationsRepo.GetDeliveryPartnersAsync(outletForPartners);
+
+            var grossOrderValue = webOrdersAll.Sum(o => o.Total);
+            var summary = new
+            {
+                totalOrders = webOrdersAll.Count,
+                activeOrders = webOrdersAll.Count(o => o.Status != "delivered" && o.Status != "cancelled"),
+                deliveredOrders = webOrdersAll.Count(o => o.Status == "delivered"),
+                cancelledOrders = webOrdersAll.Count(o => o.Status == "cancelled"),
+                grossOrderValue,
+                averageOrderValue = webOrdersAll.Count > 0 ? Math.Round(grossOrderValue / webOrdersAll.Count, 2) : 0m,
+                webSalesPayout = sales.Sum(s => s.Payout),
+                webSalesDiscount = sales.Sum(s => s.DiscountAmount),
+                webSalesDeductions = sales.Sum(s => s.PlatformDeduction)
+            };
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                period = new
+                {
+                    startDate = startDate.ToString("yyyy-MM-dd"),
+                    endDate = endDate.ToString("yyyy-MM-dd")
+                },
+                data = new
+                {
+                    summary,
+                    pagination = new
+                    {
+                        page = effectivePage,
+                        pageSize = effectivePageSize,
+                        totalOrders = totalWebOrders,
+                        totalPages = (int)Math.Ceiling((double)totalWebOrders / Math.Max(1, effectivePageSize))
+                    },
+                    orders = webOrders,
+                    partners,
+                    webSales = sales,
+                    dailyIncome = webDailyIncome
+                }
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting web sales dashboard aggregate");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
+            return errorResponse;
+        }
     }
 
     // GET /api/online-sales - Get all online sales with optional platform filter
@@ -1019,6 +1155,17 @@ public class OnlineSaleFunction
             await errorResponse.WriteAsJsonAsync(new { success = false, message = "An internal error occurred" });
             return errorResponse;
         }
+    }
+
+    private static bool IsWebOrderChannel(Order order)
+    {
+        var channel = order.Channel?.Trim();
+        if (!string.IsNullOrWhiteSpace(channel))
+        {
+            return string.Equals(channel, "web", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return order.OrderType != "dine-in";
     }
 }
 

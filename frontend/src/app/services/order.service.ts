@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
@@ -42,6 +43,7 @@ export interface Order {
   scheduledFor?: string;
   isScheduled?: boolean;
   orderType?: string;
+  channel?: 'web' | 'shop' | 'partner';
   deliveryFee?: number;
   walletAmountUsed?: number;
   tableNumber?: string;
@@ -65,6 +67,7 @@ export interface CreateOrderRequest {
   couponCode?: string;
   loyaltyPointsUsed?: number;
   orderType?: 'delivery' | 'pickup' | 'dine-in';
+  channel?: 'web' | 'shop' | 'partner';
   scheduledFor?: string;
   deliveryFee?: number;
   walletAmountUsed?: number;
@@ -143,8 +146,13 @@ export class OrderService {
   }
 
   // Get all orders (admin only)
-  getAllOrders(): Observable<Order[]> {
-    return this.http.get<Order[]>(`${this.apiUrl}/orders`).pipe(
+  getAllOrders(channel?: 'web' | 'shop' | 'partner'): Observable<Order[]> {
+    let params = new HttpParams();
+    if (channel) {
+      params = params.set('channel', channel);
+    }
+
+    return this.http.get<Order[]>(`${this.apiUrl}/orders`, { params }).pipe(
       catchError(handleServiceError('OrderService.getAllOrders'))
     );
   }
@@ -157,10 +165,16 @@ export class OrderService {
   }
 
   // Update order status (admin only)
-  updateOrderStatus(orderId: string, status: string): Observable<{ message: string; status: string }> {
+  updateOrderStatus(orderId: string, status: string, channel?: 'web' | 'shop' | 'partner'): Observable<{ message: string; status: string }> {
+    let params = new HttpParams();
+    if (channel) {
+      params = params.set('channel', channel);
+    }
+
     return this.http.put<{ message: string; status: string }>(
       `${this.apiUrl}/orders/${orderId}/status`,
-      { status }
+      { status },
+      { params }
     ).pipe(
       catchError(handleServiceError('OrderService.updateOrderStatus'))
     );

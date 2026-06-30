@@ -49,6 +49,8 @@ interface SalesInsights {
 export class AdminAnalyticsComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
   private outletSubscription?: Subscription;
+  private refreshDebounceTimer?: ReturnType<typeof setTimeout>;
+  private readonly refreshDebounceMs = 800;
 
   loading = false;
   salesData: Sales[] = [];
@@ -131,25 +133,66 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
     this.outletSubscription = this.outletService.selectedOutlet$
       .pipe(filter(outlet => outlet !== null))
       .subscribe(() => {
-        this.loadSalesInsights();
-        this.loadExpenseAnalytics();
-        this.loadEarningsAnalytics();
-        this.loadOnlineSalesAnalytics();
-        this.loadCustomerAnalytics();
+        this.queueAnalyticsRefresh();
       });
 
     // Load immediately if outlet is already selected
     if (this.outletService.getSelectedOutlet()) {
-      this.loadSalesInsights();
-      this.loadExpenseAnalytics();
-      this.loadEarningsAnalytics();
-      this.loadOnlineSalesAnalytics();
-      this.loadCustomerAnalytics();
+      this.queueAnalyticsRefresh(0);
     }
   }
 
   ngOnDestroy() {
     this.outletSubscription?.unsubscribe();
+    if (this.refreshDebounceTimer) {
+      clearTimeout(this.refreshDebounceTimer);
+      this.refreshDebounceTimer = undefined;
+    }
+  }
+
+  private queueAnalyticsRefresh(delayMs: number = this.refreshDebounceMs) {
+    if (this.refreshDebounceTimer) {
+      clearTimeout(this.refreshDebounceTimer);
+    }
+
+    this.refreshDebounceTimer = setTimeout(() => {
+      this.refreshDebounceTimer = undefined;
+      this.resetAnalyticsCache();
+      this.loadSalesInsights();
+      this.loadActiveTabAnalytics();
+    }, delayMs);
+  }
+
+  private resetAnalyticsCache() {
+    this.expenseAnalytics = null;
+    this.earningsData = null;
+    this.onlineAnalytics = null;
+    this.customerAnalytics = null;
+    this.filteredCustomersList = [];
+    this.outletsOverview = null;
+    this.outletEarningsBreakdown = [];
+  }
+
+  private loadActiveTabAnalytics() {
+    switch (this.selectedAnalyticsTab) {
+      case 'expenses':
+        this.loadExpenseAnalytics();
+        break;
+      case 'earnings':
+        this.loadEarningsAnalytics();
+        break;
+      case 'online':
+        this.loadOnlineSalesAnalytics();
+        break;
+      case 'customers':
+        this.loadCustomerAnalytics();
+        break;
+      case 'outlets':
+        this.loadOutletsOverview();
+        break;
+      default:
+        break;
+    }
   }
 
   switchTab(tab: 'sales' | 'expenses' | 'earnings' | 'online' | 'customers' | 'outlets') {
@@ -476,11 +519,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
   }
 
   onDateRangeChange() {
-    this.loadSalesInsights();
-    this.loadExpenseAnalytics();
-    this.loadEarningsAnalytics();
-    this.loadOnlineSalesAnalytics();
-    this.loadCustomerAnalytics();
+    this.queueAnalyticsRefresh();
   }
 
   formatCurrency(amount: number): string {
