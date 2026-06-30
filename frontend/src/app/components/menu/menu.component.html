@@ -39,6 +39,21 @@
     </div>
   </div>
 
+  <div class="dietary-filter-section" aria-label="Dietary filter">
+    <button class="dietary-chip" [class.active]="dietaryFilter === 'all'" (click)="setDietaryFilter('all')">
+      All <span>{{ getDietaryItemCount('all') }}</span>
+    </button>
+    <button class="dietary-chip veg" [class.active]="dietaryFilter === 'veg'" (click)="setDietaryFilter('veg')">
+      Veg <span>{{ getDietaryItemCount('veg') }}</span>
+    </button>
+    <button class="dietary-chip non-veg" [class.active]="dietaryFilter === 'non-veg'" (click)="setDietaryFilter('non-veg')">
+      Non Veg <span>{{ getDietaryItemCount('non-veg') }}</span>
+    </button>
+    <button class="dietary-chip egg" [class.active]="dietaryFilter === 'egg'" (click)="setDietaryFilter('egg')">
+      Egg <span>{{ getDietaryItemCount('egg') }}</span>
+    </button>
+  </div>
+
   <div class="social-proof-strip" *ngIf="totalReviews > 0">
     <span class="proof-stars">⭐ {{ averageRating | number:'1.1-1' }}</span>
     <span class="proof-text">Loved by {{ totalReviews }} customers</span>
@@ -117,8 +132,8 @@
           <span class="card-category-tag">{{ item.categoryName }}</span>
           <!-- Dietary Badge -->
           <span class="badge-dietary" [ngClass]="item.dietaryType || 'veg'">
-            {{ (item.dietaryType || 'veg') === 'veg' ? '🟢' : (item.dietaryType === 'non-veg' ? '🔴' : (item.dietaryType === 'egg' ? '🟡' : '🟢')) }}
-            {{ (item.dietaryType || 'veg') | titlecase }}
+            {{ normalizeDietaryType(item.dietaryType) === 'veg' ? '🟢' : (normalizeDietaryType(item.dietaryType) === 'non-veg' ? '🔴' : '🟡') }}
+            {{ normalizeDietaryType(item.dietaryType) | titlecase }}
           </span>
           <!-- Favorite Heart -->
           <button class="btn-favorite" [class.favorited]="isFavorite(item.id)" (click)="toggleFavorite(item, $event)" aria-label="Toggle favorite">
@@ -212,8 +227,8 @@
         <img *ngIf="selectedMenuItem.imageUrl" [src]="selectedMenuItem.imageUrl" [alt]="selectedMenuItem.name" class="detail-image"/>
         <div *ngIf="!selectedMenuItem.imageUrl" class="detail-image-placeholder">🍽️</div>
         <span class="badge-dietary detail-badge" [ngClass]="selectedMenuItem.dietaryType || 'veg'">
-          {{ (selectedMenuItem.dietaryType || 'veg') === 'veg' ? '🟢' : (selectedMenuItem.dietaryType === 'non-veg' ? '🔴' : (selectedMenuItem.dietaryType === 'egg' ? '🟡' : '🟢')) }}
-          {{ (selectedMenuItem.dietaryType || 'veg') | titlecase }}
+          {{ normalizeDietaryType(selectedMenuItem.dietaryType) === 'veg' ? '🟢' : (normalizeDietaryType(selectedMenuItem.dietaryType) === 'non-veg' ? '🔴' : '🟡') }}
+          {{ normalizeDietaryType(selectedMenuItem.dietaryType) | titlecase }}
         </span>
       </div>
 

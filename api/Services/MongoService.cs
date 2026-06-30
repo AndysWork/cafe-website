@@ -527,6 +527,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<bool> UpdateMenuItemAsync(string id, CafeMenuItem item)
     {
         item.LastUpdated = GetIstNow();
+
+        var dietaryType = (item.DietaryType ?? "veg").Trim().ToLowerInvariant();
+        if (dietaryType == "nonveg") dietaryType = "non-veg";
+        if (dietaryType != "veg" && dietaryType != "non-veg" && dietaryType != "egg" && dietaryType != "vegan")
+            dietaryType = "veg";
         
         // Build update definition for only the fields that are provided
         var updateBuilder = Builders<CafeMenuItem>.Update;
@@ -541,6 +546,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             
         if (!string.IsNullOrEmpty(item.Description))
             updates.Add(updateBuilder.Set(x => x.Description, item.Description));
+
+        if (!string.IsNullOrEmpty(item.Category))
+            updates.Add(updateBuilder.Set(x => x.Category, item.Category));
             
         if (!string.IsNullOrEmpty(item.CategoryId))
             updates.Add(updateBuilder.Set(x => x.CategoryId, item.CategoryId));
@@ -550,6 +558,16 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             
         if (!string.IsNullOrEmpty(item.ImageUrl))
             updates.Add(updateBuilder.Set(x => x.ImageUrl, item.ImageUrl));
+
+        updates.Add(updateBuilder.Set(x => x.DietaryType, dietaryType));
+        updates.Add(updateBuilder.Set(x => x.Quantity, item.Quantity));
+        updates.Add(updateBuilder.Set(x => x.FutureShopPrice, item.FutureShopPrice));
+        updates.Add(updateBuilder.Set(x => x.FutureOnlinePrice, item.FutureOnlinePrice));
+        updates.Add(updateBuilder.Set(x => x.FutureWebPrice, item.FutureWebPrice));
+        updates.Add(updateBuilder.Set(x => x.Variants, item.Variants ?? new List<MenuItemVariant>()));
+
+        if (!string.IsNullOrEmpty(item.LastUpdatedBy))
+            updates.Add(updateBuilder.Set(x => x.LastUpdatedBy, item.LastUpdatedBy));
             
         // Update numeric fields - always update even if zero
         updates.Add(updateBuilder.Set(x => x.OnlinePrice, item.OnlinePrice));

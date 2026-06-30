@@ -26,6 +26,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   errorMessage = '';
   searchQuery = '';
   sortBy: string = 'default';
+  dietaryFilter: 'all' | 'veg' | 'non-veg' | 'egg' = 'all';
   cart: Cart = { items: [], subtotal: 0, packagingCharges: 0, total: 0, itemCount: 0 };
 
   // Track which items just got added (for animation)
@@ -116,6 +117,10 @@ export class MenuComponent implements OnInit, OnDestroy {
       );
     }
 
+    if (this.dietaryFilter !== 'all') {
+      items = items.filter(item => this.normalizeDietaryType(item.dietaryType) === this.dietaryFilter);
+    }
+
     // Sorting
     switch (this.sortBy) {
       case 'price-low':
@@ -140,6 +145,11 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   onSortChange() {
+    this.applyFilters();
+  }
+
+  setDietaryFilter(filter: 'all' | 'veg' | 'non-veg' | 'egg') {
+    this.dietaryFilter = filter;
     this.applyFilters();
   }
 
@@ -251,6 +261,14 @@ export class MenuComponent implements OnInit, OnDestroy {
     return this.menuItems.filter(item => item.categoryId === categoryId).length;
   }
 
+  getDietaryItemCount(filter: 'all' | 'veg' | 'non-veg' | 'egg'): number {
+    if (filter === 'all') {
+      return this.menuItems.length;
+    }
+
+    return this.menuItems.filter(item => this.normalizeDietaryType(item.dietaryType) === filter).length;
+  }
+
   trackByItemId(index: number, item: MenuItem): string {
     return item.id;
   }
@@ -261,6 +279,13 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   getWebPrice(item: MenuItem): number {
     return item.webPrice || item.shopSellingPrice || item.onlinePrice || 0;
+  }
+
+  normalizeDietaryType(value?: string): 'veg' | 'non-veg' | 'egg' {
+    const normalized = (value || 'veg').trim().toLowerCase();
+    if (normalized === 'non-veg' || normalized === 'nonveg') return 'non-veg';
+    if (normalized === 'egg') return 'egg';
+    return 'veg';
   }
 
   // ── Favorites ──
