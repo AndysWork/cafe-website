@@ -1036,25 +1036,25 @@
 
       .recipes-table {
         width: 100%;
-        min-width: 1360px;
+        min-width: 1180px;
         border-collapse: collapse;
 
         th,
         td {
-          padding: 0.45rem 0.7rem;
+          padding: 0.32rem 0.45rem;
           text-align: left;
           border-bottom: 1px solid #e5e7eb;
           vertical-align: middle;
-          font-size: 0.82rem;
+          font-size: 0.74rem;
           color: #334155;
           white-space: nowrap;
         }
 
         thead th {
           background: #f8fafc;
-          font-size: 0.72rem;
+          font-size: 0.64rem;
           text-transform: uppercase;
-          letter-spacing: 0.4px;
+          letter-spacing: 0.2px;
           color: #64748b;
           font-weight: 700;
           position: sticky;
@@ -1069,14 +1069,14 @@
         .recipe-name-cell {
           font-weight: 700;
           color: #0f172a;
-          min-width: 160px;
+          min-width: 125px;
           white-space: normal;
         }
 
         .recipe-category-cell {
           color: #0ea5e9;
           font-weight: 600;
-          font-size: 0.78rem;
+          font-size: 0.7rem;
           white-space: nowrap;
         }
 
@@ -1096,17 +1096,21 @@
 
         .table-actions {
           display: flex;
-          gap: 0.35rem;
+          gap: 0.2rem;
 
           .btn-edit,
           .btn-delete {
             flex: 0 0 auto;
-            padding: 0.25rem 0.5rem;
-            font-size: 0.72rem;
-            border-radius: 5px;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            font-size: 0.75rem;
+            border-radius: 4px;
             line-height: 1.1;
-            gap: 0.25rem;
-            min-height: 26px;
+            min-height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
 
             &:hover {
               transform: translateY(-1px);

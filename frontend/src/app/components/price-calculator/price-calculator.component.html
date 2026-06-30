@@ -1136,14 +1136,13 @@
                     </small>
                   </span>
                 </div>
-                <div class="stat-item" *ngIf="forecast.webPrice">
+                <div class="stat-item" *ngIf="forecast.webPrice || forecast.shopPrice || forecast.onlinePrice">
                   <span class="stat-label">Web:</span>
-                  <span class="stat-value">₹{{(forecast.webPrice || 0).toFixed(2)}}
+                  <span class="stat-value">₹{{(forecast.webPrice || forecast.shopPrice || forecast.onlinePrice || 0).toFixed(2)}}
                     <small
                       class="profit-badge"
-                      [class.loss]="(forecast.webProfit || 0) < 0"
-                      *ngIf="forecast.webProfit">
-                      ({{(forecast.webProfit || 0) >= 0 ? '+' : ''}}₹{{(forecast.webProfit || 0).toFixed(2)}})
+                      [class.loss]="(forecast.webProfit ?? forecast.offlineProfit ?? 0) < 0">
+                      ({{(forecast.webProfit ?? forecast.offlineProfit ?? 0) >= 0 ? '+' : ''}}₹{{(forecast.webProfit ?? forecast.offlineProfit ?? 0).toFixed(2)}})
                     </small>
                   </span>
                 </div>
@@ -1174,14 +1173,13 @@
                     </small>
                   </span>
                 </div>
-                <div class="stat-item" *ngIf="forecast.futureWebPrice">
+                <div class="stat-item" *ngIf="forecast.futureWebPrice || forecast.futureShopPrice || forecast.futureOnlinePrice">
                   <span class="stat-label">Web:</span>
-                  <span class="stat-value future">₹{{(forecast.futureWebPrice || 0).toFixed(2)}}
+                  <span class="stat-value future">₹{{(forecast.futureWebPrice || forecast.futureShopPrice || forecast.futureOnlinePrice || 0).toFixed(2)}}
                     <small
                       class="profit-badge future"
-                      [class.loss]="(forecast.futureWebProfit || 0) < 0"
-                      *ngIf="forecast.futureWebProfit">
-                      ({{(forecast.futureWebProfit || 0) >= 0 ? '+' : ''}}₹{{(forecast.futureWebProfit || 0).toFixed(2)}})
+                      [class.loss]="(forecast.futureWebProfit ?? forecast.futureShopProfit ?? forecast.futureOnlineProfit ?? 0) < 0">
+                      ({{(forecast.futureWebProfit ?? forecast.futureShopProfit ?? forecast.futureOnlineProfit ?? 0) >= 0 ? '+' : ''}}₹{{(forecast.futureWebProfit ?? forecast.futureShopProfit ?? forecast.futureOnlineProfit ?? 0).toFixed(2)}})
                     </small>
                   </span>
                 </div>
@@ -1204,22 +1202,22 @@
           <thead>
             <tr>
               <th>Recipe</th>
-              <th>Category</th>
-              <th>Making Cost</th>
-              <th>Selling Price</th>
-              <th>Shop Price</th>
-              <th>Shop Profit</th>
-              <th>Online Price</th>
-              <th>Online Profit</th>
-              <th>Web Price</th>
-              <th>Web Profit</th>
-              <th>Future Shop</th>
-              <th>Future Shop Profit</th>
-              <th>Future Online</th>
-              <th>Future Online Profit</th>
-              <th>Future Web</th>
-              <th>Future Web Profit</th>
-              <th>Actions</th>
+              <th title="Category">Cat</th>
+              <th title="Making Cost">M.Cost</th>
+              <th title="Selling Price">Sell</th>
+              <th title="Shop Price">S.Price</th>
+              <th title="Shop Profit">S.Profit</th>
+              <th title="Online Price">O.Price</th>
+              <th title="Online Profit">O.Profit</th>
+              <th title="Web Price">W.Price</th>
+              <th title="Web Profit">W.Profit</th>
+              <th title="Future Shop Price">F.S</th>
+              <th title="Future Shop Profit">F.S.Profit</th>
+              <th title="Future Online Price">F.O</th>
+              <th title="Future Online Profit">F.O.Profit</th>
+              <th title="Future Web Price">F.W</th>
+              <th title="Future Web Profit">F.W.Profit</th>
+              <th title="Actions">Act</th>
             </tr>
           </thead>
           <tbody>
@@ -1254,11 +1252,11 @@
               </td>
               <td>
                 <div class="table-actions">
-                  <button class="btn-edit" (click)="loadRecipe(recipe)">
-                    <span>📝</span> Edit
+                  <button class="btn-edit" (click)="loadRecipe(recipe)" title="Edit recipe" aria-label="Edit recipe">
+                    ✏️
                   </button>
-                  <button class="btn-delete" (click)="deleteRecipe(recipe.id)">
-                    <span>🗑️</span> Delete
+                  <button class="btn-delete" (click)="deleteRecipe(recipe.id)" title="Delete recipe" aria-label="Delete recipe">
+                    🗑️
                   </button>
                 </div>
               </td>
