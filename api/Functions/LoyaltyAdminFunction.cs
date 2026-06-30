@@ -101,6 +101,14 @@ public class LoyaltyAdminFunction
         }
     }
 
+    // Backward-compatible alias for environments still pointing to tier-rules.
+    [Function("GetLoyaltyTierRules")]
+    public async Task<HttpResponseData> GetLoyaltyTierRules(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/tier-rules")] HttpRequestData req)
+    {
+        return await GetLoyaltyTierConfig(req);
+    }
+
     [Function("UpdateLoyaltyTierConfig")]
     public async Task<HttpResponseData> UpdateLoyaltyTierConfig(
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/loyalty/tier-config")] HttpRequestData req)
@@ -167,6 +175,14 @@ public class LoyaltyAdminFunction
             await error.WriteAsJsonAsync(new { error = "Failed to update loyalty tier config" });
             return error;
         }
+    }
+
+    // Backward-compatible alias for environments still pointing to tier-rules.
+    [Function("UpdateLoyaltyTierRules")]
+    public async Task<HttpResponseData> UpdateLoyaltyTierRules(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/loyalty/tier-rules")] HttpRequestData req)
+    {
+        return await UpdateLoyaltyTierConfig(req);
     }
 
     // POST: Create reward (Admin only)

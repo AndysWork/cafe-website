@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, catchError as rxCatchError, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
@@ -212,6 +212,12 @@ export class LoyaltyService {
   // Admin: Get tier configuration
   getLoyaltyTierConfig(): Observable<LoyaltyTierRule[]> {
     return this.http.get<LoyaltyTierRule[]>(`${this.apiUrl}/manage/loyalty/tier-config`).pipe(
+      rxCatchError((error) => {
+        if (error?.status === 404) {
+          return this.http.get<LoyaltyTierRule[]>(`${this.apiUrl}/manage/loyalty/tier-rules`);
+        }
+        return throwError(() => error);
+      }),
       catchError(handleServiceError('LoyaltyService.getLoyaltyTierConfig'))
     );
   }
@@ -219,6 +225,12 @@ export class LoyaltyService {
   // Admin: Update tier configuration
   updateLoyaltyTierConfig(rules: UpdateLoyaltyTierRuleRequest[]): Observable<{ success: boolean; message: string; rules: LoyaltyTierRule[] }> {
     return this.http.put<{ success: boolean; message: string; rules: LoyaltyTierRule[] }>(`${this.apiUrl}/manage/loyalty/tier-config`, rules).pipe(
+      rxCatchError((error) => {
+        if (error?.status === 404) {
+          return this.http.put<{ success: boolean; message: string; rules: LoyaltyTierRule[] }>(`${this.apiUrl}/manage/loyalty/tier-rules`, rules);
+        }
+        return throwError(() => error);
+      }),
       catchError(handleServiceError('LoyaltyService.updateLoyaltyTierConfig'))
     );
   }
