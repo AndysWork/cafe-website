@@ -36,6 +36,9 @@ public class PriceForecast
     [Range(0, 100000, ErrorMessage = "Online price must be between 0 and 100,000")]
     public decimal OnlinePrice { get; set; }
 
+    [Range(0, 100000, ErrorMessage = "Web price must be between 0 and 100,000")]
+    public decimal WebPrice { get; set; }
+
     [Range(0, 100000, ErrorMessage = "Updated shop price must be between 0 and 100,000")]
     public decimal UpdatedShopPrice { get; set; }
 
@@ -58,9 +61,13 @@ public class PriceForecast
 
     public decimal TakeawayProfit { get; set; }
 
+    public decimal WebProfit { get; set; }
+
     // Future pricing for forecasting
     public decimal? FutureShopPrice { get; set; }
     public decimal? FutureOnlinePrice { get; set; }
+    public decimal? FutureWebPrice { get; set; }
+    public decimal? FutureWebProfit { get; set; }
 
     public bool IsFinalized { get; set; } = false;
 
@@ -92,6 +99,8 @@ public class PriceHistory
 
     public decimal OnlinePrice { get; set; }
 
+    public decimal WebPrice { get; set; }
+
     public decimal UpdatedShopPrice { get; set; }
 
     public decimal UpdatedOnlinePrice { get; set; }
@@ -109,6 +118,8 @@ public class PriceHistory
     public decimal OfflineProfit { get; set; }
 
     public decimal TakeawayProfit { get; set; }
+
+    public decimal WebProfit { get; set; }
 
     public string ChangeReason { get; set; } = string.Empty;
 }

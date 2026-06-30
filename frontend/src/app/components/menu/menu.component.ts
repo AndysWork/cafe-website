@@ -119,10 +119,10 @@ export class MenuComponent implements OnInit, OnDestroy {
     // Sorting
     switch (this.sortBy) {
       case 'price-low':
-        items = [...items].sort((a, b) => a.onlinePrice - b.onlinePrice);
+        items = [...items].sort((a, b) => this.getWebPrice(a) - this.getWebPrice(b));
         break;
       case 'price-high':
-        items = [...items].sort((a, b) => b.onlinePrice - a.onlinePrice);
+        items = [...items].sort((a, b) => this.getWebPrice(b) - this.getWebPrice(a));
         break;
       case 'name-az':
         items = [...items].sort((a, b) => a.name.localeCompare(b.name));
@@ -164,7 +164,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       name: item.name,
       description: item.description,
       categoryName: item.categoryName,
-      price: item.onlinePrice,
+      price: this.getWebPrice(item),
       imageUrl: item.imageUrl,
       packagingCharge: item.packagingCharge || 0
     }, 1);
@@ -258,6 +258,10 @@ export class MenuComponent implements OnInit, OnDestroy {
   trackByObjId(index: number, item: any): string { return item.id; }
 
   trackByIndex(index: number): number { return index; }
+
+  getWebPrice(item: MenuItem): number {
+    return item.webPrice || item.shopSellingPrice || item.onlinePrice || 0;
+  }
 
   // ── Favorites ──
 

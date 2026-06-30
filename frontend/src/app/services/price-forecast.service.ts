@@ -11,6 +11,7 @@ export interface PriceHistory {
   shopPrice: number;
   shopDeliveryPrice: number;
   onlinePrice: number;
+  webPrice: number;
   updatedShopPrice: number;
   updatedOnlinePrice: number;
   onlineDeduction: number;
@@ -20,6 +21,7 @@ export interface PriceHistory {
   onlineProfit: number;
   offlineProfit: number;
   takeawayProfit: number;
+  webProfit: number;
   changeReason: string;
 }
 
@@ -32,6 +34,7 @@ export interface PriceForecast {
   shopPrice: number;
   shopDeliveryPrice: number;
   onlinePrice: number;
+  webPrice: number;
   updatedShopPrice: number;
   updatedOnlinePrice: number;
   onlineDeduction: number;
@@ -41,6 +44,11 @@ export interface PriceForecast {
   onlineProfit: number;
   offlineProfit: number;
   takeawayProfit: number;
+  webProfit: number;
+  futureShopPrice?: number;
+  futureOnlinePrice?: number;
+  futureWebPrice?: number;
+  futureWebProfit?: number;
   isFinalized: boolean;
   finalizedDate?: string;
   finalizedBy?: string;
@@ -116,6 +124,7 @@ export class PriceForecastService {
     onlineProfit: number;
     offlineProfit: number;
     takeawayProfit: number;
+    webProfit: number;
   } {
     // Use updatedOnlinePrice if available, otherwise use onlinePrice
     const onlinePrice = forecast.updatedOnlinePrice || forecast.onlinePrice || 0;
@@ -125,6 +134,7 @@ export class PriceForecastService {
     const packagingCost = forecast.packagingCost || 0;
     const shopPrice = forecast.shopPrice || 0;
     const shopDeliveryPrice = forecast.shopDeliveryPrice || 0;
+    const webPrice = forecast.webPrice || shopPrice || onlinePrice;
 
     // Online Payout = (Online Price - Discount%) - ((Online Price - Discount%) × Deduction%)
     const baseAmount = onlinePrice;
@@ -142,11 +152,15 @@ export class PriceForecastService {
     // Takeaway Profit = Shop Delivery Price - (Making Price + Packaging Price)
     const takeawayProfit = Math.max(0, shopDeliveryPrice - (makePrice + packagingCost));
 
+    // Web Profit = Web Price - Making Price
+    const webProfit = Math.max(0, webPrice - makePrice);
+
     return {
       onlinePayout,
       onlineProfit,
       offlineProfit,
-      takeawayProfit
+      takeawayProfit,
+      webProfit
     };
   }
 }

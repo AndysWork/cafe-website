@@ -495,6 +495,24 @@
   letter-spacing: 0.04em;
 }
 
+.formula-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border-radius: 50%;
+  border: 1px solid #94a3b8;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
+  background: #f8fafc;
+}
+
 // Future combo pricing section
 .pricing-breakdown-future {
   background: #f0f4ff;

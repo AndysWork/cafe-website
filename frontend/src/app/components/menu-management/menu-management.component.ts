@@ -29,8 +29,10 @@ interface MenuItem {
   packagingCharge: number;
   shopSellingPrice: number;
   onlinePrice: number;
+  webPrice: number;
   futureShopPrice?: number;
   futureOnlinePrice?: number;
+  futureWebPrice?: number;
   dietaryType?: string;
   variants: MenuItemVariant[];
   isAvailable?: boolean;
@@ -105,8 +107,10 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     packagingCharge: 0,
     shopSellingPrice: 0,
     onlinePrice: 0,
+    webPrice: 0,
     futureShopPrice: undefined,
     futureOnlinePrice: undefined,
+    futureWebPrice: undefined,
     variants: []
   };
 
@@ -258,6 +262,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       packagingCharge: 0,
       shopSellingPrice: 0,
       onlinePrice: 0,
+      webPrice: 0,
       dietaryType: 'veg',
       variants: []
     };
@@ -321,6 +326,8 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       subCategoryId: this.formData.subCategoryId || undefined,
       futureShopPrice: this.formData.futureShopPrice || undefined,
       futureOnlinePrice: this.formData.futureOnlinePrice || undefined,
+      futureWebPrice: this.formData.futureWebPrice || this.formData.futureShopPrice || undefined,
+      webPrice: this.formData.webPrice || this.formData.shopSellingPrice || 0,
       variants: this.formData.variants || []
     };
 

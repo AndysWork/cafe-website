@@ -14,6 +14,7 @@ interface ComboItemDetail {
   quantity: number;
   shopPrice: number;
   onlinePrice: number;
+  webPrice: number;
   packagingCharge: number;
   menuItem?: MenuItem;
 }
@@ -25,6 +26,7 @@ interface ComboFormItem {
   basePieces: number;
   shopPrice: number;
   onlinePrice: number;
+  webPrice: number;
   packagingCharge: number;
 }
 
@@ -34,6 +36,7 @@ interface ComboFormModel {
   items: ComboFormItem[];
   comboPrice: number;
   comboOnlinePrice: number;
+  comboWebPrice: number;
   imageUrl?: string;
   validFrom?: string;
   validTill?: string;
@@ -43,15 +46,19 @@ interface PricingSummary {
   totalMakingCost: number;
   currentShopSellingPrice: number;
   currentOnlineSellingPrice: number;
+  currentWebSellingPrice: number;
   currentShopProfit: number;
   currentOnlineProfit: number;
+  currentWebProfit: number;
   comboPackagingPrice: number;
   comboShopPrice: number;
   comboTakeawayPrice: number;
   comboOnlinePrice: number;
+  comboWebPrice: number;
   comboShopProfit: number;
   comboTakeawayProfit: number;
   comboOnlineProfit: number;
+  comboWebProfit: number;
 }
 
 @Component({
@@ -62,6 +69,8 @@ interface PricingSummary {
   styleUrls: ['./admin-combos.component.scss']
 })
 export class AdminCombosComponent implements OnInit, OnDestroy {
+  private static readonly ONLINE_PAYOUT_FACTOR = 0.56; // 44% platform deduction
+
   private outletService = inject(OutletService);
   private uiStore = inject(UIStore);
   private menuService = inject(MenuService);
@@ -127,9 +136,10 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     return {
       name: '',
       description: '',
-      items: [{ menuItemId: '', quantity: 1, selectedPieces: 1, basePieces: 1, shopPrice: 0, onlinePrice: 0, packagingCharge: 0 }],
+      items: [{ menuItemId: '', quantity: 1, selectedPieces: 1, basePieces: 1, shopPrice: 0, onlinePrice: 0, webPrice: 0, packagingCharge: 0 }],
       comboPrice: 0,
-      comboOnlinePrice: 0
+      comboOnlinePrice: 0,
+      comboWebPrice: 0
     };
   }
 
@@ -160,12 +170,14 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
         quantity: i.quantity,
         selectedPieces: (i as any).selectedPieces || (i as any).basePieces || this.getMenuItemBasePieces(i.menuItemId),
         basePieces: (i as any).basePieces || this.getMenuItemBasePieces(i.menuItemId),
-        shopPrice: (i as any).shopPrice || 0,
-        onlinePrice: (i as any).onlinePrice || i.originalPrice || 0,
-        packagingCharge: (i as any).packagingCharge || 0
+        shopPrice: this.getMenuItemDetail(i.menuItemId)?.shopSellingPrice || (i as any).shopPrice || 0,
+        onlinePrice: this.getMenuItemDetail(i.menuItemId)?.onlinePrice || (i as any).onlinePrice || 0,
+        webPrice: this.getMenuItemDetail(i.menuItemId)?.webPrice || this.getMenuItemDetail(i.menuItemId)?.shopSellingPrice || (i as any).webPrice || i.originalPrice || 0,
+        packagingCharge: this.getMenuItemDetail(i.menuItemId)?.packagingCharge || (i as any).packagingCharge || 0
       })),
       comboPrice: c.comboPrice,
-      comboOnlinePrice: c.comboOnlinePrice ?? c.comboPrice
+      comboOnlinePrice: c.comboOnlinePrice ?? c.comboPrice,
+      comboWebPrice: c.comboWebPrice ?? c.comboPrice
     };
     this.showModal = true;
     this.showItemPickerAt = null;
@@ -200,6 +212,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     this.comboForm.items[index].selectedPieces = basePieces;
     this.comboForm.items[index].shopPrice = item.shopSellingPrice || 0;
     this.comboForm.items[index].onlinePrice = item.onlinePrice || 0;
+    this.comboForm.items[index].webPrice = item.webPrice || item.shopSellingPrice || item.onlinePrice || 0;
     this.comboForm.items[index].packagingCharge = item.packagingCharge || 0;
     this.showItemPickerAt = null;
     this.itemSearchFilter = '';
@@ -270,12 +283,14 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     makingCost: number;
     shopPrice: number;
     onlinePrice: number;
+    webPrice: number;
     packagingCost: number;
   } {
     const menuItem = this.getMenuItemDetail(item.menuItemId);
     const unitShopPrice = menuItem?.shopSellingPrice || item.shopPrice || 0;
-    const unitOnlinePrice = item.onlinePrice || menuItem?.onlinePrice || 0;
-    const unitPackaging = item.packagingCharge || menuItem?.packagingCharge || 0;
+    const unitOnlinePrice = menuItem?.onlinePrice || item.onlinePrice || 0;
+    const unitWebPrice = menuItem?.webPrice || menuItem?.shopSellingPrice || item.webPrice || unitOnlinePrice || 0;
+    const unitPackaging = menuItem?.packagingCharge || item.packagingCharge || 0;
     const unitMakingCost = this.getMakingCost(item.menuItemId);
     const multiplier = this.getEffectiveMultiplier(item);
 
@@ -283,6 +298,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
       makingCost: unitMakingCost * multiplier,
       shopPrice: unitShopPrice * multiplier,
       onlinePrice: unitOnlinePrice * multiplier,
+      webPrice: unitWebPrice * multiplier,
       packagingCost: unitPackaging * multiplier
     };
   }
@@ -304,7 +320,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
       onlinePrice: (item?.onlinePrice || 0) * quantity,
       packaging: (item?.packagingCharge || 0) * quantity,
       shopProfit: ((item?.shopSellingPrice || 0) - makingCost) * quantity,
-      onlineProfit: ((item?.onlinePrice || 0) - makingCost - (item?.packagingCharge || 0)) * quantity
+      onlineProfit: ((item?.onlinePrice || 0) * AdminCombosComponent.ONLINE_PAYOUT_FACTOR - makingCost) * quantity
     };
   }
 
@@ -342,6 +358,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     let totalPackaging = 0;
     let currentShopSellingPrice = 0;
     let currentOnlineSellingPrice = 0;
+    let currentWebSellingPrice = 0;
 
     for (const item of this.comboForm.items) {
       if (!item.menuItemId) continue;
@@ -350,37 +367,45 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
       totalPackaging += snapshot.packagingCost;
       currentShopSellingPrice += snapshot.shopPrice;
       currentOnlineSellingPrice += snapshot.onlinePrice;
+      currentWebSellingPrice += snapshot.webPrice;
     }
 
     const comboShopPrice = this.comboForm.comboPrice || 0;
     const comboOnlinePrice = this.comboForm.comboOnlinePrice || 0;
+    const comboWebPrice = this.comboForm.comboWebPrice || 0;
     const comboTakeawayPrice = comboShopPrice + totalPackaging;
 
     const currentShopProfit = currentShopSellingPrice - totalMaking;
-    const currentOnlineProfit = ((currentOnlineSellingPrice + totalPackaging) * 0.58) - totalMaking;
+    const currentOnlineProfit = (currentOnlineSellingPrice * AdminCombosComponent.ONLINE_PAYOUT_FACTOR) - totalMaking;
+    const currentWebProfit = (currentWebSellingPrice + totalPackaging) - totalMaking;
 
     const comboShopProfit = comboShopPrice - totalMaking;
     const comboTakeawayProfit = (comboShopPrice + totalPackaging) - totalMaking;
-    const comboOnlineProfit = ((comboOnlinePrice + totalPackaging) * 0.58) - totalMaking;
+    const comboOnlineProfit = (comboOnlinePrice * AdminCombosComponent.ONLINE_PAYOUT_FACTOR) - totalMaking;
+    const comboWebProfit = (comboWebPrice + totalPackaging) - totalMaking;
 
     return {
       totalMakingCost: totalMaking,
       currentShopSellingPrice,
       currentOnlineSellingPrice,
+      currentWebSellingPrice,
       currentShopProfit,
       currentOnlineProfit,
+      currentWebProfit,
       comboPackagingPrice: totalPackaging,
       comboShopPrice,
       comboTakeawayPrice,
       comboOnlinePrice,
+      comboWebPrice,
       comboShopProfit,
       comboTakeawayProfit,
-      comboOnlineProfit
+      comboOnlineProfit,
+      comboWebProfit
     };
   }
 
   addItem() {
-    this.comboForm.items.push({ menuItemId: '', quantity: 1, selectedPieces: 1, basePieces: 1, shopPrice: 0, onlinePrice: 0, packagingCharge: 0 });
+    this.comboForm.items.push({ menuItemId: '', quantity: 1, selectedPieces: 1, basePieces: 1, shopPrice: 0, onlinePrice: 0, webPrice: 0, packagingCharge: 0 });
   }
 
   getSelectedItemCount(): number {
@@ -392,7 +417,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
     if (!item.menuItemId) return { shopProfit: 0, onlineProfit: 0 };
     const snapshot = this.getItemSnapshot(item);
     const shopProfit = snapshot.shopPrice - snapshot.makingCost;
-    const onlineProfit = ((snapshot.onlinePrice + snapshot.packagingCost) * 0.58) - snapshot.makingCost;
+    const onlineProfit = (snapshot.onlinePrice * AdminCombosComponent.ONLINE_PAYOUT_FACTOR) - snapshot.makingCost;
     return { shopProfit, onlineProfit };
   }
 
@@ -451,9 +476,14 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.comboForm.comboWebPrice < 0) {
+      this.uiStore.error('Combo web price cannot be negative');
+      return;
+    }
+
     const totalOriginalPrice = validItems.reduce((sum, i) => {
       const menuItem = this.getMenuItemDetail(i.menuItemId.trim());
-      return sum + (menuItem?.onlinePrice || 0) * this.getEffectiveMultiplier(i);
+      return sum + (menuItem?.webPrice || menuItem?.shopSellingPrice || menuItem?.onlinePrice || 0) * this.getEffectiveMultiplier(i);
     }, 0);
 
     if (this.comboForm.comboPrice > totalOriginalPrice) {
@@ -475,6 +505,7 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
       description: this.comboForm.description,
       comboPrice: this.comboForm.comboPrice,
       comboOnlinePrice: this.comboForm.comboOnlinePrice,
+      comboWebPrice: this.comboForm.comboWebPrice,
       imageUrl: this.comboForm.imageUrl,
       validFrom: this.comboForm.validFrom,
       validTill: this.comboForm.validTill,
@@ -504,4 +535,30 @@ export class AdminCombosComponent implements OnInit, OnDestroy {
 
   trackById(_: number, item: ComboMeal) { return item.id; }
   trackByIndex(i: number) { return i; }
+
+  private getOnlineDeductionPercent(): number {
+    return Math.round((1 - AdminCombosComponent.ONLINE_PAYOUT_FACTOR) * 100);
+  }
+
+  getPricingTooltip(kind: 'current-selling' | 'combo-pricing' | 'profit-section' | 'shop-profit' | 'online-profit' | 'web-profit' | 'takeaway-profit'): string {
+    const onlineDeduction = this.getOnlineDeductionPercent();
+    switch (kind) {
+      case 'current-selling':
+        return 'Current channel selling values are the sum of all selected combo items, each scaled by: quantity x (selectedPieces / basePieces).';
+      case 'combo-pricing':
+        return 'Combo pricing values are the manually configured combo prices. Takeaway price is calculated as: Combo Shop Price + Total Packaging Price.';
+      case 'profit-section':
+        return 'Profit compares channel revenue vs total making cost. Tooltips on each card show exact formulas.';
+      case 'shop-profit':
+        return 'Shop Profit = Selling Price - Total Making Cost';
+      case 'online-profit':
+        return `Online Profit = (Online Selling Price x ${AdminCombosComponent.ONLINE_PAYOUT_FACTOR.toFixed(2)}) - Total Making Cost (assumes ${onlineDeduction}% platform deduction).`;
+      case 'web-profit':
+        return 'Web Profit = (Web Selling Price + Total Packaging Price) - Total Making Cost';
+      case 'takeaway-profit':
+        return 'Takeaway Profit = (Shop Selling Price + Total Packaging Price) - Total Making Cost';
+      default:
+        return 'Calculated value based on combo pricing formula.';
+    }
+  }
 }

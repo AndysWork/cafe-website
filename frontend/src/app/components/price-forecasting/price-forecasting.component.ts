@@ -161,6 +161,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
       shopPrice: 0,
       shopDeliveryPrice: 0,
       onlinePrice: 0,
+      webPrice: 0,
       updatedShopPrice: 0,
       updatedOnlinePrice: 0,
       onlineDeduction: 44, // Default 44% deduction for online orders
@@ -170,6 +171,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
       onlineProfit: 0,
       offlineProfit: 0,
       takeawayProfit: 0,
+      webProfit: 0,
       isFinalized: false,
       history: []
     };
@@ -218,6 +220,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
       // Sync Takeaway price with Shop price
       this.forecastForm.shopDeliveryPrice = this.forecastForm.shopPrice;
       this.forecastForm.onlinePrice = selectedItem.onlinePrice || 0;
+      this.forecastForm.webPrice = selectedItem.webPrice || selectedItem.shopSellingPrice || selectedItem.onlinePrice || 0;
       // Set default 44% online deduction if not already set
       if (!this.isEditMode) {
         this.forecastForm.onlineDeduction = this.defaultOnlineDeduction;
@@ -331,6 +334,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
     this.forecastForm.onlineProfit = profits.onlineProfit;
     this.forecastForm.offlineProfit = profits.offlineProfit;
     this.forecastForm.takeawayProfit = profits.takeawayProfit;
+    this.forecastForm.webProfit = profits.webProfit;
   }
 
   saveForecast() {
@@ -346,6 +350,7 @@ export class PriceForecastingComponent implements OnInit, OnDestroy {
     this.forecastForm.onlineProfit = profits.onlineProfit;
     this.forecastForm.offlineProfit = profits.offlineProfit;
     this.forecastForm.takeawayProfit = profits.takeawayProfit;
+    this.forecastForm.webProfit = profits.webProfit;
 
     if (this.isEditMode && this.currentForecast?.id) {
       this.forecastService.updatePriceForecast(this.currentForecast.id, this.forecastForm as PriceForecast).subscribe({

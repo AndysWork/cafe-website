@@ -46,7 +46,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   activeTab: 'calculator' | 'ingredients' | 'recipes' | 'overhead' | 'frozen' = 'calculator';
   recipeViewMode: 'grid' | 'table' = 'table';
   recipeSearchTerm = '';
-  recipeSortBy: 'name' | 'price' | 'category' | 'futureShopProfit' | 'futureOnlineProfit' = 'name';
+  recipeSortBy: 'name' | 'price' | 'category' | 'futureShopProfit' | 'futureOnlineProfit' | 'futureWebProfit' = 'name';
   recipeSortDir: 'asc' | 'desc' = 'asc';
 
   // Ingredient Management
@@ -124,15 +124,19 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     shopPrice: number;
     shopDeliveryPrice: number;
     onlinePrice: number;
+    webPrice: number;
     onlinePayout: number;
     onlineProfit: number;
     offlineProfit: number;
     takeawayProfit: number;
+    webProfit: number;
     // Future pricing
     futureShopPrice?: number;
     futureOnlinePrice?: number;
+    futureWebPrice?: number;
     futureShopProfit?: number;
     futureOnlineProfit?: number;
+    futureWebProfit?: number;
   } | null = null;
   showForecastPanel = true;
   savedPriceForecast: any = null; // Currently saved forecast with history
@@ -880,9 +884,21 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     // Load price forecast data if available
     if (recipe.priceForecast) {
+      const fallbackFutureWebPrice = recipe.priceForecast.futureWebPrice
+        ?? recipe.priceForecast.futureShopPrice
+        ?? recipe.priceForecast.shopPrice;
+
+      const fallbackWebPrice = recipe.priceForecast.webPrice > 0
+        ? recipe.priceForecast.webPrice
+        : fallbackFutureWebPrice;
+
       this.priceForecast = {
         ...recipe.priceForecast,
-        onlineDeduction: this.resolveOnlineDeduction(recipe.priceForecast.onlineDeduction)
+        onlineDeduction: this.resolveOnlineDeduction(recipe.priceForecast.onlineDeduction),
+        webPrice: fallbackWebPrice,
+        webProfit: recipe.priceForecast.webProfit ?? 0,
+        futureWebPrice: fallbackFutureWebPrice,
+        futureWebProfit: recipe.priceForecast.futureWebProfit
       };
     } else {
       // Initialize price forecast if not present
@@ -1067,6 +1083,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         const valA = a.priceForecast?.futureOnlineProfit ?? -Infinity;
         const valB = b.priceForecast?.futureOnlineProfit ?? -Infinity;
         return dir * (valA - valB);
+      } else if (this.recipeSortBy === 'futureWebProfit') {
+        const valA = a.priceForecast?.futureWebProfit ?? -Infinity;
+        const valB = b.priceForecast?.futureWebProfit ?? -Infinity;
+        return dir * (valA - valB);
       } else {
         const priceA = a.totalMakingCost ?? 0;
         const priceB = b.totalMakingCost ?? 0;
@@ -1206,6 +1226,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     const shopPrice = suggestedPrice;
     const shopDeliveryPrice = suggestedPrice + packagingCost;
     const onlinePrice = suggestedPrice;
+    const webPrice = shopPrice;
 
     // Use service to calculate profits
     const profits = this.priceForecastService.calculateProfits({
@@ -1216,6 +1237,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       shopPrice,
       shopDeliveryPrice,
       onlinePrice,
+      webPrice,
       updatedOnlinePrice: onlinePrice
     });
 
@@ -1226,10 +1248,12 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       shopPrice,
       shopDeliveryPrice,
       onlinePrice,
+      webPrice,
       onlinePayout: profits.onlinePayout,
       onlineProfit: profits.onlineProfit,
       offlineProfit: profits.offlineProfit,
-      takeawayProfit: profits.takeawayProfit
+      takeawayProfit: profits.takeawayProfit,
+      webProfit: profits.webProfit
     };
   }
 
@@ -1246,6 +1270,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     const shopPrice = this.priceForecast?.shopPrice || suggestedPrice;
     const shopDeliveryPrice = this.priceForecast?.shopDeliveryPrice || (suggestedPrice + packagingCost);
     const onlinePrice = this.priceForecast?.onlinePrice || suggestedPrice;
+    const futureShopPrice = this.priceForecast?.futureShopPrice || shopPrice;
+    const webPrice = this.priceForecast?.webPrice || futureShopPrice || shopPrice;
+    const futureWebPrice = this.priceForecast?.futureWebPrice || futureShopPrice || shopPrice;
 
     // Use service to calculate profits
     const profits = this.priceForecastService.calculateProfits({
@@ -1256,6 +1283,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       shopPrice,
       shopDeliveryPrice,
       onlinePrice,
+      webPrice,
       updatedOnlinePrice: onlinePrice
     });
 
@@ -1266,15 +1294,19 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       shopPrice,
       shopDeliveryPrice,
       onlinePrice,
+      webPrice,
       onlinePayout: profits.onlinePayout,
       onlineProfit: profits.onlineProfit,
       offlineProfit: profits.offlineProfit,
       takeawayProfit: profits.takeawayProfit,
+      webProfit: profits.webProfit,
       // Future prices
-      futureShopPrice: this.priceForecast?.futureShopPrice || shopPrice,
+      futureShopPrice,
       futureOnlinePrice: this.priceForecast?.futureOnlinePrice || onlinePrice,
+      futureWebPrice,
       futureShopProfit: 0,
-      futureOnlineProfit: 0
+      futureOnlineProfit: 0,
+      futureWebProfit: 0
     };
 
     // Calculate future profits if future prices are set
@@ -1300,6 +1332,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       const deductionAmount = (afterDiscount * this.priceForecast.onlineDeduction) / 100;
       const futurePayout = Math.max(0, afterDiscount - deductionAmount);
       this.priceForecast.futureOnlineProfit = Math.max(0, futurePayout - makePrice);
+    }
+
+    // Calculate future web profit (Web Price - Making Price)
+    if (this.priceForecast.futureWebPrice) {
+      this.priceForecast.futureWebProfit = this.priceForecast.futureWebPrice - makePrice;
     }
   }
 
@@ -1355,6 +1392,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
               this.priceForecast.shopPrice = latestForecast.shopPrice;
               this.priceForecast.shopDeliveryPrice = latestForecast.shopDeliveryPrice;
               this.priceForecast.onlinePrice = latestForecast.onlinePrice;
+              this.priceForecast.webPrice = latestForecast.webPrice || latestForecast.futureWebPrice || latestForecast.futureShopPrice || latestForecast.shopPrice;
+              this.priceForecast.futureWebPrice = latestForecast.futureWebPrice || latestForecast.futureShopPrice || latestForecast.shopPrice;
               this.updateForecastCalculation();
             }
           } else {
@@ -1392,6 +1431,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       shopPrice: this.priceForecast.shopPrice,
       shopDeliveryPrice: this.priceForecast.shopDeliveryPrice,
       onlinePrice: this.priceForecast.onlinePrice,
+      webPrice: this.priceForecast.webPrice,
       updatedShopPrice: this.priceForecast.shopPrice,
       updatedOnlinePrice: this.priceForecast.onlinePrice,
       onlineDeduction: this.priceForecast.onlineDeduction,
@@ -1401,9 +1441,12 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       onlineProfit: this.priceForecast.onlineProfit,
       offlineProfit: this.priceForecast.offlineProfit,
       takeawayProfit: this.priceForecast.takeawayProfit,
+      webProfit: this.priceForecast.webProfit,
       // Future pricing
       futureShopPrice: this.priceForecast.futureShopPrice,
       futureOnlinePrice: this.priceForecast.futureOnlinePrice,
+      futureWebPrice: this.priceForecast.futureWebPrice,
+      futureWebProfit: this.priceForecast.futureWebProfit,
       isFinalized: false,
       createdBy: 'Current User',
       lastUpdatedBy: 'Current User'
@@ -1421,7 +1464,8 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         this.savedPriceForecast.makePrice !== makePrice ||
         this.savedPriceForecast.shopPrice !== this.priceForecast.shopPrice ||
         this.savedPriceForecast.onlinePrice !== this.priceForecast.onlinePrice ||
-        this.savedPriceForecast.shopDeliveryPrice !== this.priceForecast.shopDeliveryPrice;
+        this.savedPriceForecast.shopDeliveryPrice !== this.priceForecast.shopDeliveryPrice ||
+        this.savedPriceForecast.webPrice !== this.priceForecast.webPrice;
 
       if (hasChanges) {
         if (!this.priceChangeReason) {
@@ -1437,6 +1481,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
           shopPrice: this.savedPriceForecast.shopPrice,
           shopDeliveryPrice: this.savedPriceForecast.shopDeliveryPrice,
           onlinePrice: this.savedPriceForecast.onlinePrice,
+          webPrice: this.savedPriceForecast.webPrice,
           updatedShopPrice: this.savedPriceForecast.updatedShopPrice,
           updatedOnlinePrice: this.savedPriceForecast.updatedOnlinePrice,
           onlineDeduction: this.savedPriceForecast.onlineDeduction,
@@ -1446,6 +1491,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
           onlineProfit: this.savedPriceForecast.onlineProfit,
           offlineProfit: this.savedPriceForecast.offlineProfit,
           takeawayProfit: this.savedPriceForecast.takeawayProfit,
+          webProfit: this.savedPriceForecast.webProfit,
           changeReason: this.priceChangeReason
         });
       }
@@ -1502,6 +1548,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       name: this.currentRecipe.menuItemName,
       makingPrice: this.calculation.breakdown.makingCost,
       onlinePrice: this.priceForecast.onlinePrice,
+      webPrice: this.priceForecast.futureWebPrice || this.priceForecast.webPrice || this.priceForecast.futureShopPrice || this.priceForecast.shopPrice,
       dineInPrice: this.priceForecast.shopPrice,
       shopSellingPrice: this.priceForecast.shopPrice,
       packagingCharge: this.priceForecast.packagingCost,
@@ -1544,6 +1591,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       ...menuItem,
       makingPrice: priceData.makingPrice,
       onlinePrice: priceData.onlinePrice,
+      webPrice: priceData.webPrice,
       dineInPrice: priceData.dineInPrice,
       shopSellingPrice: priceData.shopSellingPrice,
       packagingCharge: priceData.packagingCharge,
@@ -1635,14 +1683,18 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         shopPrice: this.priceForecast.shopPrice,
         shopDeliveryPrice: this.priceForecast.shopDeliveryPrice,
         onlinePrice: this.priceForecast.onlinePrice,
+        webPrice: this.priceForecast.webPrice,
         onlinePayout: this.priceForecast.onlinePayout,
         onlineProfit: this.priceForecast.onlineProfit,
         offlineProfit: this.priceForecast.offlineProfit,
         takeawayProfit: this.priceForecast.takeawayProfit,
+        webProfit: this.priceForecast.webProfit,
         futureShopPrice: this.priceForecast.futureShopPrice,
         futureOnlinePrice: this.priceForecast.futureOnlinePrice,
+        futureWebPrice: this.priceForecast.futureWebPrice,
         futureShopProfit: this.priceForecast.futureShopProfit,
-        futureOnlineProfit: this.priceForecast.futureOnlineProfit
+        futureOnlineProfit: this.priceForecast.futureOnlineProfit,
+        futureWebProfit: this.priceForecast.futureWebProfit
       };
     }
 
@@ -1698,6 +1750,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       name: this.currentRecipe.menuItemName,
       makingPrice: this.calculation.breakdown.makingCost,
       onlinePrice: this.priceForecast?.onlinePrice || this.calculation.breakdown.sellingPrice,
+      webPrice: this.priceForecast?.futureWebPrice
+        || this.priceForecast?.webPrice
+        || this.priceForecast?.futureShopPrice
+        || this.priceForecast?.shopPrice
+        || this.calculation.breakdown.sellingPrice,
       dineInPrice: this.priceForecast?.shopPrice || this.calculation.breakdown.sellingPrice,
       shopSellingPrice: this.priceForecast?.shopPrice || this.calculation.breakdown.sellingPrice,
       packagingCharge: this.priceForecast?.packagingCost || 0
@@ -1737,6 +1794,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       ...menuItem,
       makingPrice: priceData.makingPrice,
       onlinePrice: priceData.onlinePrice,
+      webPrice: priceData.webPrice,
       dineInPrice: priceData.dineInPrice,
       shopSellingPrice: priceData.shopSellingPrice,
       packagingCharge: priceData.packagingCharge

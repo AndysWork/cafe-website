@@ -23,6 +23,7 @@ export interface ComboMeal {
   originalPrice: number;
   comboPrice: number;
   comboOnlinePrice?: number;
+  comboWebPrice?: number;
   savingsAmount: number;
   imageUrl?: string;
   isActive: boolean;
@@ -36,6 +37,7 @@ export interface CreateComboRequest {
   items: { menuItemId: string; quantity: number; selectedPieces?: number }[];
   comboPrice: number;
   comboOnlinePrice?: number;
+  comboWebPrice?: number;
   imageUrl?: string;
   validFrom?: string;
   validTill?: string;

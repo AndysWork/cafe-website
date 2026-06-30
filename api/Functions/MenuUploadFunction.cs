@@ -297,6 +297,7 @@ public class MenuUploadFunction
                         Quantity = quantity ?? 0,
                         OnlinePrice = price,
                         ShopSellingPrice = price,
+                        WebPrice = price,
                         MakingPrice = 0,
                         PackagingCharge = 0,
                         Variants = new List<MenuItemVariant>(),

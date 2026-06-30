@@ -98,7 +98,7 @@
             <div class="item-name">{{ item.name }}</div>
             <div class="item-sub">
               <span>{{ item.category || 'Uncategorized' }}</span>
-              <span *ngIf="item.onlinePrice != null">₹{{ item.onlinePrice }}</span>
+              <span *ngIf="item.displayPrice != null">₹{{ item.displayPrice }}</span>
             </div>
           </div>
         </label>

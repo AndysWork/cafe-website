@@ -46,6 +46,10 @@ public class CafeMenuItem : ISoftDeletable
     
     [Range(0, 100000, ErrorMessage = "Online price must be between 0 and 100,000")]
     public decimal OnlinePrice { get; set; }
+
+    [BsonElement("webPrice")]
+    [Range(0, 100000, ErrorMessage = "Web price must be between 0 and 100,000")]
+    public decimal WebPrice { get; set; }
     
     [Range(0, 100000, ErrorMessage = "Dine-in price must be between 0 and 100,000")]
     public decimal DineInPrice { get; set; }
@@ -56,6 +60,9 @@ public class CafeMenuItem : ISoftDeletable
     
     [BsonElement("futureOnlinePrice")]
     public decimal? FutureOnlinePrice { get; set; }
+
+    [BsonElement("futureWebPrice")]
+    public decimal? FutureWebPrice { get; set; }
     
     [StringLength(500, ErrorMessage = "Image URL cannot exceed 500 characters")]
     public string ImageUrl { get; set; } = string.Empty;

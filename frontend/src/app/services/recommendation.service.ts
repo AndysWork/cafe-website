@@ -6,22 +6,21 @@ import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
 
 export interface RecommendedItem {
-  menuItemId: string;
+  id: string;
   name: string;
   category: string;
-  onlinePrice: number;
+  price: number;
   imageUrl?: string;
   reason: string;
-  score: number;
+  type?: string;
 }
 
 export interface TrendingItem {
-  menuItemId: string;
+  id: string;
   name: string;
   category: string;
-  onlinePrice: number;
+  price: number;
   imageUrl?: string;
-  orderCount: number;
 }
 
 @Injectable({ providedIn: 'root' })

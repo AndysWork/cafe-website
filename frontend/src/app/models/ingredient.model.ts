@@ -84,14 +84,18 @@ export interface MenuItemRecipe {
     shopPrice: number;
     shopDeliveryPrice: number;
     onlinePrice: number;
+    webPrice: number;
     onlinePayout: number;
     onlineProfit: number;
     offlineProfit: number;
     takeawayProfit: number;
+    webProfit: number;
     futureShopPrice?: number;
     futureOnlinePrice?: number;
+    futureWebPrice?: number;
     futureShopProfit?: number;
     futureOnlineProfit?: number;
+    futureWebProfit?: number;
   };
   preparationTimeMinutes?: number;
   kptAnalysis?: {

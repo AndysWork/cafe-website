@@ -40,6 +40,10 @@ public class ComboMeal : ISoftDeletable
     [Range(0, 100000)]
     public decimal ComboOnlinePrice { get; set; }
 
+    [BsonElement("comboWebPrice")]
+    [Range(0, 100000)]
+    public decimal ComboWebPrice { get; set; }
+
     [BsonElement("savingsAmount")]
     public decimal SavingsAmount { get; set; }
 
@@ -110,6 +114,9 @@ public class CreateComboMealRequest
 
     [Range(0, 100000)]
     public decimal? ComboOnlinePrice { get; set; }
+
+    [Range(0, 100000)]
+    public decimal? ComboWebPrice { get; set; }
 
     public DateTime? ValidFrom { get; set; }
     public DateTime? ValidTill { get; set; }

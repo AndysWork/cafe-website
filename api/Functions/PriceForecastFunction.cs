@@ -24,6 +24,12 @@ public class PriceForecastFunction
 
     private void CalculateProfits(PriceForecast forecast)
     {
+        if (forecast.FutureWebPrice is null || forecast.FutureWebPrice <= 0)
+            forecast.FutureWebPrice = forecast.FutureShopPrice > 0 ? forecast.FutureShopPrice : forecast.ShopPrice;
+
+        if (forecast.WebPrice <= 0)
+            forecast.WebPrice = forecast.FutureWebPrice > 0 ? forecast.FutureWebPrice.Value : forecast.ShopPrice;
+
         // Online Payout = ((Online Price + Packaging) - Discount%) - (((Online Price + Packaging) - Discount%) × Deduction%)
         var baseAmount = forecast.OnlinePrice + forecast.PackagingCost;
         var discountAmount = (baseAmount * forecast.OnlineDiscount) / 100;
@@ -39,6 +45,12 @@ public class PriceForecastFunction
 
         // Takeaway Profit = Shop Delivery Price - (Making Price + Packaging Price)
         forecast.TakeawayProfit = Math.Max(0, forecast.ShopDeliveryPrice - (forecast.MakePrice + forecast.PackagingCost));
+
+        // Web Profit = Web Price - Making Price
+        forecast.WebProfit = Math.Max(0, forecast.WebPrice - forecast.MakePrice);
+
+        if (forecast.FutureWebPrice.HasValue)
+            forecast.FutureWebProfit = Math.Max(0, forecast.FutureWebPrice.Value - forecast.MakePrice);
 
         // Keep backward compatibility with PayoutCalculation
         forecast.PayoutCalculation = forecast.OnlinePayout;
@@ -217,6 +229,7 @@ public class PriceForecastFunction
                 ShopPrice = existingForecast.ShopPrice,
                 ShopDeliveryPrice = existingForecast.ShopDeliveryPrice,
                 OnlinePrice = existingForecast.OnlinePrice,
+                WebPrice = existingForecast.WebPrice,
                 UpdatedShopPrice = existingForecast.UpdatedShopPrice,
                 UpdatedOnlinePrice = existingForecast.UpdatedOnlinePrice,
                 OnlineDeduction = existingForecast.OnlineDeduction,
@@ -226,6 +239,7 @@ public class PriceForecastFunction
                 OnlineProfit = existingForecast.OnlineProfit,
                 OfflineProfit = existingForecast.OfflineProfit,
                 TakeawayProfit = existingForecast.TakeawayProfit,
+                WebProfit = existingForecast.WebProfit,
                 ChangeReason = "Price update"
             };
 

@@ -67,6 +67,14 @@
           </div>
 
           <div class="price-section">
+            <h4>Web Pricing</h4>
+            <div class="price-row">
+              <span class="label">Web Price:</span>
+              <span class="value">₹{{ forecast.webPrice | number:'1.2-2' }}</span>
+            </div>
+          </div>
+
+          <div class="price-section">
             <h4>Online Pricing</h4>
             <div class="price-row">
               <span class="label">Online Price:</span>
@@ -99,6 +107,10 @@
             <div class="price-row">
               <span class="label"><strong>Takeaway Profit:</strong></span>
               <span class="value"><strong>₹{{ forecast.takeawayProfit | number:'1.2-2' }}</strong></span>
+            </div>
+            <div class="price-row">
+              <span class="label"><strong>Web Profit:</strong></span>
+              <span class="value"><strong>₹{{ forecast.webProfit | number:'1.2-2' }}</strong></span>
             </div>
           </div>
 
@@ -177,6 +189,12 @@
 
         <div class="form-row">
           <div class="form-group">
+            <label for="webPrice">Web Price (₹) *</label>
+            <input type="number" id="webPrice" [(ngModel)]="forecastForm.webPrice"
+                   name="webPrice" step="0.01" min="0" (input)="onPriceChange()" required>
+          </div>
+
+          <div class="form-group">
             <label for="onlinePrice">Online Price (₹) *</label>
             <input type="number" id="onlinePrice" [(ngModel)]="forecastForm.onlinePrice"
                    name="onlinePrice" step="0.01" min="0" (input)="onPriceChange()" required>
@@ -248,12 +266,17 @@
               <span class="profit-label">Takeaway Profit</span>
               <span class="profit-value">₹{{ (forecastForm.takeawayProfit || 0) | number:'1.2-2' }}</span>
             </div>
+            <div class="profit-item">
+              <span class="profit-label">Web Profit</span>
+              <span class="profit-value">₹{{ (forecastForm.webProfit || 0) | number:'1.2-2' }}</span>
+            </div>
           </div>
           <small class="help-text">
             Online Payout = ((Price + Packaging) - Discount Amount) - (((Price + Packaging) - Discount Amount) × Deduction%)<br>
             Online Profit = Online Payout - Making Price<br>
             Offline Profit = Shop Price - Making Price<br>
-            Takeaway Profit = Takeaway Price - (Making + Packaging)
+            Takeaway Profit = Takeaway Price - (Making + Packaging)<br>
+            Web Profit = Web Price - Making Price
           </small>
         </div>
       </form>
@@ -296,6 +319,9 @@
             <div class="detail-row">
               <span>Online Price:</span> <span>₹{{ entry.onlinePrice | number:'1.2-2' }}</span>
             </div>
+            <div class="detail-row">
+              <span>Web Price:</span> <span>₹{{ entry.webPrice | number:'1.2-2' }}</span>
+            </div>
             <div class="detail-row" *ngIf="entry.updatedShopPrice > 0">
               <span>Updated Shop Price:</span> <span>₹{{ entry.updatedShopPrice | number:'1.2-2' }}</span>
             </div>
@@ -319,6 +345,9 @@
             </div>
             <div class="detail-row highlight">
               <span><strong>Takeaway Profit:</strong></span> <span><strong>₹{{ entry.takeawayProfit | number:'1.2-2' }}</strong></span>
+            </div>
+            <div class="detail-row highlight">
+              <span><strong>Web Profit:</strong></span> <span><strong>₹{{ entry.webProfit | number:'1.2-2' }}</strong></span>
             </div>
             <div class="detail-row" *ngIf="entry.changeReason">
               <span>Reason:</span> <span>{{ entry.changeReason }}</span>

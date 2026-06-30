@@ -36,7 +36,7 @@ public interface IPricingRepository
     Task<bool> DeleteRecipeAsync(string id);
     Task<MenuItemRecipe?> CopyRecipeFromOutletAsync(string menuItemName, string sourceOutletId, string targetOutletId);
     Task<PriceForecast?> CopyPriceForecastFromOutletAsync(string menuItemName, string sourceOutletId, string targetOutletId);
-    Task<bool> UpdateMenuItemFuturePricesAsync(string menuItemId, decimal? futureShopPrice, decimal? futureOnlinePrice);
+    Task<bool> UpdateMenuItemFuturePricesAsync(string menuItemId, decimal? futureShopPrice, decimal? futureOnlinePrice, decimal? futureWebPrice);
     Task<int> SyncAllRecipePricesToMenuItemsAsync();
 
     // Price History

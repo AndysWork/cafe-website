@@ -30,6 +30,11 @@ public class ComboMealFunction
         {
             var outletId = req.Query["outletId"] ?? "default";
             var combos = await _mongo.GetComboMealsAsync(outletId);
+            foreach (var combo in combos)
+            {
+                if (combo.ComboWebPrice <= 0)
+                    combo.ComboWebPrice = combo.ComboPrice;
+            }
             var now = MongoService.GetIstNow();
             var active = combos.Where(c =>
                     c.IsActive &&
@@ -61,6 +66,11 @@ public class ComboMealFunction
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var combos = await _mongo.GetComboMealsAsync(outletId ?? "default");
+            foreach (var combo in combos)
+            {
+                if (combo.ComboWebPrice <= 0)
+                    combo.ComboWebPrice = combo.ComboPrice;
+            }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(combos);
@@ -184,11 +194,12 @@ public class ComboMealFunction
                         SelectedPieces = selectedPieces,
                         BasePieces = basePieces,
                         PortionFactor = portionFactor,
-                        OriginalPrice = mi.OnlinePrice
+                        OriginalPrice = mi.WebPrice > 0 ? mi.WebPrice : (mi.ShopSellingPrice > 0 ? mi.ShopSellingPrice : mi.OnlinePrice)
                     };
                 }).ToList(),
                 ComboPrice = request.ComboPrice,
                 ComboOnlinePrice = request.ComboOnlinePrice ?? request.ComboPrice,
+                ComboWebPrice = request.ComboWebPrice ?? request.ComboPrice,
                 ValidFrom = request.ValidFrom,
                 ValidTill = request.ValidTill,
                 IsActive = true,
@@ -328,12 +339,13 @@ public class ComboMealFunction
                     SelectedPieces = selectedPieces,
                     BasePieces = basePieces,
                     PortionFactor = portionFactor,
-                    OriginalPrice = mi.OnlinePrice
+                    OriginalPrice = mi.WebPrice > 0 ? mi.WebPrice : (mi.ShopSellingPrice > 0 ? mi.ShopSellingPrice : mi.OnlinePrice)
                 };
             }).ToList();
             existing.OriginalPrice = existing.Items.Sum(i => i.OriginalPrice * i.Quantity * (i.PortionFactor <= 0 ? 1 : i.PortionFactor));
             existing.ComboPrice = request.ComboPrice;
             existing.ComboOnlinePrice = request.ComboOnlinePrice ?? request.ComboPrice;
+            existing.ComboWebPrice = request.ComboWebPrice ?? request.ComboPrice;
             if (existing.ComboPrice > existing.OriginalPrice)
             {
                 var badPrice = req.CreateResponse(HttpStatusCode.BadRequest);

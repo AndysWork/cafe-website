@@ -386,7 +386,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       return {
         name: item.name || item.catalogueName || item.description || 'Menu Item',
         category: categoryName || 'Special',
-        price: `₹${item.onlinePrice || item.shopSellingPrice || 99}`,
+        price: `₹${item.webPrice || item.shopSellingPrice || item.onlinePrice || 99}`,
         image: this.getCategoryIcon(categoryName),
         tag: tags[index % tags.length]
       };

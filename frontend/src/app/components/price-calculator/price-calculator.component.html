@@ -667,6 +667,18 @@
                 </div>
 
                 <div class="form-group">
+                  <label>🌐 Web Price (₹)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.webPrice"
+                    (ngModelChange)="updateForecastCalculation()"
+                    min="0"
+                    step="1"
+                    class="form-input">
+                  <small class="form-hint">Defaults to future shop price</small>
+                </div>
+
+                <div class="form-group">
                   <label>📦 Packaging Cost (₹)</label>
                   <input
                     type="number"
@@ -744,9 +756,25 @@
                     Forecasted Profit: ₹{{priceForecast.futureOnlineProfit!.toFixed(2)}} (after deductions)
                   </small>
                 </div>
+
+                <div class="form-group">
+                  <label>🌐 Future Web Price (₹)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="priceForecast.futureWebPrice"
+                    (ngModelChange)="updateFutureProfits()"
+                    min="0"
+                    step="1"
+                    placeholder="Enter future web price"
+                    class="form-input">
+                  <small class="form-hint" *ngIf="priceForecast.futureWebProfit !== undefined"
+                         [style.color]="priceForecast.futureWebProfit! >= 0 ? '#10b981' : '#ef4444'">
+                    Forecasted Profit: ₹{{priceForecast.futureWebProfit!.toFixed(2)}}
+                  </small>
+                </div>
               </div>
 
-              <div *ngIf="priceForecast.futureShopPrice || priceForecast.futureOnlinePrice"
+              <div *ngIf="priceForecast.futureShopPrice || priceForecast.futureOnlinePrice || priceForecast.futureWebPrice"
                    style="margin-top: 0.75rem; padding: 0.75rem; background: white; border-radius: 6px; font-size: 0.85rem;">
                 <strong style="color: #1e40af;">💡 Price Comparison:</strong>
                 <div class="price-comparison-grid">
@@ -766,6 +794,14 @@
                       (+₹{{(priceForecast.futureOnlinePrice - priceForecast.onlinePrice).toFixed(2)}})
                     </span>
                   </div>
+                  <div *ngIf="priceForecast.futureWebPrice">
+                    <span style="color: #64748b;">Web:</span>
+                    <span style="color: #dc2626;">₹{{priceForecast.webPrice}}</span> →
+                    <span style="color: #10b981; font-weight: 600;">₹{{priceForecast.futureWebPrice}}</span>
+                    <span style="color: #64748b; font-size: 0.75rem;">
+                      (+₹{{(priceForecast.futureWebPrice - priceForecast.webPrice).toFixed(2)}})
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -776,7 +812,7 @@
 
               <div class="profit-cards">
                 <!-- Offline Profit -->
-                <div class="profit-card" [class.best-option]="priceForecast.offlineProfit >= priceForecast.onlineProfit && priceForecast.offlineProfit >= priceForecast.takeawayProfit">
+                <div class="profit-card" [class.best-option]="priceForecast.offlineProfit >= priceForecast.onlineProfit && priceForecast.offlineProfit >= priceForecast.takeawayProfit && priceForecast.offlineProfit >= priceForecast.webProfit">
                   <div class="profit-icon">🏪</div>
                   <div class="profit-details">
                     <div class="profit-label">Dine-In/Shop</div>
@@ -791,7 +827,7 @@
                 </div>
 
                 <!-- Takeaway Profit -->
-                <div class="profit-card" [class.best-option]="priceForecast.takeawayProfit >= priceForecast.onlineProfit && priceForecast.takeawayProfit >= priceForecast.offlineProfit">
+                <div class="profit-card" [class.best-option]="priceForecast.takeawayProfit >= priceForecast.onlineProfit && priceForecast.takeawayProfit >= priceForecast.offlineProfit && priceForecast.takeawayProfit >= priceForecast.webProfit">
                   <div class="profit-icon">🛵</div>
                   <div class="profit-details">
                     <div class="profit-label">Takeaway</div>
@@ -806,7 +842,7 @@
                 </div>
 
                 <!-- Online Profit -->
-                <div class="profit-card" [class.best-option]="priceForecast.onlineProfit >= priceForecast.offlineProfit && priceForecast.onlineProfit >= priceForecast.takeawayProfit">
+                <div class="profit-card" [class.best-option]="priceForecast.onlineProfit >= priceForecast.offlineProfit && priceForecast.onlineProfit >= priceForecast.takeawayProfit && priceForecast.onlineProfit >= priceForecast.webProfit">
                   <div class="profit-icon">📱</div>
                   <div class="profit-details">
                     <div class="profit-label">Online (Zomato/Swiggy)</div>
@@ -824,17 +860,35 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Web Profit -->
+                <div class="profit-card" [class.best-option]="priceForecast.webProfit >= priceForecast.onlineProfit && priceForecast.webProfit >= priceForecast.offlineProfit && priceForecast.webProfit >= priceForecast.takeawayProfit">
+                  <div class="profit-icon">🌐</div>
+                  <div class="profit-details">
+                    <div class="profit-label">Website</div>
+                    <div class="profit-price">₹{{priceForecast.webPrice.toFixed(2)}}</div>
+                    <div class="profit-amount" [class.negative]="priceForecast.webProfit < 0">
+                      Profit: ₹{{priceForecast.webProfit.toFixed(2)}}
+                    </div>
+                    <div class="profit-margin">
+                      {{((priceForecast.webProfit / calculation.breakdown.makingCost) * 100).toFixed(1)}}% margin
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Best Channel Indicator -->
-              <div class="best-channel-alert" *ngIf="priceForecast.offlineProfit >= priceForecast.onlineProfit && priceForecast.offlineProfit >= priceForecast.takeawayProfit">
+              <div class="best-channel-alert" *ngIf="priceForecast.offlineProfit >= priceForecast.onlineProfit && priceForecast.offlineProfit >= priceForecast.takeawayProfit && priceForecast.offlineProfit >= priceForecast.webProfit">
                 ⭐ <strong>Best Channel:</strong> Dine-In/Shop with ₹{{priceForecast.offlineProfit.toFixed(2)}} profit
               </div>
-              <div class="best-channel-alert" *ngIf="priceForecast.takeawayProfit >= priceForecast.onlineProfit && priceForecast.takeawayProfit >= priceForecast.offlineProfit">
+              <div class="best-channel-alert" *ngIf="priceForecast.takeawayProfit >= priceForecast.onlineProfit && priceForecast.takeawayProfit >= priceForecast.offlineProfit && priceForecast.takeawayProfit >= priceForecast.webProfit">
                 ⭐ <strong>Best Channel:</strong> Takeaway with ₹{{priceForecast.takeawayProfit.toFixed(2)}} profit
               </div>
-              <div class="best-channel-alert" *ngIf="priceForecast.onlineProfit >= priceForecast.offlineProfit && priceForecast.onlineProfit >= priceForecast.takeawayProfit">
+              <div class="best-channel-alert" *ngIf="priceForecast.onlineProfit >= priceForecast.offlineProfit && priceForecast.onlineProfit >= priceForecast.takeawayProfit && priceForecast.onlineProfit >= priceForecast.webProfit">
                 ⭐ <strong>Best Channel:</strong> Online with ₹{{priceForecast.onlineProfit.toFixed(2)}} profit
+              </div>
+              <div class="best-channel-alert" *ngIf="priceForecast.webProfit >= priceForecast.offlineProfit && priceForecast.webProfit >= priceForecast.takeawayProfit && priceForecast.webProfit >= priceForecast.onlineProfit">
+                ⭐ <strong>Best Channel:</strong> Website with ₹{{priceForecast.webProfit.toFixed(2)}} profit
               </div>
             </div>
 
@@ -1009,6 +1063,7 @@
             <option value="category">Category</option>
             <option value="futureShopProfit">Future Shop Profit</option>
             <option value="futureOnlineProfit">Future Online Profit</option>
+            <option value="futureWebProfit">Future Web Profit</option>
           </select>
           <button
             type="button"
@@ -1055,59 +1110,83 @@
               </div>
             </div>
 
-            <!-- Current Pricing -->
-            <div class="recipe-stats" *ngIf="recipe.priceForecast?.shopPrice || recipe.priceForecast?.onlinePrice">
-              <div class="section-divider">Current Pricing</div>
-              <div class="stat-item" *ngIf="recipe.priceForecast?.shopPrice">
-                <span class="stat-label">Shop:</span>
-                <span class="stat-value">₹{{(recipe.priceForecast?.shopPrice || 0).toFixed(2)}}
-                  <small
-                    class="profit-badge"
-                    [class.loss]="(recipe.priceForecast?.offlineProfit || 0) < 0"
-                    *ngIf="recipe.priceForecast?.offlineProfit">
-                    ({{(recipe.priceForecast?.offlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.offlineProfit || 0).toFixed(2)}})
-                  </small>
-                </span>
+            <ng-container *ngIf="recipe.priceForecast as forecast">
+              <!-- Current Pricing -->
+              <div class="recipe-stats" *ngIf="forecast.shopPrice || forecast.onlinePrice || forecast.webPrice">
+                <div class="section-divider">Current Pricing</div>
+                <div class="stat-item" *ngIf="forecast.shopPrice">
+                  <span class="stat-label">Shop:</span>
+                  <span class="stat-value">₹{{(forecast.shopPrice || 0).toFixed(2)}}
+                    <small
+                      class="profit-badge"
+                      [class.loss]="(forecast.offlineProfit || 0) < 0"
+                      *ngIf="forecast.offlineProfit">
+                      ({{(forecast.offlineProfit || 0) >= 0 ? '+' : ''}}₹{{(forecast.offlineProfit || 0).toFixed(2)}})
+                    </small>
+                  </span>
+                </div>
+                <div class="stat-item" *ngIf="forecast.onlinePrice">
+                  <span class="stat-label">Online:</span>
+                  <span class="stat-value">₹{{(forecast.onlinePrice || 0).toFixed(2)}}
+                    <small
+                      class="profit-badge"
+                      [class.loss]="(forecast.onlineProfit || 0) < 0"
+                      *ngIf="forecast.onlineProfit">
+                      ({{(forecast.onlineProfit || 0) >= 0 ? '+' : ''}}₹{{(forecast.onlineProfit || 0).toFixed(2)}})
+                    </small>
+                  </span>
+                </div>
+                <div class="stat-item" *ngIf="forecast.webPrice">
+                  <span class="stat-label">Web:</span>
+                  <span class="stat-value">₹{{(forecast.webPrice || 0).toFixed(2)}}
+                    <small
+                      class="profit-badge"
+                      [class.loss]="(forecast.webProfit || 0) < 0"
+                      *ngIf="forecast.webProfit">
+                      ({{(forecast.webProfit || 0) >= 0 ? '+' : ''}}₹{{(forecast.webProfit || 0).toFixed(2)}})
+                    </small>
+                  </span>
+                </div>
               </div>
-              <div class="stat-item" *ngIf="recipe.priceForecast?.onlinePrice">
-                <span class="stat-label">Online:</span>
-                <span class="stat-value">₹{{(recipe.priceForecast?.onlinePrice || 0).toFixed(2)}}
-                  <small
-                    class="profit-badge"
-                    [class.loss]="(recipe.priceForecast?.onlineProfit || 0) < 0"
-                    *ngIf="recipe.priceForecast?.onlineProfit">
-                    ({{(recipe.priceForecast?.onlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.onlineProfit || 0).toFixed(2)}})
-                  </small>
-                </span>
-              </div>
-            </div>
 
-            <!-- Future Pricing -->
-            <div class="recipe-stats" *ngIf="recipe.priceForecast?.futureShopPrice || recipe.priceForecast?.futureOnlinePrice">
-              <div class="section-divider future">Future Pricing</div>
-              <div class="stat-item" *ngIf="recipe.priceForecast?.futureShopPrice">
-                <span class="stat-label">Shop:</span>
-                <span class="stat-value future">₹{{(recipe.priceForecast?.futureShopPrice || 0).toFixed(2)}}
-                  <small
-                    class="profit-badge future"
-                    [class.loss]="(recipe.priceForecast?.futureShopProfit || 0) < 0"
-                    *ngIf="recipe.priceForecast?.futureShopProfit">
-                    ({{(recipe.priceForecast?.futureShopProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureShopProfit || 0).toFixed(2)}})
-                  </small>
-                </span>
+              <!-- Future Pricing -->
+              <div class="recipe-stats" *ngIf="forecast.futureShopPrice || forecast.futureOnlinePrice || forecast.futureWebPrice">
+                <div class="section-divider future">Future Pricing</div>
+                <div class="stat-item" *ngIf="forecast.futureShopPrice">
+                  <span class="stat-label">Shop:</span>
+                  <span class="stat-value future">₹{{(forecast.futureShopPrice || 0).toFixed(2)}}
+                    <small
+                      class="profit-badge future"
+                      [class.loss]="(forecast.futureShopProfit || 0) < 0"
+                      *ngIf="forecast.futureShopProfit">
+                      ({{(forecast.futureShopProfit || 0) >= 0 ? '+' : ''}}₹{{(forecast.futureShopProfit || 0).toFixed(2)}})
+                    </small>
+                  </span>
+                </div>
+                <div class="stat-item" *ngIf="forecast.futureOnlinePrice">
+                  <span class="stat-label">Online:</span>
+                  <span class="stat-value future">₹{{(forecast.futureOnlinePrice || 0).toFixed(2)}}
+                    <small
+                      class="profit-badge future"
+                      [class.loss]="(forecast.futureOnlineProfit || 0) < 0"
+                      *ngIf="forecast.futureOnlineProfit">
+                      ({{(forecast.futureOnlineProfit || 0) >= 0 ? '+' : ''}}₹{{(forecast.futureOnlineProfit || 0).toFixed(2)}})
+                    </small>
+                  </span>
+                </div>
+                <div class="stat-item" *ngIf="forecast.futureWebPrice">
+                  <span class="stat-label">Web:</span>
+                  <span class="stat-value future">₹{{(forecast.futureWebPrice || 0).toFixed(2)}}
+                    <small
+                      class="profit-badge future"
+                      [class.loss]="(forecast.futureWebProfit || 0) < 0"
+                      *ngIf="forecast.futureWebProfit">
+                      ({{(forecast.futureWebProfit || 0) >= 0 ? '+' : ''}}₹{{(forecast.futureWebProfit || 0).toFixed(2)}})
+                    </small>
+                  </span>
+                </div>
               </div>
-              <div class="stat-item" *ngIf="recipe.priceForecast?.futureOnlinePrice">
-                <span class="stat-label">Online:</span>
-                <span class="stat-value future">₹{{(recipe.priceForecast?.futureOnlinePrice || 0).toFixed(2)}}
-                  <small
-                    class="profit-badge future"
-                    [class.loss]="(recipe.priceForecast?.futureOnlineProfit || 0) < 0"
-                    *ngIf="recipe.priceForecast?.futureOnlineProfit">
-                    ({{(recipe.priceForecast?.futureOnlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureOnlineProfit || 0).toFixed(2)}})
-                  </small>
-                </span>
-              </div>
-            </div>
+            </ng-container>
           </div>
           <div class="card-footer">
             <button class="btn-edit" (click)="loadRecipe(recipe)">
@@ -1132,10 +1211,14 @@
               <th>Shop Profit</th>
               <th>Online Price</th>
               <th>Online Profit</th>
+              <th>Web Price</th>
+              <th>Web Profit</th>
               <th>Future Shop</th>
               <th>Future Shop Profit</th>
               <th>Future Online</th>
               <th>Future Online Profit</th>
+              <th>Future Web</th>
+              <th>Future Web Profit</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -1153,6 +1236,10 @@
               <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.onlineProfit || 0) < 0">
                 {{(recipe.priceForecast?.onlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.onlineProfit || 0).toFixed(2)}}
               </td>
+              <td>₹{{(recipe.priceForecast?.webPrice || 0).toFixed(2)}}</td>
+              <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.webProfit || 0) < 0">
+                {{(recipe.priceForecast?.webProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.webProfit || 0).toFixed(2)}}
+              </td>
               <td>₹{{(recipe.priceForecast?.futureShopPrice || 0).toFixed(2)}}</td>
               <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.futureShopProfit || 0) < 0">
                 {{(recipe.priceForecast?.futureShopProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureShopProfit || 0).toFixed(2)}}
@@ -1160,6 +1247,10 @@
               <td>₹{{(recipe.priceForecast?.futureOnlinePrice || 0).toFixed(2)}}</td>
               <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.futureOnlineProfit || 0) < 0">
                 {{(recipe.priceForecast?.futureOnlineProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureOnlineProfit || 0).toFixed(2)}}
+              </td>
+              <td>₹{{(recipe.priceForecast?.futureWebPrice || 0).toFixed(2)}}</td>
+              <td class="profit-cell" [class.loss-cell]="(recipe.priceForecast?.futureWebProfit || 0) < 0">
+                {{(recipe.priceForecast?.futureWebProfit || 0) >= 0 ? '+' : ''}}₹{{(recipe.priceForecast?.futureWebProfit || 0).toFixed(2)}}
               </td>
               <td>
                 <div class="table-actions">

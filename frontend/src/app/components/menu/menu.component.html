@@ -143,7 +143,7 @@
                 *ngFor="let alt of getSubstituteItems(item)"
                 class="substitute-chip"
                 (click)="addSubstituteToCart(alt, $event)">
-                {{ alt.name }} · ₹{{ alt.onlinePrice }}
+                {{ alt.name }} · ₹{{ getWebPrice(alt) }}
               </button>
               <span *ngIf="getSubstituteItems(item).length === 0" class="substitute-empty">
                 No close alternatives right now.
@@ -153,7 +153,7 @@
 
           <div class="card-footer">
             <div class="price-block">
-              <span class="price">₹{{ item.onlinePrice }}</span>
+              <span class="price">₹{{ getWebPrice(item) }}</span>
             </div>
 
             <!-- Add to Cart / Quantity Control -->
@@ -227,8 +227,8 @@
 
         <div class="detail-pricing">
           <div class="detail-price-row">
-            <span class="price-label">Online Price</span>
-            <span class="price-value primary">₹{{ selectedMenuItem.onlinePrice }}</span>
+            <span class="price-label">Web Price</span>
+            <span class="price-value primary">₹{{ getWebPrice(selectedMenuItem) }}</span>
           </div>
           <div class="detail-price-row" *ngIf="selectedMenuItem.dineInPrice">
             <span class="price-label">Dine-In Price</span>
@@ -264,7 +264,7 @@
               *ngFor="let alt of getSubstituteItems(selectedMenuItem, 4)"
               class="substitute-chip"
               (click)="addSubstituteToCart(alt, $event)">
-              {{ alt.name }} · ₹{{ alt.onlinePrice }}
+              {{ alt.name }} · ₹{{ getWebPrice(alt) }}
             </button>
             <span *ngIf="getSubstituteItems(selectedMenuItem, 4).length === 0" class="substitute-empty">
               No alternatives available currently.
@@ -279,7 +279,7 @@
             class="btn-add-detail"
             (click)="addToCart(selectedMenuItem)"
             [disabled]="selectedMenuItem.isAvailable === false">
-            + Add to Cart — ₹{{ selectedMenuItem.onlinePrice }}
+            + Add to Cart — ₹{{ getWebPrice(selectedMenuItem) }}
           </button>
           <div *ngIf="getCartQuantity(selectedMenuItem.id) > 0" class="qty-control-detail">
             <button class="qty-btn minus" (click)="decreaseQuantity(selectedMenuItem)">−</button>

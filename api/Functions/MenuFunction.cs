@@ -243,6 +243,11 @@ public class MenuFunction
                 item.OutletId = outletId!;
             }
 
+            if (item.WebPrice <= 0)
+            {
+                item.WebPrice = item.ShopSellingPrice;
+            }
+
             // Validate CategoryId exists
             if (!string.IsNullOrEmpty(item.CategoryId))
             {
@@ -322,6 +327,11 @@ public class MenuFunction
                     return forbidden;
                 }
                 item.OutletId = outletId!;
+            }
+
+            if (item.WebPrice <= 0)
+            {
+                item.WebPrice = item.ShopSellingPrice;
             }
 
             // Validate CategoryId exists
@@ -532,7 +542,8 @@ public class MenuFunction
                 {
                     await _mongo.UpdateMenuItemFuturePricesAsync(targetMenuItem.Id, 
                         copiedForecast.FutureShopPrice, 
-                        copiedForecast.FutureOnlinePrice);
+                        copiedForecast.FutureOnlinePrice,
+                        copiedForecast.FutureWebPrice);
                     copiedData.FuturePricesUpdated = true;
                 }
             }

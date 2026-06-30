@@ -91,6 +91,17 @@
         <!-- Pricing row -->
         <div class="price-row">
           <div class="price-block">
+            <span class="price-label">Web</span>
+            <span class="price-val">₹{{ item.webPrice || item.shopSellingPrice }}</span>
+            <span class="future-price" *ngIf="item.futureWebPrice && item.futureWebPrice !== (item.webPrice || item.shopSellingPrice)">
+              → ₹{{ item.futureWebPrice }}
+              <span [class.up]="item.futureWebPrice > (item.webPrice || item.shopSellingPrice)"
+                    [class.dn]="item.futureWebPrice < (item.webPrice || item.shopSellingPrice)">
+                {{ item.futureWebPrice > (item.webPrice || item.shopSellingPrice) ? '↑' : '↓' }}
+              </span>
+            </span>
+          </div>
+          <div class="price-block">
             <span class="price-label">Online</span>
             <span class="price-val">₹{{ item.onlinePrice }}</span>
             <span class="future-price" *ngIf="item.futureOnlinePrice && item.futureOnlinePrice !== item.onlinePrice">
@@ -223,6 +234,10 @@
               <label>Shop Price</label>
               <input type="number" [(ngModel)]="formData.shopSellingPrice" name="shopSellingPrice" placeholder="0.00" step="0.01" />
             </div>
+            <div class="fg">
+              <label>Web Price</label>
+              <input type="number" [(ngModel)]="formData.webPrice" name="webPrice" placeholder="0.00" step="0.01" />
+            </div>
           </div>
 
           <div class="fg-row">
@@ -240,6 +255,15 @@
           <div class="future-section">
             <div class="future-label">📅 Future Pricing <small>(optional)</small></div>
             <div class="fg-row">
+              <div class="fg">
+                <label>Future Web Price</label>
+                <input type="number" [(ngModel)]="formData.futureWebPrice" name="futureWebPrice" placeholder="0.00" step="0.01" />
+                <small *ngIf="formData.futureWebPrice && (formData.webPrice || formData.shopSellingPrice)" class="price-diff"
+                       [class.pos]="(formData.futureWebPrice - (formData.webPrice || formData.shopSellingPrice || 0)) > 0"
+                       [class.neg]="(formData.futureWebPrice - (formData.webPrice || formData.shopSellingPrice || 0)) < 0">
+                  Δ ₹{{ (formData.futureWebPrice - (formData.webPrice || formData.shopSellingPrice || 0)).toFixed(2) }}
+                </small>
+              </div>
               <div class="fg">
                 <label>Future Online Price</label>
                 <input type="number" [(ngModel)]="formData.futureOnlinePrice" name="futureOnlinePrice" placeholder="0.00" step="0.01" />

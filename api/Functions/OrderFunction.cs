@@ -195,7 +195,10 @@ public class OrderFunction
                     categories.TryGetValue(menuItem.CategoryId, out categoryName);
                 }
 
-                var itemTotal = menuItem.OnlinePrice * item.Quantity;
+                var unitPrice = menuItem.WebPrice > 0
+                    ? menuItem.WebPrice
+                    : (menuItem.ShopSellingPrice > 0 ? menuItem.ShopSellingPrice : menuItem.OnlinePrice);
+                var itemTotal = unitPrice * item.Quantity;
                 subtotal += itemTotal;
 
                 orderItems.Add(new OrderItem
@@ -206,7 +209,7 @@ public class OrderFunction
                     CategoryId = menuItem.CategoryId,
                     CategoryName = categoryName,
                     Quantity = item.Quantity,
-                    Price = menuItem.OnlinePrice,
+                    Price = unitPrice,
                     Total = itemTotal
                 });
             }

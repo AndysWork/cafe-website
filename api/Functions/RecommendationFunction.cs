@@ -78,7 +78,7 @@ public class RecommendationFunction
                         {
                             id = menuItem.Id,
                             name = menuItem.Name,
-                            price = menuItem.OnlinePrice,
+                            price = menuItem.WebPrice > 0 ? menuItem.WebPrice : (menuItem.ShopSellingPrice > 0 ? menuItem.ShopSellingPrice : menuItem.OnlinePrice),
                             imageUrl = menuItem.ImageUrl,
                             category = menuItem.Category,
                             reason = $"You've ordered this {f.Count} times",
@@ -101,7 +101,7 @@ public class RecommendationFunction
                     {
                         id = m.Id,
                         name = m.Name,
-                        price = m.OnlinePrice,
+                        price = m.WebPrice > 0 ? m.WebPrice : (m.ShopSellingPrice > 0 ? m.ShopSellingPrice : m.OnlinePrice),
                         imageUrl = m.ImageUrl,
                         category = m.Category,
                         reason = $"Popular in {m.Category} (you love this category!)",
@@ -131,7 +131,7 @@ public class RecommendationFunction
                 {
                     id = m.Id,
                     name = m.Name,
-                    price = m.OnlinePrice,
+                    price = m.WebPrice > 0 ? m.WebPrice : (m.ShopSellingPrice > 0 ? m.ShopSellingPrice : m.OnlinePrice),
                     imageUrl = m.ImageUrl,
                     category = m.Category,
                     reason = $"Great for {mealTime}!",
@@ -151,7 +151,7 @@ public class RecommendationFunction
                     {
                         id = m.Id,
                         name = m.Name,
-                        price = m.OnlinePrice,
+                        price = m.WebPrice > 0 ? m.WebPrice : (m.ShopSellingPrice > 0 ? m.ShopSellingPrice : m.OnlinePrice),
                         imageUrl = m.ImageUrl,
                         category = m.Category,
                         reason = "Popular choice",
@@ -195,7 +195,7 @@ public class RecommendationFunction
                 {
                     id = m.Id,
                     name = m.Name,
-                    price = m.OnlinePrice,
+                    price = m.WebPrice > 0 ? m.WebPrice : (m.ShopSellingPrice > 0 ? m.ShopSellingPrice : m.OnlinePrice),
                     imageUrl = m.ImageUrl,
                     category = m.Category
                 });

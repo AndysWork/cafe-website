@@ -292,7 +292,7 @@
             <div class="fav-info">
               <span class="fav-name">{{ item.name }}</span>
               <span class="fav-category">{{ item.categoryName }}</span>
-              <span class="fav-price">₹{{ item.onlinePrice }}</span>
+              <span class="fav-price">₹{{ getWebPrice(item) }}</span>
             </div>
             <button class="btn-remove-fav" (click)="removeFavorite(item.id)" aria-label="Remove favorite">❤️</button>
           </div>

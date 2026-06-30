@@ -10,7 +10,7 @@ interface AdminMenuItem {
   id: string;
   name: string;
   category?: string;
-  onlinePrice?: number;
+  displayPrice?: number;
 }
 
 @Component({
@@ -54,7 +54,7 @@ export class AdminAnnouncementsComponent implements OnInit {
           id: this.normalizeId(item.id ?? item._id),
           name: item.name || item.catalogueName || 'Menu Item',
           category: item.category || item.categoryName,
-          onlinePrice: item.onlinePrice ?? item.shopSellingPrice
+          displayPrice: item.webPrice ?? item.shopSellingPrice ?? item.onlinePrice
         })).filter((item: AdminMenuItem) => !!item.id);
 
         this.homeContentConfigService.getAdminConfig().subscribe({

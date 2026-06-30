@@ -31,6 +31,7 @@ export interface MenuItem {
   subCategoryName?: string;
   quantity?: number;
   onlinePrice: number;
+  webPrice?: number;
   dineInPrice?: number;
   imageUrl?: string;
   isAvailable?: boolean;
@@ -42,6 +43,7 @@ export interface MenuItem {
   // Future pricing
   futureShopPrice?: number;
   futureOnlinePrice?: number;
+  futureWebPrice?: number;
 }
 
 @Injectable({

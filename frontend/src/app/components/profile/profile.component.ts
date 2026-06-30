@@ -360,4 +360,8 @@ export class ProfileComponent implements OnInit {
       error: () => this.uiStore.error('Failed to remove favorite')
     });
   }
+
+  getWebPrice(item: MenuItem): number {
+    return item.webPrice || item.shopSellingPrice || item.onlinePrice || 0;
+  }
 }

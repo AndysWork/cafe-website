@@ -28,6 +28,7 @@
         <div style="margin-top: 12px;">
           <span style="text-decoration: line-through; color: #94a3b8;">₹{{ c.originalPrice }}</span>
           <span style="font-size: 1.3rem; font-weight: 700; color: #16a34a; margin-left: 8px;">₹{{ c.comboPrice }}</span>
+          <span style="font-size: 0.95rem; font-weight: 600; color: #0f766e; margin-left: 8px;">Web ₹{{ c.comboWebPrice || c.comboPrice }}</span>
           <span style="font-size: 0.8rem; color: #dc2626; margin-left: 8px;">Save ₹{{ c.savingsAmount }}</span>
         </div>
       </div>
@@ -69,7 +70,7 @@
                     <div class="item-list">
                       <div *ngFor="let m of itemPickerFiltered; trackBy: trackByIndex" class="item-option" (click)="selectMenuItem(m, i)">
                         <div class="item-name">{{ m.name }}</div>
-                        <div class="item-meta">{{ m.categoryName }} • ₹{{ m.onlinePrice }}</div>
+                        <div class="item-meta">{{ m.categoryName }} • Web ₹{{ m.webPrice || m.shopSellingPrice || m.onlinePrice }}</div>
                       </div>
                       <div *ngIf="itemPickerFiltered.length === 0" class="no-results">No items found</div>
                     </div>
@@ -120,6 +121,11 @@
                 </div>
 
                 <div class="price-decision-item">
+                  <label>Web Selling Price</label>
+                  <div class="price-value">₹{{ getItemSnapshot(item).webPrice | number:'1.2-2' }}</div>
+                </div>
+
+                <div class="price-decision-item">
                   <label>Packaging Cost</label>
                   <div class="price-value">₹{{ getItemSnapshot(item).packagingCost | number:'1.2-2' }}</div>
                 </div>
@@ -143,9 +149,16 @@
             <label>Combo Online Price (₹)</label>
             <input type="number" [(ngModel)]="comboForm.comboOnlinePrice" name="comboOnlinePrice" min="0" class="price-input">
           </div>
+          <div class="form-group">
+            <label>Combo Web Price (₹)</label>
+            <input type="number" [(ngModel)]="comboForm.comboWebPrice" name="comboWebPrice" min="0" class="price-input">
+          </div>
 
           <ng-container *ngIf="calculateComboPricings() as summary">
-            <h4 class="section-subtitle">Current Selling Prices</h4>
+            <h4 class="section-subtitle">
+              Current Selling Prices
+              <span class="formula-hint" [attr.title]="getPricingTooltip('current-selling')">i</span>
+            </h4>
             <div class="summary-grid">
               <div class="summary-card">
                 <div class="summary-label">Current Shop Selling Price</div>
@@ -155,17 +168,37 @@
                 <div class="summary-label">Current Online Selling Price</div>
                 <div class="summary-value">₹{{ summary.currentOnlineSellingPrice | number:'1.2-2' }}</div>
               </div>
+              <div class="summary-card">
+                <div class="summary-label">Current Web Selling Price</div>
+                <div class="summary-value">₹{{ summary.currentWebSellingPrice | number:'1.2-2' }}</div>
+              </div>
               <div class="summary-card" [class.positive]="summary.currentShopProfit > 0" [class.negative]="summary.currentShopProfit < 0">
-                <div class="summary-label">Current Shop Profit</div>
+                <div class="summary-label">
+                  Current Shop Profit
+                  <span class="formula-hint" [attr.title]="getPricingTooltip('shop-profit')">i</span>
+                </div>
                 <div class="summary-value">₹{{ summary.currentShopProfit | number:'1.2-2' }}</div>
               </div>
               <div class="summary-card" [class.positive]="summary.currentOnlineProfit > 0" [class.negative]="summary.currentOnlineProfit < 0">
-                <div class="summary-label">Current Online Profit</div>
+                <div class="summary-label">
+                  Current Online Profit
+                  <span class="formula-hint" [attr.title]="getPricingTooltip('online-profit')">i</span>
+                </div>
                 <div class="summary-value">₹{{ summary.currentOnlineProfit | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card" [class.positive]="summary.currentWebProfit > 0" [class.negative]="summary.currentWebProfit < 0">
+                <div class="summary-label">
+                  Current Web Profit
+                  <span class="formula-hint" [attr.title]="getPricingTooltip('web-profit')">i</span>
+                </div>
+                <div class="summary-value">₹{{ summary.currentWebProfit | number:'1.2-2' }}</div>
               </div>
             </div>
 
-            <h4 class="section-subtitle">Combo Pricing Section</h4>
+            <h4 class="section-subtitle">
+              Combo Pricing Section
+              <span class="formula-hint" [attr.title]="getPricingTooltip('combo-pricing')">i</span>
+            </h4>
             <div class="summary-grid">
               <div class="summary-card">
                 <div class="summary-label">Total Making Cost</div>
@@ -187,21 +220,44 @@
                 <div class="summary-label">Combo Online Price</div>
                 <div class="summary-value">₹{{ summary.comboOnlinePrice | number:'1.2-2' }}</div>
               </div>
+              <div class="summary-card">
+                <div class="summary-label">Combo Web Price</div>
+                <div class="summary-value">₹{{ summary.comboWebPrice | number:'1.2-2' }}</div>
+              </div>
             </div>
 
-            <h4 class="section-subtitle">Profit Section</h4>
+            <h4 class="section-subtitle">
+              Profit Section
+              <span class="formula-hint" [attr.title]="getPricingTooltip('profit-section')">i</span>
+            </h4>
             <div class="summary-grid">
               <div class="summary-card" [class.positive]="summary.comboShopProfit > 0" [class.negative]="summary.comboShopProfit < 0">
-                <div class="summary-label">Combo Shop Profit</div>
+                <div class="summary-label">
+                  Combo Shop Profit
+                  <span class="formula-hint" [attr.title]="getPricingTooltip('shop-profit')">i</span>
+                </div>
                 <div class="summary-value">₹{{ summary.comboShopProfit | number:'1.2-2' }}</div>
               </div>
               <div class="summary-card" [class.positive]="summary.comboTakeawayProfit > 0" [class.negative]="summary.comboTakeawayProfit < 0">
-                <div class="summary-label">Combo Takeaway Profit</div>
+                <div class="summary-label">
+                  Combo Takeaway Profit
+                  <span class="formula-hint" [attr.title]="getPricingTooltip('takeaway-profit')">i</span>
+                </div>
                 <div class="summary-value">₹{{ summary.comboTakeawayProfit | number:'1.2-2' }}</div>
               </div>
               <div class="summary-card" [class.positive]="summary.comboOnlineProfit > 0" [class.negative]="summary.comboOnlineProfit < 0">
-                <div class="summary-label">Combo Online Profit</div>
+                <div class="summary-label">
+                  Combo Online Profit
+                  <span class="formula-hint" [attr.title]="getPricingTooltip('online-profit')">i</span>
+                </div>
                 <div class="summary-value">₹{{ summary.comboOnlineProfit | number:'1.2-2' }}</div>
+              </div>
+              <div class="summary-card" [class.positive]="summary.comboWebProfit > 0" [class.negative]="summary.comboWebProfit < 0">
+                <div class="summary-label">
+                  Combo Web Profit
+                  <span class="formula-hint" [attr.title]="getPricingTooltip('web-profit')">i</span>
+                </div>
+                <div class="summary-value">₹{{ summary.comboWebProfit | number:'1.2-2' }}</div>
               </div>
             </div>
           </ng-container>

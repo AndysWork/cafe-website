@@ -341,6 +341,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             menuItems = await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
         
         await PopulateFuturePricesAsync(menuItems);
+        EnsureWebPrices(menuItems);
         
         return menuItems;
     }
@@ -369,6 +370,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var menuItems = await _menu.Find(filter).ToListAsync();
         
         await PopulateFuturePricesAsync(menuItems);
+        EnsureWebPrices(menuItems);
         
         return menuItems;
     }
@@ -388,6 +390,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var menuItems = await _menu.Find(filter).ToListAsync();
         
         await PopulateFuturePricesAsync(menuItems);
+        EnsureWebPrices(menuItems);
         
         return menuItems;
     }
@@ -415,9 +418,21 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 menuItem.FutureShopPrice = latestForecast.FutureShopPrice;
                 menuItem.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
             }
+
+            if (menuItem.WebPrice <= 0)
+                menuItem.WebPrice = menuItem.ShopSellingPrice;
         }
         
         return menuItem;
+    }
+
+    private static void EnsureWebPrices(List<CafeMenuItem> menuItems)
+    {
+        foreach (var item in menuItems)
+        {
+            if (item.WebPrice <= 0)
+                item.WebPrice = item.ShopSellingPrice;
+        }
     }
 
     /// <summary>
@@ -433,7 +448,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             filter &= filterBuilder.Eq(x => x.OutletId, outletId);
         }
 
-        return await _menu.Find(filter).ToListAsync();
+        var items = await _menu.Find(filter).ToListAsync();
+        EnsureWebPrices(items);
+        return items;
     }
 
     /// <summary>
@@ -497,6 +514,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Create new menu item
     public async Task<CafeMenuItem> CreateMenuItemAsync(CafeMenuItem item)
     {
+        if (item.WebPrice <= 0)
+            item.WebPrice = item.ShopSellingPrice;
+
         item.CreatedDate = GetIstNow();
         item.LastUpdated = GetIstNow();
         await _menu.InsertOneAsync(item);
@@ -537,6 +557,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         updates.Add(updateBuilder.Set(x => x.MakingPrice, item.MakingPrice));
         updates.Add(updateBuilder.Set(x => x.PackagingCharge, item.PackagingCharge));
         updates.Add(updateBuilder.Set(x => x.ShopSellingPrice, item.ShopSellingPrice));
+        updates.Add(updateBuilder.Set(x => x.WebPrice, item.WebPrice > 0 ? item.WebPrice : item.ShopSellingPrice));
         updates.Add(updateBuilder.Set(x => x.IsAvailable, item.IsAvailable));
         
         var combinedUpdate = updateBuilder.Combine(updates);
@@ -588,6 +609,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 existingItem.Quantity = item.Quantity;
                 existingItem.OnlinePrice = item.OnlinePrice;
                 existingItem.ShopSellingPrice = item.ShopSellingPrice;
+                existingItem.WebPrice = item.WebPrice > 0 ? item.WebPrice : item.ShopSellingPrice;
                 existingItem.LastUpdatedBy = item.LastUpdatedBy ?? "Admin";
                 existingItem.LastUpdated = MongoService.GetIstNow();
                 
@@ -696,6 +718,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     updateDef = updateDef.Set(x => x.ShopSellingPrice, forecast.FutureShopPrice.Value);
                 else if (forecast?.ShopPrice > 0)
                     updateDef = updateDef.Set(x => x.ShopSellingPrice, forecast.ShopPrice);
+
+                if (forecast?.FutureWebPrice > 0)
+                    updateDef = updateDef.Set(x => x.WebPrice, forecast.FutureWebPrice.Value);
+                else if (forecast?.WebPrice > 0)
+                    updateDef = updateDef.Set(x => x.WebPrice, forecast.WebPrice);
+                else if (forecast?.FutureShopPrice > 0)
+                    updateDef = updateDef.Set(x => x.WebPrice, forecast.FutureShopPrice.Value);
+                else if (forecast?.ShopPrice > 0)
+                    updateDef = updateDef.Set(x => x.WebPrice, forecast.ShopPrice);
 
                 if (forecast?.FutureOnlinePrice > 0)
                     updateDef = updateDef.Set(x => x.OnlinePrice, forecast.FutureOnlinePrice.Value);
@@ -5712,6 +5743,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             menuItem.PackagingCharge = forecast.PackagingCost;
             menuItem.ShopSellingPrice = forecast.ShopPrice;
             menuItem.OnlinePrice = forecast.OnlinePrice;
+            decimal? explicitWebPrice = forecast.WebPrice > 0 ? (decimal?)forecast.WebPrice : null;
+            menuItem.WebPrice = forecast.FutureWebPrice
+                ?? explicitWebPrice
+                ?? forecast.FutureShopPrice
+                ?? forecast.ShopPrice;
             menuItem.LastUpdatedBy = userId;
             menuItem.LastUpdated = GetIstNow();
             
@@ -6017,6 +6053,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<MenuItemRecipe> CreateRecipeAsync(MenuItemRecipe recipe)
     {
+        EnsureRecipeForecastDefaults(recipe);
         await _recipes.InsertOneAsync(recipe);
         
         // Update all pricing fields in the source menu item
@@ -6033,6 +6070,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<bool> UpdateRecipeAsync(string id, MenuItemRecipe recipe)
     {
+        EnsureRecipeForecastDefaults(recipe);
         var result = await _recipes.ReplaceOneAsync(r => r.Id == id, recipe);
         
         // Update all pricing fields in the source menu item
@@ -6092,14 +6130,18 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 ShopPrice = sourceRecipe.PriceForecast.ShopPrice,
                 ShopDeliveryPrice = sourceRecipe.PriceForecast.ShopDeliveryPrice,
                 OnlinePrice = sourceRecipe.PriceForecast.OnlinePrice,
+                WebPrice = sourceRecipe.PriceForecast.WebPrice,
                 OnlinePayout = sourceRecipe.PriceForecast.OnlinePayout,
                 OnlineProfit = sourceRecipe.PriceForecast.OnlineProfit,
                 OfflineProfit = sourceRecipe.PriceForecast.OfflineProfit,
                 TakeawayProfit = sourceRecipe.PriceForecast.TakeawayProfit,
+                WebProfit = sourceRecipe.PriceForecast.WebProfit,
                 FutureShopPrice = sourceRecipe.PriceForecast.FutureShopPrice,
                 FutureOnlinePrice = sourceRecipe.PriceForecast.FutureOnlinePrice,
+                FutureWebPrice = sourceRecipe.PriceForecast.FutureWebPrice,
                 FutureShopProfit = sourceRecipe.PriceForecast.FutureShopProfit,
-                FutureOnlineProfit = sourceRecipe.PriceForecast.FutureOnlineProfit
+                FutureOnlineProfit = sourceRecipe.PriceForecast.FutureOnlineProfit,
+                FutureWebProfit = sourceRecipe.PriceForecast.FutureWebProfit
             } : null,
             PreparationTimeMinutes = sourceRecipe.PreparationTimeMinutes,
             KptAnalysis = sourceRecipe.KptAnalysis,
@@ -6129,6 +6171,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ShopPrice = sourceForecast.ShopPrice,
             ShopDeliveryPrice = sourceForecast.ShopDeliveryPrice,
             OnlinePrice = sourceForecast.OnlinePrice,
+            WebPrice = sourceForecast.WebPrice,
             UpdatedShopPrice = sourceForecast.UpdatedShopPrice,
             UpdatedOnlinePrice = sourceForecast.UpdatedOnlinePrice,
             OnlineDeduction = sourceForecast.OnlineDeduction,
@@ -6138,8 +6181,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             OnlineProfit = sourceForecast.OnlineProfit,
             OfflineProfit = sourceForecast.OfflineProfit,
             TakeawayProfit = sourceForecast.TakeawayProfit,
+            WebProfit = sourceForecast.WebProfit,
             FutureShopPrice = sourceForecast.FutureShopPrice,
             FutureOnlinePrice = sourceForecast.FutureOnlinePrice,
+            FutureWebPrice = sourceForecast.FutureWebPrice,
+            FutureWebProfit = sourceForecast.FutureWebProfit,
             IsFinalized = false,
             CreatedBy = "System - Copied",
             CreatedDate = GetIstNow(),
@@ -6151,11 +6197,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return targetForecast;
     }
 
-    public async Task<bool> UpdateMenuItemFuturePricesAsync(string menuItemId, decimal? futureShopPrice, decimal? futureOnlinePrice)
+    public async Task<bool> UpdateMenuItemFuturePricesAsync(string menuItemId, decimal? futureShopPrice, decimal? futureOnlinePrice, decimal? futureWebPrice)
     {
         var update = Builders<CafeMenuItem>.Update
             .Set(m => m.FutureShopPrice, futureShopPrice)
             .Set(m => m.FutureOnlinePrice, futureOnlinePrice)
+            .Set(m => m.FutureWebPrice, futureWebPrice ?? futureShopPrice)
             .Set(m => m.LastUpdated, GetIstNow());
 
         var result = await _menu.UpdateOneAsync(m => m.Id == menuItemId, update);
@@ -6256,6 +6303,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 OutletId = sourceRecipe.OutletId!,
                 MakingPrice = sourceRecipe.TotalMakingCost,
                 OnlinePrice = sourceRecipe.PriceForecast?.OnlinePrice ?? fallbackSellingPrice,
+                WebPrice = sourceRecipe.PriceForecast?.FutureWebPrice
+                    ?? sourceRecipe.PriceForecast?.WebPrice
+                    ?? sourceRecipe.PriceForecast?.FutureShopPrice
+                    ?? sourceRecipe.PriceForecast?.ShopPrice
+                    ?? fallbackSellingPrice,
                 DineInPrice = fallbackSellingPrice,
                 ShopSellingPrice = fallbackSellingPrice,
                 PackagingCharge = sourceRecipe.PriceForecast?.PackagingCost ?? 0,
@@ -6527,6 +6579,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     var shopProfit = sourceRecipe.PriceForecast.ShopPrice - totalMakingCost - sourceRecipe.PriceForecast.PackagingCost;
                     var onlinePayout = sourceRecipe.PriceForecast.OnlinePrice - sourceRecipe.PriceForecast.OnlineDeduction - sourceRecipe.PriceForecast.OnlineDiscount;
                     var onlineProfit = onlinePayout - totalMakingCost - sourceRecipe.PriceForecast.PackagingCost;
+                    decimal? explicitWebPrice = sourceRecipe.PriceForecast.WebPrice > 0 ? (decimal?)sourceRecipe.PriceForecast.WebPrice : null;
+                    var defaultWebPrice = sourceRecipe.PriceForecast.FutureWebPrice
+                        ?? explicitWebPrice
+                        ?? sourceRecipe.PriceForecast.FutureShopPrice
+                        ?? sourceRecipe.PriceForecast.ShopPrice;
+                    var webProfit = defaultWebPrice - totalMakingCost;
 
                     priceForecast = new PriceForecastData
                     {
@@ -6536,14 +6594,18 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                         ShopPrice = sourceRecipe.PriceForecast.ShopPrice,
                         ShopDeliveryPrice = sourceRecipe.PriceForecast.ShopDeliveryPrice,
                         OnlinePrice = sourceRecipe.PriceForecast.OnlinePrice,
+                        WebPrice = defaultWebPrice,
                         OnlinePayout = onlinePayout,
                         OnlineProfit = onlineProfit,
                         OfflineProfit = shopProfit,
                         TakeawayProfit = shopProfit, // Same as offline profit
+                        WebProfit = webProfit,
                         FutureShopPrice = sourceRecipe.PriceForecast.FutureShopPrice,
                         FutureOnlinePrice = sourceRecipe.PriceForecast.FutureOnlinePrice,
+                        FutureWebPrice = sourceRecipe.PriceForecast.FutureWebPrice ?? sourceRecipe.PriceForecast.FutureShopPrice,
                         FutureShopProfit = sourceRecipe.PriceForecast.FutureShopProfit,
-                        FutureOnlineProfit = sourceRecipe.PriceForecast.FutureOnlineProfit
+                        FutureOnlineProfit = sourceRecipe.PriceForecast.FutureOnlineProfit,
+                        FutureWebProfit = sourceRecipe.PriceForecast.FutureWebProfit
                     };
                 }
 
@@ -6654,12 +6716,20 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         if (priceForecast != null)
         {
+            decimal? explicitWebPrice = priceForecast.WebPrice > 0 ? (decimal?)priceForecast.WebPrice : null;
+            var resolvedWebPrice = priceForecast.FutureWebPrice
+                ?? explicitWebPrice
+                ?? priceForecast.FutureShopPrice
+                ?? priceForecast.ShopPrice;
+
             updates.Add(Builders<CafeMenuItem>.Update.Set(m => m.ShopSellingPrice, priceForecast.ShopPrice));
             updates.Add(Builders<CafeMenuItem>.Update.Set(m => m.DineInPrice, priceForecast.ShopPrice));
             updates.Add(Builders<CafeMenuItem>.Update.Set(m => m.OnlinePrice, priceForecast.OnlinePrice));
+            updates.Add(Builders<CafeMenuItem>.Update.Set(m => m.WebPrice, resolvedWebPrice));
             updates.Add(Builders<CafeMenuItem>.Update.Set(m => m.PackagingCharge, priceForecast.PackagingCost));
             updates.Add(Builders<CafeMenuItem>.Update.Set(m => m.FutureShopPrice, priceForecast.FutureShopPrice));
             updates.Add(Builders<CafeMenuItem>.Update.Set(m => m.FutureOnlinePrice, priceForecast.FutureOnlinePrice));
+            updates.Add(Builders<CafeMenuItem>.Update.Set(m => m.FutureWebPrice, priceForecast.FutureWebPrice ?? priceForecast.FutureShopPrice));
         }
 
         var result = await _menu.UpdateOneAsync(
@@ -6668,6 +6738,24 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         );
 
         return result.ModifiedCount > 0;
+    }
+
+    private static void EnsureRecipeForecastDefaults(MenuItemRecipe recipe)
+    {
+        if (recipe.PriceForecast == null)
+            return;
+
+        var forecast = recipe.PriceForecast;
+        var defaultFutureWebPrice = forecast.FutureWebPrice
+            ?? forecast.FutureShopPrice
+            ?? forecast.ShopPrice;
+
+        forecast.FutureWebPrice = defaultFutureWebPrice;
+        forecast.WebPrice = forecast.WebPrice > 0 ? forecast.WebPrice : defaultFutureWebPrice;
+        forecast.WebProfit = forecast.WebPrice - recipe.TotalMakingCost;
+
+        if (forecast.FutureWebPrice.HasValue)
+            forecast.FutureWebProfit = forecast.FutureWebPrice.Value - recipe.TotalMakingCost;
     }
 
     // Helper method to get KPT analysis for a menu item from online sales
