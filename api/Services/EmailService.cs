@@ -570,6 +570,7 @@ Maa Tara Cafe Team
         {
             "preparing" => "👨‍🍳",
             "ready" => "✅",
+            "out-for-delivery" => "🛵",
             "delivered" => "🚚",
             "completed" => "🎉",
             "cancelled" => "❌",

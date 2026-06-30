@@ -31,7 +31,7 @@ export interface Order {
   discountAmount?: number;
   loyaltyPointsUsed?: number;
   loyaltyDiscountAmount?: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled' | 'scheduled';
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'scheduled';
   paymentStatus: 'pending' | 'paid' | 'refunded';
   paymentMethod: 'cod' | 'razorpay';
   razorpayOrderId?: string;
@@ -46,7 +46,11 @@ export interface Order {
   channel?: 'web' | 'shop' | 'partner';
   deliveryFee?: number;
   walletAmountUsed?: number;
+  deliveryPartnerId?: string;
+  deliveryPartnerName?: string;
   tableNumber?: string;
+  loyaltyPointsAwarded?: boolean;
+  loyaltyPointsAwardedValue?: number;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -115,6 +119,9 @@ export interface OrderIssue {
   category: string;
   description: string;
   status: string;
+  resolutionNotes?: string;
+  refundProcessed?: boolean;
+  resolvedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -122,6 +129,12 @@ export interface OrderIssue {
 export interface CreateOrderIssueRequest {
   category: 'missing-item' | 'wrong-item' | 'damaged-item' | 'delay' | 'quality' | 'other';
   description: string;
+}
+
+export interface UpdateOrderIssueStatusRequest {
+  status: 'open' | 'in-progress' | 'resolved' | 'closed';
+  resolutionNotes?: string;
+  refundProcessed?: boolean;
 }
 
 @Injectable({
@@ -220,6 +233,7 @@ export class OrderService {
       'confirmed': 'Confirmed',
       'preparing': 'Preparing',
       'ready': 'Ready for Pickup',
+      'out-for-delivery': 'Out for Delivery',
       'delivered': 'Delivered',
       'cancelled': 'Cancelled'
     };
@@ -234,6 +248,7 @@ export class OrderService {
       'confirmed': 'text-info',
       'preparing': 'text-primary',
       'ready': 'text-success',
+      'out-for-delivery': 'text-primary',
       'delivered': 'text-success',
       'cancelled': 'text-danger'
     };
@@ -266,6 +281,12 @@ export class OrderService {
   getOrderIssues(orderId: string): Observable<OrderIssue[]> {
     return this.http.get<OrderIssue[]>(`${this.apiUrl}/orders/${orderId}/issues`).pipe(
       catchError(handleServiceError('OrderService.getOrderIssues'))
+    );
+  }
+
+  updateOrderIssueStatus(orderId: string, issueId: string, payload: UpdateOrderIssueStatusRequest): Observable<{ success: boolean; message: string }> {
+    return this.http.put<{ success: boolean; message: string }>(`${this.apiUrl}/orders/${orderId}/issues/${issueId}`, payload).pipe(
+      catchError(handleServiceError('OrderService.updateOrderIssueStatus'))
     );
   }
 }

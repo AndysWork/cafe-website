@@ -6,6 +6,7 @@ using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
+using System.Linq;
 
 namespace Cafe.Api.Functions;
 
@@ -13,12 +14,14 @@ public class ReviewFunction
 {
     private readonly IOrderRepository _mongo;
     private readonly AuthService _auth;
+    private readonly OutboxService _outbox;
     private readonly ILogger _log;
 
-    public ReviewFunction(IOrderRepository mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public ReviewFunction(IOrderRepository mongo, AuthService auth, OutboxService outbox, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
+        _outbox = outbox;
         _log = loggerFactory.CreateLogger<ReviewFunction>();
     }
 
@@ -84,6 +87,7 @@ public class ReviewFunction
             };
 
             var created = await _mongo.CreateReviewAsync(review);
+            await TryAwardWorkflowLoyaltyPointsAsync(order, created);
 
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(new
@@ -194,5 +198,36 @@ public class ReviewFunction
             await res.WriteAsJsonAsync(new { error = "An error occurred while retrieving reviews" });
             return res;
         }
+    }
+
+    private async Task TryAwardWorkflowLoyaltyPointsAsync(Order order, CustomerReview review)
+    {
+        if (order.LoyaltyPointsAwarded || order.Status != "delivered") return;
+
+        var issues = await _mongo.GetOrderIssuesAsync(order.Id!);
+        var hasOpenIssue = issues.Any(i => i.Status == "open" || i.Status == "in-progress");
+        if (hasOpenIssue) return;
+
+        var basePoints = (int)Math.Floor(order.Total * 0.10m);
+        var ratingBonus = review.Rating > 0 ? 2 : 0;
+        var pointsToAward = Math.Max(0, basePoints + ratingBonus);
+        if (pointsToAward <= 0) return;
+
+        await _outbox.EnqueueAsync("LoyaltyPointsAward", "Order", order.Id!,
+            new { UserId = order.UserId, Points = pointsToAward, Reason = $"Order #{order.Id} completion", OrderId = order.Id });
+
+        if (!string.IsNullOrEmpty(order.PhoneNumber))
+        {
+            await _outbox.EnqueueAsync("LoyaltyWhatsApp", "Order", order.Id!,
+                new { PhoneNumber = order.PhoneNumber, Username = order.Username ?? "Customer", PointsEarned = pointsToAward, TotalPoints = pointsToAward });
+        }
+
+        await _outbox.EnqueueAsync("LoyaltyNotification", "Order", order.Id!,
+            new { UserId = order.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Order #{order.Id?[^6..]}" });
+
+        order.LoyaltyPointsAwarded = true;
+        order.LoyaltyPointsAwardedValue = pointsToAward;
+        order.UpdatedAt = MongoService.GetIstNow();
+        await _mongo.UpdateOrderAsync(order);
     }
 }

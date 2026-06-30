@@ -143,8 +143,150 @@
         }
       }
 
+      .compliance-cell {
+        display: grid;
+        gap: 0.2rem;
+
+        small {
+          font-size: 0.64rem;
+          line-height: 1.15;
+        }
+      }
+
+      .compliance-badge {
+        display: inline-block;
+        width: fit-content;
+        border-radius: 999px;
+        padding: 0.12rem 0.45rem;
+        font-size: 0.64rem;
+        font-weight: 600;
+        border: 1px solid transparent;
+      }
+
+      .compliance-green {
+        background: #ecfdf3;
+        color: #166534;
+        border-color: #86efac;
+      }
+
+      .compliance-amber {
+        background: #fffbeb;
+        color: #92400e;
+        border-color: #fcd34d;
+      }
+
+      .compliance-red {
+        background: #fef2f2;
+        color: #991b1b;
+        border-color: #fca5a5;
+      }
+
       small {
         color: #64748b;
+      }
+
+      .issue-row td {
+        background: #f8fafc;
+      }
+
+      .issue-panel {
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        padding: 0.6rem;
+        background: #ffffff;
+      }
+
+      .issue-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.45rem;
+
+        h3 {
+          margin: 0;
+          font-size: 0.78rem;
+          color: #0f172a;
+        }
+
+        small {
+          font-size: 0.7rem;
+          color: #1d4ed8;
+        }
+      }
+
+      .issue-list {
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      .issue-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.5rem;
+        background: #fff;
+      }
+
+      .issue-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.69rem;
+        color: #334155;
+
+        .pill {
+          border: 1px solid #cbd5e1;
+          border-radius: 999px;
+          padding: 0.1rem 0.35rem;
+          background: #f8fafc;
+          text-transform: lowercase;
+        }
+
+        .time {
+          margin-left: auto;
+          color: #64748b;
+        }
+      }
+
+      .issue-description {
+        margin: 0.35rem 0;
+        font-size: 0.73rem;
+        color: #334155;
+      }
+
+      .issue-controls {
+        display: grid;
+        grid-template-columns: 130px 1fr auto auto auto;
+        gap: 0.35rem;
+        align-items: center;
+
+        select,
+        input {
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          padding: 0.3rem 0.4rem;
+          font-size: 0.7rem;
+        }
+
+        .checkbox-inline {
+          display: inline-flex;
+          gap: 0.25rem;
+          align-items: center;
+          font-size: 0.68rem;
+          color: #334155;
+          white-space: nowrap;
+        }
+
+        button {
+          border: 1px solid #cbd5e1;
+          background: #f8fafc;
+          border-radius: 6px;
+          padding: 0.25rem 0.45rem;
+          font-size: 0.68rem;
+          color: #0f172a;
+          cursor: pointer;
+        }
       }
     }
   }

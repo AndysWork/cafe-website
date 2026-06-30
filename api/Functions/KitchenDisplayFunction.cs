@@ -32,7 +32,7 @@ public class KitchenDisplayFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var orders = await _mongo.GetOrdersByStatusAsync(new[] { "confirmed", "preparing" }, outletId);
+            var orders = await _mongo.GetOrdersByStatusAsync(new[] { "confirmed", "preparing", "ready", "out-for-delivery" }, outletId);
 
             var kitchenItems = orders.Select(o => new
             {
@@ -83,7 +83,7 @@ public class KitchenDisplayFunction
             var (request, validationError) = await ValidationHelper.ValidateBody<KitchenStatusUpdateRequest>(req);
             if (validationError != null) return validationError;
 
-            var validStatuses = new[] { "preparing", "ready", "completed" };
+            var validStatuses = new[] { "preparing", "ready", "out-for-delivery", "delivered" };
             if (!validStatuses.Contains(request.Status.ToLower()))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -127,7 +127,7 @@ public class KitchenDisplayFunction
 
             var pendingOrders = await _mongo.GetOrdersByStatusAsync(new[] { "confirmed" }, outletId);
             var preparingOrders = await _mongo.GetOrdersByStatusAsync(new[] { "preparing" }, outletId);
-            var completedToday = await _mongo.GetOrdersByStatusAsync(new[] { "completed", "delivered" }, outletId);
+            var completedToday = await _mongo.GetOrdersByStatusAsync(new[] { "delivered" }, outletId);
             var todayCompleted = completedToday.Where(o => o.CreatedAt >= todayStart).ToList();
 
             double avgPrepTime = 0;

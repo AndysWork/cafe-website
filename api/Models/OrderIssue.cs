@@ -36,6 +36,15 @@ public class OrderIssue
     [BsonElement("status")]
     public string Status { get; set; } = "open"; // open, in-progress, resolved, closed
 
+    [BsonElement("resolutionNotes")]
+    public string? ResolutionNotes { get; set; }
+
+    [BsonElement("refundProcessed")]
+    public bool RefundProcessed { get; set; }
+
+    [BsonElement("resolvedAt")]
+    public DateTime? ResolvedAt { get; set; }
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
@@ -58,6 +67,18 @@ public class CancelOrderItemRequest
 {
     [Range(1, 1000)]
     public int Quantity { get; set; } = 1;
+}
+
+public class UpdateOrderIssueStatusRequest
+{
+    [Required]
+    [StringLength(20)]
+    public string Status { get; set; } = "open"; // open, in-progress, resolved, closed
+
+    [StringLength(1000)]
+    public string? ResolutionNotes { get; set; }
+
+    public bool RefundProcessed { get; set; }
 }
 
 public class DeliveryTrackingPartnerInfo

@@ -88,7 +88,14 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
   }
 
   getStatusColor(status: string): string {
-    const colors: Record<string, string> = { pending: '#f59e0b', confirmed: '#3b82f6', preparing: '#8b5cf6', ready: '#10b981' };
+    const colors: Record<string, string> = {
+      pending: '#f59e0b',
+      confirmed: '#3b82f6',
+      preparing: '#8b5cf6',
+      ready: '#10b981',
+      'out-for-delivery': '#0ea5e9',
+      delivered: '#059669'
+    };
     return colors[status] || '#6b7280';
   }
 }

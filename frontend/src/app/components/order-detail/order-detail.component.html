@@ -35,7 +35,7 @@
     <!-- Status Banner -->
     <div class="status-banner" [ngClass]="order.status">
       <span class="status-icon-lg">
-        {{ order.status === 'scheduled' ? '⏰' : order.status === 'pending' ? '⏳' : order.status === 'confirmed' ? '✅' : order.status === 'preparing' ? '👨‍🍳' : order.status === 'ready' ? '🔔' : order.status === 'delivered' ? '🎉' : '❌' }}
+        {{ order.status === 'scheduled' ? '⏰' : order.status === 'pending' ? '⏳' : order.status === 'confirmed' ? '✅' : order.status === 'preparing' ? '👨‍🍳' : order.status === 'ready' ? '🔔' : order.status === 'out-for-delivery' ? '🛵' : order.status === 'delivered' ? '🎉' : '❌' }}
       </span>
       <div class="status-text">
         <strong>{{ getStatusDisplayText(order.status) }}</strong>

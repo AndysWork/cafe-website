@@ -86,6 +86,7 @@ public class NotificationService
             "ready" => ("Order Ready! 🎉", $"Your order #{order.Id?[^6..]} is ready for pickup!"),
             "delivered" => ("Order Delivered ✅", $"Your order #{order.Id?[^6..]} has been delivered. Enjoy!"),
             "cancelled" => ("Order Cancelled ❌", $"Your order #{order.Id?[^6..]} has been cancelled."),
+            "out-for-delivery" => ("Out for Delivery 🛵", $"Your order #{order.Id?[^6..]} is on the way."),
             _ => ("Order Update", $"Your order #{order.Id?[^6..]} status changed to {newStatus}.")
         };
 

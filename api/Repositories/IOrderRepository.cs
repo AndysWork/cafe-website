@@ -30,4 +30,5 @@ public interface IOrderRepository
     // Order issues
     Task<OrderIssue> CreateOrderIssueAsync(OrderIssue issue);
     Task<List<OrderIssue>> GetOrderIssuesAsync(string orderId);
+    Task<bool> UpdateOrderIssueStatusAsync(string orderId, string issueId, string status, string? resolutionNotes = null, bool refundProcessed = false);
 }

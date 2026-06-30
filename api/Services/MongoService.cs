@@ -1760,6 +1760,26 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .ToListAsync();
     }
 
+    public async Task<bool> UpdateOrderIssueStatusAsync(string orderId, string issueId, string status, string? resolutionNotes = null, bool refundProcessed = false)
+    {
+        var update = Builders<OrderIssue>.Update
+            .Set(x => x.Status, status)
+            .Set(x => x.ResolutionNotes, resolutionNotes)
+            .Set(x => x.RefundProcessed, refundProcessed)
+            .Set(x => x.UpdatedAt, GetIstNow());
+
+        if (status == "resolved" || status == "closed")
+        {
+            update = update.Set(x => x.ResolvedAt, GetIstNow());
+        }
+
+        var result = await _orderIssues.UpdateOneAsync(
+            x => x.Id == issueId && x.OrderId == orderId,
+            update);
+
+        return result.ModifiedCount > 0;
+    }
+
     #endregion
 
     #region Loyalty Operations

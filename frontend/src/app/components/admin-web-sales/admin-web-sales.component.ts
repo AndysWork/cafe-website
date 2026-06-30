@@ -6,8 +6,9 @@ import { RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { Order, OrderService } from '../../services/order.service';
+import { Order, OrderIssue, OrderService } from '../../services/order.service';
 import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery-partner.service';
+import { PaymentService } from '../../services/payment.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { getIstDateString, getIstInputDate, formatIstDateTime } from '../../utils/date-utils';
@@ -40,6 +41,14 @@ interface WebSalesDashboardResponse {
     partners?: DeliveryPartner[];
     webSales?: OnlineSaleSummaryItem[];
   };
+}
+
+type ComplianceLevel = 'green' | 'amber' | 'red';
+
+interface WorkflowCompliance {
+  level: ComplianceLevel;
+  label: string;
+  reason: string;
 }
 
 @Component({
@@ -80,12 +89,21 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   statusDraft: Record<string, string> = {};
   partnerDraft: Record<string, string> = {};
+  expandedIssueOrderId: string | null = null;
+  orderIssuesMap: Record<string, OrderIssue[]> = {};
+  issuesLoading: Record<string, boolean> = {};
+  issueSaving: Record<string, boolean> = {};
+  issueStatusDraft: Record<string, string> = {};
+  issueResolutionDraft: Record<string, string> = {};
+  issueRefundDraft: Record<string, boolean> = {};
+  issueRefunding: Record<string, boolean> = {};
 
-  readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'];
+  readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled'];
 
   constructor(
     private orderService: OrderService,
     private deliveryPartnerService: DeliveryPartnerService,
+    private paymentService: PaymentService,
     private http: HttpClient
   ) {}
 
@@ -274,6 +292,188 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   canAssignPartner(order: Order): boolean {
     return order.orderType === 'delivery' && order.status !== 'delivered' && order.status !== 'cancelled';
+  }
+
+  isIssuePanelOpen(orderId: string): boolean {
+    return this.expandedIssueOrderId === orderId;
+  }
+
+  toggleIssuePanel(order: Order): void {
+    if (this.expandedIssueOrderId === order.id) {
+      this.expandedIssueOrderId = null;
+      return;
+    }
+
+    this.expandedIssueOrderId = order.id;
+    if (!this.orderIssuesMap[order.id]) {
+      this.loadOrderIssues(order.id);
+    }
+  }
+
+  loadOrderIssues(orderId: string): void {
+    this.issuesLoading[orderId] = true;
+    this.orderService.getOrderIssues(orderId).subscribe({
+      next: (issues) => {
+        this.orderIssuesMap[orderId] = issues;
+        for (const issue of issues) {
+          const key = this.getIssueDraftKey(orderId, issue.id || '');
+          this.issueStatusDraft[key] = issue.status;
+          this.issueResolutionDraft[key] = issue.resolutionNotes || '';
+          this.issueRefundDraft[key] = !!issue.refundProcessed;
+        }
+        this.issuesLoading[orderId] = false;
+      },
+      error: (error) => {
+        console.error('Error loading order issues:', error);
+        this.uiStore.error(error.error?.error || 'Failed to load order issues');
+        this.issuesLoading[orderId] = false;
+      }
+    });
+  }
+
+  getOrderIssues(orderId: string): OrderIssue[] {
+    return this.orderIssuesMap[orderId] || [];
+  }
+
+  getOpenIssueCount(orderId: string): number {
+    return this.getOrderIssues(orderId).filter(i => i.status === 'open' || i.status === 'in-progress').length;
+  }
+
+  getIssueDraftKey(orderId: string, issueId: string): string {
+    return `${orderId}:${issueId}`;
+  }
+
+  updateIssue(order: Order, issue: OrderIssue): void {
+    if (!issue.id) {
+      this.uiStore.error('Invalid issue id');
+      return;
+    }
+
+    const key = this.getIssueDraftKey(order.id, issue.id);
+    const status = this.issueStatusDraft[key] || issue.status;
+    const resolutionNotes = (this.issueResolutionDraft[key] || '').trim();
+    const refundProcessed = !!this.issueRefundDraft[key];
+
+    this.issueSaving[key] = true;
+    this.orderService.updateOrderIssueStatus(order.id, issue.id, {
+      status: status as 'open' | 'in-progress' | 'resolved' | 'closed',
+      resolutionNotes: resolutionNotes || undefined,
+      refundProcessed
+    }).subscribe({
+      next: () => {
+        this.uiStore.success(`Issue ${issue.id?.slice(-6)} updated`);
+        this.issueSaving[key] = false;
+        this.loadOrderIssues(order.id);
+        this.loadDashboardData();
+      },
+      error: (error) => {
+        console.error('Error updating issue:', error);
+        this.uiStore.error(error.error?.error || 'Failed to update issue');
+        this.issueSaving[key] = false;
+      }
+    });
+  }
+
+  canRefund(order: Order): boolean {
+    return order.paymentMethod === 'razorpay' && order.paymentStatus === 'paid';
+  }
+
+  processIssueRefund(order: Order, issue: OrderIssue): void {
+    if (!issue.id) {
+      this.uiStore.error('Invalid issue id');
+      return;
+    }
+
+    if (!this.canRefund(order)) {
+      this.uiStore.warning('Refund is available only for paid Razorpay orders');
+      return;
+    }
+
+    const key = this.getIssueDraftKey(order.id, issue.id);
+    const reason = (this.issueResolutionDraft[key] || issue.description || '').trim();
+
+    this.issueRefunding[key] = true;
+    this.paymentService.refundPayment({
+      orderId: order.id,
+      reason: reason || `Issue refund for order ${order.id}`
+    }).subscribe({
+      next: () => {
+        this.issueRefundDraft[key] = true;
+        this.issueResolutionDraft[key] = reason || this.issueResolutionDraft[key];
+        this.uiStore.success(`Refund processed for order ${order.id.slice(-6)}`);
+        this.issueRefunding[key] = false;
+      },
+      error: (error) => {
+        console.error('Error processing refund:', error);
+        this.uiStore.error(error.error?.error || 'Failed to process refund');
+        this.issueRefunding[key] = false;
+      }
+    });
+  }
+
+  getLoyaltyStatus(order: Order): string {
+    if (order.loyaltyPointsAwarded) {
+      return `Awarded (${order.loyaltyPointsAwardedValue || 0} pts)`;
+    }
+
+    if (order.status !== 'delivered') return 'Pending delivery';
+    if (this.getOpenIssueCount(order.id) > 0) return 'Waiting issue closure';
+    return 'Awaiting feedback';
+  }
+
+  getWorkflowCompliance(order: Order): WorkflowCompliance {
+    const ageMinutes = this.getOrderAgeMinutes(order);
+
+    if (order.status === 'cancelled') {
+      return { level: 'amber', label: 'Closed', reason: 'Order cancelled' };
+    }
+
+    if (order.status === 'pending' && ageMinutes > 20) {
+      return { level: 'red', label: 'Stuck', reason: 'Pending too long' };
+    }
+
+    if (order.status === 'confirmed' && ageMinutes > 30) {
+      return { level: 'red', label: 'Stuck', reason: 'Not moved to preparing' };
+    }
+
+    if (order.status === 'preparing' && ageMinutes > 45) {
+      return { level: 'amber', label: 'Delayed', reason: 'Prep time above SLA' };
+    }
+
+    if (order.status === 'ready' && ageMinutes > 20) {
+      return { level: 'amber', label: 'Delayed', reason: 'Awaiting dispatch/delivery' };
+    }
+
+    if (order.status === 'out-for-delivery' && !order.deliveryPartnerId && order.orderType === 'delivery') {
+      return { level: 'red', label: 'Blocked', reason: 'No delivery partner assigned' };
+    }
+
+    if (order.status === 'delivered') {
+      if (order.loyaltyPointsAwarded) {
+        return { level: 'green', label: 'Compliant', reason: `Loyalty awarded (${order.loyaltyPointsAwardedValue || 0} pts)` };
+      }
+
+      if (this.getOpenIssueCount(order.id) > 0) {
+        return { level: 'red', label: 'Blocked', reason: 'Open issue pending resolution' };
+      }
+
+      if (!this.orderIssuesMap[order.id]) {
+        return { level: 'amber', label: 'Review', reason: 'Open issues not yet reviewed' };
+      }
+
+      return { level: 'amber', label: 'Review', reason: 'Awaiting feedback or loyalty closure' };
+    }
+
+    return { level: 'green', label: 'On Track', reason: 'Progressing through workflow' };
+  }
+
+  getComplianceClass(order: Order): string {
+    return `compliance-${this.getWorkflowCompliance(order).level}`;
+  }
+
+  private getOrderAgeMinutes(order: Order): number {
+    const referenceTime = order.updatedAt || order.createdAt;
+    return Math.max(0, Math.floor((Date.now() - new Date(referenceTime).getTime()) / 60000));
   }
 
   getAssignedPartnerDisplay(order: Order): string {

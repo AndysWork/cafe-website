@@ -41,7 +41,7 @@ public class Order : ISoftDeletable
     public decimal Total { get; set; }
 
     [BsonElement("status")]
-    public string Status { get; set; } = "pending"; // pending, confirmed, preparing, ready, delivered, cancelled
+    public string Status { get; set; } = "pending"; // scheduled/pending, confirmed, preparing, ready, out-for-delivery, delivered, cancelled
 
     [BsonElement("paymentStatus")]
     public string PaymentStatus { get; set; } = "pending"; // pending, paid, refunded
@@ -120,6 +120,12 @@ public class Order : ISoftDeletable
 
     [BsonElement("tableNumber")]
     public string? TableNumber { get; set; }
+
+    [BsonElement("loyaltyPointsAwarded")]
+    public bool LoyaltyPointsAwarded { get; set; }
+
+    [BsonElement("loyaltyPointsAwardedValue")]
+    public int LoyaltyPointsAwardedValue { get; set; }
 
     // Soft-delete support
     [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
@@ -211,7 +217,7 @@ public class OrderItemRequest
 public class UpdateOrderStatusRequest
 {
     [Required(ErrorMessage = "Status is required")]
-    [AllowedValuesList("pending", "confirmed", "preparing", "ready", "delivered", "cancelled")]
+    [AllowedValuesList("pending", "confirmed", "preparing", "ready", "out-for-delivery", "delivered", "cancelled")]
     public string Status { get; set; } = string.Empty;
 }
 
@@ -251,4 +257,6 @@ public class OrderResponse
     public string? DeliveryPartnerId { get; set; }
     public string? DeliveryPartnerName { get; set; }
     public string? TableNumber { get; set; }
+    public bool LoyaltyPointsAwarded { get; set; }
+    public int LoyaltyPointsAwardedValue { get; set; }
 }

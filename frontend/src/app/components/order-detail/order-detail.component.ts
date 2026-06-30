@@ -53,6 +53,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     { key: 'confirmed', label: 'Confirmed', icon: '✅' },
     { key: 'preparing', label: 'Preparing', icon: '👨‍🍳' },
     { key: 'ready', label: 'Ready', icon: '🔔' },
+    { key: 'out-for-delivery', label: 'Out for Delivery', icon: '🛵' },
     { key: 'delivered', label: 'Delivered', icon: '🎉' }
   ];
 

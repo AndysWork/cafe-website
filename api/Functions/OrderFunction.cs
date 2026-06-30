@@ -841,6 +841,60 @@ public class OrderFunction
         }
     }
 
+    [Function("UpdateOrderIssueStatus")]
+    public async Task<HttpResponseData> UpdateOrderIssueStatus(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "orders/{id}/issues/{issueId}")] HttpRequestData req,
+        string id,
+        string issueId)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var order = await _orderRepo.GetOrderByIdAsync(id);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            var (updateRequest, validationError) = await ValidationHelper.ValidateBody<UpdateOrderIssueStatusRequest>(req);
+            if (validationError != null) return validationError;
+
+            var nextStatus = updateRequest.Status.Trim().ToLowerInvariant();
+            var validStatuses = new[] { "open", "in-progress", "resolved", "closed" };
+            if (!validStatuses.Contains(nextStatus))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid issue status" });
+                return badRequest;
+            }
+
+            var updated = await _orderRepo.UpdateOrderIssueStatusAsync(id, issueId, nextStatus, updateRequest.ResolutionNotes, updateRequest.RefundProcessed);
+            if (!updated)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Issue not found" });
+                return notFound;
+            }
+
+            await TryAwardWorkflowLoyaltyPointsAsync(order);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { success = true, message = "Issue updated" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating issue {IssueId} for order {OrderId}", issueId, id);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while updating issue" });
+            return res;
+        }
+    }
+
     [Function("CancelOrderItem")]
     public async Task<HttpResponseData> CancelOrderItem(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders/{id}/items/{menuItemId}/cancel")] HttpRequestData req,
@@ -958,7 +1012,7 @@ public class OrderFunction
     /// <summary>
     /// Updates the status of an order (Admin only)
     /// </summary>
-    /// <param name="req">HTTP request with new status (pending, confirmed, preparing, ready, delivered, cancelled)</param>
+    /// <param name="req">HTTP request with new status (pending, confirmed, preparing, ready, out-for-delivery, delivered, cancelled)</param>
     /// <param name="id">The order ID</param>
     /// <returns>Updated order details</returns>
     /// <response code="200">Order status successfully updated</response>
@@ -981,7 +1035,7 @@ public class OrderFunction
             if (validationError != null) return validationError;
 
             // Validate status value
-            var validStatuses = new[] { "pending", "confirmed", "preparing", "ready", "delivered", "cancelled" };
+            var validStatuses = new[] { "pending", "confirmed", "preparing", "ready", "out-for-delivery", "delivered", "cancelled" };
             if (!validStatuses.Contains(statusRequest.Status.ToLower()))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -1005,9 +1059,24 @@ public class OrderFunction
                 return forbidden;
             }
 
-            var oldStatus = oldOrder?.Status;
+            var oldStatus = oldOrder.Status;
+            var nextStatus = statusRequest.Status.ToLowerInvariant();
 
-            var success = await _orderRepo.UpdateOrderStatusAsync(id, statusRequest.Status.ToLower());
+            if (!IsValidStatusTransition(oldStatus, nextStatus))
+            {
+                var badTransition = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badTransition.WriteAsJsonAsync(new { error = $"Invalid status transition from '{oldStatus}' to '{nextStatus}'" });
+                return badTransition;
+            }
+
+            if (nextStatus == "out-for-delivery" && oldOrder.OrderType == "delivery" && string.IsNullOrWhiteSpace(oldOrder.DeliveryPartnerId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Assign delivery partner before marking out-for-delivery" });
+                return badRequest;
+            }
+
+            var success = await _orderRepo.UpdateOrderStatusAsync(id, nextStatus);
 
             if (!success)
             {
@@ -1022,7 +1091,7 @@ public class OrderFunction
             _ = _eventLog.LogEventAsync("Order", id, "StatusChanged",
                 actorId: null, actorRole: "admin",
                 oldState: new { Status = oldStatus },
-                newState: new { Status = statusRequest.Status.ToLower() },
+                newState: new { Status = nextStatus },
                 outletId: order?.OutletId);
 
             // Outbox: enqueue status update notifications (FLAW 17)
@@ -1044,29 +1113,12 @@ public class OrderFunction
                     new { OrderId = order.Id!, Status = statusRequest.Status });
             }
 
-            // Award loyalty points when order is delivered
-            if (statusRequest.Status.ToLower() == "delivered" && order != null)
+            if (nextStatus == "delivered" && order != null)
             {
-                int pointsToAward = (int)Math.Floor(order.Total * 0.80m);
-                if (pointsToAward > 0)
-                {
-                    await _outbox.EnqueueAsync("LoyaltyPointsAward", "Order", id,
-                        new { UserId = order.UserId, Points = pointsToAward, Reason = $"Order #{order.Id}", OrderId = order.Id });
-
-                    if (!string.IsNullOrEmpty(order.PhoneNumber))
-                    {
-                        await _outbox.EnqueueAsync("LoyaltyWhatsApp", "Order", id,
-                            new { PhoneNumber = order.PhoneNumber, Username = order.Username ?? "Customer", PointsEarned = pointsToAward, TotalPoints = pointsToAward });
-                    }
-
-                    await _outbox.EnqueueAsync("LoyaltyNotification", "Order", id,
-                        new { UserId = order.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Order #{order.Id?[^6..]}" });
-
-                    _ = _eventLog.LogEventAsync("Loyalty", order.UserId, "PointsAwarded",
-                        actorId: null, actorRole: "system",
-                        newState: new { Points = pointsToAward, Reason = $"Order #{order.Id}" },
-                        outletId: order.OutletId);
-                }
+                order.CompletedAt = MongoService.GetIstNow();
+                order.UpdatedAt = MongoService.GetIstNow();
+                await _orderRepo.UpdateOrderAsync(order);
+                await TryAwardWorkflowLoyaltyPointsAsync(order);
             }
 
             _log.LogInformation("Order {OrderId} status updated to {Status}", id, statusRequest.Status);
@@ -1208,7 +1260,9 @@ public class OrderFunction
             WalletAmountUsed = order.WalletAmountUsed,
             DeliveryPartnerId = order.DeliveryPartnerId,
             DeliveryPartnerName = order.DeliveryPartnerName,
-            TableNumber = order.TableNumber
+            TableNumber = order.TableNumber,
+            LoyaltyPointsAwarded = order.LoyaltyPointsAwarded,
+            LoyaltyPointsAwardedValue = order.LoyaltyPointsAwardedValue
         };
     }
 
@@ -1229,6 +1283,7 @@ public class OrderFunction
             "confirmed" => 28,
             "preparing" => 18,
             "ready" => order.OrderType == "delivery" ? 10 : 0,
+            "out-for-delivery" => 8,
             _ => 25
         };
 
@@ -1242,6 +1297,69 @@ public class OrderFunction
         if (!etaMinutes.HasValue || !estimatedAt.HasValue) return "ETA unavailable";
         if (etaMinutes.Value <= 1) return "Arriving now";
         return $"Arriving in {etaMinutes.Value} min";
+    }
+
+    private async Task TryAwardWorkflowLoyaltyPointsAsync(Order order)
+    {
+        if (order.LoyaltyPointsAwarded || order.Status != "delivered") return;
+
+        var issues = await _orderRepo.GetOrderIssuesAsync(order.Id!);
+        var hasOpenIssue = issues.Any(i => i.Status == "open" || i.Status == "in-progress");
+        if (hasOpenIssue) return;
+
+        var review = await _orderRepo.GetReviewByOrderIdAsync(order.Id!);
+        if (review == null) return;
+
+        var basePoints = (int)Math.Floor(order.Total * 0.10m);
+        var ratingBonus = review.Rating > 0 ? 2 : 0;
+        var pointsToAward = Math.Max(0, basePoints + ratingBonus);
+        if (pointsToAward <= 0) return;
+
+        await _outbox.EnqueueAsync("LoyaltyPointsAward", "Order", order.Id!,
+            new { UserId = order.UserId, Points = pointsToAward, Reason = $"Order #{order.Id} completion", OrderId = order.Id });
+
+        if (!string.IsNullOrEmpty(order.PhoneNumber))
+        {
+            await _outbox.EnqueueAsync("LoyaltyWhatsApp", "Order", order.Id!,
+                new { PhoneNumber = order.PhoneNumber, Username = order.Username ?? "Customer", PointsEarned = pointsToAward, TotalPoints = pointsToAward });
+        }
+
+        await _outbox.EnqueueAsync("LoyaltyNotification", "Order", order.Id!,
+            new { UserId = order.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Order #{order.Id?[^6..]}" });
+
+        order.LoyaltyPointsAwarded = true;
+        order.LoyaltyPointsAwardedValue = pointsToAward;
+        order.UpdatedAt = MongoService.GetIstNow();
+        await _orderRepo.UpdateOrderAsync(order);
+
+        _ = _eventLog.LogEventAsync("Loyalty", order.UserId, "PointsAwarded",
+            actorId: null, actorRole: "system",
+            newState: new { Points = pointsToAward, Reason = $"Order #{order.Id} completion" },
+            outletId: order.OutletId);
+    }
+
+    private static bool IsValidStatusTransition(string current, string next)
+    {
+        if (current == next) return true;
+
+        if (next == "cancelled")
+        {
+            return current == "scheduled" || current == "pending" || current == "confirmed" || current == "preparing" || current == "ready" || current == "out-for-delivery";
+        }
+
+        var transitions = new Dictionary<string, string[]>
+        {
+            ["scheduled"] = new[] { "pending", "confirmed" },
+            ["pending"] = new[] { "confirmed" },
+            ["confirmed"] = new[] { "preparing" },
+            ["preparing"] = new[] { "ready" },
+            ["ready"] = new[] { "out-for-delivery", "delivered" },
+            ["out-for-delivery"] = new[] { "delivered" },
+            ["delivered"] = Array.Empty<string>(),
+            ["cancelled"] = Array.Empty<string>()
+        };
+
+        return transitions.TryGetValue(current, out var allowed) && allowed.Contains(next);
     }
 
     private static string NormalizeOrderChannel(string? requestedChannel, string orderType)

@@ -96,6 +96,7 @@ public class WhatsAppService : IWhatsAppService
                 "ready" => "✅",
                 "delivered" => "🚀",
                 "cancelled" => "❌",
+                "out-for-delivery" => "🛵",
                 _ => "📋"
             };
 

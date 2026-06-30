@@ -88,50 +88,124 @@
             <th>Items</th>
             <th>Total</th>
             <th>Status</th>
+            <th>Compliance</th>
             <th>Partner</th>
             <th>Created</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let order of filteredOrders; trackBy: trackById">
-            <td>#{{ order.id.slice(-6) }}</td>
-            <td>
-              <div>{{ order.username }}</div>
-              <small>{{ order.phoneNumber || '-' }}</small>
-            </td>
-            <td>{{ order.orderType || '-' }}</td>
-            <td>{{ getOrderItemsSummary(order) }}</td>
-            <td>{{ formatCurrency(order.total) }}</td>
-            <td>
-              <select [(ngModel)]="statusDraft[order.id]">
-                <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
-              </select>
-            </td>
-            <td>
-              <ng-container *ngIf="canAssignPartner(order); else fixedPartner">
-                <select [(ngModel)]="partnerDraft[order.id]">
-                  <option value="">Select partner</option>
-                  <option *ngFor="let p of availablePartners; trackBy: trackByPartnerId" [value]="p.id">
-                    {{ p.name }} ({{ p.status }})
-                  </option>
+          <ng-container *ngFor="let order of filteredOrders; trackBy: trackById">
+            <tr>
+              <td>#{{ order.id.slice(-6) }}</td>
+              <td>
+                <div>{{ order.username }}</div>
+                <small>{{ order.phoneNumber || '-' }}</small>
+              </td>
+              <td>{{ order.orderType || '-' }}</td>
+              <td>{{ getOrderItemsSummary(order) }}</td>
+              <td>{{ formatCurrency(order.total) }}</td>
+              <td>
+                <select [(ngModel)]="statusDraft[order.id]">
+                  <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
                 </select>
-              </ng-container>
-              <ng-template #fixedPartner>
-                {{ getAssignedPartnerDisplay(order) }}
-              </ng-template>
-            </td>
-            <td>{{ formatDate(order.createdAt) }}</td>
-            <td>
-              <div class="action-row">
-                <button (click)="updateOrderStatus(order)" [disabled]="saving">Save Status</button>
-                <button *ngIf="canAssignPartner(order)" (click)="assignPartner(order)" [disabled]="saving || !partnerDraft[order.id]">
-                  Assign
-                </button>
-                <a [routerLink]="['/orders', order.id]">Open</a>
-              </div>
-            </td>
-          </tr>
+              </td>
+              <td>
+                <div class="compliance-cell" [title]="getWorkflowCompliance(order).reason">
+                  <span class="compliance-badge" [ngClass]="getComplianceClass(order)">
+                    {{ getWorkflowCompliance(order).label }}
+                  </span>
+                  <small>{{ getWorkflowCompliance(order).reason }}</small>
+                </div>
+              </td>
+              <td>
+                <ng-container *ngIf="canAssignPartner(order); else fixedPartner">
+                  <select [(ngModel)]="partnerDraft[order.id]">
+                    <option value="">Select partner</option>
+                    <option *ngFor="let p of availablePartners; trackBy: trackByPartnerId" [value]="p.id">
+                      {{ p.name }} ({{ p.status }})
+                    </option>
+                  </select>
+                </ng-container>
+                <ng-template #fixedPartner>
+                  {{ getAssignedPartnerDisplay(order) }}
+                </ng-template>
+              </td>
+              <td>{{ formatDate(order.createdAt) }}</td>
+              <td>
+                <div class="action-row">
+                  <button (click)="updateOrderStatus(order)" [disabled]="saving">Save Status</button>
+                  <button *ngIf="canAssignPartner(order)" (click)="assignPartner(order)" [disabled]="saving || !partnerDraft[order.id]">
+                    Assign
+                  </button>
+                  <button (click)="toggleIssuePanel(order)">
+                    {{ isIssuePanelOpen(order.id) ? 'Hide Issues' : 'Issues' }}
+                    <span *ngIf="getOpenIssueCount(order.id) > 0">({{ getOpenIssueCount(order.id) }})</span>
+                  </button>
+                  <a [routerLink]="['/orders', order.id]">Open</a>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="isIssuePanelOpen(order.id)" class="issue-row">
+              <td colspan="10">
+                <div class="issue-panel">
+                  <div class="issue-head">
+                    <h3>Issue Resolution Workflow</h3>
+                    <small>Loyalty Status: {{ getLoyaltyStatus(order) }}</small>
+                  </div>
+
+                  <div *ngIf="issuesLoading[order.id]" class="state">Loading order issues...</div>
+                  <div *ngIf="!issuesLoading[order.id] && getOrderIssues(order.id).length === 0" class="state">
+                    No issues reported for this order.
+                  </div>
+
+                  <div *ngIf="!issuesLoading[order.id] && getOrderIssues(order.id).length > 0" class="issue-list">
+                    <div class="issue-card" *ngFor="let issue of getOrderIssues(order.id)">
+                      <div class="issue-meta">
+                        <strong>#{{ issue.id?.slice(-6) }}</strong>
+                        <span class="pill">{{ issue.category }}</span>
+                        <span class="pill">{{ issue.status }}</span>
+                        <span class="time">{{ formatDate(issue.createdAt) }}</span>
+                      </div>
+
+                      <p class="issue-description">{{ issue.description }}</p>
+
+                      <div class="issue-controls">
+                        <select [(ngModel)]="issueStatusDraft[getIssueDraftKey(order.id, issue.id || '')]">
+                          <option value="open">open</option>
+                          <option value="in-progress">in-progress</option>
+                          <option value="resolved">resolved</option>
+                          <option value="closed">closed</option>
+                        </select>
+
+                        <input
+                          type="text"
+                          [(ngModel)]="issueResolutionDraft[getIssueDraftKey(order.id, issue.id || '')]"
+                          placeholder="Resolution note / refund reason" />
+
+                        <label class="checkbox-inline">
+                          <input type="checkbox" [(ngModel)]="issueRefundDraft[getIssueDraftKey(order.id, issue.id || '')]" />
+                          Refund processed
+                        </label>
+
+                        <button
+                          (click)="processIssueRefund(order, issue)"
+                          [disabled]="issueRefunding[getIssueDraftKey(order.id, issue.id || '')] || !canRefund(order)">
+                          {{ issueRefunding[getIssueDraftKey(order.id, issue.id || '')] ? 'Refunding...' : 'Refund' }}
+                        </button>
+
+                        <button
+                          (click)="updateIssue(order, issue)"
+                          [disabled]="issueSaving[getIssueDraftKey(order.id, issue.id || '')]">
+                          {{ issueSaving[getIssueDraftKey(order.id, issue.id || '')] ? 'Saving...' : 'Save Issue' }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
         </tbody>
       </table>
     </div>

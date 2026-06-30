@@ -13,7 +13,7 @@
   <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading orders...</p></div>
 
   <div *ngIf="!loading" class="kitchen-board">
-    <div class="kitchen-column" *ngFor="let status of ['pending', 'confirmed', 'preparing', 'ready']">
+    <div class="kitchen-column" *ngFor="let status of ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery']">
       <div class="column-header" [style.border-bottom-color]="getStatusColor(status)">
         <h2>{{ status | titlecase }}</h2>
         <span class="count">{{ getOrdersByStatus(status).length }}</span>
@@ -39,6 +39,8 @@
           <button *ngIf="order.status === 'pending'" (click)="updateStatus(order.id, 'confirmed')" class="btn-kitchen confirm">Confirm</button>
           <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Start</button>
           <button *ngIf="order.status === 'preparing'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>
+          <button *ngIf="order.status === 'ready'" (click)="updateStatus(order.id, 'out-for-delivery')" class="btn-kitchen prepare">Dispatch</button>
+          <button *ngIf="order.status === 'out-for-delivery'" (click)="updateStatus(order.id, 'delivered')" class="btn-kitchen ready">Delivered</button>
           <button (click)="printKot(order.id)" class="btn-kitchen kot">🖨️ KOT</button>
         </div>
       </div>
