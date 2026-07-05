@@ -20,6 +20,12 @@ export class AdminLayoutComponent implements OnDestroy {
 
   menuItems = [
     {
+      icon: '🏠',
+      label: 'Home',
+      route: '/',
+      active: false
+    },
+    {
       icon: '📊',
       label: 'Dashboard',
       route: '/admin/dashboard',

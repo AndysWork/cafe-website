@@ -28,6 +28,33 @@
     <!-- Desktop Menu -->
     <div class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
+        <!-- Home (All users) -->
+        <li class="nav-item" *ngIf="!isHomeScreen">
+          <a
+            routerLink="/"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">🏠</span>
+            Home
+          </a>
+        </li>
+
+        <!-- Dashboard (Any logged-in user) -->
+        <li class="nav-item" *ngIf="isLoggedIn">
+          <a
+            [routerLink]="dashboardRoute"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">📊</span>
+            Dashboard
+          </a>
+        </li>
+
         <!-- Menu (Users Only) -->
         <li class="nav-item" *ngIf="isUser">
           <a
@@ -38,19 +65,6 @@
           >
             <span class="nav-icon">🍽️</span>
             Menu
-          </a>
-        </li>
-
-        <!-- Offers (Available to all users) -->
-        <li class="nav-item">
-          <a
-            routerLink="/offers"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">🎁</span>
-            Offers
           </a>
         </li>
 

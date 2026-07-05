@@ -52,6 +52,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.currentUser !== null;
   }
 
+  get isHomeScreen(): boolean {
+    const path = this.router.url.split('?')[0].split('#')[0];
+    return path === '/' || path === '/home';
+  }
+
+  get dashboardRoute(): string {
+    return this.isAdmin ? '/admin/dashboard' : '/profile';
+  }
+
   get displayName(): string {
     if (this.currentUser?.firstName) {
       return this.currentUser.firstName;

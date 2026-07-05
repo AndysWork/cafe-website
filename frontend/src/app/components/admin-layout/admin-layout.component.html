@@ -51,6 +51,7 @@
           *ngIf="!item.children"
           [routerLink]="item.route"
           routerLinkActive="active"
+          [routerLinkActiveOptions]="item.route === '/' ? { exact: true } : { exact: false }"
           class="nav-item"
           (click)="setActiveMenu(i); closeMobileMenu()"
         >
