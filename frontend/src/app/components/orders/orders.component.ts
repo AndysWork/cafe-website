@@ -5,6 +5,7 @@ import { OrderService, Order } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
 import { AuthService } from '../../services/auth.service';
 import { CartService } from '../../services/cart.service';
+import { MenuService, MenuItem } from '../../services/menu.service';
 import { UIStore } from '../../store/ui.store';
 import { formatIstDateTime } from '../../utils/date-utils';
 import { Subscription } from 'rxjs';
@@ -24,6 +25,7 @@ interface QuickReorderPreset {
   styleUrls: ['./orders.component.scss']
 })
 export class OrdersComponent implements OnInit, OnDestroy {
+  private readonly pendingPaymentStorageKey = 'pending_payment_recovery';
   private uiStore = inject(UIStore);
   orders: Order[] = [];
   isLoading = false;
@@ -33,8 +35,10 @@ export class OrdersComponent implements OnInit, OnDestroy {
   expandedOrderId: string | null = null;
   activeFilter: string = 'all';
   quickReorderPresets: QuickReorderPreset[] = [];
+  pendingPaymentRecovery: { amount: number; reason: string; timestamp: string } | null = null;
   private routeSub?: Subscription;
   private successTimeout?: ReturnType<typeof setTimeout>;
+  private menuItemMap = new Map<string, MenuItem>();
 
   statusFilters = [
     { key: 'all', label: 'All' },
@@ -48,6 +52,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private paymentService: PaymentService,
     private cartService: CartService,
+    private menuService: MenuService,
     private router: Router,
     private route: ActivatedRoute
   ) {
@@ -63,11 +68,22 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
 
     this.loadOrders();
+    this.prefetchMenuItems();
+    this.loadPendingPaymentRecovery();
   }
 
   ngOnDestroy() {
     this.routeSub?.unsubscribe();
     if (this.successTimeout) clearTimeout(this.successTimeout);
+  }
+
+  retryPendingPayment(): void {
+    this.router.navigate(['/checkout']);
+  }
+
+  dismissPendingPaymentRecovery(): void {
+    this.pendingPaymentRecovery = null;
+    localStorage.removeItem(this.pendingPaymentStorageKey);
   }
 
   loadOrders() {
@@ -241,14 +257,17 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   reorderItems(order: Order) {
     for (const item of order.items) {
+      const latest = this.menuItemMap.get(item.menuItemId);
+      const packagingCharge = latest?.packagingCharge || (item as any).packagingCharge || 0;
+
       this.cartService.addItem({
         menuItemId: item.menuItemId,
         name: item.name,
         description: item.description,
         categoryName: item.categoryName,
         price: item.price,
-        imageUrl: undefined,
-        packagingCharge: 0,
+        imageUrl: latest?.imageUrl,
+        packagingCharge,
       }, item.quantity);
     }
     this.uiStore.success(`${order.items.length} item(s) added to cart`);
@@ -257,18 +276,32 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   reorderPreset(preset: QuickReorderPreset) {
     for (const item of preset.items) {
+      const latest = this.menuItemMap.get(item.menuItemId);
+      const packagingCharge = latest?.packagingCharge || (item as any).packagingCharge || 0;
+
       this.cartService.addItem({
         menuItemId: item.menuItemId,
         name: item.name,
         description: item.description,
         categoryName: item.categoryName,
         price: item.price,
-        imageUrl: undefined,
-        packagingCharge: 0,
+        imageUrl: latest?.imageUrl,
+        packagingCharge,
       }, item.quantity);
     }
     this.uiStore.success(`Added preset: ${preset.label}`);
     this.router.navigate(['/cart']);
+  }
+
+  private prefetchMenuItems() {
+    this.menuService.getMenuItems().subscribe({
+      next: (items) => {
+        this.menuItemMap = new Map(items.map(item => [item.id, item]));
+      },
+      error: () => {
+        this.menuItemMap = new Map();
+      }
+    });
   }
 
   private buildQuickReorderPresets() {
@@ -310,4 +343,19 @@ export class OrdersComponent implements OnInit, OnDestroy {
   trackByObjId(index: number, item: any): string { return item.id; }
 
   trackByName(index: number, item: any): string { return item.name; }
+
+  private loadPendingPaymentRecovery(): void {
+    const raw = localStorage.getItem(this.pendingPaymentStorageKey);
+    if (!raw) {
+      this.pendingPaymentRecovery = null;
+      return;
+    }
+
+    try {
+      this.pendingPaymentRecovery = JSON.parse(raw);
+    } catch {
+      this.pendingPaymentRecovery = null;
+      localStorage.removeItem(this.pendingPaymentStorageKey);
+    }
+  }
 }

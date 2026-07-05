@@ -74,6 +74,7 @@ export class AuthStore {
     this._token.set(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('cart');
     localStorage.removeItem('csrfToken');
     localStorage.removeItem('selectedOutletId');
     localStorage.removeItem('selectedOutlet');

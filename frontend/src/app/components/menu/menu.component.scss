@@ -107,6 +107,86 @@ $radius-full: 9999px;
   }
 }
 
+.recovery-banner {
+  max-width: 720px;
+  margin: 0.8rem auto 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  background: #eef2ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  strong {
+    display: block;
+    font-size: 0.84rem;
+    color: #3730a3;
+  }
+
+  span {
+    display: block;
+    color: #4338ca;
+    font-size: 0.76rem;
+  }
+
+  em {
+    font-style: normal;
+    margin-left: 4px;
+  }
+}
+
+.recovery-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-resume,
+.btn-dismiss {
+  border: none;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+
+.btn-resume {
+  background: #4338ca;
+  color: #fff;
+}
+
+.btn-dismiss {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.points-preview {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.loyalty-cart-preview {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  transform: translateY(74px);
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #166534;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .dietary-chip {
   border: 1px solid #cbd5e1;
   background: #ffffff;

@@ -169,18 +169,15 @@ public class DeliveryZoneFunction
     {
         try
         {
-            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
-            if (!hasAccess)
-            {
-                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbidden.WriteAsJsonAsync(new { error = accessError });
-                return forbidden;
-            }
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
 
             if (string.IsNullOrWhiteSpace(outletId))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Outlet context is required" });
+                await badRequest.WriteAsJsonAsync(new { error = "Please select an outlet first" });
                 return badRequest;
             }
 

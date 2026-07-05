@@ -2,18 +2,18 @@
   <!-- Hero -->
   <div class="hero">
     <div class="hero-pattern"></div>
-    <div class="hero-content">
+    <div class="hero-content" *ngIf="user as currentUser">
       <div class="avatar-wrapper">
-        <div class="avatar" *ngIf="!user?.profilePictureUrl">{{ (user?.firstName || user?.username || '?')[0] | uppercase }}</div>
-        <img class="avatar-img" *ngIf="user?.profilePictureUrl" [src]="user?.profilePictureUrl" alt="Profile picture" />
+        <div class="avatar" *ngIf="!currentUser.profilePictureUrl">{{ (currentUser.firstName || currentUser.username || '?')[0] | uppercase }}</div>
+        <img class="avatar-img" *ngIf="currentUser.profilePictureUrl" [src]="currentUser.profilePictureUrl" alt="Profile picture" />
         <label class="avatar-edit" [class.uploading]="isUploadingPicture">
           <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" (change)="onProfilePictureSelected($event)" hidden />
           {{ isUploadingPicture ? '⏳' : '📷' }}
         </label>
       </div>
-      <h1>{{ user?.firstName ? (user?.firstName + ' ' + (user?.lastName || '')) : user?.username }}</h1>
-      <p>{{ user?.email }}</p>
-      <button *ngIf="user?.profilePictureUrl" class="btn-remove-pic" (click)="removeProfilePicture()" [disabled]="isUploadingPicture">
+      <h1>{{ currentUser.firstName ? (currentUser.firstName + ' ' + (currentUser.lastName || '')) : currentUser.username }}</h1>
+      <p>{{ currentUser.email }}</p>
+      <button *ngIf="currentUser.profilePictureUrl" class="btn-remove-pic" (click)="removeProfilePicture()" [disabled]="isUploadingPicture">
         Remove Photo
       </button>
     </div>
@@ -24,6 +24,43 @@
 
   <!-- Content -->
   <div class="profile-content">
+    <div class="recovery-banner pending-payment" *ngIf="pendingPaymentRecovery">
+      <div>
+        <strong>Payment retry available</strong>
+        <p>{{ pendingPaymentRecovery.reason }} (₹{{ pendingPaymentRecovery.amount }})</p>
+      </div>
+      <div class="banner-actions">
+        <button class="btn-resume" (click)="retryPendingPayment()">Retry</button>
+        <button class="btn-dismiss" (click)="dismissPendingPaymentRecovery()">Dismiss</button>
+      </div>
+    </div>
+
+    <div class="recovery-banner" *ngIf="checkoutDraft">
+      <div>
+        <strong>Resume checkout</strong>
+        <p>
+          {{ checkoutDraft.cartItemCount }} item(s), ₹{{ checkoutDraft.grandTotal }}
+          <span *ngIf="checkoutDraftAgeMinutes > 0">saved {{ checkoutDraftAgeMinutes }} min ago</span>
+        </p>
+      </div>
+      <div class="banner-actions">
+        <button class="btn-resume" (click)="resumeCheckoutFromDraft()">Resume</button>
+        <button class="btn-dismiss" (click)="dismissCheckoutDraft()">Dismiss</button>
+      </div>
+    </div>
+
+    <div class="quick-reorder-banner">
+      <div>
+        <strong>🔁 Reorder Last Order</strong>
+        <p *ngIf="loadingLastOrder">Checking your latest delivered order...</p>
+        <p *ngIf="!loadingLastOrder && !lastDeliveredOrder">No delivered order found yet.</p>
+        <p *ngIf="!loadingLastOrder && lastDeliveredOrder">{{ lastDeliveredOrder.items.length }} item(s) from {{ lastDeliveredOrder.createdAt | date:'mediumDate' }}</p>
+      </div>
+      <button class="btn-resume" *ngIf="lastDeliveredOrder" (click)="reorderLastOrder()" [disabled]="isReorderingLastOrder">
+        {{ isReorderingLastOrder ? 'Adding...' : 'Reorder Now' }}
+      </button>
+    </div>
+
     <!-- Tabs -->
     <div class="tabs">
       <button class="tab" [class.active]="activeTab === 'profile'" (click)="switchTab('profile')">👤 Profile Info</button>

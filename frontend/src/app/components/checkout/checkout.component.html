@@ -21,7 +21,20 @@
         <h2>Order Details</h2>
       </div>
 
-      <form (ngSubmit)="placeOrder()" #checkoutForm="ngForm" aria-label="Checkout form">
+      <form (ngSubmit)="onCheckoutSubmit()" #checkoutForm="ngForm" aria-label="Checkout form">
+
+        <div *ngIf="pendingPaymentRecovery" class="recovery-banner" role="status">
+          <div>
+            <strong>Previous payment needs attention</strong>
+            <p>
+              {{ pendingPaymentRecovery.reason }}
+              <span *ngIf="pendingPaymentRecovery.amount">(Amount: ₹{{ pendingPaymentRecovery.amount }})</span>
+            </p>
+          </div>
+          <button type="button" class="btn-retry-payment" (click)="retryPendingPayment()" [disabled]="isSubmitting">
+            Retry Payment
+          </button>
+        </div>
 
         <!-- Order Type Selection -->
         <div class="order-type-section">
@@ -48,7 +61,8 @@
         <!-- Dine-in Table Number -->
         <div *ngIf="orderType === 'dine-in'" class="form-group">
           <label>Table Number</label>
-          <input type="text" [(ngModel)]="tableNumber" name="tableNumber" placeholder="Enter table number" maxlength="20" required />
+          <input type="text" [(ngModel)]="tableNumber" name="tableNumber" placeholder="Enter table number" maxlength="20" required (ngModelChange)="onInlineFieldChange()" />
+          <small class="inline-error" *ngIf="tableNumberError">{{ tableNumberError }}</small>
         </div>
 
         <div *ngIf="orderType !== 'delivery'" class="form-group">
@@ -60,8 +74,10 @@
             [(ngModel)]="phoneNumber"
             placeholder="Enter your 10-digit phone number"
             pattern="[0-9]{10}"
-            [disabled]="isSubmitting" />
+            [disabled]="isSubmitting"
+            (ngModelChange)="onInlineFieldChange()" />
           <small>Used for pickup/dine-in updates and support</small>
+          <small class="inline-error" *ngIf="phoneError">{{ phoneError }}</small>
         </div>
 
         <!-- Saved Addresses (delivery only) -->
@@ -127,10 +143,46 @@
               id="deliveryAddress"
               name="deliveryAddress"
               [(ngModel)]="deliveryAddress"
+              (ngModelChange)="onDeliveryAddressInputChange()"
               placeholder="Enter your complete delivery address"
               rows="3"
               required
               [disabled]="isSubmitting"></textarea>
+            <small class="inline-error" *ngIf="deliveryAddressError">{{ deliveryAddressError }}</small>
+
+            <div class="delivery-confidence" *ngIf="orderType === 'delivery' && !calculatingFee && deliveryAddress.trim()">
+              <div class="confidence-row" *ngIf="!outOfZoneDetected">
+                <span>ETA:</span>
+                <strong>{{ deliveryEtaMinutes ? (deliveryEtaMinutes + ' min') : 'Will be confirmed shortly' }}</strong>
+              </div>
+              <div class="confidence-row" *ngIf="!outOfZoneDetected">
+                <span>Fee confidence:</span>
+                <strong [class.conf-high]="feeConfidence === 'high'" [class.conf-med]="feeConfidence === 'medium'" [class.conf-low]="feeConfidence === 'low'">
+                  {{ feeConfidence === 'high' ? 'High' : feeConfidence === 'medium' ? 'Medium' : feeConfidence === 'low' ? 'Low' : 'Pending' }}
+                </strong>
+              </div>
+              <div class="confidence-row" *ngIf="deliveryZoneName && !outOfZoneDetected">
+                <span>Zone:</span>
+                <strong>{{ deliveryZoneName }}</strong>
+              </div>
+
+              <div *ngIf="outOfZoneDetected" class="out-of-zone-warning">
+                ⚠️ {{ outOfZoneMessage }}
+                <div *ngIf="suggestedOutlets.length > 0" class="nearest-outlets">
+                  <div class="nearest-title">Best outlet matches:</div>
+                  <ul>
+                    <li *ngFor="let outlet of suggestedOutlets">
+                      <div class="outlet-head">
+                        <strong>{{ outlet.outletName }}</strong>
+                        <button type="button" class="btn-choose-outlet" (click)="selectSuggestedOutlet(outlet)">Choose</button>
+                      </div>
+                      <span>{{ outlet.city }}{{ outlet.state ? ', ' + outlet.state : '' }}</span>
+                      <span>⭐ {{ outlet.rating | number:'1.1-1' }} · 🚚 {{ outlet.estimatedDistanceKm | number:'1.0-1' }} km · ⏱️ {{ outlet.estimatedEtaMinutes }} min · ₹{{ outlet.estimatedDeliveryFee | number:'1.0-0' }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -143,8 +195,10 @@
               placeholder="Enter your 10-digit phone number"
               pattern="[0-9]{10}"
               required
-              [disabled]="isSubmitting" />
+              [disabled]="isSubmitting"
+              (ngModelChange)="onInlineFieldChange()" />
             <small>Enter 10 digits without spaces or special characters</small>
+            <small class="inline-error" *ngIf="phoneError">{{ phoneError }}</small>
           </div>
 
           <!-- Save address option -->
@@ -155,7 +209,8 @@
             </label>
             <div class="form-group" *ngIf="saveNewAddress" style="margin-top: 10px;">
               <label>Address Label</label>
-              <input type="text" [(ngModel)]="newAddressLabel" name="newAddressLabel" placeholder="e.g., Home, Office" [disabled]="isSubmitting" />
+              <input type="text" [(ngModel)]="newAddressLabel" name="newAddressLabel" placeholder="e.g., Home, Office" [required]="saveNewAddress" [disabled]="isSubmitting" (ngModelChange)="onInlineFieldChange()" />
+              <small class="inline-error" *ngIf="saveAddressLabelError">{{ saveAddressLabelError }}</small>
             </div>
           </div>
         </div>
@@ -168,7 +223,8 @@
             [(ngModel)]="notes"
             placeholder="Any special requests or instructions?"
             rows="2"
-            [disabled]="isSubmitting"></textarea>
+            [disabled]="isSubmitting"
+            (ngModelChange)="onInlineFieldChange()"></textarea>
         </div>
 
         <!-- Error Message -->
@@ -340,11 +396,35 @@
           <button type="button" class="btn-back" (click)="goBackToCart()" [disabled]="isSubmitting">
             ← Back to Cart
           </button>
-          <button type="submit" class="btn-place" [disabled]="!checkoutForm.valid || isSubmitting">
-            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay ₹' + grandTotal : paymentMethod === 'upi-qr' ? '✅ Confirm & Place Order' : '🎉 Place Order') }}
+          <button type="submit" class="btn-place" [disabled]="isSubmitting || cart.itemCount === 0">
+            {{ isSubmitting ? '⏳ Processing...' : 'Review Order' }}
           </button>
         </div>
       </form>
+
+      <div *ngIf="showReviewStep" class="review-step" role="dialog" aria-label="Review order before payment">
+        <div class="review-header">
+          <h3>Review Before Payment</h3>
+          <p>Please confirm these details before placing your order.</p>
+        </div>
+
+        <div class="review-grid">
+          <div><strong>Order type:</strong> {{ orderType | titlecase }}</div>
+          <div *ngIf="orderType === 'delivery'"><strong>Delivery address:</strong> {{ deliveryAddress }}</div>
+          <div *ngIf="orderType === 'dine-in'"><strong>Table:</strong> {{ tableNumber }}</div>
+          <div><strong>Phone:</strong> {{ phoneNumber || 'Not provided' }}</div>
+          <div><strong>Payment:</strong> {{ paymentMethod === 'cod' ? 'Cash on delivery' : paymentMethod === 'upi-qr' ? 'UPI QR' : 'Online payment' }}</div>
+          <div><strong>Total payable:</strong> ₹{{ grandTotal }}</div>
+          <div *ngIf="scheduleOrder && scheduledDate && scheduledTime"><strong>Scheduled for:</strong> {{ scheduledDate | date:'mediumDate' }} at {{ scheduledTime }}</div>
+        </div>
+
+        <div class="review-actions">
+          <button type="button" class="btn-back" (click)="cancelReviewStep()" [disabled]="isSubmitting">Edit Details</button>
+          <button type="button" class="btn-place" (click)="confirmAndPlaceOrder()" [disabled]="isSubmitting">
+            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay ₹' + grandTotal : paymentMethod === 'upi-qr' ? '✅ Confirm & Place Order' : '🎉 Place Order') }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Order Summary -->

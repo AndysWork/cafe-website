@@ -39,6 +39,20 @@
     </div>
   </div>
 
+  <div class="recovery-banner" *ngIf="checkoutDraft">
+    <div>
+      <strong>Resume checkout</strong>
+      <span>
+        {{ checkoutDraft.cartItemCount }} item(s), ₹{{ checkoutDraft.grandTotal }}
+        <em *ngIf="checkoutDraftAgeMinutes > 0">saved {{ checkoutDraftAgeMinutes }} min ago</em>
+      </span>
+    </div>
+    <div class="recovery-actions">
+      <button class="btn-resume" (click)="resumeCheckoutFromDraft()">Resume</button>
+      <button class="btn-dismiss" (click)="dismissCheckoutDraft()">Dismiss</button>
+    </div>
+  </div>
+
   <div class="dietary-filter-section" aria-label="Dietary filter">
     <button class="dietary-chip" [class.active]="dietaryFilter === 'all'" (click)="setDietaryFilter('all')">
       All <span>{{ getDietaryItemCount('all') }}</span>
@@ -169,6 +183,7 @@
           <div class="card-footer">
             <div class="price-block">
               <span class="price">₹{{ getWebPrice(item) }}</span>
+              <small class="points-preview">Earn ~{{ getEstimatedEarnPoints(item) }} pts</small>
             </div>
 
             <!-- Add to Cart / Quantity Control -->
@@ -217,6 +232,11 @@
     </span>
     <span class="cart-arrow">→</span>
   </button>
+
+  <div *ngIf="cart.itemCount > 0" class="loyalty-cart-preview">
+    <span>Cart may earn <strong>{{ estimatedCartEarnPoints }}</strong> points</span>
+    <span *ngIf="loyaltyPointsAvailable > 0">Available redeem value: <strong>₹{{ maxRedeemValuePreview }}</strong></span>
+  </div>
 
   <!-- Detail Modal -->
   <div class="detail-modal-overlay" *ngIf="showDetailModal && selectedMenuItem" (click)="closeDetail()">

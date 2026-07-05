@@ -82,5 +82,5 @@ export class OffersComponent implements OnInit {
 
   trackByIndex(index: number): number { return index; }
 
-  trackById(index: number, item: any): string { return item._id; }
+  trackById(index: number, item: Offer): string { return item.id || `${item.code}-${index}`; }
 }

@@ -203,6 +203,8 @@ public class CreateOrderRequest
 
     [StringLength(20, ErrorMessage = "Table number cannot exceed 20 characters")]
     public string? TableNumber { get; set; }
+
+    public string? OutletId { get; set; }
 }
 
 public class OrderItemRequest
@@ -258,6 +260,7 @@ public class OrderResponse
     public DateTime? CompletedAt { get; set; }
     public string? ReceiptImageUrl { get; set; }
     public decimal DeliveryFee { get; set; }
+    public string? OutletId { get; set; }
     public string OrderType { get; set; } = "delivery";
     public string Channel { get; set; } = "web";
     public DateTime? ScheduledFor { get; set; }
@@ -268,4 +271,20 @@ public class OrderResponse
     public string? TableNumber { get; set; }
     public bool LoyaltyPointsAwarded { get; set; }
     public int LoyaltyPointsAwardedValue { get; set; }
+}
+
+public class OutletSuggestionResponse
+{
+    public string OutletId { get; set; } = string.Empty;
+    public string OutletName { get; set; } = string.Empty;
+    public string OutletCode { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public double Rating { get; set; }
+    public int EstimatedEtaMinutes { get; set; }
+    public double EstimatedDistanceKm { get; set; }
+    public decimal EstimatedDeliveryFee { get; set; }
+    public double Score { get; set; }
+    public List<string> Reasons { get; set; } = new();
 }

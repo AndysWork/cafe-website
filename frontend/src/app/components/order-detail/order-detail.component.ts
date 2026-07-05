@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { OrderService, Order, OrderIssue, OrderTrackingResponse } from '../../services/order.service';
 import { CartService } from '../../services/cart.service';
+import { MenuService, MenuItem } from '../../services/menu.service';
 import { CustomerReviewService, CustomerReview } from '../../services/customer-review.service';
 import { AuthService } from '../../services/auth.service';
 import { UIStore } from '../../store/ui.store';
@@ -30,6 +31,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   trackingData: OrderTrackingResponse | null = null;
   private pollSub?: Subscription;
   private routeSub?: Subscription;
+  private menuItemMap = new Map<string, MenuItem>();
 
   // Review state
   existingReview: CustomerReview | null = null;
@@ -64,6 +66,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     private router: Router,
     private orderService: OrderService,
     private cartService: CartService,
+    private menuService: MenuService,
     private reviewService: CustomerReviewService,
     private authService: AuthService,
     private uiStore: UIStore
@@ -77,6 +80,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       if (this.orderId) {
         this.loadOrder();
         this.startPolling();
+        this.prefetchMenuItems();
       } else {
         this.errorMessage = 'Invalid order ID';
         this.isLoading = false;
@@ -214,18 +218,32 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   reorder() {
     if (!this.order) return;
     for (const item of this.order.items) {
+      const latest = this.menuItemMap.get(item.menuItemId);
+      const packagingCharge = latest?.packagingCharge || (item as any).packagingCharge || 0;
+
       this.cartService.addItem({
         menuItemId: item.menuItemId,
         name: item.name,
         description: item.description,
         categoryName: item.categoryName,
         price: item.price,
-        imageUrl: undefined,
-        packagingCharge: 0,
+        imageUrl: latest?.imageUrl,
+        packagingCharge,
       }, item.quantity);
     }
     this.uiStore.success(`${this.order.items.length} item(s) added to cart`);
     this.router.navigate(['/cart']);
+  }
+
+  private prefetchMenuItems() {
+    this.menuService.getMenuItems().subscribe({
+      next: (items) => {
+        this.menuItemMap = new Map(items.map(item => [item.id, item]));
+      },
+      error: () => {
+        this.menuItemMap = new Map();
+      }
+    });
   }
 
   formatDate(dateString: string): string {

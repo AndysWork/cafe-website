@@ -9,7 +9,7 @@ import { OfflineQueueService } from '../services/offline-queue.service';
 const TRANSIENT_STATUS_CODES = [0, 502, 503, 504];
 const IDEMPOTENT_METHODS = ['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE'];
 const MAX_RETRIES_IDEMPOTENT = 2;
-const MAX_RETRIES_NON_IDEMPOTENT = 1;
+const MAX_RETRIES_NON_IDEMPOTENT = 0;
 
 function isTransientError(status: number): boolean {
   return TRANSIENT_STATUS_CODES.includes(status);
@@ -25,8 +25,7 @@ function isCriticalMutation(req: HttpRequest<unknown>): boolean {
   const method = req.method.toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
   const url = req.url.toLowerCase();
-  return url.includes('/orders') ||
-    url.includes('/attendance') ||
+  return url.includes('/attendance') ||
     url.includes('/clock') ||
     url.includes('/sales') && method === 'POST';
 }

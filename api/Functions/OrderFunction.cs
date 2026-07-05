@@ -8,6 +8,7 @@ using Cafe.Api.Repositories;
 using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Globalization;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
@@ -110,13 +111,19 @@ public class OrderFunction
             var (orderRequest, validationError) = await ValidationHelper.ValidateBody<CreateOrderRequest>(req);
             if (validationError != null) return validationError;
 
-            // Validate outlet access
-            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
-            if (!hasAccess)
+            // Resolve outlet for this order.
+            // Admins keep strict access behavior while customers are not blocked by assigned outlet lists.
+            var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+            var (outletResolved, outletId, outletError, suggestions) = await ResolveOrderOutletAsync(req, orderRequest, role);
+            if (!outletResolved || string.IsNullOrWhiteSpace(outletId))
             {
-                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
-                await forbidden.WriteAsJsonAsync(new { error = accessError });
-                return forbidden;
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new
+                {
+                    error = outletError ?? "Unable to resolve outlet for this order",
+                    suggestions = suggestions ?? new List<OutletSuggestionResponse>()
+                });
+                return badRequest;
             }
 
             var orderType = string.IsNullOrWhiteSpace(orderRequest.OrderType)
@@ -406,6 +413,39 @@ public class OrderFunction
             _log.LogError(ex, "Error creating order");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred while creating the order" });
+            return res;
+        }
+    }
+
+    [Function("GetOrderOutletSuggestions")]
+    public async Task<HttpResponseData> GetOrderOutletSuggestions(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "order-outlet-suggestions")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var orderType = (req.Query["orderType"] ?? "delivery").Trim().ToLowerInvariant();
+            var deliveryAddress = req.Query["deliveryAddress"]?.Trim() ?? string.Empty;
+
+            decimal subtotal = 0;
+            var subtotalRaw = req.Query["subtotal"];
+            if (!string.IsNullOrWhiteSpace(subtotalRaw))
+            {
+                decimal.TryParse(subtotalRaw, NumberStyles.Number, CultureInfo.InvariantCulture, out subtotal);
+            }
+
+            var suggestions = await BuildOutletSuggestionsAsync(orderType, deliveryAddress, subtotal);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(suggestions);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting outlet suggestions for order");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while generating outlet suggestions" });
             return res;
         }
     }
@@ -1354,6 +1394,7 @@ public class OrderFunction
             CompletedAt = order.CompletedAt,
             ReceiptImageUrl = order.ReceiptImageUrl,
             DeliveryFee = order.DeliveryFee,
+            OutletId = order.OutletId,
             OrderType = order.OrderType,
             Channel = string.IsNullOrWhiteSpace(order.Channel) ? "web" : order.Channel,
             ScheduledFor = order.ScheduledFor,
@@ -1365,6 +1406,148 @@ public class OrderFunction
             LoyaltyPointsAwarded = order.LoyaltyPointsAwarded,
             LoyaltyPointsAwardedValue = order.LoyaltyPointsAwardedValue
         };
+    }
+
+    private async Task<(bool resolved, string? outletId, string? error, List<OutletSuggestionResponse>? suggestions)> ResolveOrderOutletAsync(
+        HttpRequestData req,
+        CreateOrderRequest orderRequest,
+        string? role)
+    {
+        var requestedOutletId = orderRequest.OutletId?.Trim();
+        if (string.IsNullOrWhiteSpace(requestedOutletId))
+        {
+            requestedOutletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+        }
+
+        // Preserve strict behavior for admin/staff operational flows.
+        if (string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase))
+        {
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo, requestedOutletId);
+            if (!hasAccess)
+            {
+                return (false, null, accessError ?? "Unable to validate outlet access", null);
+            }
+
+            if (!string.IsNullOrWhiteSpace(outletId))
+            {
+                return (true, outletId, null, null);
+            }
+
+            var firstActiveOutlet = (await _mongo.GetActiveOutletsAsync()).FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.Id));
+            if (firstActiveOutlet?.Id != null)
+            {
+                return (true, firstActiveOutlet.Id, null, null);
+            }
+
+            return (false, null, "No active outlets available to place this order", null);
+        }
+
+        if (!string.IsNullOrWhiteSpace(requestedOutletId))
+        {
+            var outlet = await _mongo.GetOutletByIdAsync(requestedOutletId);
+            if (outlet != null && outlet.IsActive)
+            {
+                return (true, requestedOutletId, null, null);
+            }
+
+            var fallbackSuggestions = await BuildOutletSuggestionsAsync(orderRequest.OrderType, orderRequest.DeliveryAddress, 0);
+            return (false, null, "Selected outlet is unavailable. Please choose a suggested outlet.", fallbackSuggestions);
+        }
+
+        var suggestions = await BuildOutletSuggestionsAsync(orderRequest.OrderType, orderRequest.DeliveryAddress, 0);
+        return (false, null, "Please choose an outlet before placing the order.", suggestions);
+    }
+
+    private async Task<List<OutletSuggestionResponse>> BuildOutletSuggestionsAsync(string? orderType, string? deliveryAddress, decimal subtotal)
+    {
+        var normalizedOrderType = string.IsNullOrWhiteSpace(orderType) ? "delivery" : orderType.Trim().ToLowerInvariant();
+        var addressText = deliveryAddress?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        var activeOutlets = await _mongo.GetActiveOutletsAsync();
+        var suggestions = new List<OutletSuggestionResponse>();
+
+        foreach (var outlet in activeOutlets)
+        {
+            if (string.IsNullOrWhiteSpace(outlet.Id)) continue;
+
+            var acceptsOrderType = normalizedOrderType switch
+            {
+                "delivery" => outlet.Settings.AcceptsOnlineOrders,
+                "pickup" => outlet.Settings.AcceptsTakeaway,
+                "dine-in" => outlet.Settings.AcceptsDineIn,
+                _ => outlet.Settings.AcceptsOnlineOrders
+            };
+
+            if (!acceptsOrderType) continue;
+
+            var zones = await _mongo.GetActiveDeliveryZonesAsync(outlet.Id);
+            var closestZone = zones.OrderBy(z => z.MinDistance).FirstOrDefault();
+
+            var estimatedEta = normalizedOrderType == "delivery"
+                ? (closestZone?.EstimatedMinutes ?? 35)
+                : 10;
+
+            var estimatedDistance = normalizedOrderType == "delivery"
+                ? (closestZone?.MinDistance ?? 0)
+                : 0;
+
+            var estimatedFee = normalizedOrderType == "delivery"
+                ? await _mongo.CalculateDeliveryFeeAsync(outlet.Id, subtotal)
+                : 0;
+
+            var rating = await _mongo.GetAverageRatingAsync(outlet.Id);
+
+            var locationMatch = 0d;
+            if (!string.IsNullOrWhiteSpace(addressText))
+            {
+                if (!string.IsNullOrWhiteSpace(outlet.City) && addressText.Contains(outlet.City.ToLowerInvariant())) locationMatch += 20;
+                if (!string.IsNullOrWhiteSpace(outlet.State) && addressText.Contains(outlet.State.ToLowerInvariant())) locationMatch += 10;
+                if (!string.IsNullOrWhiteSpace(outlet.Address) && addressText.Contains(outlet.Address.ToLowerInvariant())) locationMatch += 5;
+            }
+
+            var ratingScore = Math.Min(5d, Math.Max(0, rating)) * 10;
+            var etaScore = Math.Max(0, 30 - Math.Min(30, estimatedEta));
+            var feeScore = Math.Max(0, 25 - Math.Min(25, (double)estimatedFee));
+            var score = Math.Round(ratingScore + etaScore + feeScore + locationMatch, 2);
+
+            var reasons = new List<string>
+            {
+                $"Rating {Math.Round(rating, 1):0.0}/5",
+                normalizedOrderType == "delivery"
+                    ? $"Estimated ETA {estimatedEta} min"
+                    : "Best for quick pickup/dine-in",
+                normalizedOrderType == "delivery"
+                    ? $"Approx. delivery fee ₹{estimatedFee:0.##}"
+                    : "No delivery fee"
+            };
+
+            if (locationMatch > 0)
+            {
+                reasons.Add("Address match confidence boosted");
+            }
+
+            suggestions.Add(new OutletSuggestionResponse
+            {
+                OutletId = outlet.Id,
+                OutletName = outlet.OutletName,
+                OutletCode = outlet.OutletCode,
+                Address = outlet.Address,
+                City = outlet.City,
+                State = outlet.State,
+                Rating = Math.Round(rating, 1),
+                EstimatedEtaMinutes = estimatedEta,
+                EstimatedDistanceKm = Math.Round(estimatedDistance, 1),
+                EstimatedDeliveryFee = Math.Round(estimatedFee, 2),
+                Score = score,
+                Reasons = reasons
+            });
+        }
+
+        return suggestions
+            .OrderByDescending(s => s.Score)
+            .ThenBy(s => s.EstimatedEtaMinutes)
+            .Take(5)
+            .ToList();
     }
 
     private static DateTime? EstimateDeliveryTime(Order order)

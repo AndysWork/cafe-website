@@ -20,6 +20,17 @@
   </div>
 
   <div class="orders-content">
+    <div *ngIf="pendingPaymentRecovery" class="payment-recovery-banner">
+      <div>
+        <strong>Payment retry available</strong>
+        <p>{{ pendingPaymentRecovery.reason }} (₹{{ pendingPaymentRecovery.amount }})</p>
+      </div>
+      <div class="banner-actions">
+        <button class="btn-retry-payment" (click)="retryPendingPayment()">Retry</button>
+        <button class="btn-dismiss-payment" (click)="dismissPendingPaymentRecovery()">Dismiss</button>
+      </div>
+    </div>
+
     <div *ngIf="!isAdmin && quickReorderPresets.length > 0" class="quick-reorder-section">
       <h3>⚡ Quick Reorder Presets</h3>
       <div class="quick-preset-list">
@@ -178,7 +189,7 @@
                 [class.payment-paid]="order.paymentStatus === 'paid'"
                 [class.payment-pending]="order.paymentStatus === 'pending'"
                 [class.payment-refunded]="order.paymentStatus === 'refunded'">
-                {{ order.paymentMethod === 'razorpay' ? '🔒 Online' : '💵 Cash on Delivery' }}
+                {{ order.paymentMethod === 'razorpay' ? '🔒 Online' : (order.paymentMethod === 'upi-qr' ? '📱 UPI QR' : '💵 Cash on Delivery') }}
                 — {{ getPaymentStatusIcon(order.paymentStatus) }} {{ order.paymentStatus | titlecase }}
               </span>
             </div>

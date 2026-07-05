@@ -7,6 +7,7 @@ import { CartService, Cart } from '../../services/cart.service';
 import { FavoriteService } from '../../services/favorite.service';
 import { AuthService } from '../../services/auth.service';
 import { CustomerReviewService } from '../../services/customer-review.service';
+import { LoyaltyService } from '../../services/loyalty.service';
 import { UIStore } from '../../store/ui.store';
 import { Router } from '@angular/router';
 
@@ -18,6 +19,8 @@ import { Router } from '@angular/router';
   styleUrls: ['./menu.component.scss']
 })
 export class MenuComponent implements OnInit, OnDestroy {
+  private readonly checkoutDraftStorageKey = 'checkout_draft';
+
   categories: MenuCategory[] = [];
   menuItems: MenuItem[] = [];
   filteredItems: MenuItem[] = [];
@@ -43,11 +46,15 @@ export class MenuComponent implements OnInit, OnDestroy {
   averageRating = 0;
   totalReviews = 0;
 
+  checkoutDraft: { timestamp: string; cartItemCount: number; grandTotal: number } | null = null;
+  loyaltyPointsAvailable = 0;
+
   // Unavailable item substitution panel
   expandedUnavailableSuggestions: Set<string> = new Set();
 
   private menuRefreshSubscription?: Subscription;
   private cartSubscription?: Subscription;
+  private searchDebounceTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private menuService: MenuService,
@@ -55,6 +62,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     private favoriteService: FavoriteService,
     private authService: AuthService,
     private reviewService: CustomerReviewService,
+    private loyaltyService: LoyaltyService,
     private uiStore: UIStore,
     private router: Router
   ) {}
@@ -63,6 +71,8 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.loadMenu();
     this.loadFavorites();
     this.loadSocialProof();
+    this.loadCheckoutDraft();
+    this.loadLoyaltyPreview();
 
     this.cartSubscription = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
@@ -75,9 +85,30 @@ export class MenuComponent implements OnInit, OnDestroy {
     });
   }
 
+  get checkoutDraftAgeMinutes(): number {
+    if (!this.checkoutDraft?.timestamp) return 0;
+    const ts = new Date(this.checkoutDraft.timestamp).getTime();
+    if (Number.isNaN(ts)) return 0;
+    return Math.max(0, Math.floor((Date.now() - ts) / 60000));
+  }
+
+  get estimatedCartEarnPoints(): number {
+    return this.cart.items.reduce((sum, item) => {
+      const points = Math.floor((item.price || 0) / 10);
+      return sum + points * item.quantity;
+    }, 0);
+  }
+
+  get maxRedeemValuePreview(): number {
+    return Math.floor(this.loyaltyPointsAvailable * 0.25);
+  }
+
   ngOnDestroy() {
     this.menuRefreshSubscription?.unsubscribe();
     this.cartSubscription?.unsubscribe();
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
+    }
   }
 
   loadMenu() {
@@ -141,7 +172,12 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   onSearchChange() {
-    this.applyFilters();
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
+    }
+    this.searchDebounceTimer = setTimeout(() => {
+      this.applyFilters();
+    }, 250);
   }
 
   onSortChange() {
@@ -154,6 +190,9 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   clearSearch() {
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
+    }
     this.searchQuery = '';
     this.applyFilters();
   }
@@ -182,6 +221,8 @@ export class MenuComponent implements OnInit, OnDestroy {
     // Trigger animation
     this.recentlyAdded.add(item.id);
     setTimeout(() => this.recentlyAdded.delete(item.id), 600);
+
+    this.loadCheckoutDraft();
   }
 
   increaseQuantity(item: MenuItem) {
@@ -200,6 +241,15 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   goToCart() {
     this.router.navigate(['/cart']);
+  }
+
+  resumeCheckoutFromDraft(): void {
+    this.router.navigate(['/checkout']);
+  }
+
+  dismissCheckoutDraft(): void {
+    this.checkoutDraft = null;
+    localStorage.removeItem(this.checkoutDraftStorageKey);
   }
 
   openDetail(item: MenuItem) {
@@ -281,6 +331,10 @@ export class MenuComponent implements OnInit, OnDestroy {
     return item.webPrice || item.shopSellingPrice || item.onlinePrice || 0;
   }
 
+  getEstimatedEarnPoints(item: MenuItem): number {
+    return Math.max(0, Math.floor(this.getWebPrice(item) / 10));
+  }
+
   normalizeDietaryType(value?: string): 'veg' | 'non-veg' | 'egg' {
     const normalized = (value || 'veg').trim().toLowerCase();
     if (normalized === 'non-veg' || normalized === 'nonveg') return 'non-veg';
@@ -294,7 +348,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (!this.authService.isLoggedIn()) return;
     this.favoriteService.getMyFavorites().subscribe({
       next: (ids) => this.favoriteIds = new Set(ids),
-      error: () => {} // silently fail
+      error: () => this.uiStore.notify('Could not load favorites right now')
     });
   }
 
@@ -321,6 +375,42 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.favoriteIds = new Set(this.favoriteIds);
       },
       error: () => this.uiStore.error('Failed to update favorite')
+    });
+  }
+
+  private loadCheckoutDraft(): void {
+    const raw = localStorage.getItem(this.checkoutDraftStorageKey);
+    if (!raw) {
+      this.checkoutDraft = null;
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      this.checkoutDraft = {
+        timestamp: parsed.timestamp || new Date().toISOString(),
+        cartItemCount: Number(parsed.cartItemCount || 0),
+        grandTotal: Number(parsed.grandTotal || 0)
+      };
+    } catch {
+      this.checkoutDraft = null;
+      localStorage.removeItem(this.checkoutDraftStorageKey);
+    }
+  }
+
+  private loadLoyaltyPreview(): void {
+    if (!this.authService.isLoggedIn()) {
+      this.loyaltyPointsAvailable = 0;
+      return;
+    }
+
+    this.loyaltyService.getLoyaltyAccount().subscribe({
+      next: (account) => {
+        this.loyaltyPointsAvailable = account?.currentPoints || 0;
+      },
+      error: () => {
+        this.loyaltyPointsAvailable = 0;
+      }
     });
   }
 }

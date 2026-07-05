@@ -52,6 +52,76 @@ $danger: #ff5252;
   &:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba($primary, .3); }
 }
 
+.recovery-banner {
+  max-width: 1000px;
+  margin: 16px auto 0;
+  padding: 12px 14px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+
+  strong {
+    display: block;
+    color: #3730a3;
+    font-size: .86rem;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: #4338ca;
+    font-size: .8rem;
+  }
+}
+
+.recovery-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-resume,
+.btn-dismiss {
+  border: none;
+  border-radius: 8px;
+  font-size: .74rem;
+  font-weight: 700;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.btn-resume {
+  background: #4338ca;
+  color: #fff;
+}
+
+.btn-dismiss {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.points-preview {
+  display: block;
+  margin-top: 2px;
+  color: #0f766e;
+  font-size: .74rem;
+  font-weight: 600;
+}
+
+.loyalty-summary {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: .82rem;
+  display: grid;
+  gap: 4px;
+}
+
 /* Cart Content - 2 column layout */
 .cart-content {
   max-width: 1000px; margin: 0 auto; padding: 20px 20px 0; margin-top: -20px;
@@ -153,6 +223,7 @@ $danger: #ff5252;
   .hero { padding: 44px 16px 64px; h1 { font-size: 1.7rem; } }
   .cart-content { grid-template-columns: 1fr; margin-top: -16px; }
   .summary-section { position: static; }
+  .recovery-banner { margin: 10px 14px 0; }
   .cart-item { gap: 10px; padding: 14px; }
   .item-image, .item-placeholder { width: 56px; height: 56px; }
 }
@@ -166,6 +237,7 @@ $danger: #ff5252;
     .btn-remove { order: 4; }
   }
   .summary-card { padding: 20px; }
+  .recovery-banner { flex-direction: column; align-items: flex-start; }
   .btn-checkout { padding: 12px; }
 }
 @media (max-width: 360px) {

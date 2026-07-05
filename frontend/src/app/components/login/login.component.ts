@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { OutletService } from '../../services/outlet.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
@@ -23,7 +23,8 @@ export class LoginComponent {
   constructor(
     private authService: AuthService,
     private outletService: OutletService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {}
   private analyticsTracking = inject(AnalyticsTrackingService);
 
@@ -45,21 +46,13 @@ export class LoginComponent {
         this.outletService.initializeOutlets(user?.assignedOutlets).subscribe({
           next: () => {
             this.isLoading = false;
-            if (user?.role === 'admin') {
-              this.router.navigate(['/admin/dashboard']);
-            } else {
-              this.router.navigate(['/menu']);
-            }
+            this.navigateAfterLogin(user?.role);
           },
           error: (outletError) => {
             console.error('Error loading outlets:', outletError);
             // Continue anyway even if outlet loading fails
             this.isLoading = false;
-            if (user?.role === 'admin') {
-              this.router.navigate(['/admin/dashboard']);
-            } else {
-              this.router.navigate(['/menu']);
-            }
+            this.navigateAfterLogin(user?.role);
           }
         });
       },
@@ -71,5 +64,20 @@ export class LoginComponent {
         }, 3000);
       }
     });
+  }
+
+  private navigateAfterLogin(role?: 'admin' | 'user'): void {
+    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+    if (returnUrl && returnUrl.startsWith('/')) {
+      this.router.navigateByUrl(returnUrl);
+      return;
+    }
+
+    if (role === 'admin') {
+      this.router.navigate(['/admin/dashboard']);
+      return;
+    }
+
+    this.router.navigate(['/menu']);
   }
 }

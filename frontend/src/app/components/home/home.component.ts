@@ -1,6 +1,6 @@
 import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { CustomerReviewsComponent } from '../customer-reviews/customer-reviews.component';
@@ -11,6 +11,10 @@ import { HomeContentConfigService, HomeContentConfig } from '../../services/home
 import { LoyaltyService, LoyaltyAccount, Reward } from '../../services/loyalty.service';
 import { OffersService, Offer } from '../../services/offers.service';
 import { AuthService } from '../../services/auth.service';
+import { OrderService, Order, OrderItem } from '../../services/order.service';
+import { CartService } from '../../services/cart.service';
+import { MenuService, MenuItem as ServiceMenuItem } from '../../services/menu.service';
+import { UIStore } from '../../store/ui.store';
 
 declare const L: any;
 
@@ -65,6 +69,8 @@ interface LoyaltyLevelPerk {
   styleUrls: ['./home.component.scss']
 })
 export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
+  private readonly checkoutDraftStorageKey = 'checkout_draft';
+
   @ViewChild('cafeMap', { static: false }) mapElementRef!: ElementRef<HTMLDivElement>;
   latestMenuItems: any[] = [];
   outlets: Outlet[] = [];
@@ -187,6 +193,11 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   currentTestimonialIndex = 0;
   private testimonialIntervalId: ReturnType<typeof setInterval> | null = null;
+  checkoutDraft: { timestamp: string; cartItemCount: number; grandTotal: number } | null = null;
+  lastDeliveredOrder: Order | null = null;
+  loadingLastOrder = false;
+  isReorderingLastOrder = false;
+  private latestMenuMap = new Map<string, ServiceMenuItem>();
 
   private analyticsTracking = inject(AnalyticsTrackingService);
 
@@ -196,7 +207,12 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     private homeContentConfigService: HomeContentConfigService,
     private loyaltyService: LoyaltyService,
     private offersService: OffersService,
-    private authService: AuthService
+    private authService: AuthService,
+    private orderService: OrderService,
+    private cartService: CartService,
+    private menuService: MenuService,
+    private uiStore: UIStore,
+    private router: Router
   ) {}
 
   ngOnInit() {
@@ -209,6 +225,12 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadPublicStats();
     this.loadOffersHighlights();
     this.loadLoyaltyHighlights();
+    this.loadCheckoutDraft();
+
+    if (this.isLoggedIn) {
+      this.loadLatestMenuSnapshot();
+      this.loadLastDeliveredOrder();
+    }
   }
 
   get isLoggedIn(): boolean {
@@ -217,6 +239,144 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   get loyaltyPerks(): string[] {
     return this.loyaltyAccount?.tierBenefits || [];
+  }
+
+  get checkoutDraftAgeMinutes(): number {
+    if (!this.checkoutDraft?.timestamp) return 0;
+    const ts = new Date(this.checkoutDraft.timestamp).getTime();
+    if (Number.isNaN(ts)) return 0;
+    return Math.max(0, Math.floor((Date.now() - ts) / 60000));
+  }
+
+  resumeCheckoutFromDraft(): void {
+    this.router.navigate(['/checkout']);
+  }
+
+  dismissCheckoutDraft(): void {
+    this.checkoutDraft = null;
+    localStorage.removeItem(this.checkoutDraftStorageKey);
+  }
+
+  reorderLastOrder(): void {
+    if (!this.lastDeliveredOrder || this.isReorderingLastOrder) return;
+
+    this.isReorderingLastOrder = true;
+
+    let added = 0;
+    let substituted = 0;
+    let skipped = 0;
+
+    for (const item of this.lastDeliveredOrder.items || []) {
+      const resolved = this.resolveReorderItem(item);
+      if (!resolved) {
+        skipped += 1;
+        continue;
+      }
+
+      if (resolved.substituted) {
+        substituted += 1;
+      }
+
+      this.cartService.addItem({
+        menuItemId: resolved.menuItem.id,
+        name: resolved.menuItem.name,
+        description: resolved.menuItem.description,
+        categoryName: resolved.menuItem.categoryName || item.categoryName,
+        price: this.getMenuPrice(resolved.menuItem, item.price),
+        imageUrl: resolved.menuItem.imageUrl,
+        packagingCharge: resolved.menuItem.packagingCharge || 0
+      }, item.quantity || 1);
+
+      added += 1;
+    }
+
+    this.isReorderingLastOrder = false;
+
+    if (added === 0) {
+      this.uiStore.warning('No available items found for your last order.');
+      return;
+    }
+
+    const parts: string[] = [`${added} item(s) added`];
+    if (substituted > 0) parts.push(`${substituted} substituted`);
+    if (skipped > 0) parts.push(`${skipped} skipped`);
+    this.uiStore.success(`Reorder ready: ${parts.join(', ')}.`);
+    this.router.navigate(['/cart']);
+  }
+
+  private loadCheckoutDraft(): void {
+    const raw = localStorage.getItem(this.checkoutDraftStorageKey);
+    if (!raw) {
+      this.checkoutDraft = null;
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      this.checkoutDraft = {
+        timestamp: parsed.timestamp || new Date().toISOString(),
+        cartItemCount: Number(parsed.cartItemCount || 0),
+        grandTotal: Number(parsed.grandTotal || 0)
+      };
+    } catch {
+      this.checkoutDraft = null;
+      localStorage.removeItem(this.checkoutDraftStorageKey);
+    }
+  }
+
+  private loadLastDeliveredOrder(): void {
+    this.loadingLastOrder = true;
+    this.orderService.getMyOrders().subscribe({
+      next: (orders) => {
+        this.lastDeliveredOrder = [...(orders || [])]
+          .filter(o => o.status === 'delivered' && (o.items?.length || 0) > 0)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
+        this.loadingLastOrder = false;
+      },
+      error: () => {
+        this.lastDeliveredOrder = null;
+        this.loadingLastOrder = false;
+      }
+    });
+  }
+
+  private loadLatestMenuSnapshot(): void {
+    this.menuService.getMenuItems().subscribe({
+      next: (items) => {
+        this.latestMenuMap = new Map((items || []).map(item => [item.id, item]));
+      },
+      error: () => {
+        this.latestMenuMap = new Map();
+      }
+    });
+  }
+
+  private resolveReorderItem(orderItem: OrderItem): { menuItem: ServiceMenuItem; substituted: boolean } | null {
+    const direct = this.latestMenuMap.get(orderItem.menuItemId);
+    if (direct && direct.isAvailable !== false) {
+      return { menuItem: direct, substituted: false };
+    }
+
+    const availableItems = [...this.latestMenuMap.values()].filter(m => m.isAvailable !== false);
+    if (!availableItems.length) return null;
+
+    const sameCategory = availableItems.find(m =>
+      !!orderItem.categoryId && !!m.categoryId && m.categoryId === orderItem.categoryId
+    );
+    if (sameCategory) return { menuItem: sameCategory, substituted: true };
+
+    const seed = (orderItem.name || '').trim().toLowerCase();
+    const seedWord = seed.split(' ').find(Boolean) || '';
+    if (seedWord) {
+      const similar = availableItems.find(m => (m.name || '').toLowerCase().includes(seedWord));
+      if (similar) return { menuItem: similar, substituted: true };
+    }
+
+    return { menuItem: availableItems[0], substituted: true };
+  }
+
+  private getMenuPrice(menuItem: ServiceMenuItem, fallback: number): number {
+    return menuItem.webPrice || menuItem.shopSellingPrice || menuItem.onlinePrice || fallback || 0;
   }
 
   private loadLoyaltyHighlights() {

@@ -76,6 +76,22 @@ export interface CreateOrderRequest {
   deliveryFee?: number;
   walletAmountUsed?: number;
   tableNumber?: string;
+  outletId?: string;
+}
+
+export interface OutletSuggestion {
+  outletId: string;
+  outletName: string;
+  outletCode: string;
+  address: string;
+  city: string;
+  state: string;
+  rating: number;
+  estimatedEtaMinutes: number;
+  estimatedDistanceKm: number;
+  estimatedDeliveryFee: number;
+  score: number;
+  reasons: string[];
 }
 
 export interface UpdateOrderStatusRequest {
@@ -295,6 +311,20 @@ export class OrderService {
   getOrderIssues(orderId: string): Observable<OrderIssue[]> {
     return this.http.get<OrderIssue[]>(`${this.apiUrl}/orders/${orderId}/issues`).pipe(
       catchError(handleServiceError('OrderService.getOrderIssues'))
+    );
+  }
+
+  getOutletSuggestions(orderType: 'delivery' | 'pickup' | 'dine-in', deliveryAddress?: string, subtotal?: number): Observable<OutletSuggestion[]> {
+    let params = new HttpParams().set('orderType', orderType);
+    if (deliveryAddress?.trim()) {
+      params = params.set('deliveryAddress', deliveryAddress.trim());
+    }
+    if (typeof subtotal === 'number' && !Number.isNaN(subtotal)) {
+      params = params.set('subtotal', String(subtotal));
+    }
+
+    return this.http.get<OutletSuggestion[]>(`${this.apiUrl}/order-outlet-suggestions`, { params }).pipe(
+      catchError(handleServiceError('OrderService.getOutletSuggestions'))
     );
   }
 

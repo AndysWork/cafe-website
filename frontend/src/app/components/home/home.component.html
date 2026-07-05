@@ -41,6 +41,38 @@
     </div>
   </section>
 
+  <section class="recovery-strip" *ngIf="checkoutDraft">
+    <div class="recovery-content">
+      <div>
+        <strong>Resume your checkout</strong>
+        <p>
+          {{ checkoutDraft.cartItemCount }} item(s), ₹{{ checkoutDraft.grandTotal }}
+          <span *ngIf="checkoutDraftAgeMinutes > 0">saved {{ checkoutDraftAgeMinutes }} min ago</span>
+        </p>
+      </div>
+      <div class="recovery-actions">
+        <button class="btn-resume" (click)="resumeCheckoutFromDraft()">Resume</button>
+        <button class="btn-dismiss" (click)="dismissCheckoutDraft()">Dismiss</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="quick-reorder" *ngIf="isLoggedIn">
+    <div class="quick-reorder-card">
+      <div>
+        <h3>🔁 Reorder Last Order</h3>
+        <p *ngIf="loadingLastOrder">Checking your latest delivered order...</p>
+        <p *ngIf="!loadingLastOrder && !lastDeliveredOrder">No delivered order found yet.</p>
+        <p *ngIf="!loadingLastOrder && lastDeliveredOrder">
+          {{ lastDeliveredOrder.items.length }} item(s) from {{ lastDeliveredOrder.createdAt | date:'mediumDate' }}
+        </p>
+      </div>
+      <button class="btn-reorder-now" *ngIf="lastDeliveredOrder" (click)="reorderLastOrder()" [disabled]="isReorderingLastOrder">
+        {{ isReorderingLastOrder ? 'Adding...' : 'Reorder Now' }}
+      </button>
+    </div>
+  </section>
+
   <section class="announcement-section" *ngIf="announcementEnabled && (announcementTitle || announcementMessage)">
     <div class="announcement-card">
       <div class="announcement-icon">📢</div>

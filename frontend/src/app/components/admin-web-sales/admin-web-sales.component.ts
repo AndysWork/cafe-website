@@ -241,6 +241,24 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return order.items.length > 2 ? `${preview}...` : preview;
   }
 
+  formatStatusLabel(status: string): string {
+    if (!status) return '-';
+    return status
+      .split('-')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  getPartnerDisplayName(partnerId?: string, fallbackName?: string): string {
+    if (partnerId) {
+      const partner = this.partners.find(p => p.id === partnerId);
+      if (partner?.name) {
+        return partner.name;
+      }
+    }
+    return fallbackName || 'Unassigned';
+  }
+
   formatCurrency(value: number): string {
     return `₹${(value || 0).toFixed(2)}`;
   }

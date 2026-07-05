@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CartService, Cart } from '../../services/cart.service';
-import { OrderService, CreateOrderRequest } from '../../services/order.service';
+import { OrderService, CreateOrderRequest, OutletSuggestion } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
 import { AddressService, DeliveryAddress, AddAddressRequest, UpdateAddressRequest } from '../../services/address.service';
 import { AuthService } from '../../services/auth.service';
@@ -11,6 +11,8 @@ import { OffersService, OfferValidationResponse } from '../../services/offers.se
 import { LoyaltyService, LoyaltyAccount } from '../../services/loyalty.service';
 import { WalletService, WalletResponse } from '../../services/wallet.service';
 import { DeliveryZoneService } from '../../services/delivery-zone.service';
+import { OutletService } from '../../services/outlet.service';
+import { Outlet } from '../../models/outlet.model';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { getIstInputDate } from '../../utils/date-utils';
@@ -24,6 +26,9 @@ import QRCode from 'qrcode';
   styleUrls: ['./checkout.component.scss']
 })
 export class CheckoutComponent implements OnInit, OnDestroy {
+  private readonly checkoutDraftStorageKey = 'checkout_draft';
+  private readonly pendingPaymentStorageKey = 'pending_payment_recovery';
+
   cart: Cart = {
     items: [],
     subtotal: 0,
@@ -57,7 +62,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   isSubmitting = false;
   errorMessage = '';
+  attemptedSubmit = false;
+  showReviewStep = false;
   private cartSub?: Subscription;
+  private deliveryAddressDebounce?: ReturnType<typeof setTimeout>;
 
   // Coupon state
   couponCode = '';
@@ -89,6 +97,19 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   // Delivery fee
   deliveryFee = 0;
   calculatingFee = false;
+  deliveryEtaMinutes: number | null = null;
+  deliveryZoneName = '';
+  feeConfidence: 'high' | 'medium' | 'low' | null = null;
+  outOfZoneDetected = false;
+  outOfZoneMessage = '';
+  suggestedOutlets: OutletSuggestion[] = [];
+
+  // Pending payment recovery
+  pendingPaymentRecovery: {
+    amount: number;
+    reason: string;
+    timestamp: string;
+  } | null = null;
 
   // Wallet
   walletData: WalletResponse | null = null;
@@ -129,17 +150,28 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     private loyaltyService: LoyaltyService,
     private walletService: WalletService,
     private deliveryZoneService: DeliveryZoneService,
+    private outletService: OutletService,
     private uiStore: UIStore,
     private router: Router
   ) {}
 
   ngOnInit() {
     this.loadUpiRuntimeConfig();
+    this.loadPendingPaymentRecovery();
+    this.loadCheckoutDraft();
+    this.refreshOutletSuggestions();
 
     this.cartSub = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
       if (cart.items.length === 0) {
         this.router.navigate(['/cart']);
+      }
+
+      this.recomputeCheckoutAdjustments();
+      this.saveCheckoutDraft();
+
+      if (this.orderType === 'delivery' && this.deliveryAddress.trim()) {
+        this.calculateDeliveryFee();
       }
 
       if (this.paymentMethod === 'upi-qr') {
@@ -158,7 +190,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
             this.selectSavedAddress(defaultAddr.id);
           }
         },
-        error: () => {} // silently fail
+        error: () => {
+          this.uiStore.warning('Could not load saved addresses. You can still add a new address.');
+        }
       });
 
       // Load loyalty account
@@ -172,14 +206,57 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
       // Load wallet
       this.walletService.getMyWallet().subscribe({
-        next: (data) => this.walletData = data,
-        error: () => {}
+        next: (data) => {
+          this.walletData = data;
+          this.recomputeCheckoutAdjustments();
+        },
+        error: () => {
+          this.walletData = null;
+          this.uiStore.notify('Wallet balance is unavailable right now.');
+        }
       });
     }
   }
 
   ngOnDestroy() {
     this.cartSub?.unsubscribe();
+    if (this.deliveryAddressDebounce) {
+      clearTimeout(this.deliveryAddressDebounce);
+    }
+  }
+
+  get deliveryAddressError(): string {
+    if (this.orderType !== 'delivery' || !this.attemptedSubmit) return '';
+    return !this.deliveryAddress.trim() ? 'Delivery address is required for delivery orders.' : '';
+  }
+
+  get phoneError(): string {
+    if (!this.attemptedSubmit) return '';
+    const normalizedPhone = this.phoneNumber.trim().replace(/\s/g, '');
+    const phoneRegex = /^[0-9]{10}$/;
+
+    if (this.orderType === 'delivery') {
+      if (!normalizedPhone) return 'Phone number is required for delivery.';
+      if (!phoneRegex.test(normalizedPhone)) return 'Enter a valid 10-digit phone number.';
+      return '';
+    }
+
+    if (normalizedPhone && !phoneRegex.test(normalizedPhone)) {
+      return 'Enter a valid 10-digit phone number.';
+    }
+
+    return '';
+  }
+
+  get tableNumberError(): string {
+    if (!this.attemptedSubmit || this.orderType !== 'dine-in') return '';
+    return !this.tableNumber.trim() ? 'Table number is required for dine-in orders.' : '';
+  }
+
+  get saveAddressLabelError(): string {
+    if (!this.attemptedSubmit || this.orderType !== 'delivery') return '';
+    if (!this.showNewAddressForm || !this.saveNewAddress) return '';
+    return !this.newAddressLabel.trim() ? 'Add a label to save this address.' : '';
   }
 
   selectSavedAddress(addressId: string): void {
@@ -190,6 +267,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     if (addr) {
       this.deliveryAddress = addr.fullAddress;
       this.phoneNumber = addr.collectorPhone;
+      if (this.orderType === 'delivery') {
+        this.calculateDeliveryFee();
+      }
     }
   }
 
@@ -199,6 +279,55 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.editingAddressId = null;
     this.deliveryAddress = '';
     this.phoneNumber = '';
+    this.deliveryFee = 0;
+    this.deliveryEtaMinutes = null;
+    this.deliveryZoneName = '';
+    this.feeConfidence = null;
+    this.outOfZoneDetected = false;
+    this.outOfZoneMessage = '';
+    this.recomputeCheckoutAdjustments();
+    this.saveCheckoutDraft();
+    if (this.paymentMethod === 'upi-qr') {
+      this.refreshUpiQrCode();
+    }
+  }
+
+  onDeliveryAddressInputChange(): void {
+    if (this.orderType !== 'delivery') return;
+    if (this.deliveryAddressDebounce) {
+      clearTimeout(this.deliveryAddressDebounce);
+    }
+    this.deliveryAddressDebounce = setTimeout(() => {
+      this.calculateDeliveryFee();
+      this.refreshOutletSuggestions();
+      this.saveCheckoutDraft();
+    }, 350);
+  }
+
+  onInlineFieldChange(): void {
+    this.saveCheckoutDraft();
+  }
+
+  onCheckoutSubmit(): void {
+    this.attemptedSubmit = true;
+    this.errorMessage = '';
+
+    const validationError = this.getValidationError();
+    if (validationError) {
+      this.errorMessage = validationError;
+      return;
+    }
+
+    this.showReviewStep = true;
+  }
+
+  cancelReviewStep(): void {
+    this.showReviewStep = false;
+  }
+
+  confirmAndPlaceOrder(): void {
+    this.showReviewStep = false;
+    this.placeOrder();
   }
 
   startEditAddress(address: DeliveryAddress, event: Event): void {
@@ -264,43 +393,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   placeOrder() {
-    const normalizedPhone = this.phoneNumber.trim().replace(/\s/g, '');
-    const phoneRegex = /^[0-9]{10}$/;
-
-    // Delivery requires both address and phone.
-    if (this.orderType === 'delivery') {
-      if (!this.deliveryAddress.trim()) {
-        this.errorMessage = 'Please enter a delivery address';
-        return;
-      }
-
-      if (!normalizedPhone) {
-        this.errorMessage = 'Please enter a phone number';
-        return;
-      }
-
-      if (!phoneRegex.test(normalizedPhone)) {
-        this.errorMessage = 'Please enter a valid 10-digit phone number';
-        return;
-      }
-    } else {
-      // Non-delivery orders can proceed without address.
-      this.deliveryAddress = '';
-
-      if (normalizedPhone && !phoneRegex.test(normalizedPhone)) {
-        this.errorMessage = 'Please enter a valid 10-digit phone number';
-        return;
-      }
-    }
-
-    if (this.orderType === 'dine-in' && !this.tableNumber.trim()) {
-      this.errorMessage = 'Please enter your table number';
-      return;
-    }
-
-    // Validate schedule if enabled
-    if (!this.validateSchedule()) {
-      this.errorMessage = this.scheduleValidationError;
+    const validationError = this.getValidationError();
+    if (validationError) {
+      this.errorMessage = validationError;
       return;
     }
 
@@ -328,6 +423,43 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  private getValidationError(): string {
+    const normalizedPhone = this.phoneNumber.trim().replace(/\s/g, '');
+    const phoneRegex = /^[0-9]{10}$/;
+
+    if (this.orderType === 'delivery') {
+      if (!this.deliveryAddress.trim()) {
+        return 'Please enter a delivery address';
+      }
+
+      if (!normalizedPhone) {
+        return 'Please enter a phone number';
+      }
+
+      if (!phoneRegex.test(normalizedPhone)) {
+        return 'Please enter a valid 10-digit phone number';
+      }
+    } else {
+      if (normalizedPhone && !phoneRegex.test(normalizedPhone)) {
+        return 'Please enter a valid 10-digit phone number';
+      }
+    }
+
+    if (this.orderType === 'dine-in' && !this.tableNumber.trim()) {
+      return 'Please enter your table number';
+    }
+
+    if (this.orderType === 'delivery' && this.showNewAddressForm && this.saveNewAddress && !this.newAddressLabel.trim()) {
+      return 'Please add an address label before saving this address';
+    }
+
+    if (!this.validateSchedule()) {
+      return this.scheduleValidationError;
+    }
+
+    return '';
+  }
+
   // Coupon methods
   applyCoupon() {
     if (!this.couponCode.trim()) return;
@@ -350,12 +482,25 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           this.couponDiscount = 0;
           this.couponMessage = res.message || 'Invalid coupon code';
         }
+
+        this.recomputeCheckoutAdjustments();
+        this.saveCheckoutDraft();
+
+        if (this.paymentMethod === 'upi-qr') {
+          this.refreshUpiQrCode();
+        }
       },
       error: () => {
         this.validatingCoupon = false;
         this.couponValid = false;
         this.couponDiscount = 0;
         this.couponMessage = 'Failed to validate coupon';
+        this.recomputeCheckoutAdjustments();
+        this.saveCheckoutDraft();
+
+        if (this.paymentMethod === 'upi-qr') {
+          this.refreshUpiQrCode();
+        }
       }
     });
   }
@@ -366,6 +511,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.couponMessage = '';
     this.couponValid = false;
     this.appliedCouponOfferId = '';
+    this.recomputeCheckoutAdjustments();
+    this.saveCheckoutDraft();
 
     if (this.paymentMethod === 'upi-qr') {
       this.refreshUpiQrCode();
@@ -376,15 +523,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   toggleLoyaltyPoints() {
     this.useLoyaltyPoints = !this.useLoyaltyPoints;
     if (this.useLoyaltyPoints && this.loyaltyAccount) {
-      // Max points: use all available, capped so discount doesn't exceed (subtotal + tax - couponDiscount)
-      const maxDiscount = this.cart.subtotal + this.taxAmount - this.couponDiscount;
-      const maxPointsByBalance = this.loyaltyAccount.currentPoints;
-      const maxPointsByTotal = Math.floor(maxDiscount / 0.25);
-      this.loyaltyPointsToUse = Math.min(maxPointsByBalance, maxPointsByTotal);
-      this.maxLoyaltyDiscount = this.loyaltyPointsToUse * 0.25;
+      this.loyaltyPointsToUse = this.loyaltyAccount.currentPoints;
     } else {
       this.loyaltyPointsToUse = 0;
     }
+
+    this.recomputeCheckoutAdjustments();
+    this.saveCheckoutDraft();
 
     if (this.paymentMethod === 'upi-qr') {
       this.refreshUpiQrCode();
@@ -426,17 +571,20 @@ export class CheckoutComponent implements OnInit, OnDestroy {
             },
             error: (error) => {
               console.error('Payment verification failed:', error);
+              this.savePendingPaymentRecovery('Payment verification failed. Please retry payment.');
               this.errorMessage = 'Payment verification failed. Your payment will be refunded if charged.';
               this.isSubmitting = false;
             }
           });
         }).catch((error) => {
+          this.savePendingPaymentRecovery(error?.message || 'Payment was cancelled or failed.');
           this.errorMessage = error.message || 'Payment was cancelled or failed';
           this.isSubmitting = false;
         });
       },
       error: (error) => {
         console.error('Error creating payment order:', error);
+        this.savePendingPaymentRecovery('Could not initiate online payment. Please retry.');
         this.errorMessage = 'Failed to initiate payment. Please try again.';
         this.isSubmitting = false;
       }
@@ -469,12 +617,16 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       scheduledFor: this.getScheduledDateTime(),
       deliveryFee: this.orderType === 'delivery' ? this.deliveryFee : undefined,
       walletAmountUsed: this.useWallet ? this.walletAmountToUse : undefined,
-      tableNumber: this.orderType === 'dine-in' && this.tableNumber.trim() ? this.tableNumber.trim() : undefined
+      tableNumber: this.orderType === 'dine-in' && this.tableNumber.trim() ? this.tableNumber.trim() : undefined,
+      outletId: this.outletService.getSelectedOutletId() || undefined
     };
 
     // Submit order
     this.orderService.createOrder(orderRequest).subscribe({
       next: (order) => {
+        this.clearPendingPaymentRecovery();
+        this.clearCheckoutDraft();
+
         // Save new address if requested
         if (this.showNewAddressForm && this.saveNewAddress && this.newAddressLabel.trim()) {
           const newAddr: AddAddressRequest = {
@@ -485,7 +637,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           };
           this.addressService.addAddress(newAddr).subscribe({
             next: () => this.uiStore.success('Address saved for future orders'),
-            error: () => {} // silently fail
+            error: () => this.uiStore.warning('Order placed, but address could not be saved.')
           });
         }
 
@@ -506,7 +658,17 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.calculateDeliveryFee();
     } else {
       this.deliveryFee = 0;
+      this.deliveryEtaMinutes = null;
+      this.deliveryZoneName = '';
+      this.feeConfidence = null;
+      this.outOfZoneDetected = false;
+      this.outOfZoneMessage = '';
+      this.recomputeCheckoutAdjustments();
     }
+
+    this.refreshOutletSuggestions();
+
+    this.saveCheckoutDraft();
 
     if (this.paymentMethod === 'upi-qr') {
       this.refreshUpiQrCode();
@@ -516,13 +678,27 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   calculateDeliveryFee() {
     if (this.orderType !== 'delivery' || !this.deliveryAddress.trim()) {
       this.deliveryFee = 0;
+      this.deliveryEtaMinutes = null;
+      this.deliveryZoneName = '';
+      this.feeConfidence = null;
+      this.outOfZoneDetected = false;
+      this.outOfZoneMessage = '';
+      this.suggestedOutlets = [];
       return;
     }
     this.calculatingFee = true;
     this.deliveryZoneService.calculateDeliveryFee(this.cart.subtotal).subscribe({
       next: (res: any) => {
         this.deliveryFee = res.deliveryFee || 0;
+        this.deliveryEtaMinutes = typeof res.estimatedMinutes === 'number' ? res.estimatedMinutes : null;
+        this.deliveryZoneName = res.zone || '';
+        this.outOfZoneDetected = false;
+        this.outOfZoneMessage = '';
+        this.feeConfidence = this.getFeeConfidence(res.deliveryFee || 0, res.freeDeliveryAbove || 0);
+        this.refreshOutletSuggestions();
         this.calculatingFee = false;
+        this.recomputeCheckoutAdjustments();
+        this.saveCheckoutDraft();
 
         if (this.paymentMethod === 'upi-qr') {
           this.refreshUpiQrCode();
@@ -530,7 +706,15 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.deliveryFee = 0;
+        this.deliveryEtaMinutes = null;
+        this.deliveryZoneName = '';
+        this.feeConfidence = null;
+        this.outOfZoneDetected = true;
+        this.outOfZoneMessage = 'Delivery could not be validated for this address yet. Please review nearest outlets or choose pickup.';
+        this.refreshOutletSuggestions();
         this.calculatingFee = false;
+        this.recomputeCheckoutAdjustments();
+        this.saveCheckoutDraft();
 
         if (this.paymentMethod === 'upi-qr') {
           this.refreshUpiQrCode();
@@ -541,12 +725,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   toggleWallet() {
     this.useWallet = !this.useWallet;
-    if (this.useWallet && this.walletData) {
-      const totalBeforeWallet = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount + this.deliveryFee - this.couponDiscount - this.loyaltyDiscount;
-      this.walletAmountToUse = Math.min(this.walletData.balance, Math.max(0, totalBeforeWallet));
-    } else {
-      this.walletAmountToUse = 0;
-    }
+    this.recomputeCheckoutAdjustments();
+    this.saveCheckoutDraft();
 
     if (this.paymentMethod === 'upi-qr') {
       this.refreshUpiQrCode();
@@ -561,6 +741,182 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.upiPaymentConfirmed = false;
       this.refreshUpiQrCode();
     }
+
+    this.saveCheckoutDraft();
+  }
+
+  retryPendingPayment(): void {
+    this.errorMessage = '';
+    this.showReviewStep = false;
+    this.attemptedSubmit = true;
+
+    const validationError = this.getValidationError();
+    if (validationError) {
+      this.errorMessage = validationError;
+      return;
+    }
+
+    this.paymentMethod = 'razorpay';
+    this.isSubmitting = true;
+    this.processRazorpayPayment();
+  }
+
+  private recomputeCheckoutAdjustments(): void {
+    if (this.useLoyaltyPoints && this.loyaltyAccount) {
+      const maxDiscount = Math.max(0, this.cart.subtotal + this.taxAmount - this.couponDiscount);
+      const maxPointsByTotal = Math.floor(maxDiscount / 0.25);
+      const maxPointsAllowed = Math.min(this.loyaltyAccount.currentPoints, Math.max(0, maxPointsByTotal));
+
+      this.loyaltyPointsToUse = Math.min(this.loyaltyPointsToUse || maxPointsAllowed, maxPointsAllowed);
+      this.maxLoyaltyDiscount = Math.round(this.loyaltyPointsToUse * 0.25 * 100) / 100;
+    } else {
+      this.loyaltyPointsToUse = 0;
+      this.maxLoyaltyDiscount = 0;
+    }
+
+    if (this.useWallet && this.walletData) {
+      const totalBeforeWallet = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount + this.deliveryFee - this.couponDiscount - this.loyaltyDiscount;
+      this.walletAmountToUse = Math.min(this.walletData.balance, Math.max(0, Math.round(totalBeforeWallet * 100) / 100));
+    } else {
+      this.walletAmountToUse = 0;
+    }
+  }
+
+  private getFeeConfidence(deliveryFee: number, freeDeliveryAbove: number): 'high' | 'medium' | 'low' {
+    if (deliveryFee <= 0) return 'high';
+    if (freeDeliveryAbove > 0 && this.cart.subtotal >= freeDeliveryAbove * 0.8) return 'medium';
+    return 'low';
+  }
+
+  selectSuggestedOutlet(suggestion: OutletSuggestion): void {
+    const outlet: Outlet = {
+      id: suggestion.outletId,
+      outletCode: suggestion.outletCode,
+      outletName: suggestion.outletName,
+      address: suggestion.address,
+      city: suggestion.city,
+      state: suggestion.state,
+      isActive: true,
+      settings: {
+        openingTime: '08:00',
+        closingTime: '22:00',
+        acceptsOnlineOrders: true,
+        acceptsDineIn: true,
+        acceptsTakeaway: true,
+        taxPercentage: 5
+      }
+    };
+
+    this.outletService.selectOutlet(outlet);
+    this.outOfZoneDetected = false;
+    this.outOfZoneMessage = `Selected ${suggestion.outletName}. Delivery details are being recalculated.`;
+    this.calculateDeliveryFee();
+    this.saveCheckoutDraft();
+  }
+
+  private refreshOutletSuggestions(): void {
+    this.orderService.getOutletSuggestions(this.orderType, this.deliveryAddress, this.cart.subtotal).subscribe({
+      next: (suggestions) => {
+        this.suggestedOutlets = suggestions || [];
+      },
+      error: () => {
+        this.suggestedOutlets = [];
+      }
+    });
+  }
+
+  private savePendingPaymentRecovery(reason: string): void {
+    const snapshot = {
+      amount: this.grandTotal,
+      reason,
+      timestamp: new Date().toISOString()
+    };
+    this.pendingPaymentRecovery = snapshot;
+    localStorage.setItem(this.pendingPaymentStorageKey, JSON.stringify(snapshot));
+  }
+
+  private loadPendingPaymentRecovery(): void {
+    const raw = localStorage.getItem(this.pendingPaymentStorageKey);
+    if (!raw) return;
+    try {
+      this.pendingPaymentRecovery = JSON.parse(raw);
+    } catch {
+      this.pendingPaymentRecovery = null;
+      localStorage.removeItem(this.pendingPaymentStorageKey);
+    }
+  }
+
+  private clearPendingPaymentRecovery(): void {
+    this.pendingPaymentRecovery = null;
+    localStorage.removeItem(this.pendingPaymentStorageKey);
+  }
+
+  private saveCheckoutDraft(): void {
+    if (!this.cart.items.length) {
+      this.clearCheckoutDraft();
+      return;
+    }
+
+    const draft = {
+      deliveryAddress: this.deliveryAddress,
+      phoneNumber: this.phoneNumber,
+      notes: this.notes,
+      orderType: this.orderType,
+      tableNumber: this.tableNumber,
+      scheduleOrder: this.scheduleOrder,
+      scheduledDate: this.scheduledDate,
+      scheduledTime: this.scheduledTime,
+      selectedAddressId: this.selectedAddressId,
+      showNewAddressForm: this.showNewAddressForm,
+      saveNewAddress: this.saveNewAddress,
+      newAddressLabel: this.newAddressLabel,
+      couponCode: this.couponCode,
+      couponDiscount: this.couponDiscount,
+      couponValid: this.couponValid,
+      useLoyaltyPoints: this.useLoyaltyPoints,
+      useWallet: this.useWallet,
+      walletAmountToUse: this.walletAmountToUse,
+      paymentMethod: this.paymentMethod,
+      cartItemCount: this.cart.itemCount,
+      timestamp: new Date().toISOString(),
+      grandTotal: this.grandTotal
+    };
+
+    localStorage.setItem(this.checkoutDraftStorageKey, JSON.stringify(draft));
+  }
+
+  private loadCheckoutDraft(): void {
+    const raw = localStorage.getItem(this.checkoutDraftStorageKey);
+    if (!raw) return;
+
+    try {
+      const draft = JSON.parse(raw);
+      this.deliveryAddress = draft.deliveryAddress || '';
+      this.phoneNumber = draft.phoneNumber || '';
+      this.notes = draft.notes || '';
+      this.orderType = draft.orderType || 'delivery';
+      this.tableNumber = draft.tableNumber || '';
+      this.scheduleOrder = !!draft.scheduleOrder;
+      this.scheduledDate = draft.scheduledDate || '';
+      this.scheduledTime = draft.scheduledTime || '';
+      this.selectedAddressId = draft.selectedAddressId || null;
+      this.showNewAddressForm = !!draft.showNewAddressForm;
+      this.saveNewAddress = !!draft.saveNewAddress;
+      this.newAddressLabel = draft.newAddressLabel || '';
+      this.couponCode = draft.couponCode || '';
+      this.couponDiscount = Number(draft.couponDiscount || 0);
+      this.couponValid = !!draft.couponValid;
+      this.useLoyaltyPoints = !!draft.useLoyaltyPoints;
+      this.useWallet = !!draft.useWallet;
+      this.walletAmountToUse = Number(draft.walletAmountToUse || 0);
+      this.paymentMethod = draft.paymentMethod || 'cod';
+    } catch {
+      this.clearCheckoutDraft();
+    }
+  }
+
+  private clearCheckoutDraft(): void {
+    localStorage.removeItem(this.checkoutDraftStorageKey);
   }
 
   private async refreshUpiQrCode() {

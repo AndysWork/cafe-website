@@ -116,6 +116,55 @@ $radius-full: 9999px;
   padding: 0 1rem 3rem;
 }
 
+.payment-recovery-banner {
+  margin-top: 1rem;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+
+  strong {
+    color: #9a3412;
+    font-size: 0.88rem;
+    display: block;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: #c2410c;
+    font-size: 0.8rem;
+  }
+}
+
+.banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-retry-payment,
+.btn-dismiss-payment {
+  border: none;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.btn-retry-payment {
+  background: #ea580c;
+  color: #fff;
+}
+
+.btn-dismiss-payment {
+  background: #e2e8f0;
+  color: #334155;
+}
+
 .quick-reorder-section {
   margin-top: 1.1rem;
   background: white;
