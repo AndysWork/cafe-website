@@ -23,12 +23,14 @@ public class KitchenDisplayFunction
 
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
+    private readonly NotificationService _notificationService;
     private readonly ILogger _log;
 
-    public KitchenDisplayFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public KitchenDisplayFunction(MongoService mongo, AuthService auth, NotificationService notificationService, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
+        _notificationService = notificationService;
         _log = loggerFactory.CreateLogger<KitchenDisplayFunction>();
     }
 
@@ -121,12 +123,19 @@ public class KitchenDisplayFunction
                 return badReq;
             }
 
-            var validStatuses = new[] { "preparing", "ready", "out-for-delivery", "delivered" };
+            var validStatuses = new[] { "preparing", "ready", "delivered" };
             var requestedStatus = request.Status.ToLowerInvariant();
             if (!validStatuses.Contains(requestedStatus))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = $"Status must be one of: {string.Join(", ", validStatuses)}" });
+                return badReq;
+            }
+
+            if (requestedStatus == "out-for-delivery")
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Delivery partner pickup is required before out-for-delivery" });
                 return badReq;
             }
 
@@ -213,6 +222,20 @@ public class KitchenDisplayFunction
                 order.KitchenPrepStartedAt ??= order.CreatedAt;
                 order.KitchenReadyAt = MongoService.GetIstNow();
                 order.KptMinutes = Math.Round((decimal)(order.KitchenReadyAt.Value - order.KitchenPrepStartedAt.Value).TotalMinutes, 2);
+
+                if (!string.IsNullOrWhiteSpace(order.DeliveryPartnerId))
+                {
+                    var partner = await _mongo.GetDeliveryPartnerByIdAsync(order.DeliveryPartnerId);
+                    if (!string.IsNullOrWhiteSpace(partner?.UserId))
+                    {
+                        var shortOrderId = order.Id?.Length >= 6 ? order.Id[^6..] : order.Id;
+                        await _notificationService.SendSystemNotificationAsync(
+                            partner.UserId,
+                            "Order Ready for Pickup",
+                            $"Order #{shortOrderId} is ready. Please pick up and start delivery.",
+                            actionUrl: "/partner/delivery");
+                    }
+                }
             }
 
             if (requestedStatus == "delivered" && !string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))

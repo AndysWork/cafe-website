@@ -28,6 +28,7 @@ public class OrderFunction
     private readonly IOperationsRepository _operationsRepo;
     private readonly MongoService _mongo;  // retained for OutletHelper compatibility and static helpers
     private readonly AuthService _auth;
+    private readonly NotificationService _notificationService;
     private readonly ILogger _log;
     private readonly EventLogService _eventLog;
     private readonly OutboxService _outbox;
@@ -41,6 +42,7 @@ public class OrderFunction
         IOperationsRepository operationsRepo,
         MongoService mongo,
         AuthService auth,
+        NotificationService notificationService,
         EventLogService eventLog,
         OutboxService outbox,
         ILoggerFactory loggerFactory)
@@ -53,6 +55,7 @@ public class OrderFunction
         _operationsRepo = operationsRepo;
         _mongo = mongo;
         _auth = auth;
+        _notificationService = notificationService;
         _eventLog = eventLog;
         _outbox = outbox;
         _log = loggerFactory.CreateLogger<OrderFunction>();
@@ -1119,10 +1122,10 @@ public class OrderFunction
                 return paymentRequired;
             }
 
-            if (nextStatus == "out-for-delivery" && oldOrder.OrderType == "delivery" && string.IsNullOrWhiteSpace(oldOrder.DeliveryPartnerId))
+            if (nextStatus == "out-for-delivery" && oldOrder.OrderType == "delivery")
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Assign delivery partner before marking out-for-delivery" });
+                await badRequest.WriteAsJsonAsync(new { error = "Delivery partner must pick up the ready order to move it to out-for-delivery" });
                 return badRequest;
             }
 
@@ -1161,6 +1164,23 @@ public class OrderFunction
             {
                 await _outbox.EnqueueAsync("StatusUpdateNotification", "Order", id,
                     new { OrderId = order.Id!, Status = statusRequest.Status });
+            }
+
+            if (order != null
+                && nextStatus == "confirmed"
+                && string.Equals(order.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(order.DeliveryPartnerId))
+            {
+                var partner = await _operationsRepo.GetDeliveryPartnerByIdAsync(order.DeliveryPartnerId);
+                if (!string.IsNullOrWhiteSpace(partner?.UserId))
+                {
+                    var shortOrderId = order.Id?.Length >= 6 ? order.Id[^6..] : order.Id;
+                    await _notificationService.SendSystemNotificationAsync(
+                        partner.UserId,
+                        "Delivery Alert",
+                        $"Order #{shortOrderId} is confirmed and assigned to you.",
+                        actionUrl: "/partner/delivery");
+                }
             }
 
             if (nextStatus == "delivered" && order != null)

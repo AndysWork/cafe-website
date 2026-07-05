@@ -47,7 +47,6 @@
           <button *ngIf="order.status === 'pending'" (click)="updateStatus(order.id, 'confirmed')" class="btn-kitchen confirm">Confirm</button>
           <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Approve & Start</button>
           <button *ngIf="order.status === 'preparing'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>
-          <button *ngIf="order.status === 'ready'" (click)="updateStatus(order.id, 'out-for-delivery')" class="btn-kitchen prepare">Dispatch</button>
           <button *ngIf="order.status === 'out-for-delivery'" (click)="updateStatus(order.id, 'delivered')" class="btn-kitchen ready">Delivered</button>
           <button (click)="printKot(order.id)" class="btn-kitchen kot">🖨️ KOT</button>
         </div>

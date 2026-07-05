@@ -226,6 +226,30 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
     });
   }
 
+  canPickup(order: { id?: string; status: string; deliveryPartnerId?: string }): boolean {
+    return !!order.id && order.status === 'ready' && !!order.deliveryPartnerId;
+  }
+
+  pickupOrder(order: { id?: string }): void {
+    if (!order.id) {
+      this.uiStore.error('Invalid order');
+      return;
+    }
+
+    this.confirmingCod[order.id] = true;
+    this.partnerService.pickupAssignedOrder(order.id).subscribe({
+      next: () => {
+        this.uiStore.success('Order picked up and moved to out-for-delivery');
+        this.confirmingCod[order.id!] = false;
+        this.loadDashboard();
+      },
+      error: (error) => {
+        this.confirmingCod[order.id!] = false;
+        this.uiStore.error(error.error?.error || 'Failed to pickup order');
+      }
+    });
+  }
+
   formatStatus(status: string): string {
     return status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
   }

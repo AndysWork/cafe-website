@@ -163,6 +163,22 @@ public class DeliveryPartnerFunction
                 return notFound;
             }
 
+            var assignedOrder = await _orderRepo.GetOrderByIdAsync(request.OrderId);
+            var assignedPartner = await _mongo.GetDeliveryPartnerByIdAsync(partnerId!);
+            if (assignedOrder != null && !string.IsNullOrWhiteSpace(assignedPartner?.UserId))
+            {
+                var shortOrderId = assignedOrder.Id?.Length >= 6 ? assignedOrder.Id[^6..] : assignedOrder.Id;
+                var pickupMessage = string.Equals(assignedOrder.Status, "ready", StringComparison.OrdinalIgnoreCase)
+                    ? $"Order #{shortOrderId} is ready. Please pick it up now."
+                    : $"Order #{shortOrderId} has been assigned to you. Current status: {assignedOrder.Status}.";
+
+                await _notificationService.SendSystemNotificationAsync(
+                    assignedPartner.UserId,
+                    "New Delivery Assignment",
+                    pickupMessage,
+                    actionUrl: "/partner/delivery");
+            }
+
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
@@ -175,6 +191,89 @@ public class DeliveryPartnerFunction
         catch (Exception ex)
         {
             _log.LogError(ex, "Error assigning delivery partner");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("PickupAssignedOrder")]
+    public async Task<HttpResponseData> PickupAssignedOrder(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "partner/delivery/orders/{orderId}/pickup")] HttpRequestData req,
+        string orderId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            if (role != "partner" && role != "delivery-partner")
+            {
+                var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
+                return forbiddenRole;
+            }
+
+            var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId!);
+            if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner profile not found" });
+                return notFound;
+            }
+
+            var order = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (!string.Equals(order.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Pickup is only valid for delivery orders" });
+                return badReq;
+            }
+
+            if (!string.Equals(order.DeliveryPartnerId, partner.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "This order is not assigned to you" });
+                return forbidden;
+            }
+
+            if (!string.Equals(order.Status, "ready", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Order must be in ready state before pickup" });
+                return badReq;
+            }
+
+            order.Status = "out-for-delivery";
+            order.UpdatedAt = MongoService.GetIstNow();
+
+            var updated = await _orderRepo.UpdateOrderAsync(order);
+            if (!updated)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Failed to update order status" });
+                return conflict;
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.UserId))
+            {
+                await _notificationService.SendOrderStatusNotificationAsync(order, "out-for-delivery");
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Order picked up and marked out-for-delivery", status = "out-for-delivery" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error picking up assigned order {OrderId}", orderId);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;

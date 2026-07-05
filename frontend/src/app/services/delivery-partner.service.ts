@@ -72,6 +72,7 @@ export interface PartnerDashboard {
     status: string;
     total: number;
     deliveryAddress?: string;
+    deliveryPartnerId?: string;
     paymentMethod?: 'cod' | 'razorpay' | 'upi-qr';
     paymentStatus?: 'pending' | 'paid' | 'refunded';
   }>;
@@ -232,6 +233,15 @@ export class DeliveryPartnerService {
       { orderId, ...payload }
     ).pipe(
       catchError(handleServiceError('DeliveryPartnerService.confirmMyCodCollection'))
+    );
+  }
+
+  pickupAssignedOrder(orderId: string): Observable<{ message: string; status: string }> {
+    return this.http.post<{ message: string; status: string }>(
+      `${this.apiUrl}/partner/delivery/orders/${orderId}/pickup`,
+      {}
+    ).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.pickupAssignedOrder'))
     );
   }
 

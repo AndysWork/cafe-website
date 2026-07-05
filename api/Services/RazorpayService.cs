@@ -20,20 +20,29 @@ public class RazorpayService : IRazorpayService
     public RazorpayService(IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<RazorpayService> logger)
     {
         _httpClient = httpClientFactory.CreateClient("Razorpay");
-        _keyId = config["Razorpay__KeyId"] ?? throw new InvalidOperationException("Razorpay__KeyId not configured");
-        _keySecret = config["Razorpay__KeySecret"] ?? throw new InvalidOperationException("Razorpay__KeySecret not configured");
+        _keyId = (config["Razorpay__KeyId"] ?? string.Empty).Trim();
+        _keySecret = (config["Razorpay__KeySecret"] ?? string.Empty).Trim();
         _webhookSecret = config["Razorpay__WebhookSecret"] ?? string.Empty;
         _logger = logger;
 
-        // Set Basic Auth header
-        var authBytes = Encoding.ASCII.GetBytes($"{_keyId}:{_keySecret}");
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
+        if (!string.IsNullOrWhiteSpace(_keyId) && !string.IsNullOrWhiteSpace(_keySecret))
+        {
+            // Set Basic Auth header only when credentials are configured.
+            var authBytes = Encoding.ASCII.GetBytes($"{_keyId}:{_keySecret}");
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
+        }
+        else
+        {
+            _logger.LogWarning("Razorpay credentials are not configured. Payment order/refund endpoints will be unavailable until Razorpay__KeyId and Razorpay__KeySecret are set.");
+        }
     }
 
     public string GetKeyId() => _keyId;
 
     public async Task<RazorpayOrderResponse> CreateOrderAsync(decimal amount, string receipt, string currency = "INR")
     {
+        EnsureConfigured();
+
         // Razorpay expects amount in paise (smallest currency unit)
         var amountInPaise = (long)(amount * 100);
 
@@ -68,6 +77,8 @@ public class RazorpayService : IRazorpayService
 
     public bool VerifyPaymentSignature(string orderId, string paymentId, string signature)
     {
+        EnsureConfigured();
+
         var payload = $"{orderId}|{paymentId}";
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_keySecret));
         var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
@@ -98,6 +109,8 @@ public class RazorpayService : IRazorpayService
 
     public async Task<RazorpayRefundResponse> RefundPaymentAsync(string paymentId, decimal amount, string? reason = null)
     {
+        EnsureConfigured();
+
         var amountInPaise = (long)(amount * 100);
 
         var payload = new Dictionary<string, object>
@@ -129,5 +142,13 @@ public class RazorpayService : IRazorpayService
         _logger.LogInformation("Razorpay refund processed: {RefundId} for payment {PaymentId}, amount {Amount} paise",
             refundResponse.Id, paymentId, amountInPaise);
         return refundResponse;
+    }
+
+    private void EnsureConfigured()
+    {
+        if (string.IsNullOrWhiteSpace(_keyId) || string.IsNullOrWhiteSpace(_keySecret))
+        {
+            throw new InvalidOperationException("Razorpay credentials are not configured");
+        }
     }
 }

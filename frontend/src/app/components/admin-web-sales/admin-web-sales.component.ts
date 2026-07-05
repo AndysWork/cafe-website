@@ -301,6 +301,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error updating status:', error);
+          // Keep draft aligned with persisted value when backend rejects the change.
+          this.statusDraft[order.id] = order.status;
           this.uiStore.error(error.error?.error || 'Failed to update order status');
           this.saving = false;
         }
