@@ -154,7 +154,22 @@ public class LoyaltyAdminFunction
                 IsActive = r.IsActive
             }).ToList();
 
-            var updated = await _mongo.UpdateLoyaltyTierRulesAsync(models);
+            bool updated;
+            try
+            {
+                updated = await _mongo.UpdateLoyaltyTierRulesAsync(models);
+            }
+            catch (Exception saveEx)
+            {
+                _log.LogError(saveEx, "Error persisting loyalty tier config");
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new
+                {
+                    error = "Failed to update loyalty tier config",
+                    detail = saveEx.Message
+                });
+                return badRequest;
+            }
 
             if (!updated)
             {
@@ -171,8 +186,12 @@ public class LoyaltyAdminFunction
         catch (Exception ex)
         {
             _log.LogError(ex, "Error updating loyalty tier config");
-            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await error.WriteAsJsonAsync(new { error = "Failed to update loyalty tier config" });
+            var error = req.CreateResponse(HttpStatusCode.BadRequest);
+            await error.WriteAsJsonAsync(new
+            {
+                error = "Failed to update loyalty tier config",
+                detail = ex.Message
+            });
             return error;
         }
     }
@@ -265,11 +284,13 @@ public class LoyaltyAdminFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var reward = await System.Text.Json.JsonSerializer.DeserializeAsync<Reward>(req.Body);
-            if (reward == null)
+            var (reward, validationError) = await ValidationHelper.ValidateBody<Reward>(req);
+            if (validationError != null) return validationError;
+
+            if (reward.PointsCost <= 0)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid reward data" });
+                await badRequest.WriteAsJsonAsync(new { error = "Points cost must be greater than 0" });
                 return badRequest;
             }
 

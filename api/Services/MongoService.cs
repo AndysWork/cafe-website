@@ -2047,9 +2047,17 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Update reward (admin)
     public async Task<bool> UpdateRewardAsync(string id, Reward reward)
     {
-        var result = await _rewards.ReplaceOneAsync(x => x.Id == id, reward);
+        var update = Builders<Reward>.Update
+            .Set(x => x.Name, reward.Name)
+            .Set(x => x.Description, reward.Description)
+            .Set(x => x.PointsCost, reward.PointsCost)
+            .Set(x => x.Icon, reward.Icon)
+            .Set(x => x.IsActive, reward.IsActive)
+            .Set(x => x.ExpiresAt, reward.ExpiresAt);
+
+        var result = await _rewards.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
         _cache.Remove("active_rewards");
-        return result.ModifiedCount > 0;
+        return result.MatchedCount > 0;
     }
 
     // Delete reward (admin)
@@ -2404,42 +2412,50 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<bool> UpdateLoyaltyTierRulesAsync(List<LoyaltyTierRule> rules)
     {
-        var sanitized = rules
-            .Where(r => !string.IsNullOrWhiteSpace(r.Tier))
-            .Select(r => new LoyaltyTierRule
-            {
-                Tier = NormalizeTierName(r.Tier),
-                MinPoints = Math.Max(0, r.MinPoints),
-                Multiplier = Math.Max(1.0, Math.Round(r.Multiplier, 2)),
-                BirthdayBonusPoints = Math.Max(0, r.BirthdayBonusPoints),
-                Benefits = (r.Benefits ?? new List<string>())
-                    .Select(b => (b ?? string.Empty).Trim())
-                    .Where(b => !string.IsNullOrWhiteSpace(b))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-                Color = string.IsNullOrWhiteSpace(r.Color) ? "#94a3b8" : r.Color.Trim(),
-                DisplayOrder = r.DisplayOrder,
-                IsActive = r.IsActive,
-                UpdatedAt = GetIstNow()
-            })
-            .OrderBy(r => r.MinPoints)
-            .ThenBy(r => r.DisplayOrder)
-            .ToList();
-
-        if (sanitized.Count == 0)
+        try
         {
+            var sanitized = rules
+                .Where(r => !string.IsNullOrWhiteSpace(r.Tier))
+                .Select(r => new LoyaltyTierRule
+                {
+                    Tier = NormalizeTierName(r.Tier),
+                    MinPoints = Math.Max(0, r.MinPoints),
+                    Multiplier = Math.Max(1.0, Math.Round(r.Multiplier, 2)),
+                    BirthdayBonusPoints = Math.Max(0, r.BirthdayBonusPoints),
+                    Benefits = (r.Benefits ?? new List<string>())
+                        .Select(b => (b ?? string.Empty).Trim())
+                        .Where(b => !string.IsNullOrWhiteSpace(b))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                    Color = string.IsNullOrWhiteSpace(r.Color) ? "#94a3b8" : r.Color.Trim(),
+                    DisplayOrder = r.DisplayOrder,
+                    IsActive = r.IsActive,
+                    UpdatedAt = GetIstNow()
+                })
+                .OrderBy(r => r.MinPoints)
+                .ThenBy(r => r.DisplayOrder)
+                .ToList();
+
+            if (sanitized.Count == 0)
+            {
+                return false;
+            }
+
+            await _loyaltyTierRules.DeleteManyAsync(FilterDefinition<LoyaltyTierRule>.Empty);
+            await _loyaltyTierRules.InsertManyAsync(sanitized);
+
+            lock (_tierRulesLock)
+            {
+                _tierRulesCache = sanitized;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update loyalty tier rules");
             return false;
         }
-
-        await _loyaltyTierRules.DeleteManyAsync(FilterDefinition<LoyaltyTierRule>.Empty);
-        await _loyaltyTierRules.InsertManyAsync(sanitized);
-
-        lock (_tierRulesLock)
-        {
-            _tierRulesCache = sanitized;
-        }
-
-        return true;
     }
 
     public (string? NextTier, int? PointsToNextTier) GetNextTierInfo(int totalPoints)

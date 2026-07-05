@@ -181,6 +181,8 @@ public static class ValidationHelper
         foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             if (!prop.CanRead || !prop.CanWrite) continue;
+            // Skip indexer properties (e.g., List<T>.Item[int]) that require parameters.
+            if (prop.GetIndexParameters().Length > 0) continue;
 
             var nameLower = prop.Name.ToLowerInvariant();
             if (nameLower.Contains("password") || nameLower.Contains("secret") || nameLower.Contains("token"))

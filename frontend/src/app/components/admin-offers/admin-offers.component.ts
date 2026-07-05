@@ -127,7 +127,8 @@ export class AdminOffersComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error creating offer:', err);
-          this.uiStore.error('Failed to create offer');
+          const detail = err?.error?.detail || err?.error?.error || err?.message;
+          this.uiStore.error(detail ? `Failed to create offer: ${detail}` : 'Failed to create offer');
         }
       });
     }

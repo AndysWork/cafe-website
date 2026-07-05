@@ -169,8 +169,16 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
       }))
       .sort((a, b) => a.minPoints - b.minPoints || a.displayOrder - b.displayOrder);
 
+    const dedupedByTier = payload.filter((rule, index, arr) =>
+      arr.findIndex(r => r.tier.toLowerCase() === rule.tier.toLowerCase()) === index
+    );
+
+    if (dedupedByTier.length !== payload.length) {
+      this.uiStore.warning('Duplicate tier entries were detected and automatically cleaned before saving.');
+    }
+
     this.tierConfigSaving = true;
-    this.loyaltyService.updateLoyaltyTierConfig(payload).subscribe({
+    this.loyaltyService.updateLoyaltyTierConfig(dedupedByTier).subscribe({
       next: (res) => {
         const refreshed = [...(res.rules || [])].sort((a, b) => a.minPoints - b.minPoints || a.displayOrder - b.displayOrder);
         this.tierConfigDraft = refreshed;
@@ -185,7 +193,11 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error updating tier config:', err);
-        this.uiStore.error(err.error?.error || 'Failed to save tier configuration');
+        const serverMessage = err?.error?.error
+          || err?.originalError?.error?.error
+          || err?.originalError?.error?.message
+          || err?.message;
+        this.uiStore.error(serverMessage || 'Failed to save tier configuration');
         this.tierConfigSaving = false;
       }
     });

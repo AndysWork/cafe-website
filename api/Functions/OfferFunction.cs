@@ -7,6 +7,7 @@ using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
 using System.Text.Json;
+using MongoDB.Driver;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
@@ -148,11 +149,16 @@ public class OfferFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var offer = await JsonSerializer.DeserializeAsync<Offer>(req.Body);
-            if (offer == null)
+            var (offer, validationError) = await ValidationHelper.ValidateBody<Offer>(req);
+            if (validationError != null) return validationError;
+
+            offer.Code = (offer.Code ?? string.Empty).Trim().ToUpperInvariant();
+            offer.DiscountType = (offer.DiscountType ?? string.Empty).Trim().ToLowerInvariant();
+
+            if (offer.ValidFrom > offer.ValidTill)
             {
                 var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequestResponse.WriteAsJsonAsync(new { error = "Invalid offer data" });
+                await badRequestResponse.WriteAsJsonAsync(new { error = "validFrom must be before or equal to validTill" });
                 return badRequestResponse;
             }
 
@@ -165,7 +171,21 @@ public class OfferFunction
                 return conflictResponse;
             }
 
-            var createdOffer = await _mongoService.CreateOfferAsync(offer);
+            Offer createdOffer;
+            try
+            {
+                createdOffer = await _mongoService.CreateOfferAsync(offer);
+            }
+            catch (MongoWriteException mwx) when (mwx.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+            {
+                var conflictResponse = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflictResponse.WriteAsJsonAsync(new
+                {
+                    error = "Offer code already exists",
+                    detail = "An offer with this code already exists (including previously deleted offers). Please use a different code."
+                });
+                return conflictResponse;
+            }
             
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(createdOffer);
@@ -175,7 +195,7 @@ public class OfferFunction
         {
             _logger.LogError(ex, "Error creating offer");
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await response.WriteAsJsonAsync(new { error = "Error creating offer" });
+            await response.WriteAsJsonAsync(new { error = "Error creating offer", detail = ex.Message });
             return response;
         }
     }
@@ -196,11 +216,16 @@ public class OfferFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var offer = await JsonSerializer.DeserializeAsync<Offer>(req.Body);
-            if (offer == null)
+            var (offer, validationError) = await ValidationHelper.ValidateBody<Offer>(req);
+            if (validationError != null) return validationError;
+
+            offer.Code = (offer.Code ?? string.Empty).Trim().ToUpperInvariant();
+            offer.DiscountType = (offer.DiscountType ?? string.Empty).Trim().ToLowerInvariant();
+
+            if (offer.ValidFrom > offer.ValidTill)
             {
                 var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequestResponse.WriteAsJsonAsync(new { error = "Invalid offer data" });
+                await badRequestResponse.WriteAsJsonAsync(new { error = "validFrom must be before or equal to validTill" });
                 return badRequestResponse;
             }
 

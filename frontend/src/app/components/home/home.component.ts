@@ -530,7 +530,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
           // Animate the stat values
           this.animateStatValue(0, d.totalOrders, 'Online Orders Served', '😊', '+');
           this.animateStatValue(1, d.menuItemCount, 'Menu Items', '🍽️', '+');
-          this.animateStatValue(2, d.averageRating, 'Average Rating', '⭐', '⭐', false);
+          this.animateStatValue(2, d.averageRating, 'Average Rating', '⭐', '⭐', true);
           this.animateStatValue(3, d.yearsServing, 'Years Serving', '🎉', '+');
         }
       },
@@ -556,7 +556,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
       if (isRating) {
         this.stats[index] = {
-          value: currentValue > 0 ? `${currentValue.toFixed(1)}${suffix}` : '...',
+          value: currentValue > 0 ? `${Math.round(currentValue)}${suffix}` : '...',
           label,
           icon
         };
