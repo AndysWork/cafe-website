@@ -697,6 +697,13 @@ public class DeliveryPartnerFunction
                 return badReq;
             }
 
+            if (!string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "COD must be confirmed by assigned delivery partner in partner dashboard" });
+                return badReq;
+            }
+
             if (!string.Equals(order.DeliveryPartnerId, partnerId, StringComparison.OrdinalIgnoreCase))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -720,17 +727,110 @@ public class DeliveryPartnerFunction
 
             await _mongo.UpsertCodCollectionAsync(codLog);
 
-            order.PaymentStatus = "paid";
-            order.UpdatedAt = now;
-            await _orderRepo.UpdateOrderAsync(order);
-
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { message = "COD collection confirmed" });
+            await response.WriteAsJsonAsync(new { message = "COD collection verified" });
             return response;
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error confirming COD collection");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("ConfirmMyCodCollection")]
+    public async Task<HttpResponseData> ConfirmMyCodCollection(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "partner/delivery/orders/{orderId}/cod/confirm")] HttpRequestData req,
+        string orderId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            if (role != "partner" && role != "delivery-partner" && role != "admin" && role != "manager")
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
+                return forbidden;
+            }
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid user context" });
+                return unauthorized;
+            }
+
+            var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId);
+            if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner profile not found" });
+                return notFound;
+            }
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<ConfirmCodCollectionRequest>(req);
+            if (validationError != null) return validationError;
+
+            var order = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (!string.Equals(order.PaymentMethod, "cod", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Order is not COD" });
+                return badReq;
+            }
+
+            if (!string.Equals(order.DeliveryPartnerId, partner.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "This COD order is not assigned to you" });
+                return forbidden;
+            }
+
+            if (string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+            {
+                var ok = req.CreateResponse(HttpStatusCode.OK);
+                await ok.WriteAsJsonAsync(new { message = "COD already confirmed", paymentStatus = "paid" });
+                return ok;
+            }
+
+            var now = MongoService.GetIstNow();
+            var codLog = new CODCollectionLog
+            {
+                OrderId = order.Id!,
+                PartnerId = partner.Id,
+                Amount = request.Amount,
+                Collected = true,
+                CollectionReference = string.IsNullOrWhiteSpace(request.CollectionReference) ? null : InputSanitizer.Sanitize(request.CollectionReference),
+                Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : InputSanitizer.Sanitize(request.Notes),
+                CollectedAt = now,
+                ConfirmedByAdmin = false,
+                CreatedAt = now
+            };
+
+            await _mongo.UpsertCodCollectionAsync(codLog);
+
+            order.PaymentStatus = "paid";
+            order.UpdatedAt = now;
+            await _orderRepo.UpdateOrderAsync(order);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "COD payment confirmed", paymentStatus = "paid" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error confirming COD collection from partner dashboard");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;

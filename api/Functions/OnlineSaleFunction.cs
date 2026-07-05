@@ -111,9 +111,21 @@ public class OnlineSaleFunction
             var effectivePage = page ?? 1;
             var effectivePageSize = pageSize ?? 100;
             var totalWebOrders = webOrdersAll.Count;
-            var webOrders = webOrdersAll
+            var pagedOrders = webOrdersAll
                 .Skip((effectivePage - 1) * effectivePageSize)
                 .Take(effectivePageSize)
+                .ToList();
+
+            // Always include all running orders so admin can track complete active workflow.
+            var runningOrders = webOrdersAll
+                .Where(o => o.Status != "delivered" && o.Status != "cancelled")
+                .ToList();
+
+            var webOrders = runningOrders
+                .Concat(pagedOrders)
+                .GroupBy(o => o.Id)
+                .Select(g => g.First())
+                .OrderByDescending(o => o.CreatedAt)
                 .ToList();
 
             var partners = await _operationsRepo.GetDeliveryPartnersAsync(outletForPartners);

@@ -67,7 +67,14 @@ export interface PartnerTrip {
 export interface PartnerDashboard {
   profile: DeliveryPartner | null;
   activeShift: DeliveryShift | null;
-  activeOrders: Array<{ id?: string; status: string; total: number; deliveryAddress?: string }>;
+  activeOrders: Array<{
+    id?: string;
+    status: string;
+    total: number;
+    deliveryAddress?: string;
+    paymentMethod?: 'cod' | 'razorpay' | 'upi-qr';
+    paymentStatus?: 'pending' | 'paid' | 'refunded';
+  }>;
   todayDistanceKm: number;
   todayPayout: number;
   codOutstanding: number;
@@ -216,6 +223,15 @@ export class DeliveryPartnerService {
   confirmCodCollection(partnerId: string, payload: { orderId: string; amount: number; collectionReference?: string; notes?: string }): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/${partnerId}/cod/confirm`, payload).pipe(
       catchError(handleServiceError('DeliveryPartnerService.confirmCodCollection'))
+    );
+  }
+
+  confirmMyCodCollection(orderId: string, payload: { amount: number; collectionReference?: string; notes?: string }): Observable<{ message: string; paymentStatus: string }> {
+    return this.http.post<{ message: string; paymentStatus: string }>(
+      `${this.apiUrl}/partner/delivery/orders/${orderId}/cod/confirm`,
+      { orderId, ...payload }
+    ).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.confirmMyCodCollection'))
     );
   }
 

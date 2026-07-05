@@ -37,6 +37,9 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
   submittingShiftStart = false;
   submittingShiftEnd = false;
   submittingTrip = false;
+  codAmountDraft: Record<string, string> = {};
+  codReferenceDraft: Record<string, string> = {};
+  confirmingCod: Record<string, boolean> = {};
 
   ngOnInit(): void {
     this.loadDashboard();
@@ -47,6 +50,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
     this.partnerService.getPartnerDashboard().subscribe({
       next: data => {
         this.dashboard = data;
+        this.initializeCodDrafts();
         this.loading = false;
         this.loadPayout();
       },
@@ -173,6 +177,51 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
       error: () => {
         this.submittingTrip = false;
         this.uiStore.error('Failed to log trip');
+      }
+    });
+  }
+
+  private initializeCodDrafts(): void {
+    this.codAmountDraft = {};
+    this.codReferenceDraft = {};
+    for (const order of this.dashboard?.activeOrders || []) {
+      if (order.id) {
+        this.codAmountDraft[order.id] = String(order.total || 0);
+        this.codReferenceDraft[order.id] = '';
+      }
+    }
+  }
+
+  canConfirmCod(order: { paymentMethod?: string; paymentStatus?: string; status: string; id?: string }): boolean {
+    return !!order.id && order.paymentMethod === 'cod' && order.paymentStatus === 'pending' && order.status === 'out-for-delivery';
+  }
+
+  confirmCod(order: { id?: string; total: number }): void {
+    if (!order.id) {
+      this.uiStore.error('Invalid order');
+      return;
+    }
+
+    const amount = Number(this.codAmountDraft[order.id]);
+    if (!Number.isFinite(amount) || amount < 0) {
+      this.uiStore.error('Enter valid COD amount');
+      return;
+    }
+
+    this.confirmingCod[order.id] = true;
+    this.partnerService.confirmMyCodCollection(order.id, {
+      amount,
+      collectionReference: this.codReferenceDraft[order.id]?.trim() || undefined,
+      notes: 'Partner self-confirmed COD payment'
+    }).subscribe({
+      next: () => {
+        this.uiStore.success('COD payment confirmed');
+        this.confirmingCod[order.id!] = false;
+        this.loadDashboard();
+      },
+      error: (error) => {
+        this.confirmingCod[order.id!] = false;
+        this.uiStore.error(error.error?.error || 'Failed to confirm COD');
       }
     });
   }

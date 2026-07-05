@@ -148,10 +148,19 @@
         <div>
           <h3>#{{ order.id }}</h3>
           <p>{{ order.deliveryAddress || 'Address unavailable' }}</p>
+          <small>Payment: {{ (order.paymentMethod || '-') | uppercase }} • {{ order.paymentStatus || '-' }}</small>
         </div>
         <div class="order-meta">
           <span>{{ formatStatus(order.status) }}</span>
           <strong>Rs {{ order.total | number:'1.0-2' }}</strong>
+        </div>
+
+        <div class="cod-actions" *ngIf="canConfirmCod(order)">
+          <input type="number" min="0" step="0.01" [(ngModel)]="codAmountDraft[order.id!]" placeholder="COD amount" />
+          <input type="text" [(ngModel)]="codReferenceDraft[order.id!]" placeholder="Reference (optional)" />
+          <button class="btn-primary" (click)="confirmCod(order)" [disabled]="confirmingCod[order.id!]">
+            {{ confirmingCod[order.id!] ? 'Confirming...' : 'Confirm COD Payment' }}
+          </button>
         </div>
       </article>
     </div>

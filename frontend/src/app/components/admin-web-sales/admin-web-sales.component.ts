@@ -284,20 +284,46 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     const nextStatus = this.statusDraft[order.id];
     if (!nextStatus || nextStatus === order.status) return;
 
+    const paymentMethod = (order.paymentMethod || '').toLowerCase();
+    const needsUpiConfirmationOnAccept =
+      nextStatus === 'confirmed'
+      && (paymentMethod === 'upi-qr' || paymentMethod === 'upi')
+      && order.paymentStatus === 'pending';
+
     this.saving = true;
-    this.orderService.updateOrderStatus(order.id, nextStatus, 'web').subscribe({
-      next: async () => {
-        this.uiStore.success(`Order ${order.id.slice(-6)} updated to ${nextStatus}`);
-        await this.loadDashboardData();
-        this.initializeDrafts();
-        this.saving = false;
-      },
-      error: (error) => {
-        console.error('Error updating status:', error);
-        this.uiStore.error(error.error?.error || 'Failed to update order status');
-        this.saving = false;
-      }
-    });
+    const continueStatusUpdate = () => {
+      this.orderService.updateOrderStatus(order.id, nextStatus, 'web').subscribe({
+        next: async () => {
+          this.uiStore.success(`Order ${order.id.slice(-6)} updated to ${nextStatus}`);
+          await this.loadDashboardData();
+          this.initializeDrafts();
+          this.saving = false;
+        },
+        error: (error) => {
+          console.error('Error updating status:', error);
+          this.uiStore.error(error.error?.error || 'Failed to update order status');
+          this.saving = false;
+        }
+      });
+    };
+
+    if (needsUpiConfirmationOnAccept) {
+      const paymentReference = (this.paymentRefDraft[order.id] || '').trim();
+      this.orderService.confirmOrderPayment(order.id, {
+        paymentReference: paymentReference || undefined,
+        adminNote: 'UPI verified by admin while accepting order'
+      }).subscribe({
+        next: () => continueStatusUpdate(),
+        error: (error) => {
+          console.error('Error confirming UPI payment:', error);
+          this.uiStore.error(error.error?.error || 'Failed to confirm UPI payment before acceptance');
+          this.saving = false;
+        }
+      });
+      return;
+    }
+
+    continueStatusUpdate();
   }
 
   canBypassConfirmPayment(order: Order): boolean {

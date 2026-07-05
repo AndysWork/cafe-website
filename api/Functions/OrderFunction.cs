@@ -1731,6 +1731,19 @@ public class OrderFunction
         var paymentMethod = (order.PaymentMethod ?? "").Trim().ToLowerInvariant();
         var paymentPending = !string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase);
 
+        // Delivered state is only valid after successful payment for all payment methods.
+        if (nextStatus == "delivered")
+        {
+            return paymentPending;
+        }
+
+        // UPI orders must be verified by admin while accepting (pending -> confirmed).
+        if (nextStatus == "confirmed")
+        {
+            var isUpiPayment = paymentMethod == "upi" || paymentMethod == "upi-qr";
+            return isUpiPayment && paymentPending;
+        }
+
         var needsOnlinePayment = paymentMethod == "razorpay" || paymentMethod == "upi-qr";
         return needsOnlinePayment && paymentPending;
     }

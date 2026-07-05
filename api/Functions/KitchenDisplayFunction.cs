@@ -215,6 +215,13 @@ public class KitchenDisplayFunction
                 order.KptMinutes = Math.Round((decimal)(order.KitchenReadyAt.Value - order.KitchenPrepStartedAt.Value).TotalMinutes, 2);
             }
 
+            if (requestedStatus == "delivered" && !string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Order can be delivered only after payment is marked paid" });
+                return badReq;
+            }
+
             order.Status = requestedStatus;
             order.KitchenHandledByUserId = userId;
             order.KitchenHandledByRole = role;
