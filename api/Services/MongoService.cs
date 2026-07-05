@@ -96,6 +96,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<SubscriptionPlan> _subscriptionPlans;
     private readonly IMongoCollection<CustomerSubscription> _customerSubscriptions;
     private readonly IMongoCollection<DeliveryPartner> _deliveryPartners;
+    private readonly IMongoCollection<DeliveryShift> _deliveryShifts;
+    private readonly IMongoCollection<PartnerTripLog> _partnerTripLogs;
+    private readonly IMongoCollection<FuelPriceDaily> _fuelPriceDaily;
+    private readonly IMongoCollection<CODCollectionLog> _codCollectionLogs;
+    private readonly IMongoCollection<DeliveryPartnerReview> _deliveryPartnerReviews;
+    private readonly IMongoCollection<PartnerPayoutLedger> _partnerPayoutLedgers;
     private readonly IMongoCollection<CustomerSegment> _customerSegments;
     private readonly IMongoCollection<HomeContentConfig> _homeContentConfigs;
     private readonly object _tierRulesLock = new();
@@ -210,6 +216,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _subscriptionPlans = db.GetCollection<SubscriptionPlan>("SubscriptionPlans");
         _customerSubscriptions = db.GetCollection<CustomerSubscription>("CustomerSubscriptions");
         _deliveryPartners = db.GetCollection<DeliveryPartner>("DeliveryPartners");
+        _deliveryShifts = db.GetCollection<DeliveryShift>("DeliveryShifts");
+        _partnerTripLogs = db.GetCollection<PartnerTripLog>("PartnerTripLogs");
+        _fuelPriceDaily = db.GetCollection<FuelPriceDaily>("FuelPriceDaily");
+        _codCollectionLogs = db.GetCollection<CODCollectionLog>("CODCollectionLogs");
+        _deliveryPartnerReviews = db.GetCollection<DeliveryPartnerReview>("DeliveryPartnerReviews");
+        _partnerPayoutLedgers = db.GetCollection<PartnerPayoutLedger>("PartnerPayoutLedgers");
         _customerSegments = db.GetCollection<CustomerSegment>("CustomerSegments");
         _homeContentConfigs = db.GetCollection<HomeContentConfig>("HomeContentConfigs");
     }

@@ -24,6 +24,7 @@ export const routes: Routes = [
   { path: 'wallet', loadComponent: () => import('./components/wallet/wallet.component').then(m => m.WalletComponent), canActivate: [authGuard] },
   { path: 'reservations', loadComponent: () => import('./components/table-reservation/table-reservation.component').then(m => m.TableReservationComponent) },
   { path: 'subscriptions', loadComponent: () => import('./components/subscription-plans/subscription-plans.component').then(m => m.SubscriptionPlansComponent) },
+  { path: 'partner/delivery', loadComponent: () => import('./components/partner-delivery-dashboard/partner-delivery-dashboard.component').then(m => m.PartnerDeliveryDashboardComponent), canActivate: [authGuard] },
   {
     path: 'admin',
     loadComponent: () => import('./components/admin-layout/admin-layout.component').then(m => m.AdminLayoutComponent),

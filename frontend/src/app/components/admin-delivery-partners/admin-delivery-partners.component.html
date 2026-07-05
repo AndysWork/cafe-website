@@ -2,6 +2,7 @@
   <div class="page-header">
     <h1>🏍️ Delivery Partners</h1>
     <div class="header-actions">
+      <button class="btn-create" (click)="openFuelModal()">⛽ Fuel Price</button>
       <button class="btn-create" (click)="openAssignModal()">📦 Assign Order</button>
       <button class="btn-create" (click)="openCreateModal()">➕ Add Partner</button>
     </div>
@@ -23,6 +24,24 @@
       <div class="card-body">
         <p *ngIf="p.currentOrderId" class="text-warning">📦 On delivery: {{ p.currentOrderId }}</p>
         <p>Total deliveries: {{ p.totalDeliveries || 0 }}</p>
+        <p>Rating: {{ p.rating || 0 | number:'1.1-2' }}</p>
+
+        <div class="payout-strip" *ngIf="p.id as partnerId">
+          <div class="payout-head">
+            <label>Period</label>
+            <select [(ngModel)]="payoutPeriodType" [name]="'period-' + partnerId">
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+            </select>
+            <button class="btn-action" (click)="loadPayout(partnerId)">💰 Payout</button>
+          </div>
+          <p *ngIf="payoutSummaryByPartner[partnerId] as payout" class="payout-meta">
+            {{ payout.periodType | titlecase }}: ₹{{ payout.payoutAmount | number:'1.0-2' }}
+            ({{ payout.totalDistanceKm | number:'1.0-2' }} km, {{ payout.totalDeliveries }} deliveries)
+          </p>
+        </div>
 
         <div class="location-panel" *ngIf="p.id as partnerId">
           <div class="location-inputs">
@@ -45,6 +64,10 @@
       </div>
       <div class="card-footer">
         <div class="actions-cell">
+          <button class="btn-action" (click)="openShiftModal(p.id!, 'start')">▶ Shift Start</button>
+          <button class="btn-action" (click)="openShiftModal(p.id!, 'end')">⏹ Shift End</button>
+          <button class="btn-action" (click)="openTripModal(p.id!)">🛣 Log Trip</button>
+          <button class="btn-action" (click)="openCodModal(p.id!)">💵 COD</button>
           <button *ngIf="p.status === 'offline'" class="btn-action" (click)="updateStatus(p.id!, 'available')">🟢 Online</button>
           <button *ngIf="p.status === 'available'" class="btn-delete" (click)="updateStatus(p.id!, 'offline')">🔴 Offline</button>
           <button *ngIf="p.status === 'on-delivery'" class="btn-action" (click)="completeDelivery(p.id!)">✅ Complete</button>
@@ -52,6 +75,105 @@
           <button *ngIf="p.status !== 'on-delivery'" class="btn-delete" (click)="deletePartner(p.id!)">🗑️</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showShiftModal" (click)="showShiftModal = false">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>{{ shiftForm.mode === 'start' ? 'Start Shift' : 'End Shift' }}</h2>
+      <button class="btn-close" (click)="showShiftModal = false">✕</button>
+    </div>
+    <div class="modal-body">
+      <form (ngSubmit)="submitShiftAction()">
+        <div *ngIf="shiftForm.mode === 'start'" class="form-group">
+          <label>Start Odometer (km) *</label>
+          <input type="number" min="0" step="0.01" [(ngModel)]="shiftForm.startOdometerKm" name="startOdometerKm" required>
+        </div>
+
+        <div *ngIf="shiftForm.mode === 'end'" class="form-group">
+          <label>Shift ID *</label>
+          <input type="text" [(ngModel)]="shiftForm.shiftId" name="shiftId" required>
+        </div>
+        <div *ngIf="shiftForm.mode === 'end'" class="form-group">
+          <label>End Odometer (km) *</label>
+          <input type="number" min="0" step="0.01" [(ngModel)]="shiftForm.endOdometerKm" name="endOdometerKm" required>
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <input type="text" [(ngModel)]="shiftForm.notes" name="shiftNotes">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="showShiftModal = false">Cancel</button>
+          <button type="submit" class="btn-save">{{ shiftForm.mode === 'start' ? 'Start Shift' : 'End Shift' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showTripModal" (click)="showTripModal = false">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Log Trip</h2><button class="btn-close" (click)="showTripModal = false">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="submitTrip()">
+        <div class="form-group"><label>Shift ID *</label><input type="text" [(ngModel)]="tripForm.shiftId" name="tripShiftId" required></div>
+        <div class="form-group"><label>Trip Type *</label>
+          <select [(ngModel)]="tripForm.tripType" name="tripType" required>
+            <option value="delivery">Delivery</option>
+            <option value="outlet-transfer">Outlet Transfer</option>
+            <option value="market-stop">Market Stop</option>
+            <option value="misc">Misc</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Order ID</label><input type="text" [(ngModel)]="tripForm.orderId" name="tripOrderId"></div>
+        <div class="form-group"><label>Start Odometer (km) *</label><input type="number" min="0" step="0.01" [(ngModel)]="tripForm.startOdometerKm" name="tripStartOdometer" required></div>
+        <div class="form-group"><label>End Odometer (km) *</label><input type="number" min="0" step="0.01" [(ngModel)]="tripForm.endOdometerKm" name="tripEndOdometer" required></div>
+        <div class="form-group"><label>Start Point</label><input type="text" [(ngModel)]="tripForm.startPointLabel" name="tripStartPoint"></div>
+        <div class="form-group"><label>End Point</label><input type="text" [(ngModel)]="tripForm.endPointLabel" name="tripEndPoint"></div>
+        <div class="form-group"><label>Notes</label><input type="text" [(ngModel)]="tripForm.notes" name="tripNotes"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="showTripModal = false">Cancel</button>
+          <button type="submit" class="btn-save">Save Trip</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showFuelModal" (click)="showFuelModal = false">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Update Fuel Price</h2><button class="btn-close" (click)="showFuelModal = false">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="submitFuelPrice()">
+        <div class="form-group"><label>Date *</label><input type="date" [(ngModel)]="fuelForm.date" name="fuelDate" required></div>
+        <div class="form-group"><label>Petrol Price/Litre *</label><input type="number" min="1" step="0.01" [(ngModel)]="fuelForm.petrolPricePerLitre" name="petrolPricePerLitre" required></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="showFuelModal = false">Cancel</button>
+          <button type="submit" class="btn-save">Update</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showCodModal" (click)="showCodModal = false">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Confirm COD Collection</h2><button class="btn-close" (click)="showCodModal = false">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="submitCod()">
+        <div class="form-group"><label>Order ID *</label><input type="text" [(ngModel)]="codForm.orderId" name="codOrderId" required></div>
+        <div class="form-group"><label>Amount *</label><input type="number" min="0" step="0.01" [(ngModel)]="codForm.amount" name="codAmount" required></div>
+        <div class="form-group"><label>Reference</label><input type="text" [(ngModel)]="codForm.collectionReference" name="codReference"></div>
+        <div class="form-group"><label>Notes</label><input type="text" [(ngModel)]="codForm.notes" name="codNotes"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="showCodModal = false">Cancel</button>
+          <button type="submit" class="btn-save">Confirm COD</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -67,6 +189,27 @@
           <select [(ngModel)]="partnerForm.vehicleType" name="vehicleType">
             <option value="bike">Bike</option><option value="scooter">Scooter</option><option value="bicycle">Bicycle</option><option value="car">Car</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label>Employee User</label>
+          <input
+            type="text"
+            [(ngModel)]="userSearch"
+            (ngModelChange)="applyUserFilter()"
+            name="userSearch"
+            placeholder="Search by name, email, username"
+          >
+          <select [(ngModel)]="partnerForm.userId" (ngModelChange)="onSelectUser($event)" name="userId">
+            <option value="">No linked employee</option>
+            <option *ngFor="let user of filteredUsers" [value]="user.id">{{ getUserLabel(user) }}</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Mileage (km/litre)</label><input type="number" min="1" step="0.1" [(ngModel)]="partnerForm.mileageKmpl" name="mileageKmpl"></div>
+        <div class="form-group checkbox-inline">
+          <label><input type="checkbox" [(ngModel)]="partnerForm.codAllowed" name="codAllowed"> COD Allowed</label>
+        </div>
+        <div class="form-group checkbox-inline">
+          <label><input type="checkbox" [(ngModel)]="partnerForm.payoutEnabled" name="payoutEnabled"> Payout Enabled</label>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>

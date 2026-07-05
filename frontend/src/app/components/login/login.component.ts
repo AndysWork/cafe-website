@@ -66,15 +66,20 @@ export class LoginComponent {
     });
   }
 
-  private navigateAfterLogin(role?: 'admin' | 'user'): void {
+  private navigateAfterLogin(role?: 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'user'): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
     if (returnUrl && returnUrl.startsWith('/')) {
       this.router.navigateByUrl(returnUrl);
       return;
     }
 
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'manager') {
       this.router.navigate(['/admin/dashboard']);
+      return;
+    }
+
+    if (role === 'partner' || role === 'delivery-partner') {
+      this.router.navigate(['/partner/delivery']);
       return;
     }
 

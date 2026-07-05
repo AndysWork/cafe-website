@@ -30,6 +30,32 @@ public interface IOperationsRepository
     Task<bool> CompleteDeliveryAsync(string partnerId);
     Task<bool> UpdateDeliveryPartnerAsync(string id, DeliveryPartner partner);
     Task<bool> DeleteDeliveryPartnerAsync(string id);
+    Task<DeliveryPartner?> GetDeliveryPartnerByUserIdAsync(string userId);
+    Task<List<Order>> GetActiveOrdersForPartnerAsync(string partnerId, string? outletId = null);
+
+    // Delivery Partner Operations
+    Task<DeliveryShift?> GetActiveShiftForPartnerAsync(string partnerId);
+    Task<DeliveryShift> StartPartnerShiftAsync(DeliveryShift shift);
+    Task<bool> EndPartnerShiftAsync(string shiftId, decimal endOdometerKm, double? endLatitude, double? endLongitude, string? notes);
+    Task<List<DeliveryShift>> GetPartnerShiftsAsync(string partnerId, DateTime? fromDate = null, DateTime? toDate = null, int page = 1, int pageSize = 30);
+
+    Task<PartnerTripLog> CreatePartnerTripAsync(PartnerTripLog trip);
+    Task<List<PartnerTripLog>> GetPartnerTripsAsync(string partnerId, DateTime? fromDate = null, DateTime? toDate = null, int page = 1, int pageSize = 100);
+    Task<decimal> GetPartnerDistanceAsync(string partnerId, DateTime fromDate, DateTime toDate);
+
+    Task<FuelPriceDaily> UpsertFuelPriceAsync(string outletId, DateTime date, decimal petrolPricePerLitre);
+    Task<FuelPriceDaily?> GetFuelPriceAsync(string outletId, DateTime date);
+
+    Task<CODCollectionLog> UpsertCodCollectionAsync(CODCollectionLog codLog);
+    Task<List<CODCollectionLog>> GetCodCollectionsAsync(string partnerId, DateTime? fromDate = null, DateTime? toDate = null);
+    Task<decimal> GetOutstandingCodAmountAsync(string partnerId);
+
+    Task<DeliveryPartnerReview> AddDeliveryPartnerReviewAsync(DeliveryPartnerReview review);
+    Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId);
+
+    Task<PartnerPayoutLedger> CreatePartnerPayoutLedgerAsync(PartnerPayoutLedger ledger);
+    Task<List<PartnerPayoutLedger>> GetPartnerPayoutLedgersAsync(string partnerId, int page = 1, int pageSize = 30);
+    Task<PartnerPayoutLedger?> GetPartnerPayoutLedgerByPeriodAsync(string partnerId, DateTime periodStart, DateTime periodEnd, string periodType);
 
     // Subscriptions
     Task<SubscriptionPlan> CreateSubscriptionPlanAsync(SubscriptionPlan plan);

@@ -615,6 +615,11 @@ public partial class MongoService : IOperationsRepository
             .ToListAsync();
     }
 
+    public async Task<DeliveryPartner?> GetDeliveryPartnerByUserIdAsync(string userId)
+    {
+        return await _deliveryPartners.Find(p => p.UserId == userId && p.IsActive).FirstOrDefaultAsync();
+    }
+
     public async Task<DeliveryPartner?> GetAvailableDeliveryPartnerAsync(string outletId)
     {
         return await _deliveryPartners.Find(p =>
@@ -653,6 +658,24 @@ public partial class MongoService : IOperationsRepository
         return result.ModifiedCount > 0;
     }
 
+    public async Task<List<Order>> GetActiveOrdersForPartnerAsync(string partnerId, string? outletId = null)
+    {
+        var statuses = new[] { "confirmed", "preparing", "ready", "out-for-delivery" };
+        var filterBuilder = Builders<Order>.Filter;
+        var filter = filterBuilder.Eq(o => o.DeliveryPartnerId, partnerId) &
+                     filterBuilder.In(o => o.Status, statuses) &
+                     filterBuilder.Ne(o => o.IsDeleted, true);
+
+        if (!string.IsNullOrWhiteSpace(outletId))
+        {
+            filter &= filterBuilder.Eq(o => o.OutletId, outletId);
+        }
+
+        return await _orders.Find(filter)
+            .SortByDescending(o => o.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task<bool> UpdateDeliveryPartnerLocationAsync(string partnerId, double latitude, double longitude)
     {
         var update = Builders<DeliveryPartner>.Update
@@ -685,6 +708,268 @@ public partial class MongoService : IOperationsRepository
         var update = Builders<DeliveryPartner>.Update.Set(p => p.IsActive, false);
         var result = await _deliveryPartners.UpdateOneAsync(p => p.Id == id, update);
         return result.ModifiedCount > 0;
+    }
+
+    public async Task<DeliveryShift?> GetActiveShiftForPartnerAsync(string partnerId)
+    {
+        return await _deliveryShifts.Find(s => s.PartnerId == partnerId && s.Status == "active")
+            .SortByDescending(s => s.StartedAt)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<DeliveryShift> StartPartnerShiftAsync(DeliveryShift shift)
+    {
+        await _deliveryShifts.InsertOneAsync(shift);
+        await _deliveryPartners.UpdateOneAsync(
+            p => p.Id == shift.PartnerId,
+            Builders<DeliveryPartner>.Update
+                .Set(p => p.Status, "available")
+                .Set(p => p.LastLocationUpdatedAt, shift.StartedAt));
+        return shift;
+    }
+
+    public async Task<bool> EndPartnerShiftAsync(string shiftId, decimal endOdometerKm, double? endLatitude, double? endLongitude, string? notes)
+    {
+        var shift = await _deliveryShifts.Find(s => s.Id == shiftId && s.Status == "active").FirstOrDefaultAsync();
+        if (shift == null)
+        {
+            return false;
+        }
+
+        var totalDistance = Math.Max(0, endOdometerKm - shift.StartOdometerKm);
+        var now = GetIstNow();
+
+        var update = Builders<DeliveryShift>.Update
+            .Set(s => s.EndedAt, now)
+            .Set(s => s.EndOdometerKm, endOdometerKm)
+            .Set(s => s.EndLatitude, endLatitude)
+            .Set(s => s.EndLongitude, endLongitude)
+            .Set(s => s.TotalDistanceKm, totalDistance)
+            .Set(s => s.Status, "completed")
+            .Set(s => s.Notes, notes)
+            .Set(s => s.UpdatedAt, now);
+
+        var result = await _deliveryShifts.UpdateOneAsync(s => s.Id == shiftId && s.Status == "active", update);
+
+        if (result.ModifiedCount > 0)
+        {
+            await _deliveryPartners.UpdateOneAsync(
+                p => p.Id == shift.PartnerId,
+                Builders<DeliveryPartner>.Update
+                    .Set(p => p.Status, "offline")
+                    .Set(p => p.CurrentOrderId, (string?)null)
+                    .Set(p => p.LastLocationUpdatedAt, now));
+        }
+
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<List<DeliveryShift>> GetPartnerShiftsAsync(string partnerId, DateTime? fromDate = null, DateTime? toDate = null, int page = 1, int pageSize = 30)
+    {
+        var filterBuilder = Builders<DeliveryShift>.Filter;
+        var filter = filterBuilder.Eq(s => s.PartnerId, partnerId);
+
+        if (fromDate.HasValue)
+        {
+            filter &= filterBuilder.Gte(s => s.StartedAt, fromDate.Value);
+        }
+        if (toDate.HasValue)
+        {
+            filter &= filterBuilder.Lte(s => s.StartedAt, toDate.Value);
+        }
+
+        return await _deliveryShifts.Find(filter)
+            .SortByDescending(s => s.StartedAt)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<PartnerTripLog> CreatePartnerTripAsync(PartnerTripLog trip)
+    {
+        await _partnerTripLogs.InsertOneAsync(trip);
+
+        await _deliveryShifts.UpdateOneAsync(
+            s => s.Id == trip.ShiftId,
+            Builders<DeliveryShift>.Update
+                .Inc(s => s.TotalDistanceKm, trip.DistanceKm)
+                .Set(s => s.UpdatedAt, GetIstNow()));
+
+        return trip;
+    }
+
+    public async Task<List<PartnerTripLog>> GetPartnerTripsAsync(string partnerId, DateTime? fromDate = null, DateTime? toDate = null, int page = 1, int pageSize = 100)
+    {
+        var filterBuilder = Builders<PartnerTripLog>.Filter;
+        var filter = filterBuilder.Eq(t => t.PartnerId, partnerId);
+
+        if (fromDate.HasValue)
+        {
+            filter &= filterBuilder.Gte(t => t.StartedAt, fromDate.Value);
+        }
+        if (toDate.HasValue)
+        {
+            filter &= filterBuilder.Lte(t => t.StartedAt, toDate.Value);
+        }
+
+        return await _partnerTripLogs.Find(filter)
+            .SortByDescending(t => t.StartedAt)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<decimal> GetPartnerDistanceAsync(string partnerId, DateTime fromDate, DateTime toDate)
+    {
+        var filterBuilder = Builders<PartnerTripLog>.Filter;
+        var filter = filterBuilder.Eq(t => t.PartnerId, partnerId) &
+                     filterBuilder.Gte(t => t.StartedAt, fromDate) &
+                     filterBuilder.Lte(t => t.StartedAt, toDate);
+
+        var trips = await _partnerTripLogs.Find(filter).ToListAsync();
+        return trips.Sum(t => t.DistanceKm);
+    }
+
+    public async Task<FuelPriceDaily> UpsertFuelPriceAsync(string outletId, DateTime date, decimal petrolPricePerLitre)
+    {
+        var normalizedDate = date.Date;
+        var now = GetIstNow();
+        var filter = Builders<FuelPriceDaily>.Filter.Eq(f => f.OutletId, outletId) &
+                     Builders<FuelPriceDaily>.Filter.Eq(f => f.Date, normalizedDate);
+
+        var update = Builders<FuelPriceDaily>.Update
+            .Set(f => f.PetrolPricePerLitre, petrolPricePerLitre)
+            .Set(f => f.UpdatedAt, now)
+            .SetOnInsert(f => f.OutletId, outletId)
+            .SetOnInsert(f => f.Date, normalizedDate)
+            .SetOnInsert(f => f.CreatedAt, now);
+
+        await _fuelPriceDaily.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true });
+        return await _fuelPriceDaily.Find(filter).FirstAsync();
+    }
+
+    public async Task<FuelPriceDaily?> GetFuelPriceAsync(string outletId, DateTime date)
+    {
+        var normalizedDate = date.Date;
+        return await _fuelPriceDaily.Find(f => f.OutletId == outletId && f.Date == normalizedDate).FirstOrDefaultAsync();
+    }
+
+    public async Task<CODCollectionLog> UpsertCodCollectionAsync(CODCollectionLog codLog)
+    {
+        var existing = await _codCollectionLogs.Find(c => c.OrderId == codLog.OrderId).FirstOrDefaultAsync();
+        if (existing == null)
+        {
+            await _codCollectionLogs.InsertOneAsync(codLog);
+            return codLog;
+        }
+
+        var update = Builders<CODCollectionLog>.Update
+            .Set(c => c.PartnerId, codLog.PartnerId)
+            .Set(c => c.Amount, codLog.Amount)
+            .Set(c => c.Collected, codLog.Collected)
+            .Set(c => c.CollectionReference, codLog.CollectionReference)
+            .Set(c => c.Notes, codLog.Notes)
+            .Set(c => c.CollectedAt, codLog.CollectedAt)
+            .Set(c => c.ConfirmedByAdmin, codLog.ConfirmedByAdmin);
+        await _codCollectionLogs.UpdateOneAsync(c => c.Id == existing.Id, update);
+
+        return await _codCollectionLogs.Find(c => c.Id == existing.Id).FirstAsync();
+    }
+
+    public async Task<List<CODCollectionLog>> GetCodCollectionsAsync(string partnerId, DateTime? fromDate = null, DateTime? toDate = null)
+    {
+        var filterBuilder = Builders<CODCollectionLog>.Filter;
+        var filter = filterBuilder.Eq(c => c.PartnerId, partnerId);
+
+        if (fromDate.HasValue)
+        {
+            filter &= filterBuilder.Gte(c => c.CreatedAt, fromDate.Value);
+        }
+        if (toDate.HasValue)
+        {
+            filter &= filterBuilder.Lte(c => c.CreatedAt, toDate.Value);
+        }
+
+        return await _codCollectionLogs.Find(filter)
+            .SortByDescending(c => c.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<decimal> GetOutstandingCodAmountAsync(string partnerId)
+    {
+        var codLogs = await _codCollectionLogs.Find(c => c.PartnerId == partnerId && c.Collected && !c.ConfirmedByAdmin)
+            .ToListAsync();
+        return codLogs.Sum(c => c.Amount);
+    }
+
+    public async Task<DeliveryPartnerReview> AddDeliveryPartnerReviewAsync(DeliveryPartnerReview review)
+    {
+        await _deliveryPartnerReviews.InsertOneAsync(review);
+
+        var (averageRating, _) = await GetDeliveryPartnerRatingSummaryAsync(review.PartnerId);
+        await _deliveryPartners.UpdateOneAsync(
+            p => p.Id == review.PartnerId,
+            Builders<DeliveryPartner>.Update.Set(p => p.Rating, averageRating));
+
+        return review;
+    }
+
+    public async Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId)
+    {
+        var reviews = await _deliveryPartnerReviews.Find(r => r.PartnerId == partnerId).ToListAsync();
+        if (reviews.Count == 0)
+        {
+            return (0, 0);
+        }
+
+        var average = reviews.Average(r => r.Rating);
+        return (Math.Round(average, 2), reviews.Count);
+    }
+
+    public async Task<PartnerPayoutLedger> CreatePartnerPayoutLedgerAsync(PartnerPayoutLedger ledger)
+    {
+        var now = GetIstNow();
+        ledger.CreatedAt = now;
+        ledger.UpdatedAt = now;
+
+        var existing = await GetPartnerPayoutLedgerByPeriodAsync(ledger.PartnerId, ledger.PeriodStart, ledger.PeriodEnd, ledger.PeriodType);
+        if (existing == null)
+        {
+            await _partnerPayoutLedgers.InsertOneAsync(ledger);
+            return ledger;
+        }
+
+        var update = Builders<PartnerPayoutLedger>.Update
+            .Set(p => p.TotalDistanceKm, ledger.TotalDistanceKm)
+            .Set(p => p.TotalDeliveries, ledger.TotalDeliveries)
+            .Set(p => p.MileageKmpl, ledger.MileageKmpl)
+            .Set(p => p.FuelPricePerLitre, ledger.FuelPricePerLitre)
+            .Set(p => p.LitresConsumed, ledger.LitresConsumed)
+            .Set(p => p.PayoutAmount, ledger.PayoutAmount)
+            .Set(p => p.IsFinalized, ledger.IsFinalized)
+            .Set(p => p.UpdatedAt, now);
+
+        await _partnerPayoutLedgers.UpdateOneAsync(p => p.Id == existing.Id, update);
+        return await _partnerPayoutLedgers.Find(p => p.Id == existing.Id).FirstAsync();
+    }
+
+    public async Task<List<PartnerPayoutLedger>> GetPartnerPayoutLedgersAsync(string partnerId, int page = 1, int pageSize = 30)
+    {
+        return await _partnerPayoutLedgers.Find(p => p.PartnerId == partnerId)
+            .SortByDescending(p => p.PeriodStart)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<PartnerPayoutLedger?> GetPartnerPayoutLedgerByPeriodAsync(string partnerId, DateTime periodStart, DateTime periodEnd, string periodType)
+    {
+        return await _partnerPayoutLedgers.Find(p =>
+                p.PartnerId == partnerId &&
+                p.PeriodStart == periodStart &&
+                p.PeriodEnd == periodEnd &&
+                p.PeriodType == periodType)
+            .FirstOrDefaultAsync();
     }
 
     #endregion

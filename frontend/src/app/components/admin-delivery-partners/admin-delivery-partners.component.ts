@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DeliveryPartnerService, DeliveryPartner } from '../../services/delivery-partner.service';
+import { DeliveryPartnerService, DeliveryPartner, PartnerPayoutSummary, AssignableUser } from '../../services/delivery-partner.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
@@ -24,12 +24,50 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
   showModal = false;
   isEditMode = false;
   currentPartner: DeliveryPartner | null = null;
+  assignableUsers: AssignableUser[] = [];
+  filteredUsers: AssignableUser[] = [];
+  userSearch = '';
 
-  partnerForm: Partial<DeliveryPartner> = { name: '', phone: '', vehicleType: 'bike' };
+  partnerForm: Partial<DeliveryPartner> = {
+    name: '',
+    phone: '',
+    vehicleType: 'bike',
+    userId: '',
+    mileageKmpl: 40,
+    codAllowed: true,
+    payoutEnabled: true
+  };
 
   showAssignModal = false;
   assignForm = { orderId: '', deliveryPartnerId: '' };
   locationDraft: Record<string, { latitude: string; longitude: string }> = {};
+  showShiftModal = false;
+  shiftForm = {
+    partnerId: '',
+    mode: 'start' as 'start' | 'end',
+    shiftId: '',
+    startOdometerKm: '',
+    endOdometerKm: '',
+    notes: ''
+  };
+  showTripModal = false;
+  tripForm = {
+    partnerId: '',
+    shiftId: '',
+    tripType: 'delivery',
+    orderId: '',
+    startOdometerKm: '',
+    endOdometerKm: '',
+    startPointLabel: '',
+    endPointLabel: '',
+    notes: ''
+  };
+  showFuelModal = false;
+  fuelForm = { date: '', petrolPricePerLitre: '' };
+  showCodModal = false;
+  codForm = { partnerId: '', orderId: '', amount: '', collectionReference: '', notes: '' };
+  payoutPeriodType: 'day' | 'week' | 'month' | 'year' = 'day';
+  payoutSummaryByPartner: Record<string, PartnerPayoutSummary | null> = {};
 
   constructor(private partnerService: DeliveryPartnerService) {}
 
@@ -38,6 +76,7 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
       .pipe(filter(o => o !== null))
       .subscribe(() => this.loadPartners());
     if (this.outletService.getSelectedOutlet()) this.loadPartners();
+    this.loadAssignableUsers();
   }
 
   ngOnDestroy() { this.outletSub?.unsubscribe(); }
@@ -61,13 +100,76 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
     });
   }
 
-  openCreateModal() { this.isEditMode = false; this.currentPartner = null; this.partnerForm = { name: '', phone: '', vehicleType: 'bike' }; this.showModal = true; }
+  loadAssignableUsers() {
+    this.partnerService.getAssignableUsers().subscribe({
+      next: users => {
+        this.assignableUsers = users.filter(u => u.isActive);
+        this.applyUserFilter();
+      },
+      error: () => this.uiStore.error('Failed to load employee users')
+    });
+  }
+
+  applyUserFilter() {
+    const q = this.userSearch.trim().toLowerCase();
+    if (!q) {
+      this.filteredUsers = [...this.assignableUsers];
+      return;
+    }
+
+    this.filteredUsers = this.assignableUsers.filter(u => {
+      const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim().toLowerCase();
+      return (
+        u.username.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        fullName.includes(q) ||
+        (u.phoneNumber || '').toLowerCase().includes(q)
+      );
+    });
+  }
+
+  openCreateModal() {
+    this.isEditMode = false;
+    this.currentPartner = null;
+    this.partnerForm = {
+      name: '',
+      phone: '',
+      vehicleType: 'bike',
+      userId: '',
+      mileageKmpl: 40,
+      codAllowed: true,
+      payoutEnabled: true
+    };
+    this.showModal = true;
+    this.userSearch = '';
+    this.applyUserFilter();
+  }
 
   openEditModal(partner: DeliveryPartner) {
     this.isEditMode = true;
     this.currentPartner = partner;
-    this.partnerForm = { name: partner.name, phone: partner.phone, vehicleType: partner.vehicleType };
+    this.partnerForm = {
+      name: partner.name,
+      phone: partner.phone,
+      vehicleType: partner.vehicleType,
+      userId: partner.userId || '',
+      mileageKmpl: partner.mileageKmpl || 40,
+      codAllowed: partner.codAllowed ?? true,
+      payoutEnabled: partner.payoutEnabled ?? true
+    };
     this.showModal = true;
+    this.userSearch = '';
+    this.applyUserFilter();
+  }
+
+  onSelectUser(userId: string) {
+    this.partnerForm.userId = userId;
+  }
+
+  getUserLabel(user: AssignableUser): string {
+    const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const name = fullName || user.username;
+    return `${name} (${user.email})`;
   }
 
   closeModal() { this.showModal = false; this.currentPartner = null; }
@@ -141,6 +243,179 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
         this.loadPartners();
       },
       error: () => this.uiStore.error('Failed to update location')
+    });
+  }
+
+  openShiftModal(partnerId: string, mode: 'start' | 'end') {
+    this.shiftForm = {
+      partnerId,
+      mode,
+      shiftId: '',
+      startOdometerKm: '',
+      endOdometerKm: '',
+      notes: ''
+    };
+    this.showShiftModal = true;
+  }
+
+  submitShiftAction() {
+    if (!this.shiftForm.partnerId) return;
+
+    if (this.shiftForm.mode === 'start') {
+      const startOdometerKm = Number(this.shiftForm.startOdometerKm);
+      if (!Number.isFinite(startOdometerKm) || startOdometerKm < 0) {
+        this.uiStore.error('Enter valid start odometer');
+        return;
+      }
+
+      this.partnerService.startShift(this.shiftForm.partnerId, {
+        startOdometerKm,
+        notes: this.shiftForm.notes || undefined
+      }).subscribe({
+        next: () => {
+          this.uiStore.success('Shift started');
+          this.showShiftModal = false;
+          this.loadPartners();
+        },
+        error: () => this.uiStore.error('Failed to start shift')
+      });
+      return;
+    }
+
+    const endOdometerKm = Number(this.shiftForm.endOdometerKm);
+    if (!this.shiftForm.shiftId.trim()) {
+      this.uiStore.error('Shift ID is required to end shift');
+      return;
+    }
+    if (!Number.isFinite(endOdometerKm) || endOdometerKm < 0) {
+      this.uiStore.error('Enter valid end odometer');
+      return;
+    }
+
+    this.partnerService.endShift(this.shiftForm.partnerId, this.shiftForm.shiftId.trim(), {
+      endOdometerKm,
+      notes: this.shiftForm.notes || undefined
+    }).subscribe({
+      next: () => {
+        this.uiStore.success('Shift ended');
+        this.showShiftModal = false;
+        this.loadPartners();
+      },
+      error: () => this.uiStore.error('Failed to end shift')
+    });
+  }
+
+  openTripModal(partnerId: string) {
+    this.tripForm = {
+      partnerId,
+      shiftId: '',
+      tripType: 'delivery',
+      orderId: '',
+      startOdometerKm: '',
+      endOdometerKm: '',
+      startPointLabel: '',
+      endPointLabel: '',
+      notes: ''
+    };
+    this.showTripModal = true;
+  }
+
+  submitTrip() {
+    if (!this.tripForm.partnerId || !this.tripForm.shiftId.trim()) {
+      this.uiStore.error('Partner and shift ID are required');
+      return;
+    }
+
+    const startOdometerKm = Number(this.tripForm.startOdometerKm);
+    const endOdometerKm = Number(this.tripForm.endOdometerKm);
+
+    if (!Number.isFinite(startOdometerKm) || !Number.isFinite(endOdometerKm) || startOdometerKm < 0 || endOdometerKm < 0) {
+      this.uiStore.error('Enter valid odometer values');
+      return;
+    }
+
+    this.partnerService.createTrip(this.tripForm.partnerId, {
+      shiftId: this.tripForm.shiftId.trim(),
+      tripType: this.tripForm.tripType,
+      orderId: this.tripForm.orderId.trim() || undefined,
+      startOdometerKm,
+      endOdometerKm,
+      startPointLabel: this.tripForm.startPointLabel.trim() || undefined,
+      endPointLabel: this.tripForm.endPointLabel.trim() || undefined,
+      notes: this.tripForm.notes.trim() || undefined
+    }).subscribe({
+      next: () => {
+        this.uiStore.success('Trip logged successfully');
+        this.showTripModal = false;
+      },
+      error: () => this.uiStore.error('Failed to log trip')
+    });
+  }
+
+  openFuelModal() {
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    this.fuelForm = { date, petrolPricePerLitre: '' };
+    this.showFuelModal = true;
+  }
+
+  submitFuelPrice() {
+    const petrolPricePerLitre = Number(this.fuelForm.petrolPricePerLitre);
+    if (!this.fuelForm.date || !Number.isFinite(petrolPricePerLitre) || petrolPricePerLitre <= 0) {
+      this.uiStore.error('Enter valid date and fuel price');
+      return;
+    }
+
+    this.partnerService.upsertFuelPrice({
+      date: this.fuelForm.date,
+      petrolPricePerLitre
+    }).subscribe({
+      next: () => {
+        this.uiStore.success('Fuel price updated');
+        this.showFuelModal = false;
+      },
+      error: () => this.uiStore.error('Failed to update fuel price')
+    });
+  }
+
+  openCodModal(partnerId: string) {
+    this.codForm = { partnerId, orderId: '', amount: '', collectionReference: '', notes: '' };
+    this.showCodModal = true;
+  }
+
+  submitCod() {
+    if (!this.codForm.partnerId || !this.codForm.orderId.trim()) {
+      this.uiStore.error('Partner and order ID are required');
+      return;
+    }
+
+    const amount = Number(this.codForm.amount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      this.uiStore.error('Enter valid amount');
+      return;
+    }
+
+    this.partnerService.confirmCodCollection(this.codForm.partnerId, {
+      orderId: this.codForm.orderId.trim(),
+      amount,
+      collectionReference: this.codForm.collectionReference.trim() || undefined,
+      notes: this.codForm.notes.trim() || undefined
+    }).subscribe({
+      next: () => {
+        this.uiStore.success('COD confirmed');
+        this.showCodModal = false;
+      },
+      error: () => this.uiStore.error('Failed to confirm COD')
+    });
+  }
+
+  loadPayout(partnerId: string) {
+    this.partnerService.getPartnerPayoutSummary(partnerId, this.payoutPeriodType).subscribe({
+      next: summary => {
+        this.payoutSummaryByPartner[partnerId] = summary;
+        this.uiStore.success('Payout summary loaded');
+      },
+      error: () => this.uiStore.error('Failed to load payout summary')
     });
   }
 

@@ -1,0 +1,164 @@
+<section class="partner-shell" *ngIf="!loading && dashboard as d">
+  <header class="hero">
+    <div>
+      <p class="kicker">Delivery Partner Console</p>
+      <h1>{{ d.profile?.name || 'Partner' }}</h1>
+      <p class="subtitle">{{ d.profile?.phone }} • {{ d.profile?.vehicleType | titlecase }}</p>
+    </div>
+    <span class="status-pill" [class.active]="d.activeShift" [class.idle]="!d.activeShift">
+      {{ d.activeShift ? 'Shift Active' : 'Shift Inactive' }}
+    </span>
+  </header>
+
+  <div class="metrics-grid">
+    <article class="metric-card">
+      <span>Today Distance</span>
+      <strong>{{ d.todayDistanceKm | number:'1.0-2' }} km</strong>
+    </article>
+    <article class="metric-card">
+      <span>Today Payout</span>
+      <strong>Rs {{ d.todayPayout | number:'1.0-2' }}</strong>
+    </article>
+    <article class="metric-card warning">
+      <span>COD Outstanding</span>
+      <strong>Rs {{ d.codOutstanding | number:'1.0-2' }}</strong>
+    </article>
+    <article class="metric-card">
+      <span>Rating</span>
+      <strong>{{ d.averageRating | number:'1.1-2' }} / 5</strong>
+      <small>{{ d.reviewsCount }} reviews</small>
+    </article>
+  </div>
+
+  <section class="panel" *ngIf="d.activeShift as shift">
+    <h2>Active Shift</h2>
+    <div class="panel-grid">
+      <div><label>Started</label><p>{{ shift.startedAt | date:'medium' }}</p></div>
+      <div><label>Start Odometer</label><p>{{ shift.startOdometerKm }} km</p></div>
+      <div><label>Status</label><p>{{ formatStatus(shift.status) }}</p></div>
+    </div>
+  </section>
+
+  <section class="panel action-panel">
+    <h2>Shift Actions</h2>
+    <div class="action-grid">
+      <div class="action-card">
+        <h3>Start Shift</h3>
+        <p *ngIf="d.activeShift" class="hint">You already have an active shift.</p>
+        <div class="field-row">
+          <label>Start Odometer</label>
+          <input type="number" min="0" step="0.01" [(ngModel)]="shiftForm.startOdometerKm" [disabled]="!!d.activeShift" />
+        </div>
+        <div class="field-row">
+          <label>Notes</label>
+          <input type="text" [(ngModel)]="shiftForm.notes" [disabled]="!!d.activeShift" />
+        </div>
+        <button class="btn-primary" (click)="startShift()" [disabled]="!!d.activeShift || submittingShiftStart">
+          {{ submittingShiftStart ? 'Starting...' : 'Start Shift' }}
+        </button>
+      </div>
+
+      <div class="action-card">
+        <h3>End Shift</h3>
+        <p *ngIf="!d.activeShift" class="hint">No active shift to end.</p>
+        <div class="field-row">
+          <label>End Odometer</label>
+          <input type="number" min="0" step="0.01" [(ngModel)]="shiftForm.endOdometerKm" [disabled]="!d.activeShift" />
+        </div>
+        <button class="btn-danger" (click)="endShift()" [disabled]="!d.activeShift || submittingShiftEnd">
+          {{ submittingShiftEnd ? 'Ending...' : 'End Shift' }}
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel action-panel">
+    <h2>Trip Log</h2>
+    <p class="hint" *ngIf="!d.activeShift">Start a shift first to log trips.</p>
+    <div class="action-grid trip-grid">
+      <div class="field-row">
+        <label>Shift ID</label>
+        <input type="text" [(ngModel)]="tripForm.shiftId" [disabled]="!d.activeShift" [placeholder]="d.activeShift?.id || 'Shift ID'" />
+      </div>
+      <div class="field-row">
+        <label>Trip Type</label>
+        <select [(ngModel)]="tripForm.tripType" [disabled]="!d.activeShift">
+          <option value="delivery">Delivery</option>
+          <option value="outlet-transfer">Outlet Transfer</option>
+          <option value="market-stop">Market Stop</option>
+          <option value="misc">Misc</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <label>Order ID</label>
+        <input type="text" [(ngModel)]="tripForm.orderId" [disabled]="!d.activeShift" />
+      </div>
+      <div class="field-row">
+        <label>Start Odometer</label>
+        <input type="number" min="0" step="0.01" [(ngModel)]="tripForm.startOdometerKm" [disabled]="!d.activeShift" />
+      </div>
+      <div class="field-row">
+        <label>End Odometer</label>
+        <input type="number" min="0" step="0.01" [(ngModel)]="tripForm.endOdometerKm" [disabled]="!d.activeShift" />
+      </div>
+      <div class="field-row">
+        <label>Start Point</label>
+        <input type="text" [(ngModel)]="tripForm.startPointLabel" [disabled]="!d.activeShift" />
+      </div>
+      <div class="field-row">
+        <label>End Point</label>
+        <input type="text" [(ngModel)]="tripForm.endPointLabel" [disabled]="!d.activeShift" />
+      </div>
+      <div class="field-row full-row">
+        <label>Notes</label>
+        <input type="text" [(ngModel)]="tripForm.notes" [disabled]="!d.activeShift" />
+      </div>
+    </div>
+    <button class="btn-primary" (click)="logTrip()" [disabled]="!d.activeShift || submittingTrip">
+      {{ submittingTrip ? 'Saving...' : 'Log Trip' }}
+    </button>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Payout Summary</h2>
+      <select [(ngModel)]="periodType" (change)="loadPayout()">
+        <option value="day">Day</option>
+        <option value="week">Week</option>
+        <option value="month">Month</option>
+        <option value="year">Year</option>
+      </select>
+    </div>
+
+    <div *ngIf="payoutSummary as payout" class="panel-grid">
+      <div><label>Period</label><p>{{ payout.periodStart | date:'mediumDate' }} - {{ payout.periodEnd | date:'mediumDate' }}</p></div>
+      <div><label>Distance</label><p>{{ payout.totalDistanceKm | number:'1.0-2' }} km</p></div>
+      <div><label>Deliveries</label><p>{{ payout.totalDeliveries }}</p></div>
+      <div><label>Fuel Price</label><p>Rs {{ payout.fuelPricePerLitre | number:'1.0-2' }}</p></div>
+      <div><label>Litres</label><p>{{ payout.litresConsumed | number:'1.0-3' }}</p></div>
+      <div><label>Estimated Payout</label><p class="highlight">Rs {{ payout.payoutAmount | number:'1.0-2' }}</p></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Active Orders</h2>
+    <div *ngIf="d.activeOrders.length === 0" class="empty">No active orders assigned.</div>
+    <div class="orders" *ngIf="d.activeOrders.length > 0">
+      <article class="order-card" *ngFor="let order of d.activeOrders">
+        <div>
+          <h3>#{{ order.id }}</h3>
+          <p>{{ order.deliveryAddress || 'Address unavailable' }}</p>
+        </div>
+        <div class="order-meta">
+          <span>{{ formatStatus(order.status) }}</span>
+          <strong>Rs {{ order.total | number:'1.0-2' }}</strong>
+        </div>
+      </article>
+    </div>
+  </section>
+</section>
+
+<section *ngIf="loading" class="loading">
+  <div class="spinner"></div>
+  <p>Loading partner dashboard...</p>
+</section>

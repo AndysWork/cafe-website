@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
 
@@ -11,6 +12,15 @@ export interface DeliveryPartner {
   name: string;
   phone: string;
   vehicleType: string;
+  vehicleNumber?: string;
+  userId?: string;
+  mileageKmpl?: number;
+  codAllowed?: boolean;
+  payoutEnabled?: boolean;
+  licenseNumber?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  bankOrUpi?: string;
   status: 'available' | 'on-delivery' | 'offline';
   currentOrderId?: string;
   currentLatitude?: number;
@@ -27,6 +37,67 @@ export interface AssignDeliveryRequest {
   deliveryPartnerId?: string;
 }
 
+export interface DeliveryShift {
+  id?: string;
+  partnerId: string;
+  outletId: string;
+  shiftDate: string;
+  startedAt: string;
+  endedAt?: string;
+  startOdometerKm: number;
+  endOdometerKm?: number;
+  totalDistanceKm: number;
+  status: 'active' | 'completed' | 'cancelled';
+}
+
+export interface PartnerTrip {
+  id?: string;
+  shiftId: string;
+  partnerId: string;
+  tripType: 'delivery' | 'outlet-transfer' | 'market-stop' | 'misc';
+  orderId?: string;
+  startOdometerKm: number;
+  endOdometerKm: number;
+  distanceKm: number;
+  startPointLabel?: string;
+  endPointLabel?: string;
+  notes?: string;
+}
+
+export interface PartnerDashboard {
+  profile: DeliveryPartner | null;
+  activeShift: DeliveryShift | null;
+  activeOrders: Array<{ id?: string; status: string; total: number; deliveryAddress?: string }>;
+  todayDistanceKm: number;
+  todayPayout: number;
+  codOutstanding: number;
+  averageRating: number;
+  reviewsCount: number;
+}
+
+export interface PartnerPayoutSummary {
+  periodType: string;
+  periodStart: string;
+  periodEnd: string;
+  totalDistanceKm: number;
+  totalDeliveries: number;
+  mileageKmpl: number;
+  fuelPricePerLitre: number;
+  litresConsumed: number;
+  payoutAmount: number;
+}
+
+export interface AssignableUser {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  isActive: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DeliveryPartnerService {
   private http = inject(HttpClient);
@@ -35,6 +106,13 @@ export class DeliveryPartnerService {
   getDeliveryPartners(): Observable<DeliveryPartner[]> {
     return this.http.get<DeliveryPartner[]>(`${this.apiUrl}/manage/delivery-partners`).pipe(
       catchError(handleServiceError('DeliveryPartnerService.getDeliveryPartners'))
+    );
+  }
+
+  getAssignableUsers(): Observable<AssignableUser[]> {
+    return this.http.get<{ success: boolean; data: AssignableUser[] }>(`${this.apiUrl}/users`).pipe(
+      map(response => response?.data || []),
+      catchError(handleServiceError('DeliveryPartnerService.getAssignableUsers'))
     );
   }
 
@@ -85,6 +163,116 @@ export class DeliveryPartnerService {
   deletePartner(partnerId: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/${partnerId}`).pipe(
       catchError(handleServiceError('DeliveryPartnerService.deletePartner'))
+    );
+  }
+
+  getPartnerDashboard(partnerId?: string): Observable<PartnerDashboard> {
+    let params = new HttpParams();
+    if (partnerId) {
+      params = params.set('partnerId', partnerId);
+    }
+    return this.http.get<PartnerDashboard>(`${this.apiUrl}/partner/delivery/dashboard`, { params }).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.getPartnerDashboard'))
+    );
+  }
+
+  startShift(partnerId: string, payload: { startOdometerKm: number; startLatitude?: number; startLongitude?: number; notes?: string }): Observable<DeliveryShift> {
+    return this.http.post<DeliveryShift>(`${this.apiUrl}/manage/delivery-partners/${partnerId}/shift/start`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.startShift'))
+    );
+  }
+
+  endShift(partnerId: string, shiftId: string, payload: { endOdometerKm: number; endLatitude?: number; endLongitude?: number; notes?: string }): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/${partnerId}/shift/${shiftId}/end`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.endShift'))
+    );
+  }
+
+  createTrip(partnerId: string, payload: {
+    shiftId: string;
+    tripType: string;
+    orderId?: string;
+    startOdometerKm: number;
+    endOdometerKm: number;
+    startPointLabel?: string;
+    endPointLabel?: string;
+    startLatitude?: number;
+    startLongitude?: number;
+    endLatitude?: number;
+    endLongitude?: number;
+    notes?: string;
+  }): Observable<PartnerTrip> {
+    return this.http.post<PartnerTrip>(`${this.apiUrl}/manage/delivery-partners/${partnerId}/trips`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.createTrip'))
+    );
+  }
+
+  upsertFuelPrice(payload: { date: string; petrolPricePerLitre: number }): Observable<{ id?: string; date: string; petrolPricePerLitre: number }> {
+    return this.http.put<{ id?: string; date: string; petrolPricePerLitre: number }>(`${this.apiUrl}/manage/delivery-partners/fuel-price`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.upsertFuelPrice'))
+    );
+  }
+
+  confirmCodCollection(partnerId: string, payload: { orderId: string; amount: number; collectionReference?: string; notes?: string }): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/manage/delivery-partners/${partnerId}/cod/confirm`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.confirmCodCollection'))
+    );
+  }
+
+  addPartnerReview(payload: { orderId: string; partnerId: string; rating: number; review?: string }): Observable<{ id?: string }> {
+    return this.http.post<{ id?: string }>(`${this.apiUrl}/delivery-partners/reviews`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.addPartnerReview'))
+    );
+  }
+
+  getPartnerPayoutSummary(partnerId: string, periodType: 'day' | 'week' | 'month' | 'year', date?: string): Observable<PartnerPayoutSummary> {
+    let params = new HttpParams().set('periodType', periodType);
+    if (date) {
+      params = params.set('date', date);
+    }
+    return this.http.get<PartnerPayoutSummary>(`${this.apiUrl}/manage/delivery-partners/${partnerId}/payout`, { params }).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.getPartnerPayoutSummary'))
+    );
+  }
+
+  startMyShift(payload: { startOdometerKm: number; startLatitude?: number; startLongitude?: number; notes?: string }): Observable<DeliveryShift> {
+    return this.http.post<DeliveryShift>(`${this.apiUrl}/partner/delivery/shift/start`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.startMyShift'))
+    );
+  }
+
+  endMyShift(shiftId: string, payload: { endOdometerKm: number; endLatitude?: number; endLongitude?: number; notes?: string }): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/partner/delivery/shift/${shiftId}/end`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.endMyShift'))
+    );
+  }
+
+  createMyTrip(payload: {
+    shiftId: string;
+    tripType: string;
+    orderId?: string;
+    startOdometerKm: number;
+    endOdometerKm: number;
+    startPointLabel?: string;
+    endPointLabel?: string;
+    startLatitude?: number;
+    startLongitude?: number;
+    endLatitude?: number;
+    endLongitude?: number;
+    notes?: string;
+  }): Observable<PartnerTrip> {
+    return this.http.post<PartnerTrip>(`${this.apiUrl}/partner/delivery/trips`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.createMyTrip'))
+    );
+  }
+
+  getMyPayoutSummary(periodType: 'day' | 'week' | 'month' | 'year', date?: string): Observable<PartnerPayoutSummary> {
+    let params = new HttpParams().set('periodType', periodType);
+    if (date) {
+      params = params.set('date', date);
+    }
+    return this.http.get<PartnerPayoutSummary>(`${this.apiUrl}/partner/delivery/payout`, { params }).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.getMyPayoutSummary'))
     );
   }
 }
