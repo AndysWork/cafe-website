@@ -66,7 +66,7 @@ export class LoginComponent {
     });
   }
 
-  private navigateAfterLogin(role?: 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'user'): void {
+  private navigateAfterLogin(role?: 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'checf' | 'sous-chef' | 'user'): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
     if (returnUrl && returnUrl.startsWith('/')) {
       this.router.navigateByUrl(returnUrl);
@@ -80,6 +80,11 @@ export class LoginComponent {
 
     if (role === 'partner' || role === 'delivery-partner') {
       this.router.navigate(['/partner/delivery']);
+      return;
+    }
+
+    if (role === 'cook' || role === 'chef' || role === 'checf' || role === 'sous-chef') {
+      this.router.navigate(['/kitchen/dashboard']);
       return;
     }
 

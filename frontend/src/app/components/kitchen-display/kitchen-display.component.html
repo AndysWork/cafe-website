@@ -1,12 +1,16 @@
 <div class="kitchen-container">
   <div class="kitchen-header">
     <h1>👨‍🍳 Kitchen Display</h1>
+    <div class="kitchen-header-actions">
+      <a class="dashboard-link" routerLink="/kitchen/dashboard">Kitchen Staff Dashboard</a>
+    </div>
     <div class="stats-row" *ngIf="stats">
       <span class="stat-pill pending">⏳ {{ stats.pendingOrders }} Pending</span>
       <span class="stat-pill preparing">🔥 {{ stats.preparingOrders }} Preparing</span>
       <span class="stat-pill ready">✅ {{ stats.readyOrders }} Ready</span>
       <span class="stat-pill done">📊 {{ stats.completedToday }} Done Today</span>
       <span class="stat-pill" *ngIf="stats.avgPrepTime">⏱️ Avg {{ stats.avgPrepTime | number:'1.0-0' }}min</span>
+      <span class="stat-pill" *ngIf="stats.avgKptMinutes">📌 KPT {{ stats.avgKptMinutes | number:'1.0-0' }}min</span>
     </div>
   </div>
 
@@ -21,7 +25,7 @@
       <div class="order-card" *ngFor="let order of getOrdersByStatus(status)"
         [style.border-left-color]="getStatusColor(order.status)">
         <div class="order-header">
-          <span class="order-id">#{{ order.id?.slice(-6) }}</span>
+          <span class="order-id">#{{ order.id.slice(-6) }}</span>
           <span class="order-time">{{ getTimeSince(order.createdAt) }}</span>
         </div>
         <div class="order-customer">
@@ -35,9 +39,13 @@
           </div>
         </div>
         <div *ngIf="order.notes" class="order-notes">📝 {{ order.notes }}</div>
+        <div *ngIf="order.kitchenAssignedStaffName" class="order-assignee">
+          Assigned to: {{ order.kitchenAssignedStaffName }}
+        </div>
+        <div *ngIf="order.kptMinutes" class="order-kpt">KPT: {{ order.kptMinutes | number:'1.0-1' }} min</div>
         <div class="order-actions">
           <button *ngIf="order.status === 'pending'" (click)="updateStatus(order.id, 'confirmed')" class="btn-kitchen confirm">Confirm</button>
-          <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Start</button>
+          <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Approve & Start</button>
           <button *ngIf="order.status === 'preparing'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>
           <button *ngIf="order.status === 'ready'" (click)="updateStatus(order.id, 'out-for-delivery')" class="btn-kitchen prepare">Dispatch</button>
           <button *ngIf="order.status === 'out-for-delivery'" (click)="updateStatus(order.id, 'delivered')" class="btn-kitchen ready">Delivered</button>
@@ -45,6 +53,38 @@
         </div>
       </div>
       <div *ngIf="getOrdersByStatus(status).length === 0" class="empty-column">No orders</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showChecklistModal" (click)="closeChecklist()">
+  <div class="checklist-modal" (click)="$event.stopPropagation()">
+    <div class="kot-header">
+      <h3>Pre-Ready Checklist</h3>
+      <button (click)="closeChecklist()" class="btn-close">✕</button>
+    </div>
+
+    <p class="checklist-subtitle" *ngIf="selectedOrderForChecklist">
+      Complete all checks for Order #{{ selectedOrderForChecklist.id.slice(-6) }}
+    </p>
+
+    <div class="checklist-progress">
+      <span>Progress: {{ getChecklistProgress() }}%</span>
+      <div class="progress-track">
+        <div class="progress-fill" [style.width.%]="getChecklistProgress()"></div>
+      </div>
+    </div>
+
+    <div class="checklist-items">
+      <label class="checklist-item" *ngFor="let item of checklistItems; let i = index">
+        <input type="checkbox" [(ngModel)]="checklistItems[i].isCompleted" />
+        <span>{{ item.label }}</span>
+      </label>
+    </div>
+
+    <div class="kot-actions">
+      <button (click)="completeReadyStatus()" class="btn-kitchen ready">Mark Ready</button>
+      <button (click)="closeChecklist()" class="btn-kitchen confirm">Cancel</button>
     </div>
   </div>
 </div>

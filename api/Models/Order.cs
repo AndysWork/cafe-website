@@ -121,6 +121,37 @@ public class Order : ISoftDeletable
     [BsonElement("tableNumber")]
     public string? TableNumber { get; set; }
 
+    [BsonElement("kitchenChecklist")]
+    public List<KitchenChecklistItem> KitchenChecklist { get; set; } = new();
+
+    [BsonElement("kitchenPrepStartedAt")]
+    public DateTime? KitchenPrepStartedAt { get; set; }
+
+    [BsonElement("kitchenReadyAt")]
+    public DateTime? KitchenReadyAt { get; set; }
+
+    [BsonElement("kptMinutes")]
+    public decimal? KptMinutes { get; set; }
+
+    [BsonElement("kitchenHandledByUserId")]
+    public string? KitchenHandledByUserId { get; set; }
+
+    [BsonElement("kitchenHandledByRole")]
+    public string? KitchenHandledByRole { get; set; }
+
+    [BsonElement("kitchenAssignedStaffId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? KitchenAssignedStaffId { get; set; }
+
+    [BsonElement("kitchenAssignedStaffName")]
+    public string? KitchenAssignedStaffName { get; set; }
+
+    [BsonElement("kitchenAssignedRole")]
+    public string? KitchenAssignedRole { get; set; }
+
+    [BsonElement("kitchenAssignedAt")]
+    public DateTime? KitchenAssignedAt { get; set; }
+
     [BsonElement("loyaltyPointsAwarded")]
     public bool LoyaltyPointsAwarded { get; set; }
 
@@ -131,6 +162,24 @@ public class Order : ISoftDeletable
     [BsonElement("isDeleted")] public bool IsDeleted { get; set; }
     [BsonElement("deletedAt")] public DateTime? DeletedAt { get; set; }
     [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
+}
+
+public class KitchenChecklistItem
+{
+    [BsonElement("id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+    [BsonElement("label")]
+    public string Label { get; set; } = string.Empty;
+
+    [BsonElement("isCompleted")]
+    public bool IsCompleted { get; set; }
+
+    [BsonElement("completedAt")]
+    public DateTime? CompletedAt { get; set; }
+
+    [BsonElement("completedBy")]
+    public string? CompletedBy { get; set; }
 }
 
 public class OrderItem

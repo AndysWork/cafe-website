@@ -109,4 +109,42 @@ public static class AuthorizationHelper
 
         return (true, userId, role, null);
     }
+
+    public static async Task<(bool isAuthorized, string? userId, string? role, HttpResponseData? errorResponse)>
+        ValidateKitchenAccessRole(HttpRequestData req, AuthService authService)
+    {
+        var authHeader = req.Headers.TryGetValues("Authorization", out var headerValues)
+            ? headerValues.FirstOrDefault()
+            : null;
+
+        if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
+        {
+            var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+            await unauthorized.WriteAsJsonAsync(new { error = "Authorization header missing or invalid" });
+            return (false, null, null, unauthorized);
+        }
+
+        var token = authHeader.Substring("Bearer ".Length).Trim();
+        var principal = authService.ValidateToken(token);
+
+        if (principal == null)
+        {
+            var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+            await unauthorized.WriteAsJsonAsync(new { error = "Invalid or expired token" });
+            return (false, null, null, unauthorized);
+        }
+
+        var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.ToLowerInvariant();
+        var kitchenRoles = new[] { "admin", "manager", "cook", "chef", "checf", "sous-chef" };
+
+        if (string.IsNullOrWhiteSpace(role) || !kitchenRoles.Contains(role))
+        {
+            var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+            await forbidden.WriteAsJsonAsync(new { error = "Kitchen access role required" });
+            return (false, userId, role, forbidden);
+        }
+
+        return (true, userId, role, null);
+    }
 }

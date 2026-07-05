@@ -15,6 +15,20 @@ export interface KitchenOrder {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  kptMinutes?: number;
+  kitchenPrepStartedAt?: string;
+  kitchenReadyAt?: string;
+  kitchenChecklist?: KitchenChecklistItem[];
+  kitchenAssignedStaffId?: string;
+  kitchenAssignedStaffName?: string;
+  kitchenAssignedRole?: string;
+  kitchenAssignedAt?: string;
+}
+
+export interface KitchenChecklistItem {
+  id?: string;
+  label: string;
+  isCompleted: boolean;
 }
 
 export interface KitchenStats {
@@ -22,7 +36,30 @@ export interface KitchenStats {
   preparingOrders: number;
   readyOrders: number;
   avgPrepTime: number;
+  avgKptMinutes?: number;
   completedToday: number;
+}
+
+export interface KitchenStaffDashboard {
+  role: string;
+  period: 'day' | 'week' | 'month' | 'year';
+  ratings: {
+    average: number;
+    reviewsCount: number;
+    start: string;
+    end: string;
+  };
+  shift: {
+    isInShift: boolean;
+    clockIn?: string;
+    clockOut?: string;
+    hoursWorked?: number;
+  };
+  attendance?: any;
+  payslip: {
+    route: string;
+    label: string;
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -36,8 +73,8 @@ export class KitchenDisplayService {
     );
   }
 
-  updateOrderStatus(orderId: string, status: string): Observable<{ message: string }> {
-    return this.http.put<{ message: string }>(`${this.apiUrl}/kitchen/orders/${orderId}/status`, { status }).pipe(
+  updateOrderStatus(orderId: string, status: string, checklistItems?: KitchenChecklistItem[]): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.apiUrl}/kitchen/orders/${orderId}/status`, { status, checklistItems }).pipe(
       catchError(handleServiceError('KitchenDisplayService.updateOrderStatus'))
     );
   }
@@ -51,6 +88,30 @@ export class KitchenDisplayService {
   getKot(orderId: string): Observable<{ kotText: string }> {
     return this.http.get<{ kotText: string }>(`${this.apiUrl}/kitchen/orders/${orderId}/kot`).pipe(
       catchError(handleServiceError('KitchenDisplayService.getKot'))
+    );
+  }
+
+  getKitchenStaffDashboard(period: 'day' | 'week' | 'month' | 'year'): Observable<KitchenStaffDashboard> {
+    return this.http.get<KitchenStaffDashboard>(`${this.apiUrl}/kitchen/staff/dashboard?period=${period}`).pipe(
+      catchError(handleServiceError('KitchenDisplayService.getKitchenStaffDashboard'))
+    );
+  }
+
+  shiftIn(): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/kitchen/staff/shift-in`, {}).pipe(
+      catchError(handleServiceError('KitchenDisplayService.shiftIn'))
+    );
+  }
+
+  shiftOut(): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/kitchen/staff/shift-out`, {}).pipe(
+      catchError(handleServiceError('KitchenDisplayService.shiftOut'))
+    );
+  }
+
+  markAttendance(): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/kitchen/staff/attendance/mark`, {}).pipe(
+      catchError(handleServiceError('KitchenDisplayService.markAttendance'))
     );
   }
 }

@@ -24,7 +24,15 @@ export class AuthStore {
   readonly isAdmin = computed(() => this._user()?.role === 'admin');
   readonly isUser = computed(() => {
     const role = this._user()?.role;
-    return role === 'user' || role === 'admin' || role === 'manager' || role === 'partner' || role === 'delivery-partner';
+    return role === 'user'
+      || role === 'admin'
+      || role === 'manager'
+      || role === 'partner'
+      || role === 'delivery-partner'
+      || role === 'cook'
+      || role === 'chef'
+      || role === 'checf'
+      || role === 'sous-chef';
   });
   readonly userRole = computed<UserRole | 'guest'>(() => this._user()?.role ?? 'guest');
   readonly userName = computed(() => {

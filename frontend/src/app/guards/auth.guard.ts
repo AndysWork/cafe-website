@@ -30,3 +30,22 @@ export const adminGuard: CanActivateFn = (route, state) => {
   router.navigate(['/home']);
   return false;
 };
+
+export const kitchenGuard: CanActivateFn = (route, state) => {
+  const authStore = inject(AuthStore);
+  const router = inject(Router);
+
+  if (!authStore.isLoggedIn()) {
+    router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+    return false;
+  }
+
+  const role = authStore.userRole();
+  const allowed = ['admin', 'manager', 'cook', 'chef', 'checf', 'sous-chef'];
+  if (allowed.includes(role)) {
+    return true;
+  }
+
+  router.navigate(['/home']);
+  return false;
+};

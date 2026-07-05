@@ -10,6 +10,20 @@
   h1 { font-size: 1.5rem; margin-bottom: 12px; }
 }
 
+.kitchen-header-actions {
+  margin-bottom: 12px;
+}
+
+.dashboard-link {
+  color: #38BDF8;
+  text-decoration: none;
+  font-weight: 600;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: inline-block;
+}
+
 .stats-row {
   display: flex; gap: 12px; flex-wrap: wrap;
 }
@@ -97,6 +111,18 @@
   background: #1e293b; border-radius: 6px; margin-bottom: 8px;
 }
 
+.order-kpt {
+  font-size: 0.8rem;
+  color: #67e8f9;
+  margin-bottom: 8px;
+}
+
+.order-assignee {
+  font-size: 0.8rem;
+  color: #86efac;
+  margin-bottom: 6px;
+}
+
 .order-actions {
   display: flex; gap: 6px; flex-wrap: wrap;
 }
@@ -125,6 +151,52 @@
 .kot-modal {
   background: white; border-radius: 12px;
   padding: 20px; max-width: 350px; width: 100%;
+}
+
+.checklist-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.checklist-subtitle {
+  color: #475569;
+  margin-bottom: 10px;
+}
+
+.checklist-progress {
+  margin-bottom: 12px;
+  color: #334155;
+}
+
+.progress-track {
+  margin-top: 6px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9, #22c55e);
+}
+
+.checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e293b;
+  font-size: 0.92rem;
 }
 
 .kot-header {

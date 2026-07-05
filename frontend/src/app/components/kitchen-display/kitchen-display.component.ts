@@ -1,15 +1,17 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { KitchenDisplayService, KitchenOrder, KitchenStats } from '../../services/kitchen-display.service';
+import { FormsModule } from '@angular/forms';
+import { KitchenDisplayService, KitchenOrder, KitchenStats, KitchenChecklistItem } from '../../services/kitchen-display.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription, interval } from 'rxjs';
-import { filter, switchMap } from 'rxjs/operators';
+import { filter } from 'rxjs/operators';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-kitchen-display',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './kitchen-display.component.html',
   styleUrls: ['./kitchen-display.component.scss']
 })
@@ -24,6 +26,9 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
   loading = true;
   kotText = '';
   showKotModal = false;
+  showChecklistModal = false;
+  selectedOrderForChecklist: KitchenOrder | null = null;
+  checklistItems: KitchenChecklistItem[] = [];
 
   constructor(private kitchenService: KitchenDisplayService) {}
 
@@ -54,10 +59,69 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
   }
 
   updateStatus(orderId: string, status: string) {
+    if (status === 'ready') {
+      this.openChecklist(orderId);
+      return;
+    }
+
     this.kitchenService.updateOrderStatus(orderId, status).subscribe({
       next: () => { this.uiStore.success('Status updated'); this.loadData(); },
       error: () => this.uiStore.error('Failed to update status')
     });
+  }
+
+  openChecklist(orderId: string) {
+    const order = this.orders.find(o => o.id === orderId);
+    if (!order) {
+      this.uiStore.error('Order not found');
+      return;
+    }
+
+    const fallbackChecklist: KitchenChecklistItem[] = [
+      { label: 'Item quantity rechecked', isCompleted: false },
+      { label: 'Plating and garnish completed', isCompleted: false },
+      { label: 'Temperature and freshness verified', isCompleted: false },
+      { label: 'Packaging/sealing verified', isCompleted: false },
+      { label: 'Special instructions verified', isCompleted: false }
+    ];
+
+    this.selectedOrderForChecklist = order;
+    this.checklistItems = (order.kitchenChecklist?.length ? order.kitchenChecklist : fallbackChecklist)
+      .map(i => ({ id: i.id, label: i.label, isCompleted: i.isCompleted }));
+    this.showChecklistModal = true;
+  }
+
+  closeChecklist() {
+    this.showChecklistModal = false;
+    this.selectedOrderForChecklist = null;
+    this.checklistItems = [];
+  }
+
+  completeReadyStatus() {
+    if (!this.selectedOrderForChecklist) {
+      return;
+    }
+
+    const incomplete = this.checklistItems.filter(item => !item.isCompleted);
+    if (incomplete.length > 0) {
+      this.uiStore.error('Complete all checklist items before marking ready');
+      return;
+    }
+
+    this.kitchenService.updateOrderStatus(this.selectedOrderForChecklist.id, 'ready', this.checklistItems).subscribe({
+      next: () => {
+        this.uiStore.success('Order marked ready with checklist completed');
+        this.closeChecklist();
+        this.loadData();
+      },
+      error: () => this.uiStore.error('Failed to mark order ready')
+    });
+  }
+
+  getChecklistProgress(): number {
+    if (!this.checklistItems.length) return 0;
+    const completed = this.checklistItems.filter(i => i.isCompleted).length;
+    return Math.round((completed / this.checklistItems.length) * 100);
   }
 
   printKot(orderId: string) {

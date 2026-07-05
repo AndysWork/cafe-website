@@ -4,7 +4,7 @@ import { Observable, tap, catchError, of, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthStore } from '../store/auth.store';
 
-export type UserRole = 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'user';
+export type UserRole = 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'checf' | 'sous-chef' | 'user';
 
 export interface User {
   id?: string;
