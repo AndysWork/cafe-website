@@ -21,7 +21,9 @@ $error-border: #fecaca;
 .auth-page {
   display: flex;
   min-height: 100vh;
-  overflow: hidden;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 // ── Left Visual Panel ──────────────────────────
@@ -517,11 +519,16 @@ $error-border: #fecaca;
 
   .auth-form-panel {
     flex: 1;
+    align-items: flex-start;
     padding: 32px 24px;
 
     &::before {
       display: none;
     }
+  }
+
+  .form-wrapper {
+    max-width: 100%;
   }
 
   .form-header {
@@ -566,16 +573,170 @@ $error-border: #fecaca;
     padding: 24px 16px;
   }
 
+  .visual-features {
+    display: none;
+  }
+
   .form-wrapper {
     max-width: 100%;
   }
 
   .input-group input {
     padding: 14px 44px 14px 44px;
+    font-size: 16px;
+  }
+
+  .input-group {
+    margin-bottom: 18px;
+  }
+
+  .forgot-link {
+    margin: 12px 0;
+  }
+
+  .divider {
+    margin: 6px 0 14px;
   }
 
   .btn-primary {
     padding: 14px;
     font-size: 1rem;
+  }
+}
+
+@media (max-width: 900px) and (max-height: 760px) {
+  .auth-visual {
+    display: none;
+  }
+
+  .auth-form-panel {
+    min-height: 100vh;
+    min-height: 100dvh;
+    justify-content: flex-start;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    overflow-y: auto;
+  }
+
+  .form-header {
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-height: 760px) {
+  .auth-page {
+    flex-direction: column;
+  }
+
+  .auth-visual {
+    display: none;
+  }
+
+  .auth-form-panel {
+    min-height: calc(100vh - 72px);
+    min-height: calc(100dvh - 72px);
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 14px 16px 18px;
+    overflow-y: auto;
+  }
+
+  .form-wrapper {
+    max-width: 100%;
+  }
+
+  .form-header {
+    margin-bottom: 10px;
+
+    h2 {
+      font-size: 1.45rem;
+      margin-bottom: 2px;
+    }
+
+    p {
+      font-size: 0.9rem;
+      margin: 0;
+    }
+  }
+
+  .input-group {
+    margin-bottom: 12px;
+
+    input {
+      padding: 12px 42px;
+      font-size: 16px;
+    }
+  }
+
+  .btn-primary {
+    padding: 12px;
+    font-size: 0.98rem;
+  }
+
+  .forgot-link {
+    margin: 8px 0;
+  }
+
+  .divider {
+    margin: 4px 0 8px;
+  }
+
+  .switch-auth {
+    margin: 0;
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-height: 430px) {
+  .auth-form-panel {
+    padding: 10px 14px 12px;
+  }
+
+  .form-header {
+    margin-bottom: 8px;
+
+    h2 {
+      font-size: 1.3rem;
+      margin-bottom: 0;
+    }
+
+    p {
+      display: none;
+    }
+  }
+
+  .input-group {
+    margin-bottom: 10px;
+
+    input {
+      padding: 10px 40px;
+    }
+
+    label {
+      font-size: 0.92rem;
+    }
+  }
+
+  .btn-primary {
+    padding: 10px;
+    font-size: 0.95rem;
+  }
+
+  .forgot-link {
+    margin: 6px 0;
+    font-size: 0.85rem;
+  }
+
+  .divider {
+    margin: 4px 0 6px;
+
+    span {
+      font-size: 0.75rem;
+      letter-spacing: 0.6px;
+    }
+  }
+
+  .switch-auth {
+    font-size: 0.82rem;
   }
 }
