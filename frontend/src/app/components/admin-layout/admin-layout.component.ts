@@ -91,6 +91,11 @@ export class AdminLayoutComponent implements OnDestroy {
           route: '/admin/staff'
         },
         {
+          icon: '🧭',
+          label: 'User Roles',
+          route: '/admin/user-roles'
+        },
+        {
           icon: '📝',
           label: 'Daily Performance',
           route: '/admin/daily-performance'

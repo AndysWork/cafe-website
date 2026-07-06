@@ -159,6 +159,13 @@ public class UpdateProfileRequest
     public string? PhoneNumber { get; set; }
 }
 
+public class UpdateUserRoleRequest
+{
+    [Required(ErrorMessage = "Role is required")]
+    [StringLength(50, ErrorMessage = "Role cannot exceed 50 characters")]
+    public string Role { get; set; } = "user";
+}
+
 public class ChangePasswordRequest
 {
     [Required(ErrorMessage = "Current password is required")]

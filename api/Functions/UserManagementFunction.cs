@@ -14,6 +14,19 @@ namespace Cafe.Api.Functions;
 
 public class UserManagementFunction
 {
+    private static readonly HashSet<string> AllowedRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "admin",
+        "manager",
+        "partner",
+        "delivery-partner",
+        "cook",
+        "chef",
+        "checf",
+        "sous-chef",
+        "user"
+    };
+
     private readonly IUserRepository _mongo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
@@ -236,6 +249,114 @@ public class UserManagementFunction
             _log.LogError(ex, "Error demoting admin to user");
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
             await errorRes.WriteAsJsonAsync(new { error = "Failed to demote user" });
+            return errorRes;
+        }
+    }
+
+    [Function("UpdateUserRole")]
+    [OpenApiOperation(operationId: "UpdateUserRole", tags: new[] { "Users" }, Summary = "Update user role", Description = "Updates a user role from a predefined list (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "userId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "User ID")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(UpdateUserRoleRequest), Required = true, Description = "Role update payload")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Role updated successfully")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid role")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "User not found")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "User not authorized")]
+    public async Task<HttpResponseData> UpdateUserRole(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "users/{userId}/role")] HttpRequestData req,
+        string userId)
+    {
+        var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!isAuthorized) return errorResponse!;
+
+        try
+        {
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateUserRoleRequest>(req);
+            if (validationError != null) return validationError;
+
+            var targetRole = (request.Role ?? string.Empty).Trim().ToLowerInvariant();
+            if (!AllowedRoles.Contains(targetRole))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new
+                {
+                    error = "Invalid role",
+                    allowedRoles = AllowedRoles.OrderBy(x => x).ToArray()
+                });
+                return badReq;
+            }
+
+            if (userId == adminUserId && targetRole != "admin")
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "You cannot remove your own admin role" });
+                return forbidden;
+            }
+
+            var user = await _mongo.GetUserByIdAsync(userId);
+            if (user == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
+                return notFound;
+            }
+
+            if (string.Equals(user.Role, targetRole, StringComparison.OrdinalIgnoreCase))
+            {
+                var ok = req.CreateResponse(HttpStatusCode.OK);
+                await ok.WriteAsJsonAsync(new
+                {
+                    success = true,
+                    message = $"User '{user.Username}' already has role '{targetRole}'",
+                    data = new
+                    {
+                        userId = user.Id,
+                        username = user.Username,
+                        role = user.Role
+                    }
+                });
+                return ok;
+            }
+
+            var success = await _mongo.UpdateUserRoleAsync(userId, targetRole);
+            if (!success)
+            {
+                var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update user role" });
+                return errorRes;
+            }
+
+            var auditLogger = new AuditLogger(_log);
+            auditLogger.LogAdminAction(
+                adminUserId: adminUserId!,
+                action: "Update User Role",
+                targetUserId: userId,
+                details: $"User '{user.Username}' role updated from '{user.Role}' to '{targetRole}'"
+            );
+
+            _log.LogInformation("User {Username} role updated from {OldRole} to {NewRole} by {AdminUserId}", user.Username, user.Role, targetRole, adminUserId);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                message = $"User '{user.Username}' role updated to '{targetRole}'",
+                data = new
+                {
+                    userId = user.Id,
+                    username = user.Username,
+                    oldRole = user.Role,
+                    role = targetRole
+                }
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating user role for {UserId}", userId);
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update user role" });
             return errorRes;
         }
     }

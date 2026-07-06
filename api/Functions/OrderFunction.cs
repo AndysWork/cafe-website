@@ -1154,7 +1154,10 @@ public class OrderFunction
                     new { PhoneNumber = order.PhoneNumber, Username = order.Username ?? "Customer", OrderId = order.Id!, Status = statusRequest.Status });
             }
 
-            if (order != null && !string.IsNullOrEmpty(order.UserEmail))
+            var shouldSendStatusEmail = string.Equals(nextStatus, "confirmed", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(nextStatus, "delivered", StringComparison.OrdinalIgnoreCase);
+
+            if (order != null && !string.IsNullOrEmpty(order.UserEmail) && shouldSendStatusEmail)
             {
                 await _outbox.EnqueueAsync("StatusUpdateEmail", "Order", id,
                     new { Email = order.UserEmail, Username = order.Username ?? "Customer", OrderId = order.Id!, Status = statusRequest.Status });

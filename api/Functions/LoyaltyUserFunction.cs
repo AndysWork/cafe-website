@@ -9,6 +9,7 @@ using System.Security.Claims;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
+using MongoDB.Bson;
 
 namespace Cafe.Api.Functions;
 
@@ -252,6 +253,13 @@ public class LoyaltyUserFunction
             
             if (!isAuthorized || string.IsNullOrEmpty(userId))
                 return errorResponse!;
+
+            if (string.IsNullOrWhiteSpace(rewardId) || !ObjectId.TryParse(rewardId, out _))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid reward id" });
+                return badRequest;
+            }
 
             // Redeem reward
             var redemptionResult = await _mongo.RedeemRewardAsync(userId, rewardId);

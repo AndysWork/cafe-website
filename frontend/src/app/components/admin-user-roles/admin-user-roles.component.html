@@ -1,0 +1,91 @@
+<div class="page">
+  <div class="header">
+    <div>
+      <h1>User Role Management</h1>
+      <p>Promote users to delivery-partner, chef, sous-chef, cook, manager and more.</p>
+    </div>
+    <button type="button" class="btn" (click)="loadUsers()" [disabled]="loading">Refresh</button>
+  </div>
+
+  <div class="filters">
+    <input
+      type="text"
+      placeholder="Search by username, email, phone, or name"
+      [(ngModel)]="search"
+      aria-label="Search users"
+    />
+
+    <select [(ngModel)]="roleFilter" aria-label="Filter by role">
+      <option value="all">All Roles</option>
+      <option *ngFor="let role of roles" [value]="role">{{ role }}</option>
+    </select>
+  </div>
+
+  <div *ngIf="loading" class="state">Loading users...</div>
+
+  <div *ngIf="!loading && filteredUsers().length === 0" class="state">
+    No users found for current filters.
+  </div>
+
+  <div *ngIf="!loading && filteredUsers().length > 0" class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Contact</th>
+          <th>Current Role</th>
+          <th>Set Role</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let user of filteredUsers()">
+          <td>
+            <div class="name">{{ getDisplayName(user) }}</div>
+            <div class="sub">{{ '@' + user.username }}</div>
+          </td>
+          <td>
+            <div>{{ user.email }}</div>
+            <div class="sub" *ngIf="user.phoneNumber">{{ user.phoneNumber }}</div>
+          </td>
+          <td>
+            <span class="badge">{{ user.role }}</span>
+          </td>
+          <td>
+            <select
+              [(ngModel)]="roleDrafts[user.id]"
+              [disabled]="savingUserId === user.id"
+              aria-label="Select user role"
+            >
+              <option *ngFor="let role of roles" [value]="role">{{ role }}</option>
+            </select>
+          </td>
+          <td>
+            <span [class.active]="user.isActive" [class.inactive]="!user.isActive">
+              {{ user.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </td>
+          <td class="actions">
+            <button
+              type="button"
+              class="btn"
+              (click)="updateRole(user)"
+              [disabled]="savingUserId === user.id || !canUpdateRole(user)"
+            >
+              Update Role
+            </button>
+            <button
+              type="button"
+              class="btn secondary"
+              (click)="toggleUserStatus(user)"
+              [disabled]="savingUserId === user.id"
+            >
+              {{ user.isActive ? 'Deactivate' : 'Activate' }}
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

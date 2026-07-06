@@ -55,6 +55,7 @@ export const routes: Routes = [
       { path: 'inventory', loadComponent: () => import('./inventory-management/inventory-management.component').then(m => m.InventoryManagementComponent) },
       { path: 'outlets', loadComponent: () => import('./components/outlet-management/outlet-management.component').then(m => m.OutletManagementComponent) },
       { path: 'staff', loadComponent: () => import('./components/staff-management/staff-management.component').then(m => m.StaffManagementComponent) },
+      { path: 'user-roles', loadComponent: () => import('./components/admin-user-roles/admin-user-roles.component').then(m => m.AdminUserRolesComponent) },
       { path: 'bonus-calculation', loadComponent: () => import('./components/bonus-calculation/bonus-calculation.component').then(m => m.BonusCalculationComponent) },
       { path: 'bonus-configuration', loadComponent: () => import('./components/bonus-configuration/bonus-configuration.component').then(m => m.BonusConfigurationComponent) },
       { path: 'staff-performance', loadComponent: () => import('./components/staff-performance/staff-performance.component').then(m => m.StaffPerformanceComponent) },
