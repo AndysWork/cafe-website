@@ -12,6 +12,7 @@ using System.Globalization;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
+using MongoDB.Bson;
 
 namespace Cafe.Api.Functions;
 
@@ -24,6 +25,7 @@ public class OrderFunction
     private readonly IMenuRepository _menuRepo;
     private readonly IOfferRepository _offerRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
+    private readonly IWalletRepository _walletRepo;
     private readonly IUserRepository _userRepo;
     private readonly IOperationsRepository _operationsRepo;
     private readonly MongoService _mongo;  // retained for OutletHelper compatibility and static helpers
@@ -38,6 +40,7 @@ public class OrderFunction
         IMenuRepository menuRepo,
         IOfferRepository offerRepo,
         ILoyaltyRepository loyaltyRepo,
+        IWalletRepository walletRepo,
         IUserRepository userRepo,
         IOperationsRepository operationsRepo,
         MongoService mongo,
@@ -51,6 +54,7 @@ public class OrderFunction
         _menuRepo = menuRepo;
         _offerRepo = offerRepo;
         _loyaltyRepo = loyaltyRepo;
+        _walletRepo = walletRepo;
         _userRepo = userRepo;
         _operationsRepo = operationsRepo;
         _mongo = mongo;
@@ -79,6 +83,12 @@ public class OrderFunction
     public async Task<HttpResponseData> CreateOrder(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders")] HttpRequestData req)
     {
+        string? requestUserId = null;
+        string? plannedOrderId = null;
+        bool walletDebited = false;
+        bool orderPersisted = false;
+        decimal walletDebitedAmount = 0;
+
         try
         {
             // Validate user authorization (any authenticated user can create orders)
@@ -102,6 +112,7 @@ public class OrderFunction
 
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var username = principal.FindFirst(ClaimTypes.Name)?.Value;
+            requestUserId = userId;
 
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(username))
             {
@@ -337,7 +348,74 @@ public class OrderFunction
             }
 
             var deliveryFee = orderType == "delivery" ? Math.Max(0, orderRequest.DeliveryFee) : 0;
-            var total = Math.Max(0, subtotal + tax + platformCharge + deliveryFee - discountAmount - loyaltyDiscountAmount);
+            var payableBeforeWallet = Math.Max(0, subtotal + tax + platformCharge + deliveryFee - discountAmount - loyaltyDiscountAmount);
+
+            var requestedWalletAmount = Math.Max(0, orderRequest.WalletAmountUsed);
+            decimal walletAmountUsed = 0;
+            if (requestedWalletAmount > 0)
+            {
+                var wallet = await _walletRepo.GetOrCreateWalletAsync(userId);
+                if (wallet.Balance <= 0)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Insufficient wallet balance" });
+                    return badRequest;
+                }
+
+                walletAmountUsed = Math.Min(requestedWalletAmount, Math.Min(wallet.Balance, payableBeforeWallet));
+                walletAmountUsed = Math.Round(walletAmountUsed, 2);
+
+                // Enforce strict server-side wallet reconciliation so clients cannot over/under-report.
+                // Client should resync checkout totals when this mismatch response is returned.
+                if (walletAmountUsed != requestedWalletAmount)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new
+                    {
+                        error = "Wallet amount is out of sync. Please review checkout totals and try again.",
+                        walletValidation = new
+                        {
+                            requestedWalletAmount,
+                            allowedWalletAmount = walletAmountUsed,
+                            walletBalance = wallet.Balance,
+                            payableBeforeWallet
+                        }
+                    });
+                    return badRequest;
+                }
+
+                if (walletAmountUsed <= 0)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Wallet amount cannot be applied to this order" });
+                    return badRequest;
+                }
+            }
+
+            var total = Math.Max(0, payableBeforeWallet - walletAmountUsed);
+
+            plannedOrderId = ObjectId.GenerateNewId().ToString();
+
+            if (walletAmountUsed > 0)
+            {
+                var walletTxn = await _walletRepo.DebitWalletAsync(
+                    userId,
+                    walletAmountUsed,
+                    $"Used for order {plannedOrderId}",
+                    "order",
+                    plannedOrderId
+                );
+
+                if (walletTxn == null)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Insufficient wallet balance" });
+                    return badRequest;
+                }
+
+                walletDebited = true;
+                walletDebitedAmount = walletAmountUsed;
+            }
 
             // Get user email
             var user = await _userRepo.GetUserByIdAsync(userId);
@@ -348,6 +426,9 @@ public class OrderFunction
             string? razorpayOrderId = null;
             string? razorpayPaymentId = null;
             string? razorpaySignature = null;
+            var upiReference = string.IsNullOrWhiteSpace(orderRequest.UpiReference)
+                ? null
+                : orderRequest.UpiReference.Trim();
 
             if (paymentMethod == "razorpay")
             {
@@ -391,6 +472,7 @@ public class OrderFunction
             // Create order
             var order = new Order
             {
+                Id = plannedOrderId,
                 OutletId = outletId,
                 UserId = userId,
                 Username = username,
@@ -406,6 +488,7 @@ public class OrderFunction
                 RazorpayOrderId = razorpayOrderId,
                 RazorpayPaymentId = razorpayPaymentId,
                 RazorpaySignature = razorpaySignature,
+                UpiReference = paymentMethod == "upi-qr" ? upiReference : null,
                 DeliveryAddress = orderType == "delivery" ? orderRequest.DeliveryAddress?.Trim() : null,
                 PhoneNumber = string.IsNullOrWhiteSpace(normalizedPhone) ? null : normalizedPhone,
                 PreparationNotes = string.IsNullOrWhiteSpace(orderRequest.PreparationNotes) ? null : orderRequest.PreparationNotes.Trim(),
@@ -418,7 +501,7 @@ public class OrderFunction
                 OrderType = orderType,
                 Channel = channel,
                 TableNumber = orderType == "dine-in" ? orderRequest.TableNumber?.Trim() : null,
-                WalletAmountUsed = Math.Max(0, orderRequest.WalletAmountUsed),
+                WalletAmountUsed = walletAmountUsed,
                 ScheduledFor = scheduledFor,
                 IsScheduled = isScheduled,
                 CreatedAt = MongoService.GetIstNow(),
@@ -426,6 +509,7 @@ public class OrderFunction
             };
 
             var createdOrder = await _orderRepo.CreateOrderAsync(order);
+            orderPersisted = true;
 
             _log.LogInformation("Order {OrderId} created by user {Username}", createdOrder.Id, username);
 
@@ -469,6 +553,24 @@ public class OrderFunction
         }
         catch (Exception ex)
         {
+            if (walletDebited && !orderPersisted && !string.IsNullOrWhiteSpace(requestUserId) && walletDebitedAmount > 0)
+            {
+                try
+                {
+                    await _walletRepo.CreditWalletAsync(
+                        requestUserId,
+                        walletDebitedAmount,
+                        $"Rollback for failed order {plannedOrderId}",
+                        "order-wallet-rollback",
+                        plannedOrderId
+                    );
+                }
+                catch (Exception rollbackEx)
+                {
+                    _log.LogError(rollbackEx, "Wallet rollback failed for user {UserId} on order {OrderId}", requestUserId, plannedOrderId);
+                }
+            }
+
             _log.LogError(ex, "Error creating order");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred while creating the order" });
@@ -1327,14 +1429,29 @@ public class OrderFunction
                 return error;
             }
 
+            var isUpiPayment = string.Equals(order.PaymentMethod, "upi-qr", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(order.PaymentMethod, "upi", StringComparison.OrdinalIgnoreCase);
+
+            if (isUpiPayment)
+            {
+                if (!string.IsNullOrWhiteSpace(confirmRequest.PaymentReference))
+                {
+                    order.UpiReference = confirmRequest.PaymentReference.Trim();
+                }
+
+                order.UpiConfirmedBy = userId ?? "admin";
+                order.UpiConfirmedAt = MongoService.GetIstNow();
+            }
+
             if (!string.IsNullOrWhiteSpace(adminAuditNote))
             {
                 order.Notes = string.IsNullOrWhiteSpace(order.Notes)
                     ? adminAuditNote
                     : $"{order.Notes} | {adminAuditNote}";
-                order.UpdatedAt = MongoService.GetIstNow();
-                await _orderRepo.UpdateOrderAsync(order);
             }
+
+            order.UpdatedAt = MongoService.GetIstNow();
+            await _orderRepo.UpdateOrderAsync(order);
 
             _ = _eventLog.LogEventAsync("Order", id, "PaymentConfirmedByAdmin",
                 actorId: userId,
@@ -1442,6 +1559,80 @@ public class OrderFunction
         }
     }
 
+    [Function("GetUpiPaymentReconciliationReport")]
+    public async Task<HttpResponseData> GetUpiPaymentReconciliationReport(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/reports/upi-reconciliation")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var from = ParseDateQuery(req, "from");
+            var to = ParseDateQuery(req, "to");
+            var toExclusive = to?.Date.AddDays(1);
+
+            var orders = await _orderRepo.GetAllOrdersAsync(outletId);
+            var upiOrders = orders
+                .Where(o => string.Equals(o.PaymentMethod, "upi-qr", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(o.PaymentMethod, "upi", StringComparison.OrdinalIgnoreCase))
+                .Where(o => !from.HasValue || o.CreatedAt >= from.Value)
+                .Where(o => !toExclusive.HasValue || o.CreatedAt < toExclusive.Value)
+                .OrderByDescending(o => o.CreatedAt)
+                .ToList();
+
+            var pending = upiOrders.Count(o => string.Equals(o.PaymentStatus, "pending", StringComparison.OrdinalIgnoreCase));
+            var confirmed = upiOrders.Count(o => string.Equals(o.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase));
+            var refunded = upiOrders.Count(o => string.Equals(o.PaymentStatus, "refunded", StringComparison.OrdinalIgnoreCase));
+            var proofSubmitted = upiOrders.Count(o => !string.IsNullOrWhiteSpace(o.UpiReference) || !string.IsNullOrWhiteSpace(o.UpiProofUrl));
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                generatedAt = MongoService.GetIstNow(),
+                outletId,
+                dateRange = new { from, to },
+                summary = new
+                {
+                    totalUpiOrders = upiOrders.Count,
+                    pending,
+                    confirmed,
+                    refunded,
+                    proofSubmitted,
+                    pendingWithoutProof = upiOrders.Count(o => string.Equals(o.PaymentStatus, "pending", StringComparison.OrdinalIgnoreCase)
+                        && string.IsNullOrWhiteSpace(o.UpiReference)
+                        && string.IsNullOrWhiteSpace(o.UpiProofUrl)),
+                    confirmedWithoutProof = upiOrders.Count(o => string.Equals(o.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase)
+                        && string.IsNullOrWhiteSpace(o.UpiReference)
+                        && string.IsNullOrWhiteSpace(o.UpiProofUrl))
+                },
+                items = upiOrders.Select(o => new
+                {
+                    id = o.Id,
+                    userId = o.UserId,
+                    username = o.Username,
+                    total = o.Total,
+                    paymentStatus = o.PaymentStatus,
+                    upiReference = o.UpiReference,
+                    upiProofUrl = o.UpiProofUrl,
+                    upiConfirmedBy = o.UpiConfirmedBy,
+                    upiConfirmedAt = o.UpiConfirmedAt,
+                    createdAt = o.CreatedAt,
+                    updatedAt = o.UpdatedAt
+                })
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error generating UPI reconciliation report");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "An error occurred while generating UPI reconciliation report" });
+            return error;
+        }
+    }
+
     // Helper method to map Order to OrderResponse
     private static OrderResponse MapToOrderResponse(Order order)
     {
@@ -1465,6 +1656,10 @@ public class OrderFunction
             PaymentMethod = order.PaymentMethod,
             RazorpayOrderId = order.RazorpayOrderId,
             RazorpayPaymentId = order.RazorpayPaymentId,
+            UpiReference = order.UpiReference,
+            UpiConfirmedBy = order.UpiConfirmedBy,
+            UpiConfirmedAt = order.UpiConfirmedAt,
+            UpiProofUrl = order.UpiProofUrl,
             DeliveryAddress = order.DeliveryAddress,
             PhoneNumber = order.PhoneNumber,
             PreparationNotes = order.PreparationNotes,
@@ -1826,5 +2021,15 @@ public class OrderFunction
 
         var needsOnlinePayment = paymentMethod == "razorpay" || paymentMethod == "upi-qr";
         return needsOnlinePayment && paymentPending;
+    }
+
+    private static DateTime? ParseDateQuery(HttpRequestData req, string key)
+    {
+        var value = req.Query[key];
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed)
+            ? parsed
+            : null;
     }
 }

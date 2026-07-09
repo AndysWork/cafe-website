@@ -387,6 +387,154 @@ public class ImageUploadFunction
     }
 
     /// <summary>
+    /// Submits UPI proof for a UPI QR order.
+    /// Accepts optional UTR in query/body and optional screenshot via multipart/form-data.
+    /// </summary>
+    [Function("SubmitUpiPaymentProof")]
+    [OpenApiOperation(operationId: "SubmitUpiPaymentProof", tags: new[] { "Payments" }, Summary = "Submit UPI payment proof")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    public async Task<HttpResponseData> SubmitUpiPaymentProof(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders/{orderId}/upi-proof")] HttpRequestData req,
+        string orderId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var order = await _mongo.GetOrderByIdAsync(orderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (order.UserId != userId && role != "admin")
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "You can only submit proof for your own orders" });
+                return forbidden;
+            }
+
+            var paymentMethod = (order.PaymentMethod ?? string.Empty).Trim().ToLowerInvariant();
+            if (paymentMethod != "upi-qr" && paymentMethod != "upi")
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "UPI proof can only be submitted for UPI QR orders" });
+                return badReq;
+            }
+
+            var requestedUpiRef = req.Query["upiReference"] ?? req.Query["utr"];
+            byte[]? fileData = null;
+            var fileName = string.Empty;
+            var fileContentType = string.Empty;
+
+            var contentType = req.Headers.GetValues("Content-Type").FirstOrDefault() ?? string.Empty;
+            if (contentType.Contains("multipart/form-data", StringComparison.OrdinalIgnoreCase))
+            {
+                var boundary = GetBoundary(contentType);
+                if (string.IsNullOrWhiteSpace(boundary))
+                {
+                    var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badReq.WriteAsJsonAsync(new { error = "Invalid multipart boundary" });
+                    return badReq;
+                }
+
+                using var bodyStream = new MemoryStream();
+                await req.Body.CopyToAsync(bodyStream);
+                bodyStream.Position = 0;
+
+                var extracted = ExtractFileFromMultipart(bodyStream, boundary);
+                fileData = extracted.Data;
+                fileName = extracted.FileName;
+                fileContentType = extracted.ContentType;
+
+                var refFromBody = ExtractFieldFromMultipart(bodyStream, boundary, "upiReference")
+                    ?? ExtractFieldFromMultipart(bodyStream, boundary, "utr");
+                if (string.IsNullOrWhiteSpace(requestedUpiRef))
+                {
+                    requestedUpiRef = refFromBody;
+                }
+            }
+            else if (contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase))
+            {
+                var (body, validationError) = await ValidationHelper.ValidateBody<SubmitUpiProofRequest>(req);
+                if (validationError != null) return validationError;
+                if (string.IsNullOrWhiteSpace(requestedUpiRef))
+                {
+                    requestedUpiRef = body.UpiReference;
+                }
+            }
+
+            var normalizedRef = NormalizeUpiReference(requestedUpiRef);
+            if (normalizedRef != null && !IsValidUpiReference(normalizedRef))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "UPI reference must be 6-100 characters and contain only letters, numbers, '-', '_' or '/'" });
+                return badReq;
+            }
+
+            if ((fileData == null || fileData.Length == 0) && string.IsNullOrWhiteSpace(normalizedRef))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Provide at least one proof item: UPI reference or screenshot" });
+                return badReq;
+            }
+
+            if (fileData != null && fileData.Length > 0)
+            {
+                if (!string.IsNullOrWhiteSpace(order.UpiProofUrl))
+                {
+                    await _blobService.DeleteReceiptImageAsync(order.UpiProofUrl);
+                }
+
+                using var uploadStream = new MemoryStream(fileData);
+                var proofUrl = await _blobService.UploadReceiptImageAsync(
+                    uploadStream,
+                    string.IsNullOrWhiteSpace(fileName) ? "upi-proof.jpg" : fileName,
+                    string.IsNullOrWhiteSpace(fileContentType) ? "image/jpeg" : fileContentType,
+                    userId ?? order.UserId
+                );
+
+                order.UpiProofUrl = proofUrl;
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedRef))
+            {
+                order.UpiReference = normalizedRef;
+            }
+
+            order.UpdatedAt = MongoService.GetIstNow();
+            var saved = await _mongo.UpdateOrderAsync(order);
+            if (!saved)
+            {
+                var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await error.WriteAsJsonAsync(new { error = "Failed to save UPI proof" });
+                return error;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "UPI proof submitted successfully",
+                paymentStatus = order.PaymentStatus,
+                upiReference = order.UpiReference,
+                upiProofUrl = order.UpiProofUrl,
+                proofValidated = !string.IsNullOrWhiteSpace(order.UpiReference) || !string.IsNullOrWhiteSpace(order.UpiProofUrl)
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error submitting UPI proof for order {OrderId}", orderId);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to submit UPI proof" });
+            return error;
+        }
+    }
+
+    /// <summary>
     /// Deletes the receipt image for an order. Owner or admin can delete.
     /// </summary>
     [Function("DeleteOrderReceipt")]
@@ -521,6 +669,68 @@ public class ImageUploadFunction
         return -1;
     }
 
+    private static string? ExtractFieldFromMultipart(Stream stream, string boundary, string fieldName)
+    {
+        using var reader = new StreamReader(stream, leaveOpen: true);
+        var content = reader.ReadToEnd();
+        stream.Position = 0;
+
+        var rawBytes = new byte[stream.Length];
+        stream.ReadExactly(rawBytes, 0, rawBytes.Length);
+        stream.Position = 0;
+
+        var boundaryBytes = System.Text.Encoding.UTF8.GetBytes("--" + boundary);
+        var parts = SplitByBoundary(rawBytes, boundaryBytes);
+
+        foreach (var part in parts)
+        {
+            var partString = System.Text.Encoding.UTF8.GetString(part);
+            if (partString.Contains("filename=", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var nameToken = $"name=\"{fieldName}\"";
+            if (!partString.Contains(nameToken, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var headerEnd = FindDoubleCrlf(part);
+            if (headerEnd < 0) continue;
+
+            var bodyStart = headerEnd + 4;
+            var bodyLength = part.Length - bodyStart;
+            if (bodyLength >= 2 && part[bodyStart + bodyLength - 2] == '\r' && part[bodyStart + bodyLength - 1] == '\n')
+                bodyLength -= 2;
+
+            if (bodyLength <= 0) return null;
+
+            var value = System.Text.Encoding.UTF8.GetString(part, bodyStart, bodyLength).Trim();
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeUpiReference(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        return raw.Trim();
+    }
+
+    private static bool IsValidUpiReference(string reference)
+    {
+        if (reference.Length < 6 || reference.Length > 100) return false;
+        foreach (var c in reference)
+        {
+            if (char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '/')
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
     private static List<byte[]> SplitByBoundary(byte[] data, byte[] boundary)
     {
         var parts = new List<byte[]>();
@@ -555,4 +765,9 @@ public class ImageUploadFunction
 
         return parts;
     }
+}
+
+public class SubmitUpiProofRequest
+{
+    public string? UpiReference { get; set; }
 }

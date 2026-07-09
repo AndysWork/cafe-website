@@ -24,7 +24,7 @@ public class OrphanCleanupFunction
     /// </summary>
     [Function("OrphanCleanup")]
     public async Task<HttpResponseData> RunManual(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "admin/cleanup-orphans")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "manage/cleanup-orphans")] HttpRequestData req)
     {
         var result = await PerformCleanupAsync();
         var response = req.CreateResponse(HttpStatusCode.OK);

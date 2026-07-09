@@ -6,7 +6,7 @@ import { RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { Order, OrderIssue, OrderService } from '../../services/order.service';
+import { Order, OrderIssue, OrderService, UpiReconciliationReport } from '../../services/order.service';
 import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery-partner.service';
 import { PaymentService } from '../../services/payment.service';
 import { OutletService } from '../../services/outlet.service';
@@ -98,6 +98,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   issueRefundDraft: Record<string, boolean> = {};
   issueRefunding: Record<string, boolean> = {};
   paymentRefDraft: Record<string, string> = {};
+  upiReconLoading = false;
+  upiReconciliationReport: UpiReconciliationReport | null = null;
 
   readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled'];
 
@@ -126,6 +128,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     this.loading = true;
     try {
       await this.loadDashboardData();
+      await this.loadUpiReconciliationReport();
       this.initializeDrafts();
     } finally {
       this.loading = false;
@@ -181,7 +184,84 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   async onDateRangeChange(): Promise<void> {
     await this.loadDashboardData();
+    await this.loadUpiReconciliationReport();
     this.initializeDrafts();
+  }
+
+  async loadUpiReconciliationReport(): Promise<void> {
+    this.upiReconLoading = true;
+    return new Promise((resolve) => {
+      this.orderService.getUpiReconciliationReport(this.startDate, this.endDate).subscribe({
+        next: (report) => {
+          this.upiReconciliationReport = report;
+          this.upiReconLoading = false;
+          resolve();
+        },
+        error: (error) => {
+          console.error('Error loading UPI reconciliation report:', error);
+          this.uiStore.warning('UPI reconciliation data is temporarily unavailable.');
+          this.upiReconciliationReport = null;
+          this.upiReconLoading = false;
+          resolve();
+        }
+      });
+    });
+  }
+
+  exportUpiReconciliationCsv(): void {
+    const rows = this.upiReconciliationReport?.items || [];
+    if (!rows.length) {
+      this.uiStore.warning('No UPI reconciliation rows available to export.');
+      return;
+    }
+
+    const header = [
+      'OrderId',
+      'Username',
+      'UserId',
+      'Total',
+      'PaymentStatus',
+      'UpiReference',
+      'HasProof',
+      'UpiProofUrl',
+      'UpiConfirmedBy',
+      'UpiConfirmedAt',
+      'CreatedAt',
+      'UpdatedAt'
+    ];
+
+    const lines = rows.map(row => [
+      row.id,
+      row.username,
+      row.userId,
+      (row.total ?? 0).toFixed(2),
+      row.paymentStatus,
+      row.upiReference || '',
+      row.upiProofUrl ? 'yes' : 'no',
+      row.upiProofUrl || '',
+      row.upiConfirmedBy || '',
+      row.upiConfirmedAt || '',
+      row.createdAt,
+      row.updatedAt
+    ].map(value => this.escapeCsv(value)).join(','));
+
+    const csv = [header.join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `upi-reconciliation-${stamp}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
+  private escapeCsv(value: unknown): string {
+    const text = String(value ?? '');
+    return `"${text.replace(/"/g, '""')}"`;
   }
 
   get filteredOrders(): Order[] {

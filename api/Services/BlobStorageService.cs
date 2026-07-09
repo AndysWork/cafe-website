@@ -76,14 +76,15 @@ public class BlobStorageService
     {
         ValidateUpload(fileStream, fileName, contentType);
 
+        var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
+        await EnsureContainerExistsAsync(containerClient, MenuImagesContainer);
+
         // Generate web-optimized menu variants (full + thumbnail)
         var originalSize = fileStream.Length;
         var (fullStream, thumbnailStream, compressedContentType) = await ImageCompressor.CompressMenuVariantsAsync(fileStream);
         await using var _ = fullStream;
         await using var __ = thumbnailStream;
         contentType = compressedContentType;
-
-        var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
 
         var extension = ".webp";
         var safeBaseName = SanitizeFileBaseName(Path.GetFileNameWithoutExtension(fileName));
@@ -159,13 +160,14 @@ public class BlobStorageService
     {
         ValidateUpload(fileStream, fileName, contentType);
 
+        var containerClient = _blobServiceClient.GetBlobContainerClient(ProfilePicturesContainer);
+        await EnsureContainerExistsAsync(containerClient, ProfilePicturesContainer);
+
         // Compress image before upload (profile pictures get smaller max dimension)
         var originalSize = fileStream.Length;
         var (compressedStream, compressedContentType) = await ImageCompressor.CompressAsync(fileStream, contentType, isProfilePicture: true);
         await using var _ = compressedStream;
         contentType = compressedContentType;
-
-        var containerClient = _blobServiceClient.GetBlobContainerClient(ProfilePicturesContainer);
 
         // Use extension matching the (possibly changed) content type
         var extension = GetExtensionForContentType(contentType);
@@ -224,13 +226,14 @@ public class BlobStorageService
     {
         ValidateUpload(fileStream, fileName, contentType);
 
+        var containerClient = _blobServiceClient.GetBlobContainerClient(InvoiceUploadsContainer);
+        await EnsureContainerExistsAsync(containerClient, InvoiceUploadsContainer);
+
         // Compress image before upload
         var originalSize = fileStream.Length;
         var (compressedStream, compressedContentType) = await ImageCompressor.CompressAsync(fileStream, contentType, isProfilePicture: false);
         await using var _ = compressedStream;
         contentType = compressedContentType;
-
-        var containerClient = _blobServiceClient.GetBlobContainerClient(InvoiceUploadsContainer);
         var extension = GetExtensionForContentType(contentType);
         var blobName = $"{userId}/{Guid.NewGuid()}{extension}";
         var blobClient = containerClient.GetBlobClient(blobName);
@@ -257,13 +260,14 @@ public class BlobStorageService
     {
         ValidateUpload(fileStream, fileName, contentType);
 
+        var containerClient = _blobServiceClient.GetBlobContainerClient(ReceiptImagesContainer);
+        await EnsureContainerExistsAsync(containerClient, ReceiptImagesContainer);
+
         // Compress image before upload
         var originalSize = fileStream.Length;
         var (compressedStream, compressedContentType) = await ImageCompressor.CompressAsync(fileStream, contentType, isProfilePicture: false);
         await using var _ = compressedStream;
         contentType = compressedContentType;
-
-        var containerClient = _blobServiceClient.GetBlobContainerClient(ReceiptImagesContainer);
         var extension = GetExtensionForContentType(contentType);
         var blobName = $"{userId}/{Guid.NewGuid()}{extension}";
         var blobClient = containerClient.GetBlobClient(blobName);
@@ -345,6 +349,12 @@ public class BlobStorageService
         normalized = Regex.Replace(normalized, "[^a-z0-9]+", "-").Trim('-');
         if (normalized.Length == 0) return "menu-image";
         return normalized.Length <= 40 ? normalized : normalized[..40];
+    }
+
+    private async Task EnsureContainerExistsAsync(BlobContainerClient containerClient, string containerName)
+    {
+        await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
+        _logger.LogDebug("Ensured blob container exists: {Container}", containerName);
     }
 
     /// <summary>

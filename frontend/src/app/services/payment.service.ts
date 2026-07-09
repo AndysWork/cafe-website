@@ -61,6 +61,8 @@ export interface UpiConfigResponse {
   configured: boolean;
   upiId: string;
   payeeName: string;
+  upiQrEnabled: boolean;
+  razorpayEnabled: boolean;
 }
 
 @Injectable({

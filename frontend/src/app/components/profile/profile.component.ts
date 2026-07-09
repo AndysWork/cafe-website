@@ -136,12 +136,28 @@ export class ProfileComponent implements OnInit {
 
       if (resolved.substituted) substituted += 1;
 
+      const selectedVariant = !resolved.substituted && item.selectedVariantName
+        ? {
+            variantName: item.selectedVariantName,
+            price: item.selectedVariantPrice ?? item.baseUnitPrice ?? item.price
+          }
+        : undefined;
+      const selectedAddOns = !resolved.substituted
+        ? (item.selectedAddOns || []).map(a => ({ name: a.name, price: a.price }))
+        : [];
+      const basePrice = !resolved.substituted
+        ? (item.baseUnitPrice ?? selectedVariant?.price ?? item.price)
+        : (this.getWebPrice(resolved.menuItem) || item.price);
+
       this.cartService.addItem({
         menuItemId: resolved.menuItem.id,
         name: resolved.menuItem.name,
         description: resolved.menuItem.description,
         categoryName: resolved.menuItem.categoryName || item.categoryName,
         price: this.getWebPrice(resolved.menuItem) || item.price,
+        basePrice,
+        selectedVariant,
+        selectedAddOns,
         imageUrl: resolved.menuItem.imageUrl,
         imageThumbnailUrl: resolved.menuItem.imageThumbnailUrl,
         packagingCharge: resolved.menuItem.packagingCharge || 0

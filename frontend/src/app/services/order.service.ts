@@ -41,6 +41,10 @@ export interface Order {
   paymentMethod: 'cod' | 'razorpay' | 'upi-qr';
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
+  upiReference?: string;
+  upiConfirmedBy?: string;
+  upiConfirmedAt?: string;
+  upiProofUrl?: string;
   deliveryAddress?: string;
   phoneNumber?: string;
   preparationNotes?: string;
@@ -77,6 +81,7 @@ export interface CreateOrderRequest {
   razorpayPaymentId?: string;
   razorpayOrderId?: string;
   razorpaySignature?: string;
+  upiReference?: string;
   couponCode?: string;
   loyaltyPointsUsed?: number;
   orderType?: 'delivery' | 'pickup' | 'dine-in';
@@ -165,6 +170,39 @@ export interface UpdateOrderIssueStatusRequest {
   status: 'open' | 'in-progress' | 'resolved' | 'closed';
   resolutionNotes?: string;
   refundProcessed?: boolean;
+}
+
+export interface UpiReconciliationItem {
+  id: string;
+  userId: string;
+  username: string;
+  total: number;
+  paymentStatus: string;
+  upiReference?: string;
+  upiProofUrl?: string;
+  upiConfirmedBy?: string;
+  upiConfirmedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpiReconciliationReport {
+  generatedAt: string;
+  outletId?: string;
+  dateRange?: {
+    from?: string;
+    to?: string;
+  };
+  summary: {
+    totalUpiOrders: number;
+    pending: number;
+    confirmed: number;
+    refunded: number;
+    proofSubmitted: number;
+    pendingWithoutProof: number;
+    confirmedWithoutProof: number;
+  };
+  items: UpiReconciliationItem[];
 }
 
 @Injectable({
@@ -340,6 +378,20 @@ export class OrderService {
   updateOrderIssueStatus(orderId: string, issueId: string, payload: UpdateOrderIssueStatusRequest): Observable<{ success: boolean; message: string }> {
     return this.http.put<{ success: boolean; message: string }>(`${this.apiUrl}/orders/${orderId}/issues/${issueId}`, payload).pipe(
       catchError(handleServiceError('OrderService.updateOrderIssueStatus'))
+    );
+  }
+
+  getUpiReconciliationReport(from?: string, to?: string): Observable<UpiReconciliationReport> {
+    let params = new HttpParams();
+    if (from?.trim()) {
+      params = params.set('from', from.trim());
+    }
+    if (to?.trim()) {
+      params = params.set('to', to.trim());
+    }
+
+    return this.http.get<UpiReconciliationReport>(`${this.apiUrl}/manage/reports/upi-reconciliation`, { params }).pipe(
+      catchError(handleServiceError('OrderService.getUpiReconciliationReport'))
     );
   }
 }

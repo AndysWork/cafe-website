@@ -10,6 +10,7 @@ import { CustomerReviewService } from '../../services/customer-review.service';
 import { LoyaltyService } from '../../services/loyalty.service';
 import { UIStore } from '../../store/ui.store';
 import { Router } from '@angular/router';
+import { decodeHtmlEntities, resolveWebSalePrice } from '../../utils/text-utils';
 
 @Component({
   selector: 'app-menu',
@@ -149,7 +150,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (this.searchQuery.trim()) {
       const query = this.searchQuery.toLowerCase().trim();
       items = items.filter(item =>
-        item.name.toLowerCase().includes(query) ||
+        this.getDisplayText(item.name).toLowerCase().includes(query) ||
         (item.description && item.description.toLowerCase().includes(query)) ||
         (item.categoryName && item.categoryName.toLowerCase().includes(query))
       );
@@ -168,10 +169,10 @@ export class MenuComponent implements OnInit, OnDestroy {
         items = [...items].sort((a, b) => this.getWebPrice(b) - this.getWebPrice(a));
         break;
       case 'name-az':
-        items = [...items].sort((a, b) => a.name.localeCompare(b.name));
+        items = [...items].sort((a, b) => this.getDisplayText(a.name).localeCompare(this.getDisplayText(b.name)));
         break;
       case 'name-za':
-        items = [...items].sort((a, b) => b.name.localeCompare(a.name));
+        items = [...items].sort((a, b) => this.getDisplayText(b.name).localeCompare(this.getDisplayText(a.name)));
         break;
     }
 
@@ -236,7 +237,7 @@ export class MenuComponent implements OnInit, OnDestroy {
 
     this.cartService.addItem({
       menuItemId: item.id,
-      name: item.name,
+      name: this.getDisplayText(item.name),
       description: item.description,
       categoryName: item.categoryName,
       price: unitPrice,
@@ -337,7 +338,31 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   getSelectedVariant(item: MenuItem | null): { variantName: string; price: number; quantity?: number } | undefined {
     if (!item || !item.variants || item.variants.length === 0) return undefined;
-    return item.variants.find(v => v.variantName === this.selectedVariantName) || item.variants[0];
+    const selected = item.variants.find(v => v.variantName === this.selectedVariantName) || item.variants[0];
+    return {
+      ...selected,
+      price: this.getVariantWebPrice(item, selected)
+    };
+  }
+
+  getVariantWebPrice(item: MenuItem | null, variant: { price: number }): number {
+    if (!item) return Number(variant?.price || 0);
+
+    const variantPrice = Number(variant?.price || 0);
+    const webPrice = Number(item.webPrice || 0);
+    const shopPrice = Number(item.shopSellingPrice || 0);
+
+    if (variantPrice <= 0) {
+      return 0;
+    }
+
+    // Variant prices are often authored against shop price; scale to web price when both exist.
+    if (webPrice > 0 && shopPrice > 0) {
+      const scaled = variantPrice * (webPrice / shopPrice);
+      return Math.round(scaled * 100) / 100;
+    }
+
+    return Math.round(variantPrice * 100) / 100;
   }
 
   getSelectedAddOns(item: MenuItem | null): { name: string; price: number }[] {
@@ -446,7 +471,11 @@ export class MenuComponent implements OnInit, OnDestroy {
   trackByIndex(index: number): number { return index; }
 
   getWebPrice(item: MenuItem): number {
-    return item.webPrice || item.shopSellingPrice || item.onlinePrice || 0;
+    return resolveWebSalePrice(item.webPrice, item.shopSellingPrice, item.onlinePrice);
+  }
+
+  getDisplayText(value?: string | null): string {
+    return decodeHtmlEntities(value);
   }
 
   getListImageUrl(item: MenuItem): string | undefined {
@@ -492,10 +521,10 @@ export class MenuComponent implements OnInit, OnDestroy {
       next: (res) => {
         if (res.isFavorite) {
           this.favoriteIds.add(item.id);
-          this.uiStore.success(`Added "${item.name}" to favorites`);
+          this.uiStore.success(`Added "${this.getDisplayText(item.name)}" to favorites`);
         } else {
           this.favoriteIds.delete(item.id);
-          this.uiStore.notify(`Removed "${item.name}" from favorites`);
+          this.uiStore.notify(`Removed "${this.getDisplayText(item.name)}" from favorites`);
         }
         // Force set re-render
         this.favoriteIds = new Set(this.favoriteIds);

@@ -259,6 +259,14 @@ export class OrdersComponent implements OnInit, OnDestroy {
     for (const item of order.items) {
       const latest = this.menuItemMap.get(item.menuItemId);
       const packagingCharge = latest?.packagingCharge || (item as any).packagingCharge || 0;
+      const selectedVariant = item.selectedVariantName
+        ? {
+            variantName: item.selectedVariantName,
+            price: item.selectedVariantPrice ?? item.baseUnitPrice ?? item.price
+          }
+        : undefined;
+      const selectedAddOns = (item.selectedAddOns || []).map(a => ({ name: a.name, price: a.price }));
+      const basePrice = item.baseUnitPrice ?? selectedVariant?.price ?? item.price;
 
       this.cartService.addItem({
         menuItemId: item.menuItemId,
@@ -266,6 +274,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
         description: item.description,
         categoryName: item.categoryName,
         price: item.price,
+        basePrice,
+        selectedVariant,
+        selectedAddOns,
         imageUrl: latest?.imageUrl,
         imageThumbnailUrl: latest?.imageThumbnailUrl,
         packagingCharge,
@@ -279,6 +290,14 @@ export class OrdersComponent implements OnInit, OnDestroy {
     for (const item of preset.items) {
       const latest = this.menuItemMap.get(item.menuItemId);
       const packagingCharge = latest?.packagingCharge || (item as any).packagingCharge || 0;
+      const selectedVariant = item.selectedVariantName
+        ? {
+            variantName: item.selectedVariantName,
+            price: item.selectedVariantPrice ?? item.baseUnitPrice ?? item.price
+          }
+        : undefined;
+      const selectedAddOns = (item.selectedAddOns || []).map(a => ({ name: a.name, price: a.price }));
+      const basePrice = item.baseUnitPrice ?? selectedVariant?.price ?? item.price;
 
       this.cartService.addItem({
         menuItemId: item.menuItemId,
@@ -286,6 +305,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
         description: item.description,
         categoryName: item.categoryName,
         price: item.price,
+        basePrice,
+        selectedVariant,
+        selectedAddOns,
         imageUrl: latest?.imageUrl,
         imageThumbnailUrl: latest?.imageThumbnailUrl,
         packagingCharge,

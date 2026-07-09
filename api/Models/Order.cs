@@ -61,6 +61,18 @@ public class Order : ISoftDeletable
     [BsonElement("razorpayRefundId")]
     public string? RazorpayRefundId { get; set; }
 
+    [BsonElement("upiReference")]
+    public string? UpiReference { get; set; }
+
+    [BsonElement("upiConfirmedBy")]
+    public string? UpiConfirmedBy { get; set; }
+
+    [BsonElement("upiConfirmedAt")]
+    public DateTime? UpiConfirmedAt { get; set; }
+
+    [BsonElement("upiProofUrl")]
+    public string? UpiProofUrl { get; set; }
+
     [BsonElement("deliveryAddress")]
     public string? DeliveryAddress { get; set; }
 
@@ -252,6 +264,9 @@ public class CreateOrderRequest
     public string? RazorpayPaymentId { get; set; }
     public string? RazorpayOrderId { get; set; }
     public string? RazorpaySignature { get; set; }
+
+    [StringLength(100, ErrorMessage = "UPI reference cannot exceed 100 characters")]
+    public string? UpiReference { get; set; }
     
     [IndianPhoneNumber]
     public string? PhoneNumber { get; set; }
@@ -336,6 +351,10 @@ public class OrderResponse
     public string PaymentMethod { get; set; } = string.Empty;
     public string? RazorpayOrderId { get; set; }
     public string? RazorpayPaymentId { get; set; }
+    public string? UpiReference { get; set; }
+    public string? UpiConfirmedBy { get; set; }
+    public DateTime? UpiConfirmedAt { get; set; }
+    public string? UpiProofUrl { get; set; }
     public string? DeliveryAddress { get; set; }
     public string? PhoneNumber { get; set; }
     public string? PreparationNotes { get; set; }

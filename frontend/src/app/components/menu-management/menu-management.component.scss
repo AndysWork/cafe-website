@@ -171,6 +171,61 @@ $surface:   #f7fafc;
   white-space: nowrap;
 }
 
+.stock-tabs {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px;
+  background: $surface;
+  border: 1.5px solid $border;
+  border-radius: 12px;
+}
+
+.stock-tab {
+  border: 1.5px solid transparent;
+  background: transparent;
+  color: #475569;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #edf2f7;
+  }
+
+  &.active {
+    background: white;
+    color: $dark;
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  }
+
+  .tab-count {
+    min-width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 0 6px;
+  }
+
+  &.active .tab-count {
+    background: #d1fae5;
+    color: #065f46;
+  }
+}
+
 // ── States ───────────────────────────────────
 .state-box {
   text-align: center;
@@ -467,7 +522,7 @@ $surface:   #f7fafc;
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  padding: 16px;
+  padding: clamp(10px, 2vw, 20px);
 }
 
 .modal {
@@ -482,12 +537,20 @@ $surface:   #f7fafc;
   flex-direction: column;
 }
 
+.edit-modal {
+  max-width: 920px;
+}
+
 .modal-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 22px 28px;
   border-bottom: 2px solid $border;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: white;
 
   h2 { margin: 0; font-size: 1.5rem; color: $dark; }
 
@@ -503,7 +566,11 @@ $surface:   #f7fafc;
   }
 }
 
-.modal-body { padding: 24px 28px; overflow-y: auto; }
+.modal-body {
+  padding: 24px 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 
 .modal-foot {
   display: flex;
@@ -513,6 +580,9 @@ $surface:   #f7fafc;
   border-top: 2px solid $border;
   background: $surface;
   border-radius: 0 0 20px 20px;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
 }
 
 // ── Form ─────────────────────────────────────
@@ -551,8 +621,27 @@ $surface:   #f7fafc;
 
 .fg-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+
+  &.two-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.35;
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: $green;
+    flex: 0 0 auto;
+  }
 }
 
 .section-divider {
@@ -608,6 +697,7 @@ $surface:   #f7fafc;
   .img-actions {
     display: flex;
     justify-content: center;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 10px;
   }
@@ -821,7 +911,38 @@ $surface:   #f7fafc;
 
   .cards-grid { grid-template-columns: 1fr; }
 
-  .fg-row { grid-template-columns: 1fr; }
+  .stock-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stock-tab {
+    justify-content: center;
+  }
+
+  .edit-modal {
+    max-width: 100%;
+    max-height: calc(100vh - 16px);
+    border-radius: 14px;
+  }
+
+  .modal-head h2 {
+    font-size: 1.2rem;
+  }
+
+  .modal-foot {
+    flex-wrap: wrap;
+
+    .btn {
+      flex: 1 1 48%;
+    }
+  }
+
+  .fg-row,
+  .fg-row.two-col {
+    grid-template-columns: 1fr;
+  }
 
   .variant-form { grid-template-columns: 1fr 1fr; }
   .variant-form.existing-addon-row { grid-template-columns: 1fr; }
@@ -830,4 +951,30 @@ $surface:   #f7fafc;
   .modal-head, .modal-body, .modal-foot { padding-left: 18px; padding-right: 18px; }
 
   .drop-zone { padding: 24px 16px; }
+}
+
+@media (max-width: 480px) {
+  .overlay {
+    padding: 6px;
+  }
+
+  .edit-modal {
+    max-height: calc(100vh - 12px);
+  }
+
+  .modal-head,
+  .modal-body,
+  .modal-foot {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .variant-form,
+  .variant-form.existing-addon-row {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-foot .btn {
+    flex: 1 1 100%;
+  }
 }

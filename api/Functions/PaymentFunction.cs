@@ -40,16 +40,21 @@ public class PaymentFunction
     public async Task<HttpResponseData> GetUpiConfig(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "payments/upi-config")] HttpRequestData req)
     {
-        var upiId = (_config["Upi__Id"] ?? string.Empty).Trim();
-        var payeeName = (_config["Upi__PayeeName"] ?? "Cafe").Trim();
-        var configured = !string.IsNullOrWhiteSpace(upiId) && upiId.Contains('@');
+        var upiQrEnabled = GetFeatureFlag("Payment__EnableUpiQr", true);
+        var razorpayEnabled = GetFeatureFlag("Payment__EnableRazorpay", false);
+        var upiId = (_config["Upi:Id"] ?? _config["Upi__Id"] ?? Environment.GetEnvironmentVariable("Upi__Id") ?? string.Empty).Trim();
+        var payeeName = (_config["Upi:PayeeName"] ?? _config["Upi__PayeeName"] ?? Environment.GetEnvironmentVariable("Upi__PayeeName") ?? "Cafe").Trim();
+        var configured = upiQrEnabled && !string.IsNullOrWhiteSpace(upiId) && upiId.Contains('@');
 
         var response = req.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(new UpiConfigResponse
         {
             Configured = configured,
-            UpiId = configured ? upiId : string.Empty,
-            PayeeName = payeeName
+            // Expose runtime UPI ID when QR rail is enabled so clients can still render QR.
+            UpiId = upiQrEnabled ? upiId : string.Empty,
+            PayeeName = payeeName,
+            UpiQrEnabled = upiQrEnabled,
+            RazorpayEnabled = razorpayEnabled
         });
         return response;
     }
@@ -88,6 +93,13 @@ public class PaymentFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<CreatePaymentOrderRequest>(req);
             if (validationError != null) return validationError;
+
+            if (!GetFeatureFlag("Payment__EnableRazorpay", false))
+            {
+                var disabled = req.CreateResponse(HttpStatusCode.BadRequest);
+                await disabled.WriteAsJsonAsync(new { error = "Online gateway payment is currently disabled" });
+                return disabled;
+            }
 
             if (request.Amount <= 0)
             {
@@ -440,6 +452,13 @@ public class PaymentFunction
 
         return value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     }
+
+    private static bool GetFeatureFlag(string key, bool defaultValue)
+    {
+        var raw = Environment.GetEnvironmentVariable(key);
+        if (string.IsNullOrWhiteSpace(raw)) return defaultValue;
+        return bool.TryParse(raw.Trim(), out var parsed) ? parsed : defaultValue;
+    }
 }
 
 // DTOs for Payment endpoints
@@ -483,4 +502,6 @@ public class UpiConfigResponse
     public bool Configured { get; set; }
     public string UpiId { get; set; } = string.Empty;
     public string PayeeName { get; set; } = "Cafe";
+    public bool UpiQrEnabled { get; set; }
+    public bool RazorpayEnabled { get; set; }
 }

@@ -46,11 +46,11 @@
 
       <div *ngFor="let item of cart.items; trackBy: trackByMenuItemId" class="cart-item">
         <div class="item-image" *ngIf="item.imageThumbnailUrl || item.imageUrl">
-          <img [src]="item.imageThumbnailUrl || item.imageUrl" [alt]="item.name" />
+          <img [src]="item.imageThumbnailUrl || item.imageUrl" [alt]="getDisplayText(item.name)" />
         </div>
         <div class="item-placeholder" *ngIf="!(item.imageThumbnailUrl || item.imageUrl)">🍽️</div>
         <div class="item-details">
-          <h3 class="item-name">{{ item.name }}</h3>
+          <h3 class="item-name">{{ getDisplayText(item.name) }}</h3>
           <div class="item-options" *ngIf="getItemOptionSummary(item)">{{ getItemOptionSummary(item) }}</div>
           <div class="item-price">₹{{ item.price }}</div>
           <small class="points-preview">Earn ~{{ getEstimatedPointsForItem(item) }} pts</small>
@@ -67,7 +67,7 @@
           <button class="qty-btn" (click)="increaseQuantity(item)" aria-label="Increase quantity">+</button>
         </div>
         <div class="item-total">₹{{ getItemTotal(item) }}</div>
-        <button class="btn-remove" (click)="removeItem(item)" [attr.aria-label]="'Remove ' + item.name + ' from cart'">✕</button>
+        <button class="btn-remove" (click)="removeItem(item)" [attr.aria-label]="'Remove ' + getDisplayText(item.name) + ' from cart'">✕</button>
       </div>
     </div>
 
@@ -123,7 +123,7 @@
               *ngFor="let v of menuItem.variants"
               [class.active]="selectedVariantName === v.variantName"
               (click)="selectedVariantName = v.variantName">
-              <span>{{ v.variantName }}</span>
+              <span>{{ getDisplayText(v.variantName) }}</span>
               <strong>₹{{ v.price }}</strong>
             </button>
           </div>
@@ -139,7 +139,7 @@
               [disabled]="a.isActive === false"
               [class.active]="selectedAddOnNames.has(a.name)"
               (click)="toggleCustomizationAddOn(a.name)">
-              <span>{{ a.name }}</span>
+              <span>{{ getDisplayText(a.name) }}</span>
               <strong>+₹{{ a.price }}</strong>
             </button>
           </div>

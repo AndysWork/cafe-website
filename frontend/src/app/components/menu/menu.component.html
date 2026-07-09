@@ -133,7 +133,7 @@
 
         <!-- Image Section -->
         <div class="card-image-wrapper">
-          <img *ngIf="getListImageUrl(item)" [src]="getListImageUrl(item)" [alt]="item.name" class="card-image" loading="lazy"/>
+          <img *ngIf="getListImageUrl(item)" [src]="getListImageUrl(item)" [alt]="getDisplayText(item.name)" class="card-image" loading="lazy"/>
           <div *ngIf="!getListImageUrl(item)" class="card-image-placeholder">
             <span class="placeholder-icon">🍽️</span>
           </div>
@@ -157,7 +157,7 @@
 
         <!-- Card Body -->
         <div class="card-body" (click)="openDetail(item)">
-          <h3 class="card-title">{{ item.name }}</h3>
+          <h3 class="card-title">{{ getDisplayText(item.name) }}</h3>
           <p class="card-description" *ngIf="item.description">{{ item.description }}</p>
           <div class="card-social-proof" *ngIf="totalReviews > 0">
             ⭐ {{ averageRating | number:'1.1-1' }} · {{ totalReviews }} reviews
@@ -172,7 +172,7 @@
                 *ngFor="let alt of getSubstituteItems(item)"
                 class="substitute-chip"
                 (click)="addSubstituteToCart(alt, $event)">
-                {{ alt.name }} · ₹{{ getWebPrice(alt) }}
+                {{ getDisplayText(alt.name) }} · ₹{{ getWebPrice(alt) }}
               </button>
               <span *ngIf="getSubstituteItems(item).length === 0" class="substitute-empty">
                 No close alternatives right now.
@@ -192,7 +192,7 @@
               <button
                 *ngIf="getCartQuantity(item.id) === 0"
                 class="btn-add"
-                (click)="addToCart(item)"
+                (click)="$event.stopPropagation(); addToCart(item)"
                 [disabled]="item.isAvailable === false">
                 <span class="btn-add-icon">+</span>
                 <span class="btn-add-text">{{ hasCustomizations(item) ? 'CUSTOMIZE' : 'ADD' }}</span>
@@ -200,9 +200,9 @@
 
               <!-- In cart: show +/- controls -->
               <div *ngIf="getCartQuantity(item.id) > 0" class="qty-control">
-                <button class="qty-btn minus" (click)="decreaseQuantity(item)" aria-label="Decrease quantity">−</button>
+                <button class="qty-btn minus" (click)="$event.stopPropagation(); decreaseQuantity(item)" aria-label="Decrease quantity">−</button>
                 <span class="qty-value" aria-live="polite">{{ getCartQuantity(item.id) }}</span>
-                <button class="qty-btn plus" (click)="increaseQuantity(item)" aria-label="Increase quantity">+</button>
+                <button class="qty-btn plus" (click)="$event.stopPropagation(); increaseQuantity(item)" aria-label="Increase quantity">+</button>
               </div>
             </div>
           </div>
@@ -244,7 +244,7 @@
       <button class="detail-close" (click)="closeDetail()">✕</button>
 
       <div class="detail-image-section">
-        <img *ngIf="selectedMenuItem.imageUrl" [src]="selectedMenuItem.imageUrl" [alt]="selectedMenuItem.name" class="detail-image"/>
+        <img *ngIf="selectedMenuItem.imageUrl" [src]="selectedMenuItem.imageUrl" [alt]="getDisplayText(selectedMenuItem.name)" class="detail-image"/>
         <div *ngIf="!selectedMenuItem.imageUrl" class="detail-image-placeholder">🍽️</div>
         <span class="badge-dietary detail-badge" [ngClass]="selectedMenuItem.dietaryType || 'veg'">
           {{ normalizeDietaryType(selectedMenuItem.dietaryType) === 'veg' ? '🟢' : (normalizeDietaryType(selectedMenuItem.dietaryType) === 'non-veg' ? '🔴' : '🟡') }}
@@ -254,7 +254,7 @@
 
       <div class="detail-body">
         <div class="detail-header">
-          <h2 class="detail-title">{{ selectedMenuItem.name }}</h2>
+          <h2 class="detail-title">{{ getDisplayText(selectedMenuItem.name) }}</h2>
           <span class="detail-category">{{ selectedMenuItem.categoryName }}</span>
         </div>
 
@@ -299,7 +299,7 @@
               *ngFor="let alt of getSubstituteItems(selectedMenuItem, 4)"
               class="substitute-chip"
               (click)="addSubstituteToCart(alt, $event)">
-              {{ alt.name }} · ₹{{ getWebPrice(alt) }}
+              {{ getDisplayText(alt.name) }} · ₹{{ getWebPrice(alt) }}
             </button>
             <span *ngIf="getSubstituteItems(selectedMenuItem, 4).length === 0" class="substitute-empty">
               No alternatives available currently.
@@ -331,12 +331,12 @@
       <button class="detail-close" (click)="closeCustomization()">✕</button>
 
       <div class="detail-image-section custom-image">
-        <img *ngIf="customizationItem.imageUrl" [src]="customizationItem.imageUrl" [alt]="customizationItem.name" class="detail-image"/>
+        <img *ngIf="customizationItem.imageUrl" [src]="customizationItem.imageUrl" [alt]="getDisplayText(customizationItem.name)" class="detail-image"/>
         <div *ngIf="!customizationItem.imageUrl" class="detail-image-placeholder">🍽️</div>
       </div>
 
       <div class="detail-body">
-        <h3 class="detail-title">Customize {{ customizationItem.name }}</h3>
+        <h3 class="detail-title">Customize {{ getDisplayText(customizationItem.name) }}</h3>
 
         <div class="custom-section" *ngIf="customizationItem.variants && customizationItem.variants.length > 0">
           <h4 class="detail-section-title">Choose Variant</h4>
@@ -347,8 +347,8 @@
               *ngFor="let v of customizationItem.variants"
               [class.active]="selectedVariantName === v.variantName"
               (click)="selectedVariantName = v.variantName">
-              <span>{{ v.variantName }}</span>
-              <strong>₹{{ v.price }}</strong>
+              <span>{{ getDisplayText(v.variantName) }}</span>
+              <strong>₹{{ getVariantWebPrice(customizationItem, v) }}</strong>
             </button>
           </div>
         </div>
@@ -363,7 +363,7 @@
               [disabled]="a.isActive === false"
               [class.active]="selectedAddOnNames.has(a.name)"
               (click)="toggleCustomizationAddOn(a.name)">
-              <span>{{ a.name }}</span>
+              <span>{{ getDisplayText(a.name) }}</span>
               <strong>+₹{{ a.price }}</strong>
             </button>
           </div>

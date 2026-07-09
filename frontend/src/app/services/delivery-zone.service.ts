@@ -24,6 +24,10 @@ export interface DeliveryFeeResult {
   freeDeliveryAbove: number;
   orderAmount?: number;
   isFreeDelivery?: boolean;
+  approximateDistanceKm?: number;
+  minDistanceKm?: number;
+  maxDistanceKm?: number;
+  feeConfidence?: 'high' | 'medium' | 'low';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -55,8 +59,14 @@ export class DeliveryZoneService {
     );
   }
 
-  calculateDeliveryFee(subtotal: number): Observable<DeliveryFeeResult> {
-    return this.http.get<DeliveryFeeResult>(`${this.apiUrl}/delivery-zones/calculate-fee?subtotal=${subtotal}`).pipe(
+  calculateDeliveryFee(subtotal: number, deliveryAddress?: string): Observable<DeliveryFeeResult> {
+    const params = new URLSearchParams();
+    params.set('subtotal', String(subtotal));
+    if (deliveryAddress?.trim()) {
+      params.set('deliveryAddress', deliveryAddress.trim());
+    }
+
+    return this.http.get<DeliveryFeeResult>(`${this.apiUrl}/delivery-zones/calculate-fee?${params.toString()}`).pipe(
       catchError(handleServiceError('DeliveryZoneService.calculateDeliveryFee'))
     );
   }

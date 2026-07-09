@@ -195,9 +195,53 @@ public class DeliveryZoneFunction
                 return badRequest;
             }
 
-            var fee = await _mongo.CalculateDeliveryFeeAsync(outletId, subtotal);
+            var zones = await _mongo.GetActiveDeliveryZonesAsync(outletId);
+
+            if (zones.Count == 0)
+            {
+                var defaultResponse = req.CreateResponse(HttpStatusCode.OK);
+                await defaultResponse.WriteAsJsonAsync(new
+                {
+                    zone = "Default",
+                    deliveryFee = 0m,
+                    estimatedMinutes = 30,
+                    freeDeliveryAbove = 0m,
+                    orderAmount = subtotal,
+                    isFreeDelivery = true,
+                    approximateDistanceKm = 0d,
+                    minDistanceKm = 0d,
+                    maxDistanceKm = 0d,
+                    feeConfidence = "low"
+                });
+                return defaultResponse;
+            }
+
+            // Distance is inferred from zone range midpoint until geocoding is introduced.
+            var zone = zones.OrderBy(z => z.MinDistance).First();
+            var approximateDistanceKm = Math.Round((zone.MinDistance + zone.MaxDistance) / 2d, 1);
+            var isFreeDelivery = zone.FreeDeliveryAbove.HasValue && subtotal >= zone.FreeDeliveryAbove.Value;
+            var fee = isFreeDelivery ? 0m : zone.DeliveryFee;
+
+            var feeConfidence = approximateDistanceKm <= 2d
+                ? "high"
+                : approximateDistanceKm <= 5d
+                    ? "medium"
+                    : "low";
+
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { deliveryFee = fee });
+            await response.WriteAsJsonAsync(new
+            {
+                zone = zone.ZoneName,
+                deliveryFee = fee,
+                estimatedMinutes = zone.EstimatedMinutes,
+                freeDeliveryAbove = zone.FreeDeliveryAbove ?? 0m,
+                orderAmount = subtotal,
+                isFreeDelivery,
+                approximateDistanceKm,
+                minDistanceKm = zone.MinDistance,
+                maxDistanceKm = zone.MaxDistance,
+                feeConfidence
+            });
             return response;
         }
         catch (Exception ex)

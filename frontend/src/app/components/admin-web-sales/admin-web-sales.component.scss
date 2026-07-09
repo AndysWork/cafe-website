@@ -91,12 +91,55 @@
       }
 
       input,
-      select {
+      select,
+      button {
         border: 1px solid #cbd5e1;
         border-radius: 6px;
         padding: 0.35rem 0.45rem;
         font-size: 0.8rem;
       }
+
+      button {
+        background: #f8fafc;
+        color: #0f172a;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+    }
+  }
+
+  .recon-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 0.7rem;
+
+    .kpi-card.compact {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.65rem 0.75rem;
+
+      .label {
+        display: block;
+        color: #64748b;
+        font-size: 0.72rem;
+      }
+
+      strong {
+        color: #0f172a;
+        font-size: 1rem;
+      }
+    }
+  }
+
+  .recon-table-wrap {
+    table {
+      min-width: 980px;
     }
   }
 

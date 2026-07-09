@@ -165,6 +165,10 @@
                 <span>Zone:</span>
                 <strong>{{ deliveryZoneName }}</strong>
               </div>
+              <div class="confidence-row" *ngIf="approximateDistanceKm !== null && !outOfZoneDetected">
+                <span>Approx Distance:</span>
+                <strong>{{ approximateDistanceKm | number:'1.0-1' }} km</strong>
+              </div>
 
               <div *ngIf="outOfZoneDetected" class="out-of-zone-warning">
                 ⚠️ {{ outOfZoneMessage }}
@@ -332,27 +336,27 @@
         <div class="payment-section">
           <label class="section-label" id="payment-method-label">💳 Payment Method</label>
           <div class="payment-options" role="radiogroup" aria-labelledby="payment-method-label">
-            <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" [class.disabled]="!onlinePaymentEnabled" (click)="onlinePaymentEnabled && onPaymentMethodChange('razorpay')">
-              <input type="radio" name="paymentMethod" value="razorpay" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !onlinePaymentEnabled" />
+            <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" [class.disabled]="!isRazorpayEnabled" (click)="isRazorpayEnabled && onPaymentMethodChange('razorpay')">
+              <input type="radio" name="paymentMethod" value="razorpay" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !isRazorpayEnabled" />
               <div class="option-content">
                 <span class="option-icon">🔒</span>
                 <div>
                   <strong>Pay Online</strong>
-                  <p>{{ onlinePaymentEnabled ? 'UPI, Cards, Net Banking, Wallets' : 'Coming soon after Razorpay setup' }}</p>
+                  <p>{{ isRazorpayEnabled ? 'UPI, Cards, Net Banking, Wallets' : 'Currently disabled' }}</p>
                 </div>
               </div>
-              <span class="recommended-badge" *ngIf="onlinePaymentEnabled && paymentMethod === 'razorpay'">✓</span>
+              <span class="recommended-badge" *ngIf="isRazorpayEnabled && paymentMethod === 'razorpay'">✓</span>
             </label>
-            <label class="payment-option" [class.active]="paymentMethod === 'upi-qr'" [class.disabled]="!onlinePaymentEnabled" (click)="onlinePaymentEnabled && onPaymentMethodChange('upi-qr')">
-              <input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !onlinePaymentEnabled" />
+            <label class="payment-option" [class.active]="paymentMethod === 'upi-qr'" [class.disabled]="!isUpiQrEnabled" (click)="isUpiQrEnabled && onPaymentMethodChange('upi-qr')">
+              <input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !isUpiQrEnabled" />
               <div class="option-content">
                 <span class="option-icon">📱</span>
                 <div>
                   <strong>Pay via QR</strong>
-                  <p>{{ onlinePaymentEnabled ? 'Scan exact bill amount with any UPI app' : 'Coming soon after Razorpay setup' }}</p>
+                  <p>{{ isUpiQrEnabled ? 'Scan exact bill amount with any UPI app' : 'Currently unavailable' }}</p>
                 </div>
               </div>
-              <span class="recommended-badge" *ngIf="onlinePaymentEnabled && paymentMethod === 'upi-qr'">✓</span>
+              <span class="recommended-badge" *ngIf="isUpiQrEnabled && paymentMethod === 'upi-qr'">✓</span>
             </label>
             <label class="payment-option" [class.active]="paymentMethod === 'cod'" (click)="onPaymentMethodChange('cod')">
               <input type="radio" name="paymentMethod" value="cod" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
@@ -379,15 +383,18 @@
 
               <img *ngIf="upiQrCodeDataUrl" [src]="upiQrCodeDataUrl" alt="UPI QR Code" class="upi-qr-image" />
 
-              <a *ngIf="upiPaymentLink" class="upi-link" [href]="upiPaymentLink">Open UPI App</a>
+              <div class="upi-app-actions" *ngIf="upiPaymentLink">
+                <button type="button" class="upi-link-btn" (click)="openUpiApp()">Open UPI App</button>
+                <a class="upi-link-fallback" [href]="safeUpiPaymentLink" target="_self" rel="noopener">Try Browser Deep Link</a>
+              </div>
 
               <label class="checkbox-label upi-confirm">
                 <input type="checkbox" [(ngModel)]="upiPaymentConfirmed" name="upiPaymentConfirmed" />
-                <span>I have completed payment using this QR</span>
+                <span class="upi-confirm-text"> I have completed payment using this QR</span>
               </label>
 
               <div class="form-group upi-ref-input">
-                <label>UPI Ref/UTR (Optional but recommended)</label>
+                <label class="upi-ref-label">UPI Ref/UTR <span>(Optional but recommended)</span></label>
                 <input type="text" [(ngModel)]="upiTransactionRef" name="upiTransactionRef" placeholder="Enter transaction reference" [disabled]="isSubmitting" maxlength="50" />
               </div>
             </ng-container>

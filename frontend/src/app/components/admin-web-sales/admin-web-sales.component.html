@@ -66,6 +66,87 @@
 
   <div class="panel">
     <div class="panel-head">
+      <h2>UPI Reconciliation</h2>
+      <div class="filters">
+        <button type="button" (click)="exportUpiReconciliationCsv()" [disabled]="upiReconLoading || !(upiReconciliationReport?.items?.length)">
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="upiReconLoading" class="state">Loading UPI reconciliation report...</div>
+
+    <ng-container *ngIf="!upiReconLoading && upiReconciliationReport as report">
+      <div class="recon-summary-grid">
+        <div class="kpi-card compact">
+          <span class="label">Total UPI Orders</span>
+          <strong>{{ report.summary.totalUpiOrders }}</strong>
+        </div>
+        <div class="kpi-card compact">
+          <span class="label">Pending</span>
+          <strong>{{ report.summary.pending }}</strong>
+        </div>
+        <div class="kpi-card compact">
+          <span class="label">Confirmed</span>
+          <strong>{{ report.summary.confirmed }}</strong>
+        </div>
+        <div class="kpi-card compact">
+          <span class="label">Proof Submitted</span>
+          <strong>{{ report.summary.proofSubmitted }}</strong>
+        </div>
+        <div class="kpi-card compact">
+          <span class="label">Pending Without Proof</span>
+          <strong>{{ report.summary.pendingWithoutProof }}</strong>
+        </div>
+        <div class="kpi-card compact">
+          <span class="label">Confirmed Without Proof</span>
+          <strong>{{ report.summary.confirmedWithoutProof }}</strong>
+        </div>
+      </div>
+
+      <div class="table-wrap recon-table-wrap" *ngIf="report.items.length > 0">
+        <table>
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>User</th>
+              <th>Total</th>
+              <th>Payment</th>
+              <th>UPI Ref</th>
+              <th>Proof</th>
+              <th>Confirmed By</th>
+              <th>Confirmed At</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of report.items">
+              <td>#{{ row.id.slice(-6) }}</td>
+              <td>
+                <div>{{ row.username || '-' }}</div>
+                <small>{{ row.userId || '-' }}</small>
+              </td>
+              <td>{{ formatCurrency(row.total || 0) }}</td>
+              <td>{{ row.paymentStatus || '-' }}</td>
+              <td>{{ row.upiReference || '-' }}</td>
+              <td>
+                <a *ngIf="row.upiProofUrl" [href]="row.upiProofUrl" target="_blank" rel="noopener">View proof</a>
+                <span *ngIf="!row.upiProofUrl">-</span>
+              </td>
+              <td>{{ row.upiConfirmedBy || '-' }}</td>
+              <td>{{ formatDate(row.upiConfirmedAt) }}</td>
+              <td>{{ formatDate(row.createdAt) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="state" *ngIf="report.items.length === 0">No UPI orders in selected date range.</div>
+    </ng-container>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
       <h2>Web Order Management</h2>
       <div class="filters">
         <select [(ngModel)]="statusFilter">

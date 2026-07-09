@@ -185,7 +185,7 @@
         <div class="info-item">
           <span class="info-label">💳 Payment</span>
           <span class="info-value">
-            {{ order.paymentMethod === 'razorpay' ? '🔒 Online' : '💵 Cash on Delivery' }}
+            {{ order.paymentMethod === 'razorpay' ? '🔒 Online' : (order.paymentMethod === 'upi-qr' ? '📱 UPI QR' : '💵 Cash on Delivery') }}
             — {{ getPaymentStatusIcon(order.paymentStatus) }} {{ order.paymentStatus | titlecase }}
           </span>
         </div>

@@ -7,6 +7,7 @@ import { MenuService, MenuItem } from '../../services/menu.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { LoyaltyService } from '../../services/loyalty.service';
 import { Subscription } from 'rxjs';
+import { decodeHtmlEntities, resolveWebSalePrice } from '../../utils/text-utils';
 
 @Component({
   selector: 'app-cart',
@@ -77,7 +78,7 @@ export class CartComponent implements OnInit, OnDestroy {
   }
 
   removeItem(item: CartItem) {
-    if (confirm(`Remove ${item.name} from cart?`)) {
+    if (confirm(`Remove ${this.getDisplayText(item.name)} from cart?`)) {
       this.cartService.removeItem(item.cartLineId || item.menuItemId);
     }
   }
@@ -138,7 +139,7 @@ export class CartComponent implements OnInit, OnDestroy {
   getCustomizationUnitPrice(): number {
     if (!this.customizationMenuItem) return 0;
     const variant = this.getCustomizationVariant();
-    const basePrice = variant?.price ?? (this.customizationMenuItem.webPrice || this.customizationMenuItem.shopSellingPrice || this.customizationMenuItem.onlinePrice || 0);
+    const basePrice = variant?.price ?? this.getMenuWebPrice(this.customizationMenuItem);
     const addOnPrice = this.getCustomizationAddOns().reduce((sum, a) => sum + a.price, 0);
     return basePrice + addOnPrice;
   }
@@ -149,13 +150,13 @@ export class CartComponent implements OnInit, OnDestroy {
     const original = this.editingCartItem;
     const selectedVariant = this.getCustomizationVariant();
     const selectedAddOns = this.getCustomizationAddOns();
-    const basePrice = selectedVariant?.price ?? (this.customizationMenuItem.webPrice || this.customizationMenuItem.shopSellingPrice || this.customizationMenuItem.onlinePrice || 0);
+    const basePrice = selectedVariant?.price ?? this.getMenuWebPrice(this.customizationMenuItem);
     const unitPrice = basePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0);
 
     this.cartService.removeItem(original.cartLineId || original.menuItemId);
     this.cartService.addItem({
       menuItemId: original.menuItemId,
-      name: original.name,
+      name: this.getDisplayText(original.name),
       description: original.description,
       categoryName: original.categoryName,
       price: unitPrice,
@@ -219,15 +220,23 @@ export class CartComponent implements OnInit, OnDestroy {
 
   trackByMenuItemId(index: number, item: CartItem): string { return item.cartLineId || `${item.menuItemId}-${index}`; }
 
+  getDisplayText(value?: string | null): string {
+    return decodeHtmlEntities(value);
+  }
+
   getItemOptionSummary(item: CartItem): string {
     const parts: string[] = [];
     if (item.selectedVariant?.variantName) {
-      parts.push(`Variant: ${item.selectedVariant.variantName}`);
+      parts.push(`Variant: ${this.getDisplayText(item.selectedVariant.variantName)}`);
     }
     if (item.selectedAddOns && item.selectedAddOns.length > 0) {
-      parts.push(`Add-ons: ${item.selectedAddOns.map(a => a.name).join(', ')}`);
+      parts.push(`Add-ons: ${item.selectedAddOns.map(a => this.getDisplayText(a.name)).join(', ')}`);
     }
     return parts.join(' | ');
+  }
+
+  private getMenuWebPrice(item: MenuItem): number {
+    return resolveWebSalePrice(item.webPrice, item.shopSellingPrice, item.onlinePrice);
   }
 
   onPreparationNotesChange(notes: string): void {

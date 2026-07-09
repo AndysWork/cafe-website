@@ -91,6 +91,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
   searchTerm = '';
   filterCategory = '';
+  activeStockTab: 'active' | 'outOfStock' = 'active';
 
   // Upload properties
   selectedFile: File | null = null;
@@ -263,6 +264,18 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
       return matchesSearch && matchesCategory;
     });
+  }
+
+  get activeMenuItems(): MenuItem[] {
+    return this.filteredMenuItems.filter(item => item.isAvailable !== false);
+  }
+
+  get outOfStockMenuItems(): MenuItem[] {
+    return this.filteredMenuItems.filter(item => item.isAvailable === false);
+  }
+
+  get visibleMenuItems(): MenuItem[] {
+    return this.activeStockTab === 'active' ? this.activeMenuItems : this.outOfStockMenuItems;
   }
 
   openCreateModal(): void {
