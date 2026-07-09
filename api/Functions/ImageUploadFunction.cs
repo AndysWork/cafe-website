@@ -89,7 +89,7 @@ public class ImageUploadFunction
 
             // Upload new image
             using var uploadStream = new MemoryStream(fileData);
-            var imageUrl = await _blobService.UploadMenuImageAsync(
+            var (imageUrl, thumbnailUrl) = await _blobService.UploadMenuImageAsync(
                 uploadStream,
                 fileName,
                 fileContentType,
@@ -98,12 +98,13 @@ public class ImageUploadFunction
 
             // Update menu item with new image URL
             menuItem.ImageUrl = imageUrl;
+            menuItem.ImageThumbnailUrl = thumbnailUrl;
             await _mongo.UpdateMenuItemAsync(menuItemId, menuItem);
 
             _log.LogInformation("Menu item {MenuItemId} image updated: {ImageUrl}", menuItemId, imageUrl);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { imageUrl, message = "Image uploaded successfully" });
+            await response.WriteAsJsonAsync(new { imageUrl, thumbnailUrl, message = "Image uploaded successfully" });
             return response;
         }
         catch (ArgumentException)
@@ -148,6 +149,7 @@ public class ImageUploadFunction
             {
                 await _blobService.DeleteMenuImageAsync(menuItem.ImageUrl);
                 menuItem.ImageUrl = string.Empty;
+                menuItem.ImageThumbnailUrl = string.Empty;
                 await _mongo.UpdateMenuItemAsync(menuItemId, menuItem);
             }
 

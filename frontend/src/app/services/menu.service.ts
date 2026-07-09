@@ -34,6 +34,7 @@ export interface MenuItem {
   webPrice?: number;
   dineInPrice?: number;
   imageUrl?: string;
+  imageThumbnailUrl?: string;
   isAvailable?: boolean;
   makingPrice?: number;
   packagingCharge?: number;

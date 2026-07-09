@@ -9,11 +9,15 @@ namespace Cafe.Api.Functions;
 
 /// <summary>
 /// Timer-triggered function that processes outbox messages for reliable side-effect delivery.
-/// Runs every 30 seconds to pick up pending notifications, emails, loyalty point awards, etc.
+/// Ticks on a short schedule and processes messages at a configurable interval
+/// (default 90 seconds) to control cost and load.
 /// Replaces fire-and-forget Task.Run patterns with guaranteed delivery and retry.
 /// </summary>
 public class OutboxProcessorFunction
 {
+    private static readonly object IntervalLock = new();
+    private static DateTime _lastProcessedAtUtc = DateTime.MinValue;
+
     private readonly OutboxService _outbox;
     private readonly IWhatsAppService _whatsApp;
     private readonly IEmailService _email;
@@ -41,8 +45,10 @@ public class OutboxProcessorFunction
     }
 
     [Function("ProcessOutboxMessages")]
-    public async Task Run([TimerTrigger("*/30 * * * * *")] TimerInfo timerInfo)
+    public async Task Run([TimerTrigger("%OutboxProcessorSchedule%")] TimerInfo timerInfo)
     {
+        if (!ShouldProcessNow()) return;
+
         var messages = await _outbox.GetPendingMessagesAsync();
         if (messages.Count == 0) return;
 
@@ -70,6 +76,28 @@ public class OutboxProcessorFunction
             var cleaned = await _outbox.CleanupOldMessagesAsync();
             if (cleaned > 0)
                 _logger.LogInformation("Cleaned up {Count} old outbox messages", cleaned);
+        }
+    }
+
+    private static bool ShouldProcessNow()
+    {
+        var intervalSeconds = 90;
+        var raw = Environment.GetEnvironmentVariable("OutboxProcessorIntervalSeconds");
+        if (int.TryParse(raw, out var parsed) && parsed > 0)
+        {
+            intervalSeconds = parsed;
+        }
+
+        var now = DateTime.UtcNow;
+        lock (IntervalLock)
+        {
+            if (_lastProcessedAtUtc != DateTime.MinValue && (now - _lastProcessedAtUtc).TotalSeconds < intervalSeconds)
+            {
+                return false;
+            }
+
+            _lastProcessedAtUtc = now;
+            return true;
         }
     }
 

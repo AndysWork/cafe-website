@@ -60,8 +60,8 @@
 
       <!-- Card Image -->
       <div class="card-image">
-        <img *ngIf="item.imageUrl" [src]="item.imageUrl" [alt]="item.name" loading="lazy" />
-        <span *ngIf="!item.imageUrl" class="img-placeholder">🍽️</span>
+        <img *ngIf="item.imageThumbnailUrl || item.imageUrl" [src]="item.imageThumbnailUrl || item.imageUrl" [alt]="item.name" loading="lazy" />
+        <span *ngIf="!(item.imageThumbnailUrl || item.imageUrl)" class="img-placeholder">🍽️</span>
         <span class="stock-pill" [class.out]="item.isAvailable === false">
           {{ item.isAvailable !== false ? 'In Stock' : 'Out of Stock' }}
         </span>

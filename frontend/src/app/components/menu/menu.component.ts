@@ -215,6 +215,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       categoryName: item.categoryName,
       price: this.getWebPrice(item),
       imageUrl: item.imageUrl,
+      imageThumbnailUrl: item.imageThumbnailUrl,
       packagingCharge: item.packagingCharge || 0
     }, 1);
 
@@ -329,6 +330,10 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   getWebPrice(item: MenuItem): number {
     return item.webPrice || item.shopSellingPrice || item.onlinePrice || 0;
+  }
+
+  getListImageUrl(item: MenuItem): string | undefined {
+    return item.imageThumbnailUrl || item.imageUrl;
   }
 
   getEstimatedEarnPoints(item: MenuItem): number {

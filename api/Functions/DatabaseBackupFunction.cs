@@ -1,4 +1,5 @@
 using System.Net;
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using Azure.Storage.Blobs;
@@ -20,7 +21,8 @@ public class DatabaseBackupFunction
     private readonly Services.AuthService _auth;
 
     private const string BackupContainer = "database-backups";
-    private const int RetentionDays = 30;
+    private const int DefaultRetentionDays = 30;
+    private const int DefaultCoolTierAfterDays = 3;
 
     private static readonly string[] CollectionsToBackup = new[]
     {
@@ -53,7 +55,7 @@ public class DatabaseBackupFunction
     /// </summary>
     [Function("ScheduledDatabaseBackup")]
     public async Task RunScheduledBackup(
-        [TimerTrigger("0 30 20 * * *")] TimerInfo timer)
+        [TimerTrigger("%DatabaseBackupSchedule%")] TimerInfo timer)
     {
         _log.LogInformation("Scheduled database backup started at {Time}", DateTime.UtcNow);
 
@@ -96,7 +98,9 @@ public class DatabaseBackupFunction
                     collectionsBackedUp = result.CollectionCount,
                     totalSizeBytes = result.TotalBytes,
                     blobPrefix = result.BlobPrefix,
-                    retentionDays = RetentionDays
+                    retentionDays = GetRetentionDays(),
+                    compression = "gzip",
+                    coolTierAfterDays = GetCoolTierAfterDays()
                 }
             });
             return response;
@@ -197,19 +201,21 @@ public class DatabaseBackupFunction
                 jsonArray.Append(']');
 
                 var jsonBytes = Encoding.UTF8.GetBytes(jsonArray.ToString());
-                var blobName = $"{prefix}/{collectionName}.json";
+                var compressedBytes = CompressGzip(jsonBytes);
+                var blobName = $"{prefix}/{collectionName}.json.gz";
                 var blobClient = container.GetBlobClient(blobName);
 
-                using var stream = new MemoryStream(jsonBytes);
+                using var stream = new MemoryStream(compressedBytes);
                 await blobClient.UploadAsync(stream, new BlobHttpHeaders
                 {
-                    ContentType = "application/json"
+                    ContentType = "application/json",
+                    ContentEncoding = "gzip"
                 });
 
-                totalBytes += jsonBytes.Length;
+                totalBytes += compressedBytes.Length;
                 collectionCount++;
-                _log.LogDebug("Backed up {Collection}: {Count} documents, {Size} bytes",
-                    collectionName, documents.Count, jsonBytes.Length);
+                _log.LogDebug("Backed up {Collection}: {Count} documents, raw {RawSize} bytes, compressed {CompressedSize} bytes",
+                    collectionName, documents.Count, jsonBytes.Length, compressedBytes.Length);
             }
             catch (Exception ex)
             {
@@ -224,14 +230,20 @@ public class DatabaseBackupFunction
             trigger,
             database = _database.DatabaseNamespace.DatabaseName,
             collectionsBackedUp = collectionCount,
-            totalSizeBytes = totalBytes
+            totalSizeBytes = totalBytes,
+            compression = "gzip",
+            coolTierAfterDays = GetCoolTierAfterDays(),
+            retentionDays = GetRetentionDays()
         };
         var metaJson = JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true });
         var metaBlob = container.GetBlobClient($"{prefix}/_metadata.json");
         using var metaStream = new MemoryStream(Encoding.UTF8.GetBytes(metaJson));
         await metaBlob.UploadAsync(metaStream, new BlobHttpHeaders { ContentType = "application/json" });
 
-        // Cleanup old backups
+        // Move older backups to Cool tier to reduce monthly storage cost.
+        await OptimizeStorageTiersAsync(container);
+
+        // Cleanup old backups past retention.
         await CleanupOldBackupsAsync(container);
 
         return new BackupResult
@@ -247,7 +259,8 @@ public class DatabaseBackupFunction
     {
         try
         {
-            var cutoff = DateTimeOffset.UtcNow.AddDays(-RetentionDays);
+            var retentionDays = GetRetentionDays();
+            var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays);
             var blobsToDelete = new List<string>();
 
             await foreach (var blob in container.GetBlobsAsync())
@@ -266,13 +279,71 @@ public class DatabaseBackupFunction
             if (blobsToDelete.Count > 0)
             {
                 _log.LogInformation("Cleaned up {Count} old backup blobs (older than {Days} days)",
-                    blobsToDelete.Count, RetentionDays);
+                    blobsToDelete.Count, retentionDays);
             }
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to cleanup old backups");
         }
+    }
+
+    private async Task OptimizeStorageTiersAsync(BlobContainerClient container)
+    {
+        try
+        {
+            var coolTierAfterDays = GetCoolTierAfterDays();
+            if (coolTierAfterDays <= 0) return;
+
+            var cutoff = DateTimeOffset.UtcNow.AddDays(-coolTierAfterDays);
+            var movedCount = 0;
+
+            await foreach (var blob in container.GetBlobsAsync())
+            {
+                if (blob.Properties.CreatedOn >= cutoff) continue;
+
+                var currentTier = blob.Properties.AccessTier;
+                if (currentTier == AccessTier.Cool || currentTier == AccessTier.Archive)
+                {
+                    continue;
+                }
+
+                var blobClient = container.GetBlobClient(blob.Name);
+                await blobClient.SetAccessTierAsync(AccessTier.Cool);
+                movedCount++;
+            }
+
+            if (movedCount > 0)
+            {
+                _log.LogInformation("Moved {Count} backup blobs to Cool tier (older than {Days} days)", movedCount, coolTierAfterDays);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to optimize backup blob tiers");
+        }
+    }
+
+    private static byte[] CompressGzip(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var gzip = new GZipStream(output, CompressionLevel.Optimal, leaveOpen: true))
+        {
+            gzip.Write(data, 0, data.Length);
+        }
+        return output.ToArray();
+    }
+
+    private static int GetRetentionDays()
+    {
+        var raw = Environment.GetEnvironmentVariable("DatabaseBackupRetentionDays");
+        return int.TryParse(raw, out var days) && days > 0 ? days : DefaultRetentionDays;
+    }
+
+    private static int GetCoolTierAfterDays()
+    {
+        var raw = Environment.GetEnvironmentVariable("DatabaseBackupCoolTierAfterDays");
+        return int.TryParse(raw, out var days) && days >= 0 ? days : DefaultCoolTierAfterDays;
     }
 
     private class BackupResult

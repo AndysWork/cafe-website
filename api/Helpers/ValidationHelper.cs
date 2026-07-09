@@ -193,7 +193,16 @@ public static class ValidationHelper
                 var value = (string?)prop.GetValue(obj);
                 if (!string.IsNullOrEmpty(value))
                 {
-                    prop.SetValue(obj, InputSanitizer.Sanitize(value));
+                    var sanitized = InputSanitizer.Sanitize(value);
+
+                    // Keep emoji/icon glyphs readable in storage by decoding HTML entities
+                    // after sanitization strips unsafe content.
+                    if (string.Equals(prop.Name, "Icon", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sanitized = WebUtility.HtmlDecode(sanitized);
+                    }
+
+                    prop.SetValue(obj, sanitized);
                 }
             }
             else if (prop.PropertyType.IsClass && prop.PropertyType != typeof(string))

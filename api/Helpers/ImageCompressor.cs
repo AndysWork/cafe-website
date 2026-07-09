@@ -14,6 +14,7 @@ namespace Cafe.Api.Helpers;
 public static class ImageCompressor
 {
     private const int MaxDimension = 2048; // Max width or height in pixels
+    private const int MenuThumbnailMaxDimension = 320;
     private const int ProfilePicMaxDimension = 512;
     private const int JpegQuality = 82;
     private const int WebpQuality = 80;
@@ -80,5 +81,50 @@ public static class ImageCompressor
 
         output.Position = 0;
         return (output, contentType);
+    }
+
+    /// <summary>
+    /// Produces menu image variants optimized for web delivery.
+    /// Always encodes to WebP and returns both full-size and thumbnail streams.
+    /// </summary>
+    public static async Task<(MemoryStream Full, MemoryStream Thumbnail, string ContentType)> CompressMenuVariantsAsync(Stream inputStream)
+    {
+        inputStream.Position = 0;
+
+        using var image = await Image.LoadAsync(inputStream);
+
+        // Resize full image if either dimension exceeds limit.
+        if (image.Width > MaxDimension || image.Height > MaxDimension)
+        {
+            image.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Mode = ResizeMode.Max,
+                Size = new Size(MaxDimension, MaxDimension)
+            }));
+        }
+
+        var full = new MemoryStream();
+        await image.SaveAsync(full, new WebpEncoder
+        {
+            Quality = WebpQuality,
+            FileFormat = WebpFileFormatType.Lossy
+        });
+        full.Position = 0;
+
+        using var thumbnailImage = image.Clone(ctx => ctx.Resize(new ResizeOptions
+        {
+            Mode = ResizeMode.Max,
+            Size = new Size(MenuThumbnailMaxDimension, MenuThumbnailMaxDimension)
+        }));
+
+        var thumbnail = new MemoryStream();
+        await thumbnailImage.SaveAsync(thumbnail, new WebpEncoder
+        {
+            Quality = 75,
+            FileFormat = WebpFileFormatType.Lossy
+        });
+        thumbnail.Position = 0;
+
+        return (full, thumbnail, "image/webp");
     }
 }

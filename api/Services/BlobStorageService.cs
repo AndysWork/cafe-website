@@ -2,6 +2,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Cafe.Api.Helpers;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
 
 namespace Cafe.Api.Services;
 
@@ -69,25 +70,29 @@ public class BlobStorageService
 
     /// <summary>
     /// Uploads a menu item image to blob storage.
-    /// Returns the CDN/blob URL of the uploaded image.
+    /// Returns the CDN/blob URLs for full and thumbnail variants.
     /// </summary>
-    public async Task<string> UploadMenuImageAsync(Stream fileStream, string fileName, string contentType, string outletId)
+    public async Task<(string ImageUrl, string ThumbnailUrl)> UploadMenuImageAsync(Stream fileStream, string fileName, string contentType, string outletId)
     {
         ValidateUpload(fileStream, fileName, contentType);
 
-        // Compress image before upload
+        // Generate web-optimized menu variants (full + thumbnail)
         var originalSize = fileStream.Length;
-        var (compressedStream, compressedContentType) = await ImageCompressor.CompressAsync(fileStream, contentType, isProfilePicture: false);
-        await using var _ = compressedStream;
+        var (fullStream, thumbnailStream, compressedContentType) = await ImageCompressor.CompressMenuVariantsAsync(fileStream);
+        await using var _ = fullStream;
+        await using var __ = thumbnailStream;
         contentType = compressedContentType;
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
 
-        // Use extension matching the (possibly changed) content type
-        var extension = GetExtensionForContentType(contentType);
-        var blobName = $"{outletId}/{Guid.NewGuid()}{extension}";
+        var extension = ".webp";
+        var safeBaseName = SanitizeFileBaseName(Path.GetFileNameWithoutExtension(fileName));
+        var keyBase = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{safeBaseName}-{Guid.NewGuid():N}";
+        var fullBlobName = $"{outletId}/{keyBase}{extension}";
+        var thumbnailBlobName = $"{outletId}/{keyBase}_thumb{extension}";
 
-        var blobClient = containerClient.GetBlobClient(blobName);
+        var fullBlobClient = containerClient.GetBlobClient(fullBlobName);
+        var thumbnailBlobClient = containerClient.GetBlobClient(thumbnailBlobName);
 
         var headers = new BlobHttpHeaders
         {
@@ -95,12 +100,16 @@ public class BlobStorageService
             CacheControl = "public, max-age=31536000, immutable" // 1 year cache — images are immutable (new upload = new URL)
         };
 
-        await blobClient.UploadAsync(compressedStream, new BlobUploadOptions { HttpHeaders = headers });
+        await fullBlobClient.UploadAsync(fullStream, new BlobUploadOptions { HttpHeaders = headers });
+        await thumbnailBlobClient.UploadAsync(thumbnailStream, new BlobUploadOptions { HttpHeaders = headers });
 
-        _logger.LogInformation("Uploaded menu image: {BlobName} ({ContentType}, {OriginalSize} -> {CompressedSize} bytes)",
-            blobName, contentType, originalSize, compressedStream.Length);
+        _logger.LogInformation("Uploaded menu image variants: {FullBlob} ({FullSize} bytes), {ThumbBlob} ({ThumbSize} bytes), source {OriginalSize} bytes",
+            fullBlobName, fullStream.Length, thumbnailBlobName, thumbnailStream.Length, originalSize);
 
-        return GetPublicUrl(MenuImagesContainer, blobName);
+        return (
+            GetPublicUrl(MenuImagesContainer, fullBlobName),
+            GetPublicUrl(MenuImagesContainer, thumbnailBlobName)
+        );
     }
 
     /// <summary>
@@ -120,6 +129,15 @@ public class BlobStorageService
             var containerClient = _blobServiceClient.GetBlobContainerClient(MenuImagesContainer);
             var blobClient = containerClient.GetBlobClient(blobName);
             var response = await blobClient.DeleteIfExistsAsync();
+
+            // Also clean up sibling thumbnail variant for full-size menu images.
+            if (blobName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) &&
+                !blobName.EndsWith("_thumb.webp", StringComparison.OrdinalIgnoreCase))
+            {
+                var thumbBlobName = blobName[..^5] + "_thumb.webp";
+                var thumbBlobClient = containerClient.GetBlobClient(thumbBlobName);
+                await thumbBlobClient.DeleteIfExistsAsync();
+            }
 
             if (response.Value)
                 _logger.LogInformation("Deleted menu image: {BlobName}", blobName);
@@ -318,6 +336,16 @@ public class BlobStorageService
         "image/gif" => ".gif",
         _ => ".jpg"
     };
+
+    private static string SanitizeFileBaseName(string input)
+    {
+        var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized)) return "menu-image";
+
+        normalized = Regex.Replace(normalized, "[^a-z0-9]+", "-").Trim('-');
+        if (normalized.Length == 0) return "menu-image";
+        return normalized.Length <= 40 ? normalized : normalized[..40];
+    }
 
     /// <summary>
     /// Returns full public URL — CDN if configured, otherwise direct blob URL.

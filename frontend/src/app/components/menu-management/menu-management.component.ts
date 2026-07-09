@@ -37,6 +37,7 @@ interface MenuItem {
   variants: MenuItemVariant[];
   isAvailable?: boolean;
   imageUrl?: string;
+  imageThumbnailUrl?: string;
   createdBy: string;
   createdDate: string;
   lastUpdatedBy: string;

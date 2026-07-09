@@ -133,8 +133,8 @@
 
         <!-- Image Section -->
         <div class="card-image-wrapper">
-          <img *ngIf="item.imageUrl" [src]="item.imageUrl" [alt]="item.name" class="card-image" loading="lazy"/>
-          <div *ngIf="!item.imageUrl" class="card-image-placeholder">
+          <img *ngIf="getListImageUrl(item)" [src]="getListImageUrl(item)" [alt]="item.name" class="card-image" loading="lazy"/>
+          <div *ngIf="!getListImageUrl(item)" class="card-image-placeholder">
             <span class="placeholder-icon">🍽️</span>
           </div>
           <!-- Availability Badge -->

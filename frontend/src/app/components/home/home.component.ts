@@ -284,6 +284,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
         categoryName: resolved.menuItem.categoryName || item.categoryName,
         price: this.getMenuPrice(resolved.menuItem, item.price),
         imageUrl: resolved.menuItem.imageUrl,
+        imageThumbnailUrl: resolved.menuItem.imageThumbnailUrl,
         packagingCharge: resolved.menuItem.packagingCharge || 0
       }, item.quantity || 1);
 

@@ -267,6 +267,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
         categoryName: item.categoryName,
         price: item.price,
         imageUrl: latest?.imageUrl,
+        imageThumbnailUrl: latest?.imageThumbnailUrl,
         packagingCharge,
       }, item.quantity);
     }
@@ -286,6 +287,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
         categoryName: item.categoryName,
         price: item.price,
         imageUrl: latest?.imageUrl,
+        imageThumbnailUrl: latest?.imageThumbnailUrl,
         packagingCharge,
       }, item.quantity);
     }

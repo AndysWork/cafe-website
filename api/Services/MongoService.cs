@@ -3654,7 +3654,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 Name = "Free Coffee",
                 Description = "Enjoy a complimentary coffee of your choice",
                 PointsCost = 100,
-                Icon = "â˜•",
+                Icon = "\u2615",
                 IsActive = true
             },
             new Reward
@@ -3662,7 +3662,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 Name = "10% Off Next Order",
                 Description = "Get 10% discount on your next order",
                 PointsCost = 150,
-                Icon = "ðŸŽ",
+                Icon = "\uD83C\uDF81",
                 IsActive = true
             },
             new Reward
@@ -3670,7 +3670,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 Name = "Free Dessert",
                 Description = "Choose any dessert from our menu",
                 PointsCost = 120,
-                Icon = "ðŸ°",
+                Icon = "\uD83C\uDF70",
                 IsActive = true
             },
             new Reward
@@ -3678,7 +3678,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 Name = "Free Burger",
                 Description = "Get a burger of your choice on the house",
                 PointsCost = 200,
-                Icon = "ðŸ”",
+                Icon = "\uD83C\uDF54",
                 IsActive = true
             },
             new Reward
@@ -3686,7 +3686,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 Name = "20% Off Next Order",
                 Description = "Save 20% on your next order",
                 PointsCost = 300,
-                Icon = "ðŸ’°",
+                Icon = "\uD83D\uDCB0",
                 IsActive = true
             }
         };

@@ -324,8 +324,8 @@
 
         <div class="favorites-grid" *ngIf="!isLoadingFavorites && favoriteItems.length > 0">
           <div class="fav-card" *ngFor="let item of favoriteItems">
-            <img *ngIf="item.imageUrl" [src]="item.imageUrl" [alt]="item.name" class="fav-img" loading="lazy"/>
-            <div *ngIf="!item.imageUrl" class="fav-img-placeholder">🍽️</div>
+            <img *ngIf="item.imageThumbnailUrl || item.imageUrl" [src]="item.imageThumbnailUrl || item.imageUrl" [alt]="item.name" class="fav-img" loading="lazy"/>
+            <div *ngIf="!(item.imageThumbnailUrl || item.imageUrl)" class="fav-img-placeholder">🍽️</div>
             <div class="fav-info">
               <span class="fav-name">{{ item.name }}</span>
               <span class="fav-category">{{ item.categoryName }}</span>
