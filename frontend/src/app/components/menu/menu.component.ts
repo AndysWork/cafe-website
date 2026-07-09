@@ -39,6 +39,13 @@ export class MenuComponent implements OnInit, OnDestroy {
   selectedMenuItem: MenuItem | null = null;
   showDetailModal = false;
 
+  // Customization modal
+  customizationItem: MenuItem | null = null;
+  showCustomizationModal = false;
+  selectedVariantName = '';
+  selectedAddOnNames: Set<string> = new Set();
+  customizationQuantity = 1;
+
   // Favorites
   favoriteIds: Set<string> = new Set();
 
@@ -133,7 +140,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   applyFilters() {
-    let items = this.menuItems;
+    let items = this.menuItems.filter(item => item.isAddOnOnly !== true);
 
     if (this.selectedCategoryId) {
       items = items.filter(item => item.categoryId === this.selectedCategoryId);
@@ -203,21 +210,43 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   getCartQuantity(itemId: string): number {
-    const cartItem = this.cart.items.find(i => i.menuItemId === itemId);
-    return cartItem ? cartItem.quantity : 0;
+    return this.cart.items
+      .filter(i => i.menuItemId === itemId)
+      .reduce((sum, i) => sum + i.quantity, 0);
   }
 
   addToCart(item: MenuItem) {
+    if (this.hasCustomizations(item)) {
+      this.openCustomization(item);
+      return;
+    }
+
+    this.addToCartWithSelections(item, undefined, []);
+  }
+
+  private addToCartWithSelections(
+    item: MenuItem,
+    selectedVariant?: { variantName: string; price: number; quantity?: number },
+    selectedAddOns: { name: string; price: number }[] = [],
+    quantity: number = 1
+  ) {
+    const basePrice = selectedVariant?.price ?? this.getWebPrice(item);
+    const addOnPrice = selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0);
+    const unitPrice = basePrice + addOnPrice;
+
     this.cartService.addItem({
       menuItemId: item.id,
       name: item.name,
       description: item.description,
       categoryName: item.categoryName,
-      price: this.getWebPrice(item),
+      price: unitPrice,
+      basePrice,
+      selectedVariant,
+      selectedAddOns,
       imageUrl: item.imageUrl,
       imageThumbnailUrl: item.imageThumbnailUrl,
       packagingCharge: item.packagingCharge || 0
-    }, 1);
+    }, quantity);
 
     // Trigger animation
     this.recentlyAdded.add(item.id);
@@ -227,16 +256,26 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   increaseQuantity(item: MenuItem) {
-    const current = this.getCartQuantity(item.id);
-    this.cartService.updateQuantity(item.id, current + 1);
+    const lineId = this.getPrimaryCartLineId(item.id);
+    if (!lineId) return;
+
+    const line = this.cart.items.find(i => (i.cartLineId || i.menuItemId) === lineId);
+    if (!line) return;
+
+    this.cartService.updateQuantity(lineId, line.quantity + 1);
   }
 
   decreaseQuantity(item: MenuItem) {
-    const current = this.getCartQuantity(item.id);
-    if (current > 1) {
-      this.cartService.updateQuantity(item.id, current - 1);
+    const lineId = this.getPrimaryCartLineId(item.id);
+    if (!lineId) return;
+
+    const line = this.cart.items.find(i => (i.cartLineId || i.menuItemId) === lineId);
+    if (!line) return;
+
+    if (line.quantity > 1) {
+      this.cartService.updateQuantity(lineId, line.quantity - 1);
     } else {
-      this.cartService.removeItem(item.id);
+      this.cartService.removeItem(lineId);
     }
   }
 
@@ -261,6 +300,81 @@ export class MenuComponent implements OnInit, OnDestroy {
   closeDetail() {
     this.showDetailModal = false;
     this.selectedMenuItem = null;
+  }
+
+  hasCustomizations(item: MenuItem): boolean {
+    const hasVariants = !!(item.variants && item.variants.length > 0);
+    const hasAddOns = !!(item.addOns && item.addOns.some(a => a.isActive !== false));
+    return hasVariants || hasAddOns;
+  }
+
+  openCustomization(item: MenuItem) {
+    this.customizationItem = item;
+    this.customizationQuantity = 1;
+    this.selectedAddOnNames = new Set();
+    this.selectedVariantName = item.variants && item.variants.length > 0
+      ? item.variants[0].variantName
+      : '';
+    this.showCustomizationModal = true;
+  }
+
+  closeCustomization() {
+    this.showCustomizationModal = false;
+    this.customizationItem = null;
+    this.selectedVariantName = '';
+    this.selectedAddOnNames = new Set();
+    this.customizationQuantity = 1;
+  }
+
+  toggleCustomizationAddOn(name: string) {
+    if (this.selectedAddOnNames.has(name)) {
+      this.selectedAddOnNames.delete(name);
+    } else {
+      this.selectedAddOnNames.add(name);
+    }
+    this.selectedAddOnNames = new Set(this.selectedAddOnNames);
+  }
+
+  getSelectedVariant(item: MenuItem | null): { variantName: string; price: number; quantity?: number } | undefined {
+    if (!item || !item.variants || item.variants.length === 0) return undefined;
+    return item.variants.find(v => v.variantName === this.selectedVariantName) || item.variants[0];
+  }
+
+  getSelectedAddOns(item: MenuItem | null): { name: string; price: number }[] {
+    if (!item?.addOns || item.addOns.length === 0) return [];
+
+    return item.addOns
+      .filter(a => a.isActive !== false && this.selectedAddOnNames.has(a.name))
+      .map(a => ({ name: a.name, price: a.price }));
+  }
+
+  getCustomizationUnitPrice(item: MenuItem | null): number {
+    if (!item) return 0;
+    const selectedVariant = this.getSelectedVariant(item);
+    const basePrice = selectedVariant?.price ?? this.getWebPrice(item);
+    const addOnPrice = this.getSelectedAddOns(item).reduce((sum, a) => sum + (a.price || 0), 0);
+    return basePrice + addOnPrice;
+  }
+
+  confirmCustomization() {
+    if (!this.customizationItem) return;
+
+    const item = this.customizationItem;
+    const selectedVariant = this.getSelectedVariant(item);
+    const selectedAddOns = this.getSelectedAddOns(item);
+    this.addToCartWithSelections(item, selectedVariant, selectedAddOns, this.customizationQuantity);
+    this.closeCustomization();
+    this.closeDetail();
+  }
+
+  increaseCustomizationQuantity() {
+    this.customizationQuantity += 1;
+  }
+
+  decreaseCustomizationQuantity() {
+    if (this.customizationQuantity > 1) {
+      this.customizationQuantity -= 1;
+    }
   }
 
   loadSocialProof() {
@@ -294,6 +408,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     const sameCategory = this.menuItems.filter(m =>
       m.id !== item.id &&
       m.isAvailable !== false &&
+      m.isAddOnOnly !== true &&
       m.categoryId === item.categoryId
     );
 
@@ -308,16 +423,18 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   getCategoryItemCount(categoryId: string | null): number {
-    if (!categoryId) return this.menuItems.length;
-    return this.menuItems.filter(item => item.categoryId === categoryId).length;
+    const visibleItems = this.menuItems.filter(item => item.isAddOnOnly !== true);
+    if (!categoryId) return visibleItems.length;
+    return visibleItems.filter(item => item.categoryId === categoryId).length;
   }
 
   getDietaryItemCount(filter: 'all' | 'veg' | 'non-veg' | 'egg'): number {
+    const visibleItems = this.menuItems.filter(item => item.isAddOnOnly !== true);
     if (filter === 'all') {
-      return this.menuItems.length;
+      return visibleItems.length;
     }
 
-    return this.menuItems.filter(item => this.normalizeDietaryType(item.dietaryType) === filter).length;
+    return visibleItems.filter(item => this.normalizeDietaryType(item.dietaryType) === filter).length;
   }
 
   trackByItemId(index: number, item: MenuItem): string {
@@ -338,6 +455,10 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   getEstimatedEarnPoints(item: MenuItem): number {
     return Math.max(0, Math.floor(this.getWebPrice(item) / 10));
+  }
+
+  getCustomizationEarnPoints(item: MenuItem | null): number {
+    return Math.max(0, Math.floor(this.getCustomizationUnitPrice(item) / 10));
   }
 
   normalizeDietaryType(value?: string): 'veg' | 'non-veg' | 'egg' {
@@ -417,5 +538,11 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.loyaltyPointsAvailable = 0;
       }
     });
+  }
+
+  private getPrimaryCartLineId(itemId: string): string | null {
+    const line = this.cart.items.find(i => i.menuItemId === itemId);
+    if (!line) return null;
+    return line.cartLineId || line.menuItemId;
   }
 }

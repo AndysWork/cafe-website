@@ -266,17 +266,20 @@
         </div>
 
         <!-- Loyalty Points Section -->
-        <div *ngIf="loyaltyLoaded && loyaltyAccount && loyaltyAccount.currentPoints > 0" class="loyalty-section">
+        <div *ngIf="loyaltyLoaded" class="loyalty-section">
           <label class="section-label">⭐ Loyalty Points Payment</label>
           <div class="loyalty-toggle">
             <label class="checkbox-label">
-              <input type="checkbox" [(ngModel)]="useLoyaltyPoints" name="useLoyaltyPoints" (change)="toggleLoyaltyPoints()" />
+              <input type="checkbox" [(ngModel)]="useLoyaltyPoints" name="useLoyaltyPoints" [disabled]="!canRedeemLoyalty" (change)="toggleLoyaltyPoints()" />
               <span>
                 Use loyalty points as payment
-                <small class="loyalty-balance">({{ loyaltyAccount.currentPoints }} pts available = ₹{{ (loyaltyAccount.currentPoints * 0.25) | number:'1.0-0' }})</small>
+                <small class="loyalty-balance">({{ loyaltyBalancePoints }} pts available = ₹{{ loyaltyBalanceValue | number:'1.0-0' }})</small>
               </span>
             </label>
-            <div *ngIf="useLoyaltyPoints" class="loyalty-info">
+            <div *ngIf="!canRedeemLoyalty" class="loyalty-info">
+              No redeemable points available yet. Earn points from completed orders.
+            </div>
+            <div *ngIf="useLoyaltyPoints && canRedeemLoyalty" class="loyalty-info">
               Using <strong>{{ loyaltyPointsToUse }}</strong> points (−₹{{ loyaltyDiscount }}) as redemption for this order
             </div>
           </div>
@@ -329,27 +332,27 @@
         <div class="payment-section">
           <label class="section-label" id="payment-method-label">💳 Payment Method</label>
           <div class="payment-options" role="radiogroup" aria-labelledby="payment-method-label">
-            <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" (click)="onPaymentMethodChange('razorpay')">
-              <input type="radio" name="paymentMethod" value="razorpay" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
+            <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" [class.disabled]="!onlinePaymentEnabled" (click)="onlinePaymentEnabled && onPaymentMethodChange('razorpay')">
+              <input type="radio" name="paymentMethod" value="razorpay" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !onlinePaymentEnabled" />
               <div class="option-content">
                 <span class="option-icon">🔒</span>
                 <div>
                   <strong>Pay Online</strong>
-                  <p>UPI, Cards, Net Banking, Wallets</p>
+                  <p>{{ onlinePaymentEnabled ? 'UPI, Cards, Net Banking, Wallets' : 'Coming soon after Razorpay setup' }}</p>
                 </div>
               </div>
-              <span class="recommended-badge" *ngIf="paymentMethod === 'razorpay'">✓</span>
+              <span class="recommended-badge" *ngIf="onlinePaymentEnabled && paymentMethod === 'razorpay'">✓</span>
             </label>
-            <label class="payment-option" [class.active]="paymentMethod === 'upi-qr'" (click)="onPaymentMethodChange('upi-qr')">
-              <input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
+            <label class="payment-option" [class.active]="paymentMethod === 'upi-qr'" [class.disabled]="!onlinePaymentEnabled" (click)="onlinePaymentEnabled && onPaymentMethodChange('upi-qr')">
+              <input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !onlinePaymentEnabled" />
               <div class="option-content">
                 <span class="option-icon">📱</span>
                 <div>
                   <strong>Pay via QR</strong>
-                  <p>Scan exact bill amount with any UPI app</p>
+                  <p>{{ onlinePaymentEnabled ? 'Scan exact bill amount with any UPI app' : 'Coming soon after Razorpay setup' }}</p>
                 </div>
               </div>
-              <span class="recommended-badge" *ngIf="paymentMethod === 'upi-qr'">✓</span>
+              <span class="recommended-badge" *ngIf="onlinePaymentEnabled && paymentMethod === 'upi-qr'">✓</span>
             </label>
             <label class="payment-option" [class.active]="paymentMethod === 'cod'" (click)="onPaymentMethodChange('cod')">
               <input type="radio" name="paymentMethod" value="cod" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
@@ -454,11 +457,11 @@
           <span>₹{{ cart.packagingCharges }}</span>
         </div>
         <div class="t-row t-tax">
-          <span>Tax (2.5%)</span>
+          <span>Tax</span>
           <span>₹{{ taxAmount }}</span>
         </div>
         <div class="t-row t-tax">
-          <span>Platform Charge (2.5%)</span>
+          <span>Platform Charge (Fixed)</span>
           <span>₹{{ platformChargeAmount }}</span>
         </div>
         <div *ngIf="couponDiscount > 0" class="t-row t-discount">

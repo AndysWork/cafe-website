@@ -84,7 +84,9 @@ public class KitchenDisplayFunction
                     i.Quantity,
                     Category = i.CategoryName
                 }),
-                SpecialInstructions = o.Notes,
+                PreparationNotes = o.PreparationNotes,
+                SpecialInstructions = string.IsNullOrWhiteSpace(o.PreparationNotes) ? o.Notes : o.PreparationNotes,
+                Notes = o.Notes,
                 o.CreatedAt,
                 WaitTime = (int)(MongoService.GetIstNow() - o.CreatedAt).TotalMinutes,
                 IsScheduled = o.IsScheduled,

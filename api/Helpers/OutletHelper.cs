@@ -13,6 +13,14 @@ public static class OutletHelper
 {
     private const string OutletIdHeaderKey = "X-Outlet-Id";
 
+    private static bool IsAdminLikeRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return false;
+
+        var normalized = role.Trim().ToLowerInvariant();
+        return normalized == "admin" || normalized == "sysadmin" || normalized == "sys-admin" || normalized == "superadmin";
+    }
+
     /// <summary>
     /// Extracts outlet ID from request header or user's default outlet
     /// Priority: 1) X-Outlet-Id header, 2) User's DefaultOutletId from token, 3) null
@@ -85,7 +93,7 @@ public static class OutletHelper
         var role = principal.FindFirst(ClaimTypes.Role)?.Value;
 
         // Admin can access all outlets
-        if (role == "admin")
+        if (IsAdminLikeRole(role))
         {
             var outletId = requestedOutletId ?? GetOutletIdFromRequest(req, authService);
             

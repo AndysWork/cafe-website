@@ -14,6 +14,11 @@ export interface OrderItem {
   categoryName?: string;
   quantity: number;
   price: number;
+  baseUnitPrice?: number;
+  selectedVariantName?: string;
+  selectedVariantPrice?: number;
+  selectedAddOns?: { name: string; price: number }[];
+  addOnTotal?: number;
   total: number;
 }
 
@@ -38,6 +43,7 @@ export interface Order {
   razorpayPaymentId?: string;
   deliveryAddress?: string;
   phoneNumber?: string;
+  preparationNotes?: string;
   notes?: string;
   receiptImageUrl?: string;
   scheduledFor?: string;
@@ -60,9 +66,12 @@ export interface CreateOrderRequest {
   items: {
     menuItemId: string;
     quantity: number;
+    selectedVariantName?: string;
+    selectedAddOnNames?: string[];
   }[];
   deliveryAddress?: string;
   phoneNumber?: string;
+  preparationNotes?: string;
   notes?: string;
   paymentMethod?: 'cod' | 'razorpay' | 'upi-qr';
   razorpayPaymentId?: string;

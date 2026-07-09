@@ -209,9 +209,58 @@ public class OrderFunction
                     categories.TryGetValue(menuItem.CategoryId, out categoryName);
                 }
 
-                var unitPrice = menuItem.WebPrice > 0
+                var baseUnitPrice = menuItem.WebPrice > 0
                     ? menuItem.WebPrice
                     : (menuItem.ShopSellingPrice > 0 ? menuItem.ShopSellingPrice : menuItem.OnlinePrice);
+
+                string? selectedVariantName = null;
+                decimal? selectedVariantPrice = null;
+                if (!string.IsNullOrWhiteSpace(item.SelectedVariantName))
+                {
+                    var matchedVariant = (menuItem.Variants ?? new List<MenuItemVariant>()).FirstOrDefault(v =>
+                        v.VariantName.Equals(item.SelectedVariantName.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                    if (matchedVariant == null)
+                    {
+                        var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                        await badRequest.WriteAsJsonAsync(new { error = $"Selected variant '{item.SelectedVariantName}' is not available for {menuItem.Name}" });
+                        return badRequest;
+                    }
+
+                    selectedVariantName = matchedVariant.VariantName;
+                    selectedVariantPrice = matchedVariant.Price;
+                    baseUnitPrice = matchedVariant.Price;
+                }
+
+                var selectedAddOns = new List<OrderItemAddOn>();
+                if (item.SelectedAddOnNames != null && item.SelectedAddOnNames.Count > 0)
+                {
+                    var addOnMap = (menuItem.AddOns ?? new List<MenuItemAddOn>())
+                        .Where(a => a.IsActive)
+                        .ToDictionary(a => a.Name.Trim().ToLowerInvariant(), a => a);
+
+                    foreach (var addOnName in item.SelectedAddOnNames)
+                    {
+                        var normalizedAddOn = (addOnName ?? string.Empty).Trim().ToLowerInvariant();
+                        if (string.IsNullOrWhiteSpace(normalizedAddOn)) continue;
+
+                        if (!addOnMap.TryGetValue(normalizedAddOn, out var matchedAddOn))
+                        {
+                            var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                            await badRequest.WriteAsJsonAsync(new { error = $"Selected add-on '{addOnName}' is not available for {menuItem.Name}" });
+                            return badRequest;
+                        }
+
+                        selectedAddOns.Add(new OrderItemAddOn
+                        {
+                            Name = matchedAddOn.Name,
+                            Price = matchedAddOn.Price
+                        });
+                    }
+                }
+
+                var addOnTotal = selectedAddOns.Sum(a => a.Price);
+                var unitPrice = baseUnitPrice + addOnTotal;
                 var itemTotal = unitPrice * item.Quantity;
                 subtotal += itemTotal;
 
@@ -224,13 +273,19 @@ public class OrderFunction
                     CategoryName = categoryName,
                     Quantity = item.Quantity,
                     Price = unitPrice,
+                    BaseUnitPrice = baseUnitPrice,
+                    SelectedVariantName = selectedVariantName,
+                    SelectedVariantPrice = selectedVariantPrice,
+                    SelectedAddOns = selectedAddOns,
+                    AddOnTotal = addOnTotal,
                     Total = itemTotal
                 });
             }
 
-            // Calculate tax (2.5%) and platform charge (2.5%)
-            var tax = Math.Round(subtotal * 0.025m, 2);
-            var platformCharge = Math.Round(subtotal * 0.025m, 2);
+            // Tax is temporarily disabled until GSTIN onboarding is completed.
+            // Platform charge is a flat ₹2 per order for now.
+            var tax = 0m;
+            var platformCharge = subtotal > 0 ? 2m : 0m;
 
             // Apply coupon discount
             decimal discountAmount = 0;
@@ -353,6 +408,7 @@ public class OrderFunction
                 RazorpaySignature = razorpaySignature,
                 DeliveryAddress = orderType == "delivery" ? orderRequest.DeliveryAddress?.Trim() : null,
                 PhoneNumber = string.IsNullOrWhiteSpace(normalizedPhone) ? null : normalizedPhone,
+                PreparationNotes = string.IsNullOrWhiteSpace(orderRequest.PreparationNotes) ? null : orderRequest.PreparationNotes.Trim(),
                 Notes = orderRequest.Notes,
                 CouponCode = couponCode,
                 DiscountAmount = discountAmount,
@@ -1019,8 +1075,8 @@ public class OrderFunction
             }
 
             order.Subtotal = Math.Round(order.Items.Sum(i => i.Total), 2);
-            order.Tax = Math.Round(order.Subtotal * 0.025m, 2);
-            order.PlatformCharge = Math.Round(order.Subtotal * 0.025m, 2);
+            order.Tax = 0m;
+            order.PlatformCharge = order.Subtotal > 0 ? 2m : 0m;
             order.DiscountAmount = Math.Min(order.DiscountAmount, order.Subtotal);
 
             var loyaltyCap = Math.Max(0, order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee - order.DiscountAmount);
@@ -1411,6 +1467,7 @@ public class OrderFunction
             RazorpayPaymentId = order.RazorpayPaymentId,
             DeliveryAddress = order.DeliveryAddress,
             PhoneNumber = order.PhoneNumber,
+            PreparationNotes = order.PreparationNotes,
             Notes = order.Notes,
             CreatedAt = order.CreatedAt,
             UpdatedAt = order.UpdatedAt,

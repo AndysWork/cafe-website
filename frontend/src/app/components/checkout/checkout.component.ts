@@ -28,6 +28,8 @@ import QRCode from 'qrcode';
 export class CheckoutComponent implements OnInit, OnDestroy {
   private readonly checkoutDraftStorageKey = 'checkout_draft';
   private readonly pendingPaymentStorageKey = 'pending_payment_recovery';
+  readonly onlinePaymentEnabled = false;
+  readonly fixedPlatformCharge = 2;
 
   cart: Cart = {
     items: [],
@@ -74,6 +76,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   couponValid = false;
   validatingCoupon = false;
   appliedCouponOfferId = '';
+  private lastCouponValidationKey = '';
 
   // Loyalty state
   loyaltyAccount: LoyaltyAccount | null = null;
@@ -118,16 +121,28 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   // Computed totals
   get taxAmount(): number {
-    return Math.round(this.cart.subtotal * 0.025 * 100) / 100;
+    return 0;
   }
 
   get platformChargeAmount(): number {
-    return Math.round(this.cart.subtotal * 0.025 * 100) / 100;
+    return this.cart.itemCount > 0 ? this.fixedPlatformCharge : 0;
   }
 
   get loyaltyDiscount(): number {
     if (!this.useLoyaltyPoints || !this.loyaltyAccount) return 0;
     return Math.round(this.loyaltyPointsToUse * 0.25 * 100) / 100;
+  }
+
+  get loyaltyBalancePoints(): number {
+    return this.loyaltyAccount?.currentPoints || 0;
+  }
+
+  get loyaltyBalanceValue(): number {
+    return Math.round(this.loyaltyBalancePoints * 0.25 * 100) / 100;
+  }
+
+  get canRedeemLoyalty(): boolean {
+    return this.loyaltyBalancePoints > 0;
   }
 
   get grandTotal(): number {
@@ -159,6 +174,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.loadUpiRuntimeConfig();
     this.loadPendingPaymentRecovery();
     this.loadCheckoutDraft();
+    this.ensureSupportedPaymentMethod();
     this.refreshOutletSuggestions();
 
     this.cartSub = this.cartService.cart$.subscribe(cart => {
@@ -169,6 +185,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
       this.recomputeCheckoutAdjustments();
       this.saveCheckoutDraft();
+      this.revalidateCouponIfNeeded();
 
       if (this.orderType === 'delivery' && this.deliveryAddress.trim()) {
         this.calculateDeliveryFee();
@@ -200,8 +217,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         next: (account) => {
           this.loyaltyAccount = account;
           this.loyaltyLoaded = true;
+          this.recomputeCheckoutAdjustments();
         },
-        error: () => { this.loyaltyLoaded = true; }
+        error: () => {
+          this.loyaltyLoaded = true;
+          this.recomputeCheckoutAdjustments();
+        }
       });
 
       // Load wallet
@@ -462,11 +483,14 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   // Coupon methods
   applyCoupon() {
-    if (!this.couponCode.trim()) return;
+    const normalizedCouponCode = this.couponCode.trim().toUpperCase();
+    if (!normalizedCouponCode) return;
+
+    this.couponCode = normalizedCouponCode;
     this.validatingCoupon = true;
     this.couponMessage = '';
     this.offersService.validateOffer({
-      code: this.couponCode.trim(),
+      code: normalizedCouponCode,
       orderAmount: this.cart.subtotal,
       categories: this.cart.items.map(i => i.categoryName).filter((c): c is string => !!c)
     }).subscribe({
@@ -481,7 +505,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           this.couponValid = false;
           this.couponDiscount = 0;
           this.couponMessage = res.message || 'Invalid coupon code';
+          this.appliedCouponOfferId = '';
         }
+
+        this.lastCouponValidationKey = this.buildCouponValidationKey();
 
         this.recomputeCheckoutAdjustments();
         this.saveCheckoutDraft();
@@ -495,6 +522,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         this.couponValid = false;
         this.couponDiscount = 0;
         this.couponMessage = 'Failed to validate coupon';
+        this.appliedCouponOfferId = '';
         this.recomputeCheckoutAdjustments();
         this.saveCheckoutDraft();
 
@@ -511,6 +539,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.couponMessage = '';
     this.couponValid = false;
     this.appliedCouponOfferId = '';
+    this.lastCouponValidationKey = '';
     this.recomputeCheckoutAdjustments();
     this.saveCheckoutDraft();
 
@@ -521,7 +550,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   // Loyalty methods
   toggleLoyaltyPoints() {
-    this.useLoyaltyPoints = !this.useLoyaltyPoints;
     if (this.useLoyaltyPoints && this.loyaltyAccount) {
       this.loyaltyPointsToUse = this.loyaltyAccount.currentPoints;
     } else {
@@ -601,10 +629,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     const orderRequest: CreateOrderRequest = {
       items: this.cart.items.map(item => ({
         menuItemId: item.menuItemId,
-        quantity: item.quantity
+        quantity: item.quantity,
+        selectedVariantName: item.selectedVariant?.variantName,
+        selectedAddOnNames: item.selectedAddOns?.map(a => a.name) || []
       })),
       deliveryAddress: this.orderType === 'delivery' ? this.deliveryAddress.trim() : undefined,
       phoneNumber: this.phoneNumber.trim() || undefined,
+      preparationNotes: this.cart.preparationNotes?.trim() || undefined,
       notes: [this.notes.trim(), upiRefText].filter(Boolean).join(' | ') || undefined,
       paymentMethod: paymentMethodForOrder,
       razorpayPaymentId,
@@ -724,7 +755,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   toggleWallet() {
-    this.useWallet = !this.useWallet;
     this.recomputeCheckoutAdjustments();
     this.saveCheckoutDraft();
 
@@ -734,6 +764,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   onPaymentMethodChange(method: 'cod' | 'razorpay' | 'upi-qr') {
+    if (!this.onlinePaymentEnabled && method !== 'cod') {
+      this.paymentMethod = 'cod';
+      this.uiStore.notify('Online payment will be enabled once Razorpay setup is completed.');
+      this.saveCheckoutDraft();
+      return;
+    }
+
     this.paymentMethod = method;
     this.errorMessage = '';
 
@@ -762,7 +799,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   private recomputeCheckoutAdjustments(): void {
-    if (this.useLoyaltyPoints && this.loyaltyAccount) {
+    if (this.useLoyaltyPoints && this.loyaltyAccount && this.loyaltyAccount.currentPoints > 0) {
       const maxDiscount = Math.max(0, this.cart.subtotal + this.taxAmount - this.couponDiscount);
       const maxPointsByTotal = Math.floor(maxDiscount / 0.25);
       const maxPointsAllowed = Math.min(this.loyaltyAccount.currentPoints, Math.max(0, maxPointsByTotal));
@@ -770,6 +807,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.loyaltyPointsToUse = Math.min(this.loyaltyPointsToUse || maxPointsAllowed, maxPointsAllowed);
       this.maxLoyaltyDiscount = Math.round(this.loyaltyPointsToUse * 0.25 * 100) / 100;
     } else {
+      this.useLoyaltyPoints = false;
       this.loyaltyPointsToUse = 0;
       this.maxLoyaltyDiscount = 0;
     }
@@ -780,6 +818,53 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     } else {
       this.walletAmountToUse = 0;
     }
+  }
+
+  private buildCouponValidationKey(): string {
+    const categoriesKey = this.cart.items
+      .map(i => i.categoryName || '')
+      .filter(Boolean)
+      .sort()
+      .join('|');
+
+    return `${this.couponCode.trim().toUpperCase()}::${this.cart.subtotal}::${categoriesKey}`;
+  }
+
+  private revalidateCouponIfNeeded(): void {
+    if (!this.couponCode.trim() || this.validatingCoupon) return;
+
+    const nextKey = this.buildCouponValidationKey();
+    if (nextKey === this.lastCouponValidationKey) return;
+
+    this.validatingCoupon = true;
+    this.offersService.validateOffer({
+      code: this.couponCode.trim().toUpperCase(),
+      orderAmount: this.cart.subtotal,
+      categories: this.cart.items.map(i => i.categoryName).filter((c): c is string => !!c)
+    }).subscribe({
+      next: (res: OfferValidationResponse) => {
+        this.validatingCoupon = false;
+        this.couponValid = res.isValid;
+        this.couponDiscount = res.isValid ? res.discountAmount : 0;
+        this.couponMessage = res.message || (res.isValid ? 'Coupon applied!' : 'Coupon no longer applicable for current cart');
+        this.appliedCouponOfferId = res.isValid ? (res.offer?.id || '') : '';
+        this.lastCouponValidationKey = this.buildCouponValidationKey();
+
+        this.recomputeCheckoutAdjustments();
+        this.saveCheckoutDraft();
+      },
+      error: () => {
+        this.validatingCoupon = false;
+        this.couponValid = false;
+        this.couponDiscount = 0;
+        this.couponMessage = 'Failed to validate coupon';
+        this.appliedCouponOfferId = '';
+        this.lastCouponValidationKey = '';
+
+        this.recomputeCheckoutAdjustments();
+        this.saveCheckoutDraft();
+      }
+    });
   }
 
   private getFeeConfidence(deliveryFee: number, freeDeliveryAbove: number): 'high' | 'medium' | 'low' {
@@ -910,8 +995,15 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.useWallet = !!draft.useWallet;
       this.walletAmountToUse = Number(draft.walletAmountToUse || 0);
       this.paymentMethod = draft.paymentMethod || 'cod';
+      this.ensureSupportedPaymentMethod();
     } catch {
       this.clearCheckoutDraft();
+    }
+  }
+
+  private ensureSupportedPaymentMethod(): void {
+    if (!this.onlinePaymentEnabled && this.paymentMethod !== 'cod') {
+      this.paymentMethod = 'cod';
     }
   }
 

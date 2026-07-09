@@ -1254,6 +1254,81 @@ $radius-full: 9999px;
   }
 }
 
+.customization-modal {
+  max-width: 560px;
+}
+
+.custom-image {
+  height: 200px;
+}
+
+.custom-section {
+  margin-bottom: 1rem;
+}
+
+.custom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.55rem;
+}
+
+.custom-option {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &.active {
+    border-color: $primary;
+    background: #e0f2fe;
+    color: $primary-dark;
+  }
+
+  strong {
+    font-size: 0.78rem;
+  }
+}
+
+.custom-summary {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 0.65rem 0.8rem;
+  margin-bottom: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.76rem;
+    color: $text-secondary;
+  }
+
+  strong {
+    color: $text-primary;
+    font-size: 0.88rem;
+  }
+}
+
+.custom-actions-sticky {
+  display: grid;
+  gap: 0.7rem;
+}
+
 .detail-availability {
   margin-bottom: 1rem;
 
@@ -1405,6 +1480,62 @@ $radius-full: 9999px;
 
   .card-image-wrapper {
     height: 160px;
+  }
+
+  .detail-modal-overlay {
+    padding: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .detail-modal {
+    max-width: 100%;
+    max-height: 92dvh;
+    border-radius: 16px;
+  }
+
+  .detail-image-section {
+    height: 200px;
+  }
+
+  .custom-image {
+    height: 150px;
+  }
+
+  .detail-body {
+    padding: 1rem;
+  }
+
+  .detail-header .detail-title,
+  .detail-title {
+    font-size: 1.2rem;
+    padding-right: 2rem;
+  }
+
+  .custom-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-cart-actions .qty-control-detail {
+    gap: 0.75rem;
+
+    .qty-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 1.15rem;
+    }
+
+    .qty-value {
+      font-size: 1.1rem;
+    }
+  }
+
+  .custom-actions-sticky {
+    position: sticky;
+    bottom: -1rem;
+    margin: 0 -1rem -1rem;
+    padding: 0.7rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, #ffffff 72%, rgba(255, 255, 255, 0.9) 88%, rgba(255, 255, 255, 0));
+    border-top: 1px solid #e2e8f0;
   }
 }
 
@@ -1655,6 +1786,56 @@ $radius-full: 9999px;
 
   .skeleton-card .skeleton-image {
     height: 120px;
+  }
+
+  .detail-modal-overlay {
+    padding: 0.35rem;
+  }
+
+  .detail-modal {
+    max-height: 96dvh;
+    border-radius: 14px;
+  }
+
+  .detail-close {
+    width: 32px;
+    height: 32px;
+    top: 0.55rem;
+    right: 0.55rem;
+  }
+
+  .detail-image-section {
+    height: 155px;
+  }
+
+  .detail-body {
+    padding: 0.85rem;
+  }
+
+  .custom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-option {
+    font-size: 0.76rem;
+    padding: 0.52rem 0.6rem;
+  }
+
+  .custom-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+
+  .detail-cart-actions .btn-add-detail {
+    font-size: 0.92rem;
+    padding: 0.78rem;
+  }
+
+  .custom-actions-sticky {
+    bottom: -0.85rem;
+    margin: 0 -0.85rem -0.85rem;
+    padding: 0.6rem 0.85rem calc(0.72rem + env(safe-area-inset-bottom));
   }
 }
 

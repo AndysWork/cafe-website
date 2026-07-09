@@ -456,6 +456,18 @@ $danger: #ff5252;
     border-color: $accent; background: rgba($accent, .04);
     box-shadow: 0 0 0 4px rgba($accent, .08);
   }
+
+  &.disabled {
+    opacity: .6;
+    cursor: not-allowed;
+
+    strong,
+    p,
+    .option-icon {
+      color: #94a3b8;
+    }
+  }
+
   &:hover:not(.active) { border-color: #ccc; background: #fafafa; }
 }
 

@@ -17,6 +17,12 @@ interface MenuItemVariant {
   quantity?: number;
 }
 
+interface MenuItemAddOn {
+  name: string;
+  price: number;
+  isActive?: boolean;
+}
+
 interface MenuItem {
   id: string;
   name: string;
@@ -35,6 +41,8 @@ interface MenuItem {
   futureWebPrice?: number;
   dietaryType?: string;
   variants: MenuItemVariant[];
+  addOns?: MenuItemAddOn[];
+  isAddOnOnly?: boolean;
   isAvailable?: boolean;
   imageUrl?: string;
   imageThumbnailUrl?: string;
@@ -112,7 +120,8 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     futureShopPrice: undefined,
     futureOnlinePrice: undefined,
     futureWebPrice: undefined,
-    variants: []
+    variants: [],
+    addOns: []
   };
 
   newVariant: MenuItemVariant = {
@@ -120,6 +129,14 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     price: 0,
     quantity: undefined
   };
+
+  newAddOn: MenuItemAddOn = {
+    name: '',
+    price: 0,
+    isActive: true
+  };
+
+  selectedExistingAddOnItemId = '';
 
   constructor(
     private http: HttpClient,
@@ -252,6 +269,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     this.isEditMode = false;
     this.imageFile = null;
     this.imagePreview = null;
+    this.selectedExistingAddOnItemId = '';
     this.formData = {
       name: '',
       description: '',
@@ -265,9 +283,43 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       onlinePrice: 0,
       webPrice: 0,
       dietaryType: 'veg',
-      variants: []
+      variants: [],
+      addOns: [],
+      isAddOnOnly: false
     };
     this.filteredSubCategories = [];
+    this.showModal = true;
+  }
+
+  openCreateAddOnModal(): void {
+    this.isEditMode = false;
+    this.imageFile = null;
+    this.imagePreview = null;
+    this.selectedExistingAddOnItemId = '';
+    this.formData = {
+      name: '',
+      description: '',
+      category: '',
+      categoryId: this.filterCategory || '',
+      subCategoryId: undefined,
+      quantity: 0,
+      makingPrice: 0,
+      packagingCharge: 0,
+      shopSellingPrice: 0,
+      onlinePrice: 0,
+      webPrice: 0,
+      dietaryType: 'veg',
+      variants: [],
+      addOns: [],
+      isAddOnOnly: true
+    };
+
+    if (this.formData.categoryId) {
+      this.onCategoryChange(this.formData.categoryId);
+    } else {
+      this.filteredSubCategories = [];
+    }
+
     this.showModal = true;
   }
 
@@ -280,8 +332,11 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     this.formData = {
       ...item,
       dietaryType: item.dietaryType || 'veg',
-      variants: item.variants ? item.variants.map(v => ({ ...v })) : []
+      variants: item.variants ? item.variants.map(v => ({ ...v })) : [],
+      addOns: item.addOns ? item.addOns.map(a => ({ ...a })) : [],
+      isAddOnOnly: item.isAddOnOnly === true
     };
+    this.selectedExistingAddOnItemId = '';
     // Pass true to preserve the existing subCategoryId when filtering
     this.onCategoryChange(item.categoryId, true);
     this.showModal = true;
@@ -312,6 +367,66 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
     this.formData.variants?.splice(index, 1);
   }
 
+  addAddOn(): void {
+    if (this.newAddOn.name && this.newAddOn.price > 0) {
+      if (!this.formData.addOns) {
+        this.formData.addOns = [];
+      }
+      this.formData.addOns.push({ ...this.newAddOn, isActive: this.newAddOn.isActive !== false });
+      this.newAddOn = {
+        name: '',
+        price: 0,
+        isActive: true
+      };
+    }
+  }
+
+  get addOnCandidateItems(): MenuItem[] {
+    const selectedItemId = this.selectedItem?.id;
+    const existingNames = new Set((this.formData.addOns || []).map(a => (a.name || '').trim().toLowerCase()));
+
+    return this.menuItems.filter(item => {
+      if (!item?.id || !item?.name) return false;
+      if (selectedItemId && item.id === selectedItemId) return false;
+      return !existingNames.has(item.name.trim().toLowerCase());
+    });
+  }
+
+  addExistingItemAsAddOn(): void {
+    if (!this.selectedExistingAddOnItemId) {
+      this.uiStore.warning('Select an existing menu item to add as add-on');
+      return;
+    }
+
+    const existingItem = this.menuItems.find(item => item.id === this.selectedExistingAddOnItemId);
+    if (!existingItem) {
+      this.uiStore.warning('Selected menu item was not found');
+      return;
+    }
+
+    const addOnPrice = existingItem.webPrice || existingItem.shopSellingPrice || existingItem.onlinePrice || 0;
+    if (addOnPrice <= 0) {
+      this.uiStore.warning('Selected item does not have a valid price for add-on');
+      return;
+    }
+
+    if (!this.formData.addOns) {
+      this.formData.addOns = [];
+    }
+
+    this.formData.addOns.push({
+      name: existingItem.name,
+      price: addOnPrice,
+      isActive: true
+    });
+
+    this.selectedExistingAddOnItemId = '';
+  }
+
+  removeAddOn(index: number): void {
+    this.formData.addOns?.splice(index, 1);
+  }
+
   saveMenuItem(): void {
     if (!this.formData.name || !this.formData.categoryId) {
       this.uiStore.warning('Please fill in all required fields');
@@ -329,7 +444,13 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       futureOnlinePrice: this.formData.futureOnlinePrice || undefined,
       futureWebPrice: this.formData.futureWebPrice || this.formData.futureShopPrice || undefined,
       webPrice: this.formData.webPrice || this.formData.shopSellingPrice || 0,
-      variants: this.formData.variants || []
+      variants: this.formData.variants || [],
+      addOns: (this.formData.addOns || []).map(a => ({
+        name: a.name,
+        price: a.price,
+        isActive: a.isActive !== false
+      })),
+      isAddOnOnly: this.formData.isAddOnOnly === true
     };
 
     if (this.isEditMode && this.selectedItem) {
@@ -620,6 +741,22 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
     const blob = new Blob([template], { type: 'text/csv' });
     downloadFile(template, 'menu_upload_template.csv');
+  }
+
+  normalizeDietaryType(value?: string): 'veg' | 'non-veg' | 'egg' | 'vegan' {
+    const normalized = (value || 'veg').trim().toLowerCase();
+    if (normalized === 'nonveg' || normalized === 'non-veg') return 'non-veg';
+    if (normalized === 'egg') return 'egg';
+    if (normalized === 'vegan') return 'vegan';
+    return 'veg';
+  }
+
+  getDietaryLabel(value?: string): string {
+    const dietary = this.normalizeDietaryType(value);
+    if (dietary === 'non-veg') return '🔴 Non-Veg';
+    if (dietary === 'egg') return '🟡 Egg';
+    if (dietary === 'vegan') return '🟢 Vegan';
+    return '🟢 Veg';
   }
 
   trackByIndex(index: number): number { return index; }

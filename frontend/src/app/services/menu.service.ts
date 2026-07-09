@@ -41,6 +41,8 @@ export interface MenuItem {
   shopSellingPrice?: number;
   dietaryType?: string;
   variants?: { variantName: string; price: number; quantity?: number }[];
+  addOns?: { name: string; price: number; isActive?: boolean }[];
+  isAddOnOnly?: boolean;
   // Future pricing
   futureShopPrice?: number;
   futureOnlinePrice?: number;

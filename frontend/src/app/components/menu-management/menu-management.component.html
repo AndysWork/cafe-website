@@ -14,6 +14,7 @@
         {{ syncingRecipePrices ? '⏳ Syncing…' : '🔁 Sync Recipe Prices' }}
       </button>
       <button class="btn btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
+      <button class="btn btn-secondary" (click)="openCreateAddOnModal()">➕ Add Add-On Item</button>
       <button class="btn btn-primary" (click)="openCreateModal()">➕ Add Item</button>
     </div>
   </div>
@@ -72,7 +73,11 @@
         <div class="card-top">
           <div class="card-title-group">
             <h3 class="item-name">{{ item.name }}</h3>
-            <span class="cat-pill">{{ item.category }}</span>
+            <div class="item-tags">
+              <span class="cat-pill">{{ item.category }}</span>
+              <span class="dietary-pill" [ngClass]="normalizeDietaryType(item.dietaryType)">{{ getDietaryLabel(item.dietaryType) }}</span>
+              <span class="cat-pill" *ngIf="item.isAddOnOnly">Add-On Only</span>
+            </div>
           </div>
           <div class="card-actions">
             <button class="icon-btn toggle-btn"
@@ -138,6 +143,15 @@
             </span>
           </div>
         </div>
+
+        <div class="variants-wrap" *ngIf="item.addOns && item.addOns.length > 0">
+          <span class="variants-label">Add-Ons</span>
+          <div class="variant-chips">
+            <span class="v-chip" *ngFor="let a of item.addOns; trackBy: trackByIndex">
+              {{ a.name }} <strong>+₹{{ a.price }}</strong>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -196,6 +210,13 @@
               <option value="egg">🟡 Egg</option>
               <option value="vegan">🟢 Vegan</option>
             </select>
+          </div>
+
+          <div class="fg full">
+            <label class="check-label">
+              <input type="checkbox" [(ngModel)]="formData.isAddOnOnly" name="isAddOnOnly" />
+              <span>Add-On Only (hide from customer main menu)</span>
+            </label>
           </div>
 
           <!-- Image -->
@@ -298,6 +319,34 @@
             <div class="v-chip editable" *ngFor="let v of formData.variants; let i = index; trackBy: trackByIndex">
               <span>{{ v.variantName }} — ₹{{ v.price }}<em *ngIf="v.quantity"> ({{ v.quantity }})</em></span>
               <button type="button" (click)="removeVariant(i)">✕</button>
+            </div>
+          </div>
+
+          <div class="section-divider">Add-Ons</div>
+          <div class="variant-form existing-addon-row">
+            <select [(ngModel)]="selectedExistingAddOnItemId" name="existingAddOnItemId">
+              <option value="">Select existing menu item as add-on</option>
+              <option *ngFor="let m of addOnCandidateItems; trackBy: trackByObjId" [value]="m.id">
+                {{ m.name }} - ₹{{ m.webPrice || m.shopSellingPrice || m.onlinePrice || 0 }}
+              </option>
+            </select>
+            <button type="button" class="btn btn-secondary" (click)="addExistingItemAsAddOn()">Add From Existing</button>
+          </div>
+
+          <div class="variant-form">
+            <input type="text" [(ngModel)]="newAddOn.name" name="aName" placeholder="Add-on name (e.g. Extra Cheese)" />
+            <input type="number" [(ngModel)]="newAddOn.price" name="aPrice" placeholder="Price" step="0.01" />
+            <label class="check-label">
+              <input type="checkbox" [(ngModel)]="newAddOn.isActive" name="aIsActive" />
+              <span>Active</span>
+            </label>
+            <button type="button" class="btn btn-primary" (click)="addAddOn()">➕ Add</button>
+          </div>
+
+          <div class="variant-chips-edit" *ngIf="formData.addOns && formData.addOns.length > 0">
+            <div class="v-chip editable" *ngFor="let a of formData.addOns; let i = index; trackBy: trackByIndex">
+              <span>{{ a.name }} — +₹{{ a.price }}<em *ngIf="a.isActive === false"> (inactive)</em></span>
+              <button type="button" (click)="removeAddOn(i)">✕</button>
             </div>
           </div>
 

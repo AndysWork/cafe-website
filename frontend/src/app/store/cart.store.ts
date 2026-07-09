@@ -34,36 +34,57 @@ export class CartStore {
 
   addItem(item: Omit<CartItem, 'quantity'>, quantity: number = 1): void {
     const current = this._cart();
-    const existingIndex = current.items.findIndex(i => i.menuItemId === item.menuItemId);
+    const candidate: CartItem = { ...item, quantity };
+    const cartLineId = candidate.cartLineId || CartStore.buildCartLineId(candidate);
+    const existingIndex = current.items.findIndex(i => (i.cartLineId || CartStore.buildCartLineId(i)) === cartLineId);
 
     let newItems: CartItem[];
     if (existingIndex > -1) {
       newItems = [...current.items];
       newItems[existingIndex] = {
         ...newItems[existingIndex],
+        cartLineId,
         quantity: newItems[existingIndex].quantity + quantity
       };
     } else {
-      newItems = [...current.items, { ...item, quantity }];
+      newItems = [...current.items, { ...candidate, cartLineId }];
     }
 
     this.updateCart(newItems);
   }
 
-  updateQuantity(menuItemId: string, quantity: number): void {
+  updateQuantity(cartLineIdOrMenuItemId: string, quantity: number): void {
     if (quantity <= 0) {
-      this.removeItem(menuItemId);
+      this.removeItem(cartLineIdOrMenuItemId);
       return;
     }
-    const newItems = this._cart().items.map(item =>
-      item.menuItemId === menuItemId ? { ...item, quantity } : item
-    );
+
+    let updated = false;
+    const newItems = this._cart().items.map(item => {
+      const lineId = item.cartLineId || CartStore.buildCartLineId(item);
+      const shouldUpdate = lineId === cartLineIdOrMenuItemId || (!updated && item.menuItemId === cartLineIdOrMenuItemId);
+      if (!shouldUpdate) return item;
+      updated = true;
+      return { ...item, cartLineId: lineId, quantity };
+    });
+
     this.updateCart(newItems);
   }
 
-  removeItem(menuItemId: string): CartItem | undefined {
-    const removed = this._cart().items.find(i => i.menuItemId === menuItemId);
-    const newItems = this._cart().items.filter(i => i.menuItemId !== menuItemId);
+  removeItem(cartLineIdOrMenuItemId: string): CartItem | undefined {
+    let removed: CartItem | undefined;
+    const newItems: CartItem[] = [];
+
+    for (const item of this._cart().items) {
+      const lineId = item.cartLineId || CartStore.buildCartLineId(item);
+      const shouldRemove = !removed && (lineId === cartLineIdOrMenuItemId || item.menuItemId === cartLineIdOrMenuItemId);
+      if (shouldRemove) {
+        removed = { ...item, cartLineId: lineId };
+        continue;
+      }
+      newItems.push({ ...item, cartLineId: lineId });
+    }
+
     this.updateCart(newItems);
     return removed;
   }
@@ -73,10 +94,17 @@ export class CartStore {
     localStorage.removeItem('cart');
   }
 
+  setPreparationNotes(notes: string): void {
+    const normalizedNotes = (notes || '').slice(0, 500);
+    const current = this._cart();
+    this._cart.set({ ...current, preparationNotes: normalizedNotes });
+    localStorage.setItem('cart', JSON.stringify({ ...current, preparationNotes: normalizedNotes }));
+  }
+
   // ── Helpers ──
 
   private updateCart(items: CartItem[]): void {
-    const cart = CartStore.calculateTotals(items);
+    const cart = CartStore.calculateTotals(items, this._cart().preparationNotes || '');
     this._cart.set(cart);
     localStorage.setItem('cart', JSON.stringify(cart));
   }
@@ -86,7 +114,7 @@ export class CartStore {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        this._cart.set(CartStore.calculateTotals(parsed.items ?? []));
+        this._cart.set(CartStore.calculateTotals(parsed.items ?? [], parsed.preparationNotes || ''));
       } catch {
         // corrupted data — ignore
       }
@@ -94,10 +122,10 @@ export class CartStore {
   }
 
   static emptyCart(): Cart {
-    return { items: [], subtotal: 0, packagingCharges: 0, total: 0, itemCount: 0 };
+    return { items: [], subtotal: 0, packagingCharges: 0, total: 0, itemCount: 0, preparationNotes: '' };
   }
 
-  static calculateTotals(items: CartItem[]): Cart {
+  static calculateTotals(items: CartItem[], preparationNotes: string = ''): Cart {
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const packagingCharges = items.reduce((sum, item) => sum + ((item.packagingCharge || 0) * item.quantity), 0);
     const total = subtotal + packagingCharges;
@@ -107,7 +135,18 @@ export class CartStore {
       subtotal: Math.round(subtotal * 100) / 100,
       packagingCharges: Math.round(packagingCharges * 100) / 100,
       total: Math.round(total * 100) / 100,
-      itemCount
+      itemCount,
+      preparationNotes
     };
+  }
+
+  private static buildCartLineId(item: Partial<CartItem>): string {
+    const variantPart = item.selectedVariant?.variantName?.trim().toLowerCase() || 'base';
+    const addOnPart = (item.selectedAddOns || [])
+      .map(a => a.name?.trim().toLowerCase())
+      .filter(Boolean)
+      .sort()
+      .join('|') || 'none';
+    return `${item.menuItemId || 'unknown'}::${variantPart}::${addOnPart}`;
   }
 }

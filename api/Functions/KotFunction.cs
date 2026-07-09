@@ -67,10 +67,14 @@ public class KotFunction
 
             sb.AppendLine(line);
 
-            if (!string.IsNullOrWhiteSpace(order.Notes))
+            var specialInstructions = string.IsNullOrWhiteSpace(order.PreparationNotes)
+                ? order.Notes
+                : order.PreparationNotes;
+
+            if (!string.IsNullOrWhiteSpace(specialInstructions))
             {
                 sb.AppendLine("SPECIAL INSTRUCTIONS:");
-                sb.AppendLine(order.Notes);
+                sb.AppendLine(specialInstructions);
                 sb.AppendLine(line);
             }
 

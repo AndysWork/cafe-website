@@ -44,8 +44,23 @@ export class OffersService {
 
   constructor(private http: HttpClient) {}
 
+  private resolveAuthToken(): string | null {
+    const authToken = localStorage.getItem('authToken');
+    if (authToken) return authToken;
+
+    const currentUserRaw = localStorage.getItem('currentUser');
+    if (!currentUserRaw) return null;
+
+    try {
+      const currentUser = JSON.parse(currentUserRaw) as { token?: string };
+      return currentUser?.token || null;
+    } catch {
+      return null;
+    }
+  }
+
   private getHeaders(): HttpHeaders {
-    const token = localStorage.getItem('authToken');
+    const token = this.resolveAuthToken();
     return new HttpHeaders({
       'Content-Type': 'application/json',
       'Authorization': token ? `Bearer ${token}` : ''

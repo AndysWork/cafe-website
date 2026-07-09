@@ -4,12 +4,23 @@ import { AnalyticsTrackingService } from './analytics-tracking.service';
 import { CartStore } from '../store/cart.store';
 
 export interface CartItem {
+  cartLineId?: string;
   menuItemId: string;
   name: string;
   description?: string;
   categoryName?: string;
   price: number;
   quantity: number;
+  basePrice?: number;
+  selectedVariant?: {
+    variantName: string;
+    price: number;
+    quantity?: number;
+  };
+  selectedAddOns?: {
+    name: string;
+    price: number;
+  }[];
   imageUrl?: string;
   imageThumbnailUrl?: string;
   packagingCharge?: number;
@@ -21,6 +32,7 @@ export interface Cart {
   packagingCharges: number;
   total: number;
   itemCount: number;
+  preparationNotes?: string;
 }
 
 @Injectable({
@@ -51,6 +63,10 @@ export class CartService {
 
   clearCart(): void {
     this.cartStore.clearCart();
+  }
+
+  setPreparationNotes(notes: string): void {
+    this.cartStore.setPreparationNotes(notes);
   }
 
   getCart(): Cart {

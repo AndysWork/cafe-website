@@ -51,8 +51,15 @@
         <div class="item-placeholder" *ngIf="!(item.imageThumbnailUrl || item.imageUrl)">🍽️</div>
         <div class="item-details">
           <h3 class="item-name">{{ item.name }}</h3>
+          <div class="item-options" *ngIf="getItemOptionSummary(item)">{{ getItemOptionSummary(item) }}</div>
           <div class="item-price">₹{{ item.price }}</div>
           <small class="points-preview">Earn ~{{ getEstimatedPointsForItem(item) }} pts</small>
+          <button
+            *ngIf="canEditCustomization(item)"
+            class="btn-edit-custom"
+            (click)="openEditCustomization(item)">
+            Customize
+          </button>
         </div>
         <div class="item-qty">
           <button class="qty-btn" (click)="decreaseQuantity(item)" [disabled]="item.quantity <= 1" aria-label="Decrease quantity">−</button>
@@ -84,8 +91,68 @@
           <div>Estimated earn: <strong>{{ estimatedTotalEarnPoints }} pts</strong></div>
           <div *ngIf="loyaltyPointsAvailable > 0">Possible redemption now: <strong>₹{{ redeemValuePreview }}</strong></div>
         </div>
+        <div class="prep-notes-card">
+          <label for="prepNotes">Kitchen Preparation Notes</label>
+          <textarea
+            id="prepNotes"
+            rows="3"
+            maxlength="500"
+            placeholder="e.g. Less spicy, no onion, pack sauces separately"
+            [(ngModel)]="cart.preparationNotes"
+            (ngModelChange)="onPreparationNotesChange($event)"></textarea>
+          <small>{{ (cart.preparationNotes || '').length }}/500</small>
+        </div>
         <button class="btn-checkout" (click)="proceedToCheckout()">🛒 Proceed to Checkout</button>
         <button class="btn-continue" (click)="continueShopping()">← Continue Shopping</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="custom-modal-overlay" *ngIf="showCustomizationModal" (click)="closeCustomizationModal()">
+    <div class="custom-modal" (click)="$event.stopPropagation()">
+      <button class="custom-close" (click)="closeCustomizationModal()">✕</button>
+      <h3>Edit Customization</h3>
+
+      <div *ngIf="customizationMenuItem as menuItem">
+        <div class="custom-section" *ngIf="menuItem.variants && menuItem.variants.length > 0">
+          <h4>Variant</h4>
+          <div class="custom-grid">
+            <button
+              type="button"
+              class="custom-option"
+              *ngFor="let v of menuItem.variants"
+              [class.active]="selectedVariantName === v.variantName"
+              (click)="selectedVariantName = v.variantName">
+              <span>{{ v.variantName }}</span>
+              <strong>₹{{ v.price }}</strong>
+            </button>
+          </div>
+        </div>
+
+        <div class="custom-section" *ngIf="menuItem.addOns && menuItem.addOns.length > 0">
+          <h4>Add-Ons</h4>
+          <div class="custom-grid">
+            <button
+              type="button"
+              class="custom-option"
+              *ngFor="let a of menuItem.addOns"
+              [disabled]="a.isActive === false"
+              [class.active]="selectedAddOnNames.has(a.name)"
+              (click)="toggleCustomizationAddOn(a.name)">
+              <span>{{ a.name }}</span>
+              <strong>+₹{{ a.price }}</strong>
+            </button>
+          </div>
+        </div>
+
+        <div class="custom-summary">
+          <span>New Unit Price</span>
+          <strong>₹{{ getCustomizationUnitPrice() }}</strong>
+        </div>
+
+        <div class="custom-actions-sticky">
+          <button class="btn-apply-custom" (click)="applyCustomizationChanges()">Apply Changes</button>
+        </div>
       </div>
     </div>
   </div>

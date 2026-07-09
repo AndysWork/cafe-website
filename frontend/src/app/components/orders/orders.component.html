@@ -148,11 +148,11 @@
               <span>₹{{ order.subtotal }}</span>
             </div>
             <div class="price-row">
-              <span>Tax (2.5%)</span>
+              <span>Tax</span>
               <span>₹{{ order.tax }}</span>
             </div>
             <div class="price-row">
-              <span>Platform Charge (2.5%)</span>
+              <span>Platform Charge</span>
               <span>₹{{ order.platformCharge }}</span>
             </div>
             <div *ngIf="order.discountAmount" class="price-row discount-row">
@@ -170,7 +170,7 @@
           </div>
 
           <!-- Delivery Info -->
-          <div class="delivery-info" *ngIf="order.deliveryAddress || order.phoneNumber || order.notes">
+          <div class="delivery-info" *ngIf="order.deliveryAddress || order.phoneNumber || order.preparationNotes || order.notes">
             <div *ngIf="order.deliveryAddress" class="info-chip">
               <span class="info-label">📍 Address</span>
               <span>{{ order.deliveryAddress }}</span>
@@ -178,6 +178,10 @@
             <div *ngIf="order.phoneNumber" class="info-chip">
               <span class="info-label">📞 Phone</span>
               <span>{{ order.phoneNumber }}</span>
+            </div>
+            <div *ngIf="order.preparationNotes" class="info-chip">
+              <span class="info-label">👨‍🍳 Kitchen Notes</span>
+              <span>{{ order.preparationNotes }}</span>
             </div>
             <div *ngIf="order.notes" class="info-chip">
               <span class="info-label">📝 Notes</span>

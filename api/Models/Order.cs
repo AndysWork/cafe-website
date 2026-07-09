@@ -70,6 +70,9 @@ public class Order : ISoftDeletable
     [BsonElement("notes")]
     public string? Notes { get; set; }
 
+    [BsonElement("preparationNotes")]
+    public string? PreparationNotes { get; set; }
+
     [BsonElement("couponCode")]
     public string? CouponCode { get; set; }
 
@@ -205,8 +208,32 @@ public class OrderItem
     [BsonElement("price")]
     public decimal Price { get; set; }
 
+    [BsonElement("baseUnitPrice")]
+    public decimal BaseUnitPrice { get; set; }
+
+    [BsonElement("selectedVariantName")]
+    public string? SelectedVariantName { get; set; }
+
+    [BsonElement("selectedVariantPrice")]
+    public decimal? SelectedVariantPrice { get; set; }
+
+    [BsonElement("selectedAddOns")]
+    public List<OrderItemAddOn> SelectedAddOns { get; set; } = new();
+
+    [BsonElement("addOnTotal")]
+    public decimal AddOnTotal { get; set; }
+
     [BsonElement("total")]
     public decimal Total { get; set; }
+}
+
+public class OrderItemAddOn
+{
+    [BsonElement("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [BsonElement("price")]
+    public decimal Price { get; set; }
 }
 
 // Request/Response DTOs
@@ -231,6 +258,9 @@ public class CreateOrderRequest
     
     [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
     public string? Notes { get; set; }
+
+    [StringLength(500, ErrorMessage = "Preparation notes cannot exceed 500 characters")]
+    public string? PreparationNotes { get; set; }
 
     [StringLength(50, ErrorMessage = "Coupon code cannot exceed 50 characters")]
     public string? CouponCode { get; set; }
@@ -263,6 +293,11 @@ public class OrderItemRequest
     
     [Range(1, 1000, ErrorMessage = "Quantity must be between 1 and 1000")]
     public int Quantity { get; set; }
+
+    [StringLength(100, ErrorMessage = "Selected variant name cannot exceed 100 characters")]
+    public string? SelectedVariantName { get; set; }
+
+    public List<string>? SelectedAddOnNames { get; set; }
 }
 
 public class UpdateOrderStatusRequest
@@ -303,6 +338,7 @@ public class OrderResponse
     public string? RazorpayPaymentId { get; set; }
     public string? DeliveryAddress { get; set; }
     public string? PhoneNumber { get; set; }
+    public string? PreparationNotes { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

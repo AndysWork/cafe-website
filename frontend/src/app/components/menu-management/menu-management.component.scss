@@ -270,6 +270,13 @@ $surface:   #f7fafc;
 .card-title-group {
   min-width: 0;
 
+  .item-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
   .item-name {
     font-size: 1.05rem;
     font-weight: 700;
@@ -288,6 +295,34 @@ $surface:   #f7fafc;
     border-radius: 20px;
     font-size: 0.76rem;
     font-weight: 600;
+  }
+
+  .dietary-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+
+    &.veg,
+    &.vegan {
+      background: #e6fffa;
+      color: #22543d;
+      border-color: #9ae6b4;
+    }
+
+    &.non-veg {
+      background: #fff5f5;
+      color: #9b2c2c;
+      border-color: #feb2b2;
+    }
+
+    &.egg {
+      background: #fffbeb;
+      color: #92400e;
+      border-color: #fde68a;
+    }
   }
 }
 
@@ -591,12 +626,34 @@ $surface:   #f7fafc;
   gap: 8px;
   align-items: end;
 
-  input {
+  input,
+  select {
     padding: 10px 12px;
     border: 2px solid $border;
     border-radius: 10px;
     font-size: 0.9rem;
+    min-height: 42px;
+    font-family: inherit;
+    background: #fff;
     &:focus { outline: none; border-color: $green; }
+  }
+
+  select {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%);
+    background-position: calc(100% - 16px) calc(50% - 3px), calc(100% - 10px) calc(50% - 3px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+    padding-right: 34px;
+  }
+
+  button.btn {
+    min-height: 42px;
+  }
+
+  &.existing-addon-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
   }
 }
 
@@ -767,6 +824,7 @@ $surface:   #f7fafc;
   .fg-row { grid-template-columns: 1fr; }
 
   .variant-form { grid-template-columns: 1fr 1fr; }
+  .variant-form.existing-addon-row { grid-template-columns: 1fr; }
 
   .modal { border-radius: 14px; }
   .modal-head, .modal-body, .modal-foot { padding-left: 18px; padding-right: 18px; }

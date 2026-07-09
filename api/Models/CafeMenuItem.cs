@@ -78,6 +78,13 @@ public class CafeMenuItem : ISoftDeletable
     
     // Variants for menu items (e.g., different sizes, quantities)
     public List<MenuItemVariant> Variants { get; set; } = new List<MenuItemVariant>();
+
+    // Optional add-ons that can be selected by customers (e.g., extra cheese)
+    public List<MenuItemAddOn> AddOns { get; set; } = new List<MenuItemAddOn>();
+
+    // If true, item is used only as an add-on source and should not appear in customer main menu cards.
+    [BsonElement("isAddOnOnly")]
+    public bool IsAddOnOnly { get; set; } = false;
     
     public string CreatedBy { get; set; } = "System";
     public DateTime CreatedDate { get; set; } = MongoService.GetIstNow();
@@ -101,4 +108,16 @@ public class MenuItemVariant
     
     [Range(0, int.MaxValue, ErrorMessage = "Quantity must be a positive number")]
     public int? Quantity { get; set; } // If variant name contains numeric value
+}
+
+public class MenuItemAddOn
+{
+    [Required(ErrorMessage = "Add-on name is required")]
+    [StringLength(100, MinimumLength = 2, ErrorMessage = "Add-on name must be between 2 and 100 characters")]
+    public string Name { get; set; } = string.Empty;
+
+    [Range(0.01, 100000, ErrorMessage = "Add-on price must be between 0.01 and 100,000")]
+    public decimal Price { get; set; }
+
+    public bool IsActive { get; set; } = true;
 }

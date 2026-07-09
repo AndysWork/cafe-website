@@ -6,6 +6,14 @@ namespace Cafe.Api.Helpers;
 
 public static class AuthorizationHelper
 {
+    private static bool IsAdminLikeRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return false;
+
+        var normalized = role.Trim().ToLowerInvariant();
+        return normalized == "admin" || normalized == "sysadmin" || normalized == "sys-admin" || normalized == "superadmin";
+    }
+
     public static async Task<(bool isAuthorized, string? userId, string? role, HttpResponseData? errorResponse)> 
         ValidateAdminRole(HttpRequestData req, AuthService authService)
     {
@@ -33,7 +41,7 @@ public static class AuthorizationHelper
         var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
 
-        if (role != "admin")
+        if (!IsAdminLikeRole(role))
         {
             var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
             await forbidden.WriteAsJsonAsync(new { error = "Admin access required" });
@@ -100,7 +108,8 @@ public static class AuthorizationHelper
         var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
 
-        if (role != "admin" && role != "manager")
+        var normalizedRole = role?.Trim().ToLowerInvariant();
+        if (!IsAdminLikeRole(role) && normalizedRole != "manager")
         {
             var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
             await forbidden.WriteAsJsonAsync(new { error = "Admin or Manager access required" });
@@ -136,7 +145,7 @@ public static class AuthorizationHelper
 
         var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.ToLowerInvariant();
-        var kitchenRoles = new[] { "admin", "manager", "cook", "chef", "checf", "sous-chef" };
+        var kitchenRoles = new[] { "admin", "sysadmin", "sys-admin", "superadmin", "manager", "cook", "chef", "checf", "sous-chef" };
 
         if (string.IsNullOrWhiteSpace(role) || !kitchenRoles.Contains(role))
         {

@@ -1,7 +1,9 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CartService, Cart, CartItem } from '../../services/cart.service';
+import { MenuService, MenuItem } from '../../services/menu.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { LoyaltyService } from '../../services/loyalty.service';
 import { Subscription } from 'rxjs';
@@ -9,7 +11,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-cart',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './cart.component.html',
   styleUrls: ['./cart.component.scss']
 })
@@ -28,8 +30,17 @@ export class CartComponent implements OnInit, OnDestroy {
   checkoutDraft: { timestamp: string; cartItemCount: number; grandTotal: number } | null = null;
   loyaltyPointsAvailable = 0;
 
+  // Edit customization modal state
+  showCustomizationModal = false;
+  editingCartItem: CartItem | null = null;
+  customizationMenuItem: MenuItem | null = null;
+  selectedVariantName = '';
+  selectedAddOnNames: Set<string> = new Set();
+  loadingCustomizationOptions = false;
+
   constructor(
     private cartService: CartService,
+    private menuService: MenuService,
     private loyaltyService: LoyaltyService,
     private router: Router
   ) {}
@@ -51,24 +62,112 @@ export class CartComponent implements OnInit, OnDestroy {
 
   updateQuantity(item: CartItem, quantity: number) {
     if (quantity > 0) {
-      this.cartService.updateQuantity(item.menuItemId, quantity);
+      this.cartService.updateQuantity(item.cartLineId || item.menuItemId, quantity);
     }
   }
 
   increaseQuantity(item: CartItem) {
-    this.cartService.updateQuantity(item.menuItemId, item.quantity + 1);
+    this.cartService.updateQuantity(item.cartLineId || item.menuItemId, item.quantity + 1);
   }
 
   decreaseQuantity(item: CartItem) {
     if (item.quantity > 1) {
-      this.cartService.updateQuantity(item.menuItemId, item.quantity - 1);
+      this.cartService.updateQuantity(item.cartLineId || item.menuItemId, item.quantity - 1);
     }
   }
 
   removeItem(item: CartItem) {
     if (confirm(`Remove ${item.name} from cart?`)) {
-      this.cartService.removeItem(item.menuItemId);
+      this.cartService.removeItem(item.cartLineId || item.menuItemId);
     }
+  }
+
+  canEditCustomization(item: CartItem): boolean {
+    return !!(item.selectedVariant || (item.selectedAddOns && item.selectedAddOns.length > 0));
+  }
+
+  openEditCustomization(item: CartItem): void {
+    this.loadingCustomizationOptions = true;
+    this.menuService.getMenuItem(item.menuItemId).subscribe({
+      next: (menuItem) => {
+        this.customizationMenuItem = menuItem;
+        this.editingCartItem = item;
+        this.selectedVariantName = item.selectedVariant?.variantName || (menuItem.variants?.[0]?.variantName || '');
+        this.selectedAddOnNames = new Set((item.selectedAddOns || []).map(a => a.name));
+        this.showCustomizationModal = true;
+        this.loadingCustomizationOptions = false;
+      },
+      error: () => {
+        this.loadingCustomizationOptions = false;
+      }
+    });
+  }
+
+  closeCustomizationModal(): void {
+    this.showCustomizationModal = false;
+    this.editingCartItem = null;
+    this.customizationMenuItem = null;
+    this.selectedVariantName = '';
+    this.selectedAddOnNames = new Set();
+  }
+
+  toggleCustomizationAddOn(name: string): void {
+    if (this.selectedAddOnNames.has(name)) {
+      this.selectedAddOnNames.delete(name);
+    } else {
+      this.selectedAddOnNames.add(name);
+    }
+    this.selectedAddOnNames = new Set(this.selectedAddOnNames);
+  }
+
+  getCustomizationVariant(): { variantName: string; price: number; quantity?: number } | undefined {
+    const item = this.customizationMenuItem;
+    if (!item?.variants || item.variants.length === 0) return undefined;
+    return item.variants.find(v => v.variantName === this.selectedVariantName) || item.variants[0];
+  }
+
+  getCustomizationAddOns(): { name: string; price: number }[] {
+    const item = this.customizationMenuItem;
+    if (!item?.addOns || item.addOns.length === 0) return [];
+
+    return item.addOns
+      .filter(a => a.isActive !== false && this.selectedAddOnNames.has(a.name))
+      .map(a => ({ name: a.name, price: a.price }));
+  }
+
+  getCustomizationUnitPrice(): number {
+    if (!this.customizationMenuItem) return 0;
+    const variant = this.getCustomizationVariant();
+    const basePrice = variant?.price ?? (this.customizationMenuItem.webPrice || this.customizationMenuItem.shopSellingPrice || this.customizationMenuItem.onlinePrice || 0);
+    const addOnPrice = this.getCustomizationAddOns().reduce((sum, a) => sum + a.price, 0);
+    return basePrice + addOnPrice;
+  }
+
+  applyCustomizationChanges(): void {
+    if (!this.editingCartItem || !this.customizationMenuItem) return;
+
+    const original = this.editingCartItem;
+    const selectedVariant = this.getCustomizationVariant();
+    const selectedAddOns = this.getCustomizationAddOns();
+    const basePrice = selectedVariant?.price ?? (this.customizationMenuItem.webPrice || this.customizationMenuItem.shopSellingPrice || this.customizationMenuItem.onlinePrice || 0);
+    const unitPrice = basePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0);
+
+    this.cartService.removeItem(original.cartLineId || original.menuItemId);
+    this.cartService.addItem({
+      menuItemId: original.menuItemId,
+      name: original.name,
+      description: original.description,
+      categoryName: original.categoryName,
+      price: unitPrice,
+      basePrice,
+      selectedVariant,
+      selectedAddOns,
+      imageUrl: original.imageUrl,
+      imageThumbnailUrl: original.imageThumbnailUrl,
+      packagingCharge: original.packagingCharge || 0
+    }, original.quantity);
+
+    this.closeCustomizationModal();
   }
 
   clearCart() {
@@ -118,7 +217,22 @@ export class CartComponent implements OnInit, OnDestroy {
     return Math.min(Math.floor(this.cart.total || 0), available);
   }
 
-  trackByMenuItemId(index: number, item: CartItem): string { return item.menuItemId; }
+  trackByMenuItemId(index: number, item: CartItem): string { return item.cartLineId || `${item.menuItemId}-${index}`; }
+
+  getItemOptionSummary(item: CartItem): string {
+    const parts: string[] = [];
+    if (item.selectedVariant?.variantName) {
+      parts.push(`Variant: ${item.selectedVariant.variantName}`);
+    }
+    if (item.selectedAddOns && item.selectedAddOns.length > 0) {
+      parts.push(`Add-ons: ${item.selectedAddOns.map(a => a.name).join(', ')}`);
+    }
+    return parts.join(' | ');
+  }
+
+  onPreparationNotesChange(notes: string): void {
+    this.cartService.setPreparationNotes(notes || '');
+  }
 
   private loadLoyaltyPreview(): void {
     this.loyaltyService.getLoyaltyAccount().subscribe({

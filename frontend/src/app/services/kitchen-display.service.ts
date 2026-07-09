@@ -12,6 +12,7 @@ export interface KitchenOrder {
   status: string;
   orderType?: string;
   tableNumber?: number;
+  preparationNotes?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;

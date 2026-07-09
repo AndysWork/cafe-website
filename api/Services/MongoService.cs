@@ -581,6 +581,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         updates.Add(updateBuilder.Set(x => x.FutureOnlinePrice, item.FutureOnlinePrice));
         updates.Add(updateBuilder.Set(x => x.FutureWebPrice, item.FutureWebPrice));
         updates.Add(updateBuilder.Set(x => x.Variants, item.Variants ?? new List<MenuItemVariant>()));
+        updates.Add(updateBuilder.Set(x => x.AddOns, item.AddOns ?? new List<MenuItemAddOn>()));
+        updates.Add(updateBuilder.Set(x => x.IsAddOnOnly, item.IsAddOnOnly));
 
         if (!string.IsNullOrEmpty(item.LastUpdatedBy))
             updates.Add(updateBuilder.Set(x => x.LastUpdatedBy, item.LastUpdatedBy));
@@ -665,6 +667,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                         existingItem.Variants.Add(newVariant);
                     }
                 }
+
+                // Replace add-ons from payload (single source of truth from admin UI)
+                existingItem.AddOns = item.AddOns ?? new List<MenuItemAddOn>();
                 
                 await _menu.ReplaceOneAsync(x => x.Id == existingItem.Id, existingItem);
             }

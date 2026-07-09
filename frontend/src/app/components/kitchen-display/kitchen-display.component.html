@@ -38,7 +38,7 @@
             <span class="qty">{{ item.quantity }}×</span> {{ item.name }}
           </div>
         </div>
-        <div *ngIf="order.notes" class="order-notes">📝 {{ order.notes }}</div>
+        <div *ngIf="order.preparationNotes || order.notes" class="order-notes">📝 {{ order.preparationNotes || order.notes }}</div>
         <div *ngIf="order.kitchenAssignedStaffName" class="order-assignee">
           Assigned to: {{ order.kitchenAssignedStaffName }}
         </div>
