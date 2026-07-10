@@ -159,6 +159,25 @@ public class LoyaltyTierRule
     public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 }
 
+public class ReferralRewardConfig
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? Id { get; set; }
+
+    [BsonElement("referrerPoints")]
+    public int ReferrerPoints { get; set; } = 100;
+
+    [BsonElement("refereePoints")]
+    public int RefereePoints { get; set; } = 50;
+
+    [BsonElement("isActive")]
+    public bool IsActive { get; set; } = true;
+
+    [BsonElement("updatedAt")]
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
+}
+
 // DTOs for API responses
 public class LoyaltyAccountResponse
 {
@@ -235,5 +254,12 @@ public class UpdateLoyaltyTierRuleRequest
     public List<string> Benefits { get; set; } = new();
     public string Color { get; set; } = "#94a3b8";
     public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public class UpdateReferralRewardConfigRequest
+{
+    public int ReferrerPoints { get; set; }
+    public int RefereePoints { get; set; }
     public bool IsActive { get; set; } = true;
 }

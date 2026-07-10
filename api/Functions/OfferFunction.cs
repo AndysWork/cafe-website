@@ -305,13 +305,8 @@ public class OfferFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var validationRequest = await JsonSerializer.DeserializeAsync<OfferValidationRequest>(req.Body);
-            if (validationRequest == null)
-            {
-                var badRequestResponse = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequestResponse.WriteAsJsonAsync(new { error = "Invalid validation request" });
-                return badRequestResponse;
-            }
+            var (validationRequest, validationError) = await ValidationHelper.ValidateBody<OfferValidationRequest>(req);
+            if (validationError != null) return validationError;
 
             var validationResult = await _mongoService.ValidateOfferAsync(validationRequest);
             

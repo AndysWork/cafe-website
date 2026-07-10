@@ -137,6 +137,32 @@
       </div>
     </div>
 
+    <div class="tier-config-section">
+      <div class="section-header compact">
+        <h2>Referral Reward Configuration</h2>
+        <button class="btn-create" (click)="saveReferralConfig()" [disabled]="referralConfigSaving">
+          {{ referralConfigSaving ? 'Saving...' : 'Save Referral Config' }}
+        </button>
+      </div>
+
+      <div class="referral-config-card">
+        <div class="referral-config-grid">
+          <label>
+            <span>Referrer Bonus Points</span>
+            <input type="number" min="0" [(ngModel)]="referralConfigDraft.referrerPoints" />
+          </label>
+          <label>
+            <span>Referee Bonus Points</span>
+            <input type="number" min="0" [(ngModel)]="referralConfigDraft.refereePoints" />
+          </label>
+          <label class="toggle-field">
+            <input type="checkbox" [(ngModel)]="referralConfigDraft.isActive" />
+            <span>Enable Referral Rewards</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <div class="accounts-table">
       <h2>Member Accounts</h2>
       <table>

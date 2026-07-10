@@ -125,6 +125,20 @@ export interface UpdateLoyaltyTierRuleRequest {
   isActive: boolean;
 }
 
+export interface ReferralRewardConfig {
+  id?: string;
+  referrerPoints: number;
+  refereePoints: number;
+  isActive: boolean;
+  updatedAt?: string;
+}
+
+export interface UpdateReferralRewardConfigRequest {
+  referrerPoints: number;
+  refereePoints: number;
+  isActive: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -232,6 +246,20 @@ export class LoyaltyService {
         return throwError(() => error);
       }),
       catchError(handleServiceError('LoyaltyService.updateLoyaltyTierConfig'))
+    );
+  }
+
+  // Admin: Get referral reward configuration
+  getReferralRewardConfig(): Observable<ReferralRewardConfig> {
+    return this.http.get<ReferralRewardConfig>(`${this.apiUrl}/manage/loyalty/referral-config`).pipe(
+      catchError(handleServiceError('LoyaltyService.getReferralRewardConfig'))
+    );
+  }
+
+  // Admin: Update referral reward configuration
+  updateReferralRewardConfig(config: UpdateReferralRewardConfigRequest): Observable<{ success: boolean; message: string; config: ReferralRewardConfig }> {
+    return this.http.put<{ success: boolean; message: string; config: ReferralRewardConfig }>(`${this.apiUrl}/manage/loyalty/referral-config`, config).pipe(
+      catchError(handleServiceError('LoyaltyService.updateReferralRewardConfig'))
     );
   }
 

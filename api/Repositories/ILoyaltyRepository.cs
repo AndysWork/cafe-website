@@ -28,6 +28,8 @@ public interface ILoyaltyRepository
     Task<(bool Success, string Message)> TransferPointsAsync(string fromUserId, string toUsername, int points);
     Task<LoyaltyAccount?> GetLoyaltyAccountByReferralCodeAsync(string referralCode);
     Task<(bool Success, string Message)> ApplyReferralCodeAsync(string userId, string referralCode);
+    Task<ReferralRewardConfig> GetReferralRewardConfigAsync();
+    Task<ReferralRewardConfig> UpdateReferralRewardConfigAsync(UpdateReferralRewardConfigRequest request);
 
     // Birthday
     Task<(bool Success, string Message)> SetBirthdayAsync(string userId, DateTime dateOfBirth);

@@ -204,6 +204,77 @@ public class LoyaltyAdminFunction
         return await UpdateLoyaltyTierConfig(req);
     }
 
+    [Function("GetReferralRewardConfig")]
+    public async Task<HttpResponseData> GetReferralRewardConfig(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/loyalty/referral-config")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) =
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+
+            if (!isAuthorized)
+                return errorResponse!;
+
+            var config = await _mongo.GetReferralRewardConfigAsync();
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(config);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error fetching referral reward config");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to get referral reward config" });
+            return error;
+        }
+    }
+
+    [Function("UpdateReferralRewardConfig")]
+    public async Task<HttpResponseData> UpdateReferralRewardConfig(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/loyalty/referral-config")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) =
+                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+
+            if (!isAuthorized)
+                return errorResponse!;
+
+            var (body, validationError) = await ValidationHelper.ValidateBody<UpdateReferralRewardConfigRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (body.ReferrerPoints < 0 || body.RefereePoints < 0)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Referral points cannot be negative" });
+                return badRequest;
+            }
+
+            var updated = await _mongo.UpdateReferralRewardConfigAsync(body);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                message = "Referral reward configuration updated",
+                config = updated
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating referral reward config");
+            var error = req.CreateResponse(HttpStatusCode.BadRequest);
+            await error.WriteAsJsonAsync(new
+            {
+                error = "Failed to update referral reward config",
+                detail = ex.Message
+            });
+            return error;
+        }
+    }
+
     // POST: Create reward (Admin only)
     [Function("CreateReward")]
     public async Task<HttpResponseData> CreateReward(

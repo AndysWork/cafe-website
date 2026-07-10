@@ -278,6 +278,51 @@
   gap: 20px;
 }
 
+.referral-config-card {
+  background: white;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.referral-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #0F172A;
+    font-weight: 600;
+
+    span {
+      font-size: 0.9rem;
+    }
+
+    input[type='number'] {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+  }
+
+  .toggle-field {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 22px;
+    gap: 8px;
+
+    input[type='checkbox'] {
+      width: 16px;
+      height: 16px;
+    }
+  }
+}
+
 .tier-card {
   background: white;
   border-radius: 12px;

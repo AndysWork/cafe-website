@@ -50,6 +50,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<Order> _orders;
     private readonly IMongoCollection<LoyaltyAccount> _loyaltyAccounts;
     private readonly IMongoCollection<LoyaltyTierRule> _loyaltyTierRules;
+    private readonly IMongoCollection<ReferralRewardConfig> _referralRewardConfigs;
     private readonly IMongoCollection<Reward> _rewards;
     private readonly IMongoCollection<PointsTransaction> _transactions;
     private readonly IMongoCollection<Offer> _offers;
@@ -106,6 +107,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<HomeContentConfig> _homeContentConfigs;
     private readonly object _tierRulesLock = new();
     private List<LoyaltyTierRule>? _tierRulesCache;
+    private readonly object _referralConfigLock = new();
+    private ReferralRewardConfig? _referralConfigCache;
     
     private readonly IMongoDatabase _database; // Store database reference for partial classes
     
@@ -170,6 +173,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _orders = db.GetCollection<Order>("Orders");
         _loyaltyAccounts = db.GetCollection<LoyaltyAccount>("LoyaltyAccounts");
         _loyaltyTierRules = db.GetCollection<LoyaltyTierRule>("LoyaltyTierRules");
+        _referralRewardConfigs = db.GetCollection<ReferralRewardConfig>("LoyaltyReferralConfig");
         _rewards = db.GetCollection<Reward>("Rewards");
         _transactions = db.GetCollection<PointsTransaction>("PointsTransactions");
         _offers = db.GetCollection<Offer>("Offers");
@@ -2175,48 +2179,59 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (referrer.UserId == userId)
             return (false, "Cannot use your own referral code");
 
+        var referralConfig = await GetReferralRewardConfigAsync();
+        var refereeBonusPoints = referralConfig.IsActive ? Math.Max(0, referralConfig.RefereePoints) : 0;
+        var referrerBonusPoints = referralConfig.IsActive ? Math.Max(0, referralConfig.ReferrerPoints) : 0;
         var now = GetIstNow();
 
-        // Mark this user as referred
+        // Mark this user as referred and apply referee bonus.
         account.ReferredBy = referrer.UserId;
+        account.CurrentPoints += refereeBonusPoints;
+        account.TotalPointsEarned += refereeBonusPoints;
+        account.Tier = CalculateTier(account.TotalPointsEarned);
         account.UpdatedAt = now;
         await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
 
-        // Award referee bonus (50 points)
-        account.CurrentPoints += 50;
-        account.TotalPointsEarned += 50;
-        account.Tier = CalculateTier(account.TotalPointsEarned);
-        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
-
-        await _transactions.InsertOneAsync(new PointsTransaction
+        if (refereeBonusPoints > 0)
         {
-            UserId = userId,
-            Points = 50,
-            Type = "earned",
-            Description = $"Referral bonus — referred by {referrer.Username}",
-            ExpiresAt = now.AddYears(1),
-            CreatedAt = now
-        });
+            await _transactions.InsertOneAsync(new PointsTransaction
+            {
+                UserId = userId,
+                Points = refereeBonusPoints,
+                Type = "earned",
+                Description = $"Referral bonus - referred by {referrer.Username}",
+                ExpiresAt = now.AddYears(1),
+                CreatedAt = now
+            });
+        }
 
-        // Award referrer bonus (100 points)
-        referrer.CurrentPoints += 100;
-        referrer.TotalPointsEarned += 100;
+        // Award referrer bonus.
+        referrer.CurrentPoints += referrerBonusPoints;
+        referrer.TotalPointsEarned += referrerBonusPoints;
         referrer.TotalReferrals += 1;
         referrer.Tier = CalculateTier(referrer.TotalPointsEarned);
         referrer.UpdatedAt = now;
         await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == referrer.Id, referrer);
 
-        await _transactions.InsertOneAsync(new PointsTransaction
+        if (referrerBonusPoints > 0)
         {
-            UserId = referrer.UserId,
-            Points = 100,
-            Type = "earned",
-            Description = $"Referral bonus — {account.Username} joined using your code",
-            ExpiresAt = now.AddYears(1),
-            CreatedAt = now
-        });
+            await _transactions.InsertOneAsync(new PointsTransaction
+            {
+                UserId = referrer.UserId,
+                Points = referrerBonusPoints,
+                Type = "earned",
+                Description = $"Referral bonus - {account.Username} joined using your code",
+                ExpiresAt = now.AddYears(1),
+                CreatedAt = now
+            });
+        }
 
-        return (true, $"Referral applied! You earned 50 bonus points. {referrer.Username} earned 100 points.");
+        if (!referralConfig.IsActive)
+        {
+            return (true, "Referral applied successfully.");
+        }
+
+        return (true, $"Referral applied! You earned {refereeBonusPoints} bonus points. {referrer.Username} earned {referrerBonusPoints} points.");
     }
 
     // ─── Birthday Rewards ───
@@ -2300,6 +2315,66 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var normalized = NormalizeTierName(tier);
         return GetTierRulesSnapshot()
             .FirstOrDefault(r => NormalizeTierName(r.Tier) == normalized)?.BirthdayBonusPoints ?? 50;
+    }
+
+    public async Task<ReferralRewardConfig> GetReferralRewardConfigAsync()
+    {
+        if (_referralConfigCache != null)
+        {
+            return _referralConfigCache;
+        }
+
+        var config = await _referralRewardConfigs
+            .Find(_ => true)
+            .SortByDescending(x => x.UpdatedAt)
+            .FirstOrDefaultAsync();
+
+        if (config == null)
+        {
+            config = BuildDefaultReferralRewardConfig();
+            await _referralRewardConfigs.InsertOneAsync(config);
+        }
+        else
+        {
+            config.ReferrerPoints = Math.Max(0, config.ReferrerPoints);
+            config.RefereePoints = Math.Max(0, config.RefereePoints);
+        }
+
+        lock (_referralConfigLock)
+        {
+            _referralConfigCache = config;
+        }
+
+        return config;
+    }
+
+    public async Task<ReferralRewardConfig> UpdateReferralRewardConfigAsync(UpdateReferralRewardConfigRequest request)
+    {
+        var sanitized = new ReferralRewardConfig
+        {
+            ReferrerPoints = Math.Max(0, request.ReferrerPoints),
+            RefereePoints = Math.Max(0, request.RefereePoints),
+            IsActive = request.IsActive,
+            UpdatedAt = GetIstNow()
+        };
+
+        var existing = await _referralRewardConfigs.Find(_ => true).FirstOrDefaultAsync();
+        if (existing == null)
+        {
+            await _referralRewardConfigs.InsertOneAsync(sanitized);
+        }
+        else
+        {
+            sanitized.Id = existing.Id;
+            await _referralRewardConfigs.ReplaceOneAsync(x => x.Id == existing.Id, sanitized);
+        }
+
+        lock (_referralConfigLock)
+        {
+            _referralConfigCache = sanitized;
+        }
+
+        return sanitized;
     }
 
     // ─── Points Expiry ───
@@ -2591,6 +2666,17 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 IsActive = true,
                 UpdatedAt = GetIstNow()
             }
+        };
+    }
+
+    private static ReferralRewardConfig BuildDefaultReferralRewardConfig()
+    {
+        return new ReferralRewardConfig
+        {
+            ReferrerPoints = 100,
+            RefereePoints = 50,
+            IsActive = true,
+            UpdatedAt = GetIstNow()
         };
     }
 

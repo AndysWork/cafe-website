@@ -525,11 +525,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           this.refreshUpiQrCode();
         }
       },
-      error: () => {
+      error: (error) => {
         this.validatingCoupon = false;
         this.couponValid = false;
         this.couponDiscount = 0;
-        this.couponMessage = 'Failed to validate coupon';
+        const serverError = this.extractServerErrorMessage(error);
+        this.couponMessage = serverError || 'Failed to validate coupon';
         this.appliedCouponOfferId = '';
         this.recomputeCheckoutAdjustments();
         this.saveCheckoutDraft();
@@ -931,11 +932,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         this.recomputeCheckoutAdjustments();
         this.saveCheckoutDraft();
       },
-      error: () => {
+      error: (error) => {
         this.validatingCoupon = false;
         this.couponValid = false;
         this.couponDiscount = 0;
-        this.couponMessage = 'Failed to validate coupon';
+        const serverError = this.extractServerErrorMessage(error);
+        this.couponMessage = serverError || 'Failed to validate coupon';
         this.appliedCouponOfferId = '';
         this.lastCouponValidationKey = '';
 

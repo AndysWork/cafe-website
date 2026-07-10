@@ -22,6 +22,7 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
         "/api/auth/register",
         "/api/auth/password/forgot",
         "/api/auth/password/reset",
+        "/api/offers/validate",
         "/api/payments/webhook/razorpay"
     };
 

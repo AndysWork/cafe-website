@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LoyaltyService, Reward, LoyaltyAccount, PointsTransaction, ExternalOrderClaim, AdminClaimsResponse, LoyaltyTierRule, UpdateLoyaltyTierRuleRequest } from '../../services/loyalty.service';
+import { LoyaltyService, Reward, LoyaltyAccount, PointsTransaction, ExternalOrderClaim, AdminClaimsResponse, LoyaltyTierRule, UpdateLoyaltyTierRuleRequest, ReferralRewardConfig, UpdateReferralRewardConfigRequest } from '../../services/loyalty.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
@@ -59,6 +59,12 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
   ];
   tierConfigDraft: LoyaltyTierRule[] = [];
   tierConfigSaving = false;
+  referralConfigDraft: ReferralRewardConfig = {
+    referrerPoints: 100,
+    refereePoints: 50,
+    isActive: true
+  };
+  referralConfigSaving = false;
 
   constructor(private loyaltyService: LoyaltyService) {}
 
@@ -137,6 +143,22 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
         this.loading = false;
       }
     });
+
+    this.loyaltyService.getReferralRewardConfig().subscribe({
+      next: (config) => {
+        this.referralConfigDraft = {
+          referrerPoints: Number(config?.referrerPoints) || 0,
+          refereePoints: Number(config?.refereePoints) || 0,
+          isActive: config?.isActive !== false,
+          id: config?.id,
+          updatedAt: config?.updatedAt
+        };
+      },
+      error: (err) => {
+        console.error('Error loading referral config:', err);
+        this.uiStore.error('Failed to load referral reward config');
+      }
+    });
   }
 
   saveTierConfig() {
@@ -199,6 +221,42 @@ export class AdminLoyaltyComponent implements OnInit, OnDestroy {
           || err?.message;
         this.uiStore.error(serverMessage || 'Failed to save tier configuration');
         this.tierConfigSaving = false;
+      }
+    });
+  }
+
+  saveReferralConfig() {
+    if (this.referralConfigDraft.referrerPoints < 0 || this.referralConfigDraft.refereePoints < 0) {
+      this.uiStore.error('Referral points cannot be negative');
+      return;
+    }
+
+    const payload: UpdateReferralRewardConfigRequest = {
+      referrerPoints: Number(this.referralConfigDraft.referrerPoints) || 0,
+      refereePoints: Number(this.referralConfigDraft.refereePoints) || 0,
+      isActive: this.referralConfigDraft.isActive !== false
+    };
+
+    this.referralConfigSaving = true;
+    this.loyaltyService.updateReferralRewardConfig(payload).subscribe({
+      next: (res) => {
+        this.referralConfigDraft = {
+          ...res.config,
+          referrerPoints: Number(res.config?.referrerPoints) || 0,
+          refereePoints: Number(res.config?.refereePoints) || 0,
+          isActive: res.config?.isActive !== false
+        };
+        this.uiStore.success('Referral reward configuration saved successfully');
+        this.referralConfigSaving = false;
+      },
+      error: (err) => {
+        console.error('Error updating referral config:', err);
+        const serverMessage = err?.error?.error
+          || err?.originalError?.error?.error
+          || err?.originalError?.error?.message
+          || err?.message;
+        this.uiStore.error(serverMessage || 'Failed to save referral reward configuration');
+        this.referralConfigSaving = false;
       }
     });
   }
