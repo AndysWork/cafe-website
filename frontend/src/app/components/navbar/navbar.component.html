@@ -47,6 +47,7 @@
           <a
             [routerLink]="dashboardRoute"
             routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: true }"
             class="nav-link"
             (click)="closeMobileMenu()"
           >

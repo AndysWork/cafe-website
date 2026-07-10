@@ -58,7 +58,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get dashboardRoute(): string {
-    return this.isAdmin ? '/admin/dashboard' : '/profile';
+    return this.isAdmin ? '/admin/dashboard' : '/dashboard';
   }
 
   get displayName(): string {

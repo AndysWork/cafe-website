@@ -1,0 +1,114 @@
+<section class="customer-dashboard">
+  <header class="hero">
+    <div>
+      <h1>Customer Dashboard</h1>
+      <p class="subtitle">Track live orders, spending, rewards, and shortcuts from one place.</p>
+    </div>
+    <div class="hero-actions">
+      <a routerLink="/menu" class="btn primary">Browse Menu</a>
+      <a routerLink="/orders" class="btn">Order History</a>
+    </div>
+  </header>
+
+  <div *ngIf="errorMessage" class="error-banner">{{ errorMessage }}</div>
+
+  <section class="stats-grid" [class.dimmed]="loading">
+    <article class="card metric">
+      <h3>Total Orders</h3>
+      <p class="value">{{ totalOrders }}</p>
+      <small>All-time</small>
+    </article>
+
+    <article class="card metric live">
+      <h3>Live Orders</h3>
+      <p class="value">{{ activeOrdersCount }}</p>
+      <small>{{ statusSummaryText }}</small>
+    </article>
+
+    <article class="card metric">
+      <h3>Total Spend</h3>
+      <p class="value">₹{{ totalSpend | number:'1.0-0' }}</p>
+      <small>₹{{ spendLast30Days | number:'1.0-0' }} in last 30 days</small>
+    </article>
+
+    <article class="card metric">
+      <h3>Loyalty Points</h3>
+      <p class="value">{{ loyaltyAccount?.currentPoints || 0 }}</p>
+      <small>Tier: {{ loyaltyAccount?.tier || 'Bronze' }}</small>
+    </article>
+
+    <article class="card metric">
+      <h3>Wallet Balance</h3>
+      <p class="value">₹{{ wallet?.balance || 0 | number:'1.0-0' }}</p>
+      <small>Ready for checkout</small>
+    </article>
+
+    <article class="card metric">
+      <h3>Completed</h3>
+      <p class="value">{{ deliveredOrders }}</p>
+      <small>Cancelled: {{ cancelledOrders }}</small>
+    </article>
+  </section>
+
+  <section class="content-grid">
+    <article class="card panel">
+      <div class="panel-header">
+        <h2>Live Order Status</h2>
+        <span class="live-dot" *ngIf="activeOrdersCount > 0">LIVE</span>
+      </div>
+
+      <div *ngIf="loadingOrders" class="empty">Refreshing orders...</div>
+
+      <ul *ngIf="!loadingOrders && activeOrders.length > 0" class="order-list">
+        <li *ngFor="let order of activeOrders">
+          <div class="row-top">
+            <strong>#{{ order.id.slice(-6).toUpperCase() }}</strong>
+            <span class="status">{{ getStatusIcon(order.status) }} {{ getStatusLabel(order.status) }}</span>
+          </div>
+          <div class="row-bottom">
+            <span>{{ order.items.length }} item(s) • ₹{{ order.total | number:'1.0-0' }}</span>
+            <span>{{ formatDate(order.createdAt) }}</span>
+          </div>
+        </li>
+      </ul>
+
+      <div *ngIf="!loadingOrders && activeOrders.length === 0" class="empty">
+        No active orders. Place something delicious now.
+      </div>
+    </article>
+
+    <article class="card panel">
+      <div class="panel-header">
+        <h2>Recent Orders</h2>
+        <a routerLink="/orders" class="link">View all</a>
+      </div>
+
+      <ul *ngIf="recentOrders.length > 0" class="order-list compact">
+        <li *ngFor="let order of recentOrders">
+          <div class="row-top">
+            <strong>#{{ order.id.slice(-6).toUpperCase() }}</strong>
+            <span class="status">{{ getStatusLabel(order.status) }}</span>
+          </div>
+          <div class="row-bottom">
+            <span>₹{{ order.total | number:'1.0-0' }}</span>
+            <span>{{ formatDate(order.createdAt) }}</span>
+          </div>
+        </li>
+      </ul>
+
+      <div *ngIf="recentOrders.length === 0" class="empty">No order history yet.</div>
+    </article>
+  </section>
+
+  <section class="quick-actions card">
+    <h2>Quick Actions</h2>
+    <div class="actions-grid">
+      <a routerLink="/menu" class="action">🍽️ Order Food</a>
+      <a routerLink="/cart" class="action">🛒 Open Cart</a>
+      <a routerLink="/loyalty" class="action">⭐ Rewards</a>
+      <a routerLink="/wallet" class="action">💰 Wallet</a>
+      <a routerLink="/profile" class="action">👤 Profile</a>
+      <a routerLink="/offers" class="action">🏷️ Offers</a>
+    </div>
+  </section>
+</section>
