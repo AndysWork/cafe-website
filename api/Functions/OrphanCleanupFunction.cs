@@ -4,17 +4,21 @@ using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using System.Net;
 using Cafe.Api.Models;
+using Cafe.Api.Helpers;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Functions;
 
 public class OrphanCleanupFunction
 {
     private readonly IMongoDatabase _database;
+    private readonly AuthService _auth;
     private readonly ILogger<OrphanCleanupFunction> _logger;
 
-    public OrphanCleanupFunction(IMongoDatabase database, ILogger<OrphanCleanupFunction> logger)
+    public OrphanCleanupFunction(IMongoDatabase database, AuthService auth, ILogger<OrphanCleanupFunction> logger)
     {
         _database = database;
+        _auth = auth;
         _logger = logger;
     }
 
@@ -26,6 +30,12 @@ public class OrphanCleanupFunction
     public async Task<HttpResponseData> RunManual(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "manage/cleanup-orphans")] HttpRequestData req)
     {
+        var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!isAuthorized || errorResponse != null)
+        {
+            return errorResponse!;
+        }
+
         var result = await PerformCleanupAsync();
         var response = req.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(result);

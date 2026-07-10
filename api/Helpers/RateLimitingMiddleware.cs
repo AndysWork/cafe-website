@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Azure.Functions.Worker.Middleware;
@@ -154,16 +156,18 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
 
     private string GetClientIdentifier(HttpRequestData request)
     {
-        // Try to get IP from X-Forwarded-For header (for proxy/load balancer)
-        if (request.Headers.TryGetValues("X-Forwarded-For", out var forwardedFor))
+        var trustForwardedHeaders = bool.TryParse(Environment.GetEnvironmentVariable("RateLimit__TrustForwardHeaders"), out var shouldTrust)
+            && shouldTrust;
+
+        // Trust forwarding headers only when explicitly enabled.
+        if (trustForwardedHeaders && request.Headers.TryGetValues("X-Forwarded-For", out var forwardedFor))
         {
             var ip = forwardedFor.First().Split(',')[0].Trim();
             if (!string.IsNullOrEmpty(ip))
                 return ip;
         }
 
-        // Try to get IP from X-Real-IP header
-        if (request.Headers.TryGetValues("X-Real-IP", out var realIp))
+        if (trustForwardedHeaders && request.Headers.TryGetValues("X-Real-IP", out var realIp))
         {
             var ip = realIp.First();
             if (!string.IsNullOrEmpty(ip))
@@ -181,18 +185,28 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
         // Fallback to user ID if authenticated
         if (request.Headers.TryGetValues("Authorization", out var authHeader))
         {
-            var token = authHeader.First().Replace("Bearer ", "");
-            if (!string.IsNullOrEmpty(token))
-                return $"user:{token.GetHashCode()}";
+            var authValue = authHeader.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(authValue) && authValue.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                var token = authValue["Bearer ".Length..].Trim();
+                if (!string.IsNullOrEmpty(token))
+                    return $"user:{HashStable(token)}";
+            }
         }
 
         // Fallback: use a combination of available headers to differentiate clients
         var userAgent = request.Headers.TryGetValues("User-Agent", out var ua) ? ua.First() : "";
         var acceptLang = request.Headers.TryGetValues("Accept-Language", out var al) ? al.First() : "";
         if (!string.IsNullOrEmpty(userAgent))
-            return $"anon:{(userAgent + acceptLang).GetHashCode()}";
+            return $"anon:{HashStable(userAgent + "|" + acceptLang)}";
 
         return "unknown";
+    }
+
+    private static string HashStable(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
     }
 
     private bool IsClientBlocked(string clientId, EndpointTier tier)

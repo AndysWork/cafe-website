@@ -16,12 +16,14 @@ public class MenuFunction
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
+    private readonly string _menuImageBaseUrl;
 
     public MenuFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
         _log = loggerFactory.CreateLogger<MenuFunction>();
+        _menuImageBaseUrl = BuildMenuImageBaseUrl();
     }
 
     /// <summary>
@@ -46,6 +48,7 @@ public class MenuFunction
             // Allow public access without outlet ID (returns all menu items)
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
             var items = await _mongo.GetMenuAsync(outletId, page, pageSize);
+            NormalizeMenuImageUrls(items);
             var res = req.CreateResponse(HttpStatusCode.OK);
             if (page.HasValue && pageSize.HasValue)
             {
@@ -93,6 +96,7 @@ public class MenuFunction
             }
             
             var items = await _mongo.GetMenuItemsByCategoryAsync(categoryId, outletId);
+            NormalizeMenuImageUrls(items);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
             return res;
@@ -135,6 +139,7 @@ public class MenuFunction
             }
             
             var items = await _mongo.GetMenuItemsBySubCategoryAsync(subCategoryId, outletId);
+            NormalizeMenuImageUrls(items);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
             return res;
@@ -185,6 +190,8 @@ public class MenuFunction
                 await notFound.WriteAsJsonAsync(new { error = "Menu item not found" });
                 return notFound;
             }
+
+            NormalizeMenuImageUrl(item);
 
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(item);
@@ -580,6 +587,77 @@ public class MenuFunction
             await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
+    }
+
+    private static string BuildMenuImageBaseUrl()
+    {
+        var cdnBase = Environment.GetEnvironmentVariable("Blob__CdnBaseUrl");
+        if (!string.IsNullOrWhiteSpace(cdnBase))
+        {
+            return $"{cdnBase.TrimEnd('/')}/menu-images";
+        }
+
+        var connectionString = Environment.GetEnvironmentVariable("Blob__ConnectionString") ?? string.Empty;
+        if (connectionString.Contains("UseDevelopmentStorage=true", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        var accountName = connectionString
+            .Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2))
+            .FirstOrDefault(pair => pair.Length == 2 && pair[0].Trim().Equals("AccountName", StringComparison.OrdinalIgnoreCase))?[1]
+            ?.Trim();
+
+        return string.IsNullOrWhiteSpace(accountName)
+            ? string.Empty
+            : $"https://{accountName}.blob.core.windows.net/menu-images";
+    }
+
+    private void NormalizeMenuImageUrls(IEnumerable<CafeMenuItem> items)
+    {
+        foreach (var item in items)
+        {
+            NormalizeMenuImageUrl(item);
+        }
+    }
+
+    private void NormalizeMenuImageUrl(CafeMenuItem item)
+    {
+        item.ImageUrl = NormalizeLegacyMenuImageUrl(item.ImageUrl);
+        item.ImageThumbnailUrl = NormalizeLegacyMenuImageUrl(item.ImageThumbnailUrl);
+    }
+
+    private string NormalizeLegacyMenuImageUrl(string? sourceUrl)
+    {
+        if (string.IsNullOrWhiteSpace(sourceUrl) || string.IsNullOrWhiteSpace(_menuImageBaseUrl))
+        {
+            return sourceUrl ?? string.Empty;
+        }
+
+        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var parsed))
+        {
+            return sourceUrl;
+        }
+
+        var host = parsed.Host.ToLowerInvariant();
+        if (host != "127.0.0.1" && host != "localhost")
+        {
+            return sourceUrl;
+        }
+
+        var marker = "/menu-images/";
+        var absolutePath = parsed.AbsolutePath;
+        var markerIndex = absolutePath.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex < 0)
+        {
+            return sourceUrl;
+        }
+
+        var blobPath = absolutePath[(markerIndex + marker.Length)..].TrimStart('/');
+        return string.IsNullOrWhiteSpace(blobPath)
+            ? sourceUrl
+            : $"{_menuImageBaseUrl}/{blobPath}";
     }
 }
 

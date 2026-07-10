@@ -10,6 +10,8 @@ public class AuthService
 {
     private readonly string _jwtSecret;
     private readonly int _jwtExpiryMinutes;
+    private readonly string _jwtIssuer;
+    private readonly string _jwtAudience;
 
     public AuthService()
     {
@@ -35,6 +37,8 @@ public class AuthService
         _jwtSecret = secret;
         _jwtExpiryMinutes = int.TryParse(Environment.GetEnvironmentVariable("Jwt__ExpiryMinutes"), out var expiry) 
             ? expiry : 1440; // 24 hours default
+        _jwtIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer") ?? "CafeWebsiteAPI";
+        _jwtAudience = Environment.GetEnvironmentVariable("Jwt__Audience") ?? "CafeWebsiteApp";
     }
 
     public string HashPassword(string password)
@@ -75,6 +79,8 @@ public class AuthService
             Subject = new ClaimsIdentity(claims),
             // Use UTC for token expiry (IST conversion was incorrect for cloud environments)
             Expires = DateTime.UtcNow.AddMinutes(_jwtExpiryMinutes),
+            Issuer = _jwtIssuer,
+            Audience = _jwtAudience,
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(key), 
                 SecurityAlgorithms.HmacSha256Signature)
@@ -95,8 +101,10 @@ public class AuthService
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = false,
-                ValidateAudience = false,
+                ValidateIssuer = true,
+                ValidIssuer = _jwtIssuer,
+                ValidateAudience = true,
+                ValidAudience = _jwtAudience,
                 ClockSkew = TimeSpan.Zero
             };
 

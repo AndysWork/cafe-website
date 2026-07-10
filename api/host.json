@@ -37,11 +37,10 @@
     "cors": {
         "allowedOrigins": [
             "http://localhost:4200",
-            "https://*.azurewebsites.net",
-            "https://*.azurestaticapps.net",
+            "https://zealous-glacier-0b9b40710.3.azurestaticapps.net",
             "https://www.maataracafe.in",
             "https://maataracafe.in"
         ],
-        "supportCredentials": true
+        "supportCredentials": false
     }
 }

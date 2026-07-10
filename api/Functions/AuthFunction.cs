@@ -347,17 +347,19 @@ public class AuthFunction
     {
         try
         {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized || errorResponse != null)
+            {
+                return errorResponse!;
+            }
+
             var defaultAdminUsername = Environment.GetEnvironmentVariable("DefaultAdmin__Username") ?? "admin";
             var admin = await _mongo.GetUserByUsernameAsync(defaultAdminUsername);
             
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
-                exists = admin != null,
-                username = defaultAdminUsername,
-                isActive = admin?.IsActive ?? false,
-                email = admin?.Email ?? "N/A",
-                createdAt = admin?.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss") ?? "N/A"
+                exists = admin != null
             });
 
             return response;

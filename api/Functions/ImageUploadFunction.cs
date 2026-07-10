@@ -12,6 +12,8 @@ namespace Cafe.Api.Functions;
 
 public class ImageUploadFunction
 {
+    private const long MaxMultipartBodyBytes = 6 * 1024 * 1024; // 6MB hard cap at request parser level
+
     private readonly BlobStorageService _blobService;
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
@@ -69,9 +71,7 @@ public class ImageUploadFunction
                 return badRequest;
             }
 
-            using var bodyStream = new MemoryStream();
-            await req.Body.CopyToAsync(bodyStream);
-            bodyStream.Position = 0;
+            using var bodyStream = await ReadRequestBodyWithLimitAsync(req.Body, MaxMultipartBodyBytes);
 
             var (fileData, fileName, fileContentType) = ExtractFileFromMultipart(bodyStream, boundary);
             if (fileData == null || fileData.Length == 0)
@@ -122,6 +122,28 @@ public class ImageUploadFunction
         }
     }
 
+    private static async Task<MemoryStream> ReadRequestBodyWithLimitAsync(Stream input, long maxBytes)
+    {
+        var destination = new MemoryStream();
+        var buffer = new byte[81920];
+        long totalRead = 0;
+
+        while (true)
+        {
+            var bytesRead = await input.ReadAsync(buffer, 0, buffer.Length);
+            if (bytesRead <= 0)
+                break;
+
+            totalRead += bytesRead;
+            if (totalRead > maxBytes)
+                throw new ArgumentException($"Request payload exceeds {maxBytes / (1024 * 1024)}MB limit");
+
+            await destination.WriteAsync(buffer, 0, bytesRead);
+        }
+
+        destination.Position = 0;
+        return destination;
+    }
     /// <summary>
     /// Deletes the image for a menu item.
     /// </summary>
@@ -199,9 +221,7 @@ public class ImageUploadFunction
                 return badRequest;
             }
 
-            using var bodyStream = new MemoryStream();
-            await req.Body.CopyToAsync(bodyStream);
-            bodyStream.Position = 0;
+            using var bodyStream = await ReadRequestBodyWithLimitAsync(req.Body, MaxMultipartBodyBytes);
 
             var (fileData, fileName, fileContentType) = ExtractFileFromMultipart(bodyStream, boundary);
             if (fileData == null || fileData.Length == 0)
@@ -335,9 +355,7 @@ public class ImageUploadFunction
                 return badRequest;
             }
 
-            using var bodyStream = new MemoryStream();
-            await req.Body.CopyToAsync(bodyStream);
-            bodyStream.Position = 0;
+            using var bodyStream = await ReadRequestBodyWithLimitAsync(req.Body, MaxMultipartBodyBytes);
 
             var (fileData, fileName, fileContentType) = ExtractFileFromMultipart(bodyStream, boundary);
             if (fileData == null || fileData.Length == 0)
@@ -441,9 +459,7 @@ public class ImageUploadFunction
                     return badReq;
                 }
 
-                using var bodyStream = new MemoryStream();
-                await req.Body.CopyToAsync(bodyStream);
-                bodyStream.Position = 0;
+                using var bodyStream = await ReadRequestBodyWithLimitAsync(req.Body, MaxMultipartBodyBytes);
 
                 var extracted = ExtractFileFromMultipart(bodyStream, boundary);
                 fileData = extracted.Data;

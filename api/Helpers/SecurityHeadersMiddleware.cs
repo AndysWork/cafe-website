@@ -28,7 +28,7 @@ public class SecurityHeadersMiddleware : IFunctionsWorkerMiddleware
             // Content Security Policy - restrict resource loading
             httpResponse.Headers.Add("Content-Security-Policy",
                 "default-src 'self'; " +
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+                "script-src 'self' 'unsafe-inline'; " +
                 "style-src 'self' 'unsafe-inline'; " +
                 "img-src 'self' data: https:; " +
                 "font-src 'self' data:; " +
@@ -47,9 +47,14 @@ public class SecurityHeadersMiddleware : IFunctionsWorkerMiddleware
                 "usb=(), " +
                 "magnetometer=()");
 
-            // HSTS - enforce HTTPS (only in production)
-            // Uncomment when using HTTPS in production
-            // httpResponse.Headers.Add("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+            // HSTS - enforce HTTPS in non-development environments
+            var environment = Environment.GetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT")
+                ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                ?? "Production";
+            if (!environment.Equals("Development", StringComparison.OrdinalIgnoreCase))
+            {
+                httpResponse.Headers.Add("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+            }
 
             // Remove server information header
             httpResponse.Headers.Remove("Server");

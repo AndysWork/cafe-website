@@ -23,6 +23,7 @@ var host = new HostBuilder()
         builder.UseMiddleware<InputSanitizationMiddleware>();
         builder.UseMiddleware<RateLimitingMiddleware>();
         builder.UseMiddleware<AuthorizationMiddleware>();
+        builder.UseMiddleware<CsrfValidationMiddleware>();
         builder.UseMiddleware<RequestLoggingMiddleware>();
         builder.UseMiddleware<ApiVersionMiddleware>();
     })
@@ -64,7 +65,22 @@ var host = new HostBuilder()
         s.AddSingleton<OutboxService>();
         
         // Azure Blob Storage for file/image uploads
-        var blobConnectionString = Environment.GetEnvironmentVariable("Blob__ConnectionString") ?? "UseDevelopmentStorage=true";
+        var blobConnectionString = Environment.GetEnvironmentVariable("Blob__ConnectionString");
+        if (string.IsNullOrWhiteSpace(blobConnectionString))
+        {
+            var env = Environment.GetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT")
+                ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                ?? "Production";
+
+            if (env.Equals("Development", StringComparison.OrdinalIgnoreCase))
+            {
+                blobConnectionString = "UseDevelopmentStorage=true";
+            }
+            else
+            {
+                throw new InvalidOperationException("Blob__ConnectionString must be configured in non-development environments.");
+            }
+        }
         s.AddSingleton(new BlobServiceClient(blobConnectionString));
         s.AddSingleton<BlobStorageService>();
         

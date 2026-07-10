@@ -1284,8 +1284,13 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         
         // Get default admin credentials from environment or use defaults
         var defaultAdminUsername = Environment.GetEnvironmentVariable("DefaultAdmin__Username") ?? "admin";
-        var defaultAdminPassword = Environment.GetEnvironmentVariable("DefaultAdmin__Password") ?? "Admin@123";
+        var defaultAdminPassword = Environment.GetEnvironmentVariable("DefaultAdmin__Password");
         var defaultAdminEmail = Environment.GetEnvironmentVariable("DefaultAdmin__Email") ?? "admin@cafemaatara.com";
+
+        if (string.IsNullOrWhiteSpace(defaultAdminPassword))
+        {
+            throw new InvalidOperationException("DefaultAdmin__Password must be configured before admin bootstrap can run.");
+        }
         
         var adminExists = await _users.Find(x => x.Username == defaultAdminUsername).AnyAsync();
         if (!adminExists)

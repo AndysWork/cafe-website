@@ -93,8 +93,7 @@ public class EmailService : IEmailService
     {
         if (!_isEnabled)
         {
-            _logger.LogWarning($"Email service disabled. Password reset token for {toEmail}: {resetToken}");
-            _logger.LogWarning($"Reset link: {_baseUrl}/reset-password?token={resetToken}");
+            _logger.LogWarning("Email service disabled. Password reset email could not be sent for {Email}", toEmail);
             return false;
         }
 
