@@ -57,11 +57,24 @@
           <i class="fas fa-percentage"></i>
           <span>Tax: {{ outlet.settings.taxPercentage }}%</span>
         </div>
+        <div class="detail-item">
+          <i class="fas fa-globe"></i>
+          <span>Online Ordering: {{ isOnlineOrderingEnabled(outlet) ? 'On' : 'Off' }}</span>
+        </div>
       </div>
 
       <div class="outlet-actions">
         <button class="btn btn-secondary btn-sm" (click)="openEditModal(outlet)">
           <i class="fas fa-edit"></i> Edit
+        </button>
+        <button
+          class="btn btn-sm"
+          [class.btn-success]="!isOnlineOrderingEnabled(outlet)"
+          [class.btn-warning]="isOnlineOrderingEnabled(outlet)"
+          [disabled]="togglingOnlineOrdersOutletId === (outlet._id || outlet.id)"
+          (click)="toggleOnlineOrdering(outlet)">
+          <i class="fas" [class.fa-toggle-on]="isOnlineOrderingEnabled(outlet)" [class.fa-toggle-off]="!isOnlineOrderingEnabled(outlet)"></i>
+          {{ isOnlineOrderingEnabled(outlet) ? 'Turn Online Orders Off' : 'Turn Online Orders On' }}
         </button>
         <button
           class="btn btn-sm"

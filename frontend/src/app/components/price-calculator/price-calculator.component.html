@@ -108,6 +108,66 @@
           </small>
         </div>
 
+        <div class="form-section">
+          <h3>🖼️ Menu Image</h3>
+          <small class="form-hint" *ngIf="!currentLinkedMenuItem">
+            Save recipe/menu item first, then upload image.
+          </small>
+
+          <div *ngIf="currentLinkedMenuItem" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+            <img
+              *ngIf="!recipeImagePreview && currentRecipeImageUrl"
+              [src]="currentRecipeImageUrl"
+              alt="Current menu image"
+              style="width: 64px; height: 64px; border-radius: 10px; object-fit: cover; border: 1px solid #e5e7eb;" />
+
+            <img
+              *ngIf="recipeImagePreview"
+              [src]="recipeImagePreview"
+              alt="Selected image preview"
+              style="width: 64px; height: 64px; border-radius: 10px; object-fit: cover; border: 1px solid #e5e7eb;" />
+
+            <span *ngIf="!recipeImagePreview && !currentRecipeImageUrl" class="form-hint">No image uploaded yet.</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              (change)="onRecipeImageSelected($event)"
+              [disabled]="recipeImageUploading || !currentLinkedMenuItem" />
+
+            <button
+              class="btn-action"
+              type="button"
+              (click)="uploadRecipeImage()"
+              [disabled]="recipeImageUploading || !recipeImageFile || !currentLinkedMenuItem">
+              {{ recipeImageUploading ? 'Uploading...' : 'Upload Image' }}
+            </button>
+
+            <button
+              class="btn-action btn-save"
+              type="button"
+              (click)="uploadAndSaveRecipe()"
+              [disabled]="recipeImageUploading || !recipeImageFile || !currentLinkedMenuItem">
+              {{ recipeImageUploading ? 'Uploading...' : 'Upload + Save Recipe' }}
+            </button>
+
+            <button
+              class="btn-action"
+              type="button"
+              *ngIf="recipeImageFile"
+              (click)="clearRecipeImageSelection()"
+              [disabled]="recipeImageUploading">
+              Clear
+            </button>
+          </div>
+
+          <small class="form-hint" *ngIf="currentLinkedMenuItem">
+            Uploading from recipe screen updates the linked menu item image.
+          </small>
+        </div>
+
         <!-- Add Ingredients Section -->
         <div class="form-section">
           <h3>🥘 Add Ingredients</h3>

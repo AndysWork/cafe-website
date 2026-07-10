@@ -89,8 +89,9 @@ public class BlobStorageService
         var extension = ".webp";
         var safeBaseName = SanitizeFileBaseName(Path.GetFileNameWithoutExtension(fileName));
         var keyBase = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{safeBaseName}-{Guid.NewGuid():N}";
-        var fullBlobName = $"{outletId}/{keyBase}{extension}";
-        var thumbnailBlobName = $"{outletId}/{keyBase}_thumb{extension}";
+        var outletSegment = SanitizeBlobPathSegment(outletId);
+        var fullBlobName = $"{outletSegment}/{keyBase}{extension}";
+        var thumbnailBlobName = $"{outletSegment}/{keyBase}_thumb{extension}";
 
         var fullBlobClient = containerClient.GetBlobClient(fullBlobName);
         var thumbnailBlobClient = containerClient.GetBlobClient(thumbnailBlobName);
@@ -101,8 +102,8 @@ public class BlobStorageService
             CacheControl = "public, max-age=31536000, immutable" // 1 year cache — images are immutable (new upload = new URL)
         };
 
-        await fullBlobClient.UploadAsync(fullStream, new BlobUploadOptions { HttpHeaders = headers });
-        await thumbnailBlobClient.UploadAsync(thumbnailStream, new BlobUploadOptions { HttpHeaders = headers });
+        await UploadWithAzuriteFallbackAsync(fullBlobClient, fullStream, headers);
+        await UploadWithAzuriteFallbackAsync(thumbnailBlobClient, thumbnailStream, headers);
 
         _logger.LogInformation("Uploaded menu image variants: {FullBlob} ({FullSize} bytes), {ThumbBlob} ({ThumbSize} bytes), source {OriginalSize} bytes",
             fullBlobName, fullStream.Length, thumbnailBlobName, thumbnailStream.Length, originalSize);
@@ -349,6 +350,92 @@ public class BlobStorageService
         normalized = Regex.Replace(normalized, "[^a-z0-9]+", "-").Trim('-');
         if (normalized.Length == 0) return "menu-image";
         return normalized.Length <= 40 ? normalized : normalized[..40];
+    }
+
+    private static string SanitizeBlobPathSegment(string? input)
+    {
+        var trimmed = (input ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return "global";
+
+        var sanitized = Regex.Replace(trimmed, "[^A-Za-z0-9_-]+", "-").Trim('-');
+        return string.IsNullOrWhiteSpace(sanitized) ? "global" : sanitized;
+    }
+
+    private async Task UploadWithAzuriteFallbackAsync(BlobClient blobClient, Stream stream, BlobHttpHeaders headers)
+    {
+        if (stream.CanSeek)
+            stream.Position = 0;
+
+        try
+        {
+            await blobClient.UploadAsync(stream, new BlobUploadOptions { HttpHeaders = headers });
+        }
+        catch (Azure.RequestFailedException ex) when (ex.Status >= 500 && IsAzuriteEndpoint(blobClient.Uri))
+        {
+            _logger.LogWarning(ex, "Azurite upload failed for blob {BlobName}. Retrying with BinaryData fallback.", blobClient.Name);
+
+            if (stream.CanSeek)
+                stream.Position = 0;
+
+            try
+            {
+                var data = await BinaryData.FromStreamAsync(stream);
+                await blobClient.UploadAsync(data, overwrite: true);
+                await blobClient.SetHttpHeadersAsync(headers);
+                return;
+            }
+            catch (Azure.RequestFailedException secondEx) when (secondEx.Status >= 500)
+            {
+                _logger.LogWarning(secondEx, "Azurite BinaryData upload also failed for blob {BlobName}. Retrying with OpenWrite fallback.", blobClient.Name);
+            }
+
+            if (stream.CanSeek)
+                stream.Position = 0;
+
+            var minimalHeaders = new BlobHttpHeaders
+            {
+                ContentType = headers.ContentType
+            };
+
+            try
+            {
+                await using (var writeStream = await blobClient.OpenWriteAsync(overwrite: true, options: new BlobOpenWriteOptions
+                {
+                    HttpHeaders = minimalHeaders
+                }))
+                {
+                    await stream.CopyToAsync(writeStream);
+                }
+            }
+            catch (Azure.RequestFailedException finalEx) when (finalEx.Status >= 500)
+            {
+                _logger.LogError(finalEx,
+                    "Azurite upload failed for blob {BlobName} after all fallbacks. This usually indicates Azurite metadata corruption. " +
+                    "Restart Azurite and reset corrupted metadata files such as __azurite_db_blob__.json.",
+                    blobClient.Name);
+                throw;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headers.CacheControl))
+            {
+                try
+                {
+                    await blobClient.SetHttpHeadersAsync(headers);
+                }
+                catch (Azure.RequestFailedException headerEx) when (headerEx.Status >= 500)
+                {
+                    _logger.LogWarning(headerEx, "Azurite rejected cache headers for blob {BlobName}; upload kept with content-type only.", blobClient.Name);
+                }
+            }
+        }
+    }
+
+    private static bool IsAzuriteEndpoint(Uri uri)
+    {
+        var host = uri.Host;
+        return host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+               host.Equals("localhost", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task EnsureContainerExistsAsync(BlobContainerClient containerClient, string containerName)

@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, of, forkJoin } from 'rxjs';
+import { Observable, of, forkJoin, throwError } from 'rxjs';
 import { map, catchError, switchMap } from 'rxjs/operators';
 import { toObservable } from '@angular/core/rxjs-interop';
 import {
@@ -238,16 +238,8 @@ export class PriceCalculatorService {
             return updatedRecipe;
           }),
           catchError((error) => {
-            console.error('Error updating recipe, using local fallback', error);
-            const updatedRecipe = { ...recipe, updatedAt: new Date() };
-            const currentRecipes = this.recipesSignal();
-            const index = currentRecipes.findIndex(r => r.id === recipe.id);
-            if (index !== -1) {
-              currentRecipes[index] = updatedRecipe;
-              this.recipesSignal.set([...currentRecipes]);
-              localStorage.setItem('cafe_recipes', JSON.stringify(currentRecipes));
-            }
-            return of(updatedRecipe);
+            console.error('Error updating recipe on server', error);
+            return throwError(() => error);
           })
         );
     } else {
@@ -262,18 +254,8 @@ export class PriceCalculatorService {
             return newRecipe;
           }),
           catchError((error) => {
-            console.error('Error creating recipe, using local fallback', error);
-            const newRecipe: MenuItemRecipe = {
-              ...recipe,
-              id: `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            };
-            const currentRecipes = this.recipesSignal();
-            const updatedRecipes = [...currentRecipes, newRecipe];
-            this.recipesSignal.set(updatedRecipes);
-            localStorage.setItem('cafe_recipes', JSON.stringify(updatedRecipes));
-            return of(newRecipe);
+            console.error('Error creating recipe on server', error);
+            return throwError(() => error);
           })
         );
     }

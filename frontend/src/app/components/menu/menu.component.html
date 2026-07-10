@@ -15,6 +15,13 @@
 
   <!-- Search Bar -->
   <div class="search-section">
+    <div class="sort-wrapper">
+      <select [(ngModel)]="selectedOutletId" (ngModelChange)="onOutletChange()" class="sort-select" aria-label="Filter by outlet">
+        <option value="">All Outlets</option>
+        <option *ngFor="let outlet of outlets; trackBy: trackByObjId" [value]="getOutletKey(outlet)">{{ outlet.outletName }}</option>
+      </select>
+    </div>
+
     <div class="search-wrapper">
       <span class="search-icon">🔍</span>
       <input
@@ -36,6 +43,13 @@
         <option value="name-az">Name: A → Z</option>
         <option value="name-za">Name: Z → A</option>
       </select>
+    </div>
+  </div>
+
+  <div class="recovery-banner ordering-closed-banner" *ngIf="!isOrderingOpen">
+    <div>
+      <strong>Shop Closed</strong>
+      <span>{{ orderingClosedMessage }}</span>
     </div>
   </div>
 
@@ -193,7 +207,7 @@
                 *ngIf="getCartQuantity(item.id) === 0"
                 class="btn-add"
                 (click)="$event.stopPropagation(); addToCart(item)"
-                [disabled]="item.isAvailable === false">
+                [disabled]="item.isAvailable === false || !canOrderItem(item)">
                 <span class="btn-add-icon">+</span>
                 <span class="btn-add-text">{{ hasCustomizations(item) ? 'CUSTOMIZE' : 'ADD' }}</span>
               </button>
@@ -202,7 +216,7 @@
               <div *ngIf="getCartQuantity(item.id) > 0" class="qty-control">
                 <button class="qty-btn minus" (click)="$event.stopPropagation(); decreaseQuantity(item)" aria-label="Decrease quantity">−</button>
                 <span class="qty-value" aria-live="polite">{{ getCartQuantity(item.id) }}</span>
-                <button class="qty-btn plus" (click)="$event.stopPropagation(); increaseQuantity(item)" aria-label="Increase quantity">+</button>
+                <button class="qty-btn plus" (click)="$event.stopPropagation(); increaseQuantity(item)" aria-label="Increase quantity" [disabled]="!canOrderItem(item)">+</button>
               </div>
             </div>
           </div>
@@ -313,13 +327,13 @@
             *ngIf="getCartQuantity(selectedMenuItem.id) === 0"
             class="btn-add-detail"
             (click)="addToCart(selectedMenuItem)"
-            [disabled]="selectedMenuItem.isAvailable === false">
+            [disabled]="selectedMenuItem.isAvailable === false || !canOrderItem(selectedMenuItem)">
             + Add to Cart — ₹{{ getWebPrice(selectedMenuItem) }}
           </button>
           <div *ngIf="getCartQuantity(selectedMenuItem.id) > 0" class="qty-control-detail">
             <button class="qty-btn minus" (click)="decreaseQuantity(selectedMenuItem)">−</button>
             <span class="qty-value">{{ getCartQuantity(selectedMenuItem.id) }}</span>
-            <button class="qty-btn plus" (click)="increaseQuantity(selectedMenuItem)">+</button>
+            <button class="qty-btn plus" (click)="increaseQuantity(selectedMenuItem)" [disabled]="!canOrderItem(selectedMenuItem)">+</button>
           </div>
         </div>
       </div>
@@ -387,7 +401,7 @@
             <button class="qty-btn plus" (click)="increaseCustomizationQuantity()">+</button>
           </div>
 
-          <button class="btn-add-detail" (click)="confirmCustomization()">
+          <button class="btn-add-detail" (click)="confirmCustomization()" [disabled]="!canOrderItem(customizationItem)">
             Add to Cart — ₹{{ getCustomizationUnitPrice(customizationItem) * customizationQuantity }}
           </button>
         </div>

@@ -857,7 +857,7 @@
 - ✅ **Report Export** (CSV/Excel/PDF for sales, expenses, P&L) — *March 29, 2026*
 - ✅ **GST Tax Reports** (GSTR-1/GSTR-3B, HSN codes, monthly/quarterly) — *March 29, 2026*
 - ✅ **Table Reservation System** (customer booking + admin management) — *March 29, 2026*
-- ✅ **Customer Wallet** (top-up, balance payment at checkout, transactions) — *March 29, 2026*
+- ❌ **Customer Wallet** removed — *July 2026*
 - ✅ **Kitchen Display System** (dark-theme Kanban, 4-column workflow, prep tracking) — *March 29, 2026*
 - ✅ **KOT Thermal Printing** (80mm receipt format, kitchen integration) — *March 29, 2026*
 - ✅ **AI Menu Recommendations** (order history + time-of-day + seasonal) — *March 29, 2026*
@@ -872,14 +872,14 @@
 - ✅ **Delivery Partner Integration** (driver assignment, partner management) — *March 29, 2026*
 - ✅ **PWA Conversion** (manifest, service worker, app shell, API caching) — *March 29, 2026*
 - ✅ **Order Scheduling** (date+time picker, scheduledFor field) — *March 29, 2026*
-- ✅ **Checkout Enhancements** (order type, wallet usage, delivery fee, dine-in table) — *March 29, 2026*
+- ✅ **Checkout Enhancements** (order type, delivery fee, dine-in table) — *March 29, 2026*; wallet usage removed in July 2026
 
 **Architecture Hardening (March 30, 2026):**
 - ✅ **Outbox Pattern** — OrderFunction enqueues side-effects; OutboxProcessorFunction delivers reliably every 30s
 - ✅ **CQRS Function Splits** — Inventory→Command/Query, Loyalty→Admin/User, Staff→Command/Query
 - ✅ **Service Interfaces** — IEmailService, IRazorpayService, IWhatsAppService for testability
 - ✅ **MongoInitializationService** — IHostedService for async startup (replaces .Wait() anti-pattern)
-- ✅ **Repository Pattern** — 14 domain-specific interfaces (IMenuRepository through IWalletRepository)
+- ✅ **Repository Pattern** — 13 active domain-specific interfaces (wallet repository removed in July 2026)
 - ✅ **6-Stage Middleware Pipeline** — SecurityHeaders → InputSanitization → RateLimit → Authorization → RequestLogging → ApiVersioning
 - ✅ **Soft-Delete + Orphan Cleanup** — ISoftDeletable interface + OrphanCleanupFunction
 - ✅ **Customer Reviews** — ReviewFunction (ratings 1-5, order-verified) + CustomerReviews frontend component
@@ -991,13 +991,13 @@ These backend APIs exist but have no frontend component or route:
 - **Deployment automation (PowerShell script + GitHub Actions)**
 
 ✅ **Sprint 3-6 Achievements (March 29, 2026):**
-- **17 new backend Azure Functions** (DeliveryZone, ReportExport, GstReport, TableReservation, Wallet, Wastage, Attendance, ComboMeal, HappyHour, AutoReorder, Subscription, DeliveryPartner, CustomerSegment, KitchenDisplay, Kot, Recommendation, BranchComparison)
+- **17 new backend Azure Functions** were introduced historically (including Wallet); wallet function was removed in July 2026
 - **11 new MongoDB models** + MongoService.NewFeatures.cs
-- **16 new frontend services** (delivery-zone, report-export, gst-report, table-reservation, wallet, kitchen-display, recommendation, wastage, branch-comparison, customer-segment, attendance, combo-meal, happy-hour, auto-reorder, subscription, delivery-partner)
+- **16 new frontend services** were introduced historically (including wallet); wallet service was removed in July 2026
 - **16 new frontend components** (13 admin + 3 customer-facing)
 - **17 new routes** (3 customer + 14 admin children) with lazy loading
 - **Admin navigation** expanded with 3 new dropdown menus (Operations, Marketing, Reports)
-- **Checkout flow** enhanced with order type, wallet, scheduling, delivery fee, dine-in table number
+- **Checkout flow** enhanced with order type, scheduling, delivery fee, dine-in table number (wallet removed in July 2026)
 - **PWA conversion** complete (manifest, service worker, offline app shell, API caching)
 - **0 frontend build errors, 0 backend build errors**
 

@@ -40,10 +40,10 @@
 | # | Feature | Description |
 |---|---------|-------------|
 | 1 | **Place Orders** | Full checkout with delivery/pickup/dine-in options, scheduled orders (30 min – 7 days), coupon codes, delivery address management |
-| 2 | **Payment** | Cash on Delivery (COD) or Razorpay online payment (credit/debit/UPI/wallets) |
+| 2 | **Payment** | Cash on Delivery (COD) or Razorpay online payment (credit/debit/UPI/net banking) |
 | 3 | **Order Tracking** | View order history, real-time status tracking (pending → confirmed → preparing → ready → delivered), cancel orders |
 | 4 | **Order Receipts** | Download PDF receipts for completed orders |
-| 5 | **Wallet** | Digital wallet with Razorpay recharge, use wallet balance during checkout, view transaction history |
+| 5 | **Wallet** | Removed (July 2026) |
 | 6 | **Loyalty Program** | Earn points on orders, tiered rewards (Bronze/Silver/Gold/Platinum), redeem rewards for discounts |
 | 7 | **Points Transfer** | Transfer loyalty points to other users by username |
 | 8 | **Referral System** | Generate referral code, share with friends, earn bonus points when referral is applied |
@@ -178,7 +178,7 @@
    - **Pickup:** Select outlet for pickup
    - **Dine-in:** Enter table number
 6. **Schedule Order (Optional)** → Toggle "Schedule for Later" → Pick date and time (30 min to 7 days ahead)
-7. **Apply Discounts** → Enter coupon code → Apply loyalty points → Use wallet balance
+7. **Apply Discounts** → Enter coupon code → Apply loyalty points
 8. **Pay** → Choose COD or Razorpay (credit/debit/UPI/net banking)
 9. **Track Order** → Go to "Orders" → View status progression: Pending → Confirmed → Preparing → Ready → Delivered
 10. **Review** → After delivery, submit star rating and written review
@@ -194,9 +194,7 @@
 7. **External Claims** → Go to "Claims" tab → Click "+ New Claim" → Select Zomato/Swiggy → Enter total amount → Upload invoice screenshot → Submit → Wait for admin approval
 
 #### Wallet
-1. **View Wallet** → Click "Wallet" → See balance and recent transactions
-2. **Recharge** → Click "Recharge" → Enter amount → Pay via Razorpay → Balance updated instantly
-3. **Use at Checkout** → During checkout, toggle "Use Wallet Balance" → Amount deducted from wallet first
+Wallet functionality has been removed from the product (July 2026).
 
 #### Profile & Addresses
 1. **Edit Profile** → Click username → "Edit Profile" → Update name, email, phone, upload picture
@@ -326,7 +324,7 @@ frontend/src/app/
 │   ├── orders/          # Order listing
 │   ├── order-detail/    # Single order view
 │   ├── loyalty/         # Loyalty program (user)
-│   ├── wallet/          # Digital wallet (user)
+│   ├── wallet/          # Removed (July 2026)
 │   ├── navbar/          # Public navbar
 │   ├── admin-layout/    # Admin shell with grouped nav dropdowns
 │   ├── admin-dashboard/ # Admin overview
@@ -412,7 +410,7 @@ api/
 │   ├── IUserRepository.cs        # User accounts, sessions
 │   ├── IOfferRepository.cs       # Offers, coupons, happy hours
 │   ├── IOutletRepository.cs      # Outlet management
-│   ├── IWalletRepository.cs      # Wallets + transactions
+│   ├── IWalletRepository.cs      # Removed (July 2026)
 │   ├── INotificationRepository.cs # App notifications
 │   ├── IOperationsRepository.cs  # Kitchen, delivery, reservations, wastage
 │   ├── IPricingRepository.cs     # Price forecasts, overhead costs
@@ -579,7 +577,7 @@ Customer                Angular App              Azure Functions           Mongo
    │                        ├──POST /api/orders──────▶│                        │
    │                        │  {items, address, ...}  ├──Validate + Insert───▶│
    │                        │                         │  (Orders collection)   │
-   │                        │                         ├──Deduct Wallet───────▶│
+  │                        │                         ├──Apply Discounts──────▶│
    │                        │                         ├──Enqueue Outbox ──────▶│
    │                        │                         │  (WhatsApp, Email,     │
    │                        │                         │   Notification,        │
@@ -670,7 +668,7 @@ User                Angular App              Azure Functions           MongoDB
                    │              │          │          │               │
                    ▼              ▼          ▼          ▼               ▼
           ┌────────────┐  ┌──────────┐ ┌─────────┐ ┌─────────┐ ┌──────────────┐
-          │   ORDER     │  │ LOYALTY  │ │ WALLET  │ │NOTIF.   │ │ USER SESSION │
+          │   ORDER     │  │ LOYALTY  │ │NOTIF.   │ │ USER SESSION │
           │────────────│  │ ACCOUNT  │ │─────────│ │─────────│ │──────────────│
           │ Id          │  │──────────│ │ Id      │ │ Id      │ │ Id           │
           │ UserId (FK) │  │ Id       │ │ UserId  │ │ UserId  │ │ UserId       │
@@ -682,7 +680,7 @@ User                Angular App              Azure Functions           MongoDB
           │ DeliveryFee │  └────┬─────┘      │
           │ ScheduledFor│       │             ▼
           │ OrderType   │       │      ┌─────────────┐
-          └──────┬──────┘       │      │ WALLET TXN  │
+          └──────┬──────┘       │
                  │              │      │─────────────│
                  │              ▼      │ UserId      │
                  │       ┌───────────┐ │ Type (cr/db)│
@@ -801,8 +799,8 @@ User                Angular App              Azure Functions           MongoDB
 |--------------|-------------|-------------|----------|
 | User | 1 → N | Order | `UserId` |
 | User | 1 → 1 | LoyaltyAccount | `UserId` |
-| User | 1 → 1 | CustomerWallet | `UserId` |
-| User | 1 → N | WalletTransaction | `UserId` |
+| User | 1 → 1 | CustomerWallet | Removed (July 2026) |
+| User | 1 → N | WalletTransaction | Removed (July 2026) |
 | User | 1 → N | PointsTransaction | `UserId` |
 | User | 1 → N | AppNotification | `UserId` |
 | User | 1 → N | ExternalOrderClaim | `UserId` |
@@ -859,7 +857,7 @@ User                Angular App              Azure Functions           MongoDB
 
 #### FLAW 1: God Service Anti-Pattern — MongoService ✅ RESOLVED
 - **Original Problem:** `MongoService` was a single class with 48+ collection references and hundreds of methods handling ALL data access.
-- **Resolution:** Decomposed into **14 domain-specific repository interfaces** (`IMenuRepository`, `IOrderRepository`, `ILoyaltyRepository`, `IInventoryRepository`, `IStaffRepository`, `IFinanceRepository`, `IUserRepository`, `IOfferRepository`, `IOutletRepository`, `IWalletRepository`, `INotificationRepository`, `IOperationsRepository`, `IPricingRepository`, `IAnalyticsRepository`). All registered via DI and backed by MongoService. Function files depend on focused interfaces, not the monolith.
+- **Resolution:** Decomposed into **13 active domain-specific repository interfaces** (`IMenuRepository`, `IOrderRepository`, `ILoyaltyRepository`, `IInventoryRepository`, `IStaffRepository`, `IFinanceRepository`, `IUserRepository`, `IOfferRepository`, `IOutletRepository`, `INotificationRepository`, `IOperationsRepository`, `IPricingRepository`, `IAnalyticsRepository`). Wallet repository was removed in July 2026.
 - **Files:** `api/Repositories/` (14 interface files), `api/Program.cs` (DI registrations)
 
 #### FLAW 2: No Database Referential Integrity ✅ RESOLVED

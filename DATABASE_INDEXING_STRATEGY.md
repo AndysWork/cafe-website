@@ -162,16 +162,6 @@
 | `isActive_1_validTill_1` | `IsActive` ASC, `ValidTill` ASC | Compound | Active offers query |
 | `validFrom_1_validTill_1` | `ValidFrom` ASC, `ValidTill` ASC | Compound | Date-range validity |
 
-### CustomerWallets Collection
-| Index Name | Fields | Type | Notes |
-|---|---|---|---|
-| `userId_1` | `UserId` ASC | **Unique** | Wallet lookup by user |
-
-### WalletTransactions Collection
-| Index Name | Fields | Type | Notes |
-|---|---|---|---|
-| `userId_1_createdAt_-1` | `UserId` ASC, `CreatedAt` DESC | Compound | Transaction history |
-
 ### CustomerReviews Collection
 | Index Name | Fields | Type | Notes |
 |---|---|---|---|
@@ -264,7 +254,7 @@
 1. **Multi-tenant first**: All outlet-scoped collections lead compound indexes with `OutletId` to ensure queries are scoped efficiently
 2. **Compound index prefix rule**: The most-filtered field is first (typically `OutletId`), followed by sort/range fields
 3. **Background creation**: All indexes use `Background = true` to avoid blocking the application during startup
-4. **Unique constraints**: Applied to natural keys (Username, Email, Offer Code, Token) and 1:1 relationships (UserId on LoyaltyAccount, CustomerWallet)
+4. **Unique constraints**: Applied to natural keys (Username, Email, Offer Code, Token) and 1:1 relationships (UserId on LoyaltyAccount)
 5. **TTL index**: Notifications auto-expire after 90 days using MongoDB's TTL feature
 6. **Text index**: CafeMenu supports full-text search on Name and Description
 7. **Collections without indexes**: Small reference data collections (SalesItemType, OfflineExpenseType, OnlineExpenseType, PlatformCharge, DiscountCoupon, SubscriptionPlan, CustomerSubscription, DeliveryPartner, CustomerSegment, PriceUpdateSettings) do not have custom indexes as they are small and fully cached or rarely queried at scale

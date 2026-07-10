@@ -70,7 +70,7 @@
 34. ~~**Direct `IMongoDatabase` injection**~~ → UpdateOutletIdsFunction and WarmupFunction refactored to use MongoService; WarmupFunction now also pre-warms AuthService
 35. ~~**3 inconsistent error response formats**~~ → All backends standardized to `{ error = "message" }`: removed `success = false` wrapper from 15 files (182 instances), converted OfferFunction from `{ message }` to `{ error }` (16 instances); frontend interceptor + error-handler updated to read `error.error?.error || error.error?.message`
 36. ~~**Inconsistent logging styles**~~ → All `LogError($"...: {ex.Message}")` calls converted to structured `LogError(ex, "...")` in 6 function files (47 instances); redundant stack trace logging removed from ExpenseFunction
-37. ~~**14 repository interfaces**~~ → Added to DI: IMenuRepository, IOrderRepository, IOfferRepository, ILoyaltyRepository, IUserRepository, IFinanceRepository, IPricingRepository, IInventoryRepository, IStaffRepository, IOutletRepository, IOperationsRepository, IWalletRepository, INotificationRepository, IAnalyticsRepository — all backed by MongoService
+37. ~~**14 repository interfaces**~~ → Updated to **13 active interfaces**; `IWalletRepository` removed in July 2026.
 38. ~~**No event sourcing**~~ → EventLogService with EventLog model for state transition audit trails
 39. ~~**No outbox pattern**~~ → OutboxService + OutboxProcessorFunction (timer every 30s) for reliable side effects with retry
 40. ~~**No soft delete**~~ → ISoftDeletable interface across 14 models; all queries filter deleted records
@@ -734,7 +734,7 @@ User Request
 - `api/Repositories/IStaffRepository.cs` — Staff domain repository interface *(Round 8)*
 - `api/Repositories/IOutletRepository.cs` — Outlet domain repository interface *(Round 8)*
 - `api/Repositories/IOperationsRepository.cs` — Operations domain repository interface *(Round 8)*
-- `api/Repositories/IWalletRepository.cs` — Wallet domain repository interface *(Round 8)*
+- `api/Repositories/IWalletRepository.cs` — Removed in July 2026 *(historical: Round 8)*
 - `api/Repositories/INotificationRepository.cs` — Notification domain repository interface *(Round 8)*
 - `api/Repositories/IAnalyticsRepository.cs` — Analytics domain repository interface *(Round 8)*
 - `api/Functions/OutboxProcessorFunction.cs` — Timer-triggered (30s) outbox message processor *(Round 8)*
@@ -744,7 +744,7 @@ User Request
 - `api/Functions/ReportExportFunction.cs` — CSV/Excel/PDF report export *(Sprint 3)*
 - `api/Functions/GstReportFunction.cs` — GSTR-1/GSTR-3B tax reports *(Sprint 3)*
 - `api/Functions/TableReservationFunction.cs` — Table reservation management *(Sprint 4)*
-- `api/Functions/WalletFunction.cs` — Customer wallet operations (top-up, debit, balance, transactions) *(Sprint 4)*
+- `api/Functions/WalletFunction.cs` — Removed in July 2026 *(historical: Sprint 4)*
 - `api/Functions/KotFunction.cs` — Kitchen order ticket generation (80mm thermal format) *(Sprint 4)*
 - `api/Functions/KitchenDisplayFunction.cs` — Real-time kitchen order queue + status updates *(Sprint 5)*
 - `api/Functions/RecommendationFunction.cs` — AI menu recommendations *(Sprint 5)*
@@ -760,7 +760,7 @@ User Request
 - `api/Models/DeliveryZone.cs` — Delivery zone model *(Sprint 3)*
 - `api/Models/GstReport.cs` — GST report model *(Sprint 3)*
 - `api/Models/TableReservation.cs` — Table reservation model *(Sprint 4)*
-- `api/Models/Wallet.cs` — Wallet + WalletTransaction models *(Sprint 4)*
+- `api/Models/Wallet.cs` — Removed in July 2026 *(historical: Sprint 4)*
 - `api/Models/KitchenOrder.cs` — Kitchen display order model *(Sprint 5)*
 - `api/Models/Recommendation.cs` — Menu recommendation model *(Sprint 5)*
 - `api/Models/WastageEntry.cs` — Wastage tracking model *(Sprint 5)*
@@ -840,7 +840,7 @@ User Request
 - `frontend/src/app/services/report-export.service.ts` — Report export API service *(Sprint 3)*
 - `frontend/src/app/services/gst-report.service.ts` — GST report API service *(Sprint 3)*
 - `frontend/src/app/services/table-reservation.service.ts` — Table reservation API service *(Sprint 4)*
-- `frontend/src/app/services/wallet.service.ts` — Customer wallet API service *(Sprint 4)*
+- `frontend/src/app/services/wallet.service.ts` — Removed in July 2026 *(historical: Sprint 4)*
 - `frontend/src/app/services/kitchen-display.service.ts` — Kitchen display API service *(Sprint 5)*
 - `frontend/src/app/services/recommendation.service.ts` — Menu recommendation API service *(Sprint 5)*
 - `frontend/src/app/services/wastage.service.ts` — Wastage tracking API service *(Sprint 5)*
@@ -855,7 +855,7 @@ User Request
 - `frontend/src/app/components/admin-delivery-zones/` — Admin delivery zone management (TS+HTML+SCSS) *(Sprint 3)*
 - `frontend/src/app/components/admin-report-export/` — Admin report export UI (TS+HTML+SCSS) *(Sprint 3)*
 - `frontend/src/app/components/admin-reservations/` — Admin reservation management (TS+HTML+SCSS) *(Sprint 4)*
-- `frontend/src/app/components/wallet/` — Customer wallet with balance card + transactions (TS+HTML+SCSS) *(Sprint 4)*
+- `frontend/src/app/components/wallet/` — Removed in July 2026 *(historical: Sprint 4)*
 - `frontend/src/app/components/table-reservation/` — Customer reservation booking (TS+HTML+SCSS) *(Sprint 4)*
 - `frontend/src/app/components/kitchen-display/` — Kitchen Display System dark-theme Kanban (TS+HTML+SCSS) *(Sprint 5)*
 - `frontend/src/app/components/admin-wastage/` — Admin wastage tracking (TS+HTML+SCSS) *(Sprint 5)*
@@ -904,13 +904,13 @@ User Request
 | `frontend/src/app/interceptors/error.interceptor.ts` | **Injects UIStore; shows toast notifications on HTTP errors (skips analytics/401)** *(R7)* |
 | `frontend/src/app/app.component.ts`, `app.component.html` | **Added ToastContainerComponent for global toast notifications** *(R7)* |
 | `frontend/src/app/shared/index.ts` | **Added ToastContainerComponent export** *(R7)* |
-| `frontend/src/app/app.routes.ts` | **Added 17 new lazy-loaded routes (3 customer: /wallet, /reservations, /subscriptions + 14 admin children: delivery-zones, reports, reservations, wastage, attendance, combos, happy-hours, auto-reorder, subscriptions, delivery-partners, customer-segments, kitchen-display, branch-comparison)** *(Sprint 3-6)* |
+| `frontend/src/app/app.routes.ts` | **Added 17 new lazy-loaded routes historically (wallet route removed in July 2026)** *(Sprint 3-6)* |
 | `frontend/src/app/components/admin-layout/admin-layout.component.ts` | **Added 3 new nav dropdown menus (Operations, Marketing, Reports) + Attendance under Staff + 14 new nav items** *(Sprint 3-6)* |
-| `frontend/src/app/components/checkout/checkout.component.ts` | **Order type selection (delivery/pickup/dine-in), wallet balance usage, order scheduling, delivery fee calculation, table number for dine-in** *(Sprint 3-4)* |
-| `frontend/src/app/components/checkout/checkout.component.html` | **Order type radio buttons, wallet toggle section, schedule date+time, delivery fee + wallet discount in summary** *(Sprint 3-4)* |
-| `frontend/src/app/components/checkout/checkout.component.scss` | **Styles for order-type-options, wallet-section, schedule-section** *(Sprint 3-4)* |
-| `frontend/src/app/services/order.service.ts` | **CreateOrderRequest interface expanded with orderType, scheduledFor, deliveryFee, walletAmountUsed, tableNumber** *(Sprint 3-4)* |
+| `frontend/src/app/components/checkout/checkout.component.ts` | **Order type selection (delivery/pickup/dine-in), order scheduling, delivery fee calculation, table number for dine-in** *(Sprint 3-4, wallet removed July 2026)* |
+| `frontend/src/app/components/checkout/checkout.component.html` | **Order type radio buttons, schedule date+time, delivery fee in summary** *(Sprint 3-4, wallet removed July 2026)* |
+| `frontend/src/app/components/checkout/checkout.component.scss` | **Styles for order-type-options and schedule-section** *(Sprint 3-4, wallet styles removed July 2026)* |
+| `frontend/src/app/services/order.service.ts` | **CreateOrderRequest interface expanded with orderType, scheduledFor, deliveryFee, tableNumber** *(Sprint 3-4; walletAmountUsed removed July 2026)* |
 | `frontend/src/app/app.config.ts` | **Added provideServiceWorker with isDevMode() guard and registerWhenStable:30000** *(Sprint 4)* |
 | `frontend/angular.json` | **Added serviceWorker: "ngsw-config.json" under production config** *(Sprint 4)* |
 | `frontend/src/index.html` | **Added theme-color meta, manifest link, apple-touch-icon** *(Sprint 4)* |
-| `api/Functions/OrderFunction.cs` | **MapToOrderResponse updated with 7 new fields (orderType, scheduledFor, deliveryFee, walletAmountUsed, tableNumber, deliveryPartner, kotNumber)** *(Sprint 3-6)* |
+| `api/Functions/OrderFunction.cs` | **MapToOrderResponse updated with new order metadata fields (wallet usage removed July 2026)** *(Sprint 3-6)* |

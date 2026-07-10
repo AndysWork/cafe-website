@@ -94,6 +94,9 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   ingredientUnit: 'kg' | 'gm' | 'ml' | 'pc' | 'ltr' = 'gm';
   customIngredientPrice: number = 0; // Override price for individual ingredient
   calculation: PriceCalculation | null = null;
+  recipeImageFile: File | null = null;
+  recipeImageUploading = false;
+  recipeImagePreview: string | null = null;
   preparationTimeMinutes = 0; // Preparation time for overhead calculation
 
   // Oil Usage Calculation
@@ -276,6 +279,120 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     this.currentRecipe.menuItemName = name;
     this.showMenuItemSuggestions = false;
     this.onMenuItemNameChange();
+  }
+
+  get currentLinkedMenuItem(): MenuItem | null {
+    const recipeMenuItemId = this.currentRecipe.menuItemId;
+    if (recipeMenuItemId) {
+      const byId = this.menuItems.find(m => m.id === recipeMenuItemId);
+      if (byId) return byId;
+    }
+
+    const name = (this.currentRecipe.menuItemName || '').trim().toLowerCase();
+    if (!name) return null;
+
+    return this.menuItems.find(m => (m.name || '').trim().toLowerCase() === name) || null;
+  }
+
+  get currentRecipeImageUrl(): string {
+    const menuItem = this.currentLinkedMenuItem;
+    return menuItem?.imageThumbnailUrl || menuItem?.imageUrl || '';
+  }
+
+  onRecipeImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      this.showAlert('Please select a valid image file (JPEG, PNG, WebP, or GIF).', 'error');
+      input.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      this.showAlert('Image must be less than 5MB.', 'error');
+      input.value = '';
+      return;
+    }
+
+    this.recipeImageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.recipeImagePreview = (e.target?.result as string) || null;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  clearRecipeImageSelection(): void {
+    this.recipeImageFile = null;
+    this.recipeImagePreview = null;
+  }
+
+  uploadRecipeImage(): void {
+    this.uploadRecipeImageInternal();
+  }
+
+  uploadAndSaveRecipe(): void {
+    if (!this.recipeImageFile) {
+      this.showAlert('Please choose an image first.', 'error');
+      return;
+    }
+
+    const menuItem = this.currentLinkedMenuItem;
+    if (!menuItem?.id) {
+      this.showAlert('Save recipe/menu item first, then use Upload + Save.', 'warning');
+      return;
+    }
+
+    this.uploadRecipeImageInternal(() => {
+      this.saveCurrentRecipe();
+    });
+  }
+
+  private uploadRecipeImageInternal(onSuccess?: () => void): void {
+    if (!this.recipeImageFile) {
+      this.showAlert('Please choose an image first.', 'error');
+      return;
+    }
+
+    const menuItem = this.currentLinkedMenuItem;
+    if (!menuItem?.id) {
+      this.showAlert('Save recipe/menu item first, then upload image.', 'warning');
+      return;
+    }
+
+    this.recipeImageUploading = true;
+
+    const formData = new FormData();
+    formData.append('file', this.recipeImageFile);
+
+    this.http.post<{ imageUrl?: string; thumbnailUrl?: string }>(`${environment.apiUrl}/menu/${menuItem.id}/image`, formData)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.recipeImageUploading = false;
+          this.recipeImageFile = null;
+          this.recipeImagePreview = null;
+
+          if (response?.imageUrl) {
+            menuItem.imageUrl = response.imageUrl;
+          }
+          if (response?.thumbnailUrl) {
+            menuItem.imageThumbnailUrl = response.thumbnailUrl;
+          }
+
+          this.loadMenuItems();
+          this.showAlert('Menu image uploaded successfully.', 'success');
+          onSuccess?.();
+        },
+        error: (error) => {
+          this.recipeImageUploading = false;
+          console.error('Error uploading recipe image:', error);
+          this.showAlert(error?.error?.error || 'Failed to upload image.', 'error');
+        }
+      });
   }
 
   loadOverheadCosts(): void {
@@ -916,6 +1033,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   onMenuItemNameChange(): void {
     this.showMenuItemSuggestions = false;
+    this.clearRecipeImageSelection();
 
     // Check if a recipe exists for this menu item
     const existingRecipe = this.recipes.find(
@@ -1027,6 +1145,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   newRecipe(): void {
     this.currentRecipe = this.getEmptyRecipe();
     this.calculation = null;
+    this.clearRecipeImageSelection();
     this.activeTab = 'calculator';
   }
 
@@ -1588,14 +1707,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
     // Menu item exists, update it with forecast prices
     const priceUpdate: any = {
-      ...menuItem,
-      makingPrice: priceData.makingPrice,
-      onlinePrice: priceData.onlinePrice,
-      webPrice: priceData.webPrice,
-      dineInPrice: priceData.dineInPrice,
-      shopSellingPrice: priceData.shopSellingPrice,
-      packagingCharge: priceData.packagingCharge,
-      // Include future prices if set
+      ...this.buildMenuPriceUpdatePayload(menuItem, priceData),
       futureShopPrice: priceData.futureShopPrice,
       futureOnlinePrice: priceData.futureOnlinePrice
     };
@@ -1614,9 +1726,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error updating menu item prices:', err);
-          this.showAlert('Forecast saved but failed to sync menu prices', 'warning');
-          // Reload to ensure consistency after error
-          this.loadMenuItems();
+          this.syncRecipePricesFallback(
+            'Forecast saved and menu prices synced via fallback',
+            'Forecast saved but failed to sync menu prices'
+          );
         }
       });
   }
@@ -1720,8 +1833,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
           // Reload recipes to update the list
           this.loadRecipes();
 
-          // Update menu item with calculated prices
-          this.updateMenuItemPrices();
+          // Rely on backend sync endpoint to apply recipe-derived prices safely.
+          this.syncRecipePricesFallback(
+            'Recipe saved and menu prices synced',
+            'Recipe saved but failed to update menu prices'
+          );
 
           // Save price forecast if present
           if (this.priceForecast && this.calculation) {
@@ -1733,6 +1849,49 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         error: (err) => {
           console.error('Error saving recipe:', err);
           this.showAlert('Failed to save recipe', 'error');
+        }
+      });
+  }
+
+  private buildMenuPriceUpdatePayload(menuItem: any, priceData: any): any {
+    const category = (menuItem?.category || menuItem?.categoryName || 'General').toString();
+    const payload: any = {
+      ...menuItem,
+      name: menuItem?.name || this.currentRecipe.menuItemName,
+      category,
+      description: menuItem?.description || '',
+      quantity: Number.isFinite(menuItem?.quantity) ? menuItem.quantity : 0,
+      isAvailable: typeof menuItem?.isAvailable === 'boolean' ? menuItem.isAvailable : true,
+      makingPrice: priceData.makingPrice,
+      onlinePrice: priceData.onlinePrice,
+      webPrice: priceData.webPrice,
+      dineInPrice: priceData.dineInPrice,
+      shopSellingPrice: priceData.shopSellingPrice,
+      packagingCharge: priceData.packagingCharge
+    };
+
+    // Preserve these only when present to avoid backend reference validation failures.
+    if (!payload.categoryId) {
+      delete payload.categoryId;
+      delete payload.subCategoryId;
+    }
+
+    return payload;
+  }
+
+  private syncRecipePricesFallback(successMessage: string, failureMessage: string): void {
+    this.menuService.syncRecipePrices()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (syncResult) => {
+          const updatedCount = syncResult?.updatedCount ?? 0;
+          this.showAlert(`${successMessage} (${updatedCount} menu item(s) synced)`, 'success');
+          this.loadMenuItems();
+        },
+        error: (syncErr) => {
+          console.error('Fallback recipe price sync failed:', syncErr);
+          this.showAlert(failureMessage, 'warning');
+          this.loadMenuItems();
         }
       });
   }
@@ -1790,15 +1949,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     }
 
     // Menu item exists, update it with full object to pass validation
-    const priceUpdate: any = {
-      ...menuItem,
-      makingPrice: priceData.makingPrice,
-      onlinePrice: priceData.onlinePrice,
-      webPrice: priceData.webPrice,
-      dineInPrice: priceData.dineInPrice,
-      shopSellingPrice: priceData.shopSellingPrice,
-      packagingCharge: priceData.packagingCharge
-    };
+    const priceUpdate = this.buildMenuPriceUpdatePayload(menuItem, priceData);
 
     // Update the menu item
     this.menuService.updateMenuItem(menuItem.id, priceUpdate)
@@ -1814,9 +1965,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error updating menu item prices:', err);
-          this.showAlert('Recipe saved but failed to update menu prices', 'warning');
-          // Reload to ensure consistency after error
-          this.loadMenuItems();
+          this.syncRecipePricesFallback(
+            'Recipe saved and menu prices synced via fallback',
+            'Recipe saved but failed to update menu prices'
+          );
         }
       });
   }

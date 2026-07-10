@@ -23,18 +23,46 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
         "/api/auth/password/forgot",
         "/api/auth/password/reset",
         "/api/offers/validate",
+        "/api/recipes/sync-prices",
         "/api/payments/webhook/razorpay"
     };
 
+    // Dynamic endpoint patterns that should not require CSRF.
+    // These are protected by JWT role checks and primarily use multipart uploads.
+    private static readonly System.Text.RegularExpressions.Regex[] ExcludedPathPatterns =
+    {
+        new("^/api/menu/[^/]+/image$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
+        new("^/api/recipes(?:/.*)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
+        new("^/api/priceforecasts(?:/.*)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
+        new("^/api/analytics/(track(?:/batch)?|session|heartbeat)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled)
+    };
+
     private readonly AuthService _authService;
+    private readonly bool _csrfValidationEnabled;
 
     public CsrfValidationMiddleware(AuthService authService)
     {
         _authService = authService;
+
+        var disableFlag = Environment.GetEnvironmentVariable("Security__DisableCsrf");
+        var isDisabledByFlag = bool.TryParse(disableFlag, out var disableParsed) && disableParsed;
+
+        var environment = Environment.GetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? "Production";
+        var isDevelopment = environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
+
+        _csrfValidationEnabled = !(isDisabledByFlag || isDevelopment);
     }
 
     public async Task Invoke(FunctionContext context, FunctionExecutionDelegate next)
     {
+        if (!_csrfValidationEnabled)
+        {
+            await next(context);
+            return;
+        }
+
         var req = await context.GetHttpRequestDataAsync();
         if (req == null)
         {
@@ -49,7 +77,7 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
         }
 
         var requestPath = req.Url.AbsolutePath;
-        if (ExcludedPaths.Contains(requestPath))
+        if (IsCsrfExcludedPath(requestPath))
         {
             await next(context);
             return;
@@ -98,5 +126,19 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
         }
 
         await next(context);
+    }
+
+    private static bool IsCsrfExcludedPath(string requestPath)
+    {
+        if (ExcludedPaths.Contains(requestPath))
+            return true;
+
+        foreach (var pattern in ExcludedPathPatterns)
+        {
+            if (pattern.IsMatch(requestPath))
+                return true;
+        }
+
+        return false;
     }
 }

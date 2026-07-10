@@ -293,8 +293,6 @@ public class CreateOrderRequest
     [Range(0, 10000, ErrorMessage = "Delivery fee must be between 0 and 10,000")]
     public decimal DeliveryFee { get; set; }
 
-    public decimal WalletAmountUsed { get; set; }
-
     [StringLength(20, ErrorMessage = "Table number cannot exceed 20 characters")]
     public string? TableNumber { get; set; }
 
@@ -369,7 +367,6 @@ public class OrderResponse
     public string Channel { get; set; } = "web";
     public DateTime? ScheduledFor { get; set; }
     public bool IsScheduled { get; set; }
-    public decimal WalletAmountUsed { get; set; }
     public string? DeliveryPartnerId { get; set; }
     public string? DeliveryPartnerName { get; set; }
     public string? TableNumber { get; set; }

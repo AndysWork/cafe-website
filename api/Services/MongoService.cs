@@ -8,7 +8,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Cafe.Api.Services;
 
-public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepository, ILoyaltyRepository, IOfferRepository, IFinanceRepository, IPricingRepository, INotificationRepository, IOutletRepository, IWalletRepository
+public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepository, ILoyaltyRepository, IOfferRepository, IFinanceRepository, IPricingRepository, INotificationRepository, IOutletRepository
 {
     private readonly ILogger<MongoService> _logger;
     private readonly IMemoryCache _cache;
@@ -86,8 +86,6 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<OrderIssue> _orderIssues;
     private readonly IMongoCollection<DeliveryZone> _deliveryZones;
     private readonly IMongoCollection<TableReservation> _tableReservations;
-    private readonly IMongoCollection<CustomerWallet> _customerWallets;
-    private readonly IMongoCollection<WalletTransaction> _walletTransactions;
     private readonly IMongoCollection<WastageRecord> _wastageRecords;
     private readonly IMongoCollection<Attendance> _attendance;
     private readonly IMongoCollection<LeaveRequest> _leaveRequests;
@@ -209,8 +207,6 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _orderIssues = db.GetCollection<OrderIssue>("OrderIssues");
         _deliveryZones = db.GetCollection<DeliveryZone>("DeliveryZones");
         _tableReservations = db.GetCollection<TableReservation>("TableReservations");
-        _customerWallets = db.GetCollection<CustomerWallet>("CustomerWallets");
-        _walletTransactions = db.GetCollection<WalletTransaction>("WalletTransactions");
         _wastageRecords = db.GetCollection<WastageRecord>("WastageRecords");
         _attendance = db.GetCollection<Attendance>("Attendance");
         _leaveRequests = db.GetCollection<LeaveRequest>("LeaveRequests");
@@ -310,7 +306,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         {
             { "_id", "$MenuItemId" },
             { "FutureShopPrice", new BsonDocument("$first", "$FutureShopPrice") },
-            { "FutureOnlinePrice", new BsonDocument("$first", "$FutureOnlinePrice") }
+            { "FutureOnlinePrice", new BsonDocument("$first", "$FutureOnlinePrice") },
+            { "FutureWebPrice", new BsonDocument("$first", "$FutureWebPrice") }
         });
 
         var results = await _priceForecasts.Aggregate()
@@ -328,7 +325,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         var latestForecasts = results.ToDictionary(
             r => r["_id"].ToString()!,
-            r => new { FutureShopPrice = SafeDecimal(r, "FutureShopPrice"), FutureOnlinePrice = SafeDecimal(r, "FutureOnlinePrice") }
+            r => new
+            {
+                FutureShopPrice = SafeDecimal(r, "FutureShopPrice"),
+                FutureOnlinePrice = SafeDecimal(r, "FutureOnlinePrice"),
+                FutureWebPrice = SafeDecimal(r, "FutureWebPrice")
+            }
         );
 
         foreach (var item in menuItems)
@@ -340,6 +342,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     item.FutureShopPrice = forecast.FutureShopPrice;
                 if (forecast.FutureOnlinePrice.HasValue && forecast.FutureOnlinePrice.Value > 0)
                     item.FutureOnlinePrice = forecast.FutureOnlinePrice;
+                if (forecast.FutureWebPrice.HasValue && forecast.FutureWebPrice.Value > 0)
+                    item.FutureWebPrice = forecast.FutureWebPrice;
             }
         }
     }
@@ -437,6 +441,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             {
                 menuItem.FutureShopPrice = latestForecast.FutureShopPrice;
                 menuItem.FutureOnlinePrice = latestForecast.FutureOnlinePrice;
+                menuItem.FutureWebPrice = latestForecast.FutureWebPrice;
             }
 
             if (menuItem.WebPrice <= 0)
@@ -579,6 +584,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (!string.IsNullOrEmpty(item.ImageUrl))
             updates.Add(updateBuilder.Set(x => x.ImageUrl, item.ImageUrl));
 
+        if (!string.IsNullOrEmpty(item.ImageThumbnailUrl))
+            updates.Add(updateBuilder.Set(x => x.ImageThumbnailUrl, item.ImageThumbnailUrl));
+
         updates.Add(updateBuilder.Set(x => x.DietaryType, dietaryType));
         updates.Add(updateBuilder.Set(x => x.Quantity, item.Quantity));
         updates.Add(updateBuilder.Set(x => x.FutureShopPrice, item.FutureShopPrice));
@@ -603,6 +611,71 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var combinedUpdate = updateBuilder.Combine(updates);
         var result = await _menu.UpdateOneAsync(x => x.Id == id, combinedUpdate);
         return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> UpdateMenuItemImageUrlsAsync(string id, string imageUrl, string thumbnailUrl, string updatedBy)
+    {
+        var now = GetIstNow();
+
+        var update = Builders<CafeMenuItem>.Update
+            .Set(x => x.ImageUrl, imageUrl ?? string.Empty)
+            .Set(x => x.ImageThumbnailUrl, thumbnailUrl ?? string.Empty)
+            .Set(x => x.LastUpdated, now);
+
+        if (!string.IsNullOrWhiteSpace(updatedBy))
+        {
+            update = update.Set(x => x.LastUpdatedBy, updatedBy);
+        }
+
+        var result = await _menu.UpdateOneAsync(x => x.Id == id, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<int> SyncMenuItemImageUrlsAcrossOutletsAsync(string sourceMenuItemId, string updatedBy)
+    {
+        if (string.IsNullOrWhiteSpace(sourceMenuItemId))
+            return 0;
+
+        var source = await GetMenuItemAsync(sourceMenuItemId);
+        if (source == null || source.IsDeleted)
+            return 0;
+
+        var sourceName = (source.Name ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(sourceName))
+            return 0;
+
+        var activeOutlets = await GetAllOutletsAsync();
+        if (activeOutlets == null || activeOutlets.Count == 0)
+            return 0;
+
+        var updatedCount = 0;
+        foreach (var outlet in activeOutlets.Where(o => o.IsActive && !string.IsNullOrWhiteSpace(o.Id)))
+        {
+            if (outlet.Id == source.OutletId)
+                continue;
+
+            var target = await GetMenuItemsByNameAndOutletAsync(sourceName, outlet.Id!);
+            if (target == null || target.IsDeleted)
+                continue;
+
+            var changed = !string.Equals(target.ImageUrl ?? string.Empty, source.ImageUrl ?? string.Empty, StringComparison.Ordinal) ||
+                          !string.Equals(target.ImageThumbnailUrl ?? string.Empty, source.ImageThumbnailUrl ?? string.Empty, StringComparison.Ordinal);
+
+            if (!changed)
+                continue;
+
+            var updated = await UpdateMenuItemImageUrlsAsync(
+                target.Id,
+                source.ImageUrl ?? string.Empty,
+                source.ImageThumbnailUrl ?? string.Empty,
+                updatedBy
+            );
+
+            if (updated)
+                updatedCount++;
+        }
+
+        return updatedCount;
     }
 
     // Delete menu item (soft-delete with dependency check)
@@ -757,6 +830,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     .Set(x => x.LastUpdated, GetIstNow());
 
                 var forecast = recipe.PriceForecast;
+                if (forecast?.FutureShopPrice > 0)
+                    updateDef = updateDef.Set(x => x.FutureShopPrice, forecast.FutureShopPrice.Value);
+
+                if (forecast?.FutureOnlinePrice > 0)
+                    updateDef = updateDef.Set(x => x.FutureOnlinePrice, forecast.FutureOnlinePrice.Value);
+
+                if (forecast?.FutureWebPrice > 0)
+                    updateDef = updateDef.Set(x => x.FutureWebPrice, forecast.FutureWebPrice.Value);
+
                 if (forecast?.FutureShopPrice > 0)
                     updateDef = updateDef.Set(x => x.ShopSellingPrice, forecast.FutureShopPrice.Value);
                 else if (forecast?.ShopPrice > 0)
@@ -3492,38 +3574,6 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             _logger.LogWarning(ex, "LeaveRequests indexes warning");
         }
 
-        // ========== WalletTransactions Collection ==========
-        try
-        {
-            await _walletTransactions.Indexes.CreateOneAsync(new CreateIndexModel<WalletTransaction>(
-                Builders<WalletTransaction>.IndexKeys.Ascending(x => x.UserId).Descending(x => x.CreatedAt),
-                new CreateIndexOptions { Name = "userId_1_createdAt_-1", Background = true }
-            ));
-            indexCount++;
-
-            _logger.LogInformation("WalletTransactions indexes created");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "WalletTransactions indexes warning");
-        }
-
-        // ========== CustomerWallets Collection ==========
-        try
-        {
-            await _customerWallets.Indexes.CreateOneAsync(new CreateIndexModel<CustomerWallet>(
-                Builders<CustomerWallet>.IndexKeys.Ascending(x => x.UserId),
-                new CreateIndexOptions { Name = "userId_1", Unique = true, Background = true }
-            ));
-            indexCount++;
-
-            _logger.LogInformation("CustomerWallets indexes created");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "CustomerWallets indexes warning");
-        }
-
         // ========== CustomerReviews Collection ==========
         try
         {
@@ -5268,7 +5318,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     private static OnlineSale MapOrderToWebSale(Order order)
     {
-        var totalDiscount = (order.DiscountAmount) + (order.LoyaltyDiscountAmount) + (order.WalletAmountUsed);
+        var totalDiscount = (order.DiscountAmount) + (order.LoyaltyDiscountAmount);
         var packagingLikeCharges = (order.Tax) + (order.PlatformCharge) + (order.DeliveryFee);
 
         return new OnlineSale
@@ -5645,7 +5695,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     Review = string.IsNullOrWhiteSpace(review.Comment) ? null : review.Comment,
                     BillSubTotal = matchedOrder?.Subtotal ?? 0,
                     PackagingCharges = (matchedOrder?.Tax ?? 0) + (matchedOrder?.PlatformCharge ?? 0) + (matchedOrder?.DeliveryFee ?? 0),
-                    DiscountAmount = (matchedOrder?.DiscountAmount ?? 0) + (matchedOrder?.LoyaltyDiscountAmount ?? 0) + (matchedOrder?.WalletAmountUsed ?? 0),
+                    DiscountAmount = (matchedOrder?.DiscountAmount ?? 0) + (matchedOrder?.LoyaltyDiscountAmount ?? 0),
                     TotalCommissionable = matchedOrder?.Subtotal ?? 0,
                     Payout = matchedOrder?.Total ?? 0,
                     PlatformDeduction = 0,
@@ -6733,6 +6783,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                         Category = sourceMenuItem.Category,
                         CategoryId = sourceMenuItem.CategoryId,
                         SubCategoryId = sourceMenuItem.SubCategoryId,
+                        ImageUrl = sourceMenuItem.ImageUrl,
+                        ImageThumbnailUrl = sourceMenuItem.ImageThumbnailUrl,
                         MakingPrice = sourceMenuItem.MakingPrice,
                         OnlinePrice = sourceMenuItem.OnlinePrice,
                         DineInPrice = sourceMenuItem.DineInPrice,
@@ -6769,11 +6821,19 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                         menuItem.Category = sourceMenuItem.Category;
                         menuItem.CategoryId = sourceMenuItem.CategoryId;
                         menuItem.SubCategoryId = sourceMenuItem.SubCategoryId;
+                        menuItem.ImageUrl = sourceMenuItem.ImageUrl;
+                        menuItem.ImageThumbnailUrl = sourceMenuItem.ImageThumbnailUrl;
                         menuItem.Variants = sourceMenuItem.Variants;
                         menuItem.LastUpdatedBy = "System - Auto Copy";
                         menuItem.LastUpdated = GetIstNow();
                         
                         await UpdateMenuItemAsync(menuItem.Id, menuItem);
+                        await UpdateMenuItemImageUrlsAsync(
+                            menuItem.Id,
+                            sourceMenuItem.ImageUrl,
+                            sourceMenuItem.ImageThumbnailUrl,
+                            "System - Auto Copy"
+                        );
                         _logger.LogDebug("[Recipe Copy] Updated existing menu item in {outlet.OutletName}");
                     }
                 }

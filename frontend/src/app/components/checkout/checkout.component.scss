@@ -593,11 +593,6 @@ $danger: #ff5252;
   &:hover:not(.active) { border-color: #ccc; }
 }
 
-/* Wallet Section */
-.wallet-section { margin-bottom: 16px; padding: 14px; background: rgba($accent, .04); border-radius: 12px; }
-.wallet-toggle { margin-top: 8px; }
-.wallet-info { margin-top: 6px; font-size: .85rem; color: $accent; font-weight: 600; }
-
 /* Schedule Section */
 .schedule-section {
   margin-bottom: 24px;

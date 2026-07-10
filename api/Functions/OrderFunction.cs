@@ -25,7 +25,6 @@ public class OrderFunction
     private readonly IMenuRepository _menuRepo;
     private readonly IOfferRepository _offerRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
-    private readonly IWalletRepository _walletRepo;
     private readonly IUserRepository _userRepo;
     private readonly IOperationsRepository _operationsRepo;
     private readonly MongoService _mongo;  // retained for OutletHelper compatibility and static helpers
@@ -40,7 +39,6 @@ public class OrderFunction
         IMenuRepository menuRepo,
         IOfferRepository offerRepo,
         ILoyaltyRepository loyaltyRepo,
-        IWalletRepository walletRepo,
         IUserRepository userRepo,
         IOperationsRepository operationsRepo,
         MongoService mongo,
@@ -54,7 +52,6 @@ public class OrderFunction
         _menuRepo = menuRepo;
         _offerRepo = offerRepo;
         _loyaltyRepo = loyaltyRepo;
-        _walletRepo = walletRepo;
         _userRepo = userRepo;
         _operationsRepo = operationsRepo;
         _mongo = mongo;
@@ -83,11 +80,7 @@ public class OrderFunction
     public async Task<HttpResponseData> CreateOrder(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders")] HttpRequestData req)
     {
-        string? requestUserId = null;
-        string? plannedOrderId = null;
-        bool walletDebited = false;
         bool orderPersisted = false;
-        decimal walletDebitedAmount = 0;
 
         try
         {
@@ -112,7 +105,6 @@ public class OrderFunction
 
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var username = principal.FindFirst(ClaimTypes.Name)?.Value;
-            requestUserId = userId;
 
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(username))
             {
@@ -349,73 +341,9 @@ public class OrderFunction
 
             var deliveryFee = orderType == "delivery" ? Math.Max(0, orderRequest.DeliveryFee) : 0;
             var payableBeforeWallet = Math.Max(0, subtotal + tax + platformCharge + deliveryFee - discountAmount - loyaltyDiscountAmount);
+            var total = payableBeforeWallet;
 
-            var requestedWalletAmount = Math.Max(0, orderRequest.WalletAmountUsed);
-            decimal walletAmountUsed = 0;
-            if (requestedWalletAmount > 0)
-            {
-                var wallet = await _walletRepo.GetOrCreateWalletAsync(userId);
-                if (wallet.Balance <= 0)
-                {
-                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = "Insufficient wallet balance" });
-                    return badRequest;
-                }
-
-                walletAmountUsed = Math.Min(requestedWalletAmount, Math.Min(wallet.Balance, payableBeforeWallet));
-                walletAmountUsed = Math.Round(walletAmountUsed, 2);
-
-                // Enforce strict server-side wallet reconciliation so clients cannot over/under-report.
-                // Client should resync checkout totals when this mismatch response is returned.
-                if (walletAmountUsed != requestedWalletAmount)
-                {
-                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new
-                    {
-                        error = "Wallet amount is out of sync. Please review checkout totals and try again.",
-                        walletValidation = new
-                        {
-                            requestedWalletAmount,
-                            allowedWalletAmount = walletAmountUsed,
-                            walletBalance = wallet.Balance,
-                            payableBeforeWallet
-                        }
-                    });
-                    return badRequest;
-                }
-
-                if (walletAmountUsed <= 0)
-                {
-                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = "Wallet amount cannot be applied to this order" });
-                    return badRequest;
-                }
-            }
-
-            var total = Math.Max(0, payableBeforeWallet - walletAmountUsed);
-
-            plannedOrderId = ObjectId.GenerateNewId().ToString();
-
-            if (walletAmountUsed > 0)
-            {
-                var walletTxn = await _walletRepo.DebitWalletAsync(
-                    userId,
-                    walletAmountUsed,
-                    $"Used for order {plannedOrderId}",
-                    "order",
-                    plannedOrderId
-                );
-
-                if (walletTxn == null)
-                {
-                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = "Insufficient wallet balance" });
-                    return badRequest;
-                }
-
-                walletDebited = true;
-                walletDebitedAmount = walletAmountUsed;
-            }
+            var plannedOrderId = ObjectId.GenerateNewId().ToString();
 
             // Get user email
             var user = await _userRepo.GetUserByIdAsync(userId);
@@ -501,7 +429,7 @@ public class OrderFunction
                 OrderType = orderType,
                 Channel = channel,
                 TableNumber = orderType == "dine-in" ? orderRequest.TableNumber?.Trim() : null,
-                WalletAmountUsed = walletAmountUsed,
+                WalletAmountUsed = 0,
                 ScheduledFor = scheduledFor,
                 IsScheduled = isScheduled,
                 CreatedAt = MongoService.GetIstNow(),
@@ -553,24 +481,6 @@ public class OrderFunction
         }
         catch (Exception ex)
         {
-            if (walletDebited && !orderPersisted && !string.IsNullOrWhiteSpace(requestUserId) && walletDebitedAmount > 0)
-            {
-                try
-                {
-                    await _walletRepo.CreditWalletAsync(
-                        requestUserId,
-                        walletDebitedAmount,
-                        $"Rollback for failed order {plannedOrderId}",
-                        "order-wallet-rollback",
-                        plannedOrderId
-                    );
-                }
-                catch (Exception rollbackEx)
-                {
-                    _log.LogError(rollbackEx, "Wallet rollback failed for user {UserId} on order {OrderId}", requestUserId, plannedOrderId);
-                }
-            }
-
             _log.LogError(ex, "Error creating order");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred while creating the order" });
@@ -1674,7 +1584,6 @@ public class OrderFunction
             Channel = string.IsNullOrWhiteSpace(order.Channel) ? "web" : order.Channel,
             ScheduledFor = order.ScheduledFor,
             IsScheduled = order.IsScheduled,
-            WalletAmountUsed = order.WalletAmountUsed,
             DeliveryPartnerId = order.DeliveryPartnerId,
             DeliveryPartnerName = order.DeliveryPartnerName,
             TableNumber = order.TableNumber,

@@ -55,7 +55,6 @@ export interface Order {
   orderType?: string;
   channel?: 'web' | 'shop' | 'partner';
   deliveryFee?: number;
-  walletAmountUsed?: number;
   deliveryPartnerId?: string;
   deliveryPartnerName?: string;
   tableNumber?: string;
@@ -88,7 +87,6 @@ export interface CreateOrderRequest {
   channel?: 'web' | 'shop' | 'partner';
   scheduledFor?: string;
   deliveryFee?: number;
-  walletAmountUsed?: number;
   tableNumber?: string;
   outletId?: string;
 }

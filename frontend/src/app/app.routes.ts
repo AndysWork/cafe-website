@@ -22,7 +22,6 @@ export const routes: Routes = [
   { path: 'reviews', loadComponent: () => import('./components/customer-reviews/customer-reviews.component').then(m => m.CustomerReviewsComponent) },
   { path: 'offers', loadComponent: () => import('./components/offers/offers.component').then(m => m.OffersComponent) },
   { path: 'loyalty', loadComponent: () => import('./components/loyalty/loyalty.component').then(m => m.LoyaltyComponent), canActivate: [authGuard] },
-  { path: 'wallet', loadComponent: () => import('./components/wallet/wallet.component').then(m => m.WalletComponent), canActivate: [authGuard] },
   { path: 'reservations', loadComponent: () => import('./components/table-reservation/table-reservation.component').then(m => m.TableReservationComponent) },
   { path: 'subscriptions', loadComponent: () => import('./components/subscription-plans/subscription-plans.component').then(m => m.SubscriptionPlansComponent) },
   { path: 'partner/delivery', loadComponent: () => import('./components/partner-delivery-dashboard/partner-delivery-dashboard.component').then(m => m.PartnerDeliveryDashboardComponent), canActivate: [authGuard] },

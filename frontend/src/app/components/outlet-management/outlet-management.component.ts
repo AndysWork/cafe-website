@@ -20,6 +20,7 @@ export class OutletManagementComponent implements OnInit {
   isLoading = false;
   errorMessage = '';
   successMessage = '';
+  togglingOnlineOrdersOutletId: string | null = null;
 
   // Modal state
   showModal = false;
@@ -172,6 +173,36 @@ export class OutletManagementComponent implements OnInit {
     });
   }
 
+  isOnlineOrderingEnabled(outlet: Outlet): boolean {
+    return outlet.settings?.acceptsOnlineOrders !== false;
+  }
+
+  toggleOnlineOrdering(outlet: Outlet): void {
+    const outletId = outlet._id || outlet.id;
+    if (!outletId) return;
+
+    const nextValue = !this.isOnlineOrderingEnabled(outlet);
+    const updatedSettings = {
+      ...outlet.settings,
+      acceptsOnlineOrders: nextValue
+    };
+
+    this.togglingOnlineOrdersOutletId = outletId;
+    this.outletService.updateOutlet(outletId, { settings: updatedSettings }).subscribe({
+      next: () => {
+        outlet.settings = updatedSettings;
+        this.successMessage = `Online ordering ${nextValue ? 'enabled' : 'disabled'} for ${outlet.outletName}`;
+        this.togglingOnlineOrdersOutletId = null;
+        setTimeout(() => this.successMessage = '', 3000);
+      },
+      error: (error) => {
+        this.errorMessage = error.error?.error || 'Failed to update online ordering status';
+        this.togglingOnlineOrdersOutletId = null;
+        setTimeout(() => this.errorMessage = '', 3000);
+      }
+    });
+  }
+
   deleteOutlet(outlet: Outlet): void {
     const outletId = outlet._id || outlet.id;
     if (!outletId) return;
@@ -197,5 +228,5 @@ export class OutletManagementComponent implements OnInit {
     // Navigate to outlet details page or show in modal
   }
 
-  trackById(index: number, item: any): string { return item._id; }
+  trackById(index: number, item: any): string { return item._id || item.id; }
 }

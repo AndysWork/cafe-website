@@ -217,9 +217,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit() {
     this.startTestimonialRotation();
-    // Load categories first, which will trigger menu items
-    this.loadCategories();
-    // Load outlets for display (public endpoint, no auth needed)
+    // Load outlets first so menu/category requests are scoped to one outlet.
     this.loadOutlets();
     // Load real stats from public API
     this.loadPublicStats();
@@ -550,11 +548,31 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.outletService.getPublicOutlets().subscribe({
       next: (data) => {
         this.outlets = data || [];
+        this.ensureCustomerOutletSelected(this.outlets);
+        this.loadCategories();
       },
       error: (error) => {
         console.error('Error loading outlets:', error);
+        // Fall back to existing behavior if outlet list is unavailable.
+        this.loadCategories();
       }
     });
+  }
+
+  private ensureCustomerOutletSelected(outlets: Outlet[]): void {
+    if (!outlets || outlets.length === 0) {
+      return;
+    }
+
+    const selectedOutletId = this.outletService.getSelectedOutletId();
+    if (selectedOutletId && outlets.some(outlet => this.normalizeId(outlet._id ?? outlet.id) === selectedOutletId)) {
+      return;
+    }
+
+    const preferredOutlet = outlets.find(outlet => outlet.isActive) || outlets[0];
+    if (preferredOutlet) {
+      this.outletService.selectOutlet(preferredOutlet);
+    }
   }
 
   loadCategories() {

@@ -99,12 +99,22 @@ public class ImageUploadFunction
             // Update menu item with new image URL
             menuItem.ImageUrl = imageUrl;
             menuItem.ImageThumbnailUrl = thumbnailUrl;
-            await _mongo.UpdateMenuItemAsync(menuItemId, menuItem);
+            await _mongo.UpdateMenuItemImageUrlsAsync(
+                menuItemId,
+                imageUrl,
+                thumbnailUrl,
+                "System - Image Upload"
+            );
 
-            _log.LogInformation("Menu item {MenuItemId} image updated: {ImageUrl}", menuItemId, imageUrl);
+            var syncedOutlets = await _mongo.SyncMenuItemImageUrlsAcrossOutletsAsync(
+                menuItemId,
+                "System - Image Upload Sync"
+            );
+
+            _log.LogInformation("Menu item {MenuItemId} image updated: {ImageUrl}. Synced to {SyncedOutlets} other outlets.", menuItemId, imageUrl, syncedOutlets);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { imageUrl, thumbnailUrl, message = "Image uploaded successfully" });
+            await response.WriteAsJsonAsync(new { imageUrl, thumbnailUrl, syncedOutlets, message = "Image uploaded successfully" });
             return response;
         }
         catch (ArgumentException)
@@ -172,7 +182,12 @@ public class ImageUploadFunction
                 await _blobService.DeleteMenuImageAsync(menuItem.ImageUrl);
                 menuItem.ImageUrl = string.Empty;
                 menuItem.ImageThumbnailUrl = string.Empty;
-                await _mongo.UpdateMenuItemAsync(menuItemId, menuItem);
+                await _mongo.UpdateMenuItemImageUrlsAsync(
+                    menuItemId,
+                    string.Empty,
+                    string.Empty,
+                    "System - Image Delete"
+                );
             }
 
             var response = req.CreateResponse(HttpStatusCode.OK);

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap, catchError, of, shareReplay } from 'rxjs';
+import { Observable, tap, catchError, of, shareReplay, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Outlet } from '../models/outlet.model';
 import { OutletStore } from '../store/outlet.store';
@@ -9,6 +9,50 @@ import { OutletStore } from '../store/outlet.store';
   providedIn: 'root'
 })
 export class OutletService {
+    private normalizeOutlet(raw: any): Outlet {
+      const settings = raw?.settings ?? raw?.Settings ?? {};
+
+      return {
+        _id: raw?._id,
+        id: raw?.id ?? raw?.Id ?? raw?._id ?? '',
+        outletCode: raw?.outletCode ?? raw?.OutletCode ?? '',
+        outletName: raw?.outletName ?? raw?.OutletName ?? '',
+        address: raw?.address ?? raw?.Address ?? '',
+        city: raw?.city ?? raw?.City ?? '',
+        state: raw?.state ?? raw?.State ?? '',
+        phoneNumber: raw?.phoneNumber ?? raw?.PhoneNumber,
+        email: raw?.email ?? raw?.Email,
+        managerName: raw?.managerName ?? raw?.ManagerName,
+        isActive: raw?.isActive ?? raw?.IsActive ?? true,
+        settings: {
+          openingTime: settings?.openingTime ?? settings?.OpeningTime ?? '',
+          closingTime: settings?.closingTime ?? settings?.ClosingTime ?? '',
+          acceptsOnlineOrders: settings?.acceptsOnlineOrders ?? settings?.AcceptsOnlineOrders ?? false,
+          acceptsDineIn: settings?.acceptsDineIn ?? settings?.AcceptsDineIn ?? false,
+          acceptsTakeaway: settings?.acceptsTakeaway ?? settings?.AcceptsTakeaway ?? false,
+          taxPercentage: settings?.taxPercentage ?? settings?.TaxPercentage ?? 0,
+          deliveryRadius: settings?.deliveryRadius ?? settings?.DeliveryRadius,
+          minimumOrderAmount: settings?.minimumOrderAmount ?? settings?.MinimumOrderAmount
+        },
+        createdBy: raw?.createdBy ?? raw?.CreatedBy,
+        createdDate: raw?.createdDate ?? raw?.CreatedDate,
+        lastUpdatedBy: raw?.lastUpdatedBy ?? raw?.LastUpdatedBy,
+        lastUpdated: raw?.lastUpdated ?? raw?.LastUpdated
+      };
+    }
+
+    private normalizeOutletsResponse(response: any): Outlet[] {
+      if (Array.isArray(response)) {
+        return response.map(outlet => this.normalizeOutlet(outlet));
+      }
+
+      if (Array.isArray(response?.data)) {
+        return response.data.map((outlet: any) => this.normalizeOutlet(outlet));
+      }
+
+      return [];
+    }
+
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
   private outletStore = inject(OutletStore);
@@ -21,7 +65,8 @@ export class OutletService {
    * Get all outlets (admin only)
    */
   getAllOutlets(): Observable<Outlet[]> {
-    return this.http.get<Outlet[]>(`${this.apiUrl}/outlets`).pipe(
+    return this.http.get<any>(`${this.apiUrl}/outlets`).pipe(
+      map(response => this.normalizeOutletsResponse(response)),
       tap(outlets => {
         this.outletStore.setAvailableOutlets(outlets);
       }),
@@ -37,7 +82,8 @@ export class OutletService {
    * Get active outlets
    */
   getActiveOutlets(): Observable<Outlet[]> {
-    return this.http.get<Outlet[]>(`${this.apiUrl}/outlets/active`).pipe(
+    return this.http.get<any>(`${this.apiUrl}/outlets/active`).pipe(
+      map(response => this.normalizeOutletsResponse(response)),
       tap(outlets => {
         this.outletStore.autoSelectIfEmpty(outlets);
       }),
@@ -53,7 +99,8 @@ export class OutletService {
    * Get public outlet info for landing page (no auth required)
    */
   getPublicOutlets(): Observable<Outlet[]> {
-    return this.http.get<Outlet[]>(`${this.apiUrl}/public/outlets`).pipe(
+    return this.http.get<any>(`${this.apiUrl}/public/outlets`).pipe(
+      map(response => this.normalizeOutletsResponse(response)),
       catchError(error => {
         console.error('Error fetching public outlets:', error);
         return of([]);

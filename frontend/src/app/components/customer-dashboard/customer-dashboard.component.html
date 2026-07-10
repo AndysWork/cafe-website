@@ -38,12 +38,6 @@
     </article>
 
     <article class="card metric">
-      <h3>Wallet Balance</h3>
-      <p class="value">₹{{ wallet?.balance || 0 | number:'1.0-0' }}</p>
-      <small>Ready for checkout</small>
-    </article>
-
-    <article class="card metric">
       <h3>Completed</h3>
       <p class="value">{{ deliveredOrders }}</p>
       <small>Cancelled: {{ cancelledOrders }}</small>
@@ -106,7 +100,6 @@
       <a routerLink="/menu" class="action">🍽️ Order Food</a>
       <a routerLink="/cart" class="action">🛒 Open Cart</a>
       <a routerLink="/loyalty" class="action">⭐ Rewards</a>
-      <a routerLink="/wallet" class="action">💰 Wallet</a>
       <a routerLink="/profile" class="action">👤 Profile</a>
       <a routerLink="/offers" class="action">🏷️ Offers</a>
     </div>

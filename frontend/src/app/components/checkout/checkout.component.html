@@ -289,20 +289,6 @@
           </div>
         </div>
 
-        <!-- Wallet Section -->
-        <div *ngIf="walletData?.balance && walletData!.balance > 0" class="wallet-section">
-          <label class="section-label">💰 Wallet Balance: ₹{{ walletData!.balance | number:'1.0-0' }}</label>
-          <div class="wallet-toggle">
-            <label class="checkbox-label">
-              <input type="checkbox" [(ngModel)]="useWallet" name="useWallet" (change)="toggleWallet()" />
-              <span>Use wallet balance</span>
-            </label>
-            <div *ngIf="useWallet" class="wallet-info">
-              Using ₹{{ walletAmountToUse | number:'1.0-0' }} from wallet
-            </div>
-          </div>
-        </div>
-
         <!-- Schedule Order -->
         <div class="schedule-section">
           <label class="section-label">⏰ Schedule Order</label>
@@ -342,7 +328,7 @@
                 <span class="option-icon">🔒</span>
                 <div>
                   <strong>Pay Online</strong>
-                  <p>{{ isRazorpayEnabled ? 'UPI, Cards, Net Banking, Wallets' : 'Currently disabled' }}</p>
+                  <p>{{ isRazorpayEnabled ? 'UPI, Cards, Net Banking' : 'Currently disabled' }}</p>
                 </div>
               </div>
               <span class="recommended-badge" *ngIf="isRazorpayEnabled && paymentMethod === 'razorpay'">✓</span>
@@ -486,10 +472,6 @@
         <div *ngIf="calculatingFee" class="t-row">
           <span>🚚 Delivery Fee</span>
           <span>Calculating...</span>
-        </div>
-        <div *ngIf="walletDiscount > 0" class="t-row t-discount">
-          <span>💰 Wallet</span>
-          <span>−₹{{ walletDiscount | number:'1.0-0' }}</span>
         </div>
         <div class="t-divider"></div>
         <div class="t-row t-final">

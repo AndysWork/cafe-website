@@ -4,7 +4,6 @@ import { RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { Order, OrderService } from '../../services/order.service';
 import { LoyaltyAccount, LoyaltyService } from '../../services/loyalty.service';
-import { WalletResponse, WalletService } from '../../services/wallet.service';
 import { formatIstDateTime } from '../../utils/date-utils';
 
 @Component({
@@ -24,15 +23,13 @@ export class CustomerDashboardComponent implements OnInit, OnDestroy {
   recentOrders: Order[] = [];
 
   loyaltyAccount: LoyaltyAccount | null = null;
-  wallet: WalletResponse | null = null;
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private subscriptions: Subscription[] = [];
 
   constructor(
     private readonly orderService: OrderService,
-    private readonly loyaltyService: LoyaltyService,
-    private readonly walletService: WalletService
+    private readonly loyaltyService: LoyaltyService
   ) {}
 
   ngOnInit(): void {
@@ -131,16 +128,7 @@ export class CustomerDashboardComponent implements OnInit, OnDestroy {
       }
     });
 
-    const walletSub = this.walletService.getMyWallet().subscribe({
-      next: data => {
-        this.wallet = data;
-      },
-      error: () => {
-        this.wallet = null;
-      }
-    });
-
-    this.subscriptions.push(loyaltySub, walletSub);
+    this.subscriptions.push(loyaltySub);
   }
 
   private refreshOrdersOnly(onComplete?: () => void): void {

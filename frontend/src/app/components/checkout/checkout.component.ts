@@ -9,7 +9,6 @@ import { AddressService, DeliveryAddress, AddAddressRequest, UpdateAddressReques
 import { AuthService } from '../../services/auth.service';
 import { OffersService, OfferValidationResponse } from '../../services/offers.service';
 import { LoyaltyService, LoyaltyAccount } from '../../services/loyalty.service';
-import { WalletService, WalletResponse } from '../../services/wallet.service';
 import { DeliveryZoneService } from '../../services/delivery-zone.service';
 import { OutletService } from '../../services/outlet.service';
 import { Outlet } from '../../models/outlet.model';
@@ -54,8 +53,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   upiTransactionRef = '';
   private upiId = '';
   private upiPayeeName = 'Cafe';
-
-  private static readonly walletMismatchMessage = 'Wallet amount is out of sync. Please review checkout totals and try again.';
 
   // Saved addresses
   savedAddresses: DeliveryAddress[] = [];
@@ -120,11 +117,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     timestamp: string;
   } | null = null;
 
-  // Wallet
-  walletData: WalletResponse | null = null;
-  useWallet = false;
-  walletAmountToUse = 0;
-
   // Computed totals
   get taxAmount(): number {
     return 0;
@@ -152,13 +144,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   get grandTotal(): number {
-    const raw = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount + this.deliveryFee - this.couponDiscount - this.loyaltyDiscount - this.walletDiscount;
+    const raw = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount + this.deliveryFee - this.couponDiscount - this.loyaltyDiscount;
     return Math.round(Math.max(0, raw) * 100) / 100;
-  }
-
-  get walletDiscount(): number {
-    if (!this.useWallet || !this.walletData) return 0;
-    return this.walletAmountToUse;
   }
 
   constructor(
@@ -169,7 +156,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private offersService: OffersService,
     private loyaltyService: LoyaltyService,
-    private walletService: WalletService,
     private deliveryZoneService: DeliveryZoneService,
     private outletService: OutletService,
     private uiStore: UIStore,
@@ -232,17 +218,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         }
       });
 
-      // Load wallet
-      this.walletService.getMyWallet().subscribe({
-        next: (data) => {
-          this.walletData = data;
-          this.recomputeCheckoutAdjustments();
-        },
-        error: () => {
-          this.walletData = null;
-          this.uiStore.notify('Wallet balance is unavailable right now.');
-        }
-      });
     }
   }
 
@@ -656,7 +631,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       channel: 'web',
       scheduledFor: this.getScheduledDateTime(),
       deliveryFee: this.orderType === 'delivery' ? this.deliveryFee : undefined,
-      walletAmountUsed: this.useWallet ? this.walletAmountToUse : undefined,
       upiReference: this.paymentMethod === 'upi-qr' && this.upiTransactionRef.trim()
         ? this.upiTransactionRef.trim()
         : undefined,
@@ -689,41 +663,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error placing order:', error);
-        const walletValidation = this.extractWalletValidation(error);
-        if (walletValidation) {
-          this.useWallet = walletValidation.allowedWalletAmount > 0;
-          this.walletAmountToUse = walletValidation.allowedWalletAmount;
-          this.errorMessage = `${CheckoutComponent.walletMismatchMessage} Allowed wallet usage: Rs. ${walletValidation.allowedWalletAmount.toFixed(2)} (requested Rs. ${walletValidation.requestedWalletAmount.toFixed(2)}). Totals have been refreshed.`;
-          this.refreshWalletAndCheckoutTotals();
-          this.isSubmitting = false;
-          return;
-        }
-
         this.errorMessage = this.extractServerErrorMessage(error) || 'Failed to place order. Please try again.';
         this.isSubmitting = false;
-      }
-    });
-  }
-
-  private refreshWalletAndCheckoutTotals(): void {
-    if (!this.authService.isLoggedIn()) {
-      this.recomputeCheckoutAdjustments();
-      this.saveCheckoutDraft();
-      return;
-    }
-
-    this.walletService.getMyWallet().subscribe({
-      next: (data) => {
-        this.walletData = data;
-        this.recomputeCheckoutAdjustments();
-        this.saveCheckoutDraft();
-
-        if (this.paymentMethod === 'upi-qr') {
-          this.refreshUpiQrCode();
-        }
-      },
-      error: () => {
-        this.saveCheckoutDraft();
       }
     });
   }
@@ -734,22 +675,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       || error?.message
       || error?.originalError?.message
       || '';
-  }
-
-  private extractWalletValidation(error: any): { requestedWalletAmount: number; allowedWalletAmount: number } | null {
-    const payload = error?.error?.walletValidation || error?.originalError?.error?.walletValidation;
-    if (!payload) return null;
-
-    const requested = Number(payload.requestedWalletAmount);
-    const allowed = Number(payload.allowedWalletAmount);
-    if (!Number.isFinite(requested) || !Number.isFinite(allowed)) {
-      return null;
-    }
-
-    return {
-      requestedWalletAmount: Math.max(0, Math.round(requested * 100) / 100),
-      allowedWalletAmount: Math.max(0, Math.round(allowed * 100) / 100)
-    };
   }
 
   // Order type change
@@ -826,15 +751,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     });
   }
 
-  toggleWallet() {
-    this.recomputeCheckoutAdjustments();
-    this.saveCheckoutDraft();
-
-    if (this.paymentMethod === 'upi-qr') {
-      this.refreshUpiQrCode();
-    }
-  }
-
   onPaymentMethodChange(method: 'cod' | 'razorpay' | 'upi-qr') {
     if (method === 'razorpay' && !this.isRazorpayEnabled) {
       this.paymentMethod = 'cod';
@@ -891,12 +807,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.maxLoyaltyDiscount = 0;
     }
 
-    if (this.useWallet && this.walletData) {
-      const totalBeforeWallet = this.cart.subtotal + this.cart.packagingCharges + this.taxAmount + this.platformChargeAmount + this.deliveryFee - this.couponDiscount - this.loyaltyDiscount;
-      this.walletAmountToUse = Math.min(this.walletData.balance, Math.max(0, Math.round(totalBeforeWallet * 100) / 100));
-    } else {
-      this.walletAmountToUse = 0;
-    }
   }
 
   private buildCouponValidationKey(): string {
@@ -1039,8 +949,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       couponDiscount: this.couponDiscount,
       couponValid: this.couponValid,
       useLoyaltyPoints: this.useLoyaltyPoints,
-      useWallet: this.useWallet,
-      walletAmountToUse: this.walletAmountToUse,
       paymentMethod: this.paymentMethod,
       cartItemCount: this.cart.itemCount,
       timestamp: new Date().toISOString(),
@@ -1072,8 +980,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.couponDiscount = Number(draft.couponDiscount || 0);
       this.couponValid = !!draft.couponValid;
       this.useLoyaltyPoints = !!draft.useLoyaltyPoints;
-      this.useWallet = !!draft.useWallet;
-      this.walletAmountToUse = Number(draft.walletAmountToUse || 0);
       this.paymentMethod = draft.paymentMethod || 'cod';
       this.ensureSupportedPaymentMethod();
     } catch {

@@ -8,6 +8,8 @@ import { FavoriteService } from '../../services/favorite.service';
 import { AuthService } from '../../services/auth.service';
 import { CustomerReviewService } from '../../services/customer-review.service';
 import { LoyaltyService } from '../../services/loyalty.service';
+import { OutletService } from '../../services/outlet.service';
+import { Outlet } from '../../models/outlet.model';
 import { UIStore } from '../../store/ui.store';
 import { Router } from '@angular/router';
 import { decodeHtmlEntities, resolveWebSalePrice } from '../../utils/text-utils';
@@ -21,6 +23,8 @@ import { decodeHtmlEntities, resolveWebSalePrice } from '../../utils/text-utils'
 })
 export class MenuComponent implements OnInit, OnDestroy {
   private readonly checkoutDraftStorageKey = 'checkout_draft';
+  private readonly orderStartHour = 9;
+  private readonly orderCutoffHour = 22;
 
   categories: MenuCategory[] = [];
   menuItems: MenuItem[] = [];
@@ -32,6 +36,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   sortBy: string = 'default';
   dietaryFilter: 'all' | 'veg' | 'non-veg' | 'egg' = 'all';
   cart: Cart = { items: [], subtotal: 0, packagingCharges: 0, total: 0, itemCount: 0 };
+  outlets: Outlet[] = [];
+  selectedOutletId: string = '';
 
   // Track which items just got added (for animation)
   recentlyAdded: Set<string> = new Set();
@@ -63,11 +69,14 @@ export class MenuComponent implements OnInit, OnDestroy {
   private menuRefreshSubscription?: Subscription;
   private cartSubscription?: Subscription;
   private searchDebounceTimer?: ReturnType<typeof setTimeout>;
+  private orderingStatusTimer?: ReturnType<typeof setInterval>;
+  private currentTime = new Date();
 
   constructor(
     private menuService: MenuService,
     private cartService: CartService,
     private favoriteService: FavoriteService,
+    private outletService: OutletService,
     private authService: AuthService,
     private reviewService: CustomerReviewService,
     private loyaltyService: LoyaltyService,
@@ -76,7 +85,12 @@ export class MenuComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    this.loadMenu();
+    this.currentTime = new Date();
+    this.orderingStatusTimer = setInterval(() => {
+      this.currentTime = new Date();
+    }, 60000);
+
+    this.initializeOutletAndMenu();
     this.loadFavorites();
     this.loadSocialProof();
     this.loadCheckoutDraft();
@@ -91,6 +105,45 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.loadMenu();
       }
     });
+  }
+
+  initializeOutletAndMenu(): void {
+    this.outletService.getPublicOutlets().subscribe({
+      next: (outlets) => {
+        this.outlets = (outlets || []).filter(o => o.isActive);
+
+        const selected = this.outletService.getSelectedOutlet();
+        if (selected) {
+          this.selectedOutletId = this.getOutletKey(selected);
+        } else if (this.outlets.length > 0) {
+          const firstOutlet = this.outlets[0];
+          this.selectedOutletId = this.getOutletKey(firstOutlet);
+          this.outletService.selectOutlet(firstOutlet);
+        }
+
+        this.loadMenu();
+      },
+      error: () => {
+        this.loadMenu();
+      }
+    });
+  }
+
+  onOutletChange(): void {
+    const selected = this.outlets.find(o => this.getOutletKey(o) === this.selectedOutletId);
+    if (selected) {
+      this.outletService.selectOutlet(selected);
+    } else {
+      this.outletService.clearSelectedOutlet();
+    }
+
+    this.selectedCategoryId = null;
+    this.searchQuery = '';
+    this.loadMenu();
+  }
+
+  getOutletKey(outlet: Outlet): string {
+    return outlet.id || outlet._id || '';
   }
 
   get checkoutDraftAgeMinutes(): number {
@@ -114,9 +167,69 @@ export class MenuComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.menuRefreshSubscription?.unsubscribe();
     this.cartSubscription?.unsubscribe();
+    if (this.orderingStatusTimer) {
+      clearInterval(this.orderingStatusTimer);
+    }
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }
+  }
+
+  get isOrderingOpen(): boolean {
+    return this.isWithinOrderingWindow && this.isOnlineOrderingEnabledForSelection;
+  }
+
+  get orderingClosedMessage(): string {
+    if (!this.isWithinOrderingWindow) {
+      return 'Add to cart is available daily from 9:00 AM to 10:00 PM.';
+    }
+
+    return 'Online ordering is temporarily turned off by the outlet admin.';
+  }
+
+  get isWithinOrderingWindow(): boolean {
+    const hour = this.currentTime.getHours();
+    return hour >= this.orderStartHour && hour < this.orderCutoffHour;
+  }
+
+  get isOnlineOrderingEnabledForSelection(): boolean {
+    if (this.selectedOutletId) {
+      const selectedOutlet = this.outlets.find(o => this.getOutletKey(o) === this.selectedOutletId);
+      return selectedOutlet?.settings?.acceptsOnlineOrders !== false;
+    }
+
+    if (this.outlets.length === 0) {
+      return true;
+    }
+
+    return this.outlets.some(o => o.settings?.acceptsOnlineOrders !== false);
+  }
+
+  canOrderItem(item: MenuItem): boolean {
+    if (!this.isWithinOrderingWindow) {
+      return false;
+    }
+
+    if (!item.outletId) {
+      return this.isOnlineOrderingEnabledForSelection;
+    }
+
+    const itemOutlet = this.outlets.find(o => this.getOutletKey(o) === item.outletId);
+    return itemOutlet?.settings?.acceptsOnlineOrders !== false;
+  }
+
+  private canAddToCart(item?: MenuItem): boolean {
+    if (!this.isWithinOrderingWindow) {
+      this.uiStore.warning('Shop is closed for online ordering. Ordering is available from 9:00 AM to 10:00 PM.');
+      return false;
+    }
+
+    if (item ? this.canOrderItem(item) : this.isOnlineOrderingEnabledForSelection) {
+      return true;
+    }
+
+    this.uiStore.warning('Online ordering is currently turned off by the outlet admin.');
+    return false;
   }
 
   loadMenu() {
@@ -142,6 +255,10 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   applyFilters() {
     let items = this.menuItems.filter(item => item.isAddOnOnly !== true);
+
+    if (this.selectedOutletId) {
+      items = items.filter(item => !item.outletId || item.outletId === this.selectedOutletId);
+    }
 
     if (this.selectedCategoryId) {
       items = items.filter(item => item.categoryId === this.selectedCategoryId);
@@ -217,6 +334,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   addToCart(item: MenuItem) {
+    if (!this.canAddToCart(item)) return;
+
     if (this.hasCustomizations(item)) {
       this.openCustomization(item);
       return;
@@ -257,6 +376,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   increaseQuantity(item: MenuItem) {
+    if (!this.canAddToCart(item)) return;
+
     const lineId = this.getPrimaryCartLineId(item.id);
     if (!lineId) return;
 
@@ -310,6 +431,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   openCustomization(item: MenuItem) {
+    if (!this.canAddToCart(item)) return;
+
     this.customizationItem = item;
     this.customizationQuantity = 1;
     this.selectedAddOnNames = new Set();
@@ -382,6 +505,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   confirmCustomization() {
+    if (!this.canAddToCart(this.customizationItem ?? undefined)) return;
     if (!this.customizationItem) return;
 
     const item = this.customizationItem;
