@@ -57,6 +57,12 @@ export interface Order {
   deliveryFee?: number;
   deliveryPartnerId?: string;
   deliveryPartnerName?: string;
+  deliveryRouteUrl?: string;
+  deliveryRouteShortCode?: string;
+  deliveryRouteShortUrl?: string;
+  deliveryDistanceKm?: number;
+  deliveryEtaMinutes?: number;
+  deliveryRouteUpdatedAt?: string;
   tableNumber?: string;
   loyaltyPointsAwarded?: boolean;
   loyaltyPointsAwardedValue?: number;
@@ -104,6 +110,17 @@ export interface OutletSuggestion {
   estimatedDeliveryFee: number;
   score: number;
   reasons: string[];
+}
+
+export interface DeliveryRouteQuote {
+  mapUrl: string;
+  shortCode?: string;
+  shortUrl?: string;
+  originAddress: string;
+  destinationAddress: string;
+  distanceKm?: number;
+  etaMinutes?: number;
+  provider: string;
 }
 
 export interface UpdateOrderStatusRequest {
@@ -370,6 +387,20 @@ export class OrderService {
 
     return this.http.get<OutletSuggestion[]>(`${this.apiUrl}/order-outlet-suggestions`, { params }).pipe(
       catchError(handleServiceError('OrderService.getOutletSuggestions'))
+    );
+  }
+
+  getDeliveryRouteQuote(deliveryAddress: string, outletId?: string, orderId?: string): Observable<DeliveryRouteQuote> {
+    let params = new HttpParams().set('deliveryAddress', deliveryAddress.trim());
+    if (outletId?.trim()) {
+      params = params.set('outletId', outletId.trim());
+    }
+    if (orderId?.trim()) {
+      params = params.set('orderId', orderId.trim());
+    }
+
+    return this.http.get<DeliveryRouteQuote>(`${this.apiUrl}/delivery/route-quote`, { params }).pipe(
+      catchError(handleServiceError('OrderService.getDeliveryRouteQuote'))
     );
   }
 

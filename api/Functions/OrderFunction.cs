@@ -1586,6 +1586,12 @@ public class OrderFunction
             IsScheduled = order.IsScheduled,
             DeliveryPartnerId = order.DeliveryPartnerId,
             DeliveryPartnerName = order.DeliveryPartnerName,
+            DeliveryRouteUrl = order.DeliveryRouteUrl,
+            DeliveryRouteShortCode = order.DeliveryRouteShortCode,
+            DeliveryRouteShortUrl = order.DeliveryRouteShortUrl,
+            DeliveryDistanceKm = order.DeliveryDistanceKm,
+            DeliveryEtaMinutes = order.DeliveryEtaMinutes,
+            DeliveryRouteUpdatedAt = order.DeliveryRouteUpdatedAt,
             TableNumber = order.TableNumber,
             LoyaltyPointsAwarded = order.LoyaltyPointsAwarded,
             LoyaltyPointsAwardedValue = order.LoyaltyPointsAwardedValue

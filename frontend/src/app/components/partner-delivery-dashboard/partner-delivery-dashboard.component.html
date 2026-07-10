@@ -148,6 +148,14 @@
         <div>
           <h3>#{{ order.id }}</h3>
           <p>{{ order.deliveryAddress || 'Address unavailable' }}</p>
+          <small *ngIf="order.deliveryRouteShortUrl">
+            Route: <a [href]="order.deliveryRouteShortUrl" target="_blank" rel="noopener">Open map link</a>
+          </small>
+          <small *ngIf="order.deliveryDistanceKm || order.deliveryEtaMinutes">
+            {{ order.deliveryDistanceKm ? (order.deliveryDistanceKm | number:'1.0-1') + ' km' : '' }}
+            {{ order.deliveryDistanceKm && order.deliveryEtaMinutes ? ' • ' : '' }}
+            {{ order.deliveryEtaMinutes ? (order.deliveryEtaMinutes + ' min ETA') : '' }}
+          </small>
           <small>Payment: {{ (order.paymentMethod || '-') | uppercase }} • {{ order.paymentStatus || '-' }}</small>
         </div>
         <div class="order-meta">

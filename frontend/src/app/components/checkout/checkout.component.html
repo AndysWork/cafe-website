@@ -169,6 +169,14 @@
                 <span>Approx Distance:</span>
                 <strong>{{ approximateDistanceKm | number:'1.0-1' }} km</strong>
               </div>
+              <div class="confidence-row" *ngIf="routeQuoteLoading && !outOfZoneDetected">
+                <span>Route:</span>
+                <strong>Fetching best route...</strong>
+              </div>
+              <div class="confidence-row" *ngIf="routeQuote?.shortUrl && !outOfZoneDetected">
+                <span>Map Link:</span>
+                <strong><a [href]="routeQuote!.shortUrl" target="_blank" rel="noopener">Open short route link</a></strong>
+              </div>
 
               <div *ngIf="outOfZoneDetected" class="out-of-zone-warning">
                 ⚠️ {{ outOfZoneMessage }}

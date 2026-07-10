@@ -81,11 +81,7 @@ public class ImageUploadFunction
                 return badRequest;
             }
 
-            // Delete old image if exists
-            if (!string.IsNullOrEmpty(menuItem.ImageUrl))
-            {
-                await _blobService.DeleteMenuImageAsync(menuItem.ImageUrl);
-            }
+            var previousImageUrl = menuItem.ImageUrl;
 
             // Upload new image
             using var uploadStream = new MemoryStream(fileData);
@@ -96,20 +92,43 @@ public class ImageUploadFunction
                 menuItem.OutletId
             );
 
-            // Update menu item with new image URL
+            // Persist new image URLs before touching old blobs to avoid broken DB links on partial failure.
             menuItem.ImageUrl = imageUrl;
             menuItem.ImageThumbnailUrl = thumbnailUrl;
-            await _mongo.UpdateMenuItemImageUrlsAsync(
+            var updated = await _mongo.UpdateMenuItemImageUrlsAsync(
                 menuItemId,
                 imageUrl,
                 thumbnailUrl,
                 "System - Image Upload"
             );
 
+            if (!updated)
+            {
+                // Roll back uploaded blobs when DB update fails, so retries don't leak orphan files.
+                await _blobService.DeleteMenuImageAsync(imageUrl);
+
+                var failed = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await failed.WriteAsJsonAsync(new { error = "Failed to save image URL" });
+                return failed;
+            }
+
             var syncedOutlets = await _mongo.SyncMenuItemImageUrlsAcrossOutletsAsync(
                 menuItemId,
                 "System - Image Upload Sync"
             );
+
+            if (!string.IsNullOrEmpty(previousImageUrl) &&
+                !string.Equals(previousImageUrl, imageUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    await _blobService.DeleteMenuImageAsync(previousImageUrl);
+                }
+                catch (Exception cleanupEx)
+                {
+                    _log.LogWarning(cleanupEx, "Failed to delete old menu image after successful replacement for {MenuItemId}", menuItemId);
+                }
+            }
 
             _log.LogInformation("Menu item {MenuItemId} image updated: {ImageUrl}. Synced to {SyncedOutlets} other outlets.", menuItemId, imageUrl, syncedOutlets);
 

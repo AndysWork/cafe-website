@@ -14,14 +14,22 @@ public class DeliveryPartnerFunction
     private readonly IOperationsRepository _mongo;
     private readonly IOrderRepository _orderRepo;
     private readonly NotificationService _notificationService;
+    private readonly DeliveryRoutingService _deliveryRoutingService;
     private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public DeliveryPartnerFunction(IOperationsRepository mongo, IOrderRepository orderRepo, NotificationService notificationService, AuthService auth, ILoggerFactory loggerFactory)
+    public DeliveryPartnerFunction(
+        IOperationsRepository mongo,
+        IOrderRepository orderRepo,
+        NotificationService notificationService,
+        DeliveryRoutingService deliveryRoutingService,
+        AuthService auth,
+        ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _orderRepo = orderRepo;
         _notificationService = notificationService;
+        _deliveryRoutingService = deliveryRoutingService;
         _auth = auth;
         _log = loggerFactory.CreateLogger<DeliveryPartnerFunction>();
     }
@@ -165,12 +173,55 @@ public class DeliveryPartnerFunction
 
             var assignedOrder = await _orderRepo.GetOrderByIdAsync(request.OrderId);
             var assignedPartner = await _mongo.GetDeliveryPartnerByIdAsync(partnerId!);
+
+            string? routeShortUrl = null;
+            string? routeCode = null;
+            double? routeDistanceKm = null;
+            int? routeEtaMinutes = null;
+
+            if (assignedOrder != null
+                && string.Equals(assignedOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(assignedOrder.DeliveryAddress)
+                && !string.IsNullOrWhiteSpace(assignedOrder.OutletId))
+            {
+                var quote = await _deliveryRoutingService.BuildRouteQuoteAsync(assignedOrder.OutletId!, assignedOrder.DeliveryAddress!);
+                if (quote != null)
+                {
+                    var routeLink = await _deliveryRoutingService.CreateOrReuseShortLinkAsync(
+                        assignedOrder.OutletId!,
+                        assignedOrder.DeliveryAddress!,
+                        quote.MapUrl,
+                        assignedOrder.Id,
+                        quote.DistanceKm,
+                        quote.EtaMinutes);
+
+                    assignedOrder.DeliveryRouteUrl = routeLink.FullMapUrl;
+                    assignedOrder.DeliveryRouteShortCode = routeLink.Code;
+                    assignedOrder.DeliveryRouteShortUrl = routeLink.ShortUrl;
+                    assignedOrder.DeliveryDistanceKm = routeLink.DistanceKm;
+                    assignedOrder.DeliveryEtaMinutes = routeLink.EtaMinutes;
+                    assignedOrder.DeliveryRouteUpdatedAt = MongoService.GetIstNow();
+                    assignedOrder.UpdatedAt = MongoService.GetIstNow();
+                    await _orderRepo.UpdateOrderAsync(assignedOrder);
+
+                    routeShortUrl = routeLink.ShortUrl;
+                    routeCode = routeLink.Code;
+                    routeDistanceKm = routeLink.DistanceKm;
+                    routeEtaMinutes = routeLink.EtaMinutes;
+                }
+            }
+
             if (assignedOrder != null && !string.IsNullOrWhiteSpace(assignedPartner?.UserId))
             {
                 var shortOrderId = assignedOrder.Id?.Length >= 6 ? assignedOrder.Id[^6..] : assignedOrder.Id;
                 var pickupMessage = string.Equals(assignedOrder.Status, "ready", StringComparison.OrdinalIgnoreCase)
                     ? $"Order #{shortOrderId} is ready. Please pick it up now."
                     : $"Order #{shortOrderId} has been assigned to you. Current status: {assignedOrder.Status}.";
+
+                if (!string.IsNullOrWhiteSpace(routeShortUrl))
+                {
+                    pickupMessage = $"{pickupMessage} Route: {routeShortUrl}";
+                }
 
                 await _notificationService.SendSystemNotificationAsync(
                     assignedPartner.UserId,
@@ -184,7 +235,11 @@ public class DeliveryPartnerFunction
             {
                 message = $"Delivery partner {partnerName ?? partnerId} assigned to order",
                 partnerId,
-                orderId = request.OrderId
+                orderId = request.OrderId,
+                routeShortUrl,
+                routeCode,
+                routeDistanceKm,
+                routeEtaMinutes
             });
             return response;
         }

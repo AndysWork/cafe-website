@@ -133,6 +133,24 @@ public class Order : ISoftDeletable
     [BsonElement("deliveryPartnerName")]
     public string? DeliveryPartnerName { get; set; }
 
+    [BsonElement("deliveryRouteUrl")]
+    public string? DeliveryRouteUrl { get; set; }
+
+    [BsonElement("deliveryRouteShortCode")]
+    public string? DeliveryRouteShortCode { get; set; }
+
+    [BsonElement("deliveryRouteShortUrl")]
+    public string? DeliveryRouteShortUrl { get; set; }
+
+    [BsonElement("deliveryDistanceKm")]
+    public double? DeliveryDistanceKm { get; set; }
+
+    [BsonElement("deliveryEtaMinutes")]
+    public int? DeliveryEtaMinutes { get; set; }
+
+    [BsonElement("deliveryRouteUpdatedAt")]
+    public DateTime? DeliveryRouteUpdatedAt { get; set; }
+
     [BsonElement("tableNumber")]
     public string? TableNumber { get; set; }
 
@@ -369,6 +387,12 @@ public class OrderResponse
     public bool IsScheduled { get; set; }
     public string? DeliveryPartnerId { get; set; }
     public string? DeliveryPartnerName { get; set; }
+    public string? DeliveryRouteUrl { get; set; }
+    public string? DeliveryRouteShortCode { get; set; }
+    public string? DeliveryRouteShortUrl { get; set; }
+    public double? DeliveryDistanceKm { get; set; }
+    public int? DeliveryEtaMinutes { get; set; }
+    public DateTime? DeliveryRouteUpdatedAt { get; set; }
     public string? TableNumber { get; set; }
     public bool LoyaltyPointsAwarded { get; set; }
     public int LoyaltyPointsAwardedValue { get; set; }

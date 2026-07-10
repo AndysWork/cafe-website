@@ -72,6 +72,10 @@ export interface PartnerDashboard {
     status: string;
     total: number;
     deliveryAddress?: string;
+    deliveryRouteShortUrl?: string;
+    deliveryRouteUrl?: string;
+    deliveryDistanceKm?: number;
+    deliveryEtaMinutes?: number;
     deliveryPartnerId?: string;
     paymentMethod?: 'cod' | 'razorpay' | 'upi-qr';
     paymentStatus?: 'pending' | 'paid' | 'refunded';

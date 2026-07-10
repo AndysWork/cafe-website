@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CartService, Cart } from '../../services/cart.service';
-import { OrderService, CreateOrderRequest, OutletSuggestion } from '../../services/order.service';
+import { OrderService, CreateOrderRequest, OutletSuggestion, DeliveryRouteQuote } from '../../services/order.service';
 import { PaymentService } from '../../services/payment.service';
 import { AddressService, DeliveryAddress, AddAddressRequest, UpdateAddressRequest } from '../../services/address.service';
 import { AuthService } from '../../services/auth.service';
@@ -109,6 +109,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   outOfZoneDetected = false;
   outOfZoneMessage = '';
   suggestedOutlets: OutletSuggestion[] = [];
+  routeQuoteLoading = false;
+  routeQuote: DeliveryRouteQuote | null = null;
 
   // Pending payment recovery
   pendingPaymentRecovery: {
@@ -272,6 +274,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.phoneNumber = addr.collectorPhone;
       if (this.orderType === 'delivery') {
         this.calculateDeliveryFee();
+        this.refreshDeliveryRouteQuote();
       }
     }
   }
@@ -289,6 +292,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.feeConfidence = null;
     this.outOfZoneDetected = false;
     this.outOfZoneMessage = '';
+    this.routeQuote = null;
     this.recomputeCheckoutAdjustments();
     this.saveCheckoutDraft();
     if (this.paymentMethod === 'upi-qr') {
@@ -681,6 +685,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   onOrderTypeChange() {
     if (this.orderType === 'delivery') {
       this.calculateDeliveryFee();
+      this.refreshDeliveryRouteQuote();
     } else {
       this.deliveryFee = 0;
       this.deliveryEtaMinutes = null;
@@ -688,6 +693,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.feeConfidence = null;
       this.outOfZoneDetected = false;
       this.outOfZoneMessage = '';
+      this.routeQuote = null;
       this.recomputeCheckoutAdjustments();
     }
 
@@ -710,6 +716,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.outOfZoneDetected = false;
       this.outOfZoneMessage = '';
       this.suggestedOutlets = [];
+      this.routeQuote = null;
       return;
     }
     this.calculatingFee = true;
@@ -723,6 +730,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         this.outOfZoneMessage = '';
         this.feeConfidence = res.feeConfidence || this.getFeeConfidence(res.deliveryFee || 0, res.freeDeliveryAbove || 0);
         this.refreshOutletSuggestions();
+        this.refreshDeliveryRouteQuote();
         this.calculatingFee = false;
         this.recomputeCheckoutAdjustments();
         this.saveCheckoutDraft();
@@ -740,6 +748,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         this.outOfZoneDetected = true;
         this.outOfZoneMessage = 'Delivery could not be validated for this address yet. Please review nearest outlets or choose pickup.';
         this.refreshOutletSuggestions();
+        this.refreshDeliveryRouteQuote();
         this.calculatingFee = false;
         this.recomputeCheckoutAdjustments();
         this.saveCheckoutDraft();
@@ -896,6 +905,35 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.suggestedOutlets = [];
+      }
+    });
+  }
+
+  private refreshDeliveryRouteQuote(): void {
+    const address = this.deliveryAddress.trim();
+    if (this.orderType !== 'delivery' || !address || address.length < 10) {
+      this.routeQuote = null;
+      this.routeQuoteLoading = false;
+      return;
+    }
+
+    const outletId = this.outletService.getSelectedOutletId() || undefined;
+    this.routeQuoteLoading = true;
+
+    this.orderService.getDeliveryRouteQuote(address, outletId).subscribe({
+      next: (quote) => {
+        this.routeQuote = quote;
+        if (typeof quote.distanceKm === 'number') {
+          this.approximateDistanceKm = quote.distanceKm;
+        }
+        if (typeof quote.etaMinutes === 'number') {
+          this.deliveryEtaMinutes = quote.etaMinutes;
+        }
+        this.routeQuoteLoading = false;
+      },
+      error: () => {
+        this.routeQuote = null;
+        this.routeQuoteLoading = false;
       }
     });
   }
