@@ -174,12 +174,31 @@ public class DeliveryRoutingService
 
         try
         {
-            var origin = Uri.EscapeDataString(originAddress);
-            var destination = Uri.EscapeDataString(destinationAddress);
-            var url = $"https://maps.googleapis.com/maps/api/distancematrix/json?origins={origin}&destinations={destination}&mode=driving&units=metric&key={apiKey}";
-
             var client = _httpClientFactory.CreateClient();
-            using var response = await client.GetAsync(url);
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://routes.googleapis.com/directions/v2:computeRoutes");
+            request.Headers.Add("X-Goog-Api-Key", apiKey);
+            request.Headers.Add("X-Goog-FieldMask", "routes.distanceMeters,routes.duration");
+
+            var payload = new
+            {
+                origin = new
+                {
+                    address = originAddress
+                },
+                destination = new
+                {
+                    address = destinationAddress
+                },
+                travelMode = "DRIVE",
+                routingPreference = "TRAFFIC_AWARE",
+                computeAlternativeRoutes = false,
+                languageCode = "en-US",
+                units = "METRIC"
+            };
+
+            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+            using var response = await client.SendAsync(request);
             if (!response.IsSuccessStatusCode)
             {
                 return (null, null);
@@ -189,38 +208,28 @@ public class DeliveryRoutingService
             using var doc = await JsonDocument.ParseAsync(stream);
 
             var root = doc.RootElement;
-            var status = root.TryGetProperty("status", out var apiStatus)
-                ? apiStatus.GetString()
-                : null;
-
-            if (!string.Equals(status, "OK", StringComparison.OrdinalIgnoreCase))
+            if (!root.TryGetProperty("routes", out var routes) || routes.GetArrayLength() == 0)
             {
                 return (null, null);
             }
 
-            if (!root.TryGetProperty("rows", out var rows) || rows.GetArrayLength() == 0)
+            var firstRoute = routes[0];
+            if (!firstRoute.TryGetProperty("distanceMeters", out var distanceMetersJson))
             {
                 return (null, null);
             }
 
-            var firstRow = rows[0];
-            if (!firstRow.TryGetProperty("elements", out var elements) || elements.GetArrayLength() == 0)
+            if (!firstRoute.TryGetProperty("duration", out var durationJson))
             {
                 return (null, null);
             }
 
-            var firstElement = elements[0];
-            var elementStatus = firstElement.TryGetProperty("status", out var elementStatusJson)
-                ? elementStatusJson.GetString()
-                : null;
-
-            if (!string.Equals(elementStatus, "OK", StringComparison.OrdinalIgnoreCase))
+            var distanceMeters = distanceMetersJson.GetDouble();
+            var durationSeconds = ParseDurationSeconds(durationJson.GetString());
+            if (durationSeconds <= 0)
             {
                 return (null, null);
             }
-
-            var distanceMeters = firstElement.GetProperty("distance").GetProperty("value").GetDouble();
-            var durationSeconds = firstElement.GetProperty("duration").GetProperty("value").GetDouble();
 
             var km = Math.Round(distanceMeters / 1000d, 1, MidpointRounding.AwayFromZero);
             var eta = Math.Max(1, (int)Math.Ceiling(durationSeconds / 60d));
@@ -228,9 +237,26 @@ public class DeliveryRoutingService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to resolve route distance via Google Distance Matrix");
+            _logger.LogWarning(ex, "Failed to resolve route distance via Google Routes API");
             return (null, null);
         }
+    }
+
+    private static double ParseDurationSeconds(string? durationText)
+    {
+        if (string.IsNullOrWhiteSpace(durationText))
+        {
+            return 0;
+        }
+
+        var trimmed = durationText.Trim();
+        if (!trimmed.EndsWith("s", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var numeric = trimmed[..^1];
+        return double.TryParse(numeric, out var seconds) ? seconds : 0;
     }
 
     private async Task<string> GenerateUniqueCodeAsync()
