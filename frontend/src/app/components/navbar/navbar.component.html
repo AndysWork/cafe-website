@@ -104,8 +104,8 @@
           </a>
         </li>
 
-        <!-- Menu (Customers Only) -->
-        <li class="nav-item" *ngIf="isCustomer">
+        <!-- Menu (Guests + Customers) -->
+        <li class="nav-item" *ngIf="canBrowseMenu">
           <a
             routerLink="/menu"
             routerLinkActive="active"

@@ -43,6 +43,9 @@ public class MenuFunction
     {
         try
         {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             // Allow public access without outlet ID (returns all menu items)
@@ -86,6 +89,9 @@ public class MenuFunction
     {
         try
         {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             if (string.IsNullOrWhiteSpace(outletId))
@@ -129,6 +135,9 @@ public class MenuFunction
     {
         try
         {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             if (string.IsNullOrWhiteSpace(outletId))
@@ -174,6 +183,9 @@ public class MenuFunction
     {
         try
         {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             if (string.IsNullOrWhiteSpace(outletId))
@@ -589,6 +601,64 @@ public class MenuFunction
         }
     }
 
+    /// <summary>
+    /// Harmonize categories, subcategories, and menu items across all outlets using a source outlet.
+    /// This ensures menu structure consistency for the same items in different outlets.
+    /// </summary>
+    [Function("HarmonizeMenuAcrossOutlets")]
+    public async Task<HttpResponseData> HarmonizeMenuAcrossOutlets(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "menu/harmonize-outlets")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, username, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            MenuOutletHarmonizeRequest body;
+            try
+            {
+                body = await req.ReadFromJsonAsync<MenuOutletHarmonizeRequest>() ?? new MenuOutletHarmonizeRequest();
+            }
+            catch
+            {
+                body = new MenuOutletHarmonizeRequest();
+            }
+
+            var syncResult = await _mongo.HarmonizeMenuAcrossOutletsAsync(
+                body.SourceOutletId,
+                body.IncludeInactiveOutlets,
+                body.DisableExtraItemsNotInSource,
+                body.TargetOutletIds
+            );
+
+            _log.LogInformation(
+                "Menu harmonization completed by {User}. SourceOutlet={SourceOutletId}, OutletsProcessed={OutletsProcessed}, Created={Created}, Updated={Updated}, Disabled={Disabled}",
+                username,
+                syncResult.SourceOutletId,
+                syncResult.OutletsProcessed,
+                syncResult.TotalMenuItemsCreated,
+                syncResult.TotalMenuItemsUpdated,
+                syncResult.TotalExtraMenuItemsDisabled
+            );
+
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            await res.WriteAsJsonAsync(new
+            {
+                success = true,
+                message = "Menu harmonization across outlets completed successfully.",
+                data = syncResult
+            });
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error harmonizing menu across outlets");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
+            return res;
+        }
+    }
+
     private static string BuildMenuImageBaseUrl()
     {
         var cdnBase = Environment.GetEnvironmentVariable("Blob__CdnBaseUrl");
@@ -678,4 +748,12 @@ public class CopyMenuItemResponse
     public bool PriceForecastCopied { get; set; }
     public string? CopiedForecastId { get; set; }
     public bool FuturePricesUpdated { get; set; }
+}
+
+public class MenuOutletHarmonizeRequest
+{
+    public string? SourceOutletId { get; set; }
+    public bool IncludeInactiveOutlets { get; set; } = false;
+    public bool DisableExtraItemsNotInSource { get; set; } = false;
+    public List<string>? TargetOutletIds { get; set; }
 }

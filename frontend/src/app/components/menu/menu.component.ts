@@ -27,6 +27,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   private readonly orderCutoffHour = 22;
 
   categories: MenuCategory[] = [];
+  visibleCategories: MenuCategory[] = [];
   menuItems: MenuItem[] = [];
   filteredItems: MenuItem[] = [];
   selectedCategoryId: string | null = null;
@@ -283,6 +284,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     .then(([categories, items]) => {
       this.categories = categories || [];
       this.menuItems = items || [];
+      this.refreshVisibleCategories();
       this.applyFilters();
       this.isLoading = false;
     })
@@ -304,8 +306,9 @@ export class MenuComponent implements OnInit, OnDestroy {
       });
     }
 
-    if (this.selectedCategoryId) {
-      items = items.filter(item => item.categoryId === this.selectedCategoryId);
+    const selectedCategoryId = this.selectedCategoryId;
+    if (selectedCategoryId) {
+      items = items.filter(item => this.matchesSelectedCategory(item, selectedCategoryId));
     }
 
     if (this.searchQuery.trim()) {
@@ -627,11 +630,176 @@ export class MenuComponent implements OnInit, OnDestroy {
     });
 
     if (!categoryId) return visibleItems.length;
-    return visibleItems.filter(item => item.categoryId === categoryId).length;
+    return visibleItems.filter(item => this.matchesSelectedCategory(item, categoryId)).length;
+  }
+
+  private refreshVisibleCategories(): void {
+    const outletItems = this.getVisibleMenuItemsForSelectedOutlet();
+    const results: MenuCategory[] = [];
+    const seen = new Set<string>();
+
+    // Prefer category records from the category endpoint when they map to selected outlet items.
+    for (const category of this.categories) {
+      const hasMatch = outletItems.some(item => this.matchesCategoryRecordToItem(category, item));
+      if (!hasMatch) {
+        continue;
+      }
+
+      const key = this.normalizeKey(category.id) || `name:${this.normalizeCategoryToken(category.name)}`;
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      results.push(category);
+    }
+
+    // Add synthetic categories for outlet items that don't map to the category endpoint list.
+    for (const item of outletItems) {
+      const rawName = this.getDisplayText(item.categoryName || item.category || '').trim();
+      if (!rawName) {
+        continue;
+      }
+
+      const token = this.normalizeCategoryToken(rawName);
+      const syntheticId = `name:${token}`;
+      if (!token || seen.has(syntheticId)) {
+        continue;
+      }
+
+      seen.add(syntheticId);
+      results.push({ id: syntheticId, name: rawName });
+    }
+
+    this.visibleCategories = results;
+
+    if (this.selectedCategoryId) {
+      const selectedExists = this.visibleCategories.some(c => c.id === this.selectedCategoryId);
+      if (!selectedExists) {
+        this.selectedCategoryId = null;
+      }
+    }
+  }
+
+  private getVisibleMenuItemsForSelectedOutlet(): MenuItem[] {
+    let items = this.menuItems.filter(item => item.isAddOnOnly !== true);
+
+    if (!this.selectedOutletId) {
+      return items;
+    }
+
+    const selectedMatchKeys = this.getSelectedOutletMatchKeys();
+    items = items.filter(item => {
+      const itemOutletId = this.getItemOutletId(item);
+      return !itemOutletId || selectedMatchKeys.includes(itemOutletId);
+    });
+
+    return items;
+  }
+
+  private matchesCategoryRecordToItem(category: MenuCategory, item: MenuItem): boolean {
+    const categoryId = this.normalizeKey(category.id);
+    const itemCategoryId = this.normalizeKey(item.categoryId);
+    if (categoryId && itemCategoryId && categoryId === itemCategoryId) {
+      return true;
+    }
+
+    const categoryName = this.normalizeText(category.name);
+    const itemCategoryName = this.normalizeText(item.categoryName);
+    const itemCategoryRaw = this.normalizeText(item.category);
+
+    return this.isCategoryNameMatch(categoryName, itemCategoryName)
+      || this.isCategoryNameMatch(categoryName, itemCategoryRaw);
+  }
+
+  private matchesSelectedCategory(item: MenuItem, selectedCategoryId: string): boolean {
+    const normalizedSelectedId = this.normalizeKey(selectedCategoryId);
+
+    if (normalizedSelectedId.startsWith('name:')) {
+      const selectedToken = normalizedSelectedId.slice('name:'.length);
+      const itemTokens = [
+        this.normalizeCategoryToken(this.normalizeText(item.categoryName)),
+        this.normalizeCategoryToken(this.normalizeText(item.category)),
+        this.normalizeCategoryToken(this.getCategoryNameById(item.categoryId))
+      ].filter(Boolean);
+
+      return itemTokens.some(token => token === selectedToken);
+    }
+
+    const normalizedItemCategoryId = this.normalizeKey(item.categoryId);
+
+    if (normalizedItemCategoryId && normalizedItemCategoryId === normalizedSelectedId) {
+      return true;
+    }
+
+    const selectedCategory = this.categories.find(c => this.normalizeKey(c.id) === normalizedSelectedId);
+    const selectedCategoryName = this.normalizeText(selectedCategory?.name);
+    if (!selectedCategoryName) {
+      return false;
+    }
+
+    const itemCategoryName = this.normalizeText(item.categoryName);
+    const itemCategoryRaw = this.normalizeText(item.category);
+    const itemCategoryNameFromId = this.getCategoryNameById(item.categoryId);
+
+    return this.isCategoryNameMatch(selectedCategoryName, itemCategoryName)
+      || this.isCategoryNameMatch(selectedCategoryName, itemCategoryRaw)
+      || this.isCategoryNameMatch(selectedCategoryName, itemCategoryNameFromId);
+  }
+
+  private getCategoryNameById(categoryId?: string | null): string {
+    if (!categoryId) {
+      return '';
+    }
+
+    const normalizedId = this.normalizeKey(categoryId);
+    const category = this.categories.find(c => this.normalizeKey(c.id) === normalizedId);
+    return this.normalizeText(category?.name);
+  }
+
+  private isCategoryNameMatch(selected: string, candidate: string): boolean {
+    if (!selected || !candidate) {
+      return false;
+    }
+
+    if (selected === candidate) {
+      return true;
+    }
+
+    const selectedToken = this.normalizeCategoryToken(selected);
+    const candidateToken = this.normalizeCategoryToken(candidate);
+
+    if (!selectedToken || !candidateToken) {
+      return false;
+    }
+
+    return selectedToken === candidateToken
+      || selectedToken.includes(candidateToken)
+      || candidateToken.includes(selectedToken);
+  }
+
+  private normalizeCategoryToken(value: string): string {
+    return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  }
+
+  private normalizeKey(value?: string | null): string {
+    return (value || '').trim().toLowerCase();
+  }
+
+  private normalizeText(value?: string | null): string {
+    return this.getDisplayText(value).trim().toLowerCase();
   }
 
   getDietaryItemCount(filter: 'all' | 'veg' | 'non-veg' | 'egg'): number {
-    const visibleItems = this.menuItems.filter(item => item.isAddOnOnly !== true);
+    const selectedMatchKeys = this.getSelectedOutletMatchKeys();
+    const visibleItems = this.menuItems.filter(item => {
+      if (item.isAddOnOnly === true) return false;
+
+      if (!this.selectedOutletId) return true;
+      const itemOutletId = this.getItemOutletId(item);
+      return !itemOutletId || selectedMatchKeys.includes(itemOutletId);
+    });
+
     if (filter === 'all') {
       return visibleItems.length;
     }
@@ -643,7 +811,9 @@ export class MenuComponent implements OnInit, OnDestroy {
     return item.id;
   }
 
-  trackByObjId(index: number, item: any): string { return item.id; }
+  trackByObjId(index: number, item: any): string {
+    return item?.id || item?._id || `${index}`;
+  }
 
   trackByIndex(index: number): number { return index; }
 

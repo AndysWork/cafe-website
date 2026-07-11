@@ -53,12 +53,14 @@ interface MenuItem {
 }
 
 interface Category {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
 }
 
 interface SubCategory {
-  id: string;
+  id?: string;
+  _id?: string;
   categoryId: string;
   name: string;
 }
@@ -238,8 +240,9 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   }
 
   onCategoryChange(categoryId: string, preserveSubCategory: boolean = false): void {
+    const selectedCategoryKey = this.normalizeToken(categoryId);
     this.filteredSubCategories = this.subCategories.filter(
-      sc => sc.categoryId === categoryId
+      sc => this.normalizeToken(sc.categoryId) === selectedCategoryKey
     );
 
     // Only reset subCategoryId if we're not preserving it (i.e., during actual category change, not during edit load)
@@ -247,10 +250,55 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       this.formData.subCategoryId = undefined;
     }
 
-    const category = this.categories.find(c => c.id === categoryId);
+    const category = this.categories.find(c => this.getCategoryKey(c) === selectedCategoryKey);
     if (category) {
       this.formData.category = category.name;
     }
+  }
+
+  private normalizeToken(value?: string | null): string {
+    return (value || '').toString().trim().toLowerCase();
+  }
+
+  getCategoryKey(category?: Category | null): string {
+    return (category?.id || category?._id || '').toString();
+  }
+
+  getSubCategoryKey(subCategory?: SubCategory | null): string {
+    return (subCategory?.id || subCategory?._id || '').toString();
+  }
+
+  private getCategoryNameByKey(categoryKey: string): string {
+    const normalizedKey = this.normalizeToken(categoryKey);
+    if (!normalizedKey) return '';
+
+    const matched = this.categories.find(c => this.normalizeToken(this.getCategoryKey(c)) === normalizedKey);
+    return (matched?.name || '').trim();
+  }
+
+  private matchesSelectedCategory(item: MenuItem): boolean {
+    const selectedKey = this.normalizeToken(this.filterCategory);
+    if (!selectedKey) return true;
+
+    const itemCategoryId = this.normalizeToken(item.categoryId);
+    if (itemCategoryId && itemCategoryId === selectedKey) {
+      return true;
+    }
+
+    const selectedCategoryName = this.normalizeToken(this.getCategoryNameByKey(this.filterCategory));
+    const itemCategoryName = this.normalizeToken(item.category);
+    if (selectedCategoryName && itemCategoryName && selectedCategoryName === itemCategoryName) {
+      return true;
+    }
+
+    if (itemCategoryId) {
+      const itemCategoryMappedName = this.normalizeToken(this.getCategoryNameByKey(item.categoryId));
+      if (selectedCategoryName && itemCategoryMappedName && selectedCategoryName === itemCategoryMappedName) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   get filteredMenuItems(): MenuItem[] {
@@ -259,8 +307,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
         item.name?.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
         item.description?.toLowerCase().includes(this.searchTerm.toLowerCase());
 
-      const matchesCategory = !this.filterCategory ||
-        item.categoryId === this.filterCategory;
+      const matchesCategory = this.matchesSelectedCategory(item);
 
       return matchesSearch && matchesCategory;
     });
@@ -773,5 +820,5 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   }
 
   trackByIndex(index: number): number { return index; }
-  trackByObjId(index: number, item: any): string { return item.id; }
+  trackByObjId(index: number, item: any): string { return item?.id || item?._id || String(index); }
 }

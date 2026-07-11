@@ -682,6 +682,284 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return updatedCount;
     }
 
+    public async Task<MenuOutletHarmonizationResult> HarmonizeMenuAcrossOutletsAsync(
+        string? sourceOutletId = null,
+        bool includeInactiveOutlets = false,
+        bool disableExtraItemsNotInSource = false,
+        IEnumerable<string>? targetOutletIds = null)
+    {
+        var allOutlets = await GetAllOutletsAsync();
+        var candidateOutlets = includeInactiveOutlets
+            ? allOutlets
+            : allOutlets.Where(o => o.IsActive).ToList();
+
+        var normalizedTargetIds = (targetOutletIds ?? Enumerable.Empty<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (normalizedTargetIds.Count > 0)
+        {
+            candidateOutlets = candidateOutlets
+                .Where(o => !string.IsNullOrWhiteSpace(o.Id) && normalizedTargetIds.Contains(o.Id!))
+                .ToList();
+        }
+
+        if (!candidateOutlets.Any())
+            throw new InvalidOperationException("No outlets found for harmonization.");
+
+        var sourceOutlet = !string.IsNullOrWhiteSpace(sourceOutletId)
+            ? candidateOutlets.FirstOrDefault(o => o.Id == sourceOutletId)
+            : null;
+
+        sourceOutlet ??= candidateOutlets.FirstOrDefault();
+        if (sourceOutlet?.Id == null)
+            throw new InvalidOperationException("Unable to resolve a source outlet for harmonization.");
+
+        var sourceCategories = await GetCategoriesAsync(sourceOutlet.Id);
+        var sourceSubCategories = await GetSubCategoriesAsync(sourceOutlet.Id);
+        var sourceMenuItems = await GetMenuAsync(sourceOutlet.Id);
+
+        var sourceMenuByName = sourceMenuItems
+            .Where(i => !string.IsNullOrWhiteSpace(i.Name))
+            .GroupBy(i => NormalizeMenuKey(i.Name))
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var sourceItemNameKeys = sourceMenuByName.Keys.ToHashSet();
+        var sourceCategoriesById = sourceCategories
+            .Where(c => !string.IsNullOrWhiteSpace(c.Id))
+            .ToDictionary(c => c.Id!, c => c);
+        var sourceSubCategoriesById = sourceSubCategories
+            .Where(s => !string.IsNullOrWhiteSpace(s.Id))
+            .ToDictionary(s => s.Id!, s => s);
+
+        var result = new MenuOutletHarmonizationResult
+        {
+            SourceOutletId = sourceOutlet.Id,
+            SourceOutletName = sourceOutlet.OutletName,
+            OutletsProcessed = candidateOutlets.Count
+        };
+
+        foreach (var outlet in candidateOutlets)
+        {
+            if (string.IsNullOrWhiteSpace(outlet.Id))
+                continue;
+
+            var outletSummary = new MenuOutletHarmonizationOutletSummary
+            {
+                OutletId = outlet.Id,
+                OutletName = outlet.OutletName
+            };
+
+            var targetCategories = await GetCategoriesAsync(outlet.Id);
+            var targetSubCategories = await GetSubCategoriesAsync(outlet.Id);
+            var targetMenuItems = await GetMenuAsync(outlet.Id);
+
+            var targetCategoryByName = targetCategories
+                .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+                .GroupBy(c => NormalizeMenuKey(c.Name))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var targetSubCategoryByComposite = targetSubCategories
+                .Where(s => !string.IsNullOrWhiteSpace(s.Name) && !string.IsNullOrWhiteSpace(s.CategoryId))
+                .GroupBy(s => BuildSubCategoryKey(s.CategoryId, s.Name))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // 1) Ensure categories exist in target outlet by name.
+            foreach (var sourceCategory in sourceCategories)
+            {
+                if (string.IsNullOrWhiteSpace(sourceCategory.Name))
+                    continue;
+
+                var categoryNameKey = NormalizeMenuKey(sourceCategory.Name);
+                if (targetCategoryByName.ContainsKey(categoryNameKey))
+                    continue;
+
+                var createdCategory = await CreateCategoryAsync(new MenuCategory
+                {
+                    Name = sourceCategory.Name.Trim(),
+                    OutletId = outlet.Id
+                });
+
+                outletSummary.CategoriesCreated++;
+                targetCategoryByName[categoryNameKey] = createdCategory;
+            }
+
+            // 2) Ensure subcategories exist in target outlet by (category-name + subcategory-name).
+            foreach (var sourceSubCategory in sourceSubCategories)
+            {
+                if (string.IsNullOrWhiteSpace(sourceSubCategory.Name))
+                    continue;
+
+                if (!sourceCategoriesById.TryGetValue(sourceSubCategory.CategoryId, out var sourceParentCategory))
+                    continue;
+
+                var parentCategoryNameKey = NormalizeMenuKey(sourceParentCategory.Name);
+                if (!targetCategoryByName.TryGetValue(parentCategoryNameKey, out var targetParentCategory)
+                    || string.IsNullOrWhiteSpace(targetParentCategory.Id))
+                {
+                    continue;
+                }
+
+                var subCompositeKey = BuildSubCategoryKey(targetParentCategory.Id, sourceSubCategory.Name);
+                if (targetSubCategoryByComposite.ContainsKey(subCompositeKey))
+                    continue;
+
+                var createdSubCategory = await CreateSubCategoryAsync(new MenuSubCategory
+                {
+                    Name = sourceSubCategory.Name.Trim(),
+                    OutletId = outlet.Id,
+                    CategoryId = targetParentCategory.Id
+                });
+
+                outletSummary.SubCategoriesCreated++;
+                targetSubCategoryByComposite[subCompositeKey] = createdSubCategory;
+            }
+
+            var targetMenuByName = targetMenuItems
+                .Where(i => !string.IsNullOrWhiteSpace(i.Name))
+                .GroupBy(i => NormalizeMenuKey(i.Name))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // 3) Upsert source menu items into target outlet and force availability true.
+            foreach (var (_, sourceMenuItem) in sourceMenuByName)
+            {
+                var sourceCategoryName = ResolveCategoryName(sourceMenuItem, sourceCategoriesById);
+                string? mappedTargetCategoryId = null;
+                if (!string.IsNullOrWhiteSpace(sourceCategoryName))
+                {
+                    targetCategoryByName.TryGetValue(NormalizeMenuKey(sourceCategoryName), out var mappedTargetCategory);
+                    mappedTargetCategoryId = mappedTargetCategory?.Id;
+                }
+
+                var sourceSubCategoryName = ResolveSubCategoryName(sourceMenuItem, sourceSubCategoriesById);
+                string? mappedTargetSubCategoryId = null;
+                if (!string.IsNullOrWhiteSpace(mappedTargetCategoryId) && !string.IsNullOrWhiteSpace(sourceSubCategoryName))
+                {
+                    targetSubCategoryByComposite.TryGetValue(
+                        BuildSubCategoryKey(mappedTargetCategoryId, sourceSubCategoryName),
+                        out var mappedTargetSubCategory
+                    );
+                    mappedTargetSubCategoryId = mappedTargetSubCategory?.Id;
+                }
+
+                var menuKey = NormalizeMenuKey(sourceMenuItem.Name);
+                if (targetMenuByName.TryGetValue(menuKey, out var targetExisting))
+                {
+                    var updateModel = CloneMenuForOutlet(sourceMenuItem, outlet.Id, sourceCategoryName, mappedTargetCategoryId, mappedTargetSubCategoryId);
+                    updateModel.LastUpdatedBy = "System - Outlet Harmonize";
+                    await UpdateMenuItemAsync(targetExisting.Id, updateModel);
+                    outletSummary.MenuItemsUpdated++;
+                }
+                else
+                {
+                    var createModel = CloneMenuForOutlet(sourceMenuItem, outlet.Id, sourceCategoryName, mappedTargetCategoryId, mappedTargetSubCategoryId);
+                    createModel.CreatedBy = "System - Outlet Harmonize";
+                    createModel.LastUpdatedBy = "System - Outlet Harmonize";
+                    await CreateMenuItemAsync(createModel);
+                    outletSummary.MenuItemsCreated++;
+                }
+            }
+
+            // 4) Optionally disable extra menu items not found in source outlet by name.
+            if (disableExtraItemsNotInSource)
+            {
+                foreach (var targetItem in targetMenuItems)
+                {
+                    if (string.IsNullOrWhiteSpace(targetItem.Name))
+                        continue;
+
+                    var targetNameKey = NormalizeMenuKey(targetItem.Name);
+                    if (sourceItemNameKeys.Contains(targetNameKey) || targetItem.IsAvailable == false)
+                        continue;
+
+                    var disableModel = new CafeMenuItem
+                    {
+                        IsAvailable = false,
+                        LastUpdatedBy = "System - Outlet Harmonize"
+                    };
+                    await UpdateMenuItemAsync(targetItem.Id, disableModel);
+                    outletSummary.ExtraMenuItemsDisabled++;
+                }
+            }
+
+            result.Summaries.Add(outletSummary);
+        }
+
+        result.TotalCategoriesCreated = result.Summaries.Sum(s => s.CategoriesCreated);
+        result.TotalSubCategoriesCreated = result.Summaries.Sum(s => s.SubCategoriesCreated);
+        result.TotalMenuItemsCreated = result.Summaries.Sum(s => s.MenuItemsCreated);
+        result.TotalMenuItemsUpdated = result.Summaries.Sum(s => s.MenuItemsUpdated);
+        result.TotalExtraMenuItemsDisabled = result.Summaries.Sum(s => s.ExtraMenuItemsDisabled);
+
+        return result;
+    }
+
+    private static string NormalizeMenuKey(string? value)
+    {
+        return (value ?? string.Empty).Trim().ToLowerInvariant();
+    }
+
+    private static string BuildSubCategoryKey(string categoryId, string subCategoryName)
+    {
+        return $"{NormalizeMenuKey(categoryId)}::{NormalizeMenuKey(subCategoryName)}";
+    }
+
+    private static string ResolveCategoryName(CafeMenuItem item, Dictionary<string, MenuCategory> categoriesById)
+    {
+        if (!string.IsNullOrWhiteSpace(item.CategoryId) && categoriesById.TryGetValue(item.CategoryId, out var linked))
+        {
+            return linked.Name;
+        }
+
+        return item.Category?.Trim() ?? string.Empty;
+    }
+
+    private static string ResolveSubCategoryName(CafeMenuItem item, Dictionary<string, MenuSubCategory> subCategoriesById)
+    {
+        if (!string.IsNullOrWhiteSpace(item.SubCategoryId) && subCategoriesById.TryGetValue(item.SubCategoryId, out var linked))
+        {
+            return linked.Name;
+        }
+
+        return string.Empty;
+    }
+
+    private static CafeMenuItem CloneMenuForOutlet(
+        CafeMenuItem source,
+        string outletId,
+        string? resolvedCategoryName,
+        string? mappedCategoryId,
+        string? mappedSubCategoryId)
+    {
+        return new CafeMenuItem
+        {
+            Name = source.Name,
+            Description = source.Description,
+            Category = !string.IsNullOrWhiteSpace(resolvedCategoryName) ? resolvedCategoryName : source.Category,
+            CategoryId = string.IsNullOrWhiteSpace(mappedCategoryId) ? null : mappedCategoryId,
+            SubCategoryId = string.IsNullOrWhiteSpace(mappedSubCategoryId) ? null : mappedSubCategoryId,
+            OutletId = outletId,
+            Quantity = source.Quantity,
+            MakingPrice = source.MakingPrice,
+            PackagingCharge = source.PackagingCharge,
+            ShopSellingPrice = source.ShopSellingPrice,
+            OnlinePrice = source.OnlinePrice,
+            WebPrice = source.WebPrice > 0 ? source.WebPrice : source.ShopSellingPrice,
+            DineInPrice = source.DineInPrice,
+            FutureShopPrice = source.FutureShopPrice,
+            FutureOnlinePrice = source.FutureOnlinePrice,
+            FutureWebPrice = source.FutureWebPrice,
+            ImageUrl = source.ImageUrl,
+            ImageThumbnailUrl = source.ImageThumbnailUrl,
+            DietaryType = source.DietaryType,
+            IsAvailable = true,
+            Variants = source.Variants ?? new List<MenuItemVariant>(),
+            AddOns = source.AddOns ?? new List<MenuItemAddOn>(),
+            IsAddOnOnly = source.IsAddOnOnly
+        };
+    }
+
     // Delete menu item (soft-delete with dependency check)
     public async Task<bool> DeleteMenuItemAsync(string id)
     {
@@ -6415,25 +6693,25 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<List<MenuItemRecipe>> GetRecipesAsync(string? outletId = null)
     {
-        List<MenuItemRecipe> recipes;
-        
-        if (string.IsNullOrEmpty(outletId))
-        {
-            recipes = await _recipes.Find(_ => true).ToListAsync();
-        }
-        else
-        {
-            var filter = Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, outletId);
-            recipes = await _recipes.Find(filter).ToListAsync();
-        }
+        // Recipe is global by menu item name (shared across outlets), so outlet filter is ignored.
+        var recipes = await _recipes.Find(_ => true).ToListAsync();
         
         // Ensure all recipes have default overhead cost properties
         foreach (var recipe in recipes)
         {
             EnsureOverheadCostsDefaults(recipe);
         }
-        
-        return recipes;
+
+        // Keep one latest recipe per menu item name.
+        var deduped = recipes
+            .GroupBy(r => (r.MenuItemName ?? string.Empty).Trim().ToLowerInvariant())
+            .Select(group => group
+                .OrderByDescending(r => r.UpdatedAt)
+                .ThenByDescending(r => r.CreatedAt)
+                .First())
+            .ToList();
+
+        return deduped;
     }
 
     public async Task<MenuItemRecipe?> GetRecipeByIdAsync(string id)
@@ -6448,9 +6726,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAsync(string menuItemName)
     {
+        var normalizedName = (menuItemName ?? string.Empty).Trim();
+        var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
         var filter = Builders<MenuItemRecipe>.Filter.Regex(
             r => r.MenuItemName, 
-            new MongoDB.Bson.BsonRegularExpression($"^{menuItemName}$", "i")
+            new MongoDB.Bson.BsonRegularExpression($"^{escapedName}$", "i")
         );
         var recipe = await _recipes.Find(filter).FirstOrDefaultAsync();
         if (recipe != null)
@@ -6462,10 +6742,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAndOutletAsync(string menuItemName, string outletId)
     {
+        var normalizedName = (menuItemName ?? string.Empty).Trim();
+        var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
         var filter = Builders<MenuItemRecipe>.Filter.And(
             Builders<MenuItemRecipe>.Filter.Regex(
                 r => r.MenuItemName, 
-                new MongoDB.Bson.BsonRegularExpression($"^{menuItemName}$", "i")
+                new MongoDB.Bson.BsonRegularExpression($"^{escapedName}$", "i")
             ),
             Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, outletId)
         );
@@ -6480,6 +6762,33 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<MenuItemRecipe> CreateRecipeAsync(MenuItemRecipe recipe)
     {
         EnsureRecipeForecastDefaults(recipe);
+
+        recipe.DietaryType = NormalizeDietaryType(recipe.DietaryType);
+
+        // Enforce one global recipe per menu item name.
+        if (!string.IsNullOrWhiteSpace(recipe.MenuItemName))
+        {
+            var existing = await GetRecipeByMenuItemNameAsync(recipe.MenuItemName);
+            if (existing != null)
+            {
+                recipe.Id = existing.Id;
+                recipe.CreatedAt = existing.CreatedAt;
+                recipe.UpdatedAt = GetIstNow();
+
+                await _recipes.ReplaceOneAsync(r => r.Id == existing.Id, recipe);
+
+                if (!string.IsNullOrEmpty(recipe.MenuItemId))
+                {
+                    await UpdateMenuItemRecipePricingAsync(recipe.MenuItemId, recipe.PriceForecast, recipe.TotalMakingCost);
+                }
+
+                await UpdateDietaryForMenuItemsByNameAsync(recipe.MenuItemName, recipe.DietaryType);
+                await DeleteDuplicateRecipesByNameAsync(recipe.MenuItemName, recipe.Id);
+                await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: true);
+                return recipe;
+            }
+        }
+
         await _recipes.InsertOneAsync(recipe);
         
         // Update all pricing fields in the source menu item
@@ -6487,9 +6796,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         {
             await UpdateMenuItemRecipePricingAsync(recipe.MenuItemId, recipe.PriceForecast, recipe.TotalMakingCost);
         }
+
+        await UpdateDietaryForMenuItemsByNameAsync(recipe.MenuItemName, recipe.DietaryType);
+        await DeleteDuplicateRecipesByNameAsync(recipe.MenuItemName, recipe.Id);
         
-        // Copy recipe to other outlets with the same menu item name (allow creating new recipes)
-        await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: false);
+        // Sync menu pricing across outlets but do not create per-outlet recipe duplicates.
+        await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: true);
         
         return recipe;
     }
@@ -6497,6 +6809,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<bool> UpdateRecipeAsync(string id, MenuItemRecipe recipe)
     {
         EnsureRecipeForecastDefaults(recipe);
+        recipe.DietaryType = NormalizeDietaryType(recipe.DietaryType);
         var result = await _recipes.ReplaceOneAsync(r => r.Id == id, recipe);
         
         // Update all pricing fields in the source menu item
@@ -6504,11 +6817,17 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         {
             await UpdateMenuItemRecipePricingAsync(recipe.MenuItemId, recipe.PriceForecast, recipe.TotalMakingCost);
         }
-        
-        // Sync recipe to other outlets (update existing and create missing ones)
+
         if (result.ModifiedCount > 0)
         {
-            await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: false);
+            await UpdateDietaryForMenuItemsByNameAsync(recipe.MenuItemName, recipe.DietaryType);
+            await DeleteDuplicateRecipesByNameAsync(recipe.MenuItemName, recipe.Id);
+        }
+        
+        // Sync menu pricing to other outlets without creating recipe copies.
+        if (result.ModifiedCount > 0)
+        {
+            await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: true);
         }
         
         return result.ModifiedCount > 0;
@@ -6726,6 +7045,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 Name = sourceRecipe.MenuItemName,
                 Description = sourceRecipe.Notes ?? string.Empty,
                 Category = "General",
+                DietaryType = NormalizeDietaryType(sourceRecipe.DietaryType),
                 OutletId = sourceRecipe.OutletId!,
                 MakingPrice = sourceRecipe.TotalMakingCost,
                 OnlinePrice = sourceRecipe.PriceForecast?.OnlinePrice ?? fallbackSellingPrice,
@@ -6804,6 +7124,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                         Category = sourceMenuItem.Category,
                         CategoryId = sourceMenuItem.CategoryId,
                         SubCategoryId = sourceMenuItem.SubCategoryId,
+                        DietaryType = NormalizeDietaryType(sourceRecipe.DietaryType),
                         ImageUrl = sourceMenuItem.ImageUrl,
                         ImageThumbnailUrl = sourceMenuItem.ImageThumbnailUrl,
                         MakingPrice = sourceMenuItem.MakingPrice,
@@ -6842,6 +7163,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                         menuItem.Category = sourceMenuItem.Category;
                         menuItem.CategoryId = sourceMenuItem.CategoryId;
                         menuItem.SubCategoryId = sourceMenuItem.SubCategoryId;
+                        menuItem.DietaryType = NormalizeDietaryType(sourceRecipe.DietaryType);
                         menuItem.ImageUrl = sourceMenuItem.ImageUrl;
                         menuItem.ImageThumbnailUrl = sourceMenuItem.ImageThumbnailUrl;
                         menuItem.Variants = sourceMenuItem.Variants;
@@ -7085,6 +7407,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     // Skip creating new recipes if this is an update operation
                     if (isUpdate)
                     {
+                        if (!string.IsNullOrEmpty(menuItem?.Id))
+                        {
+                            await UpdateMenuItemRecipePricingAsync(menuItem.Id!, priceForecast, totalMakingCost);
+                            _logger.LogDebug("[Recipe Copy] Updated menu pricing only in outlet {outlet.OutletName} (global recipe mode)");
+                        }
                         _logger.LogDebug("[Recipe Copy] Skipping outlet {outlet.OutletName} - no existing recipe found (update mode)");
                         continue;
                     }
@@ -7192,6 +7519,73 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         if (forecast.FutureWebPrice.HasValue)
             forecast.FutureWebProfit = forecast.FutureWebPrice.Value - recipe.TotalMakingCost;
+    }
+
+    private static string NormalizeDietaryType(string? value)
+    {
+        var normalized = (value ?? "veg").Trim().ToLowerInvariant();
+        if (normalized == "nonveg" || normalized == "non-veg") return "non-veg";
+        if (normalized == "egg") return "egg";
+        if (normalized == "vegan") return "vegan";
+        return "veg";
+    }
+
+    private async Task<long> UpdateDietaryForMenuItemsByNameAsync(string menuItemName, string dietaryType)
+    {
+        var normalizedName = (menuItemName ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(normalizedName)) return 0;
+
+        var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
+        var filter = Builders<CafeMenuItem>.Filter.And(
+            Builders<CafeMenuItem>.Filter.Regex(m => m.Name, new MongoDB.Bson.BsonRegularExpression($"^{escapedName}$", "i")),
+            Builders<CafeMenuItem>.Filter.Ne(m => m.IsDeleted, true)
+        );
+
+        var update = Builders<CafeMenuItem>.Update
+            .Set(m => m.DietaryType, NormalizeDietaryType(dietaryType))
+            .Set(m => m.LastUpdated, GetIstNow())
+            .Set(m => m.LastUpdatedBy, "System - Recipe Sync");
+
+        var result = await _menu.UpdateManyAsync(filter, update);
+        return result.ModifiedCount;
+    }
+
+    private async Task<long> DeleteDuplicateRecipesByNameAsync(string menuItemName, string? keepRecipeId)
+    {
+        var normalizedName = (menuItemName ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(normalizedName)) return 0;
+
+        var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
+        var filter = Builders<MenuItemRecipe>.Filter.Regex(
+            r => r.MenuItemName,
+            new MongoDB.Bson.BsonRegularExpression($"^{escapedName}$", "i")
+        );
+
+        var duplicates = await _recipes
+            .Find(filter)
+            .SortByDescending(r => r.UpdatedAt)
+            .ThenByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
+        if (!duplicates.Any()) return 0;
+
+        var idToKeep = keepRecipeId;
+        if (string.IsNullOrWhiteSpace(idToKeep))
+        {
+            idToKeep = duplicates.First().Id;
+        }
+
+        var idsToDelete = duplicates
+            .Where(r => !string.IsNullOrWhiteSpace(r.Id) && !string.Equals(r.Id, idToKeep, StringComparison.Ordinal))
+            .Select(r => r.Id!)
+            .Distinct()
+            .ToList();
+
+        if (!idsToDelete.Any()) return 0;
+
+        var deleteFilter = Builders<MenuItemRecipe>.Filter.In(r => r.Id, idsToDelete);
+        var deleteResult = await _recipes.DeleteManyAsync(deleteFilter);
+        return deleteResult.DeletedCount;
     }
 
     // Helper method to get KPT analysis for a menu item from online sales

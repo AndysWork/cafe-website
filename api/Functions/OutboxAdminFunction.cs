@@ -17,9 +17,9 @@ public class OutboxAdminFunction
         _auth = auth;
     }
 
-    [Function("GetOutboxHealth")]
+    [Function("GetOutboxHealthAdmin")]
     public async Task<HttpResponseData> GetOutboxHealth(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "admin/outbox/health")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/ops/outbox-admin/health")] HttpRequestData req)
     {
         var (isAuth, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
         if (!isAuth)
@@ -33,9 +33,9 @@ public class OutboxAdminFunction
         return response;
     }
 
-    [Function("GetOutboxDeadLetters")]
+    [Function("GetOutboxDeadLettersAdmin")]
     public async Task<HttpResponseData> GetOutboxDeadLetters(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "admin/outbox/dead-letters")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/ops/outbox-admin/dead-letters")] HttpRequestData req)
     {
         var (isAuth, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
         if (!isAuth)
@@ -66,9 +66,9 @@ public class OutboxAdminFunction
         return response;
     }
 
-    [Function("GetOutboxRetryVisibility")]
+    [Function("GetOutboxRetryVisibilityAdmin")]
     public async Task<HttpResponseData> GetOutboxRetryVisibility(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "admin/outbox/retries")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/ops/outbox-admin/retries")] HttpRequestData req)
     {
         var (isAuth, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
         if (!isAuth)

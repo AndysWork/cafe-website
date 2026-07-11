@@ -955,6 +955,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   getEmptyRecipe(): MenuItemRecipe {
     return {
       menuItemName: '',
+      dietaryType: 'veg',
       ingredients: [],
       overheadCosts: {
         labourCharge: 10,
@@ -972,7 +973,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   loadRecipe(recipe: MenuItemRecipe): void {
-    this.currentRecipe = { ...recipe };
+    this.currentRecipe = {
+      ...recipe,
+      dietaryType: this.normalizeDietaryType(recipe.dietaryType)
+    };
 
     // Load preparation time if available
     if (recipe.preparationTimeMinutes !== undefined && recipe.preparationTimeMinutes !== null) {
@@ -1034,6 +1038,13 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   onMenuItemNameChange(): void {
     this.showMenuItemSuggestions = false;
     this.clearRecipeImageSelection();
+
+    const matchingMenuItem = this.menuItems.find(m =>
+      (m.name || '').toLowerCase() === (this.currentRecipe.menuItemName || '').toLowerCase()
+    );
+    if (matchingMenuItem?.dietaryType) {
+      this.currentRecipe.dietaryType = this.normalizeDietaryType(matchingMenuItem.dietaryType);
+    }
 
     // Check if a recipe exists for this menu item
     const existingRecipe = this.recipes.find(
@@ -1764,9 +1775,11 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     );
     if (matchingMenuItem) {
       this.currentRecipe.menuItemId = matchingMenuItem.id;
+      this.currentRecipe.dietaryType = this.normalizeDietaryType(this.currentRecipe.dietaryType || matchingMenuItem.dietaryType);
     } else {
       // Clear menuItemId if no matching menu item
       this.currentRecipe.menuItemId = undefined;
+      this.currentRecipe.dietaryType = this.normalizeDietaryType(this.currentRecipe.dietaryType);
     }
 
     // Add oil usage data to recipe if frying time is specified
@@ -2419,4 +2432,12 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   trackByObjId(index: number, item: any): string { return item.id; }
 
   trackByIndex(index: number): number { return index; }
+
+  normalizeDietaryType(value?: string): 'veg' | 'non-veg' | 'egg' | 'vegan' {
+    const normalized = (value || 'veg').trim().toLowerCase();
+    if (normalized === 'nonveg' || normalized === 'non-veg') return 'non-veg';
+    if (normalized === 'egg') return 'egg';
+    if (normalized === 'vegan') return 'vegan';
+    return 'veg';
+  }
 }

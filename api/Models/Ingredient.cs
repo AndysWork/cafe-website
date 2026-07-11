@@ -217,6 +217,9 @@ namespace Cafe.Api.Models
         [BsonElement("menuItemName")]
         public required string MenuItemName { get; set; }
 
+        [BsonElement("dietaryType")]
+        public string DietaryType { get; set; } = "veg";
+
         [BsonElement("outletId")]
         [BsonRepresentation(BsonType.ObjectId)]
         public string? OutletId { get; set; }

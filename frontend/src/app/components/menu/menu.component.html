@@ -96,7 +96,7 @@
         🍽️ All <span class="pill-count">{{ getCategoryItemCount(null) }}</span>
       </button>
       <button
-        *ngFor="let category of categories; trackBy: trackByObjId"
+        *ngFor="let category of visibleCategories; trackBy: trackByObjId"
         class="pill"
         [class.active]="selectedCategoryId === category.id"
         (click)="filterByCategory(category.id)">

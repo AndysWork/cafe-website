@@ -109,6 +109,17 @@
         </div>
 
         <div class="form-section">
+          <label>Dietary Tag</label>
+          <select class="form-input" [(ngModel)]="currentRecipe.dietaryType" name="recipeDietaryType">
+            <option value="veg">🟢 Veg</option>
+            <option value="non-veg">🔴 Non-Veg</option>
+            <option value="egg">🟡 Egg</option>
+            <option value="vegan">🌱 Vegan</option>
+          </select>
+          <small class="form-hint">Saved dietary tag will be applied to the same menu item across outlets.</small>
+        </div>
+
+        <div class="form-section">
           <h3>🖼️ Menu Image</h3>
           <small class="form-hint" *ngIf="!currentLinkedMenuItem">
             Save recipe/menu item first, then upload image.

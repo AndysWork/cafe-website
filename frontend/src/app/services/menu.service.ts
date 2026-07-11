@@ -65,7 +65,7 @@ export class MenuService {
 
   // Trigger refresh notification
   notifyMenuItemsUpdated(): void {
-    this.menuItemsUpdatedSignal.set(true);
+    this.menuItemsUpdatedSignal.update(value => !value);
   }
 
   getCategories(): Observable<MenuCategory[]> {

@@ -298,7 +298,7 @@ public class DeliveryPartnerFunction
         }
     }
 
-    [Function("CreateParcelDeliveryTask")]
+    [Function("GetParcelTaskRouteQuote")]
     public async Task<HttpResponseData> GetParcelTaskRouteQuote(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/delivery-partners/parcel-tasks/route-quote")] HttpRequestData req)
     {

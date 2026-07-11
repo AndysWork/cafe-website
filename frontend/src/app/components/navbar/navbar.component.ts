@@ -48,6 +48,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.currentUser?.role === 'user';
   }
 
+  get canBrowseMenu(): boolean {
+    if (!this.isLoggedIn) return false;
+    if (this.isHomeScreen) return false;
+    return true;
+  }
+
   get isPartnerUser(): boolean {
     return this.currentUser?.role === 'partner' || this.currentUser?.role === 'delivery-partner';
   }

@@ -54,6 +54,7 @@ export interface MenuItemRecipe {
   id?: string;
   menuItemId?: string;
   menuItemName: string;
+  dietaryType?: 'veg' | 'non-veg' | 'egg' | 'vegan' | string;
   ingredients: IngredientUsage[];
   overheadCosts: {
     labourCharge: number; // Per item labour cost
