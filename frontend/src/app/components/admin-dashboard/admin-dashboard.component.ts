@@ -8,8 +8,8 @@ import { SalesService, Sales } from '../../services/sales.service';
 import { ExpenseService, Expense } from '../../services/expense.service';
 import { OutletService } from '../../services/outlet.service';
 import { environment } from '../../../environments/environment';
-import { forkJoin, Subscription } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { forkJoin, of, Subscription } from 'rxjs';
+import { catchError, filter } from 'rxjs/operators';
 
 interface OnlineSale {
   _id?: string;
@@ -50,6 +50,30 @@ interface MostOrderedItem {
   revenue: number;
 }
 
+interface OutboxHealth {
+  pendingCount: number;
+  processingCount: number;
+  retryingCount: number;
+  deadLetterCount: number;
+  completedLast15Minutes: number;
+  capturedAtUtc: string;
+}
+
+interface OutboxDeadLetterItem {
+  id: string;
+  eventType: string;
+  aggregateType: string;
+  aggregateId: string;
+  status?: string;
+  retryCount: number;
+  maxRetries: number;
+  error?: string;
+  createdAt?: string;
+  lastAttemptAt?: string;
+  deadLetteredAt?: string;
+  isPushFailure?: boolean;
+}
+
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
@@ -79,6 +103,8 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   topCustomers: TopCustomer[] = [];
   onlineMostOrderedItems: MostOrderedItem[] = [];
   offlineMostOrderedItems: MostOrderedItem[] = [];
+  outboxHealth: OutboxHealth | null = null;
+  outboxDeadLetters: OutboxDeadLetterItem[] = [];
   onlineSales: OnlineSale[] = [];
   offlineSales: Sales[] = [];
   allOrders: Order[] = [];
@@ -133,7 +159,13 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       menuItems: this.menuService.getMenuItems(),
       onlineSales: this.http.get<{ success: boolean; data: OnlineSale[] }>(`${environment.apiUrl}/online-sales?includeWebSales=true`),
       offlineSales: this.salesService.getAllSales(),
-      expenses: this.expenseService.getAllExpenses()
+      expenses: this.expenseService.getAllExpenses(),
+      outboxHealth: this.http.get<OutboxHealth>(`${environment.apiUrl}/admin/outbox/health`).pipe(
+        catchError(() => of(null))
+      ),
+      outboxDeadLetters: this.http.get<OutboxDeadLetterItem[]>(`${environment.apiUrl}/admin/outbox/retries?limit=15`).pipe(
+        catchError(() => of([]))
+      )
     }).subscribe({
       next: (data) => {
         this.allOrders = data.orders;
@@ -141,6 +173,8 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         this.onlineSales = data.onlineSales.data || [];
         this.offlineSales = data.offlineSales;
         this.expenses = data.expenses;
+        this.outboxHealth = data.outboxHealth;
+        this.outboxDeadLetters = data.outboxDeadLetters || [];
 
         this.updateStats();
         this.calculateMonthlyTrends();

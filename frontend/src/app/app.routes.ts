@@ -28,6 +28,8 @@ export const routes: Routes = [
   { path: 'partner/delivery/mobile', loadComponent: () => import('./components/partner-delivery-mobile/partner-delivery-mobile.component').then(m => m.PartnerDeliveryMobileComponent), canActivate: [partnerGuard] },
   { path: 'kitchen/dashboard', loadComponent: () => import('./components/kitchen-staff-dashboard/kitchen-staff-dashboard.component').then(m => m.KitchenStaffDashboardComponent), canActivate: [kitchenGuard] },
   { path: 'kitchen/display', loadComponent: () => import('./components/kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent), canActivate: [kitchenGuard] },
+  { path: 'staff/attendance', loadComponent: () => import('./components/staff-attendance/staff-attendance.component').then(m => m.StaffAttendanceComponent), canActivate: [authGuard] },
+  { path: 'staff/payslip', loadComponent: () => import('./components/staff-payslip/staff-payslip.component').then(m => m.StaffPayslipComponent), canActivate: [authGuard] },
   {
     path: 'admin',
     loadComponent: () => import('./components/admin-layout/admin-layout.component').then(m => m.AdminLayoutComponent),

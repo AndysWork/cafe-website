@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { KitchenDisplayService, KitchenOrder, KitchenStats, KitchenChecklistItem } from '../../services/kitchen-display.service';
 import { OutletService } from '../../services/outlet.service';
+import { WebPushService } from '../../services/web-push.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription, interval } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -20,6 +21,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
   private uiStore = inject(UIStore);
   private outletSub?: Subscription;
   private pollSub?: Subscription;
+  private webPush = inject(WebPushService);
 
   orders: KitchenOrder[] = [];
   stats: KitchenStats | null = null;
@@ -33,6 +35,10 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
   constructor(private kitchenService: KitchenDisplayService) {}
 
   ngOnInit() {
+    this.webPush.registerKitchenWebPush('kitchen-display').catch(() => {
+      // Keep kitchen display functional even if push setup fails.
+    });
+
     this.outletSub = this.outletService.selectedOutlet$
       .pipe(filter(o => o !== null))
       .subscribe(() => this.loadData());
@@ -109,8 +115,11 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
     }
 
     this.kitchenService.updateOrderStatus(this.selectedOrderForChecklist.id, 'ready', this.checklistItems).subscribe({
-      next: () => {
-        this.uiStore.success('Order marked ready with checklist completed');
+      next: (res) => {
+        const message = res?.deliveryNotificationQueued
+          ? 'Order marked ready. Delivery partners notified.'
+          : 'Order marked ready with checklist completed';
+        this.uiStore.success(message);
         this.closeChecklist();
         this.loadData();
       },

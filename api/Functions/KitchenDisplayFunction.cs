@@ -7,6 +7,7 @@ using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
 using System.Globalization;
+using MongoDB.Bson;
 
 namespace Cafe.Api.Functions;
 
@@ -23,14 +24,14 @@ public class KitchenDisplayFunction
 
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
-    private readonly NotificationService _notificationService;
+    private readonly OutboxService _outbox;
     private readonly ILogger _log;
 
-    public KitchenDisplayFunction(MongoService mongo, AuthService auth, NotificationService notificationService, ILoggerFactory loggerFactory)
+    public KitchenDisplayFunction(MongoService mongo, AuthService auth, OutboxService outbox, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
-        _notificationService = notificationService;
+        _outbox = outbox;
         _log = loggerFactory.CreateLogger<KitchenDisplayFunction>();
     }
 
@@ -44,7 +45,7 @@ public class KitchenDisplayFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var orders = await _mongo.GetOrdersByStatusAsync(new[] { "confirmed", "preparing", "ready", "out-for-delivery" }, outletId);
+            var orders = await _mongo.GetOrdersByStatusAsync(new[] { "pending", "confirmed", "preparing", "ready", "out-for-delivery" }, outletId);
 
             if (IsKitchenOpsRole(role))
             {
@@ -53,7 +54,7 @@ public class KitchenDisplayFunction
                 {
                     orders = orders
                         .Where(o =>
-                            (o.Status == "confirmed" && string.IsNullOrWhiteSpace(o.KitchenAssignedStaffId)) ||
+                            ((o.Status == "pending" || o.Status == "confirmed") && string.IsNullOrWhiteSpace(o.KitchenAssignedStaffId)) ||
                             (!string.IsNullOrWhiteSpace(o.KitchenAssignedStaffId) && o.KitchenAssignedStaffId == staff.Id))
                         .ToList();
                 }
@@ -125,7 +126,7 @@ public class KitchenDisplayFunction
                 return badReq;
             }
 
-            var validStatuses = new[] { "preparing", "ready", "delivered" };
+            var validStatuses = new[] { "confirmed", "preparing", "ready", "delivered" };
             var requestedStatus = request.Status.ToLowerInvariant();
             if (!validStatuses.Contains(requestedStatus))
             {
@@ -147,6 +148,13 @@ public class KitchenDisplayFunction
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(new { error = "Order not found" });
                 return notFound;
+            }
+
+            if (requestedStatus == "confirmed" && order.Status != "pending" && order.Status != "confirmed")
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Only pending orders can be confirmed" });
+                return conflict;
             }
 
             if (requestedStatus == "preparing" && !order.KitchenPrepStartedAt.HasValue)
@@ -184,7 +192,7 @@ public class KitchenDisplayFunction
                 order.KitchenAssignedAt ??= MongoService.GetIstNow();
             }
 
-            if (IsKitchenOpsRole(role) && requestedStatus != "preparing")
+            if (IsKitchenOpsRole(role) && requestedStatus != "preparing" && requestedStatus != "confirmed")
             {
                 var (staff, _, staffResolveError) = await ResolveStaffForCurrentUser(req, userId);
                 if (staff?.Id == null)
@@ -224,20 +232,6 @@ public class KitchenDisplayFunction
                 order.KitchenPrepStartedAt ??= order.CreatedAt;
                 order.KitchenReadyAt = MongoService.GetIstNow();
                 order.KptMinutes = Math.Round((decimal)(order.KitchenReadyAt.Value - order.KitchenPrepStartedAt.Value).TotalMinutes, 2);
-
-                if (!string.IsNullOrWhiteSpace(order.DeliveryPartnerId))
-                {
-                    var partner = await _mongo.GetDeliveryPartnerByIdAsync(order.DeliveryPartnerId);
-                    if (!string.IsNullOrWhiteSpace(partner?.UserId))
-                    {
-                        var shortOrderId = order.Id?.Length >= 6 ? order.Id[^6..] : order.Id;
-                        await _notificationService.SendSystemNotificationAsync(
-                            partner.UserId,
-                            "Order Ready for Pickup",
-                            $"Order #{shortOrderId} is ready. Please pick up and start delivery.",
-                            actionUrl: "/partner/delivery");
-                    }
-                }
             }
 
             if (requestedStatus == "delivered" && !string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
@@ -265,12 +259,30 @@ public class KitchenDisplayFunction
                 return conflict;
             }
 
+            var deliveryNotificationQueued = false;
+            if (requestedStatus == "ready"
+                && string.Equals(order.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(order.OutletId)
+                && !string.IsNullOrWhiteSpace(order.Id))
+            {
+                await _outbox.EnqueueAsync("DeliveryPartnerStatusAlert", "Order", order.Id,
+                    new
+                    {
+                        OrderId = order.Id,
+                        OutletId = order.OutletId,
+                        Status = "ready",
+                        DeliveryPartnerId = order.DeliveryPartnerId
+                    });
+                deliveryNotificationQueued = true;
+            }
+
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
                 message = $"Order status updated to {request.Status}",
                 kptMinutes = order.KptMinutes,
-                checklistCompleted = order.KitchenChecklist.Count > 0 && order.KitchenChecklist.All(c => c.IsCompleted)
+                checklistCompleted = order.KitchenChecklist.Count > 0 && order.KitchenChecklist.All(c => c.IsCompleted),
+                deliveryNotificationQueued
             });
             return response;
         }
@@ -296,7 +308,7 @@ public class KitchenDisplayFunction
             var now = MongoService.GetIstNow();
             var todayStart = now.Date;
 
-            var pendingOrders = await _mongo.GetOrdersByStatusAsync(new[] { "confirmed" }, outletId);
+            var pendingOrders = await _mongo.GetOrdersByStatusAsync(new[] { "pending" }, outletId);
             var preparingOrders = await _mongo.GetOrdersByStatusAsync(new[] { "preparing" }, outletId);
             var completedToday = await _mongo.GetOrdersByStatusAsync(new[] { "delivered" }, outletId);
             var todayCompleted = completedToday.Where(o => o.CreatedAt >= todayStart).ToList();
@@ -356,11 +368,67 @@ public class KitchenDisplayFunction
             var periodReviews = reviews.Where(r => r.CreatedAt >= start && r.CreatedAt <= end).ToList();
             var avgRating = periodReviews.Any() ? Math.Round(periodReviews.Average(r => r.Rating), 2) : 0;
 
-            var user = !string.IsNullOrWhiteSpace(userId) ? await _mongo.GetUserByIdAsync(userId) : null;
-            var staff = user != null ? await _mongo.GetStaffByEmailAsync(user.Email) : null;
+            var (staff, resolvedOutletId, _) = await ResolveStaffForCurrentUser(req, userId);
             var todayAttendance = staff?.Id != null
-                ? await _mongo.GetTodayAttendanceAsync(staff.Id, outletId ?? "default")
+                ? await _mongo.GetTodayAttendanceAsync(staff.Id, resolvedOutletId ?? outletId ?? "default")
                 : null;
+
+            var totalOrdersPrepared = 0;
+            var goodOrdersPrepared = 0;
+            var badOrdersPrepared = 0;
+            var avgKitchenPreparationTimeMinutes = 0d;
+
+            if (staff?.Id != null)
+            {
+                var startDate = start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                var endDate = end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                var dailyPerformanceEntries = await _mongo.GetDailyPerformanceByStaffAsync(staff.Id, startDate, endDate);
+
+                totalOrdersPrepared = dailyPerformanceEntries.Sum(e =>
+                    e.Shifts != null && e.Shifts.Count > 0
+                        ? e.Shifts.Sum(s => s.TotalOrdersPrepared)
+                        : e.TotalOrdersPrepared);
+
+                goodOrdersPrepared = dailyPerformanceEntries.Sum(e =>
+                    e.Shifts != null && e.Shifts.Count > 0
+                        ? e.Shifts.Sum(s => s.GoodOrdersCount)
+                        : e.GoodOrdersCount);
+
+                badOrdersPrepared = dailyPerformanceEntries.Sum(e =>
+                    e.Shifts != null && e.Shifts.Count > 0
+                        ? e.Shifts.Sum(s => s.BadOrdersCount)
+                        : e.BadOrdersCount);
+
+                var completedStatuses = new[] { "ready", "delivered" };
+                var staffCompletedOrders = (await _mongo.GetOrdersByStatusAsync(completedStatuses, resolvedOutletId ?? outletId))
+                    .Where(o => o.KitchenAssignedStaffId == staff.Id)
+                    .Where(o =>
+                    {
+                        var preparedAt = o.KitchenReadyAt ?? o.UpdatedAt;
+                        return preparedAt >= start && preparedAt <= end;
+                    })
+                    .ToList();
+
+                if (totalOrdersPrepared == 0)
+                {
+                    totalOrdersPrepared = staffCompletedOrders.Count;
+                }
+
+                avgKitchenPreparationTimeMinutes = staffCompletedOrders
+                    .Select(o => o.KptMinutes.HasValue
+                        ? (double)o.KptMinutes.Value
+                        : Math.Max(((o.KitchenReadyAt ?? o.UpdatedAt) - o.CreatedAt).TotalMinutes, 0))
+                    .DefaultIfEmpty(0)
+                    .Average();
+            }
+
+            var activeSession = todayAttendance?.Sessions?
+                .Where(s => s.ClockIn.HasValue && !s.ClockOut.HasValue)
+                .OrderByDescending(s => s.ClockIn)
+                .FirstOrDefault();
+
+            var hasActiveSession = activeSession != null;
+            var isInShift = hasActiveSession || (todayAttendance?.ClockIn.HasValue == true && !todayAttendance.ClockOut.HasValue);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
@@ -376,16 +444,24 @@ public class KitchenDisplayFunction
                 },
                 shift = new
                 {
-                    isInShift = todayAttendance?.ClockIn.HasValue == true && !todayAttendance.ClockOut.HasValue,
-                    clockIn = todayAttendance?.ClockIn,
-                    clockOut = todayAttendance?.ClockOut,
-                    hoursWorked = todayAttendance?.HoursWorked
+                    isInShift,
+                    clockIn = hasActiveSession ? activeSession!.ClockIn : todayAttendance?.ClockIn,
+                    clockOut = hasActiveSession ? null : todayAttendance?.ClockOut,
+                    hoursWorked = hasActiveSession ? activeSession!.HoursWorked : todayAttendance?.HoursWorked,
+                    shiftName = hasActiveSession ? activeSession!.ShiftName : null
                 },
                 attendance = todayAttendance,
+                kitchenPerformance = new
+                {
+                    totalOrdersPrepared,
+                    goodOrdersPrepared,
+                    badOrdersPrepared,
+                    avgKitchenPreparationTimeMinutes = Math.Round(avgKitchenPreparationTimeMinutes, 1)
+                },
                 payslip = new
                 {
-                    route = "/admin/bonus-calculation",
-                    label = "Open payslip and bonus dashboard"
+                    route = "/staff/attendance",
+                    label = "Open attendance and shift summary"
                 }
             });
             return response;
@@ -546,7 +622,12 @@ public class KitchenDisplayFunction
 
     private static bool IsKitchenOpsRole(string? role)
     {
-        return role == "cook" || role == "chef" || role == "checf" || role == "sous-chef";
+        return role == "cook" || role == "chef" || role == "sous-chef";
+    }
+
+    private static bool IsValidObjectId(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value) && ObjectId.TryParse(value, out _);
     }
 
     private async Task<(Staff? staff, string? outletId, string? error)> ResolveStaffForCurrentUser(HttpRequestData req, string? userId)
@@ -555,6 +636,21 @@ public class KitchenDisplayFunction
             return (null, null, "User identity missing");
 
         var user = await _mongo.GetUserByIdAsync(userId);
+        var staffByUser = await _mongo.GetStaffByUserIdAsync(userId);
+        if (staffByUser?.Id != null)
+        {
+            var outletIdByUser = OutletHelper.GetOutletIdForAdmin(req, _auth) ?? user?.DefaultOutletId;
+            if (!IsValidObjectId(outletIdByUser))
+            {
+                outletIdByUser = staffByUser.OutletIds?.FirstOrDefault(IsValidObjectId);
+            }
+            if (!IsValidObjectId(outletIdByUser))
+            {
+                return (staffByUser, null, "No valid outlet is assigned to this staff account");
+            }
+            return (staffByUser, outletIdByUser, null);
+        }
+
         if (user == null)
             return (null, null, "User account not found");
 
@@ -562,7 +658,21 @@ public class KitchenDisplayFunction
         if (staff?.Id == null)
             return (null, null, "No staff profile mapped to this account email");
 
-        var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth) ?? user.DefaultOutletId ?? "default";
+        if (string.IsNullOrWhiteSpace(staff.UserId))
+        {
+            await _mongo.LinkStaffToUserAsync(staff.Id, userId);
+            staff.UserId = userId;
+        }
+
+        var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth) ?? user.DefaultOutletId;
+        if (!IsValidObjectId(outletId))
+        {
+            outletId = staff.OutletIds?.FirstOrDefault(IsValidObjectId);
+        }
+        if (!IsValidObjectId(outletId))
+        {
+            return (staff, null, "No valid outlet is assigned to this staff account");
+        }
         return (staff, outletId, null);
     }
 }

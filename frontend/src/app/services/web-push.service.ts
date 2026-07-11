@@ -67,6 +67,48 @@ export class WebPushService {
     await sub.unsubscribe();
   }
 
+  async registerKitchenWebPush(deviceLabel = 'kitchen-device'): Promise<boolean> {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return false;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      return false;
+    }
+
+    const reg = await navigator.serviceWorker.register('/kitchen-notification-sw.js', { scope: '/kitchen/' });
+    const keyRes = await firstValueFrom(this.http.get<{ publicKey: string }>(`${this.apiUrl}/notifications/webpush/public-key`));
+    const appServerKey = this.base64ToUint8Array(keyRes.publicKey);
+
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appServerKey
+      });
+    }
+
+    const json = sub.toJSON();
+    const endpoint = json.endpoint;
+    const p256Dh = json.keys?.['p256dh'];
+    const auth = json.keys?.['auth'];
+
+    if (!endpoint || !p256Dh || !auth) {
+      return false;
+    }
+
+    await firstValueFrom(this.http.post(`${this.apiUrl}/notifications/webpush/subscribe`, {
+      endpoint,
+      p256Dh,
+      auth,
+      userAgent: navigator.userAgent,
+      deviceLabel
+    }));
+
+    return true;
+  }
+
   private base64ToUint8Array(base64String: string): Uint8Array {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');

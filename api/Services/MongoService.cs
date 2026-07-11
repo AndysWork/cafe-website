@@ -1472,6 +1472,23 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await _staff.Find(s => s.Email == email).FirstOrDefaultAsync();
     }
 
+    // Get staff by linked user account
+    public async Task<Staff?> GetStaffByUserIdAsync(string userId)
+    {
+        return await _staff.Find(s => s.UserId == userId && s.IsActive).FirstOrDefaultAsync();
+    }
+
+    // Link a staff profile to a user account
+    public async Task<bool> LinkStaffToUserAsync(string staffId, string userId)
+    {
+        var update = Builders<Staff>.Update
+            .Set(s => s.UserId, userId)
+            .Set(s => s.UpdatedAt, GetIstNow());
+
+        var result = await _staff.UpdateOneAsync(s => s.Id == staffId, update);
+        return result.ModifiedCount > 0;
+    }
+
     // Get staff by outlet (excludes Documents)
     public async Task<List<Staff>> GetStaffByOutletAsync(string outletId)
     {
@@ -7651,6 +7668,31 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .Project(u => u.Id!)
             .ToListAsync();
         return admins.Where(id => !string.IsNullOrEmpty(id)).ToList();
+    }
+
+    public async Task<List<string>> GetKitchenUserIdsAsync()
+    {
+        var kitchenRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "admin",
+            "sysadmin",
+            "sys-admin",
+            "superadmin",
+            "manager",
+            "cook",
+            "chef",
+            "sous-chef"
+        };
+
+        var users = await _users.Find(u => u.IsActive && !string.IsNullOrWhiteSpace(u.Role))
+            .Project(u => new { u.Id, u.Role })
+            .ToListAsync();
+
+        return users
+            .Where(u => !string.IsNullOrWhiteSpace(u.Id) && !string.IsNullOrWhiteSpace(u.Role) && kitchenRoles.Contains(u.Role))
+            .Select(u => u.Id!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
     }
 
     public async Task CreateNotificationAsync(AppNotification notification)

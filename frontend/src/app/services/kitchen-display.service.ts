@@ -55,8 +55,15 @@ export interface KitchenStaffDashboard {
     clockIn?: string;
     clockOut?: string;
     hoursWorked?: number;
+    shiftName?: string;
   };
   attendance?: any;
+  kitchenPerformance: {
+    totalOrdersPrepared: number;
+    goodOrdersPrepared: number;
+    badOrdersPrepared: number;
+    avgKitchenPreparationTimeMinutes: number;
+  };
   payslip: {
     route: string;
     label: string;
@@ -74,8 +81,8 @@ export class KitchenDisplayService {
     );
   }
 
-  updateOrderStatus(orderId: string, status: string, checklistItems?: KitchenChecklistItem[]): Observable<{ message: string }> {
-    return this.http.put<{ message: string }>(`${this.apiUrl}/kitchen/orders/${orderId}/status`, { status, checklistItems }).pipe(
+  updateOrderStatus(orderId: string, status: string, checklistItems?: KitchenChecklistItem[]): Observable<{ message: string; deliveryNotificationQueued?: boolean }> {
+    return this.http.put<{ message: string; deliveryNotificationQueued?: boolean }>(`${this.apiUrl}/kitchen/orders/${orderId}/status`, { status, checklistItems }).pipe(
       catchError(handleServiceError('KitchenDisplayService.updateOrderStatus'))
     );
   }

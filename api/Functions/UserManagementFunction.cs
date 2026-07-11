@@ -22,7 +22,6 @@ public class UserManagementFunction
         "delivery-partner",
         "cook",
         "chef",
-        "checf",
         "sous-chef",
         "user"
     };

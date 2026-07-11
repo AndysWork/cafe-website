@@ -128,6 +128,12 @@ public class AuthFunction
                 return forbidden;
             }
 
+            if (string.Equals(user.Role, "checf", StringComparison.OrdinalIgnoreCase))
+            {
+                await _mongo.UpdateUserRoleAsync(user.Id!, "chef");
+                user.Role = "chef";
+            }
+
             // Update last login
             await _mongo.UpdateUserLastLoginAsync(user.Id!);
 
@@ -152,6 +158,7 @@ public class AuthFunction
                     Role = user.Role,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
+                    PhoneNumber = user.PhoneNumber,
                     ProfilePictureUrl = user.ProfilePictureUrl,
                     DefaultOutletId = user.DefaultOutletId,
                     AssignedOutlets = user.AssignedOutlets
@@ -457,7 +464,7 @@ public class AuthFunction
                     user.FirstName,
                     user.LastName,
                     user.Email,
-                    PhoneNumber = user.PhoneNumber ?? string.Empty,
+                    phoneNumber = user.PhoneNumber ?? string.Empty,
                     user.ProfilePictureUrl
                 }
             });

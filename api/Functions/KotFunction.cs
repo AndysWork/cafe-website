@@ -28,7 +28,7 @@ public class KotFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateKitchenAccessRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var order = await _mongo.GetOrderByIdAsync(orderId);

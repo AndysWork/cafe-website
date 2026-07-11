@@ -12,6 +12,11 @@
   <div *ngIf="activeTab === 'attendance'">
     <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
 
+    <div class="empty-state" *ngIf="!loading" style="margin-bottom: 16px; padding: 14px;">
+      <h2 style="margin: 0; font-size: 1.05rem;">Attendance is self-managed by staff</h2>
+      <p style="margin: 6px 0 0;">Admins can monitor attendance here. Staff must use Shift Start/Shift End from their own attendance screen.</p>
+    </div>
+
     <div *ngIf="!loading" class="cards-grid">
       <div class="card" *ngFor="let staff of staffList; trackBy: trackById">
         <div class="card-header">
@@ -22,12 +27,11 @@
         </div>
         <div class="card-body">
           <p>{{ staff.role }} · {{ staff.phone }}</p>
-        </div>
-        <div class="card-footer">
-          <button class="btn-create" style="padding: 8px 16px; font-size: 0.85rem;"
-            *ngIf="!isStaffClockedIn(staff.id)" (click)="clockIn(staff.id)">⏰ Clock In</button>
-          <button class="btn-create" style="padding: 8px 16px; font-size: 0.85rem; background: linear-gradient(135deg, #f59e0b, #d97706);"
-            *ngIf="isStaffClockedIn(staff.id)" (click)="clockOut(staff.id)">⏰ Clock Out</button>
+          <p>Shift: {{ getTodayAttendanceForStaff(staff.id)?.scheduledShiftLabel || 'Default shift' }}</p>
+          <p>Scheduled: {{ (getTodayAttendanceForStaff(staff.id)?.scheduledHours ?? 0) | number:'1.1-2' }}h</p>
+          <p>Worked: {{ (getTodayAttendanceForStaff(staff.id)?.hoursWorked ?? 0) | number:'1.1-2' }}h</p>
+          <p>OT: {{ (getTodayAttendanceForStaff(staff.id)?.overtimeHours ?? 0) | number:'1.1-2' }}h</p>
+          <p>UT: {{ (getTodayAttendanceForStaff(staff.id)?.undertimeHours ?? 0) | number:'1.1-2' }}h</p>
         </div>
       </div>
     </div>
@@ -45,14 +49,18 @@
       </div>
       <div *ngIf="reportData.length > 0" class="data-table">
         <table>
-          <thead><tr><th>Staff</th><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Hours</th><th>Status</th></tr></thead>
+          <thead><tr><th>Staff</th><th>Date</th><th>Shift</th><th>Clock In</th><th>Clock Out</th><th>Worked</th><th>Scheduled</th><th>OT</th><th>UT</th><th>Status</th></tr></thead>
           <tbody>
             <tr *ngFor="let a of reportData">
               <td class="fw-bold">{{ a.staffName }}</td>
               <td>{{ a.date | date:'mediumDate' }}</td>
+              <td>{{ a.scheduledShiftLabel || '-' }}</td>
               <td>{{ a.clockIn | date:'shortTime' }}</td>
               <td>{{ a.clockOut ? (a.clockOut | date:'shortTime') : '-' }}</td>
-              <td>{{ a.hoursWorked ? (a.hoursWorked | number:'1.1-1') + 'h' : '-' }}</td>
+              <td>{{ (a.hoursWorked ?? 0) | number:'1.1-1' }}h</td>
+              <td>{{ (a.scheduledHours ?? 0) | number:'1.1-1' }}h</td>
+              <td>{{ (a.overtimeHours ?? 0) | number:'1.1-1' }}h</td>
+              <td>{{ (a.undertimeHours ?? 0) | number:'1.1-1' }}h</td>
               <td><span class="badge" [ngClass]="a.status">{{ a.status }}</span></td>
             </tr>
           </tbody>

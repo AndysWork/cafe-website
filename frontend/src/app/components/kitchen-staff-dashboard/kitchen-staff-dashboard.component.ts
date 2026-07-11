@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { KitchenDisplayService, KitchenStaffDashboard } from '../../services/kitchen-display.service';
+import { WebPushService } from '../../services/web-push.service';
 import { UIStore } from '../../store/ui.store';
 
 @Component({
@@ -18,10 +19,14 @@ export class KitchenStaffDashboardComponent implements OnInit {
 
   constructor(
     private kitchenService: KitchenDisplayService,
-    private uiStore: UIStore
+    private uiStore: UIStore,
+    private webPush: WebPushService
   ) {}
 
   ngOnInit(): void {
+    this.webPush.registerKitchenWebPush('kitchen-dashboard').catch(() => {
+      // Keep dashboard functional even if push setup fails.
+    });
     this.loadDashboard();
   }
 
@@ -72,5 +77,32 @@ export class KitchenStaffDashboardComponent implements OnInit {
       },
       error: () => this.uiStore.error('Failed to mark attendance')
     });
+  }
+
+  get performance() {
+    return this.dashboard?.kitchenPerformance ?? {
+      totalOrdersPrepared: 0,
+      goodOrdersPrepared: 0,
+      badOrdersPrepared: 0,
+      avgKitchenPreparationTimeMinutes: 0
+    };
+  }
+
+  get goodOrderRate(): number {
+    const perf = this.performance;
+    if (!perf || perf.totalOrdersPrepared <= 0) {
+      return 0;
+    }
+
+    return (perf.goodOrdersPrepared / perf.totalOrdersPrepared) * 100;
+  }
+
+  get badOrderRate(): number {
+    const perf = this.performance;
+    if (!perf || perf.totalOrdersPrepared <= 0) {
+      return 0;
+    }
+
+    return (perf.badOrdersPrepared / perf.totalOrdersPrepared) * 100;
   }
 }

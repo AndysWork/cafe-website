@@ -151,6 +151,15 @@ public class Order : ISoftDeletable
     [BsonElement("deliveryRouteUpdatedAt")]
     public DateTime? DeliveryRouteUpdatedAt { get; set; }
 
+    [BsonElement("notifiedAt")]
+    public DateTime? NotifiedAt { get; set; }
+
+    [BsonElement("notifiedTargetsCount")]
+    public int NotifiedTargetsCount { get; set; }
+
+    [BsonElement("lastNotificationChannel")]
+    public string? LastNotificationChannel { get; set; }
+
     [BsonElement("tableNumber")]
     public string? TableNumber { get; set; }
 

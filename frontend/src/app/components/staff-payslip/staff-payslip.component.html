@@ -1,0 +1,63 @@
+<div class="staff-payslip-page">
+  <div class="header-row">
+    <h1>Payslip Access</h1>
+    <div class="controls">
+      <input type="month" [(ngModel)]="selectedMonth" />
+      <button type="button" (click)="loadPayslip()">Load</button>
+      <button type="button" class="btn-secondary" (click)="downloadPdf()" [disabled]="loading || !payslip">Download PDF</button>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="loading">Loading payslip...</div>
+
+  <div *ngIf="!loading && payslip as p" class="content-grid">
+    <section class="card">
+      <h3>Staff</h3>
+      <p><strong>{{ p.staff.name }}</strong> ({{ p.staff.position }})</p>
+      <p>Employee ID: {{ p.staff.employeeId || 'N/A' }}</p>
+      <p>Salary: {{ p.staff.salary | currency:'INR':'symbol':'1.0-0' }} ({{ p.staff.salaryType }})</p>
+    </section>
+
+    <section class="card">
+      <h3>Estimated Till Date</h3>
+      <p>Period: {{ p.current.period }}</p>
+      <p>Worked days: {{ p.current.workedDays }}</p>
+      <p>Worked hours: {{ p.current.workedHours | number:'1.0-2' }}</p>
+      <p>Base earnings: {{ p.current.baseEarnings | currency:'INR':'symbol':'1.0-0' }}</p>
+      <p>Bonus: {{ p.current.bonusAmount | currency:'INR':'symbol':'1.0-0' }}</p>
+      <p class="total">Estimated total: {{ p.current.estimatedTotalEarnings | currency:'INR':'symbol':'1.0-0' }}</p>
+      <p *ngIf="p.current.eligibleForBonus && p.current.bonusConfigurations.length > 0">
+        Bonus eligibility: {{ p.current.bonusConfigurations.join(', ') }}
+      </p>
+    </section>
+
+    <section class="card history-card">
+      <h3>Historic Payslips</h3>
+      <div *ngIf="!p.history.length" class="muted">No historical payslips available yet.</div>
+      <div class="history-table-wrap" *ngIf="p.history.length">
+        <table>
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Days</th>
+              <th>Hours</th>
+              <th>Base</th>
+              <th>Bonus</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let h of p.history">
+              <td data-label="Period">{{ h.period }}</td>
+              <td data-label="Days">{{ h.workedDays }}</td>
+              <td data-label="Hours">{{ h.workedHours | number:'1.0-2' }}</td>
+              <td data-label="Base">{{ h.baseEarnings | currency:'INR':'symbol':'1.0-0' }}</td>
+              <td data-label="Bonus">{{ h.bonusAmount | currency:'INR':'symbol':'1.0-0' }}</td>
+              <td data-label="Total">{{ h.totalEarnings | currency:'INR':'symbol':'1.0-0' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>

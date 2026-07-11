@@ -1,0 +1,208 @@
+<div class="staff-attendance-page">
+  <div class="header">
+    <h1>Staff Attendance</h1>
+    <p>Start and end your shift from here.</p>
+  </div>
+
+  <div *ngIf="loading" class="loading">Loading attendance...</div>
+
+  <div *ngIf="!loading" class="card">
+    <div class="row">
+      <span class="label">Shift</span>
+      <span class="value">{{ shiftLabel }}</span>
+    </div>
+    <div class="row">
+      <span class="label">Scheduled Hours</span>
+      <span class="value">{{ scheduledHours | number:'1.1-2' }}h</span>
+    </div>
+
+    <div class="row" *ngIf="shiftNames.length > 0">
+      <span class="label">Shift Names</span>
+      <span class="value">{{ shiftNames.join(', ') }}</span>
+    </div>
+
+    <div class="row" *ngIf="currentShiftName">
+      <span class="label">Current Shift Window</span>
+      <span class="value">{{ currentShiftName }} ({{ currentShiftStart }} - {{ currentShiftEnd }})</span>
+    </div>
+
+    <div class="row" *ngFor="let shift of shiftDetails">
+      <span class="label">{{ shift.name }}</span>
+      <span class="value">{{ shift.startTime }} - {{ shift.endTime }} ({{ shift.scheduledHours | number:'1.1-2' }}h)</span>
+    </div>
+    <div class="row">
+      <span class="label">Clock In</span>
+      <span class="value">{{ attendance?.clockIn ? (attendance!.clockIn | date:'shortTime') : '-' }}</span>
+    </div>
+    <div class="row">
+      <span class="label">Clock Out</span>
+      <span class="value">{{ attendance?.clockOut ? (attendance!.clockOut | date:'shortTime') : '-' }}</span>
+    </div>
+    <div class="row">
+      <span class="label">Hours Worked</span>
+      <span class="value">{{ (attendance?.hoursWorked ?? 0) | number:'1.1-2' }}h</span>
+    </div>
+    <div class="row">
+      <span class="label">Overtime</span>
+      <span class="value positive">{{ (attendance?.overtimeHours ?? 0) | number:'1.1-2' }}h</span>
+    </div>
+    <div class="row">
+      <span class="label">Undertime</span>
+      <span class="value warn">{{ (attendance?.undertimeHours ?? 0) | number:'1.1-2' }}h</span>
+    </div>
+
+    <div class="actions">
+      <button class="btn start" (click)="startShift()" [disabled]="!canShiftIn">Shift Start</button>
+      <button class="btn end" (click)="endShift()" [disabled]="!canShiftOut">Shift End</button>
+      <button class="btn refresh" (click)="loadToday()">Refresh</button>
+    </div>
+
+    <div class="row" *ngIf="actionMessage">
+      <span class="label">Status</span>
+      <span class="value">{{ actionMessage }}</span>
+    </div>
+
+    <h3 class="leave-title">Today's Shift Sessions</h3>
+    <div *ngIf="sessionHistory.length === 0" class="loading">No shift session recorded yet.</div>
+    <table class="leave-table" *ngIf="sessionHistory.length > 0">
+      <thead>
+        <tr>
+          <th>Shift</th>
+          <th>Window</th>
+          <th>Clock In</th>
+          <th>Clock Out</th>
+          <th>Worked</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let s of sessionHistory">
+          <td>{{ s.shiftName }}</td>
+          <td>{{ s.shiftStartTime || '-' }} - {{ s.shiftEndTime || '-' }}</td>
+          <td>{{ s.clockIn ? (s.clockIn | date:'shortTime') : '-' }}</td>
+          <td>{{ s.clockOut ? (s.clockOut | date:'shortTime') : '-' }}</td>
+          <td>{{ s.hoursWorked | number:'1.1-2' }}h</td>
+          <td>{{ s.status }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card leave-card" *ngIf="!loading">
+    <h2>Apply Leave</h2>
+
+    <div class="row" style="margin-bottom: 10px;">
+      <span class="label">Leave Balance Month</span>
+      <span class="value">
+        <input type="month" [(ngModel)]="selectedLeaveMonth" (change)="onLeaveMonthChange()" />
+      </span>
+    </div>
+
+    <div *ngIf="leaveBalanceLoading" class="loading">Loading monthly leave balance...</div>
+
+    <table class="leave-table" *ngIf="!leaveBalanceLoading && monthlyLeaveBalance">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Available</th>
+          <th>Approved (Month)</th>
+          <th>Pending (Month)</th>
+          <th>Remaining</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Sick</td>
+          <td>{{ getMonthlyQuotaFromBalance(monthlyLeaveBalance.balances.sick.annualBalance, monthlyLeaveBalance.balances.sick.available) }} days</td>
+          <td>{{ monthlyLeaveBalance.balances.sick.approvedThisMonth }} days</td>
+          <td>{{ monthlyLeaveBalance.balances.sick.pendingThisMonth }} days</td>
+          <td>{{ getRemainingMonthlyQuota(monthlyLeaveBalance.balances.sick.annualBalance, monthlyLeaveBalance.balances.sick.available, monthlyLeaveBalance.balances.sick.approvedThisMonth, monthlyLeaveBalance.balances.sick.pendingThisMonth) }} days</td>
+        </tr>
+        <tr>
+          <td>Casual</td>
+          <td>{{ getMonthlyQuotaFromBalance(monthlyLeaveBalance.balances.casual.annualBalance, monthlyLeaveBalance.balances.casual.available) }} days</td>
+          <td>{{ monthlyLeaveBalance.balances.casual.approvedThisMonth }} days</td>
+          <td>{{ monthlyLeaveBalance.balances.casual.pendingThisMonth }} days</td>
+          <td>{{ getRemainingMonthlyQuota(monthlyLeaveBalance.balances.casual.annualBalance, monthlyLeaveBalance.balances.casual.available, monthlyLeaveBalance.balances.casual.approvedThisMonth, monthlyLeaveBalance.balances.casual.pendingThisMonth) }} days</td>
+        </tr>
+        <tr>
+          <td>Earned</td>
+          <td>{{ getMonthlyQuotaFromBalance(monthlyLeaveBalance.balances.earned.annualBalance, monthlyLeaveBalance.balances.earned.available) }} days</td>
+          <td>{{ monthlyLeaveBalance.balances.earned.approvedThisMonth }} days</td>
+          <td>{{ monthlyLeaveBalance.balances.earned.pendingThisMonth }} days</td>
+          <td>{{ getRemainingMonthlyQuota(monthlyLeaveBalance.balances.earned.annualBalance, monthlyLeaveBalance.balances.earned.available, monthlyLeaveBalance.balances.earned.approvedThisMonth, monthlyLeaveBalance.balances.earned.pendingThisMonth) }} days</td>
+        </tr>
+        <tr>
+          <td>Unpaid</td>
+          <td>-</td>
+          <td>{{ monthlyLeaveBalance.balances.unpaid.approvedThisMonth }} days</td>
+          <td>{{ monthlyLeaveBalance.balances.unpaid.pendingThisMonth }} days</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="row" *ngIf="!leaveBalanceLoading && monthlyLeaveBalance">
+      <span class="label">Monthly Totals</span>
+      <span class="value">
+        Approved: {{ monthlyLeaveBalance.totals.approvedThisMonth }} days,
+        Pending: {{ monthlyLeaveBalance.totals.pendingThisMonth }} days
+      </span>
+    </div>
+
+    <div class="leave-form-grid">
+      <label>
+        <span>Leave Type</span>
+        <select [(ngModel)]="leaveForm.leaveType">
+          <option value="casual">Casual</option>
+          <option value="sick">Sick</option>
+          <option value="earned">Earned</option>
+          <option value="unpaid">Unpaid</option>
+        </select>
+      </label>
+      <label>
+        <span>Start Date</span>
+        <input type="date" [(ngModel)]="leaveForm.startDate" />
+      </label>
+      <label>
+        <span>End Date</span>
+        <input type="date" [(ngModel)]="leaveForm.endDate" />
+      </label>
+    </div>
+
+    <label class="leave-reason">
+      <span>Reason</span>
+      <textarea rows="3" [(ngModel)]="leaveForm.reason" placeholder="Reason for leave"></textarea>
+    </label>
+
+    <div class="actions">
+      <button class="btn start" (click)="applyLeave()">Submit Leave Request</button>
+      <button class="btn refresh" (click)="loadMyLeaves()">Refresh Requests</button>
+    </div>
+
+    <h3 class="leave-title">My Leave Requests</h3>
+    <div *ngIf="leavesLoading" class="loading">Loading leave requests...</div>
+    <div *ngIf="!leavesLoading && myLeaves.length === 0" class="loading">No leave requests yet.</div>
+
+    <table class="leave-table" *ngIf="!leavesLoading && myLeaves.length > 0">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>From</th>
+          <th>To</th>
+          <th>Status</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let leave of myLeaves">
+          <td>{{ leave.leaveType }}</td>
+          <td>{{ leave.startDate | date:'mediumDate' }}</td>
+          <td>{{ leave.endDate | date:'mediumDate' }}</td>
+          <td><span class="status" [class.approved]="leave.status === 'approved'" [class.rejected]="leave.status === 'rejected'">{{ leave.status }}</span></td>
+          <td>{{ leave.reason }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

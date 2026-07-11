@@ -1,0 +1,160 @@
+.staff-attendance-page {
+  max-width: 720px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.header p {
+  margin: 8px 0 18px;
+  color: #475569;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.06);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.row:last-of-type {
+  border-bottom: none;
+}
+
+.label {
+  color: #475569;
+}
+
+.value {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.value.positive {
+  color: #15803d;
+}
+
+.value.warn {
+  color: #b45309;
+}
+
+.actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn.start {
+  background: #166534;
+  color: #fff;
+}
+
+.btn.end {
+  background: #b91c1c;
+  color: #fff;
+}
+
+.btn.refresh {
+  background: #334155;
+  color: #fff;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.loading {
+  color: #334155;
+}
+
+.leave-card {
+  margin-top: 16px;
+}
+
+.leave-card h2 {
+  margin: 0 0 12px;
+  font-size: 1.2rem;
+}
+
+.leave-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+select,
+input,
+textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.leave-reason {
+  margin-top: 10px;
+}
+
+.leave-title {
+  margin: 14px 0 8px;
+  font-size: 1rem;
+}
+
+.leave-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.leave-table th,
+.leave-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.status {
+  text-transform: capitalize;
+  font-weight: 600;
+  color: #7c2d12;
+}
+
+.status.approved {
+  color: #166534;
+}
+
+.status.rejected {
+  color: #b91c1c;
+}

@@ -35,6 +35,21 @@ public class Attendance
     [BsonElement("hoursWorked")]
     public double HoursWorked { get; set; }
 
+    [BsonElement("scheduledHours")]
+    public double ScheduledHours { get; set; }
+
+    [BsonElement("overtimeHours")]
+    public double OvertimeHours { get; set; }
+
+    [BsonElement("undertimeHours")]
+    public double UndertimeHours { get; set; }
+
+    [BsonElement("scheduledShiftLabel")]
+    public string? ScheduledShiftLabel { get; set; }
+
+    [BsonElement("sessions")]
+    public List<AttendanceSession> Sessions { get; set; } = new();
+
     [BsonElement("status")]
     public string Status { get; set; } = "absent"; // present, absent, half-day, late, leave
 
@@ -46,6 +61,45 @@ public class Attendance
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+}
+
+public class AttendanceSession
+{
+    [BsonElement("sessionId")]
+    public string SessionId { get; set; } = Guid.NewGuid().ToString("N");
+
+    [BsonElement("shiftKey")]
+    public string ShiftKey { get; set; } = string.Empty;
+
+    [BsonElement("shiftName")]
+    public string ShiftName { get; set; } = string.Empty;
+
+    [BsonElement("shiftStartTime")]
+    public string? ShiftStartTime { get; set; }
+
+    [BsonElement("shiftEndTime")]
+    public string? ShiftEndTime { get; set; }
+
+    [BsonElement("clockIn")]
+    public DateTime? ClockIn { get; set; }
+
+    [BsonElement("clockOut")]
+    public DateTime? ClockOut { get; set; }
+
+    [BsonElement("scheduledHours")]
+    public double ScheduledHours { get; set; }
+
+    [BsonElement("hoursWorked")]
+    public double HoursWorked { get; set; }
+
+    [BsonElement("overtimeHours")]
+    public double OvertimeHours { get; set; }
+
+    [BsonElement("undertimeHours")]
+    public double UndertimeHours { get; set; }
+
+    [BsonElement("status")]
+    public string Status { get; set; } = "pending"; // pending, in-progress, completed
 }
 
 public class LeaveRequest

@@ -11,6 +11,8 @@ public interface IStaffRepository
     Task<Staff?> GetStaffByIdAsync(string staffId);
     Task<Staff?> GetStaffByEmployeeIdAsync(string employeeId);
     Task<Staff?> GetStaffByEmailAsync(string email);
+    Task<Staff?> GetStaffByUserIdAsync(string userId);
+    Task<bool> LinkStaffToUserAsync(string staffId, string userId);
     Task<List<Staff>> GetStaffByOutletAsync(string outletId);
     Task<List<Staff>> GetStaffByPositionAsync(string position);
     Task<List<Staff>> GetStaffByDepartmentAsync(string department);
@@ -60,10 +62,25 @@ public interface IStaffRepository
     Task<List<PerformanceShift>> GetPerformanceShiftsAsync(string entryId);
 
     // Attendance
-    Task<Attendance?> GetTodayAttendanceAsync(string staffId, string outletId);
+    Task<Attendance?> GetTodayAttendanceAsync(string staffId, string outletId, DateTime? referenceNow = null);
     Task<List<Attendance>> GetAllTodayAttendanceAsync(string outletId);
-    Task<Attendance> ClockInAsync(string staffId, string staffName, string outletId);
-    Task<Attendance?> ClockOutAsync(string staffId, string outletId);
+    Task<Attendance> ClockInAsync(
+        string staffId,
+        string staffName,
+        string outletId,
+        double? scheduledHours = null,
+        string? scheduledShiftLabel = null,
+        string? shiftKey = null,
+        string? shiftStartTime = null,
+        string? shiftEndTime = null,
+        DateTime? clockInAt = null);
+    Task<Attendance?> ClockOutAsync(
+        string staffId,
+        string outletId,
+        double? scheduledHours = null,
+        string? scheduledShiftLabel = null,
+        string? shiftKey = null,
+        DateTime? clockOutAt = null);
     Task<List<Attendance>> GetAttendanceByDateRangeAsync(string outletId, DateTime start, DateTime end, string? staffId = null);
     Task<List<AttendanceSummary>> GetAttendanceSummaryAsync(string outletId, DateTime start, DateTime end);
 

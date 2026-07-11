@@ -143,6 +143,20 @@ public class OutboxService
             .ToListAsync();
     }
 
+    public async Task<List<OutboxMessage>> GetRetryVisibilityMessagesAsync(int limit = 100)
+    {
+        var safeLimit = Math.Clamp(limit, 1, 500);
+        var filter = Builders<OutboxMessage>.Filter.And(
+            Builders<OutboxMessage>.Filter.In(m => m.Status, new[] { "failed", "dead-letter" }),
+            Builders<OutboxMessage>.Filter.Gt(m => m.RetryCount, 0)
+        );
+
+        return await _outbox.Find(filter)
+            .SortByDescending(m => m.LastAttemptAt)
+            .Limit(safeLimit)
+            .ToListAsync();
+    }
+
     public async Task<OutboxHealthSummary> GetHealthSummaryAsync()
     {
         var now = DateTime.UtcNow;

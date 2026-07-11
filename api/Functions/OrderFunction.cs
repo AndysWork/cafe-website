@@ -475,6 +475,9 @@ public class OrderFunction
             await _outbox.EnqueueAsync("OrderNotificationAdmin", "Order", createdOrder.Id!,
                 new { OrderId = createdOrder.Id!, Total = total });
 
+            await _outbox.EnqueueAsync("OrderNotificationKitchen", "Order", createdOrder.Id!,
+                new { OrderId = createdOrder.Id!, Total = total });
+
             if (string.Equals(createdOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(createdOrder.OutletId))
             {

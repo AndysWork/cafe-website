@@ -1,0 +1,176 @@
+.staff-payslip-page {
+  min-height: calc(100vh - 80px);
+  padding: 16px;
+  background: linear-gradient(180deg, #f8fafc, #e2e8f0);
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.controls input[type='month'] {
+  min-height: 38px;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.controls button {
+  border: none;
+  border-radius: 8px;
+  background: #0284c7;
+  color: #fff;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.controls .btn-secondary {
+  background: #334155;
+}
+
+.controls button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.history-card {
+  grid-column: 1 / -1;
+}
+
+.total {
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.muted {
+  color: #64748b;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+}
+
+th,
+td {
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.loading {
+  color: #334155;
+  padding: 18px 0;
+}
+
+.history-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .staff-payslip-page {
+    padding: 12px;
+  }
+
+  .header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-row h1 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+
+  .controls {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .controls input[type='month'],
+  .controls button {
+    width: 100%;
+  }
+
+  .card {
+    padding: 10px;
+  }
+
+  th,
+  td {
+    padding: 6px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  table {
+    min-width: 100%;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody {
+    display: block;
+  }
+
+  tbody tr {
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid #dbe3ee;
+    border-radius: 10px;
+    background: #f8fafc;
+    margin-bottom: 10px;
+  }
+
+  tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    border: 0;
+    padding: 0;
+    white-space: normal;
+    font-size: 0.84rem;
+  }
+
+  tbody td::before {
+    content: attr(data-label);
+    color: #475569;
+    font-weight: 700;
+    flex: 0 0 42%;
+  }
+}

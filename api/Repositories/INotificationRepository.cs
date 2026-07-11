@@ -15,4 +15,5 @@ public interface INotificationRepository
     Task<NotificationPreferences> GetNotificationPreferencesAsync(string userId);
     Task<bool> UpdateNotificationPreferencesAsync(string userId, NotificationPreferences preferences);
     Task<List<string>> GetAdminUserIdsAsync();
+    Task<List<string>> GetKitchenUserIdsAsync();
 }

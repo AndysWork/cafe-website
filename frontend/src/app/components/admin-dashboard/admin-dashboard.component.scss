@@ -457,6 +457,30 @@
   }
 }
 
+.table-container {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-failed {
+  color: #7f1d1d;
+  background: #fecaca;
+}
+
+.status-warning {
+  color: #78350f;
+  background: #fde68a;
+}
+
 // Responsive Design
 @media (max-width: 768px) {
   .main-header h1 {

@@ -37,6 +37,80 @@
       </div>
     </div>
 
+    <div class="content-section" *ngIf="outboxHealth as health">
+      <div class="section-header">
+        <h2>Outbox Health & Retry Visibility</h2>
+      </div>
+
+      <div class="stats-grid-five secondary-stats">
+        <div class="stat-card" style="border-left-color: #f59e0b;">
+          <div class="stat-icon" style="background: #f59e0b;">📥</div>
+          <div class="stat-info">
+            <div class="stat-label">Pending</div>
+            <div class="stat-value">{{ health.pendingCount }}</div>
+          </div>
+        </div>
+        <div class="stat-card" style="border-left-color: #0ea5e9;">
+          <div class="stat-icon" style="background: #0ea5e9;">⚙️</div>
+          <div class="stat-info">
+            <div class="stat-label">Processing</div>
+            <div class="stat-value">{{ health.processingCount }}</div>
+          </div>
+        </div>
+        <div class="stat-card" style="border-left-color: #f97316;">
+          <div class="stat-icon" style="background: #f97316;">🔁</div>
+          <div class="stat-info">
+            <div class="stat-label">Retrying</div>
+            <div class="stat-value">{{ health.retryingCount }}</div>
+          </div>
+        </div>
+        <div class="stat-card" style="border-left-color: #ef4444;">
+          <div class="stat-icon" style="background: #ef4444;">🧯</div>
+          <div class="stat-info">
+            <div class="stat-label">Dead Letters</div>
+            <div class="stat-value">{{ health.deadLetterCount }}</div>
+          </div>
+        </div>
+        <div class="stat-card" style="border-left-color: #22c55e;">
+          <div class="stat-icon" style="background: #22c55e;">✅</div>
+          <div class="stat-info">
+            <div class="stat-label">Completed (15m)</div>
+            <div class="stat-value">{{ health.completedLast15Minutes }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="outboxDeadLetters.length > 0" class="table-container">
+        <h3>Recent Failed Retries</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Aggregate</th>
+              <th>Retry</th>
+              <th>Status</th>
+              <th>Error</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of outboxDeadLetters; trackBy: trackByIndex">
+              <td>{{ row.eventType }}</td>
+              <td>{{ row.aggregateType }} / {{ row.aggregateId }}</td>
+              <td>{{ row.retryCount }} / {{ row.maxRetries }}</td>
+              <td>{{ row.status || 'unknown' }}</td>
+              <td>{{ row.error || 'Unknown' }}</td>
+              <td>
+                <span [class]="row.isPushFailure ? 'status-badge status-failed' : 'status-badge status-warning'">
+                  {{ row.isPushFailure ? 'Push Failure' : 'General Failure' }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Monthly Sales Trend -->
     <div class="content-section">
       <div class="section-header">

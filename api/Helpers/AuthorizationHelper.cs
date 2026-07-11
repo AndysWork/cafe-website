@@ -145,7 +145,7 @@ public static class AuthorizationHelper
 
         var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.ToLowerInvariant();
-        var kitchenRoles = new[] { "admin", "sysadmin", "sys-admin", "superadmin", "manager", "cook", "chef", "checf", "sous-chef" };
+        var kitchenRoles = new[] { "admin", "sysadmin", "sys-admin", "superadmin", "manager", "cook", "chef", "sous-chef" };
 
         if (string.IsNullOrWhiteSpace(role) || !kitchenRoles.Contains(role))
         {

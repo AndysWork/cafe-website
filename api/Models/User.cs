@@ -115,6 +115,7 @@ public class LoginResponse
     public string Role { get; set; } = string.Empty;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    public string? PhoneNumber { get; set; }
     public string? ProfilePictureUrl { get; set; }
     public string? DefaultOutletId { get; set; }
     public List<string>? AssignedOutlets { get; set; }

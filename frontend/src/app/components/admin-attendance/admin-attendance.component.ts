@@ -69,20 +69,6 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
     });
   }
 
-  clockIn(staffId: string) {
-    this.attendanceService.clockIn(staffId).subscribe({
-      next: () => { this.uiStore.success('Clocked in'); this.loadData(); },
-      error: () => this.uiStore.error('Failed to clock in')
-    });
-  }
-
-  clockOut(staffId: string) {
-    this.attendanceService.clockOut(staffId).subscribe({
-      next: () => { this.uiStore.success('Clocked out'); this.loadData(); },
-      error: () => this.uiStore.error('Failed to clock out')
-    });
-  }
-
   loadReport() {
     this.attendanceService.getAttendanceReport(this.startDate, this.endDate, this.selectedStaffId || undefined).subscribe({
       next: r => this.reportData = r,
@@ -111,6 +97,10 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
 
   isStaffClockedIn(staffId: string): boolean {
     return this.todayAttendance.some(a => a.staffId === staffId && a.clockIn && !a.clockOut);
+  }
+
+  getTodayAttendanceForStaff(staffId: string): Attendance | undefined {
+    return this.todayAttendance.find(a => a.staffId === staffId);
   }
 
   trackById(_: number, item: any) { return item.id; }

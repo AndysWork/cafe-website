@@ -28,6 +28,10 @@ public class Staff
     [EmailAddress]
     public string Email { get; set; } = string.Empty;
 
+    [BsonElement("userId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? UserId { get; set; }
+
     [BsonElement("phoneNumber")]
     [Required]
     [Phone]

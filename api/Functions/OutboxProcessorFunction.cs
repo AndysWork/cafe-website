@@ -151,6 +151,16 @@ public class OutboxProcessorFunction
                 }
                 break;
 
+            case "OrderNotificationKitchen":
+                var kitchenNotif = JsonSerializer.Deserialize<AdminOrderNotificationPayload>(message.Payload);
+                if (kitchenNotif != null)
+                {
+                    var order = await _orderRepo.GetOrderByIdAsync(kitchenNotif.OrderId);
+                    if (order != null)
+                        await _notification.SendNewOrderNotificationToKitchenRolesAsync(order, kitchenNotif.Total);
+                }
+                break;
+
             case "LoyaltyPointsAward":
                 var loyalty = JsonSerializer.Deserialize<LoyaltyPointsPayload>(message.Payload);
                 if (loyalty != null)
@@ -210,12 +220,15 @@ public class OutboxProcessorFunction
                     {
                         var partners = await _operationsRepo.GetDeliveryPartnersAsync(broadcast.OutletId);
                         var shortOrderId = broadcastOrder.Id?.Length >= 6 ? broadcastOrder.Id[^6..] : broadcastOrder.Id;
+                        var notifiedTargets = 0;
                         foreach (var partner in partners)
                         {
                             if (string.IsNullOrWhiteSpace(partner.UserId) || !string.Equals(partner.Status, "available", StringComparison.OrdinalIgnoreCase))
                             {
                                 continue;
                             }
+
+                            notifiedTargets++;
 
                             await _notification.SendSystemNotificationAsync(
                                 partner.UserId,
@@ -241,6 +254,8 @@ public class OutboxProcessorFunction
                                 }
                             });
                         }
+
+                        await AuditOrderNotificationAsync(broadcastOrder, notifiedTargets, "inapp+webpush");
                     }
                 }
                 break;
@@ -282,18 +297,23 @@ public class OutboxProcessorFunction
                                         new { action = "call", title = "Call" }
                                     }
                                 });
+
+                                await AuditOrderNotificationAsync(alertOrder, 1, "inapp+webpush");
                             }
                         }
                         else if (string.Equals(alert.Status, "ready", StringComparison.OrdinalIgnoreCase)
                                  || string.Equals(alert.Status, "confirmed", StringComparison.OrdinalIgnoreCase))
                         {
                             var partners = await _operationsRepo.GetDeliveryPartnersAsync(alert.OutletId);
+                            var notifiedTargets = 0;
                             foreach (var partner in partners)
                             {
                                 if (string.IsNullOrWhiteSpace(partner.UserId) || !string.Equals(partner.Status, "available", StringComparison.OrdinalIgnoreCase))
                                 {
                                     continue;
                                 }
+
+                                notifiedTargets++;
 
                                 await _notification.SendSystemNotificationAsync(
                                     partner.UserId,
@@ -319,6 +339,8 @@ public class OutboxProcessorFunction
                                     }
                                 });
                             }
+
+                            await AuditOrderNotificationAsync(alertOrder, notifiedTargets, "inapp+webpush");
                         }
                     }
                 }
@@ -328,6 +350,20 @@ public class OutboxProcessorFunction
                 _logger.LogWarning("Unknown outbox event type: {EventType}", message.EventType);
                 break;
         }
+    }
+
+    private async Task AuditOrderNotificationAsync(Order order, int targets, string channel)
+    {
+        if (targets <= 0)
+        {
+            return;
+        }
+
+        order.NotifiedAt = DateTime.UtcNow;
+        order.NotifiedTargetsCount = targets;
+        order.LastNotificationChannel = channel;
+        order.UpdatedAt = MongoService.GetIstNow();
+        await _orderRepo.UpdateOrderAsync(order);
     }
 
     // ── Payload DTOs ────────────────────────────────────────────────────

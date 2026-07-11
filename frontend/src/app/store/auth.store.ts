@@ -31,7 +31,6 @@ export class AuthStore {
       || role === 'delivery-partner'
       || role === 'cook'
       || role === 'chef'
-      || role === 'checf'
       || role === 'sous-chef';
   });
   readonly userRole = computed<UserRole | 'guest'>(() => this._user()?.role ?? 'guest');

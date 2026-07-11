@@ -11,11 +11,13 @@ namespace Cafe.Api.Services;
 public class NotificationService
 {
     private readonly INotificationRepository _mongo;
+    private readonly WebPushService _webPush;
     private readonly ILogger<NotificationService> _logger;
 
-    public NotificationService(INotificationRepository mongo, ILogger<NotificationService> logger)
+    public NotificationService(INotificationRepository mongo, WebPushService webPush, ILogger<NotificationService> logger)
     {
         _mongo = mongo;
+        _webPush = webPush;
         _logger = logger;
     }
 
@@ -203,6 +205,61 @@ public class NotificationService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to send order cancellation notification to admins");
+        }
+    }
+
+    /// <summary>
+    /// Notify kitchen roles about a newly placed order.
+    /// Sends both in-app notification and web push for background alerts.
+    /// </summary>
+    public async Task SendNewOrderNotificationToKitchenRolesAsync(Order order, decimal total)
+    {
+        try
+        {
+            var kitchenUserIds = await _mongo.GetKitchenUserIdsAsync();
+            if (kitchenUserIds.Count == 0) return;
+
+            var orderId = order.Id?.Length >= 6 ? order.Id[^6..] : order.Id;
+            var title = string.Equals(order.Status, "scheduled", StringComparison.OrdinalIgnoreCase)
+                ? "Scheduled Order Received 🗓️"
+                : "New Kitchen Order 🔔";
+            var message = $"Order #{orderId} placed - ₹{total:N2} ({order.Items?.Count ?? 0} items)";
+
+            await SendToManyAsync(
+                kitchenUserIds,
+                "order_status",
+                title,
+                message,
+                new Dictionary<string, string>
+                {
+                    { "orderId", order.Id ?? string.Empty },
+                    { "status", order.Status ?? "pending" },
+                    { "audience", "kitchen" }
+                },
+                actionUrl: "/kitchen/display"
+            );
+
+            await _webPush.SendToUsersAsync(kitchenUserIds, new WebPushPayload
+            {
+                Title = title,
+                Body = message,
+                Data = new
+                {
+                    orderId = order.Id,
+                    route = "/kitchen/display",
+                    status = order.Status,
+                    audience = "kitchen"
+                },
+                Actions = new[]
+                {
+                    new { action = "open_kitchen", title = "Open Kitchen" },
+                    new { action = "view_dashboard", title = "Dashboard" }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send new order notification to kitchen roles");
         }
     }
 

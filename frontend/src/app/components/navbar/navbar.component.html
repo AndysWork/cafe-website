@@ -56,6 +56,30 @@
           </a>
         </li>
 
+        <li class="nav-item" *ngIf="isStaffRoleUser">
+          <a
+            routerLink="/staff/attendance"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">🕐</span>
+            Attendance
+          </a>
+        </li>
+
+        <li class="nav-item" *ngIf="isStaffRoleUser">
+          <a
+            routerLink="/staff/payslip"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">💸</span>
+            Payslip Access
+          </a>
+        </li>
+
         <!-- Menu (Customers Only) -->
         <li class="nav-item" *ngIf="isCustomer">
           <a
@@ -113,7 +137,7 @@
         </li>
 
         <!-- Profile (Customers + Partners) -->
-        <li class="nav-item" *ngIf="isCustomer || isPartnerUser">
+        <li class="nav-item" *ngIf="isCustomer || isPartnerUser || isKitchenUser">
           <a
             routerLink="/profile"
             routerLinkActive="active"

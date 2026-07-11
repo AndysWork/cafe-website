@@ -315,9 +315,11 @@ export class StaffManagementComponent implements OnInit {
     // Include shifts in the form data
     this.staffForm.shifts = this.currentShifts;
 
+    const payload = this.prepareStaffPayload();
+
     const saveObservable = this.modalMode === 'create'
-      ? this.staffService.createStaff(this.staffForm)
-      : this.staffService.updateStaff(this.selectedStaff!.id || this.selectedStaff!._id!, this.staffForm);
+      ? this.staffService.createStaff(payload)
+      : this.staffService.updateStaff(this.selectedStaff!.id || this.selectedStaff!._id!, payload);
 
     saveObservable.subscribe({
       next: () => {
@@ -334,6 +336,40 @@ export class StaffManagementComponent implements OnInit {
         console.error('Error saving staff:', error);
       }
     });
+  }
+
+  private prepareStaffPayload(): Partial<Staff> {
+    const payload: Partial<Staff> = { ...this.staffForm };
+
+    payload.dateOfBirth = this.toApiDate(payload.dateOfBirth);
+    payload.hireDate = this.toApiDate(payload.hireDate);
+    payload.probationEndDate = this.toApiDate(payload.probationEndDate);
+    payload.terminationDate = this.toApiDate(payload.terminationDate);
+
+    return payload;
+  }
+
+  private toApiDate(value: Date | string | undefined): string | undefined {
+    if (!value) return undefined;
+
+    if (value instanceof Date) {
+      return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())).toISOString();
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+
+    // Convert date-only input from HTML date controls to ISO datetime for .NET DateTime parsing.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return `${trimmed}T00:00:00Z`;
+    }
+
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+      return undefined;
+    }
+
+    return parsed.toISOString();
   }
 
   validateForm(): boolean {

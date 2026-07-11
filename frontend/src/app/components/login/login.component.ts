@@ -66,7 +66,7 @@ export class LoginComponent {
     });
   }
 
-  private navigateAfterLogin(role?: 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'checf' | 'sous-chef' | 'user'): void {
+  private navigateAfterLogin(role?: 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'sous-chef' | 'user'): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
     if (returnUrl && returnUrl.startsWith('/')) {
       this.router.navigateByUrl(returnUrl);
@@ -83,7 +83,7 @@ export class LoginComponent {
       return;
     }
 
-    if (role === 'cook' || role === 'chef' || role === 'checf' || role === 'sous-chef') {
+    if (role === 'cook' || role === 'chef' || role === 'sous-chef') {
       this.router.navigate(['/kitchen/dashboard']);
       return;
     }

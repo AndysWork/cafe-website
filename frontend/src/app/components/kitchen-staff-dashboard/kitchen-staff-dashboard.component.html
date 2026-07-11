@@ -30,18 +30,28 @@
       <p class="big" [class.active-shift]="dashboard.shift.isInShift">
         {{ dashboard.shift.isInShift ? 'In Shift' : 'Off Shift' }}
       </p>
+      <p *ngIf="dashboard.shift.shiftName">Shift: {{ dashboard.shift.shiftName }}</p>
       <p *ngIf="dashboard.shift.clockIn">In: {{ dashboard.shift.clockIn | date:'shortTime' }}</p>
       <p *ngIf="dashboard.shift.clockOut">Out: {{ dashboard.shift.clockOut | date:'shortTime' }}</p>
     </section>
 
-    <section class="card actions-card">
-      <h3>Actions</h3>
-      <div class="actions-row">
-        <button class="action-btn in" (click)="shiftIn()">Shift In</button>
-        <button class="action-btn out" (click)="shiftOut()">Shift Out</button>
-        <button class="action-btn mark" (click)="markAttendance()">Mark Attendance</button>
-        <a class="action-btn payslip" [routerLink]="dashboard.payslip.route">Payslip Access</a>
+    <section class="card">
+      <h3>Order Performance</h3>
+      <p>Total prepared: {{ performance.totalOrdersPrepared }}</p>
+      <div class="badges-row">
+        <span class="perf-badge good">Good: {{ performance.goodOrdersPrepared }}</span>
+        <span class="perf-badge bad">Bad: {{ performance.badOrdersPrepared }}</span>
       </div>
+      <p>
+        Good rate:
+        {{ goodOrderRate | number:'1.0-1' }}%
+        <span class="muted">(Bad {{ badOrderRate | number:'1.0-1' }}%)</span>
+      </p>
+      <p>
+        Avg kitchen prep time:
+        {{ performance.avgKitchenPreparationTimeMinutes | number:'1.0-1' }} min
+      </p>
     </section>
+
   </div>
 </div>

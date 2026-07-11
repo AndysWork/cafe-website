@@ -1,4 +1,5 @@
 using MongoDB.Driver;
+using MongoDB.Bson;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
 
@@ -169,12 +170,19 @@ public partial class MongoService : IOperationsRepository
 
     #region Attendance & Leave
 
-    public async Task<Attendance?> GetTodayAttendanceAsync(string staffId, string outletId)
+    public async Task<Attendance?> GetTodayAttendanceAsync(string staffId, string outletId, DateTime? referenceNow = null)
     {
-        var today = GetIstNow().Date;
-        return await _attendance.Find(a =>
-            a.StaffId == staffId && a.OutletId == outletId && a.Date == today)
-            .FirstOrDefaultAsync();
+        var today = (referenceNow ?? GetIstNow()).Date;
+        var filterBuilder = Builders<Attendance>.Filter;
+        var filter = filterBuilder.Eq(a => a.StaffId, staffId) & filterBuilder.Eq(a => a.Date, today);
+
+        // OutletId is represented as ObjectId in Attendance. Avoid passing placeholders like "default".
+        if (!string.IsNullOrWhiteSpace(outletId) && ObjectId.TryParse(outletId, out _))
+        {
+            filter &= filterBuilder.Eq(a => a.OutletId, outletId);
+        }
+
+        return await _attendance.Find(filter).FirstOrDefaultAsync();
     }
 
     public async Task<List<Attendance>> GetAllTodayAttendanceAsync(string outletId)
@@ -184,12 +192,19 @@ public partial class MongoService : IOperationsRepository
             .ToListAsync();
     }
 
-    public async Task<Attendance> ClockInAsync(string staffId, string staffName, string outletId)
+    public async Task<Attendance> ClockInAsync(
+        string staffId,
+        string staffName,
+        string outletId,
+        double? scheduledHours = null,
+        string? scheduledShiftLabel = null,
+        string? shiftKey = null,
+        string? shiftStartTime = null,
+        string? shiftEndTime = null,
+        DateTime? clockInAt = null)
     {
-        var now = GetIstNow();
-        var existing = await GetTodayAttendanceAsync(staffId, outletId);
-        if (existing != null && existing.ClockIn.HasValue)
-            return existing;
+        var now = clockInAt ?? GetIstNow();
+        var existing = await GetTodayAttendanceAsync(staffId, outletId, now);
 
         var attendance = existing ?? new Attendance
         {
@@ -199,8 +214,48 @@ public partial class MongoService : IOperationsRepository
             Date = now.Date
         };
 
-        attendance.ClockIn = now;
-        attendance.Status = "present";
+        attendance.StaffName = string.IsNullOrWhiteSpace(attendance.StaffName) ? staffName : attendance.StaffName;
+        attendance.Sessions ??= new List<AttendanceSession>();
+
+        var normalizedShiftKey = string.IsNullOrWhiteSpace(shiftKey)
+            ? $"{now:yyyy-MM-dd}|ad-hoc|{attendance.Sessions.Count + 1}"
+            : shiftKey.Trim();
+
+        var openSession = attendance.Sessions
+            .Where(s => s.ClockIn.HasValue && !s.ClockOut.HasValue)
+            .OrderByDescending(s => s.ClockIn)
+            .FirstOrDefault();
+
+        // Allow only one active session at a time for a staff member.
+        if (openSession != null)
+        {
+            return attendance;
+        }
+
+        var existingSession = attendance.Sessions
+            .FirstOrDefault(s => string.Equals(s.ShiftKey, normalizedShiftKey, StringComparison.OrdinalIgnoreCase));
+
+        if (existingSession != null)
+        {
+            // Shift already recorded for today (in-progress or completed); do not duplicate.
+            return attendance;
+        }
+
+        var sessionScheduledHours = Math.Round(Math.Max(0, scheduledHours ?? 0), 2);
+        var sessionName = string.IsNullOrWhiteSpace(scheduledShiftLabel) ? "Shift" : scheduledShiftLabel.Trim();
+
+        attendance.Sessions.Add(new AttendanceSession
+        {
+            ShiftKey = normalizedShiftKey,
+            ShiftName = sessionName,
+            ShiftStartTime = shiftStartTime,
+            ShiftEndTime = shiftEndTime,
+            ClockIn = now,
+            ScheduledHours = sessionScheduledHours,
+            Status = "in-progress"
+        });
+
+        RecalculateAttendanceAggregate(attendance);
 
         if (existing != null)
         {
@@ -213,18 +268,95 @@ public partial class MongoService : IOperationsRepository
         return attendance;
     }
 
-    public async Task<Attendance?> ClockOutAsync(string staffId, string outletId)
+    public async Task<Attendance?> ClockOutAsync(
+        string staffId,
+        string outletId,
+        double? scheduledHours = null,
+        string? scheduledShiftLabel = null,
+        string? shiftKey = null,
+        DateTime? clockOutAt = null)
     {
-        var existing = await GetTodayAttendanceAsync(staffId, outletId);
-        if (existing == null || !existing.ClockIn.HasValue || existing.ClockOut.HasValue)
+        var now = clockOutAt ?? GetIstNow();
+        var existing = await GetTodayAttendanceAsync(staffId, outletId, now);
+        if (existing == null)
             return existing;
 
-        var now = GetIstNow();
-        existing.ClockOut = now;
-        existing.HoursWorked = (now - existing.ClockIn.Value).TotalHours;
+        existing.Sessions ??= new List<AttendanceSession>();
+
+        var targetSession = !string.IsNullOrWhiteSpace(shiftKey)
+            ? existing.Sessions.FirstOrDefault(s =>
+                string.Equals(s.ShiftKey, shiftKey.Trim(), StringComparison.OrdinalIgnoreCase)
+                && s.ClockIn.HasValue
+                && !s.ClockOut.HasValue)
+            : existing.Sessions
+                .Where(s => s.ClockIn.HasValue && !s.ClockOut.HasValue)
+                .OrderByDescending(s => s.ClockIn)
+                .FirstOrDefault();
+
+        if (targetSession == null)
+            return existing;
+
+        targetSession.ClockOut = now;
+        targetSession.HoursWorked = Math.Round((now - targetSession.ClockIn!.Value).TotalHours, 2);
+
+        if (scheduledHours.HasValue)
+        {
+            targetSession.ScheduledHours = Math.Round(Math.Max(0, scheduledHours.Value), 2);
+        }
+        if (!string.IsNullOrWhiteSpace(scheduledShiftLabel))
+        {
+            targetSession.ShiftName = scheduledShiftLabel.Trim();
+        }
+
+        var baselineHours = targetSession.ScheduledHours;
+        targetSession.OvertimeHours = Math.Round(Math.Max(0, targetSession.HoursWorked - baselineHours), 2);
+        targetSession.UndertimeHours = Math.Round(Math.Max(0, baselineHours - targetSession.HoursWorked), 2);
+        targetSession.Status = "completed";
+
+        RecalculateAttendanceAggregate(existing);
 
         await _attendance.ReplaceOneAsync(a => a.Id == existing.Id, existing);
         return existing;
+    }
+
+    private static void RecalculateAttendanceAggregate(Attendance attendance)
+    {
+        attendance.Sessions ??= new List<AttendanceSession>();
+
+        var completed = attendance.Sessions
+            .Where(s => s.ClockIn.HasValue && s.ClockOut.HasValue)
+            .ToList();
+
+        var inProgress = attendance.Sessions
+            .Where(s => s.ClockIn.HasValue && !s.ClockOut.HasValue)
+            .ToList();
+
+        attendance.ClockIn = attendance.Sessions
+            .Where(s => s.ClockIn.HasValue)
+            .OrderBy(s => s.ClockIn)
+            .Select(s => s.ClockIn)
+            .FirstOrDefault();
+
+        attendance.ClockOut = inProgress.Any()
+            ? null
+            : completed
+                .OrderByDescending(s => s.ClockOut)
+                .Select(s => s.ClockOut)
+                .FirstOrDefault();
+
+        attendance.HoursWorked = Math.Round(completed.Sum(s => s.HoursWorked), 2);
+        attendance.ScheduledHours = Math.Round(attendance.Sessions.Sum(s => s.ScheduledHours), 2);
+        attendance.OvertimeHours = Math.Round(completed.Sum(s => s.OvertimeHours), 2);
+        attendance.UndertimeHours = Math.Round(completed.Sum(s => s.UndertimeHours), 2);
+
+        var labels = attendance.Sessions
+            .Where(s => !string.IsNullOrWhiteSpace(s.ShiftName))
+            .Select(s => s.ShiftName.Trim())
+            .Distinct()
+            .ToList();
+        attendance.ScheduledShiftLabel = labels.Any() ? string.Join(" + ", labels) : null;
+
+        attendance.Status = attendance.Sessions.Any(s => s.ClockIn.HasValue) ? "present" : "absent";
     }
 
     public async Task<List<Attendance>> GetAttendanceByDateRangeAsync(string outletId, DateTime start, DateTime end, string? staffId = null)

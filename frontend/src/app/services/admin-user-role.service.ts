@@ -12,7 +12,6 @@ export type ManageableUserRole =
   | 'delivery-partner'
   | 'cook'
   | 'chef'
-  | 'checf'
   | 'sous-chef'
   | 'user';
 
@@ -22,7 +21,6 @@ export const MANAGEABLE_USER_ROLES: ManageableUserRole[] = [
   'partner',
   'cook',
   'chef',
-  'checf',
   'sous-chef',
   'manager',
   'admin'

@@ -4,7 +4,7 @@ import { Observable, tap, catchError, of, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthStore } from '../store/auth.store';
 
-export type UserRole = 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'checf' | 'sous-chef' | 'user';
+export type UserRole = 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'sous-chef' | 'user';
 
 export interface User {
   id?: string;
@@ -41,6 +41,7 @@ export interface LoginResponse {
   role: string;
   firstName?: string;
   lastName?: string;
+  phoneNumber?: string;
   profilePictureUrl?: string;
   defaultOutletId?: string;
   assignedOutlets?: string[];
@@ -82,6 +83,7 @@ export class AuthService {
               role: response.role as UserRole,
               firstName: response.firstName,
               lastName: response.lastName,
+              phoneNumber: response.phoneNumber,
               profilePictureUrl: response.profilePictureUrl,
               token: response.token,
               defaultOutletId: response.defaultOutletId,
@@ -161,10 +163,11 @@ export class AuthService {
     return this.http.put(`${this.apiUrl}/auth/profile`, data).pipe(
       tap((response: any) => {
         if (response.data) {
+          const phoneNumber = response.data.phoneNumber ?? response.data.PhoneNumber;
           this.authStore.updateProfile({
             firstName: response.data.firstName,
             lastName: response.data.lastName,
-            phoneNumber: response.data.phoneNumber,
+            phoneNumber,
             profilePictureUrl: response.data.profilePictureUrl
           });
         }
