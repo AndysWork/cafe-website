@@ -14,6 +14,26 @@
   <div *ngIf="loading" class="loading">Loading dashboard...</div>
 
   <div *ngIf="!loading && dashboard" class="dashboard-grid">
+    <section class="card voice-card">
+      <h3>Voice Stock-Out Request</h3>
+      <p class="muted">Speak or type missing items. Request goes to admin approval queue.</p>
+
+      <textarea
+        [(ngModel)]="voiceDraft"
+        rows="3"
+        placeholder="Example: Paneer, onion, green capsicum"></textarea>
+
+      <p *ngIf="transcript" class="transcript-line">Transcript: {{ transcript }}</p>
+
+      <div class="voice-actions">
+        <button class="action-btn mic" *ngIf="speechSupported && !listening" (click)="startListening()">Start Voice</button>
+        <button class="action-btn stop" *ngIf="speechSupported && listening" (click)="stopListening()">Stop</button>
+        <button class="action-btn send" (click)="submitVoiceRequest()">Send Request</button>
+      </div>
+
+      <p *ngIf="!speechSupported" class="muted">Voice recognition is not supported in this browser. You can still type and send.</p>
+    </section>
+
     <section class="card">
       <h3>Role</h3>
       <p class="big">{{ dashboard.role | titlecase }}</p>

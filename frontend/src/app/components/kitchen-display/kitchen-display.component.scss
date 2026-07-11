@@ -134,6 +134,8 @@
   &.prepare { background: #8b5cf6; color: white; }
   &.ready { background: #10b981; color: white; }
   &.kot { background: #334155; color: #cbd5e1; }
+  &.tts { background: #1d4ed8; color: #dbeafe; }
+  &.tts.playing { background: #0ea5e9; color: #082f49; }
   &:hover { opacity: 0.85; }
 }
 

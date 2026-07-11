@@ -103,6 +103,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<ParcelDeliveryTask> _parcelDeliveryTasks;
     private readonly IMongoCollection<PartnerPayoutLedger> _partnerPayoutLedgers;
     private readonly IMongoCollection<ManagerOpsAuditEntry> _managerOpsAuditEntries;
+    private readonly IMongoCollection<KitchenVoiceStockRequest> _kitchenVoiceStockRequests;
     private readonly IMongoCollection<CustomerSegment> _customerSegments;
     private readonly IMongoCollection<HomeContentConfig> _homeContentConfigs;
     private readonly object _tierRulesLock = new();
@@ -226,6 +227,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _parcelDeliveryTasks = db.GetCollection<ParcelDeliveryTask>("ParcelDeliveryTasks");
         _partnerPayoutLedgers = db.GetCollection<PartnerPayoutLedger>("PartnerPayoutLedgers");
         _managerOpsAuditEntries = db.GetCollection<ManagerOpsAuditEntry>("ManagerOpsAuditEntries");
+        _kitchenVoiceStockRequests = db.GetCollection<KitchenVoiceStockRequest>("KitchenVoiceStockRequests");
         _customerSegments = db.GetCollection<CustomerSegment>("CustomerSegments");
         _homeContentConfigs = db.GetCollection<HomeContentConfig>("HomeContentConfigs");
     }

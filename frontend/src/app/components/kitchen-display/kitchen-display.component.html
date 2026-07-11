@@ -44,6 +44,14 @@
         </div>
         <div *ngIf="order.kptMinutes" class="order-kpt">KPT: {{ order.kptMinutes | number:'1.0-1' }} min</div>
         <div class="order-actions">
+          <button
+            *ngIf="canSpeakOrder(order)"
+            (click)="speakOrder(order)"
+            class="btn-kitchen tts"
+            [class.playing]="activeSpeechKey === ('order-' + order.id)"
+            [attr.aria-label]="'Speak full order ' + order.id.slice(-6)">
+            {{ activeSpeechKey === ('order-' + order.id) ? '⏹️ Stop Audio' : '🎤 Hear Order' }}
+          </button>
           <button *ngIf="order.status === 'pending'" (click)="updateStatus(order.id, 'confirmed')" class="btn-kitchen confirm">Confirm</button>
           <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Approve & Start</button>
           <button *ngIf="order.status === 'preparing'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>

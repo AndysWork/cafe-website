@@ -158,6 +158,11 @@ export class AdminLayoutComponent implements OnDestroy {
           route: '/admin/auto-reorder'
         },
         {
+          icon: '🎙️',
+          label: 'Kitchen Stock Requests',
+          route: '/admin/kitchen-stock-requests'
+        },
+        {
           icon: '🗑️',
           label: 'Wastage',
           route: '/admin/wastage'

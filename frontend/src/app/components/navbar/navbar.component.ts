@@ -51,7 +51,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   get canBrowseMenu(): boolean {
     if (!this.isLoggedIn) return false;
     if (this.isHomeScreen) return false;
-    return true;
+    return this.isCustomer || this.isAdmin;
   }
 
   get isPartnerUser(): boolean {

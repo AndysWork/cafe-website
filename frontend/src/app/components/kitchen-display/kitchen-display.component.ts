@@ -31,6 +31,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
   showChecklistModal = false;
   selectedOrderForChecklist: KitchenOrder | null = null;
   checklistItems: KitchenChecklistItem[] = [];
+  activeSpeechKey: string | null = null;
 
   constructor(private kitchenService: KitchenDisplayService) {}
 
@@ -51,6 +52,9 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.outletSub?.unsubscribe();
     this.pollSub?.unsubscribe();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
   }
 
   loadData() {
@@ -170,5 +174,66 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
       delivered: '#059669'
     };
     return colors[status] || '#6b7280';
+  }
+
+  canSpeakOrder(order: KitchenOrder): boolean {
+    return ['confirmed', 'preparing', 'ready'].includes(order.status);
+  }
+
+  speakOrder(order: KitchenOrder): void {
+    if (!this.canSpeakOrder(order)) {
+      return;
+    }
+
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      this.uiStore.error('Text-to-speech is not supported in this browser');
+      return;
+    }
+
+    const speechKey = `order-${order.id}`;
+    const synth = window.speechSynthesis;
+
+    if (this.activeSpeechKey === speechKey && synth.speaking) {
+      synth.cancel();
+      this.activeSpeechKey = null;
+      return;
+    }
+
+    synth.cancel();
+
+    const orderItemsText = (order.items || [])
+      .map(i => `${i.quantity} ${i.quantity > 1 ? 'items' : 'item'} of ${i.name}`)
+      .join(', ');
+
+    const utterance = new SpeechSynthesisUtterance(
+      `Order ${order.id.slice(-6)}. ${orderItemsText}.`
+    );
+    utterance.rate = 1;
+    utterance.pitch = 1;
+
+    // Prefer Indian English voice when available for clearer kitchen pronunciation.
+    const voices = synth.getVoices();
+    const preferredVoice = voices.find(v => /en-IN/i.test(v.lang)) || voices.find(v => /^en-/i.test(v.lang));
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+      utterance.lang = preferredVoice.lang;
+    } else {
+      utterance.lang = 'en-IN';
+    }
+
+    this.activeSpeechKey = speechKey;
+    utterance.onend = () => {
+      if (this.activeSpeechKey === speechKey) {
+        this.activeSpeechKey = null;
+      }
+    };
+    utterance.onerror = () => {
+      if (this.activeSpeechKey === speechKey) {
+        this.activeSpeechKey = null;
+      }
+      this.uiStore.error('Unable to play order audio');
+    };
+
+    synth.speak(utterance);
   }
 }

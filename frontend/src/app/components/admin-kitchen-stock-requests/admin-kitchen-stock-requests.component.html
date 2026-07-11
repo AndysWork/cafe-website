@@ -1,0 +1,50 @@
+<div class="admin-container">
+  <div class="page-header">
+    <h1>Kitchen Voice Stock Requests</h1>
+    <select [(ngModel)]="statusFilter" (change)="loadRequests()">
+      <option value="pending">Pending</option>
+      <option value="approved">Approved</option>
+      <option value="rejected">Rejected</option>
+      <option value="">All</option>
+    </select>
+  </div>
+
+  <div *ngIf="loading" class="loading-state">Loading requests...</div>
+
+  <div *ngIf="!loading && requests.length === 0" class="empty-state">
+    No requests found for selected filter.
+  </div>
+
+  <div *ngIf="!loading && requests.length > 0" class="request-grid">
+    <article class="request-card" *ngFor="let request of requests; trackBy: trackById">
+      <header>
+        <h3>{{ request.requestedByName }}</h3>
+        <span class="badge" [class.pending]="request.status === 'pending'" [class.approved]="request.status === 'approved'" [class.rejected]="request.status === 'rejected'">
+          {{ request.status | titlecase }}
+        </span>
+      </header>
+
+      <p class="meta">{{ request.createdAt | date:'medium' }} | Outlet: {{ request.outletId }}</p>
+      <p *ngIf="request.transcriptText" class="transcript">"{{ request.transcriptText }}"</p>
+
+      <div class="chips" *ngIf="request.requestedItems?.length">
+        <span class="chip" *ngFor="let item of request.requestedItems">{{ item }}</span>
+      </div>
+
+      <div *ngIf="request.status === 'pending'" class="actions">
+        <input
+          type="text"
+          placeholder="Optional note"
+          [(ngModel)]="reviewNotes[request.id!]"
+          maxlength="300" />
+        <button class="btn approve" (click)="review(request, 'approved')">Approve</button>
+        <button class="btn reject" (click)="review(request, 'rejected')">Reject</button>
+      </div>
+
+      <p *ngIf="request.status !== 'pending'" class="reviewed-meta">
+        Reviewed by {{ request.reviewedByName || 'Admin' }} on {{ request.reviewedAt | date:'medium' }}
+        <span *ngIf="request.reviewNote">| Note: {{ request.reviewNote }}</span>
+      </p>
+    </article>
+  </div>
+</div>

@@ -74,6 +74,7 @@ export const routes: Routes = [
       { path: 'combos', loadComponent: () => import('./components/admin-combos/admin-combos.component').then(m => m.AdminCombosComponent) },
       { path: 'happy-hours', loadComponent: () => import('./components/admin-happy-hours/admin-happy-hours.component').then(m => m.AdminHappyHoursComponent) },
       { path: 'auto-reorder', loadComponent: () => import('./components/admin-auto-reorder/admin-auto-reorder.component').then(m => m.AdminAutoReorderComponent) },
+      { path: 'kitchen-stock-requests', loadComponent: () => import('./components/admin-kitchen-stock-requests/admin-kitchen-stock-requests.component').then(m => m.AdminKitchenStockRequestsComponent) },
       { path: 'subscriptions', loadComponent: () => import('./components/admin-subscriptions/admin-subscriptions.component').then(m => m.AdminSubscriptionsComponent) },
       { path: 'delivery-partners', loadComponent: () => import('./components/admin-delivery-partners/admin-delivery-partners.component').then(m => m.AdminDeliveryPartnersComponent) },
       { path: 'customer-segments', loadComponent: () => import('./components/admin-customer-segments/admin-customer-segments.component').then(m => m.AdminCustomerSegmentsComponent) },

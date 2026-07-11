@@ -56,7 +56,7 @@
           </a>
         </li>
 
-        <li class="nav-item" *ngIf="isStaffRoleUser">
+        <li class="nav-item" *ngIf="isStaffRoleUser && !isHomeScreen">
           <a
             routerLink="/staff/attendance"
             routerLinkActive="active"
@@ -68,7 +68,7 @@
           </a>
         </li>
 
-        <li class="nav-item" *ngIf="isStaffRoleUser">
+        <li class="nav-item" *ngIf="isStaffRoleUser && !isHomeScreen">
           <a
             routerLink="/staff/payslip"
             routerLinkActive="active"
@@ -80,7 +80,7 @@
           </a>
         </li>
 
-        <li class="nav-item" *ngIf="isManager || isKitchenUser">
+        <li class="nav-item" *ngIf="(isManager || isKitchenUser) && !isHomeScreen">
           <a
             routerLink="/kitchen/display"
             routerLinkActive="active"
@@ -92,7 +92,7 @@
           </a>
         </li>
 
-        <li class="nav-item" *ngIf="isManager">
+        <li class="nav-item" *ngIf="isManager && !isHomeScreen">
           <a
             routerLink="/manager/operations"
             routerLinkActive="active"
@@ -118,7 +118,7 @@
         </li>
 
         <!-- Cart (Customers Only) -->
-        <li class="nav-item cart-item" *ngIf="isCustomer">
+        <li class="nav-item cart-item" *ngIf="isCustomer && !isHomeScreen">
           <a
             routerLink="/cart"
             routerLinkActive="active"
@@ -135,7 +135,7 @@
           </a>
         </li>
         <!-- Regular User: Orders -->
-        <li class="nav-item" *ngIf="isCustomer">
+        <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
           <a
             routerLink="/orders"
             routerLinkActive="active"
@@ -148,7 +148,7 @@
         </li>
 
         <!-- Regular User: Loyalty Points -->
-        <li class="nav-item" *ngIf="isCustomer">
+        <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
           <a
             routerLink="/loyalty"
             routerLinkActive="active"
@@ -161,7 +161,7 @@
         </li>
 
         <!-- Profile (Customers + Partners) -->
-        <li class="nav-item" *ngIf="isCustomer || isPartnerUser || isKitchenUser">
+        <li class="nav-item" *ngIf="(isPartnerUser || isKitchenUser || isCustomer) && !isHomeScreen">
           <a
             routerLink="/profile"
             routerLinkActive="active"

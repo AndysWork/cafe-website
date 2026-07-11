@@ -22,6 +22,7 @@ public class OutboxProcessorFunction
     private readonly IWhatsAppService _whatsApp;
     private readonly IEmailService _email;
     private readonly NotificationService _notification;
+    private readonly INotificationRepository _notificationRepo;
     private readonly WebPushService _webPush;
     private readonly IOrderRepository _orderRepo;
     private readonly IOperationsRepository _operationsRepo;
@@ -33,6 +34,7 @@ public class OutboxProcessorFunction
         IWhatsAppService whatsApp,
         IEmailService email,
         NotificationService notification,
+        INotificationRepository notificationRepo,
         WebPushService webPush,
         IOrderRepository orderRepo,
         IOperationsRepository operationsRepo,
@@ -43,6 +45,7 @@ public class OutboxProcessorFunction
         _whatsApp = whatsApp;
         _email = email;
         _notification = notification;
+        _notificationRepo = notificationRepo;
         _webPush = webPush;
         _orderRepo = orderRepo;
         _operationsRepo = operationsRepo;
@@ -346,6 +349,33 @@ public class OutboxProcessorFunction
                 }
                 break;
 
+            case "KitchenVoiceStockRequestAdminNotification":
+                var stockReq = JsonSerializer.Deserialize<KitchenVoiceStockRequestAdminNotificationPayload>(message.Payload);
+                if (stockReq != null)
+                {
+                    var adminIds = await _notificationRepo.GetAdminUserIdsAsync();
+                    if (adminIds.Count > 0)
+                    {
+                        var requestedItems = stockReq.RequestedItems?.Any() == true
+                            ? string.Join(", ", stockReq.RequestedItems.Take(5))
+                            : "inventory items";
+
+                        await _notification.SendToManyAsync(
+                            adminIds,
+                            "system",
+                            "Kitchen Stock Request Pending",
+                            $"{stockReq.RequestedByName} requested: {requestedItems}",
+                            new Dictionary<string, string>
+                            {
+                                { "requestId", stockReq.RequestId },
+                                { "outletId", stockReq.OutletId },
+                                { "source", "kitchen_voice_request" }
+                            },
+                            actionUrl: "/admin/kitchen-stock-requests");
+                    }
+                }
+                break;
+
             default:
                 _logger.LogWarning("Unknown outbox event type: {EventType}", message.EventType);
                 break;
@@ -379,4 +409,5 @@ public class OutboxProcessorFunction
     public record StatusUpdateNotificationPayload(string OrderId, string Status);
     public record DeliveryPartnerBroadcastPayload(string OrderId, string OutletId, string Trigger);
     public record DeliveryPartnerStatusAlertPayload(string OrderId, string OutletId, string Status, string? DeliveryPartnerId);
+    public record KitchenVoiceStockRequestAdminNotificationPayload(string RequestId, string OutletId, string RequestedByName, List<string> RequestedItems, string TranscriptText);
 }

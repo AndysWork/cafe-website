@@ -89,4 +89,10 @@ public interface IOperationsRepository
     Task<List<CustomerSegment>> GetCustomerSegmentsAsync(string? segment = null, int page = 1, int pageSize = 50);
     Task<List<SegmentSummary>> GetSegmentSummaryAsync();
     Task<int> RefreshCustomerSegmentsAsync();
+
+    // Kitchen voice stock requests
+    Task<KitchenVoiceStockRequest> CreateKitchenVoiceStockRequestAsync(KitchenVoiceStockRequest request);
+    Task<List<KitchenVoiceStockRequest>> GetKitchenVoiceStockRequestsAsync(string? outletId = null, string? status = null, int limit = 100);
+    Task<KitchenVoiceStockRequest?> GetKitchenVoiceStockRequestByIdAsync(string id);
+    Task<bool> ReviewKitchenVoiceStockRequestAsync(string id, string decision, string reviewedByUserId, string reviewedByName, string? note);
 }
