@@ -1,8 +1,15 @@
 # Maa Tara Cafe — Comprehensive Application Documentation
 
-> **Version:** 3.0 | **Last Updated:** March 30, 2026  
+> **Version:** 3.1 | **Last Updated:** July 12, 2026  
 > **Stack:** Angular 19.2 + .NET 9 Azure Functions (Isolated Worker) + MongoDB Atlas  
 > **Domain:** Multi-outlet cafe management + online ordering platform
+
+> **Recent Changes (July 2026):**
+> - Wallet module removed from frontend/backend flows
+> - Kitchen voice stock-out request workflow (speech-to-text submit + admin approval queue)
+> - Kitchen order-level text-to-speech playback in Kitchen Display
+> - Kitchen-only Google translation controls (custom selector-based integration)
+> - Role-aware navbar visibility hardening on home and role dashboards
 
 ---
 
@@ -162,6 +169,41 @@
 | 62 | **CSRF Protection** | Token-based CSRF protection for state-changing operations |
 | 63 | **Database Backup** | Manual and scheduled (timer trigger) database backup to Azure Blob Storage |
 
+### 1.4 Kitchen Roles (Roles: `cook`, `chef`, `sous-chef`)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 1 | **Kitchen Staff Dashboard** | Period-wise kitchen performance dashboard (day/week/month/year) with shift metrics and ratings |
+| 2 | **Kitchen Display System** | Real-time board with order buckets (pending/confirmed/preparing/ready/out-for-delivery) |
+| 3 | **Order Lifecycle Controls** | Confirm, approve/start, ready, delivered transitions from kitchen UI |
+| 4 | **Pre-Ready Checklist** | Mandatory checklist modal before marking orders ready |
+| 5 | **KOT Preview/Print** | On-demand kitchen order ticket generation and print window |
+| 6 | **Order-Level TTS** | Speak full order summary using browser speech synthesis (order-level action) |
+| 7 | **Voice Stock-Out Request (STT)** | Web speech capture or typed request routed to admin approval queue |
+| 8 | **Kitchen Translation Selector** | Language switch support on kitchen screens using Google Translate cookie-based flow |
+
+### 1.5 Manager (Role: `manager`)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 1 | **Manager Dashboard** | Operational KPIs for kitchen load, delivery partner availability, and attendance status |
+| 2 | **Operations Board** | Unified tabs for kitchen, delivery, parcel assignments, and escalation actions |
+| 3 | **Partner Reassignment** | Reassign delivery partners for active delivery orders |
+| 4 | **Urgent Marking / Resend** | Mark deliveries urgent and resend delivery notifications |
+| 5 | **Parcel Task Assignment** | Assign point-to-point parcel tasks with route quote and round-trip support |
+
+### 1.6 Delivery Partner (Roles: `partner`, `delivery-partner`)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 1 | **Partner Dashboard** | Shift status, active orders, trip logs, and payout summary views |
+| 2 | **Shift Lifecycle** | Start/end shift with odometer capture and validation |
+| 3 | **Trip Logging** | Delivery/parcel trip logging with start-end points and distance |
+| 4 | **Order Pickup/Delivery** | Pickup assigned orders and complete delivery status actions |
+| 5 | **COD Confirmation** | Confirm cash-on-delivery collection with amount and reference |
+| 6 | **Parcel Acceptance/Completion** | Accept assigned parcel tasks and mark completion |
+| 7 | **Mobile Delivery View** | Mobile-oriented partner workflow screen for in-field operations |
+
 ---
 
 ## 2. Step-by-Step Feature Usage Guide
@@ -274,8 +316,7 @@ Wallet functionality has been removed from the product (July 2026).
 ├─────────────────────────────────────────────────────────────────┤
 │                      API GATEWAY                                │
 │  Azure Functions V4 (Isolated Worker, .NET 9)                   │
-│  74 Function files | 318 HTTP endpoints | 2 Timer triggers      │
-│  1 Warmup trigger                                               │
+│  79 Function files | 454 HTTP triggers | 4 Timer triggers       │
 │  Route Prefix: /api/                                            │
 │  Auth: JWT (BCrypt, 24hr expiry) + Centralized AuthMiddleware   │
 │  Middleware: SecurityHeaders → InputSanitization → RateLimit    │
@@ -284,8 +325,8 @@ Wallet functionality has been removed from the product (July 2026).
 │  OpenAPI/Swagger auto-generated                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │                    BACKEND SERVICES                              │
-│  MongoService (10 partial classes, 54 collections)              │
-│  14 Repository Interfaces (IMenuRepository, IOrderRepository…)  │
+│  MongoService (partial-class split, ~65 collection bindings)    │
+│  13 Repository Interfaces (IMenuRepository, IOrderRepository…)  │
 │  AuthService (JWT + BCrypt)                                     │
 │  BlobStorageService (Azure Blob — images, backups)              │
 │  EmailService (MailKit SMTP)                                    │
@@ -300,7 +341,7 @@ Wallet functionality has been removed from the product (July 2026).
 ├─────────────────────────────────────────────────────────────────┤
 │                      DATA LAYER                                 │
 │  MongoDB Atlas (Cluster: maataracafecluster)                    │
-│  Database: CafeDB | 54 Collections (+ EventLogs, OutboxMessages)│
+│  Database: CafeDB | collection-per-domain model in MongoService  │
 │  All data scoped by OutletId (multi-tenant)                     │
 │  35+ compound indexes | Soft-delete with ISoftDeletable          │
 │  In-memory caching for reference data (IMemoryCache)            │
@@ -316,7 +357,7 @@ Wallet functionality has been removed from the product (July 2026).
 
 ```
 frontend/src/app/
-├── components/          # 59 standalone Angular components
+├── components/          # 76 standalone Angular components (current)
 │   ├── home/            # Public landing page
 │   ├── menu/            # Menu browsing (public)
 │   ├── cart/            # Shopping cart
@@ -328,16 +369,16 @@ frontend/src/app/
 │   ├── navbar/          # Public navbar
 │   ├── admin-layout/    # Admin shell with grouped nav dropdowns
 │   ├── admin-dashboard/ # Admin overview
-│   └── ...              # 48 more admin/user components
+│   └── ...              # includes admin, kitchen, manager, partner modules
 ├── shared/              # 5 shared UI components (confirm-dialog, empty-state,
 │                        #   loading-spinner, toast-container)
 ├── inventory-management/# Standalone inventory component
-├── services/            # 52 Angular services (HttpClient→API)
+├── services/            # 57 Angular services (HttpClient→API)
 │   ├── offline-queue.service.ts   # Offline mutation queue + background sync
 │   ├── network-status.service.ts  # Online/offline state detection
-│   └── ...              # 50 more domain services
+│   └── ...              # expanded delivery, kitchen, analytics, ops services
 ├── store/               # 5 Signal stores (Auth, Cart, Outlet, Notification, UI)
-├── guards/              # authGuard, adminGuard
+├── guards/              # 1 guard file with auth/admin/kitchen/partner/manager guards
 ├── interceptors/        # 4 HTTP interceptors
 │   ├── auth.interceptor.ts       # JWT token attachment
 │   ├── error.interceptor.ts      # Error handling + exponential backoff retry
@@ -346,7 +387,7 @@ frontend/src/app/
 ├── models/              # TypeScript interfaces (4 files)
 ├── utils/               # Shared utilities (error-handler, date-utils,
 │                        #   file-download, loading)
-├── app.routes.ts        # 18 public + 35 admin routes with lazy loading
+├── app.routes.ts        # 72 path definitions (public + role + admin child routes)
 └── app.config.ts        # App-level providers
 ```
 
@@ -366,7 +407,7 @@ frontend/src/app/
 
 ```
 api/
-├── Functions/           # 74 Azure Function files (HTTP + Timer + Warmup triggers)
+├── Functions/           # 79 Azure Function files (HTTP + Timer triggers)
 │   ├── AuthFunction.cs           # Authentication (8 endpoints)
 │   ├── MenuFunction.cs           # Menu CRUD (9 endpoints)
 │   ├── OrderFunction.cs          # Order lifecycle (uses repository interfaces)
@@ -380,10 +421,10 @@ api/
 │   ├── StaffCommandFunction.cs   # Staff — write endpoints (split)
 │   ├── OutboxProcessorFunction.cs # Timer: processes outbox events every 30s
 │   ├── DatabaseBackupFunction.cs # Timer: daily backup at 8:30 PM IST
-│   ├── WarmupFunction.cs         # Warmup trigger for cold start mitigation
+│   ├── KitchenVoiceStockRequestFunction.cs # Kitchen voice stock request submit/review
 │   ├── OrphanCleanupFunction.cs  # Orphan data cleanup (soft-delete cascade)
-│   └── ...                       # 59 more function files
-├── Services/            # 24 backend service files
+│   └── ...                       # additional domain function files
+├── Services/            # 29 backend service files
 │   ├── MongoService.cs           # Core data access (main file)
 │   ├── MongoService.*.cs         # 9 partial class extensions
 │   ├── AuthService.cs            # JWT + password hashing
@@ -400,7 +441,7 @@ api/
 │   ├── IEmailService.cs          # Email service interface
 │   ├── IWhatsAppService.cs       # WhatsApp service interface
 │   └── IRazorpayService.cs       # Payment service interface
-├── Repositories/        # 14 domain-specific repository interfaces
+├── Repositories/        # 13 domain-specific repository interfaces
 │   ├── IMenuRepository.cs        # Menu items, categories, subcategories
 │   ├── IOrderRepository.cs       # Order CRUD + queries
 │   ├── ILoyaltyRepository.cs     # Loyalty accounts, points, rewards
@@ -410,17 +451,16 @@ api/
 │   ├── IUserRepository.cs        # User accounts, sessions
 │   ├── IOfferRepository.cs       # Offers, coupons, happy hours
 │   ├── IOutletRepository.cs      # Outlet management
-│   ├── IWalletRepository.cs      # Removed (July 2026)
 │   ├── INotificationRepository.cs # App notifications
 │   ├── IOperationsRepository.cs  # Kitchen, delivery, reservations, wastage
 │   ├── IPricingRepository.cs     # Price forecasts, overhead costs
 │   └── IAnalyticsRepository.cs   # User analytics, segments
-├── Models/              # 46 model files (80+ classes/DTOs)
+├── Models/              # 52 model files (current)
 │   ├── ISoftDeletable.cs         # Soft-delete interface (IsDeleted, DeletedAt)
 │   ├── EventLog.cs               # Event sourcing log entry model
 │   ├── OutboxMessage.cs          # Outbox message model (pending/processing/completed/failed)
 │   └── ...                       # 43 more domain models
-├── Helpers/             # 18 security/utility helpers
+├── Helpers/             # 19 security/utility helpers
 │   ├── AuthorizationMiddleware.cs    # Centralized JWT extraction + role policies
 │   ├── AuthorizationHelper.cs        # Legacy JWT parsing (backward compatibility)
 │   ├── InputSanitizationMiddleware.cs # Global XSS/injection prevention middleware
@@ -445,7 +485,7 @@ api/
 
 **DI Registration (Program.cs):**
 - All services registered as **Singleton** (Azure Functions best practice)
-- **14 domain repository interfaces** backed by MongoService (Interface Segregation)
+- **13 domain repository interfaces** backed by MongoService (Interface Segregation)
 - **Service interfaces:** `IEmailService`, `IWhatsAppService`, `IRazorpayService` for testability
 - Named `HttpClient` instances with **Polly** retry (3 attempts, exponential backoff) + circuit breaker (5 failures, 30s window) for Twilio and Razorpay
 - `MongoInitializationService` as `IHostedService` for async DB setup
@@ -501,7 +541,7 @@ Every data-bearing request flows through:
           │  { OutletId: "xxx" }    │
           └─────────────────────────┘
           
-All 54 collections are outlet-scoped (except Users, LoyaltyAccounts, EventLogs, OutboxMessages which are global)
+Most business collections are outlet-scoped (with select global collections such as Users, LoyaltyAccounts, EventLogs, OutboxMessages).
 ```
 
 ---
@@ -517,9 +557,9 @@ All 54 collections are outlet-scoped (except Users, LoyaltyAccounts, EventLogs, 
 │  ┌─────────────────────┐     ┌──────────────────────────────┐       │
 │  │ Azure Static Web App│     │ Azure Functions App           │       │
 │  │ (Angular 19 PWA)    │────▶│ (.NET 9 Isolated Worker)     │       │
-│  │                     │     │ 318 HTTP Endpoints            │       │
-│  │ • Service Worker    │     │ 2 Timer Triggers              │       │
-│  │ • Offline Queue     │     │ 1 Warmup Trigger              │       │
+│  │                     │     │ 454 HTTP Triggers             │       │
+│  │ • Service Worker    │     │ 4 Timer Triggers              │       │
+│  │ • Offline Queue     │     │ No warmup trigger in current build │  │
 │  │ • manifest.json     │     │                               │       │
 │  │ • Lazy-loaded routes│     │ Middleware Pipeline:           │       │
 │  └─────────────────────┘     │ 1. SecurityHeaders            │       │
@@ -543,7 +583,7 @@ All 54 collections are outlet-scoped (except Users, LoyaltyAccounts, EventLogs, 
                      │     MongoDB Atlas              │
                      │     Cluster: maataracafecluster│
                      │     Database: CafeDB           │
-                     │     54 Collections             │
+                     │     Domain collections (see MongoService partials) │
                      │     35+ Compound Indexes       │
                      │     Soft-Delete + Event Sourcing│
                      │     Region: Azure              │
@@ -949,8 +989,8 @@ User                Angular App              Azure Functions           MongoDB
 
 #### FLAW 16: Tight Coupling / No Interfaces ✅ RESOLVED
 - **Original Problem:** Function files directly depended on `MongoService` — no abstraction, no testability.
-- **Resolution:** 14 repository interfaces created (see FLAW 1). `OrderFunction.cs` fully refactored as pattern — injects `IOrderRepository`, `IMenuRepository`, `IOfferRepository`, `ILoyaltyRepository`, `IUserRepository` instead of MongoService directly. All 16+ `_mongo.` calls replaced with typed interface calls. Pattern available for other function files to adopt.
-- **Files:** `api/Repositories/` (14 interfaces), `api/Functions/OrderFunction.cs` (pattern implementation)
+- **Resolution:** 13 repository interfaces created (wallet repository retired with wallet module removal). `OrderFunction.cs` fully refactored as pattern — injects `IOrderRepository`, `IMenuRepository`, `IOfferRepository`, `ILoyaltyRepository`, `IUserRepository` instead of MongoService directly. All 16+ `_mongo.` calls replaced with typed interface calls. Pattern available for other function files to adopt.
+- **Files:** `api/Repositories/` (13 interfaces), `api/Functions/OrderFunction.cs` (pattern implementation)
 
 #### FLAW 17: No Outbox Pattern ✅ RESOLVED
 - **Original Problem:** Order side effects (notifications, loyalty, email, WhatsApp) ran inline — partial failures caused inconsistent state.
@@ -968,7 +1008,7 @@ User                Angular App              Azure Functions           MongoDB
 
 | Severity | # | Flaw | Status |
 |----------|---|------|--------|
-| 🔴 Critical | 1 | God Service (MongoService) | ✅ Resolved — 14 repository interfaces |
+| 🔴 Critical | 1 | God Service (MongoService) | ✅ Resolved — 13 repository interfaces |
 | 🔴 Critical | 2 | No Referential Integrity | ✅ Resolved — Soft-delete + ISoftDeletable |
 | 🔴 Critical | 3 | Missing Validation Layer | ✅ Resolved — InputSanitizationMiddleware |
 | 🟠 High | 4 | No Connection Pool Config | ✅ Resolved — Explicit MongoClientSettings |
@@ -983,10 +1023,10 @@ User                Angular App              Azure Functions           MongoDB
 | 🟢 Low | 13 | Mixed Auth Patterns | ✅ Resolved — AuthorizationMiddleware |
 | 🟢 Low | 14 | No Deep Health Checks | ✅ Resolved — Multi-dependency health checks |
 | 🟢 Low | 15 | No Event Sourcing | ✅ Resolved — EventLogService |
-| 🟢 Low | 16 | Tight Coupling / No Interfaces | ✅ Resolved — 14 repository interfaces |
+| 🟢 Low | 16 | Tight Coupling / No Interfaces | ✅ Resolved — 13 repository interfaces |
 | 🟢 Low | 17 | No Outbox Pattern | ✅ Resolved — OutboxService + processor |
 
 ---
 
-> **Document updated — Version 3.0 — March 30, 2026**  
-> **Covers:** 46 model files, 74 function files, 54 MongoDB collections, 59 frontend components, 52 frontend services, 5 signal stores, 14 repository interfaces, 18 helper files, 24 service files
+> **Document updated — Version 3.1 — July 12, 2026**  
+> **Covers:** 52 model files, 79 function files, ~65 MongoService collection bindings, 76 frontend components, 57 frontend services, 5 signal stores, 13 repository interfaces, 19 helper files, 29 backend service files
