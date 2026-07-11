@@ -1,7 +1,28 @@
 <div class="staff-dashboard">
   <div class="dashboard-header">
     <h1>Kitchen Staff Dashboard</h1>
-    <a routerLink="/kitchen/display" class="kitchen-link">Open Kitchen Display</a>
+    <div class="header-actions">
+      <a routerLink="/kitchen/display" class="kitchen-link">Open Kitchen Display</a>
+      <label class="translation-label" for="kitchen-dashboard-language">Language</label>
+      <select
+        id="kitchen-dashboard-language"
+        class="translation-select"
+        [(ngModel)]="selectedLanguage"
+        (change)="applySelectedLanguage()">
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="ta">Tamil</option>
+        <option value="te">Telugu</option>
+        <option value="kn">Kannada</option>
+        <option value="ml">Malayalam</option>
+        <option value="mr">Marathi</option>
+        <option value="bn">Bengali</option>
+        <option value="gu">Gujarati</option>
+        <option value="pa">Punjabi</option>
+        <option value="ur">Urdu</option>
+      </select>
+      <div id="kitchen-google-translate-dashboard"></div>
+    </div>
   </div>
 
   <div class="period-filters">

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { KitchenDisplayService, KitchenStaffDashboard } from '../../services/kitchen-display.service';
@@ -11,6 +11,8 @@ declare global {
   interface Window {
     SpeechRecognition?: any;
     webkitSpeechRecognition?: any;
+    google?: any;
+    googleTranslateElementInit?: () => void;
   }
 }
 
@@ -21,7 +23,7 @@ declare global {
   templateUrl: './kitchen-staff-dashboard.component.html',
   styleUrls: ['./kitchen-staff-dashboard.component.scss']
 })
-export class KitchenStaffDashboardComponent implements OnInit {
+export class KitchenStaffDashboardComponent implements OnInit, AfterViewInit {
   period: 'day' | 'week' | 'month' | 'year' = 'day';
   dashboard: KitchenStaffDashboard | null = null;
   loading = true;
@@ -29,6 +31,7 @@ export class KitchenStaffDashboardComponent implements OnInit {
   transcript = '';
   listening = false;
   speechSupported = false;
+  selectedLanguage = 'en';
   private recognition: any | null = null;
 
   constructor(
@@ -39,11 +42,16 @@ export class KitchenStaffDashboardComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.selectedLanguage = this.getCurrentTranslateLanguage();
     this.initSpeechRecognition();
     this.webPush.registerKitchenWebPush('kitchen-dashboard').catch(() => {
       // Keep dashboard functional even if push setup fails.
     });
     this.loadDashboard();
+  }
+
+  ngAfterViewInit(): void {
+    this.initializeGoogleTranslate('kitchen-google-translate-dashboard');
   }
 
   setPeriod(period: 'day' | 'week' | 'month' | 'year'): void {
@@ -199,5 +207,85 @@ export class KitchenStaffDashboardComponent implements OnInit {
       },
       error: () => this.uiStore.error('Failed to send stock request')
     });
+  }
+
+  private initializeGoogleTranslate(containerId: string): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const renderWidget = () => {
+      if (!window.google?.translate?.TranslateElement) {
+        return;
+      }
+
+      const container = document.getElementById(containerId);
+      if (!container || container.childElementCount > 0) {
+        return;
+      }
+
+      new window.google.translate.TranslateElement(
+        {
+          pageLanguage: 'en',
+          includedLanguages: 'en,hi,ta,te,kn,ml,mr,bn,gu,pa,ur',
+          layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
+          autoDisplay: false
+        },
+        containerId
+      );
+    };
+
+    window.googleTranslateElementInit = renderWidget;
+
+    if (window.google?.translate?.TranslateElement) {
+      renderWidget();
+      return;
+    }
+
+    const existingScript = document.getElementById('google-translate-script');
+    if (existingScript) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'google-translate-script';
+    script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+
+  applySelectedLanguage(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const targetLang = (this.selectedLanguage || 'en').toLowerCase();
+    const cookieValue = `/en/${targetLang}`;
+
+    document.cookie = `googtrans=${cookieValue};path=/;max-age=31536000`;
+    document.cookie = `googtrans=${cookieValue};path=/;max-age=31536000;domain=${window.location.hostname}`;
+
+    const sameRouteUrl = `${window.location.pathname}${window.location.search}`;
+    window.location.replace(sameRouteUrl);
+  }
+
+  private getCurrentTranslateLanguage(): string {
+    if (typeof document === 'undefined') {
+      return 'en';
+    }
+
+    const translateCookie = document.cookie
+      .split(';')
+      .map(part => part.trim())
+      .find(part => part.startsWith('googtrans='));
+
+    if (!translateCookie) {
+      return 'en';
+    }
+
+    const value = decodeURIComponent(translateCookie.split('=')[1] || '');
+    const parts = value.split('/').filter(Boolean);
+    return parts[1] || 'en';
   }
 }

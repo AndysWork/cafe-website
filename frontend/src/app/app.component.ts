@@ -20,15 +20,31 @@ export class AppComponent {
   private analyticsTracking = inject(AnalyticsTrackingService);
   networkStatus = inject(NetworkStatusService);
   offlineQueue = inject(OfflineQueueService);
+  private readonly lastRouteStorageKey = 'lastAppRouteBeforeTranslate';
 
   constructor(private router: Router) {
     // Hide navbar on admin routes & track page views
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: any) => {
-      this.showNavbar = !event.url.startsWith('/admin');
+      const currentUrl = (event.urlAfterRedirects || event.url || '').split('?')[0] || '/';
+      this.showNavbar = !currentUrl.startsWith('/admin');
+
+      if (currentUrl !== '/' && currentUrl !== '') {
+        sessionStorage.setItem(this.lastRouteStorageKey, currentUrl);
+      }
+
+      // Google Translate can rewrite URL to /#googtrans(...), which maps to home in SPA routing.
+      if ((currentUrl === '/' || currentUrl === '') && window.location.hash.startsWith('#googtrans')) {
+        const restoreUrl = sessionStorage.getItem(this.lastRouteStorageKey);
+        if (restoreUrl && restoreUrl !== '/') {
+          this.router.navigateByUrl(restoreUrl, { replaceUrl: true });
+          return;
+        }
+      }
+
       // Track page view for analytics
-      const pageName = this.getPageName(event.url);
+      const pageName = this.getPageName(currentUrl);
       this.analyticsTracking.trackPageView(pageName);
     });
   }

@@ -3,6 +3,25 @@
     <h1>👨‍🍳 Kitchen Display</h1>
     <div class="kitchen-header-actions">
       <a class="dashboard-link" routerLink="/kitchen/dashboard">Kitchen Staff Dashboard</a>
+      <label class="translation-label" for="kitchen-display-language">Language</label>
+      <select
+        id="kitchen-display-language"
+        class="translation-select"
+        [(ngModel)]="selectedLanguage"
+        (change)="applySelectedLanguage()">
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="ta">Tamil</option>
+        <option value="te">Telugu</option>
+        <option value="kn">Kannada</option>
+        <option value="ml">Malayalam</option>
+        <option value="mr">Marathi</option>
+        <option value="bn">Bengali</option>
+        <option value="gu">Gujarati</option>
+        <option value="pa">Punjabi</option>
+        <option value="ur">Urdu</option>
+      </select>
+      <div id="kitchen-google-translate-display"></div>
     </div>
     <div class="stats-row" *ngIf="stats">
       <span class="stat-pill pending">⏳ {{ stats.pendingOrders }} Pending</span>

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { KitchenDisplayService, KitchenOrder, KitchenStats, KitchenChecklistItem } from '../../services/kitchen-display.service';
@@ -9,6 +9,13 @@ import { Subscription, interval } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { RouterModule } from '@angular/router';
 
+declare global {
+  interface Window {
+    google?: any;
+    googleTranslateElementInit?: () => void;
+  }
+}
+
 @Component({
   selector: 'app-kitchen-display',
   standalone: true,
@@ -16,7 +23,7 @@ import { RouterModule } from '@angular/router';
   templateUrl: './kitchen-display.component.html',
   styleUrls: ['./kitchen-display.component.scss']
 })
-export class KitchenDisplayComponent implements OnInit, OnDestroy {
+export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit {
   private outletService = inject(OutletService);
   private uiStore = inject(UIStore);
   private outletSub?: Subscription;
@@ -32,10 +39,17 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
   selectedOrderForChecklist: KitchenOrder | null = null;
   checklistItems: KitchenChecklistItem[] = [];
   activeSpeechKey: string | null = null;
+  selectedLanguage = 'en';
 
   constructor(private kitchenService: KitchenDisplayService) {}
 
+  ngAfterViewInit(): void {
+    this.initializeGoogleTranslate('kitchen-google-translate-display');
+  }
+
   ngOnInit() {
+    this.selectedLanguage = this.getCurrentTranslateLanguage();
+
     this.webPush.registerKitchenWebPush('kitchen-display').catch(() => {
       // Keep kitchen display functional even if push setup fails.
     });
@@ -55,6 +69,86 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
+  }
+
+  private initializeGoogleTranslate(containerId: string): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const renderWidget = () => {
+      if (!window.google?.translate?.TranslateElement) {
+        return;
+      }
+
+      const container = document.getElementById(containerId);
+      if (!container || container.childElementCount > 0) {
+        return;
+      }
+
+      new window.google.translate.TranslateElement(
+        {
+          pageLanguage: 'en',
+          includedLanguages: 'en,hi,ta,te,kn,ml,mr,bn,gu,pa,ur',
+          layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
+          autoDisplay: false
+        },
+        containerId
+      );
+    };
+
+    window.googleTranslateElementInit = renderWidget;
+
+    if (window.google?.translate?.TranslateElement) {
+      renderWidget();
+      return;
+    }
+
+    const existingScript = document.getElementById('google-translate-script');
+    if (existingScript) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'google-translate-script';
+    script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+
+  applySelectedLanguage(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const targetLang = (this.selectedLanguage || 'en').toLowerCase();
+    const cookieValue = `/en/${targetLang}`;
+
+    document.cookie = `googtrans=${cookieValue};path=/;max-age=31536000`;
+    document.cookie = `googtrans=${cookieValue};path=/;max-age=31536000;domain=${window.location.hostname}`;
+
+    const sameRouteUrl = `${window.location.pathname}${window.location.search}`;
+    window.location.replace(sameRouteUrl);
+  }
+
+  private getCurrentTranslateLanguage(): string {
+    if (typeof document === 'undefined') {
+      return 'en';
+    }
+
+    const translateCookie = document.cookie
+      .split(';')
+      .map(part => part.trim())
+      .find(part => part.startsWith('googtrans='));
+
+    if (!translateCookie) {
+      return 'en';
+    }
+
+    const value = decodeURIComponent(translateCookie.split('=')[1] || '');
+    const parts = value.split('/').filter(Boolean);
+    return parts[1] || 'en';
   }
 
   loadData() {
