@@ -278,12 +278,6 @@ public class NotificationFunction
     public async Task<HttpResponseData> GetWebPushPublicKey(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "notifications/webpush/public-key")] HttpRequestData req)
     {
-        var (isAuth, _, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-        if (!isAuth)
-        {
-            return authError!;
-        }
-
         if (!_webPush.IsConfigured || string.IsNullOrWhiteSpace(_webPush.PublicKey))
         {
             var unavailable = req.CreateResponse(HttpStatusCode.ServiceUnavailable);
