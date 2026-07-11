@@ -124,7 +124,19 @@ export class CartComponent implements OnInit, OnDestroy {
   getCustomizationVariant(): { variantName: string; price: number; quantity?: number } | undefined {
     const item = this.customizationMenuItem;
     if (!item?.variants || item.variants.length === 0) return undefined;
-    return item.variants.find(v => v.variantName === this.selectedVariantName) || item.variants[0];
+    const selected = item.variants.find(v => v.variantName === this.selectedVariantName) || item.variants[0];
+    return {
+      ...selected,
+      price: this.getVariantWebPrice(item, selected)
+    };
+  }
+
+  getVariantDisplayPrice(variant: { variantName: string; price: number; quantity?: number }): number {
+    if (!this.customizationMenuItem) {
+      return Number(variant?.price || 0);
+    }
+
+    return this.getVariantWebPrice(this.customizationMenuItem, variant);
   }
 
   getCustomizationAddOns(): { name: string; price: number }[] {
@@ -142,6 +154,25 @@ export class CartComponent implements OnInit, OnDestroy {
     const basePrice = variant?.price ?? this.getMenuWebPrice(this.customizationMenuItem);
     const addOnPrice = this.getCustomizationAddOns().reduce((sum, a) => sum + a.price, 0);
     return basePrice + addOnPrice;
+  }
+
+  private getVariantWebPrice(item: MenuItem | null, variant: { price: number }): number {
+    if (!item) return Number(variant?.price || 0);
+
+    const variantPrice = Number(variant?.price || 0);
+    const webPrice = Number(item.webPrice || 0);
+    const shopPrice = Number(item.shopSellingPrice || 0);
+
+    if (variantPrice <= 0) {
+      return 0;
+    }
+
+    if (webPrice > 0 && shopPrice > 0) {
+      const scaled = variantPrice * (webPrice / shopPrice);
+      return Math.round(scaled * 100) / 100;
+    }
+
+    return Math.round(variantPrice * 100) / 100;
   }
 
   applyCustomizationChanges(): void {

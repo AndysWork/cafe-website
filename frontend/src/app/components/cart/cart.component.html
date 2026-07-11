@@ -124,7 +124,7 @@
               [class.active]="selectedVariantName === v.variantName"
               (click)="selectedVariantName = v.variantName">
               <span>{{ getDisplayText(v.variantName) }}</span>
-              <strong>₹{{ v.price }}</strong>
+              <strong>₹{{ getVariantDisplayPrice(v) }}</strong>
             </button>
           </div>
         </div>

@@ -275,27 +275,12 @@
 
         <div class="detail-pricing">
           <div class="detail-price-row">
-            <span class="price-label">Web Price</span>
+            <span class="price-label">Price</span>
             <span class="price-value primary">₹{{ getWebPrice(selectedMenuItem) }}</span>
-          </div>
-          <div class="detail-price-row" *ngIf="selectedMenuItem.dineInPrice">
-            <span class="price-label">Dine-In Price</span>
-            <span class="price-value">₹{{ selectedMenuItem.dineInPrice }}</span>
           </div>
           <div class="detail-price-row" *ngIf="selectedMenuItem.packagingCharge">
             <span class="price-label">Packaging</span>
             <span class="price-value">₹{{ selectedMenuItem.packagingCharge }}</span>
-          </div>
-        </div>
-
-        <!-- Variants -->
-        <div class="detail-variants" *ngIf="selectedMenuItem.variants && selectedMenuItem.variants.length > 0">
-          <h4 class="detail-section-title">Variants</h4>
-          <div class="variant-list">
-            <div class="variant-chip" *ngFor="let v of selectedMenuItem.variants">
-              <span class="variant-name">{{ v.variantName }}</span>
-              <span class="variant-price">₹{{ v.price }}</span>
-            </div>
           </div>
         </div>
 

@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { downloadFile } from '../../utils/file-download';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { MenuService } from '../../services/menu.service';
@@ -201,7 +201,13 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
   loadMenuItems(): void {
     this.loading = true;
-    this.http.get<MenuItem[]>(`${environment.apiUrl}/menu`)
+    const headers = new HttpHeaders({
+      'ngsw-bypass': 'true',
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache'
+    });
+
+    this.http.get<MenuItem[]>(`${environment.apiUrl}/menu`, { headers })
       .subscribe({
         next: (data) => {
           this.menuItems = data;

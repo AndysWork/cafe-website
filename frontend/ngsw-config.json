@@ -31,7 +31,6 @@
       "name": "api-reference-data",
       "urls": [
         "/api/categories",
-        "/api/menu",
         "/api/outlets",
         "/api/loyalty/rewards",
         "/api/public/**"
