@@ -40,7 +40,12 @@ public class OutboxService
                     new CreateIndexOptions { Name = "ix_aggregate" }),
                 new CreateIndexModel<OutboxMessage>(
                     Builders<OutboxMessage>.IndexKeys.Ascending(m => m.CreatedAt),
-                    new CreateIndexOptions { Name = "ix_created", ExpireAfter = TimeSpan.FromDays(30) })
+                    new CreateIndexOptions { Name = "ix_created", ExpireAfter = TimeSpan.FromDays(30) }),
+                new CreateIndexModel<OutboxMessage>(
+                    Builders<OutboxMessage>.IndexKeys.Combine(
+                        Builders<OutboxMessage>.IndexKeys.Ascending(m => m.Status),
+                        Builders<OutboxMessage>.IndexKeys.Descending(m => m.CreatedAt)),
+                    new CreateIndexOptions { Name = "ix_status_created" })
             };
             _outbox.Indexes.CreateMany(indexes);
         }
@@ -82,11 +87,16 @@ public class OutboxService
             .ToListAsync();
     }
 
-    public async Task MarkProcessingAsync(string messageId)
+    public async Task<bool> MarkProcessingAsync(string messageId)
     {
-        await _outbox.UpdateOneAsync(
-            m => m.Id == messageId,
-            Builders<OutboxMessage>.Update.Set(m => m.Status, "processing"));
+        var result = await _outbox.UpdateOneAsync(
+            m => m.Id == messageId
+                 && (m.Status == "pending" || m.Status == "failed")
+                 && m.RetryCount < m.MaxRetries,
+            Builders<OutboxMessage>.Update
+                .Set(m => m.Status, "processing")
+                .Set(m => m.LastAttemptAt, DateTime.UtcNow));
+        return result.ModifiedCount > 0;
     }
 
     public async Task MarkCompletedAsync(string messageId)
@@ -95,23 +105,64 @@ public class OutboxService
             m => m.Id == messageId,
             Builders<OutboxMessage>.Update
                 .Set(m => m.Status, "completed")
-                .Set(m => m.ProcessedAt, DateTime.UtcNow));
+                .Set(m => m.ProcessedAt, DateTime.UtcNow)
+                .Set(m => m.LastAttemptAt, DateTime.UtcNow));
     }
 
     public async Task MarkFailedAsync(string messageId, string error)
     {
         var message = await _outbox.Find(m => m.Id == messageId).FirstOrDefaultAsync();
-        var retryCount = (message?.RetryCount ?? 0) + 1;
+        if (message == null)
+        {
+            return;
+        }
+
+        var retryCount = message.RetryCount + 1;
         // Exponential backoff: 30s, 2m, 8m, 32m, ~2h
         var nextRetry = DateTime.UtcNow.AddSeconds(30 * Math.Pow(4, retryCount - 1));
+
+        var status = retryCount >= (message?.MaxRetries ?? 5) ? "dead-letter" : "failed";
 
         await _outbox.UpdateOneAsync(
             m => m.Id == messageId,
             Builders<OutboxMessage>.Update
-                .Set(m => m.Status, "failed")
+                .Set(m => m.Status, status)
                 .Set(m => m.Error, error)
                 .Inc(m => m.RetryCount, 1)
-                .Set(m => m.NextRetryAt, nextRetry));
+                .Set(m => m.NextRetryAt, status == "failed" ? nextRetry : null)
+                .Set(m => m.LastAttemptAt, DateTime.UtcNow)
+                .Set(m => m.DeadLetteredAt, status == "dead-letter" ? DateTime.UtcNow : null));
+    }
+
+    public async Task<List<OutboxMessage>> GetDeadLetterMessagesAsync(int limit = 100)
+    {
+        var safeLimit = Math.Clamp(limit, 1, 500);
+        return await _outbox.Find(m => m.Status == "dead-letter")
+            .SortByDescending(m => m.DeadLetteredAt)
+            .Limit(safeLimit)
+            .ToListAsync();
+    }
+
+    public async Task<OutboxHealthSummary> GetHealthSummaryAsync()
+    {
+        var now = DateTime.UtcNow;
+        var fifteenMinutesAgo = now.AddMinutes(-15);
+
+        var pending = await _outbox.CountDocumentsAsync(m => m.Status == "pending");
+        var processing = await _outbox.CountDocumentsAsync(m => m.Status == "processing");
+        var retrying = await _outbox.CountDocumentsAsync(m => m.Status == "failed");
+        var deadLetter = await _outbox.CountDocumentsAsync(m => m.Status == "dead-letter");
+        var completedRecent = await _outbox.CountDocumentsAsync(m => m.Status == "completed" && m.ProcessedAt >= fifteenMinutesAgo);
+
+        return new OutboxHealthSummary
+        {
+            PendingCount = pending,
+            ProcessingCount = processing,
+            RetryingCount = retrying,
+            DeadLetterCount = deadLetter,
+            CompletedLast15Minutes = completedRecent,
+            CapturedAtUtc = now
+        };
     }
 
     /// <summary>
@@ -127,4 +178,14 @@ public class OutboxService
         var result = await _outbox.DeleteManyAsync(filter);
         return result.DeletedCount;
     }
+}
+
+public class OutboxHealthSummary
+{
+    public long PendingCount { get; set; }
+    public long ProcessingCount { get; set; }
+    public long RetryingCount { get; set; }
+    public long DeadLetterCount { get; set; }
+    public long CompletedLast15Minutes { get; set; }
+    public DateTime CapturedAtUtc { get; set; }
 }

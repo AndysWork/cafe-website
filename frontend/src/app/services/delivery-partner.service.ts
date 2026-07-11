@@ -71,6 +71,7 @@ export interface PartnerDashboard {
     id?: string;
     status: string;
     total: number;
+    phoneNumber?: string;
     deliveryAddress?: string;
     deliveryRouteShortUrl?: string;
     deliveryRouteUrl?: string;
@@ -80,11 +81,27 @@ export interface PartnerDashboard {
     paymentMethod?: 'cod' | 'razorpay' | 'upi-qr';
     paymentStatus?: 'pending' | 'paid' | 'refunded';
   }>;
+  pendingRequests: Array<{
+    id?: string;
+    status: string;
+    total: number;
+    phoneNumber?: string;
+    deliveryAddress?: string;
+    createdAt?: string;
+    deliveryDistanceKm?: number;
+    deliveryEtaMinutes?: number;
+  }>;
   todayDistanceKm: number;
   todayPayout: number;
   codOutstanding: number;
   averageRating: number;
   reviewsCount: number;
+  recentReviews: Array<{
+    orderId?: string;
+    rating: number;
+    review?: string;
+    createdAt: string;
+  }>;
 }
 
 export interface PartnerPayoutSummary {
@@ -246,6 +263,15 @@ export class DeliveryPartnerService {
       {}
     ).pipe(
       catchError(handleServiceError('DeliveryPartnerService.pickupAssignedOrder'))
+    );
+  }
+
+  acceptDeliveryOrder(orderId: string): Observable<{ message: string; assigned: boolean; orderId: string; partnerId: string }> {
+    return this.http.post<{ message: string; assigned: boolean; orderId: string; partnerId: string }>(
+      `${this.apiUrl}/partner/delivery/orders/${orderId}/accept`,
+      {}
+    ).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.acceptDeliveryOrder'))
     );
   }
 

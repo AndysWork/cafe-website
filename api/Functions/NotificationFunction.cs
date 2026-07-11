@@ -17,6 +17,7 @@ namespace Cafe.Api.Functions;
 public class NotificationFunction
 {
     private readonly INotificationRepository _mongo;
+    private readonly WebPushService _webPush;
     private readonly AuthService _auth;
     private readonly ILogger<NotificationFunction> _log;
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -25,9 +26,10 @@ public class NotificationFunction
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public NotificationFunction(INotificationRepository mongo, AuthService auth, ILogger<NotificationFunction> log)
+    public NotificationFunction(INotificationRepository mongo, WebPushService webPush, AuthService auth, ILogger<NotificationFunction> log)
     {
         _mongo = mongo;
+        _webPush = webPush;
         _auth = auth;
         _log = log;
     }
@@ -269,6 +271,78 @@ public class NotificationFunction
 
         var response = req.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(new { message = "Notification preferences updated", preferences = existing });
+        return response;
+    }
+
+    [Function("GetWebPushPublicKey")]
+    public async Task<HttpResponseData> GetWebPushPublicKey(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "notifications/webpush/public-key")] HttpRequestData req)
+    {
+        var (isAuth, _, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+        if (!isAuth)
+        {
+            return authError!;
+        }
+
+        if (!_webPush.IsConfigured || string.IsNullOrWhiteSpace(_webPush.PublicKey))
+        {
+            var unavailable = req.CreateResponse(HttpStatusCode.ServiceUnavailable);
+            await unavailable.WriteAsJsonAsync(new { error = "Web push is not configured" });
+            return unavailable;
+        }
+
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(new { publicKey = _webPush.PublicKey });
+        return response;
+    }
+
+    [Function("RegisterWebPushSubscription")]
+    public async Task<HttpResponseData> RegisterWebPushSubscription(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "notifications/webpush/subscribe")] HttpRequestData req)
+    {
+        var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+        if (!isAuth || string.IsNullOrWhiteSpace(userId))
+        {
+            return authError!;
+        }
+
+        var body = await req.ReadAsStringAsync();
+        var model = JsonSerializer.Deserialize<RegisterWebPushSubscriptionRequest>(body, _jsonOptions);
+        if (model == null || string.IsNullOrWhiteSpace(model.Endpoint) || string.IsNullOrWhiteSpace(model.P256Dh) || string.IsNullOrWhiteSpace(model.Auth))
+        {
+            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+            await bad.WriteAsJsonAsync(new { error = "endpoint, p256Dh and auth are required" });
+            return bad;
+        }
+
+        await _webPush.UpsertSubscriptionAsync(userId, model);
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(new { message = "Web push subscription registered" });
+        return response;
+    }
+
+    [Function("RemoveWebPushSubscription")]
+    public async Task<HttpResponseData> RemoveWebPushSubscription(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "notifications/webpush/unsubscribe")] HttpRequestData req)
+    {
+        var (isAuth, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+        if (!isAuth || string.IsNullOrWhiteSpace(userId))
+        {
+            return authError!;
+        }
+
+        var body = await req.ReadAsStringAsync();
+        var model = JsonSerializer.Deserialize<RemoveWebPushSubscriptionRequest>(body, _jsonOptions);
+        if (model == null || string.IsNullOrWhiteSpace(model.Endpoint))
+        {
+            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+            await bad.WriteAsJsonAsync(new { error = "endpoint is required" });
+            return bad;
+        }
+
+        await _webPush.RemoveSubscriptionAsync(userId, model.Endpoint);
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(new { message = "Web push subscription removed" });
         return response;
     }
 }

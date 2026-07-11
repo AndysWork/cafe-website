@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DeliveryPartnerService, PartnerDashboard, PartnerPayoutSummary } from '../../services/delivery-partner.service';
+import { WebPushService } from '../../services/web-push.service';
 import { UIStore } from '../../store/ui.store';
 
 @Component({
@@ -13,6 +14,7 @@ import { UIStore } from '../../store/ui.store';
 })
 export class PartnerDeliveryDashboardComponent implements OnInit {
   private partnerService = inject(DeliveryPartnerService);
+  private webPush = inject(WebPushService);
   private uiStore = inject(UIStore);
 
   dashboard: PartnerDashboard | null = null;
@@ -40,8 +42,12 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
   codAmountDraft: Record<string, string> = {};
   codReferenceDraft: Record<string, string> = {};
   confirmingCod: Record<string, boolean> = {};
+  acceptingRequest: Record<string, boolean> = {};
 
   ngOnInit(): void {
+    this.webPush.registerPartnerWebPush('partner-dashboard').catch(() => {
+      // Keep dashboard functional even if push registration fails.
+    });
     this.loadDashboard();
   }
 
@@ -248,6 +254,32 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
         this.uiStore.error(error.error?.error || 'Failed to pickup order');
       }
     });
+  }
+
+  acceptRequest(order: { id?: string }): void {
+    if (!order.id) {
+      this.uiStore.error('Invalid order');
+      return;
+    }
+
+    this.acceptingRequest[order.id] = true;
+    this.partnerService.acceptDeliveryOrder(order.id).subscribe({
+      next: () => {
+        this.uiStore.success('Order accepted and assigned to you');
+        this.acceptingRequest[order.id!] = false;
+        this.loadDashboard();
+      },
+      error: (error) => {
+        this.acceptingRequest[order.id!] = false;
+        this.uiStore.error(error.error?.error || 'Failed to accept order');
+        this.loadDashboard();
+      }
+    });
+  }
+
+  getStarLabel(rating: number): string {
+    const full = Math.max(0, Math.min(5, Math.round(rating)));
+    return `${'★'.repeat(full)}${'☆'.repeat(5 - full)}`;
   }
 
   formatStatus(status: string): string {

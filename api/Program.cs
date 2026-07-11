@@ -59,6 +59,8 @@ var host = new HostBuilder()
         s.AddSingleton<IRazorpayService, RazorpayService>();
         s.AddSingleton<NotificationService>();
         s.AddSingleton<DeliveryRoutingService>();
+        s.AddSingleton<IdempotencyService>();
+        s.AddSingleton<WebPushService>();
         
         // Event sourcing and outbox services (FLAWs 15 & 17)
         s.AddSingleton<EventLogService>();

@@ -1,0 +1,70 @@
+<section class="mobile-shell" *ngIf="dashboard as d">
+  <header class="mobile-header">
+    <div>
+      <p class="kicker">Mobile Dispatch</p>
+      <h1>{{ d.profile?.name || 'Delivery Partner' }}</h1>
+      <small>{{ d.profile?.vehicleType || '-' }} • {{ d.profile?.phone || '-' }}</small>
+    </div>
+    <div class="state-chip" [class.offline]="offline">
+      {{ offline ? 'Offline Cache' : (refreshing ? 'Syncing' : 'Live') }}
+    </div>
+  </header>
+
+  <section class="metric-strip">
+    <article>
+      <span>Queue</span>
+      <strong>{{ d.pendingRequests.length }}</strong>
+    </article>
+    <article>
+      <span>Active</span>
+      <strong>{{ d.activeOrders.length }}</strong>
+    </article>
+    <article>
+      <span>Today</span>
+      <strong>Rs {{ d.todayPayout | number:'1.0-0' }}</strong>
+    </article>
+    <article>
+      <span>COD</span>
+      <strong>Rs {{ d.codOutstanding | number:'1.0-0' }}</strong>
+    </article>
+  </section>
+
+  <section class="panel">
+    <h2>New Requests</h2>
+    <div class="empty" *ngIf="d.pendingRequests.length === 0">No requests waiting.</div>
+    <article class="request-card" *ngFor="let request of d.pendingRequests">
+      <div>
+        <h3>#{{ request.id }}</h3>
+        <p>{{ request.deliveryAddress || 'Address unavailable' }}</p>
+        <small>Rs {{ request.total | number:'1.0-0' }}</small>
+      </div>
+      <div class="actions">
+        <button (click)="accept(request.id)" [disabled]="accepting[request.id!]">
+          {{ accepting[request.id!] ? 'Accepting...' : 'Accept' }}
+        </button>
+        <button class="ghost" (click)="navigate(request.deliveryAddress)">Navigate</button>
+        <button class="ghost" (click)="call(request.phoneNumber)">Call</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="panel">
+    <h2>Active Orders</h2>
+    <div class="empty" *ngIf="d.activeOrders.length === 0">No active orders.</div>
+    <article class="request-card" *ngFor="let order of d.activeOrders">
+      <div>
+        <h3>#{{ order.id }}</h3>
+        <p>{{ order.deliveryAddress || 'Address unavailable' }}</p>
+        <small>{{ order.status | titlecase }} • Rs {{ order.total | number:'1.0-0' }}</small>
+      </div>
+      <div class="actions">
+        <button class="ghost" (click)="navigate(order.deliveryAddress)">Navigate</button>
+        <button class="ghost" (click)="call(order.phoneNumber)">Call</button>
+      </div>
+    </article>
+  </section>
+</section>
+
+<section class="loading" *ngIf="loading">
+  <p>Loading mobile partner console...</p>
+</section>

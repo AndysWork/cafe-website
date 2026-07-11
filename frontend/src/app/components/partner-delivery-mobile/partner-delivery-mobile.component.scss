@@ -1,0 +1,151 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fefce8 0%, #f8fafc 70%);
+  padding: 0.8rem;
+}
+
+.mobile-shell {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.mobile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: #1f2937;
+  color: #fff;
+  border-radius: 14px;
+  padding: 0.8rem;
+}
+
+.kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #fcd34d;
+  font-size: 0.7rem;
+}
+
+.mobile-header h1 {
+  margin: 0.2rem 0;
+  font-size: 1.1rem;
+}
+
+.mobile-header small {
+  opacity: 0.85;
+}
+
+.state-chip {
+  font-size: 0.72rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: #16a34a;
+  color: #052e16;
+  font-weight: 700;
+}
+
+.state-chip.offline {
+  background: #f97316;
+  color: #431407;
+}
+
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.metric-strip article {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.45rem;
+  text-align: center;
+}
+
+.metric-strip span {
+  display: block;
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
+.metric-strip strong {
+  font-size: 0.95rem;
+  color: #111827;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.request-card {
+  border: 1px solid #f3f4f6;
+  border-radius: 10px;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.request-card h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.request-card p {
+  margin: 0.2rem 0;
+  color: #4b5563;
+  font-size: 0.82rem;
+}
+
+.request-card small {
+  color: #6b7280;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  background: #0f766e;
+  color: #ecfeff;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.4rem;
+}
+
+button.ghost {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+button:disabled {
+  opacity: 0.55;
+}
+
+.empty {
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.loading {
+  min-height: 40vh;
+  display: grid;
+  place-items: center;
+  color: #374151;
+}

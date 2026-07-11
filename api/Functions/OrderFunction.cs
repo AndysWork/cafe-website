@@ -475,6 +475,13 @@ public class OrderFunction
             await _outbox.EnqueueAsync("OrderNotificationAdmin", "Order", createdOrder.Id!,
                 new { OrderId = createdOrder.Id!, Total = total });
 
+            if (string.Equals(createdOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(createdOrder.OutletId))
+            {
+                await _outbox.EnqueueAsync("DeliveryPartnerBroadcast", "Order", createdOrder.Id!,
+                    new { OrderId = createdOrder.Id!, OutletId = createdOrder.OutletId, Trigger = "placed" });
+            }
+
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(MapToOrderResponse(createdOrder));
             return response;
@@ -1238,20 +1245,11 @@ public class OrderFunction
             }
 
             if (order != null
-                && nextStatus == "confirmed"
                 && string.Equals(order.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(order.DeliveryPartnerId))
+                && (nextStatus == "confirmed" || nextStatus == "ready"))
             {
-                var partner = await _operationsRepo.GetDeliveryPartnerByIdAsync(order.DeliveryPartnerId);
-                if (!string.IsNullOrWhiteSpace(partner?.UserId))
-                {
-                    var shortOrderId = order.Id?.Length >= 6 ? order.Id[^6..] : order.Id;
-                    await _notificationService.SendSystemNotificationAsync(
-                        partner.UserId,
-                        "Delivery Alert",
-                        $"Order #{shortOrderId} is confirmed and assigned to you.",
-                        actionUrl: "/partner/delivery");
-                }
+                await _outbox.EnqueueAsync("DeliveryPartnerStatusAlert", "Order", order.Id!,
+                    new { OrderId = order.Id!, OutletId = order.OutletId, Status = nextStatus, DeliveryPartnerId = order.DeliveryPartnerId });
             }
 
             if (nextStatus == "delivered" && order != null)

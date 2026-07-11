@@ -56,8 +56,8 @@
           </a>
         </li>
 
-        <!-- Menu (Users Only) -->
-        <li class="nav-item" *ngIf="isUser">
+        <!-- Menu (Customers Only) -->
+        <li class="nav-item" *ngIf="isCustomer">
           <a
             routerLink="/menu"
             routerLinkActive="active"
@@ -69,8 +69,8 @@
           </a>
         </li>
 
-        <!-- Cart (Users Only) -->
-        <li class="nav-item cart-item" *ngIf="isUser">
+        <!-- Cart (Customers Only) -->
+        <li class="nav-item cart-item" *ngIf="isCustomer">
           <a
             routerLink="/cart"
             routerLinkActive="active"
@@ -87,7 +87,7 @@
           </a>
         </li>
         <!-- Regular User: Orders -->
-        <li class="nav-item" *ngIf="isUser">
+        <li class="nav-item" *ngIf="isCustomer">
           <a
             routerLink="/orders"
             routerLinkActive="active"
@@ -100,7 +100,7 @@
         </li>
 
         <!-- Regular User: Loyalty Points -->
-        <li class="nav-item" *ngIf="isUser">
+        <li class="nav-item" *ngIf="isCustomer">
           <a
             routerLink="/loyalty"
             routerLinkActive="active"
@@ -112,8 +112,8 @@
           </a>
         </li>
 
-        <!-- Profile (Users Only) -->
-        <li class="nav-item" *ngIf="isUser">
+        <!-- Profile (Customers + Partners) -->
+        <li class="nav-item" *ngIf="isCustomer || isPartnerUser">
           <a
             routerLink="/profile"
             routerLinkActive="active"
@@ -197,8 +197,8 @@
           </ul>
         </div>
 
-        <!-- Regular User Display -->
-        <div *ngIf="isLoggedIn && isUser" class="user-section">
+        <!-- Non-admin User Display -->
+        <div *ngIf="isNonAdminLoggedIn" class="user-section">
           <span class="username">{{ displayName }}</span>
           <button class="btn-logout" (click)="onLogout()">
             <span class="logout-icon">🚪</span>

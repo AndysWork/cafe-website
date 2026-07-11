@@ -49,3 +49,22 @@ export const kitchenGuard: CanActivateFn = (route, state) => {
   router.navigate(['/home']);
   return false;
 };
+
+export const partnerGuard: CanActivateFn = (route, state) => {
+  const authStore = inject(AuthStore);
+  const router = inject(Router);
+
+  if (!authStore.isLoggedIn()) {
+    router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+    return false;
+  }
+
+  const role = authStore.userRole();
+  const allowed = ['partner', 'delivery-partner'];
+  if (allowed.includes(role)) {
+    return true;
+  }
+
+  router.navigate(['/home']);
+  return false;
+};

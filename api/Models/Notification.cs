@@ -79,3 +79,49 @@ public class UpdateNotificationPreferencesRequest
     public bool? EmailNotifications { get; set; }
     public bool? PushNotifications { get; set; }
 }
+
+public class WebPushSubscriptionDevice
+{
+    [BsonElement("endpoint")]
+    public string Endpoint { get; set; } = string.Empty;
+
+    [BsonElement("p256dh")]
+    public string P256Dh { get; set; } = string.Empty;
+
+    [BsonElement("auth")]
+    public string Auth { get; set; } = string.Empty;
+
+    [BsonElement("createdAt")]
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+
+    [BsonElement("updatedAt")]
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
+
+    [BsonElement("userAgent")]
+    public string? UserAgent { get; set; }
+
+    [BsonElement("deviceLabel")]
+    public string? DeviceLabel { get; set; }
+}
+
+public class RegisterWebPushSubscriptionRequest
+{
+    public string Endpoint { get; set; } = string.Empty;
+    public string P256Dh { get; set; } = string.Empty;
+    public string Auth { get; set; } = string.Empty;
+    public string? UserAgent { get; set; }
+    public string? DeviceLabel { get; set; }
+}
+
+public class RemoveWebPushSubscriptionRequest
+{
+    public string Endpoint { get; set; } = string.Empty;
+}
+
+public class WebPushPayload
+{
+    public string Title { get; set; } = "Delivery Alert";
+    public string Body { get; set; } = "You have a new delivery update.";
+    public object? Data { get; set; }
+    public object? Actions { get; set; }
+}

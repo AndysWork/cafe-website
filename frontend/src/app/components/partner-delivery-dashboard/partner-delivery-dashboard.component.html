@@ -141,6 +141,32 @@
   </section>
 
   <section class="panel">
+    <h2>New Delivery Requests</h2>
+    <div *ngIf="d.pendingRequests.length === 0" class="empty">No unassigned delivery requests right now.</div>
+    <div class="orders" *ngIf="d.pendingRequests.length > 0">
+      <article class="order-card" *ngFor="let request of d.pendingRequests">
+        <div>
+          <h3>#{{ request.id }}</h3>
+          <p>{{ request.deliveryAddress || 'Address unavailable' }}</p>
+          <small>{{ request.createdAt | date:'medium' }}</small>
+          <small *ngIf="request.deliveryDistanceKm || request.deliveryEtaMinutes">
+            {{ request.deliveryDistanceKm ? (request.deliveryDistanceKm | number:'1.0-1') + ' km' : '' }}
+            {{ request.deliveryDistanceKm && request.deliveryEtaMinutes ? ' • ' : '' }}
+            {{ request.deliveryEtaMinutes ? (request.deliveryEtaMinutes + ' min ETA') : '' }}
+          </small>
+        </div>
+        <div class="order-meta">
+          <span>{{ formatStatus(request.status) }}</span>
+          <strong>Rs {{ request.total | number:'1.0-2' }}</strong>
+          <button class="btn-primary" (click)="acceptRequest(request)" [disabled]="acceptingRequest[request.id!]">
+            {{ acceptingRequest[request.id!] ? 'Accepting...' : 'Accept Request' }}
+          </button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
     <h2>Active Orders</h2>
     <div *ngIf="d.activeOrders.length === 0" class="empty">No active orders assigned.</div>
     <div class="orders" *ngIf="d.activeOrders.length > 0">
@@ -175,6 +201,24 @@
           <button class="btn-primary" (click)="confirmCod(order)" [disabled]="confirmingCod[order.id!]">
             {{ confirmingCod[order.id!] ? 'Confirming...' : 'Confirm COD Payment' }}
           </button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Recent Ratings & Reviews</h2>
+    <div *ngIf="d.recentReviews.length === 0" class="empty">No reviews yet.</div>
+    <div class="orders" *ngIf="d.recentReviews.length > 0">
+      <article class="order-card review-card" *ngFor="let review of d.recentReviews">
+        <div>
+          <h3>Order #{{ review.orderId || '-' }}</h3>
+          <p>{{ review.review || 'No written feedback provided.' }}</p>
+          <small>{{ review.createdAt | date:'medium' }}</small>
+        </div>
+        <div class="order-meta">
+          <span>{{ getStarLabel(review.rating) }}</span>
+          <strong>{{ review.rating }} / 5</strong>
         </div>
       </article>
     </div>

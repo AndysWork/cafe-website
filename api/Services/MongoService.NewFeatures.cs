@@ -575,6 +575,42 @@ public partial class MongoService : IOperationsRepository
         return result.ModifiedCount > 0;
     }
 
+    public async Task<bool> TryAssignUnassignedDeliveryPartnerAsync(string partnerId, string orderId)
+    {
+        var partner = await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
+        if (partner == null)
+        {
+            return false;
+        }
+
+        var assignableStatuses = new[] { "pending", "confirmed", "preparing", "ready" };
+        var orderFilter = Builders<Order>.Filter.Eq(o => o.Id, orderId)
+            & Builders<Order>.Filter.Ne(o => o.IsDeleted, true)
+            & Builders<Order>.Filter.Eq(o => o.OrderType, "delivery")
+            & Builders<Order>.Filter.In(o => o.Status, assignableStatuses)
+            & Builders<Order>.Filter.Or(
+                Builders<Order>.Filter.Eq(o => o.DeliveryPartnerId, null),
+                Builders<Order>.Filter.Eq(o => o.DeliveryPartnerId, string.Empty));
+
+        var orderUpdate = Builders<Order>.Update
+            .Set(o => o.DeliveryPartnerId, partnerId)
+            .Set(o => o.DeliveryPartnerName, partner.Name)
+            .Set(o => o.UpdatedAt, GetIstNow());
+
+        var orderResult = await _orders.UpdateOneAsync(orderFilter, orderUpdate);
+        if (orderResult.ModifiedCount == 0)
+        {
+            return false;
+        }
+
+        var partnerUpdate = Builders<DeliveryPartner>.Update
+            .Set(p => p.Status, "on-delivery")
+            .Set(p => p.CurrentOrderId, orderId);
+        await _deliveryPartners.UpdateOneAsync(p => p.Id == partnerId && p.IsActive, partnerUpdate);
+
+        return true;
+    }
+
     public async Task<List<Order>> GetActiveOrdersForPartnerAsync(string partnerId, string? outletId = null)
     {
         var statuses = new[] { "confirmed", "preparing", "ready", "out-for-delivery" };
@@ -829,6 +865,15 @@ public partial class MongoService : IOperationsRepository
             Builders<DeliveryPartner>.Update.Set(p => p.Rating, averageRating));
 
         return review;
+    }
+
+    public async Task<List<DeliveryPartnerReview>> GetDeliveryPartnerReviewsAsync(string partnerId, int limit = 10)
+    {
+        var safeLimit = Math.Clamp(limit, 1, 50);
+        return await _deliveryPartnerReviews.Find(r => r.PartnerId == partnerId)
+            .SortByDescending(r => r.CreatedAt)
+            .Limit(safeLimit)
+            .ToListAsync();
     }
 
     public async Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId)

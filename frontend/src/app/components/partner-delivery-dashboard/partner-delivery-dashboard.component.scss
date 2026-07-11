@@ -245,6 +245,7 @@
   text-align: right;
   display: grid;
   gap: 0.2rem;
+  justify-items: end;
 }
 
 .order-meta span {
@@ -255,6 +256,12 @@
 .empty {
   color: #6b7280;
   font-size: 0.9rem;
+}
+
+.review-card .order-meta span {
+  font-size: 1rem;
+  letter-spacing: 0.03em;
+  color: #b45309;
 }
 
 .loading {

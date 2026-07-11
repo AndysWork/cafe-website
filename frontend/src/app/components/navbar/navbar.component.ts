@@ -44,8 +44,20 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.currentUser?.role === 'admin';
   }
 
-  get isUser(): boolean {
+  get isCustomer(): boolean {
     return this.currentUser?.role === 'user';
+  }
+
+  get isPartnerUser(): boolean {
+    return this.currentUser?.role === 'partner' || this.currentUser?.role === 'delivery-partner';
+  }
+
+  get isManager(): boolean {
+    return this.currentUser?.role === 'manager';
+  }
+
+  get isNonAdminLoggedIn(): boolean {
+    return this.isLoggedIn && !this.isAdmin;
   }
 
   get isLoggedIn(): boolean {
@@ -58,7 +70,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get dashboardRoute(): string {
-    return this.isAdmin ? '/admin/dashboard' : '/dashboard';
+    if (this.isAdmin || this.isManager) return '/admin/dashboard';
+    if (this.isPartnerUser) return '/partner/delivery';
+    return '/dashboard';
   }
 
   get displayName(): string {

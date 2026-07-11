@@ -4,10 +4,137 @@
 
 .badge.on-delivery { background: #fff7ed; color: #c2410c; }
 
+.filter-panel {
+	margin-bottom: 1rem;
+	padding: 0.85rem;
+	border: 1px solid #e2e8f0;
+	border-radius: 14px;
+	background: #f8fafc;
+
+	input {
+		min-width: 260px;
+	}
+
+	select {
+		min-width: 180px;
+	}
+}
+
+.status-pills {
+	display: flex;
+	gap: 0.45rem;
+	flex-wrap: wrap;
+}
+
+.status-pill {
+	border: 1px solid #cbd5e1;
+	background: #fff;
+	border-radius: 999px;
+	padding: 0.45rem 0.75rem;
+	font-size: 0.78rem;
+	font-weight: 700;
+	color: #334155;
+	cursor: pointer;
+	transition: all 0.2s ease;
+
+	&:hover {
+		border-color: #0ea5e9;
+		color: #0c4a6e;
+	}
+
+	&.active {
+		background: #0ea5e9;
+		color: #fff;
+		border-color: #0ea5e9;
+	}
+}
+
+.cards-grid {
+	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+
+.card {
+	display: flex;
+	flex-direction: column;
+	padding: 20px;
+
+	.card-header {
+		margin-bottom: 14px;
+	}
+
+	.card-subtitle {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		flex-wrap: wrap;
+		font-size: 0.82rem;
+	}
+
+	.card-body {
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+	}
+
+	.card-footer {
+		margin-top: 14px;
+		padding-top: 14px;
+	}
+}
+
+.live-order {
+	margin: 0;
+	padding: 0.45rem 0.55rem;
+	border-radius: 8px;
+	background: #fff7ed;
+	border: 1px solid #fed7aa;
+	font-size: 0.8rem;
+	font-weight: 600;
+}
+
+.partner-metrics {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.55rem;
+}
+
+.metric-item {
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	background: #f8fafc;
+	padding: 0.45rem 0.55rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+
+.metric-label {
+	font-size: 0.7rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #64748b;
+}
+
+.metric-value {
+	font-size: 0.96rem;
+	font-weight: 700;
+	color: #0f172a;
+}
+
 .location-panel {
 	margin-top: 0.75rem;
 	padding-top: 0.7rem;
 	border-top: 1px dashed #e5e7eb;
+}
+
+.panel-title {
+	margin: 0 0 0.4rem;
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #64748b;
 }
 
 .location-inputs {
@@ -79,6 +206,36 @@
 	color: #0f172a;
 }
 
+.actions-cell {
+	width: 100%;
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.4rem;
+
+	.btn-edit,
+	.btn-delete,
+	.btn-action {
+		padding: 0.5rem 0.35rem;
+		font-size: 0.77rem;
+		font-weight: 600;
+		text-align: center;
+		line-height: 1.2;
+		white-space: nowrap;
+	}
+}
+
+.filtered-empty {
+	padding: 2.6rem 1rem;
+
+	h2 {
+		font-size: 1.35rem;
+	}
+
+	p {
+		margin-bottom: 0;
+	}
+}
+
 .checkbox-inline {
 	label {
 		display: flex;
@@ -95,5 +252,45 @@
 		border-radius: 8px;
 		padding: 0.42rem 0.5rem;
 		font-size: 0.84rem;
+	}
+}
+
+@media (max-width: 900px) {
+	.cards-grid {
+		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+	}
+
+	.filter-panel {
+		input,
+		select {
+			min-width: 180px;
+		}
+	}
+}
+
+@media (max-width: 640px) {
+	.cards-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.partner-metrics {
+		grid-template-columns: 1fr;
+	}
+
+	.actions-cell {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.filter-panel {
+		padding: 0.7rem;
+	}
+
+	.status-pills {
+		width: 100%;
+	}
+
+	.status-pill {
+		flex: 1 1 calc(50% - 0.45rem);
+		text-align: center;
 	}
 }

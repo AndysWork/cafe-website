@@ -10,21 +10,92 @@
 
   <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
 
+  <div *ngIf="!loading && partners.length > 0" class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">👥</div>
+      <div class="stat-value">{{ totalPartners }}</div>
+      <div class="stat-label">Total Partners</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🟢</div>
+      <div class="stat-value">{{ availablePartnersCount }}</div>
+      <div class="stat-label">Available</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📦</div>
+      <div class="stat-value">{{ onDeliveryPartnersCount }}</div>
+      <div class="stat-label">On Delivery</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">⭐</div>
+      <div class="stat-value">{{ avgRating | number:'1.1-2' }}</div>
+      <div class="stat-label">Avg Rating</div>
+    </div>
+  </div>
+
   <div *ngIf="!loading && partners.length === 0" class="empty-state">
     <div class="empty-icon">🏍️</div><h2>No Delivery Partners</h2><p>Add your delivery fleet.</p>
     <button class="btn-create-empty" (click)="openCreateModal()">Add First Partner</button>
   </div>
 
-  <div *ngIf="!loading && partners.length > 0" class="cards-grid">
-    <div class="card" *ngFor="let p of partners; trackBy: trackById">
+  <div *ngIf="!loading && partners.length > 0" class="filter-bar filter-panel">
+    <input
+      type="text"
+      [(ngModel)]="searchTerm"
+      placeholder="Search by name, phone, vehicle, order"
+      aria-label="Search partners"
+    />
+
+    <select [(ngModel)]="sortBy" aria-label="Sort partners">
+      <option value="name">Sort: Name</option>
+      <option value="rating">Sort: Rating</option>
+      <option value="deliveries">Sort: Deliveries</option>
+      <option value="recent">Sort: Newest</option>
+    </select>
+
+    <div class="status-pills" role="group" aria-label="Status filters">
+      <button class="status-pill" [class.active]="statusFilter === 'all'" (click)="setStatusFilter('all')">
+        All ({{ totalPartners }})
+      </button>
+      <button class="status-pill" [class.active]="statusFilter === 'available'" (click)="setStatusFilter('available')">
+        Available ({{ availablePartnersCount }})
+      </button>
+      <button class="status-pill" [class.active]="statusFilter === 'on-delivery'" (click)="setStatusFilter('on-delivery')">
+        On Delivery ({{ onDeliveryPartnersCount }})
+      </button>
+      <button class="status-pill" [class.active]="statusFilter === 'offline'" (click)="setStatusFilter('offline')">
+        Offline ({{ offlinePartnersCount }})
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="!loading && partners.length > 0 && filteredPartners.length > 0" class="cards-grid">
+    <div class="card" *ngFor="let p of filteredPartners; trackBy: trackById">
       <div class="card-header">
-        <div><div class="card-title">{{ p.name }}</div><div class="card-subtitle">{{ p.phone }} · {{ p.vehicleType }}</div></div>
+        <div>
+          <div class="card-title">{{ p.name }}</div>
+          <div class="card-subtitle">
+            <span>{{ p.phone }}</span>
+            <span>•</span>
+            <span>{{ p.vehicleType | titlecase }}</span>
+          </div>
+        </div>
         <span class="badge" [ngClass]="p.status">{{ p.status }}</span>
       </div>
+
       <div class="card-body">
-        <p *ngIf="p.currentOrderId" class="text-warning">📦 On delivery: {{ p.currentOrderId }}</p>
-        <p>Total deliveries: {{ p.totalDeliveries || 0 }}</p>
-        <p>Rating: {{ p.rating || 0 | number:'1.1-2' }}</p>
+        <p *ngIf="p.currentOrderId" class="text-warning live-order">📦 On delivery: {{ p.currentOrderId }}</p>
+
+        <div class="partner-metrics">
+          <div class="metric-item">
+            <span class="metric-label">Total Deliveries</span>
+            <span class="metric-value">{{ p.totalDeliveries || 0 }}</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Rating</span>
+            <span class="metric-value">{{ p.rating || 0 | number:'1.1-2' }}</span>
+          </div>
+        </div>
 
         <div class="payout-strip" *ngIf="p.id as partnerId">
           <div class="payout-head">
@@ -44,6 +115,7 @@
         </div>
 
         <div class="location-panel" *ngIf="p.id as partnerId">
+          <p class="panel-title">Live Location</p>
           <div class="location-inputs">
             <div class="location-field">
               <label>Lat</label>
@@ -62,20 +134,27 @@
           </p>
         </div>
       </div>
+
       <div class="card-footer">
         <div class="actions-cell">
-          <button class="btn-action" (click)="openShiftModal(p.id!, 'start')">▶ Shift Start</button>
-          <button class="btn-action" (click)="openShiftModal(p.id!, 'end')">⏹ Shift End</button>
-          <button class="btn-action" (click)="openTripModal(p.id!)">🛣 Log Trip</button>
-          <button class="btn-action" (click)="openCodModal(p.id!)">💵 COD</button>
-          <button *ngIf="p.status === 'offline'" class="btn-action" (click)="updateStatus(p.id!, 'available')">🟢 Online</button>
-          <button *ngIf="p.status === 'available'" class="btn-delete" (click)="updateStatus(p.id!, 'offline')">🔴 Offline</button>
-          <button *ngIf="p.status === 'on-delivery'" class="btn-action" (click)="completeDelivery(p.id!)">✅ Complete</button>
-          <button class="btn-edit" (click)="openEditModal(p)">✏️</button>
-          <button *ngIf="p.status !== 'on-delivery'" class="btn-delete" (click)="deletePartner(p.id!)">🗑️</button>
+          <button class="btn-action" (click)="openShiftModal(p.id!, 'start')">Shift Start</button>
+          <button class="btn-action" (click)="openShiftModal(p.id!, 'end')">Shift End</button>
+          <button class="btn-action" (click)="openTripModal(p.id!)">Log Trip</button>
+          <button class="btn-action" (click)="openCodModal(p.id!)">COD</button>
+          <button *ngIf="p.status === 'offline'" class="btn-action" (click)="updateStatus(p.id!, 'available')">Set Online</button>
+          <button *ngIf="p.status === 'available'" class="btn-delete" (click)="updateStatus(p.id!, 'offline')">Set Offline</button>
+          <button *ngIf="p.status === 'on-delivery'" class="btn-action" (click)="completeDelivery(p.id!)">Complete</button>
+          <button class="btn-edit" (click)="openEditModal(p)">Edit</button>
+          <button *ngIf="p.status !== 'on-delivery'" class="btn-delete" (click)="deletePartner(p.id!)">Delete</button>
         </div>
       </div>
     </div>
+  </div>
+
+  <div *ngIf="!loading && partners.length > 0 && filteredPartners.length === 0" class="empty-state filtered-empty">
+    <div class="empty-icon">🔎</div>
+    <h2>No Matching Partners</h2>
+    <p>Try changing filters or clearing search to view the full fleet.</p>
   </div>
 </div>
 

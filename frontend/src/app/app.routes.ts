@@ -3,7 +3,7 @@ import { HomeComponent } from './components/home/home.component';
 import { LoginComponent } from './components/login/login.component';
 import { RegisterComponent } from './components/register/register.component';
 import { MenuComponent } from './components/menu/menu.component';
-import { authGuard, adminGuard, kitchenGuard } from './guards/auth.guard';
+import { authGuard, adminGuard, kitchenGuard, partnerGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -24,7 +24,8 @@ export const routes: Routes = [
   { path: 'loyalty', loadComponent: () => import('./components/loyalty/loyalty.component').then(m => m.LoyaltyComponent), canActivate: [authGuard] },
   { path: 'reservations', loadComponent: () => import('./components/table-reservation/table-reservation.component').then(m => m.TableReservationComponent) },
   { path: 'subscriptions', loadComponent: () => import('./components/subscription-plans/subscription-plans.component').then(m => m.SubscriptionPlansComponent) },
-  { path: 'partner/delivery', loadComponent: () => import('./components/partner-delivery-dashboard/partner-delivery-dashboard.component').then(m => m.PartnerDeliveryDashboardComponent), canActivate: [authGuard] },
+  { path: 'partner/delivery', loadComponent: () => import('./components/partner-delivery-dashboard/partner-delivery-dashboard.component').then(m => m.PartnerDeliveryDashboardComponent), canActivate: [partnerGuard] },
+  { path: 'partner/delivery/mobile', loadComponent: () => import('./components/partner-delivery-mobile/partner-delivery-mobile.component').then(m => m.PartnerDeliveryMobileComponent), canActivate: [partnerGuard] },
   { path: 'kitchen/dashboard', loadComponent: () => import('./components/kitchen-staff-dashboard/kitchen-staff-dashboard.component').then(m => m.KitchenStaffDashboardComponent), canActivate: [kitchenGuard] },
   { path: 'kitchen/display', loadComponent: () => import('./components/kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent), canActivate: [kitchenGuard] },
   {

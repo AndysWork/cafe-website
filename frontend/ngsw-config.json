@@ -51,6 +51,19 @@
         "maxAge": "1h",
         "timeout": "10s"
       }
+    },
+    {
+      "name": "partner-mobile",
+      "urls": [
+        "/api/partner/delivery/dashboard",
+        "/api/partner/delivery/orders/**",
+        "/api/partner/delivery/payout"
+      ],
+      "cacheConfig": {
+        "strategy": "performance",
+        "maxSize": 60,
+        "maxAge": "30m"
+      }
     }
   ]
 }

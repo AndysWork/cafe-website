@@ -377,11 +377,21 @@ public class PartnerDashboardResponse
     public DeliveryPartner? Profile { get; set; }
     public DeliveryShift? ActiveShift { get; set; }
     public List<Order> ActiveOrders { get; set; } = new();
+    public List<Order> PendingRequests { get; set; } = new();
     public decimal TodayDistanceKm { get; set; }
     public decimal TodayPayout { get; set; }
     public decimal CodOutstanding { get; set; }
     public double AverageRating { get; set; }
     public int ReviewsCount { get; set; }
+    public List<PartnerReviewSummary> RecentReviews { get; set; } = new();
+}
+
+public class PartnerReviewSummary
+{
+    public string? OrderId { get; set; }
+    public int Rating { get; set; }
+    public string? Review { get; set; }
+    public DateTime CreatedAt { get; set; }
 }
 
 public class PartnerPayoutSummaryResponse

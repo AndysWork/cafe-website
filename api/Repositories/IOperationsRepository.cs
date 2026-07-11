@@ -26,6 +26,7 @@ public interface IOperationsRepository
     Task<DeliveryPartner?> GetAvailableDeliveryPartnerAsync(string outletId);
     Task<DeliveryPartner?> GetDeliveryPartnerByIdAsync(string partnerId);
     Task<bool> AssignDeliveryPartnerAsync(string partnerId, string orderId);
+    Task<bool> TryAssignUnassignedDeliveryPartnerAsync(string partnerId, string orderId);
     Task<bool> UpdateDeliveryPartnerLocationAsync(string partnerId, double latitude, double longitude);
     Task<bool> CompleteDeliveryAsync(string partnerId);
     Task<bool> UpdateDeliveryPartnerAsync(string id, DeliveryPartner partner);
@@ -51,6 +52,7 @@ public interface IOperationsRepository
     Task<decimal> GetOutstandingCodAmountAsync(string partnerId);
 
     Task<DeliveryPartnerReview> AddDeliveryPartnerReviewAsync(DeliveryPartnerReview review);
+    Task<List<DeliveryPartnerReview>> GetDeliveryPartnerReviewsAsync(string partnerId, int limit = 10);
     Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId);
 
     Task<PartnerPayoutLedger> CreatePartnerPayoutLedgerAsync(PartnerPayoutLedger ledger);

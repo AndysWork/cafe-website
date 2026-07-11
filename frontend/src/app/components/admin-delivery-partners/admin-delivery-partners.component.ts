@@ -21,6 +21,9 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
 
   partners: DeliveryPartner[] = [];
   loading = true;
+  searchTerm = '';
+  statusFilter: 'all' | 'available' | 'on-delivery' | 'offline' = 'all';
+  sortBy: 'name' | 'rating' | 'deliveries' | 'recent' = 'name';
   showModal = false;
   isEditMode = false;
   currentPartner: DeliveryPartner | null = null;
@@ -71,6 +74,74 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
 
   constructor(private partnerService: DeliveryPartnerService) {}
 
+  get totalPartners(): number {
+    return this.partners.length;
+  }
+
+  get availablePartnersCount(): number {
+    return this.partners.filter(p => p.status === 'available').length;
+  }
+
+  get onDeliveryPartnersCount(): number {
+    return this.partners.filter(p => p.status === 'on-delivery').length;
+  }
+
+  get offlinePartnersCount(): number {
+    return this.partners.filter(p => p.status === 'offline').length;
+  }
+
+  get avgRating(): number {
+    if (this.partners.length === 0) return 0;
+    const total = this.partners.reduce((sum, p) => sum + (p.rating || 0), 0);
+    return total / this.partners.length;
+  }
+
+  get filteredPartners(): DeliveryPartner[] {
+    const query = this.searchTerm.trim().toLowerCase();
+
+    const filtered = this.partners.filter(partner => {
+      const statusOk = this.statusFilter === 'all' || partner.status === this.statusFilter;
+      if (!statusOk) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const searchBlob = [
+        partner.name,
+        partner.phone,
+        partner.vehicleType,
+        partner.vehicleNumber,
+        partner.currentOrderId
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchBlob.includes(query);
+    });
+
+    return filtered.sort((a, b) => {
+      if (this.sortBy === 'rating') {
+        return (b.rating || 0) - (a.rating || 0);
+      }
+
+      if (this.sortBy === 'deliveries') {
+        return (b.totalDeliveries || 0) - (a.totalDeliveries || 0);
+      }
+
+      if (this.sortBy === 'recent') {
+        const da = new Date(a.createdAt || 0).getTime();
+        const db = new Date(b.createdAt || 0).getTime();
+        return db - da;
+      }
+
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }
+
   ngOnInit() {
     this.outletSub = this.outletService.selectedOutlet$
       .pipe(filter(o => o !== null))
@@ -103,10 +174,12 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
   loadAssignableUsers() {
     this.partnerService.getAssignableUsers().subscribe({
       next: users => {
-        this.assignableUsers = users.filter(u => u.isActive);
+        this.assignableUsers = users.filter(u =>
+          u.isActive && (u.role === 'partner' || u.role === 'delivery-partner')
+        );
         this.applyUserFilter();
       },
-      error: () => this.uiStore.error('Failed to load employee users')
+      error: () => this.uiStore.error('Failed to load partner users')
     });
   }
 
@@ -417,6 +490,10 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
       },
       error: () => this.uiStore.error('Failed to load payout summary')
     });
+  }
+
+  setStatusFilter(status: 'all' | 'available' | 'on-delivery' | 'offline') {
+    this.statusFilter = status;
   }
 
   trackById(_: number, item: DeliveryPartner) { return item.id; }

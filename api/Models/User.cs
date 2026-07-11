@@ -47,6 +47,9 @@ public class User
     [BsonElement("notificationPreferences")]
     public NotificationPreferences NotificationPreferences { get; set; } = new();
 
+    [BsonElement("webPushSubscriptions")]
+    public List<WebPushSubscriptionDevice> WebPushSubscriptions { get; set; } = new();
+
     [BsonElement("addresses")]
     public List<DeliveryAddress> Addresses { get; set; } = new();
 

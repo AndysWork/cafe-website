@@ -22,7 +22,9 @@ public class OutboxProcessorFunction
     private readonly IWhatsAppService _whatsApp;
     private readonly IEmailService _email;
     private readonly NotificationService _notification;
+    private readonly WebPushService _webPush;
     private readonly IOrderRepository _orderRepo;
+    private readonly IOperationsRepository _operationsRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
     private readonly ILogger<OutboxProcessorFunction> _logger;
 
@@ -31,7 +33,9 @@ public class OutboxProcessorFunction
         IWhatsAppService whatsApp,
         IEmailService email,
         NotificationService notification,
+        WebPushService webPush,
         IOrderRepository orderRepo,
+        IOperationsRepository operationsRepo,
         ILoyaltyRepository loyaltyRepo,
         ILogger<OutboxProcessorFunction> logger)
     {
@@ -39,7 +43,9 @@ public class OutboxProcessorFunction
         _whatsApp = whatsApp;
         _email = email;
         _notification = notification;
+        _webPush = webPush;
         _orderRepo = orderRepo;
+        _operationsRepo = operationsRepo;
         _loyaltyRepo = loyaltyRepo;
         _logger = logger;
     }
@@ -58,7 +64,12 @@ public class OutboxProcessorFunction
         {
             try
             {
-                await _outbox.MarkProcessingAsync(message.Id!);
+                var acquired = await _outbox.MarkProcessingAsync(message.Id!);
+                if (!acquired)
+                {
+                    continue;
+                }
+
                 await ProcessMessageAsync(message);
                 await _outbox.MarkCompletedAsync(message.Id!);
             }
@@ -190,6 +201,129 @@ public class OutboxProcessorFunction
                 }
                 break;
 
+            case "DeliveryPartnerBroadcast":
+                var broadcast = JsonSerializer.Deserialize<DeliveryPartnerBroadcastPayload>(message.Payload);
+                if (broadcast != null)
+                {
+                    var broadcastOrder = await _orderRepo.GetOrderByIdAsync(broadcast.OrderId);
+                    if (broadcastOrder != null && string.Equals(broadcastOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var partners = await _operationsRepo.GetDeliveryPartnersAsync(broadcast.OutletId);
+                        var shortOrderId = broadcastOrder.Id?.Length >= 6 ? broadcastOrder.Id[^6..] : broadcastOrder.Id;
+                        foreach (var partner in partners)
+                        {
+                            if (string.IsNullOrWhiteSpace(partner.UserId) || !string.Equals(partner.Status, "available", StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+
+                            await _notification.SendSystemNotificationAsync(
+                                partner.UserId,
+                                "New Delivery Request",
+                                $"Order #{shortOrderId} is available for pickup. Accept it from your console.",
+                                actionUrl: "/partner/delivery");
+
+                            await _webPush.SendToUsersAsync(new[] { partner.UserId }, new WebPushPayload
+                            {
+                                Title = "New Delivery Request",
+                                Body = $"Order #{shortOrderId} is available for pickup.",
+                                Data = new
+                                {
+                                    orderId = broadcastOrder.Id,
+                                    deliveryAddress = broadcastOrder.DeliveryAddress,
+                                    phoneNumber = broadcastOrder.PhoneNumber
+                                },
+                                Actions = new[]
+                                {
+                                    new { action = "accept", title = "Accept" },
+                                    new { action = "navigate", title = "Navigate" },
+                                    new { action = "call", title = "Call" }
+                                }
+                            });
+                        }
+                    }
+                }
+                break;
+
+            case "DeliveryPartnerStatusAlert":
+                var alert = JsonSerializer.Deserialize<DeliveryPartnerStatusAlertPayload>(message.Payload);
+                if (alert != null)
+                {
+                    var alertOrder = await _orderRepo.GetOrderByIdAsync(alert.OrderId);
+                    if (alertOrder != null && string.Equals(alertOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var shortOrderId = alertOrder.Id?.Length >= 6 ? alertOrder.Id[^6..] : alertOrder.Id;
+                        var statusLabel = alert.Status.Replace("-", " ");
+
+                        if (!string.IsNullOrWhiteSpace(alert.DeliveryPartnerId))
+                        {
+                            var assigned = await _operationsRepo.GetDeliveryPartnerByIdAsync(alert.DeliveryPartnerId);
+                            if (!string.IsNullOrWhiteSpace(assigned?.UserId))
+                            {
+                                await _notification.SendSystemNotificationAsync(
+                                    assigned.UserId,
+                                    "Delivery Status Update",
+                                    $"Order #{shortOrderId} is now {statusLabel}.",
+                                    actionUrl: "/partner/delivery");
+
+                                await _webPush.SendToUsersAsync(new[] { assigned.UserId }, new WebPushPayload
+                                {
+                                    Title = "Delivery Status Update",
+                                    Body = $"Order #{shortOrderId} is now {statusLabel}.",
+                                    Data = new
+                                    {
+                                        orderId = alertOrder.Id,
+                                        deliveryAddress = alertOrder.DeliveryAddress,
+                                        phoneNumber = alertOrder.PhoneNumber
+                                    },
+                                    Actions = new[]
+                                    {
+                                        new { action = "navigate", title = "Navigate" },
+                                        new { action = "call", title = "Call" }
+                                    }
+                                });
+                            }
+                        }
+                        else if (string.Equals(alert.Status, "ready", StringComparison.OrdinalIgnoreCase)
+                                 || string.Equals(alert.Status, "confirmed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var partners = await _operationsRepo.GetDeliveryPartnersAsync(alert.OutletId);
+                            foreach (var partner in partners)
+                            {
+                                if (string.IsNullOrWhiteSpace(partner.UserId) || !string.Equals(partner.Status, "available", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+
+                                await _notification.SendSystemNotificationAsync(
+                                    partner.UserId,
+                                    "Delivery Request Update",
+                                    $"Order #{shortOrderId} is now {statusLabel} and waiting for acceptance.",
+                                    actionUrl: "/partner/delivery");
+
+                                await _webPush.SendToUsersAsync(new[] { partner.UserId }, new WebPushPayload
+                                {
+                                    Title = "Delivery Request Update",
+                                    Body = $"Order #{shortOrderId} is now {statusLabel} and waiting for acceptance.",
+                                    Data = new
+                                    {
+                                        orderId = alertOrder.Id,
+                                        deliveryAddress = alertOrder.DeliveryAddress,
+                                        phoneNumber = alertOrder.PhoneNumber
+                                    },
+                                    Actions = new[]
+                                    {
+                                        new { action = "accept", title = "Accept" },
+                                        new { action = "navigate", title = "Navigate" },
+                                        new { action = "call", title = "Call" }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+                break;
+
             default:
                 _logger.LogWarning("Unknown outbox event type: {EventType}", message.EventType);
                 break;
@@ -207,4 +341,6 @@ public class OutboxProcessorFunction
     public record StatusUpdateWhatsAppPayload(string PhoneNumber, string Username, string OrderId, string Status);
     public record StatusUpdateEmailPayload(string Email, string Username, string OrderId, string Status);
     public record StatusUpdateNotificationPayload(string OrderId, string Status);
+    public record DeliveryPartnerBroadcastPayload(string OrderId, string OutletId, string Trigger);
+    public record DeliveryPartnerStatusAlertPayload(string OrderId, string OutletId, string Status, string? DeliveryPartnerId);
 }

@@ -6,6 +6,7 @@ using Cafe.Api.Repositories;
 using Cafe.Api.Models;
 using Cafe.Api.Helpers;
 using System.Net;
+using System.Text.Json;
 
 namespace Cafe.Api.Functions;
 
@@ -17,12 +18,14 @@ public class DeliveryPartnerFunction
     private readonly DeliveryRoutingService _deliveryRoutingService;
     private readonly AuthService _auth;
     private readonly ILogger _log;
+    private readonly IdempotencyService _idempotency;
 
     public DeliveryPartnerFunction(
         IOperationsRepository mongo,
         IOrderRepository orderRepo,
         NotificationService notificationService,
         DeliveryRoutingService deliveryRoutingService,
+        IdempotencyService idempotency,
         AuthService auth,
         ILoggerFactory loggerFactory)
     {
@@ -30,6 +33,7 @@ public class DeliveryPartnerFunction
         _orderRepo = orderRepo;
         _notificationService = notificationService;
         _deliveryRoutingService = deliveryRoutingService;
+        _idempotency = idempotency;
         _auth = auth;
         _log = loggerFactory.CreateLogger<DeliveryPartnerFunction>();
     }
@@ -46,6 +50,12 @@ public class DeliveryPartnerFunction
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var partners = await _mongo.GetDeliveryPartnersAsync(outletId ?? "default");
 
+            var includeTest = string.Equals(req.Query["includeTest"], "true", StringComparison.OrdinalIgnoreCase);
+            if (!includeTest)
+            {
+                partners = partners.Where(p => !IsLikelyTestPartner(p)).ToList();
+            }
+
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(partners);
             return response;
@@ -57,6 +67,42 @@ public class DeliveryPartnerFunction
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;
         }
+    }
+
+    private static bool IsLikelyTestPartner(DeliveryPartner partner)
+    {
+        var name = (partner.Name ?? string.Empty).Trim().ToLowerInvariant();
+        var phone = (partner.Phone ?? string.Empty).Trim();
+        var vehicle = (partner.VehicleNumber ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(name)) return true;
+
+        var testNameTokens = new[] { "test", "dummy", "sample", "demo", "trial", "qa" };
+        if (testNameTokens.Any(token => name.Contains(token, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        var obviousDummyPhones = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "0000000000",
+            "1111111111",
+            "9999999999",
+            "1234567890",
+            "9876543210"
+        };
+
+        if (obviousDummyPhones.Contains(phone))
+        {
+            return true;
+        }
+
+        if (vehicle.Contains("test", StringComparison.OrdinalIgnoreCase) || vehicle.Contains("dummy", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     [Function("CreateDeliveryPartner")]
@@ -269,6 +315,31 @@ public class DeliveryPartnerFunction
                 return forbiddenRole;
             }
 
+            var idempotencyKey = GetIdempotencyKey(req);
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                var requestHash = IdempotencyService.ComputeRequestHash($"pickup:{userId}:{orderId}");
+                var start = await _idempotency.TryBeginAsync(idempotencyKey, "partner.pickup-order", userId ?? string.Empty, requestHash);
+                if (start.IsConflict)
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Idempotency key reused with different request payload" });
+                    return conflict;
+                }
+
+                if (start.IsInProgress)
+                {
+                    var accepted = req.CreateResponse(HttpStatusCode.Accepted);
+                    await accepted.WriteAsJsonAsync(new { message = "Request already in progress" });
+                    return accepted;
+                }
+
+                if (start.ReplayStatusCode.HasValue)
+                {
+                    return await BuildReplayResponseAsync(req, start.ReplayStatusCode.Value, start.ReplayBody);
+                }
+            }
+
             var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId!);
             if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
             {
@@ -323,12 +394,156 @@ public class DeliveryPartnerFunction
             }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { message = "Order picked up and marked out-for-delivery", status = "out-for-delivery" });
+            var payload = new { message = "Order picked up and marked out-for-delivery", status = "out-for-delivery" };
+            await response.WriteAsJsonAsync(payload);
+
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                await _idempotency.MarkCompletedAsync(idempotencyKey, "partner.pickup-order", userId ?? string.Empty, (int)HttpStatusCode.OK, JsonSerializer.Serialize(payload));
+            }
             return response;
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error picking up assigned order {OrderId}", orderId);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("AcceptDeliveryOrder")]
+    public async Task<HttpResponseData> AcceptDeliveryOrder(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "partner/delivery/orders/{orderId}/accept")] HttpRequestData req,
+        string orderId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            if (role != "partner" && role != "delivery-partner")
+            {
+                var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
+                return forbiddenRole;
+            }
+
+            var idempotencyKey = GetIdempotencyKey(req);
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                var requestHash = IdempotencyService.ComputeRequestHash($"accept:{userId}:{orderId}");
+                var start = await _idempotency.TryBeginAsync(idempotencyKey, "partner.accept-order", userId ?? string.Empty, requestHash);
+                if (start.IsConflict)
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Idempotency key reused with different request payload" });
+                    return conflict;
+                }
+
+                if (start.IsInProgress)
+                {
+                    var accepted = req.CreateResponse(HttpStatusCode.Accepted);
+                    await accepted.WriteAsJsonAsync(new { message = "Request already in progress" });
+                    return accepted;
+                }
+
+                if (start.ReplayStatusCode.HasValue)
+                {
+                    return await BuildReplayResponseAsync(req, start.ReplayStatusCode.Value, start.ReplayBody);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid user context" });
+                return unauthorized;
+            }
+
+            var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId);
+            if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner profile not found" });
+                return notFound;
+            }
+
+            var order = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (!string.Equals(order.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Only delivery orders can be accepted" });
+                return badReq;
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.DeliveryPartnerId))
+            {
+                if (string.Equals(order.DeliveryPartnerId, partner.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    var alreadyMine = req.CreateResponse(HttpStatusCode.OK);
+                    await alreadyMine.WriteAsJsonAsync(new { message = "Order already assigned to you", assigned = true });
+                    return alreadyMine;
+                }
+
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Order already accepted by another delivery partner" });
+                return conflict;
+            }
+
+            var success = await _mongo.TryAssignUnassignedDeliveryPartnerAsync(partner.Id, orderId);
+            if (!success)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Order was already claimed or is no longer eligible" });
+                return conflict;
+            }
+
+            var assignedOrder = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (assignedOrder != null && !string.IsNullOrWhiteSpace(assignedOrder.UserId))
+            {
+                await _notificationService.SendOrderStatusNotificationAsync(assignedOrder, assignedOrder.Status);
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.OutletId))
+            {
+                var peers = await _mongo.GetDeliveryPartnersAsync(order.OutletId);
+                var shortOrderId = order.Id?.Length >= 6 ? order.Id[^6..] : order.Id;
+                foreach (var peer in peers)
+                {
+                    if (string.IsNullOrWhiteSpace(peer.UserId) || string.Equals(peer.Id, partner.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    await _notificationService.SendSystemNotificationAsync(
+                        peer.UserId,
+                        "Delivery Request Claimed",
+                        $"Order #{shortOrderId} has been accepted by another partner.",
+                        actionUrl: "/partner/delivery");
+                }
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            var payload = new { message = "Order accepted successfully", assigned = true, orderId, partnerId = partner.Id };
+            await response.WriteAsJsonAsync(payload);
+
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                await _idempotency.MarkCompletedAsync(idempotencyKey, "partner.accept-order", userId ?? string.Empty, (int)HttpStatusCode.OK, JsonSerializer.Serialize(payload));
+            }
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error accepting delivery order {OrderId}", orderId);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;
@@ -433,7 +648,7 @@ public class DeliveryPartnerFunction
             partner.Phone = InputSanitizer.Sanitize(request.Phone);
             partner.VehicleType = InputSanitizer.Sanitize(request.VehicleType);
             partner.VehicleNumber = request.VehicleNumber != null ? InputSanitizer.Sanitize(request.VehicleNumber) : null;
-            partner.UserId = string.IsNullOrWhiteSpace(request.UserId) ? partner.UserId : InputSanitizer.Sanitize(request.UserId);
+            partner.UserId = string.IsNullOrWhiteSpace(request.UserId) ? null : InputSanitizer.Sanitize(request.UserId);
             partner.MileageKmpl = request.MileageKmpl is > 0 ? request.MileageKmpl.Value : partner.MileageKmpl;
             partner.CodAllowed = request.CodAllowed ?? partner.CodAllowed;
             partner.PayoutEnabled = request.PayoutEnabled ?? partner.PayoutEnabled;
@@ -520,6 +735,54 @@ public class DeliveryPartnerFunction
         }
     }
 
+    [Function("DeleteTestDeliveryPartners")]
+    public async Task<HttpResponseData> DeleteTestDeliveryPartners(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "manage/delivery-partners/test-data")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth) ?? "default";
+            var partners = await _mongo.GetDeliveryPartnersAsync(outletId);
+            var testPartners = partners.Where(IsLikelyTestPartner).ToList();
+
+            var deletedIds = new List<string>();
+            foreach (var partner in testPartners)
+            {
+                if (string.IsNullOrWhiteSpace(partner.Id))
+                {
+                    continue;
+                }
+
+                var deleted = await _mongo.DeleteDeliveryPartnerAsync(partner.Id);
+                if (deleted)
+                {
+                    deletedIds.Add(partner.Id);
+                }
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Test delivery partner records removed",
+                outletId,
+                matched = testPartners.Count,
+                deleted = deletedIds.Count,
+                deletedIds
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting test delivery partner records");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
     [Function("GetDeliveryPartnerDashboard")]
     public async Task<HttpResponseData> GetDeliveryPartnerDashboard(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "partner/delivery/dashboard")] HttpRequestData req)
@@ -555,10 +818,23 @@ public class DeliveryPartnerFunction
 
             var activeShift = await _mongo.GetActiveShiftForPartnerAsync(partner.Id);
             var activeOrders = await _mongo.GetActiveOrdersForPartnerAsync(partner.Id, partner.OutletId);
+            var outletOrders = await _orderRepo.GetAllOrdersAsync(partner.OutletId);
+            var pendingRequests = outletOrders
+                .Where(o =>
+                    string.Equals(o.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
+                    && string.IsNullOrWhiteSpace(o.DeliveryPartnerId)
+                    && (string.Equals(o.Status, "pending", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(o.Status, "confirmed", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(o.Status, "preparing", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(o.Status, "ready", StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(o => o.CreatedAt)
+                .Take(20)
+                .ToList();
             var todayDistance = await _mongo.GetPartnerDistanceAsync(partner.Id, dayStart, dayEnd);
             var fuelPrice = await _mongo.GetFuelPriceAsync(partner.OutletId, dayStart);
             var codOutstanding = await _mongo.GetOutstandingCodAmountAsync(partner.Id);
             var (avgRating, reviewsCount) = await _mongo.GetDeliveryPartnerRatingSummaryAsync(partner.Id);
+            var recentReviews = await _mongo.GetDeliveryPartnerReviewsAsync(partner.Id, 10);
 
             var mileage = partner.MileageKmpl <= 0 ? 40 : partner.MileageKmpl;
             var litres = mileage > 0 ? todayDistance / mileage : 0;
@@ -569,11 +845,19 @@ public class DeliveryPartnerFunction
                 Profile = partner,
                 ActiveShift = activeShift,
                 ActiveOrders = activeOrders,
+                PendingRequests = pendingRequests,
                 TodayDistanceKm = Math.Round(todayDistance, 2, MidpointRounding.AwayFromZero),
                 TodayPayout = todayPayout,
                 CodOutstanding = Math.Round(codOutstanding, 2, MidpointRounding.AwayFromZero),
                 AverageRating = avgRating,
-                ReviewsCount = reviewsCount
+                ReviewsCount = reviewsCount,
+                RecentReviews = recentReviews.Select(r => new PartnerReviewSummary
+                {
+                    OrderId = r.OrderId,
+                    Rating = r.Rating,
+                    Review = r.Review,
+                    CreatedAt = r.CreatedAt
+                }).ToList()
             };
 
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -918,6 +1202,31 @@ public class DeliveryPartnerFunction
                 return unauthorized;
             }
 
+            var idempotencyKey = GetIdempotencyKey(req);
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                var requestHash = IdempotencyService.ComputeRequestHash($"cod-confirm:{userId}:{orderId}");
+                var start = await _idempotency.TryBeginAsync(idempotencyKey, "partner.confirm-cod", userId, requestHash);
+                if (start.IsConflict)
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Idempotency key reused with different request payload" });
+                    return conflict;
+                }
+
+                if (start.IsInProgress)
+                {
+                    var accepted = req.CreateResponse(HttpStatusCode.Accepted);
+                    await accepted.WriteAsJsonAsync(new { message = "Request already in progress" });
+                    return accepted;
+                }
+
+                if (start.ReplayStatusCode.HasValue)
+                {
+                    return await BuildReplayResponseAsync(req, start.ReplayStatusCode.Value, start.ReplayBody);
+                }
+            }
+
             var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId);
             if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
             {
@@ -955,6 +1264,11 @@ public class DeliveryPartnerFunction
             {
                 var ok = req.CreateResponse(HttpStatusCode.OK);
                 await ok.WriteAsJsonAsync(new { message = "COD already confirmed", paymentStatus = "paid" });
+
+                if (!string.IsNullOrWhiteSpace(idempotencyKey))
+                {
+                    await _idempotency.MarkCompletedAsync(idempotencyKey, "partner.confirm-cod", userId, (int)HttpStatusCode.OK, JsonSerializer.Serialize(new { message = "COD already confirmed", paymentStatus = "paid" }));
+                }
                 return ok;
             }
 
@@ -978,8 +1292,14 @@ public class DeliveryPartnerFunction
             order.UpdatedAt = now;
             await _orderRepo.UpdateOrderAsync(order);
 
+            var payload = new { message = "COD payment confirmed", paymentStatus = "paid" };
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { message = "COD payment confirmed", paymentStatus = "paid" });
+            await response.WriteAsJsonAsync(payload);
+
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                await _idempotency.MarkCompletedAsync(idempotencyKey, "partner.confirm-cod", userId, (int)HttpStatusCode.OK, JsonSerializer.Serialize(payload));
+            }
             return response;
         }
         catch (Exception ex)
@@ -1470,6 +1790,28 @@ public class DeliveryPartnerFunction
             "year" => (new DateTime(d.Year, 1, 1), new DateTime(d.Year + 1, 1, 1)),
             _ => (d, d.AddDays(1))
         };
+    }
+
+    private static string? GetIdempotencyKey(HttpRequestData req)
+    {
+        if (!req.Headers.TryGetValues("X-Idempotency-Key", out var values))
+        {
+            return null;
+        }
+
+        var raw = values.FirstOrDefault();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
+    }
+
+    private static async Task<HttpResponseData> BuildReplayResponseAsync(HttpRequestData req, int statusCode, string? body)
+    {
+        var response = req.CreateResponse((HttpStatusCode)statusCode);
+        if (!string.IsNullOrWhiteSpace(body))
+        {
+            await response.WriteStringAsync(body);
+        }
+
+        return response;
     }
 }
 

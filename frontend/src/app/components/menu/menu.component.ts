@@ -112,13 +112,14 @@ export class MenuComponent implements OnInit, OnDestroy {
       next: (outlets) => {
         this.outlets = (outlets || []).filter(o => o.isActive);
 
-        const selected = this.outletService.getSelectedOutlet();
-        if (selected) {
-          this.selectedOutletId = this.getOutletKey(selected);
-        } else if (this.outlets.length > 0) {
-          const firstOutlet = this.outlets[0];
-          this.selectedOutletId = this.getOutletKey(firstOutlet);
-          this.outletService.selectOutlet(firstOutlet);
+        const storedSelection = this.outletService.getSelectedOutlet();
+        const storedSelectionKey = storedSelection ? this.getOutletKey(storedSelection) : '';
+        const matchedStoredOutlet = this.outlets.find(o => this.getOutletKey(o) === storedSelectionKey);
+
+        const defaultOutlet = matchedStoredOutlet || this.getPreferredDefaultOutlet(this.outlets);
+        if (defaultOutlet) {
+          this.selectedOutletId = this.getOutletKey(defaultOutlet);
+          this.outletService.selectOutlet(defaultOutlet);
         }
 
         this.loadMenu();
@@ -134,7 +135,11 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (selected) {
       this.outletService.selectOutlet(selected);
     } else {
-      this.outletService.clearSelectedOutlet();
+      const fallbackOutlet = this.getPreferredDefaultOutlet(this.outlets);
+      if (fallbackOutlet) {
+        this.selectedOutletId = this.getOutletKey(fallbackOutlet);
+        this.outletService.selectOutlet(fallbackOutlet);
+      }
     }
 
     this.selectedCategoryId = null;
@@ -143,7 +148,41 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   getOutletKey(outlet: Outlet): string {
-    return outlet.id || outlet._id || '';
+    return outlet._id || outlet.id || '';
+  }
+
+  private getOutletMatchKeys(outlet: Outlet | null | undefined): string[] {
+    if (!outlet) return [];
+
+    return [outlet._id, outlet.id]
+      .map(v => (v || '').toString().trim())
+      .filter(v => !!v);
+  }
+
+  private getSelectedOutletMatchKeys(): string[] {
+    const selectedFromStore = this.outletService.getSelectedOutlet();
+    const keys = new Set<string>([
+      ...this.getOutletMatchKeys(selectedFromStore),
+      (this.selectedOutletId || '').toString().trim()
+    ].filter(v => !!v));
+
+    return Array.from(keys);
+  }
+
+  private getPreferredDefaultOutlet(outlets: Outlet[]): Outlet | null {
+    if (!outlets || outlets.length === 0) return null;
+
+    const kanchrapara = outlets.find(outlet => {
+      const name = (outlet.outletName || '').trim().toLowerCase();
+      const code = (outlet.outletCode || '').trim().toLowerCase();
+      return name.includes('kanchrapara') || code.includes('kpa');
+    });
+
+    return kanchrapara || outlets[0] || null;
+  }
+
+  private getItemOutletId(item: MenuItem): string {
+    return (item.outletId || '').toString().trim();
   }
 
   get checkoutDraftAgeMinutes(): number {
@@ -210,11 +249,12 @@ export class MenuComponent implements OnInit, OnDestroy {
       return false;
     }
 
-    if (!item.outletId) {
+    const itemOutletId = this.getItemOutletId(item);
+    if (!itemOutletId) {
       return this.isOnlineOrderingEnabledForSelection;
     }
 
-    const itemOutlet = this.outlets.find(o => this.getOutletKey(o) === item.outletId);
+    const itemOutlet = this.outlets.find(o => this.getOutletMatchKeys(o).includes(itemOutletId));
     return itemOutlet?.settings?.acceptsOnlineOrders !== false;
   }
 
@@ -257,7 +297,11 @@ export class MenuComponent implements OnInit, OnDestroy {
     let items = this.menuItems.filter(item => item.isAddOnOnly !== true);
 
     if (this.selectedOutletId) {
-      items = items.filter(item => !item.outletId || item.outletId === this.selectedOutletId);
+      const selectedMatchKeys = this.getSelectedOutletMatchKeys();
+      items = items.filter(item => {
+        const itemOutletId = this.getItemOutletId(item);
+        return !itemOutletId || selectedMatchKeys.includes(itemOutletId);
+      });
     }
 
     if (this.selectedCategoryId) {
@@ -572,7 +616,16 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   getCategoryItemCount(categoryId: string | null): number {
-    const visibleItems = this.menuItems.filter(item => item.isAddOnOnly !== true);
+    const selectedMatchKeys = this.getSelectedOutletMatchKeys();
+
+    const visibleItems = this.menuItems.filter(item => {
+      if (item.isAddOnOnly === true) return false;
+
+      if (!this.selectedOutletId) return true;
+      const itemOutletId = this.getItemOutletId(item);
+      return !itemOutletId || selectedMatchKeys.includes(itemOutletId);
+    });
+
     if (!categoryId) return visibleItems.length;
     return visibleItems.filter(item => item.categoryId === categoryId).length;
   }

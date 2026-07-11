@@ -42,9 +42,15 @@ public class OutboxMessage
     [BsonElement("processedAt")]
     public DateTime? ProcessedAt { get; set; }
 
+    [BsonElement("lastAttemptAt")]
+    public DateTime? LastAttemptAt { get; set; }
+
     [BsonElement("nextRetryAt")]
     public DateTime? NextRetryAt { get; set; }
 
     [BsonElement("error")]
     public string? Error { get; set; }
+
+    [BsonElement("deadLetteredAt")]
+    public DateTime? DeadLetteredAt { get; set; }
 }
