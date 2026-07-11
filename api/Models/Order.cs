@@ -194,6 +194,15 @@ public class Order : ISoftDeletable
     [BsonElement("kitchenAssignedAt")]
     public DateTime? KitchenAssignedAt { get; set; }
 
+    [BsonElement("isUrgent")]
+    public bool IsUrgent { get; set; }
+
+    [BsonElement("urgentReason")]
+    public string? UrgentReason { get; set; }
+
+    [BsonElement("urgentMarkedAt")]
+    public DateTime? UrgentMarkedAt { get; set; }
+
     [BsonElement("loyaltyPointsAwarded")]
     public bool LoyaltyPointsAwarded { get; set; }
 

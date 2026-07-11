@@ -1,0 +1,221 @@
+<section class="manager-ops-page">
+  <header class="ops-header">
+    <div class="title-wrap">
+      <h1>Manager Operations Board</h1>
+      <p>Live kitchen, delivery, parcel, SLA escalations, and payout reconciliation in one place.</p>
+    </div>
+    <button type="button" class="refresh-btn" (click)="loadAll()" [disabled]="loading || actionBusy">
+      {{ loading ? 'Refreshing...' : 'Refresh' }}
+    </button>
+  </header>
+
+  <div class="summary" *ngIf="board as b">
+    <article class="metric-card">
+      <span class="metric-label">Kitchen Queue</span>
+      <strong class="metric-value">{{ b.summary.kitchenQueueCount }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Delivery Queue</span>
+      <strong class="metric-value">{{ b.summary.deliveryQueueCount }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Parcel Assigned</span>
+      <strong class="metric-value">{{ b.summary.parcelAssignedCount }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Available Partners</span>
+      <strong class="metric-value">{{ b.summary.availablePartners }}</strong>
+    </article>
+  </div>
+
+  <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <nav class="tabs" *ngIf="board as b">
+    <button type="button" [class.active]="activeTab==='kitchen'" (click)="setTab('kitchen')">
+      Kitchen Queue <span class="tab-count">{{ b.summary.kitchenQueueCount }}</span>
+    </button>
+    <button type="button" [class.active]="activeTab==='delivery'" (click)="setTab('delivery')">
+      Delivery Queue <span class="tab-count">{{ b.summary.deliveryQueueCount }}</span>
+    </button>
+    <button type="button" [class.active]="activeTab==='parcel'" (click)="setTab('parcel')">
+      Parcel Tasks <span class="tab-count">{{ b.parcelTasks.length }}</span>
+    </button>
+    <button type="button" [class.active]="activeTab==='escalations'" (click)="setTab('escalations')">
+      Escalations <span class="tab-count">{{ b.escalations.length + b.alerts.length }}</span>
+    </button>
+  </nav>
+
+  <section class="panel" *ngIf="board as b">
+    <div *ngIf="activeTab==='kitchen'" class="list-grid">
+      <article class="row" *ngFor="let item of b.kitchenQueue; trackBy: trackByOrder">
+        <div class="row-head">
+          <div class="main">
+            <strong>#{{ item.id }}</strong>
+            <span class="status-chip" [ngClass]="getStatusClass(item.status)">{{ item.status }}</span>
+          </div>
+          <span *ngIf="item.isUrgent" class="urgent">URGENT</span>
+        </div>
+        <div class="meta">
+          <small class="chip">{{ item.deliveryAddress || 'No address' }}</small>
+        </div>
+        <div class="actions">
+          <input type="text" placeholder="Urgent reason" [(ngModel)]="urgentReasonByOrder[item.id || '']" />
+          <button type="button" (click)="onMarkUrgent(item.id)" [disabled]="actionBusy">Mark Urgent</button>
+          <button type="button" (click)="onResend(item.id)" [disabled]="actionBusy">Resend Notification</button>
+        </div>
+      </article>
+
+      <article class="row empty-state" *ngIf="b.kitchenQueue.length === 0">
+        <strong>No kitchen queue items</strong>
+        <small>New orders will appear here automatically.</small>
+      </article>
+    </div>
+
+    <div *ngIf="activeTab==='delivery'" class="list-grid">
+      <article class="row" *ngFor="let item of b.deliveryQueue; trackBy: trackByOrder">
+        <div class="row-head">
+          <div class="main">
+            <strong>#{{ item.id }}</strong>
+            <span class="status-chip" [ngClass]="getStatusClass(item.status)">{{ item.status }}</span>
+          </div>
+          <span class="chip">{{ item.deliveryPartnerName || 'Unassigned' }}</span>
+        </div>
+        <div class="actions">
+          <select [(ngModel)]="selectedPartnerByOrder[item.id || '']">
+            <option value="">Select partner</option>
+            <option *ngFor="let p of partners" [value]="p.id">{{ p.name }}</option>
+          </select>
+          <button type="button" (click)="onReassign(item.id)" [disabled]="actionBusy">Reassign Partner</button>
+          <button type="button" (click)="onResend(item.id)" [disabled]="actionBusy">Resend Notification</button>
+        </div>
+      </article>
+
+      <article class="row empty-state" *ngIf="b.deliveryQueue.length === 0">
+        <strong>No delivery queue items</strong>
+        <small>Assigned delivery orders will appear here.</small>
+      </article>
+    </div>
+
+    <div *ngIf="activeTab==='parcel'" class="list-grid">
+      <article class="row assign-form">
+        <div class="assign-header">
+          <strong>Assign Parcel Task</strong>
+          <small>Create a task with source, destination, and trip type.</small>
+        </div>
+
+        <div class="assign-grid">
+          <label class="field">
+            <span class="field-label">Delivery Partner</span>
+            <select [(ngModel)]="parcelForm.partnerId">
+              <option value="">Select partner</option>
+              <option *ngFor="let p of partners" [value]="p.id">{{ p.name }}</option>
+            </select>
+          </label>
+
+          <div class="start-end-row">
+            <label class="field">
+              <span class="field-label">Start Point</span>
+              <input type="text" placeholder="Pickup location or landmark" [(ngModel)]="parcelForm.startPoint" (ngModelChange)="onParcelRouteInputChange()" />
+            </label>
+
+            <label class="field">
+              <span class="field-label">End Point</span>
+              <input type="text" placeholder="Drop location or landmark" [(ngModel)]="parcelForm.endPoint" (ngModelChange)="onParcelRouteInputChange()" />
+            </label>
+          </div>
+
+          <label class="field field-notes">
+            <span class="field-label">Notes (Optional)</span>
+            <input type="text" placeholder="Any delivery instructions" [(ngModel)]="parcelForm.notes" />
+          </label>
+
+          <label class="round-trip">
+            <input type="checkbox" [(ngModel)]="parcelForm.isRoundTrip" />
+            <span>Round Trip</span>
+          </label>
+        </div>
+
+        <div class="assign-footer">
+          <button type="button" class="assign-btn" (click)="onAssignParcelTask()" [disabled]="actionBusy || !canAssignParcel()">
+            Assign Parcel Task
+          </button>
+          <small class="helper">Route and billable distance are calculated automatically.</small>
+          <div class="distance-preview" *ngIf="routeQuoteLoading || calculatedDistanceKm !== null || routeQuoteError">
+            <small class="helper" *ngIf="routeQuoteLoading">Calculating route distance...</small>
+            <small class="helper quote-success" *ngIf="!routeQuoteLoading && calculatedDistanceKm !== null">
+              Calculated distance: {{ calculatedDistanceKm | number:'1.1-2' }} km
+              <span *ngIf="routeQuoteBaseDistanceKm !== null">
+                (Base: {{ routeQuoteBaseDistanceKm | number:'1.1-2' }} km<span *ngIf="parcelForm.isRoundTrip"> x 2</span>)
+              </span>
+            </small>
+            <small class="helper quote-error" *ngIf="!routeQuoteLoading && routeQuoteError">{{ routeQuoteError }}</small>
+          </div>
+        </div>
+
+        <p class="status" *ngIf="parcelActionMessage">{{ parcelActionMessage }}</p>
+      </article>
+
+      <article class="row parcel-task-row" *ngFor="let task of b.parcelTasks; trackBy: trackByParcel">
+        <div class="row-head">
+          <div class="main">
+            <strong>#{{ task.id }}</strong>
+            <span class="status-chip" [ngClass]="getStatusClass(task.status)">{{ task.status }}</span>
+          </div>
+          <span class="chip">{{ task.partnerName || task.partnerId }}</span>
+        </div>
+        <div class="meta">
+          <small class="chip">{{ task.startPoint }} -> {{ task.endPoint }}</small>
+          <small class="chip">{{ task.billableDistanceKm | number:'1.1-1' }} km billable</small>
+          <small class="chip">Payout impact: {{ task.payoutImpact | currency:'INR' }}</small>
+        </div>
+      </article>
+
+      <article class="row empty-state" *ngIf="b.parcelTasks.length === 0">
+        <strong>No parcel tasks yet</strong>
+        <small>Create a task above to assign it to a delivery partner.</small>
+      </article>
+    </div>
+
+    <div *ngIf="activeTab==='escalations'" class="list-grid">
+      <article class="row" *ngFor="let e of b.escalations">
+        <div class="main">
+          <strong>{{ e.type }}</strong>
+          <span class="chip" *ngIf="e.orderId">Order #{{ e.orderId }}</span>
+          <span class="chip" *ngIf="e.taskId">Task #{{ e.taskId }}</span>
+        </div>
+        <div class="meta">
+          <small class="chip">Waited {{ e.waitedMinutes }} min</small>
+          <small class="status-chip" [ngClass]="getStatusClass(e.status)">{{ e.status || '-' }}</small>
+        </div>
+      </article>
+
+      <article class="row alert" *ngFor="let a of b.alerts">
+        <div class="main">
+          <strong>{{ a.type }}</strong>
+          <span class="chip severity-chip">{{ a.severity }}</span>
+        </div>
+        <div class="meta">
+          <small class="chip">{{ a.message }}</small>
+        </div>
+      </article>
+
+      <article class="row reconciliation" *ngIf="reconciliation as r">
+        <div class="main">
+          <strong>Daily Reconciliation</strong>
+          <span class="chip">{{ r.date | date:'mediumDate' }}</span>
+        </div>
+        <div class="meta">
+          <small class="chip">Expected: {{ r.expectedPayout | currency:'INR' }}</small>
+          <small class="chip">Actual: {{ r.actualPayout | currency:'INR' }}</small>
+          <small class="chip">Variance: {{ r.variance | currency:'INR' }}</small>
+          <small class="chip">Audit entries: {{ r.auditEntries.length }}</small>
+        </div>
+      </article>
+
+      <article class="row empty-state" *ngIf="b.escalations.length === 0 && b.alerts.length === 0">
+        <strong>No escalations or alerts</strong>
+        <small>Everything is currently operating within SLA.</small>
+      </article>
+    </div>
+  </section>
+</section>

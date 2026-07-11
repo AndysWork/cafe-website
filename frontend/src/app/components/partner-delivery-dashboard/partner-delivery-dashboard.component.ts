@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DeliveryPartnerService, PartnerDashboard, PartnerPayoutSummary } from '../../services/delivery-partner.service';
 import { WebPushService } from '../../services/web-push.service';
 import { UIStore } from '../../store/ui.store';
@@ -16,6 +17,8 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
   private partnerService = inject(DeliveryPartnerService);
   private webPush = inject(WebPushService);
   private uiStore = inject(UIStore);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   dashboard: PartnerDashboard | null = null;
   payoutSummary: PartnerPayoutSummary | null = null;
@@ -43,11 +46,21 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
   codReferenceDraft: Record<string, string> = {};
   confirmingCod: Record<string, boolean> = {};
   acceptingRequest: Record<string, boolean> = {};
+  acceptingParcel: Record<string, boolean> = {};
+  completingParcel: Record<string, boolean> = {};
+  autoAcceptParcelTaskId: string | null = null;
 
   ngOnInit(): void {
     this.webPush.registerPartnerWebPush('partner-dashboard').catch(() => {
       // Keep dashboard functional even if push registration fails.
     });
+
+    const action = (this.route.snapshot.queryParamMap.get('action') || '').toLowerCase();
+    const taskId = this.route.snapshot.queryParamMap.get('parcelTaskId');
+    if (action === 'accept' && taskId) {
+      this.autoAcceptParcelTaskId = taskId;
+    }
+
     this.loadDashboard();
   }
 
@@ -57,6 +70,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
       next: data => {
         this.dashboard = data;
         this.initializeCodDrafts();
+        this.tryAutoAcceptParcelTask();
         this.loading = false;
         this.loadPayout();
       },
@@ -275,6 +289,68 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
         this.loadDashboard();
       }
     });
+  }
+
+  acceptParcelTask(task: { id?: string }): void {
+    if (!task.id) {
+      this.uiStore.error('Invalid parcel task');
+      return;
+    }
+
+    this.acceptingParcel[task.id] = true;
+    this.partnerService.acceptParcelTask(task.id).subscribe({
+      next: () => {
+        this.uiStore.success('Parcel task accepted');
+        this.acceptingParcel[task.id!] = false;
+        this.loadDashboard();
+      },
+      error: (error) => {
+        this.acceptingParcel[task.id!] = false;
+        this.uiStore.error(error.error?.error || 'Failed to accept parcel task');
+      }
+    });
+  }
+
+  completeParcelTask(task: { id?: string }): void {
+    if (!task.id) {
+      this.uiStore.error('Invalid parcel task');
+      return;
+    }
+
+    this.completingParcel[task.id] = true;
+    this.partnerService.completeParcelTask(task.id).subscribe({
+      next: (res) => {
+        this.uiStore.success(`Parcel task completed (${res.tripDistanceKm} km logged)`);
+        this.completingParcel[task.id!] = false;
+        this.loadDashboard();
+      },
+      error: (error) => {
+        this.completingParcel[task.id!] = false;
+        this.uiStore.error(error.error?.error || 'Failed to complete parcel task');
+      }
+    });
+  }
+
+  private tryAutoAcceptParcelTask(): void {
+    if (!this.autoAcceptParcelTaskId || !this.dashboard) {
+      return;
+    }
+
+    const match = this.dashboard.pendingParcelTasks.find(t => t.id === this.autoAcceptParcelTaskId);
+    const taskId = this.autoAcceptParcelTaskId;
+    this.autoAcceptParcelTaskId = null;
+
+    if (!match) {
+      return;
+    }
+
+    this.acceptParcelTask(match);
+    this.router.navigate([], {
+      queryParams: { action: null, parcelTaskId: null },
+      queryParamsHandling: 'merge'
+    });
+
+    this.uiStore.success(`Opening task ${taskId} from notification`);
   }
 
   getStarLabel(rating: number): string {

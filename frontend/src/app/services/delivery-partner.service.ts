@@ -64,6 +64,36 @@ export interface PartnerTrip {
   notes?: string;
 }
 
+export interface ParcelTask {
+  id?: string;
+  outletId: string;
+  partnerId: string;
+  partnerName?: string;
+  startPoint: string;
+  endPoint: string;
+  distanceKm: number;
+  isRoundTrip: boolean;
+  billableDistanceKm: number;
+  etaMinutes?: number;
+  routeMapUrl?: string;
+  routeShortCode?: string;
+  routeShortUrl?: string;
+  notes?: string;
+  status: 'assigned' | 'accepted' | 'completed' | 'cancelled';
+  acceptedAt?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ParcelRouteQuote {
+  distanceKm: number;
+  billableDistanceKm: number;
+  isRoundTrip: boolean;
+  etaMinutes?: number;
+  mapUrl?: string;
+}
+
 export interface PartnerDashboard {
   profile: DeliveryPartner | null;
   activeShift: DeliveryShift | null;
@@ -91,6 +121,8 @@ export interface PartnerDashboard {
     deliveryDistanceKm?: number;
     deliveryEtaMinutes?: number;
   }>;
+  activeParcelTasks: ParcelTask[];
+  pendingParcelTasks: ParcelTask[];
   todayDistanceKm: number;
   todayPayout: number;
   codOutstanding: number;
@@ -236,6 +268,28 @@ export class DeliveryPartnerService {
     );
   }
 
+  createParcelTask(payload: {
+    partnerId: string;
+    startPoint: string;
+    endPoint: string;
+    isRoundTrip?: boolean;
+    notes?: string;
+  }): Observable<ParcelTask> {
+    return this.http.post<ParcelTask>(`${this.apiUrl}/manage/delivery-partners/parcel-tasks`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.createParcelTask'))
+    );
+  }
+
+  getParcelRouteQuote(payload: {
+    startPoint: string;
+    endPoint: string;
+    isRoundTrip?: boolean;
+  }): Observable<ParcelRouteQuote> {
+    return this.http.post<ParcelRouteQuote>(`${this.apiUrl}/manage/delivery-partners/parcel-tasks/route-quote`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.getParcelRouteQuote'))
+    );
+  }
+
   upsertFuelPrice(payload: { date: string; petrolPricePerLitre: number }): Observable<{ id?: string; date: string; petrolPricePerLitre: number }> {
     return this.http.put<{ id?: string; date: string; petrolPricePerLitre: number }>(`${this.apiUrl}/manage/delivery-partners/fuel-price`, payload).pipe(
       catchError(handleServiceError('DeliveryPartnerService.upsertFuelPrice'))
@@ -319,6 +373,24 @@ export class DeliveryPartnerService {
   }): Observable<PartnerTrip> {
     return this.http.post<PartnerTrip>(`${this.apiUrl}/partner/delivery/trips`, payload).pipe(
       catchError(handleServiceError('DeliveryPartnerService.createMyTrip'))
+    );
+  }
+
+  acceptParcelTask(taskId: string): Observable<{ message: string; status: string }> {
+    return this.http.post<{ message: string; status: string }>(
+      `${this.apiUrl}/partner/delivery/parcel-tasks/${taskId}/accept`,
+      {}
+    ).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.acceptParcelTask'))
+    );
+  }
+
+  completeParcelTask(taskId: string): Observable<{ message: string; status: string; tripDistanceKm: number }> {
+    return this.http.post<{ message: string; status: string; tripDistanceKm: number }>(
+      `${this.apiUrl}/partner/delivery/parcel-tasks/${taskId}/complete`,
+      {}
+    ).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.completeParcelTask'))
     );
   }
 

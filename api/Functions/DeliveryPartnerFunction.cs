@@ -298,6 +298,265 @@ public class DeliveryPartnerFunction
         }
     }
 
+    [Function("CreateParcelDeliveryTask")]
+    public async Task<HttpResponseData> GetParcelTaskRouteQuote(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/delivery-partners/parcel-tasks/route-quote")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<ParcelRouteQuoteRequest>(req);
+            if (validationError != null) return validationError;
+
+            var startPoint = request.StartPoint.Trim();
+            var endPoint = request.EndPoint.Trim();
+
+            var route = await _deliveryRoutingService.BuildPointToPointRouteQuoteAsync(startPoint, endPoint);
+            if (route == null || !route.DistanceKm.HasValue || route.DistanceKm.Value <= 0)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Unable to calculate route distance for parcel task" });
+                return badReq;
+            }
+
+            var distance = Math.Round((decimal)route.DistanceKm.Value, 2, MidpointRounding.AwayFromZero);
+            var billableDistance = request.IsRoundTrip ? distance * 2 : distance;
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new ParcelTaskRouteQuoteResponse
+            {
+                DistanceKm = distance,
+                BillableDistanceKm = billableDistance,
+                IsRoundTrip = request.IsRoundTrip,
+                EtaMinutes = route.EtaMinutes,
+                MapUrl = route.MapUrl
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting parcel route quote");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("CreateParcelDeliveryTask")]
+    public async Task<HttpResponseData> CreateParcelDeliveryTask(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/delivery-partners/parcel-tasks")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<CreateParcelTaskRequest>(req);
+            if (validationError != null) return validationError;
+
+            var partner = await _mongo.GetDeliveryPartnerByIdAsync(request.PartnerId);
+            if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner not found" });
+                return notFound;
+            }
+
+            var route = await _deliveryRoutingService.BuildPointToPointRouteQuoteAsync(request.StartPoint, request.EndPoint);
+            if (route == null || !route.DistanceKm.HasValue || route.DistanceKm.Value <= 0)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Unable to calculate route distance for parcel task" });
+                return badReq;
+            }
+
+            var link = await _deliveryRoutingService.CreateOrReuseShortLinkAsync(
+                partner.OutletId,
+                request.EndPoint,
+                route.MapUrl,
+                null,
+                route.DistanceKm,
+                route.EtaMinutes);
+
+            var now = MongoService.GetIstNow();
+            var distance = Math.Round((decimal)route.DistanceKm.Value, 2, MidpointRounding.AwayFromZero);
+            var billableDistance = request.IsRoundTrip ? distance * 2 : distance;
+
+            var task = new ParcelDeliveryTask
+            {
+                OutletId = partner.OutletId,
+                PartnerId = partner.Id,
+                PartnerName = partner.Name,
+                AssignedByUserId = userId,
+                StartPoint = InputSanitizer.Sanitize(request.StartPoint),
+                EndPoint = InputSanitizer.Sanitize(request.EndPoint),
+                DistanceKm = distance,
+                IsRoundTrip = request.IsRoundTrip,
+                BillableDistanceKm = billableDistance,
+                EtaMinutes = route.EtaMinutes,
+                RouteMapUrl = route.MapUrl,
+                RouteShortCode = link.Code,
+                RouteShortUrl = link.ShortUrl,
+                Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : InputSanitizer.Sanitize(request.Notes),
+                Status = "assigned",
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            await _mongo.CreateParcelTaskAsync(task);
+
+            if (!string.IsNullOrWhiteSpace(partner.UserId))
+            {
+                var roundTripText = request.IsRoundTrip ? "Round-trip" : "One-way";
+                var routeShareUrl = !string.IsNullOrWhiteSpace(link.ShortUrl) ? link.ShortUrl : route.MapUrl;
+                var notificationMessage =
+                    $"{roundTripText} parcel task assigned: {request.StartPoint} to {request.EndPoint} ({billableDistance:0.##} km). Route: {routeShareUrl}";
+
+                await _notificationService.SendSystemNotificationAsync(
+                    partner.UserId,
+                    "New Parcel Delivery Task",
+                    notificationMessage,
+                    actionUrl: $"/partner/delivery?action=accept&parcelTaskId={task.Id}");
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.Created);
+            await response.WriteAsJsonAsync(task);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error creating parcel delivery task");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("AcceptParcelDeliveryTask")]
+    public async Task<HttpResponseData> AcceptParcelDeliveryTask(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "partner/delivery/parcel-tasks/{taskId}/accept")] HttpRequestData req,
+        string taskId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            if (role != "partner" && role != "delivery-partner")
+            {
+                var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
+                return forbiddenRole;
+            }
+
+            var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId!);
+            if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner profile not found" });
+                return notFound;
+            }
+
+            var accepted = await _mongo.AcceptParcelTaskAsync(taskId, partner.Id);
+            if (!accepted)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Parcel task already processed or not assigned to you" });
+                return conflict;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Parcel task accepted", status = "accepted" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error accepting parcel delivery task {TaskId}", taskId);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("CompleteParcelDeliveryTask")]
+    public async Task<HttpResponseData> CompleteParcelDeliveryTask(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "partner/delivery/parcel-tasks/{taskId}/complete")] HttpRequestData req,
+        string taskId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            if (role != "partner" && role != "delivery-partner")
+            {
+                var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
+                return forbiddenRole;
+            }
+
+            var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId!);
+            if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner profile not found" });
+                return notFound;
+            }
+
+            var task = await _mongo.GetParcelTaskByIdAsync(taskId);
+            if (task == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Parcel task not found" });
+                return notFound;
+            }
+
+            var completed = await _mongo.CompleteParcelTaskAsync(taskId, partner.Id);
+            if (!completed)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Parcel task already completed or not assigned to you" });
+                return conflict;
+            }
+
+            var activeShift = await _mongo.GetActiveShiftForPartnerAsync(partner.Id);
+            var now = MongoService.GetIstNow();
+            var trip = new PartnerTripLog
+            {
+                ShiftId = activeShift?.Id ?? "000000000000000000000000",
+                PartnerId = partner.Id,
+                OutletId = partner.OutletId,
+                TripType = "delivery",
+                StartPointLabel = task.StartPoint,
+                EndPointLabel = task.EndPoint,
+                StartOdometerKm = 0,
+                EndOdometerKm = task.BillableDistanceKm,
+                DistanceKm = task.BillableDistanceKm,
+                StartedAt = now,
+                EndedAt = now,
+                Notes = task.IsRoundTrip
+                    ? $"Parcel task completed (round-trip). Base distance: {task.DistanceKm:0.##} km"
+                    : "Parcel task completed",
+                CreatedAt = now
+            };
+
+            await _mongo.CreatePartnerTripAsync(trip);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Parcel task completed", status = "completed", tripDistanceKm = task.BillableDistanceKm });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error completing parcel delivery task {TaskId}", taskId);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
     [Function("PickupAssignedOrder")]
     public async Task<HttpResponseData> PickupAssignedOrder(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "partner/delivery/orders/{orderId}/pickup")] HttpRequestData req,
@@ -556,7 +815,7 @@ public class DeliveryPartnerFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var success = await _mongo.CompleteDeliveryAsync(partnerId);
@@ -586,7 +845,7 @@ public class DeliveryPartnerFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (request, validationError) = await ValidationHelper.ValidateBody<UpdateDeliveryPartnerStatusRequest>(req);
@@ -678,7 +937,7 @@ public class DeliveryPartnerFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (request, validationError) = await ValidationHelper.ValidateBody<UpdateDeliveryPartnerLocationRequest>(req);
@@ -818,6 +1077,7 @@ public class DeliveryPartnerFunction
 
             var activeShift = await _mongo.GetActiveShiftForPartnerAsync(partner.Id);
             var activeOrders = await _mongo.GetActiveOrdersForPartnerAsync(partner.Id, partner.OutletId);
+            var parcelTasks = await _mongo.GetParcelTasksForPartnerAsync(partner.Id, null, 100);
             var outletOrders = await _orderRepo.GetAllOrdersAsync(partner.OutletId);
             var pendingRequests = outletOrders
                 .Where(o =>
@@ -846,6 +1106,8 @@ public class DeliveryPartnerFunction
                 ActiveShift = activeShift,
                 ActiveOrders = activeOrders,
                 PendingRequests = pendingRequests,
+                ActiveParcelTasks = parcelTasks.Where(t => t.Status == "accepted").OrderByDescending(t => t.CreatedAt).ToList(),
+                PendingParcelTasks = parcelTasks.Where(t => t.Status == "assigned").OrderByDescending(t => t.CreatedAt).ToList(),
                 TodayDistanceKm = Math.Round(todayDistance, 2, MidpointRounding.AwayFromZero),
                 TodayPayout = todayPayout,
                 CodOutstanding = Math.Round(codOutstanding, 2, MidpointRounding.AwayFromZero),
@@ -880,7 +1142,7 @@ public class DeliveryPartnerFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (request, validationError) = await ValidationHelper.ValidateBody<StartPartnerShiftRequest>(req);
@@ -941,7 +1203,7 @@ public class DeliveryPartnerFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (request, validationError) = await ValidationHelper.ValidateBody<EndPartnerShiftRequest>(req);
@@ -1004,7 +1266,7 @@ public class DeliveryPartnerFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (request, validationError) = await ValidationHelper.ValidateBody<CreatePartnerTripRequest>(req);
@@ -1106,7 +1368,7 @@ public class DeliveryPartnerFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (request, validationError) = await ValidationHelper.ValidateBody<ConfirmCodCollectionRequest>(req);
@@ -1393,7 +1655,7 @@ public class DeliveryPartnerFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var partner = await _mongo.GetDeliveryPartnerByIdAsync(partnerId);

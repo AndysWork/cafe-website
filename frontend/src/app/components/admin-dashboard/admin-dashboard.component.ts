@@ -9,7 +9,7 @@ import { ExpenseService, Expense } from '../../services/expense.service';
 import { OutletService } from '../../services/outlet.service';
 import { environment } from '../../../environments/environment';
 import { forkJoin, of, Subscription } from 'rxjs';
-import { catchError, filter } from 'rxjs/operators';
+import { catchError, filter, map } from 'rxjs/operators';
 
 interface OnlineSale {
   _id?: string;
@@ -72,6 +72,11 @@ interface OutboxDeadLetterItem {
   lastAttemptAt?: string;
   deadLetteredAt?: string;
   isPushFailure?: boolean;
+}
+
+interface OutboxDeadLettersResponse {
+  count: number;
+  items: OutboxDeadLetterItem[];
 }
 
 @Component({
@@ -160,10 +165,13 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       onlineSales: this.http.get<{ success: boolean; data: OnlineSale[] }>(`${environment.apiUrl}/online-sales?includeWebSales=true`),
       offlineSales: this.salesService.getAllSales(),
       expenses: this.expenseService.getAllExpenses(),
-      outboxHealth: this.http.get<OutboxHealth>(`${environment.apiUrl}/admin/outbox/health`).pipe(
+      outboxHealth: this.http.get<OutboxHealth>(`${environment.apiUrl}/manage/ops/outbox-health`).pipe(
         catchError(() => of(null))
       ),
-      outboxDeadLetters: this.http.get<OutboxDeadLetterItem[]>(`${environment.apiUrl}/admin/outbox/retries?limit=15`).pipe(
+      outboxDeadLetters: this.http.get<OutboxDeadLettersResponse>(`${environment.apiUrl}/manage/ops/notification-dead-letters`).pipe(
+        // Endpoint returns a wrapper payload { count, items }.
+        // Keep dashboard model unchanged by projecting to items.
+        map(response => response?.items || []),
         catchError(() => of([]))
       )
     }).subscribe({

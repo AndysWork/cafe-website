@@ -55,9 +55,25 @@ public interface IOperationsRepository
     Task<List<DeliveryPartnerReview>> GetDeliveryPartnerReviewsAsync(string partnerId, int limit = 10);
     Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId);
 
+    Task<ParcelDeliveryTask> CreateParcelTaskAsync(ParcelDeliveryTask task);
+    Task<List<ParcelDeliveryTask>> GetParcelTasksForPartnerAsync(string partnerId, string? status = null, int limit = 100);
+    Task<ParcelDeliveryTask?> GetParcelTaskByIdAsync(string taskId);
+    Task<bool> AcceptParcelTaskAsync(string taskId, string partnerId);
+    Task<bool> CompleteParcelTaskAsync(string taskId, string partnerId);
+
     Task<PartnerPayoutLedger> CreatePartnerPayoutLedgerAsync(PartnerPayoutLedger ledger);
     Task<List<PartnerPayoutLedger>> GetPartnerPayoutLedgersAsync(string partnerId, int page = 1, int pageSize = 30);
     Task<PartnerPayoutLedger?> GetPartnerPayoutLedgerByPeriodAsync(string partnerId, DateTime periodStart, DateTime periodEnd, string periodType);
+
+    // Manager operations board
+    Task<List<Order>> GetKitchenQueueOrdersAsync(string outletId, int limit = 100);
+    Task<List<Order>> GetDeliveryQueueOrdersAsync(string outletId, int limit = 100);
+    Task<List<ParcelDeliveryTask>> GetParcelTasksByOutletAsync(string outletId, string? status = null, int limit = 200);
+    Task<bool> ReassignOrderPartnerAsync(string orderId, string partnerId);
+    Task<bool> MarkOrderUrgentAsync(string orderId, bool urgent, string? reason = null);
+    Task CreateManagerOpsAuditEntryAsync(ManagerOpsAuditEntry entry);
+    Task<List<ManagerOpsAuditEntry>> GetManagerOpsAuditEntriesAsync(string outletId, DateTime from, DateTime to, int limit = 200);
+    Task<decimal> GetPayoutLedgerTotalAsync(string outletId, DateTime from, DateTime to);
 
     // Subscriptions
     Task<SubscriptionPlan> CreateSubscriptionPlanAsync(SubscriptionPlan plan);

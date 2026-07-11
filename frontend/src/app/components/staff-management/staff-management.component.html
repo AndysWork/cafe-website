@@ -145,6 +145,16 @@
               <span>{{ staffMember.email }}</span>
             </div>
           </div>
+
+          <div class="info-item">
+            <i class="fas fa-user-shield"></i>
+            <div>
+              <label>User Account Link</label>
+              <span class="link-status" [ngClass]="staffMember.userId ? 'linked' : 'not-linked'">
+                {{ staffMember.userId ? 'Linked' : 'Not Linked' }}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div class="info-row">

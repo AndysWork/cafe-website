@@ -141,6 +141,59 @@
   </section>
 
   <section class="panel">
+    <h2>Pending Parcel Tasks</h2>
+    <div *ngIf="d.pendingParcelTasks.length === 0" class="empty">No pending parcel tasks right now.</div>
+    <div class="orders" *ngIf="d.pendingParcelTasks.length > 0">
+      <article class="order-card" *ngFor="let task of d.pendingParcelTasks">
+        <div>
+          <h3>Parcel #{{ task.id }}</h3>
+          <p>{{ task.startPoint }} → {{ task.endPoint }}</p>
+          <small>
+            {{ task.isRoundTrip ? 'Round Trip' : 'One Way' }} •
+            {{ task.billableDistanceKm | number:'1.0-2' }} km
+            <span *ngIf="task.etaMinutes"> • ETA {{ task.etaMinutes }} min</span>
+          </small>
+          <small *ngIf="task.routeShortUrl">
+            Route: <a [href]="task.routeShortUrl" target="_blank" rel="noopener">Open map link</a>
+          </small>
+        </div>
+        <div class="order-meta">
+          <span>{{ formatStatus(task.status) }}</span>
+          <button class="btn-primary" (click)="acceptParcelTask(task)" [disabled]="acceptingParcel[task.id!]">
+            {{ acceptingParcel[task.id!] ? 'Accepting...' : 'Accept Parcel Task' }}
+          </button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Active Parcel Tasks</h2>
+    <div *ngIf="d.activeParcelTasks.length === 0" class="empty">No active parcel tasks.</div>
+    <div class="orders" *ngIf="d.activeParcelTasks.length > 0">
+      <article class="order-card" *ngFor="let task of d.activeParcelTasks">
+        <div>
+          <h3>Parcel #{{ task.id }}</h3>
+          <p>{{ task.startPoint }} → {{ task.endPoint }}</p>
+          <small>
+            {{ task.isRoundTrip ? 'Round Trip' : 'One Way' }} •
+            {{ task.billableDistanceKm | number:'1.0-2' }} km
+          </small>
+          <small *ngIf="task.routeShortUrl">
+            Route: <a [href]="task.routeShortUrl" target="_blank" rel="noopener">Open map link</a>
+          </small>
+        </div>
+        <div class="order-meta">
+          <span>{{ formatStatus(task.status) }}</span>
+          <button class="btn-primary" (click)="completeParcelTask(task)" [disabled]="completingParcel[task.id!]">
+            {{ completingParcel[task.id!] ? 'Completing...' : 'Complete Parcel Task' }}
+          </button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
     <h2>New Delivery Requests</h2>
     <div *ngIf="d.pendingRequests.length === 0" class="empty">No unassigned delivery requests right now.</div>
     <div class="orders" *ngIf="d.pendingRequests.length > 0">

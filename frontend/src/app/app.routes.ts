@@ -3,7 +3,7 @@ import { HomeComponent } from './components/home/home.component';
 import { LoginComponent } from './components/login/login.component';
 import { RegisterComponent } from './components/register/register.component';
 import { MenuComponent } from './components/menu/menu.component';
-import { authGuard, adminGuard, kitchenGuard, partnerGuard } from './guards/auth.guard';
+import { authGuard, adminGuard, kitchenGuard, partnerGuard, managerGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -26,6 +26,8 @@ export const routes: Routes = [
   { path: 'subscriptions', loadComponent: () => import('./components/subscription-plans/subscription-plans.component').then(m => m.SubscriptionPlansComponent) },
   { path: 'partner/delivery', loadComponent: () => import('./components/partner-delivery-dashboard/partner-delivery-dashboard.component').then(m => m.PartnerDeliveryDashboardComponent), canActivate: [partnerGuard] },
   { path: 'partner/delivery/mobile', loadComponent: () => import('./components/partner-delivery-mobile/partner-delivery-mobile.component').then(m => m.PartnerDeliveryMobileComponent), canActivate: [partnerGuard] },
+  { path: 'manager/dashboard', loadComponent: () => import('./components/manager-dashboard/manager-dashboard.component').then(m => m.ManagerDashboardComponent), canActivate: [managerGuard] },
+  { path: 'manager/operations', loadComponent: () => import('./components/manager-operations-board/manager-operations-board.component').then(m => m.ManagerOperationsBoardComponent), canActivate: [managerGuard] },
   { path: 'kitchen/dashboard', loadComponent: () => import('./components/kitchen-staff-dashboard/kitchen-staff-dashboard.component').then(m => m.KitchenStaffDashboardComponent), canActivate: [kitchenGuard] },
   { path: 'kitchen/display', loadComponent: () => import('./components/kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent), canActivate: [kitchenGuard] },
   { path: 'staff/attendance', loadComponent: () => import('./components/staff-attendance/staff-attendance.component').then(m => m.StaffAttendanceComponent), canActivate: [authGuard] },

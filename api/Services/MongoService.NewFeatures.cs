@@ -1020,6 +1020,63 @@ public partial class MongoService : IOperationsRepository
         return (Math.Round(average, 2), reviews.Count);
     }
 
+    public async Task<ParcelDeliveryTask> CreateParcelTaskAsync(ParcelDeliveryTask task)
+    {
+        await _parcelDeliveryTasks.InsertOneAsync(task);
+        return task;
+    }
+
+    public async Task<List<ParcelDeliveryTask>> GetParcelTasksForPartnerAsync(string partnerId, string? status = null, int limit = 100)
+    {
+        var filter = Builders<ParcelDeliveryTask>.Filter.Eq(t => t.PartnerId, partnerId);
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            filter &= Builders<ParcelDeliveryTask>.Filter.Eq(t => t.Status, status);
+        }
+
+        return await _parcelDeliveryTasks.Find(filter)
+            .SortByDescending(t => t.CreatedAt)
+            .Limit(Math.Max(1, limit))
+            .ToListAsync();
+    }
+
+    public async Task<ParcelDeliveryTask?> GetParcelTaskByIdAsync(string taskId)
+    {
+        return await _parcelDeliveryTasks.Find(t => t.Id == taskId).FirstOrDefaultAsync();
+    }
+
+    public async Task<bool> AcceptParcelTaskAsync(string taskId, string partnerId)
+    {
+        var now = GetIstNow();
+        var filter = Builders<ParcelDeliveryTask>.Filter.Eq(t => t.Id, taskId)
+            & Builders<ParcelDeliveryTask>.Filter.Eq(t => t.PartnerId, partnerId)
+            & Builders<ParcelDeliveryTask>.Filter.Eq(t => t.Status, "assigned");
+
+        var update = Builders<ParcelDeliveryTask>.Update
+            .Set(t => t.Status, "accepted")
+            .Set(t => t.AcceptedAt, now)
+            .Set(t => t.UpdatedAt, now);
+
+        var result = await _parcelDeliveryTasks.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> CompleteParcelTaskAsync(string taskId, string partnerId)
+    {
+        var now = GetIstNow();
+        var filter = Builders<ParcelDeliveryTask>.Filter.Eq(t => t.Id, taskId)
+            & Builders<ParcelDeliveryTask>.Filter.Eq(t => t.PartnerId, partnerId)
+            & Builders<ParcelDeliveryTask>.Filter.In(t => t.Status, new[] { "assigned", "accepted" });
+
+        var update = Builders<ParcelDeliveryTask>.Update
+            .Set(t => t.Status, "completed")
+            .Set(t => t.CompletedAt, now)
+            .Set(t => t.UpdatedAt, now);
+
+        var result = await _parcelDeliveryTasks.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
     public async Task<PartnerPayoutLedger> CreatePartnerPayoutLedgerAsync(PartnerPayoutLedger ledger)
     {
         var now = GetIstNow();
@@ -1064,6 +1121,130 @@ public partial class MongoService : IOperationsRepository
                 p.PeriodEnd == periodEnd &&
                 p.PeriodType == periodType)
             .FirstOrDefaultAsync();
+    }
+
+    public async Task<List<Order>> GetKitchenQueueOrdersAsync(string outletId, int limit = 100)
+    {
+        var statuses = new[] { "pending", "confirmed", "preparing", "ready" };
+        return await _orders.Find(o =>
+                o.OutletId == outletId
+                && o.OrderType != "dine-in"
+                && statuses.Contains(o.Status)
+                && o.IsDeleted != true)
+            .SortBy(o => o.CreatedAt)
+            .Limit(Math.Max(1, limit))
+            .ToListAsync();
+    }
+
+    public async Task<List<Order>> GetDeliveryQueueOrdersAsync(string outletId, int limit = 100)
+    {
+        var statuses = new[] { "ready", "out-for-delivery" };
+        return await _orders.Find(o =>
+                o.OutletId == outletId
+                && o.OrderType == "delivery"
+                && statuses.Contains(o.Status)
+                && o.IsDeleted != true)
+            .SortBy(o => o.CreatedAt)
+            .Limit(Math.Max(1, limit))
+            .ToListAsync();
+    }
+
+    public async Task<List<ParcelDeliveryTask>> GetParcelTasksByOutletAsync(string outletId, string? status = null, int limit = 200)
+    {
+        var filter = Builders<ParcelDeliveryTask>.Filter.Eq(t => t.OutletId, outletId);
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            filter &= Builders<ParcelDeliveryTask>.Filter.Eq(t => t.Status, status);
+        }
+
+        return await _parcelDeliveryTasks.Find(filter)
+            .SortByDescending(t => t.CreatedAt)
+            .Limit(Math.Max(1, limit))
+            .ToListAsync();
+    }
+
+    public async Task<bool> ReassignOrderPartnerAsync(string orderId, string partnerId)
+    {
+        var partner = await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
+        if (partner == null)
+        {
+            return false;
+        }
+
+        var now = GetIstNow();
+        var assignableStatuses = new[] { "pending", "confirmed", "preparing", "ready", "out-for-delivery" };
+        var orderUpdate = Builders<Order>.Update
+            .Set(o => o.DeliveryPartnerId, partner.Id)
+            .Set(o => o.DeliveryPartnerName, partner.Name)
+            .Set(o => o.UpdatedAt, now);
+
+        var result = await _orders.UpdateOneAsync(
+            o => o.Id == orderId && assignableStatuses.Contains(o.Status) && o.IsDeleted != true,
+            orderUpdate);
+
+        if (result.ModifiedCount == 0)
+        {
+            return false;
+        }
+
+        await _deliveryPartners.UpdateOneAsync(
+            p => p.Id == partner.Id,
+            Builders<DeliveryPartner>.Update
+                .Set(p => p.Status, "on-delivery")
+                .Set(p => p.CurrentOrderId, orderId));
+
+        return true;
+    }
+
+    public async Task<bool> MarkOrderUrgentAsync(string orderId, bool urgent, string? reason = null)
+    {
+        var now = GetIstNow();
+        var update = Builders<Order>.Update
+            .Set(o => o.IsUrgent, urgent)
+            .Set(o => o.UrgentReason, string.IsNullOrWhiteSpace(reason) ? null : reason.Trim())
+            .Set(o => o.UrgentMarkedAt, urgent ? now : null)
+            .Set(o => o.UpdatedAt, now);
+
+        var result = await _orders.UpdateOneAsync(o => o.Id == orderId && o.IsDeleted != true, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task CreateManagerOpsAuditEntryAsync(ManagerOpsAuditEntry entry)
+    {
+        entry.CreatedAt = GetIstNow();
+        await _managerOpsAuditEntries.InsertOneAsync(entry);
+    }
+
+    public async Task<List<ManagerOpsAuditEntry>> GetManagerOpsAuditEntriesAsync(string outletId, DateTime from, DateTime to, int limit = 200)
+    {
+        return await _managerOpsAuditEntries.Find(a =>
+                a.OutletId == outletId &&
+                a.CreatedAt >= from &&
+                a.CreatedAt < to)
+            .SortByDescending(a => a.CreatedAt)
+            .Limit(Math.Max(1, limit))
+            .ToListAsync();
+    }
+
+    public async Task<decimal> GetPayoutLedgerTotalAsync(string outletId, DateTime from, DateTime to)
+    {
+        var partnerIds = await _deliveryPartners.Find(p => p.OutletId == outletId && p.IsActive)
+            .Project(p => p.Id)
+            .ToListAsync();
+
+        if (partnerIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var total = await _partnerPayoutLedgers.Find(p =>
+                partnerIds.Contains(p.PartnerId) &&
+                p.PeriodStart >= from &&
+                p.PeriodStart < to)
+            .Project(p => (decimal?)p.PayoutAmount)
+            .ToListAsync();
+
+        return total.Sum() ?? 0;
     }
 
     #endregion

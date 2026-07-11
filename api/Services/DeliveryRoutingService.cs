@@ -78,6 +78,30 @@ public class DeliveryRoutingService
         };
     }
 
+    public async Task<DeliveryRouteQuoteResponse?> BuildPointToPointRouteQuoteAsync(string originAddress, string destinationAddress)
+    {
+        if (string.IsNullOrWhiteSpace(originAddress) || string.IsNullOrWhiteSpace(destinationAddress))
+        {
+            return null;
+        }
+
+        var origin = originAddress.Trim();
+        var destination = destinationAddress.Trim();
+        var mapUrl = BuildDirectionsUrl(origin, destination);
+
+        var fromGoogle = await TryResolveDistanceFromGoogleAsync(origin, destination);
+
+        return new DeliveryRouteQuoteResponse
+        {
+            MapUrl = mapUrl,
+            OriginAddress = origin,
+            DestinationAddress = destination,
+            DistanceKm = fromGoogle.distanceKm,
+            EtaMinutes = fromGoogle.etaMinutes,
+            Provider = "google"
+        };
+    }
+
     public async Task<DeliveryRouteLink> CreateOrReuseShortLinkAsync(
         string outletId,
         string destinationAddress,

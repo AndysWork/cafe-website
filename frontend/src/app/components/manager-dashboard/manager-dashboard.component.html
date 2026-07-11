@@ -1,0 +1,45 @@
+<section class="manager-dashboard-page">
+  <header class="hero">
+    <h1>Manager Dashboard</h1>
+    <p>Manage kitchen operations, delivery execution, and your staff tools from one place.</p>
+    <button class="refresh-btn" type="button" (click)="loadMetrics()" [disabled]="loading">
+      {{ loading ? 'Refreshing...' : 'Refresh Live Metrics' }}
+    </button>
+  </header>
+
+  <div class="metrics-grid">
+    <article class="metric-card">
+      <span class="metric-label">Kitchen Active Orders</span>
+      <strong>{{ metrics.kitchenActiveOrders }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Kitchen Ready Orders</span>
+      <strong>{{ metrics.kitchenReadyOrders }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Partners On Delivery</span>
+      <strong>{{ metrics.deliveryPartnersOnDuty }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Partners Available</span>
+      <strong>{{ metrics.deliveryPartnersAvailable }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Present Today</span>
+      <strong>{{ metrics.attendancePresentToday }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">In Shift Now</span>
+      <strong>{{ metrics.attendanceInShiftNow }}</strong>
+    </article>
+  </div>
+
+  <div class="card-grid">
+    <article class="feature-card" *ngFor="let card of cards">
+      <div class="icon">{{ card.icon }}</div>
+      <h2>{{ card.title }}</h2>
+      <p>{{ card.description }}</p>
+      <a [routerLink]="card.route" class="action-link">{{ card.cta }}</a>
+    </article>
+  </div>
+</section>

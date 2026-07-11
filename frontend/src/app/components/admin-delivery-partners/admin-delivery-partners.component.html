@@ -3,6 +3,7 @@
     <h1>🏍️ Delivery Partners</h1>
     <div class="header-actions">
       <button class="btn-create" (click)="openFuelModal()">⛽ Fuel Price</button>
+      <button class="btn-create" (click)="openParcelModal()">🧳 Assign Parcel</button>
       <button class="btn-create" (click)="openAssignModal()">📦 Assign Order</button>
       <button class="btn-create" (click)="openCreateModal()">➕ Add Partner</button>
     </div>
@@ -314,6 +315,32 @@
         <div class="modal-actions">
           <button type="button" class="btn-cancel" (click)="showAssignModal = false">Cancel</button>
           <button type="submit" class="btn-save">Assign</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showParcelModal" (click)="showParcelModal = false">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Assign Parcel Task</h2><button class="btn-close" (click)="showParcelModal = false">✕</button></div>
+    <div class="modal-body">
+      <form (ngSubmit)="submitParcelTask()">
+        <div class="form-group"><label>Partner *</label>
+          <select [(ngModel)]="parcelForm.partnerId" name="parcelPartnerId" required>
+            <option value="">Select Partner</option>
+            <option *ngFor="let p of partners" [value]="p.id" [disabled]="p.status === 'offline'">{{ p.name }} ({{ p.status }})</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Start Point *</label><input type="text" [(ngModel)]="parcelForm.startPoint" name="parcelStartPoint" required></div>
+        <div class="form-group"><label>End Point *</label><input type="text" [(ngModel)]="parcelForm.endPoint" name="parcelEndPoint" required></div>
+        <div class="form-group checkbox-inline">
+          <label><input type="checkbox" [(ngModel)]="parcelForm.isRoundTrip" name="parcelRoundTrip"> Round Trip (2x distance)</label>
+        </div>
+        <div class="form-group"><label>Notes</label><input type="text" [(ngModel)]="parcelForm.notes" name="parcelNotes"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="showParcelModal = false">Cancel</button>
+          <button type="submit" class="btn-save">Assign Parcel Task</button>
         </div>
       </form>
     </div>

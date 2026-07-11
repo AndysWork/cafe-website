@@ -1,6 +1,7 @@
 export interface Staff {
   id?: string;
   _id?: string;
+  userId?: string;
   employeeId: string;
   firstName: string;
   lastName: string;

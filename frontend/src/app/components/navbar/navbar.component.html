@@ -80,6 +80,30 @@
           </a>
         </li>
 
+        <li class="nav-item" *ngIf="isManager || isKitchenUser">
+          <a
+            routerLink="/kitchen/display"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">🍳</span>
+            Kitchen Display
+          </a>
+        </li>
+
+        <li class="nav-item" *ngIf="isManager">
+          <a
+            routerLink="/manager/operations"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">🛵</span>
+            Delivery Tracking
+          </a>
+        </li>
+
         <!-- Menu (Customers Only) -->
         <li class="nav-item" *ngIf="isCustomer">
           <a

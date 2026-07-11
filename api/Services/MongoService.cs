@@ -100,7 +100,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<FuelPriceDaily> _fuelPriceDaily;
     private readonly IMongoCollection<CODCollectionLog> _codCollectionLogs;
     private readonly IMongoCollection<DeliveryPartnerReview> _deliveryPartnerReviews;
+    private readonly IMongoCollection<ParcelDeliveryTask> _parcelDeliveryTasks;
     private readonly IMongoCollection<PartnerPayoutLedger> _partnerPayoutLedgers;
+    private readonly IMongoCollection<ManagerOpsAuditEntry> _managerOpsAuditEntries;
     private readonly IMongoCollection<CustomerSegment> _customerSegments;
     private readonly IMongoCollection<HomeContentConfig> _homeContentConfigs;
     private readonly object _tierRulesLock = new();
@@ -221,7 +223,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _fuelPriceDaily = db.GetCollection<FuelPriceDaily>("FuelPriceDaily");
         _codCollectionLogs = db.GetCollection<CODCollectionLog>("CODCollectionLogs");
         _deliveryPartnerReviews = db.GetCollection<DeliveryPartnerReview>("DeliveryPartnerReviews");
+        _parcelDeliveryTasks = db.GetCollection<ParcelDeliveryTask>("ParcelDeliveryTasks");
         _partnerPayoutLedgers = db.GetCollection<PartnerPayoutLedger>("PartnerPayoutLedgers");
+        _managerOpsAuditEntries = db.GetCollection<ManagerOpsAuditEntry>("ManagerOpsAuditEntries");
         _customerSegments = db.GetCollection<CustomerSegment>("CustomerSegments");
         _homeContentConfigs = db.GetCollection<HomeContentConfig>("HomeContentConfigs");
     }

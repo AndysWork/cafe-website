@@ -63,8 +63,8 @@ public class PriceForecastFunction
     {
         try
         {
-            // Validate admin or manager authorization
-            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            // Validate admin authorization
+            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             // Price forecasts are now global - no outlet filtering
@@ -90,8 +90,8 @@ public class PriceForecastFunction
     {
         try
         {
-            // Validate admin or manager authorization
-            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            // Validate admin authorization
+            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var forecasts = await _mongo.GetPriceForecastsByMenuItemAsync(menuItemId);
@@ -116,8 +116,8 @@ public class PriceForecastFunction
     {
         try
         {
-            // Validate admin or manager authorization
-            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            // Validate admin authorization
+            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var forecast = await _mongo.GetPriceForecastAsync(id);
@@ -148,8 +148,8 @@ public class PriceForecastFunction
     {
         try
         {
-            // Validate admin or manager authorization
-            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            // Validate admin authorization
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (forecast, validationError) = await ValidationHelper.ValidateBody<PriceForecast>(req);
@@ -197,8 +197,8 @@ public class PriceForecastFunction
     {
         try
         {
-            // Validate admin or manager authorization
-            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            // Validate admin authorization
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var existingForecast = await _mongo.GetPriceForecastAsync(id);

@@ -500,8 +500,8 @@ public class MenuFunction
     {
         try
         {
-            // Validate admin or manager authorization
-            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            // Validate admin authorization
+            var (isAuthorized, userId, username, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (body, validationError) = await ValidationHelper.ValidateBody<CopyMenuItemRequest>(req);

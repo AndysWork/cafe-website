@@ -78,7 +78,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get dashboardRoute(): string {
-    if (this.isAdmin || this.isManager) return '/admin/dashboard';
+    if (this.isAdmin) return '/admin/dashboard';
+    if (this.isManager) return '/manager/dashboard';
     if (this.isPartnerUser) return '/partner/delivery';
     if (this.isKitchenUser) return '/kitchen/dashboard';
     return '/dashboard';

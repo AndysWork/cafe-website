@@ -265,6 +265,73 @@ public class PartnerPayoutLedger
     public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 }
 
+public class ParcelDeliveryTask
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? Id { get; set; }
+
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string OutletId { get; set; } = string.Empty;
+
+    [BsonElement("partnerId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string PartnerId { get; set; } = string.Empty;
+
+    [BsonElement("partnerName")]
+    public string? PartnerName { get; set; }
+
+    [BsonElement("assignedByUserId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? AssignedByUserId { get; set; }
+
+    [BsonElement("startPoint")]
+    public string StartPoint { get; set; } = string.Empty;
+
+    [BsonElement("endPoint")]
+    public string EndPoint { get; set; } = string.Empty;
+
+    [BsonElement("distanceKm")]
+    public decimal DistanceKm { get; set; }
+
+    [BsonElement("isRoundTrip")]
+    public bool IsRoundTrip { get; set; }
+
+    [BsonElement("billableDistanceKm")]
+    public decimal BillableDistanceKm { get; set; }
+
+    [BsonElement("etaMinutes")]
+    public int? EtaMinutes { get; set; }
+
+    [BsonElement("routeMapUrl")]
+    public string? RouteMapUrl { get; set; }
+
+    [BsonElement("routeShortCode")]
+    public string? RouteShortCode { get; set; }
+
+    [BsonElement("routeShortUrl")]
+    public string? RouteShortUrl { get; set; }
+
+    [BsonElement("notes")]
+    public string? Notes { get; set; }
+
+    [BsonElement("status")]
+    public string Status { get; set; } = "assigned"; // assigned, accepted, completed, cancelled
+
+    [BsonElement("acceptedAt")]
+    public DateTime? AcceptedAt { get; set; }
+
+    [BsonElement("completedAt")]
+    public DateTime? CompletedAt { get; set; }
+
+    [BsonElement("createdAt")]
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+
+    [BsonElement("updatedAt")]
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
+}
+
 public class StartPartnerShiftRequest
 {
     [Range(0, 1000000)]
@@ -357,6 +424,47 @@ public class ConfirmCodCollectionRequest
     public string? Notes { get; set; }
 }
 
+public class CreateParcelTaskRequest
+{
+    [Required]
+    public string PartnerId { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(220)]
+    public string StartPoint { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(220)]
+    public string EndPoint { get; set; } = string.Empty;
+
+    public bool IsRoundTrip { get; set; }
+
+    [StringLength(300)]
+    public string? Notes { get; set; }
+}
+
+public class ParcelRouteQuoteRequest
+{
+    [Required]
+    [StringLength(220)]
+    public string StartPoint { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(220)]
+    public string EndPoint { get; set; } = string.Empty;
+
+    public bool IsRoundTrip { get; set; }
+}
+
+public class ParcelTaskRouteQuoteResponse
+{
+    public decimal DistanceKm { get; set; }
+    public decimal BillableDistanceKm { get; set; }
+    public bool IsRoundTrip { get; set; }
+    public int? EtaMinutes { get; set; }
+    public string? MapUrl { get; set; }
+}
+
 public class AddDeliveryPartnerReviewRequest
 {
     [Required]
@@ -378,6 +486,8 @@ public class PartnerDashboardResponse
     public DeliveryShift? ActiveShift { get; set; }
     public List<Order> ActiveOrders { get; set; } = new();
     public List<Order> PendingRequests { get; set; } = new();
+    public List<ParcelDeliveryTask> ActiveParcelTasks { get; set; } = new();
+    public List<ParcelDeliveryTask> PendingParcelTasks { get; set; } = new();
     public decimal TodayDistanceKm { get; set; }
     public decimal TodayPayout { get; set; }
     public decimal CodOutstanding { get; set; }
@@ -405,4 +515,37 @@ public class PartnerPayoutSummaryResponse
     public decimal FuelPricePerLitre { get; set; }
     public decimal LitresConsumed { get; set; }
     public decimal PayoutAmount { get; set; }
+}
+
+public class ManagerOpsAuditEntry
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? Id { get; set; }
+
+    [BsonElement("outletId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string OutletId { get; set; } = string.Empty;
+
+    [BsonElement("eventType")]
+    public string EventType { get; set; } = string.Empty;
+
+    [BsonElement("entityType")]
+    public string EntityType { get; set; } = string.Empty;
+
+    [BsonElement("entityId")]
+    public string EntityId { get; set; } = string.Empty;
+
+    [BsonElement("summary")]
+    public string Summary { get; set; } = string.Empty;
+
+    [BsonElement("metadata")]
+    public Dictionary<string, string> Metadata { get; set; } = new();
+
+    [BsonElement("createdByUserId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? CreatedByUserId { get; set; }
+
+    [BsonElement("createdAt")]
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 }

@@ -73,8 +73,13 @@ export class LoginComponent {
       return;
     }
 
-    if (role === 'admin' || role === 'manager') {
+    if (role === 'admin') {
       this.router.navigate(['/admin/dashboard']);
+      return;
+    }
+
+    if (role === 'manager') {
+      this.router.navigate(['/manager/dashboard']);
       return;
     }
 

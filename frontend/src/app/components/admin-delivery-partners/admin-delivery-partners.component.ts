@@ -65,6 +65,14 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
     endPointLabel: '',
     notes: ''
   };
+  showParcelModal = false;
+  parcelForm = {
+    partnerId: '',
+    startPoint: '',
+    endPoint: '',
+    isRoundTrip: false,
+    notes: ''
+  };
   showFuelModal = false;
   fuelForm = { date: '', petrolPricePerLitre: '' };
   showCodModal = false;
@@ -391,6 +399,42 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
       notes: ''
     };
     this.showTripModal = true;
+  }
+
+  openParcelModal() {
+    this.parcelForm = {
+      partnerId: '',
+      startPoint: '',
+      endPoint: '',
+      isRoundTrip: false,
+      notes: ''
+    };
+    this.showParcelModal = true;
+  }
+
+  submitParcelTask() {
+    if (!this.parcelForm.partnerId) {
+      this.uiStore.error('Select a delivery partner');
+      return;
+    }
+    if (!this.parcelForm.startPoint.trim() || !this.parcelForm.endPoint.trim()) {
+      this.uiStore.error('Start and end points are required');
+      return;
+    }
+
+    this.partnerService.createParcelTask({
+      partnerId: this.parcelForm.partnerId,
+      startPoint: this.parcelForm.startPoint.trim(),
+      endPoint: this.parcelForm.endPoint.trim(),
+      isRoundTrip: this.parcelForm.isRoundTrip,
+      notes: this.parcelForm.notes.trim() || undefined
+    }).subscribe({
+      next: (task) => {
+        this.uiStore.success(`Parcel task assigned (${task.billableDistanceKm} km)`);
+        this.showParcelModal = false;
+      },
+      error: () => this.uiStore.error('Failed to assign parcel task')
+    });
   }
 
   submitTrip() {
