@@ -31,6 +31,13 @@ export class ProfileComponent implements OnInit {
   dateOfBirth = '';
   canEditGender = true;
   canEditDateOfBirth = true;
+  private initialProfileSnapshot = {
+    firstName: '',
+    lastName: '',
+    phoneNumber: '',
+    gender: '',
+    dateOfBirth: ''
+  };
   profileMessage = '';
   profileError = '';
   isUpdatingProfile = false;
@@ -92,6 +99,7 @@ export class ProfileComponent implements OnInit {
       this.dateOfBirth = this.formatDateForInput(this.user.dateOfBirth);
       this.canEditGender = !this.user.gender;
       this.canEditDateOfBirth = !this.user.dateOfBirth;
+      this.captureProfileSnapshot();
 
       this.loadLatestMenuSnapshot();
       this.loadLastDeliveredOrder();
@@ -223,20 +231,24 @@ export class ProfileComponent implements OnInit {
 
     const updateData: any = {};
 
-    // Only send non-empty values
-    if (this.firstName?.trim()) {
-      updateData.firstName = this.firstName.trim();
+    const normalizedFirstName = this.firstName.trim();
+    const normalizedLastName = this.lastName.trim();
+    const normalizedPhoneNumber = this.phoneNumber.trim();
+    const normalizedGender = this.gender.trim().toLowerCase();
+
+    if (normalizedFirstName !== this.initialProfileSnapshot.firstName) {
+      updateData.firstName = normalizedFirstName;
     }
-    if (this.lastName?.trim()) {
-      updateData.lastName = this.lastName.trim();
+    if (normalizedLastName !== this.initialProfileSnapshot.lastName) {
+      updateData.lastName = normalizedLastName;
     }
-    if (this.phoneNumber?.trim()) {
-      updateData.phoneNumber = this.phoneNumber.trim();
+    if (normalizedPhoneNumber !== this.initialProfileSnapshot.phoneNumber) {
+      updateData.phoneNumber = normalizedPhoneNumber;
     }
-    if (this.canEditGender && this.gender?.trim()) {
-      updateData.gender = this.gender.trim().toLowerCase();
+    if (this.canEditGender && normalizedGender && normalizedGender !== this.initialProfileSnapshot.gender) {
+      updateData.gender = normalizedGender;
     }
-    if (this.canEditDateOfBirth && this.dateOfBirth) {
+    if (this.canEditDateOfBirth && this.dateOfBirth && this.dateOfBirth !== this.initialProfileSnapshot.dateOfBirth) {
       updateData.dateOfBirth = this.dateOfBirth;
     }
 
@@ -253,10 +265,14 @@ export class ProfileComponent implements OnInit {
         this.profileMessage = 'Profile updated successfully!';
         this.user = this.authService.getCurrentUser();
         if (this.user) {
+          this.firstName = this.user.firstName || this.firstName;
+          this.lastName = this.user.lastName || this.lastName;
+          this.phoneNumber = this.user.phoneNumber || this.phoneNumber;
           this.gender = this.user.gender || this.gender;
           this.dateOfBirth = this.formatDateForInput(this.user.dateOfBirth) || this.dateOfBirth;
           this.canEditGender = !this.user.gender;
           this.canEditDateOfBirth = !this.user.dateOfBirth;
+          this.captureProfileSnapshot();
         }
         setTimeout(() => this.profileMessage = '', 3000);
       },
@@ -266,6 +282,35 @@ export class ProfileComponent implements OnInit {
         setTimeout(() => this.profileError = '', 5000);
       }
     });
+  }
+
+  hasProfileChanges(): boolean {
+    return this.firstName.trim() !== this.initialProfileSnapshot.firstName
+      || this.lastName.trim() !== this.initialProfileSnapshot.lastName
+      || this.phoneNumber.trim() !== this.initialProfileSnapshot.phoneNumber
+      || (this.canEditGender && this.gender.trim().toLowerCase() !== this.initialProfileSnapshot.gender)
+      || (this.canEditDateOfBirth && this.dateOfBirth !== this.initialProfileSnapshot.dateOfBirth);
+  }
+
+  resetProfileForm(): void {
+    this.firstName = this.initialProfileSnapshot.firstName;
+    this.lastName = this.initialProfileSnapshot.lastName;
+    this.phoneNumber = this.initialProfileSnapshot.phoneNumber;
+    this.gender = this.initialProfileSnapshot.gender;
+    this.dateOfBirth = this.initialProfileSnapshot.dateOfBirth;
+    this.profileError = '';
+  }
+
+  get profileCompletionPercent(): number {
+    const fields = [
+      this.firstName.trim(),
+      this.lastName.trim(),
+      this.phoneNumber.trim(),
+      this.gender.trim(),
+      this.dateOfBirth
+    ];
+    const filledCount = fields.filter(value => !!value).length;
+    return Math.round((filledCount / fields.length) * 100);
   }
 
   getGenderDisplay(value?: string): string {
@@ -282,6 +327,16 @@ export class ProfileComponent implements OnInit {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  private captureProfileSnapshot(): void {
+    this.initialProfileSnapshot = {
+      firstName: this.firstName.trim(),
+      lastName: this.lastName.trim(),
+      phoneNumber: this.phoneNumber.trim(),
+      gender: this.gender.trim().toLowerCase(),
+      dateOfBirth: this.dateOfBirth
+    };
   }
 
   changePassword(): void {

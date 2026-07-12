@@ -73,9 +73,22 @@
     <!-- Profile Tab -->
     <div class="tab-body" *ngIf="activeTab === 'profile'">
       <div class="form-card">
+        <div class="profile-header">
+          <div>
+            <h3>Complete your profile</h3>
+            <p>Keep your details up to date for a smoother checkout and better offers.</p>
+          </div>
+          <div class="completion-pill">{{ profileCompletionPercent }}% complete</div>
+        </div>
+        <div class="completion-track" role="progressbar" aria-label="Profile completion" [attr.aria-valuenow]="profileCompletionPercent" aria-valuemin="0" aria-valuemax="100">
+          <span [style.width.%]="profileCompletionPercent"></span>
+        </div>
+
         <!-- Success/Error Messages -->
         <div class="msg msg-success" *ngIf="profileMessage">✅ {{ profileMessage }}</div>
         <div class="msg msg-error" *ngIf="profileError">❌ {{ profileError }}</div>
+
+        <div class="form-section-title">Account details</div>
 
         <div class="form-group">
           <label>Username</label>
@@ -100,6 +113,8 @@
           <input type="tel" [(ngModel)]="phoneNumber" placeholder="Enter phone number" />
         </div>
 
+        <div class="form-section-title">Personal details (one-time fields)</div>
+
         <div class="form-row">
           <div class="form-group">
             <label>Gender</label>
@@ -122,9 +137,12 @@
           </div>
         </div>
 
-        <button class="btn-submit" (click)="updateProfile()" [disabled]="isUpdatingProfile">
-          {{ isUpdatingProfile ? 'Saving...' : '💾 Save Changes' }}
-        </button>
+        <div class="form-actions-inline">
+          <button class="btn-cancel" (click)="resetProfileForm()" [disabled]="isUpdatingProfile || !hasProfileChanges()">Revert</button>
+          <button class="btn-submit" (click)="updateProfile()" [disabled]="isUpdatingProfile || !hasProfileChanges()">
+            {{ isUpdatingProfile ? 'Saving...' : 'Save Changes' }}
+          </button>
+        </div>
       </div>
     </div>
 
