@@ -240,11 +240,19 @@ $danger: #ff5252;
   .input-disabled {
     background: #f5f5f5; color: #999; cursor: not-allowed; border-color: #eee;
   }
+  .input-invalid {
+    border-color: rgba($danger, .7) !important;
+    box-shadow: 0 0 0 3px rgba($danger, .12);
+  }
   .field-help {
     display: block;
     margin-top: 6px;
     font-size: .75rem;
     color: #7a7a7a;
+  }
+  .field-help-error {
+    color: #b42318;
+    font-weight: 600;
   }
 }
 

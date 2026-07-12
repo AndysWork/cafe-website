@@ -227,6 +227,12 @@ export class ProfileComponent implements OnInit {
 
   updateProfile(): void {
     this.clearMessages();
+
+    if (this.hasProfileValidationErrors) {
+      this.profileError = 'Please fix highlighted fields before saving';
+      return;
+    }
+
     this.isUpdatingProfile = true;
 
     const updateData: any = {};
@@ -292,6 +298,56 @@ export class ProfileComponent implements OnInit {
       || (this.canEditDateOfBirth && this.dateOfBirth !== this.initialProfileSnapshot.dateOfBirth);
   }
 
+  get hasProfileValidationErrors(): boolean {
+    return this.isPhoneNumberInvalid || this.isDateOfBirthInvalid;
+  }
+
+  get isPhoneNumberInvalid(): boolean {
+    const value = this.phoneNumber.trim();
+    return !!value && !this.isValidPhoneNumber(value);
+  }
+
+  get phoneValidationMessage(): string {
+    if (!this.phoneNumber.trim()) {
+      return 'Use an Indian mobile number (10 digits starting with 6-9).';
+    }
+    if (this.isPhoneNumberInvalid) {
+      return 'Enter a valid Indian mobile number.';
+    }
+    return 'Looks good.';
+  }
+
+  get maxDateOfBirth(): string {
+    return this.toLocalIsoDate(new Date());
+  }
+
+  get minDateOfBirth(): string {
+    const min = new Date();
+    min.setFullYear(min.getFullYear() - 120);
+    return this.toLocalIsoDate(min);
+  }
+
+  get isDateOfBirthInvalid(): boolean {
+    if (!this.canEditDateOfBirth || !this.dateOfBirth) return false;
+    const age = this.getDateOfBirthAge();
+    if (age === null) return true;
+    return age < 5 || age > 120;
+  }
+
+  get dateOfBirthHint(): string {
+    if (!this.canEditDateOfBirth) {
+      return 'Locked after first save.';
+    }
+    if (!this.dateOfBirth) {
+      return 'You can set this only once.';
+    }
+    if (this.isDateOfBirthInvalid) {
+      return 'Age should be between 5 and 120 years.';
+    }
+    const age = this.getDateOfBirthAge();
+    return age === null ? 'Enter a valid date.' : `Age: ${age} years`;
+  }
+
   resetProfileForm(): void {
     this.firstName = this.initialProfileSnapshot.firstName;
     this.lastName = this.initialProfileSnapshot.lastName;
@@ -337,6 +393,35 @@ export class ProfileComponent implements OnInit {
       gender: this.gender.trim().toLowerCase(),
       dateOfBirth: this.dateOfBirth
     };
+  }
+
+  private getDateOfBirthAge(): number | null {
+    if (!this.dateOfBirth) return null;
+    const parsed = new Date(`${this.dateOfBirth}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - parsed.getFullYear();
+    const monthDiff = today.getMonth() - parsed.getMonth();
+    const dayDiff = today.getDate() - parsed.getDate();
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      age -= 1;
+    }
+    return age;
+  }
+
+  private isValidPhoneNumber(value: string): boolean {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) {
+      return /^[6-9]\d{9}$/.test(digits.slice(2));
+    }
+    return /^[6-9]\d{9}$/.test(digits);
+  }
+
+  private toLocalIsoDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   changePassword(): void {

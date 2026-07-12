@@ -110,7 +110,8 @@
         </div>
         <div class="form-group">
           <label>Phone Number</label>
-          <input type="tel" [(ngModel)]="phoneNumber" placeholder="Enter phone number" />
+          <input type="tel" [(ngModel)]="phoneNumber" placeholder="Enter phone number" [class.input-invalid]="isPhoneNumberInvalid" />
+          <small class="field-help" [class.field-help-error]="isPhoneNumberInvalid">{{ phoneValidationMessage }}</small>
         </div>
 
         <div class="form-section-title">Personal details (one-time fields)</div>
@@ -131,15 +132,14 @@
 
           <div class="form-group">
             <label>Date of Birth</label>
-            <input type="date" [(ngModel)]="dateOfBirth" [disabled]="!canEditDateOfBirth" [class.input-disabled]="!canEditDateOfBirth" />
-            <small class="field-help" *ngIf="!canEditDateOfBirth">Locked after first save.</small>
-            <small class="field-help" *ngIf="canEditDateOfBirth">You can set this only once.</small>
+            <input type="date" [(ngModel)]="dateOfBirth" [disabled]="!canEditDateOfBirth" [class.input-disabled]="!canEditDateOfBirth" [class.input-invalid]="isDateOfBirthInvalid" [attr.min]="minDateOfBirth" [attr.max]="maxDateOfBirth" />
+            <small class="field-help" [class.field-help-error]="isDateOfBirthInvalid">{{ dateOfBirthHint }}</small>
           </div>
         </div>
 
         <div class="form-actions-inline">
           <button class="btn-cancel" (click)="resetProfileForm()" [disabled]="isUpdatingProfile || !hasProfileChanges()">Revert</button>
-          <button class="btn-submit" (click)="updateProfile()" [disabled]="isUpdatingProfile || !hasProfileChanges()">
+          <button class="btn-submit" (click)="updateProfile()" [disabled]="isUpdatingProfile || !hasProfileChanges() || hasProfileValidationErrors">
             {{ isUpdatingProfile ? 'Saving...' : 'Save Changes' }}
           </button>
         </div>
