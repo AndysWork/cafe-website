@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { MenuService, MenuItem, MenuCategory } from '../../services/menu.service';
+import { MenuService, MenuItem, MenuCategory, MenuSubCategory } from '../../services/menu.service';
 import { CartService, Cart } from '../../services/cart.service';
 import { FavoriteService } from '../../services/favorite.service';
 import { AuthService } from '../../services/auth.service';
@@ -13,6 +13,19 @@ import { Outlet } from '../../models/outlet.model';
 import { UIStore } from '../../store/ui.store';
 import { Router } from '@angular/router';
 import { decodeHtmlEntities } from '../../utils/text-utils';
+
+interface MenuSubCategoryAccordionGroup {
+  key: string;
+  name: string;
+  items: MenuItem[];
+}
+
+interface MenuCategoryAccordionGroup {
+  key: string;
+  name: string;
+  itemCount: number;
+  subGroups: MenuSubCategoryAccordionGroup[];
+}
 
 @Component({
   selector: 'app-menu',
@@ -31,6 +44,10 @@ export class MenuComponent implements OnInit, OnDestroy {
   showCategoryDrawer = false;
   private expandedDrawerCategoryIds: Set<string> = new Set();
   private categorySubCategoryMap = new Map<string, string[]>();
+  private subCategories: MenuSubCategory[] = [];
+  accordionGroups: MenuCategoryAccordionGroup[] = [];
+  private expandedMainAccordionKeys: Set<string> = new Set();
+  private expandedSubAccordionKeys: Set<string> = new Set();
   menuItems: MenuItem[] = [];
   filteredItems: MenuItem[] = [];
   selectedCategoryId: string | null = null;
@@ -282,11 +299,13 @@ export class MenuComponent implements OnInit, OnDestroy {
 
     Promise.all([
       this.menuService.getCategories().toPromise(),
-      this.menuService.getMenuItems().toPromise()
+      this.menuService.getMenuItems().toPromise(),
+      this.menuService.getSubCategories().toPromise().catch(() => [])
     ])
-    .then(([categories, items]) => {
+    .then(([categories, items, subCategories]) => {
       this.categories = categories || [];
       this.menuItems = items || [];
+      this.subCategories = subCategories || [];
       this.refreshVisibleCategories();
       this.applyFilters();
       this.isLoading = false;
@@ -344,6 +363,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
 
     this.filteredItems = items;
+    this.rebuildAccordionGroups();
   }
 
   onSearchChange() {
@@ -413,6 +433,79 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
 
     this.expandedDrawerCategoryIds = new Set(this.expandedDrawerCategoryIds);
+  }
+
+  navigateToSubCategory(category: MenuCategory, subCategoryName: string): void {
+    this.selectedCategoryId = category.id;
+    this.showCategoryDrawer = false;
+    this.applyFilters();
+
+    const categoryKey = this.getCategoryMapKey(category);
+    const targetGroup = this.accordionGroups.find(group => group.key === categoryKey)
+      || this.accordionGroups.find(group =>
+        this.normalizeCategoryToken(this.normalizeText(group.name))
+        === this.normalizeCategoryToken(this.normalizeText(category.name))
+      );
+
+    if (!targetGroup) {
+      return;
+    }
+
+    const targetToken = this.normalizeCategoryToken(this.normalizeText(subCategoryName));
+    const targetSubGroup = targetGroup.subGroups.find(subGroup =>
+      this.normalizeCategoryToken(this.normalizeText(subGroup.name)) === targetToken
+    );
+
+    if (!targetSubGroup) {
+      return;
+    }
+
+    this.expandedMainAccordionKeys.add(targetGroup.key);
+    this.expandedMainAccordionKeys = new Set(this.expandedMainAccordionKeys);
+
+    this.expandedSubAccordionKeys.add(`${targetGroup.key}::${targetSubGroup.key}`);
+    this.expandedSubAccordionKeys = new Set(this.expandedSubAccordionKeys);
+
+    setTimeout(() => {
+      const targetId = this.getSubAccordionDomId(targetGroup.key, targetSubGroup.key);
+      const section = document.getElementById(targetId);
+      section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }
+
+  getSubAccordionDomId(categoryKey: string, subKey: string): string {
+    const safeCategory = categoryKey.replace(/[^a-zA-Z0-9_-]/g, '-');
+    const safeSub = subKey.replace(/[^a-zA-Z0-9_-]/g, '-');
+    return `sub-accordion-${safeCategory}-${safeSub}`;
+  }
+
+  isMainAccordionExpanded(categoryKey: string): boolean {
+    return this.expandedMainAccordionKeys.has(categoryKey);
+  }
+
+  toggleMainAccordion(categoryKey: string): void {
+    if (this.expandedMainAccordionKeys.has(categoryKey)) {
+      this.expandedMainAccordionKeys.delete(categoryKey);
+    } else {
+      this.expandedMainAccordionKeys.add(categoryKey);
+    }
+
+    this.expandedMainAccordionKeys = new Set(this.expandedMainAccordionKeys);
+  }
+
+  isSubAccordionExpanded(categoryKey: string, subKey: string): boolean {
+    return this.expandedSubAccordionKeys.has(`${categoryKey}::${subKey}`);
+  }
+
+  toggleSubAccordion(categoryKey: string, subKey: string): void {
+    const compoundKey = `${categoryKey}::${subKey}`;
+    if (this.expandedSubAccordionKeys.has(compoundKey)) {
+      this.expandedSubAccordionKeys.delete(compoundKey);
+    } else {
+      this.expandedSubAccordionKeys.add(compoundKey);
+    }
+
+    this.expandedSubAccordionKeys = new Set(this.expandedSubAccordionKeys);
   }
 
   getCartQuantity(itemId: string): number {
@@ -808,6 +901,16 @@ export class MenuComponent implements OnInit, OnDestroy {
   private buildSubCategoryIdNameMap(): Map<string, string> {
     const map = new Map<string, string>();
 
+    for (const subCategory of this.subCategories) {
+      const id = this.normalizeKey(subCategory.id);
+      const name = this.getDisplayText(subCategory.name).trim();
+      if (!id || !name) continue;
+
+      if (!map.has(id)) {
+        map.set(id, name);
+      }
+    }
+
     for (const category of this.categories) {
       for (const subCategory of category.subCategories || []) {
         const id = this.normalizeKey(subCategory.id);
@@ -820,7 +923,145 @@ export class MenuComponent implements OnInit, OnDestroy {
       }
     }
 
+    // Some APIs return subcategory names only at item level; include those too.
+    for (const item of this.menuItems) {
+      const id = this.normalizeKey(item.subCategoryId);
+      const name = this.getDisplayText(item.subCategoryName || '').trim();
+      if (!id || !name) continue;
+
+      if (!map.has(id)) {
+        map.set(id, name);
+      }
+    }
+
     return map;
+  }
+
+  private rebuildAccordionGroups(): void {
+    this.accordionGroups = this.buildAccordionGroups(this.filteredItems);
+    this.syncAccordionExpansionState();
+  }
+
+  private buildAccordionGroups(items: MenuItem[]): MenuCategoryAccordionGroup[] {
+    const groups = new Map<string, {
+      key: string;
+      name: string;
+      order: number;
+      items: MenuItem[];
+      subGroups: Map<string, { key: string; name: string; order: number; items: MenuItem[] }>;
+    }>();
+
+    const subCategoryNameById = this.buildSubCategoryIdNameMap();
+
+    for (const item of items) {
+      const matchedCategory = this.visibleCategories.find(category => this.matchesCategoryRecordToItem(category, item));
+      const fallbackCategoryName = this.getDisplayText(item.categoryName || item.category || 'Uncategorized').trim() || 'Uncategorized';
+      const categoryKey = matchedCategory
+        ? this.getCategoryMapKey(matchedCategory)
+        : (this.normalizeKey(item.categoryId) || `name:${this.normalizeCategoryToken(this.normalizeText(fallbackCategoryName))}`);
+      const categoryName = matchedCategory?.name || fallbackCategoryName;
+
+      if (!categoryKey) continue;
+
+      const visibleCategoryIndex = matchedCategory
+        ? this.visibleCategories.findIndex(category => this.getCategoryMapKey(category) === categoryKey)
+        : -1;
+      const categoryOrder = visibleCategoryIndex >= 0 ? visibleCategoryIndex : this.visibleCategories.length + groups.size;
+
+      if (!groups.has(categoryKey)) {
+        groups.set(categoryKey, {
+          key: categoryKey,
+          name: categoryName,
+          order: categoryOrder,
+          items: [],
+          subGroups: new Map<string, { key: string; name: string; order: number; items: MenuItem[] }>()
+        });
+      }
+
+      const group = groups.get(categoryKey)!;
+      group.items.push(item);
+
+      const lookedUpSubCategoryName = this.normalizeKey(item.subCategoryId)
+        ? (subCategoryNameById.get(this.normalizeKey(item.subCategoryId)) || '')
+        : '';
+      const resolvedSubCategoryName = this.getDisplayText(item.subCategoryName || lookedUpSubCategoryName || '').trim() || 'All Items';
+      const subCategoryKey = this.normalizeKey(item.subCategoryId)
+        || (resolvedSubCategoryName === 'All Items'
+          ? '__all-items'
+          : this.normalizeCategoryToken(this.normalizeText(resolvedSubCategoryName)));
+
+      if (!group.subGroups.has(subCategoryKey)) {
+        group.subGroups.set(subCategoryKey, {
+          key: subCategoryKey,
+          name: resolvedSubCategoryName,
+          order: group.subGroups.size,
+          items: []
+        });
+      }
+
+      group.subGroups.get(subCategoryKey)!.items.push(item);
+    }
+
+    return Array.from(groups.values())
+      .sort((a, b) => a.order - b.order)
+      .map(group => ({
+        key: group.key,
+        name: group.name,
+        itemCount: group.items.length,
+        subGroups: Array.from(group.subGroups.values())
+          .sort((a, b) => {
+            if (a.key === '__all-items') return -1;
+            if (b.key === '__all-items') return 1;
+            return a.order - b.order;
+          })
+          .map(subGroup => ({
+            key: subGroup.key,
+            name: subGroup.name,
+            items: subGroup.items
+          }))
+      }));
+  }
+
+  private syncAccordionExpansionState(): void {
+    const validMainKeys = new Set(this.accordionGroups.map(group => group.key));
+    const nextMainExpanded = new Set<string>();
+
+    for (const key of this.expandedMainAccordionKeys) {
+      if (validMainKeys.has(key)) {
+        nextMainExpanded.add(key);
+      }
+    }
+
+    if (nextMainExpanded.size === 0) {
+      for (const group of this.accordionGroups) {
+        nextMainExpanded.add(group.key);
+      }
+    }
+
+    const validSubKeys = new Set<string>();
+    for (const group of this.accordionGroups) {
+      for (const subGroup of group.subGroups) {
+        validSubKeys.add(`${group.key}::${subGroup.key}`);
+      }
+    }
+
+    const nextSubExpanded = new Set<string>();
+    for (const key of this.expandedSubAccordionKeys) {
+      if (validSubKeys.has(key)) {
+        nextSubExpanded.add(key);
+      }
+    }
+
+    if (nextSubExpanded.size === 0) {
+      for (const group of this.accordionGroups) {
+        if (group.subGroups.length > 0) {
+          nextSubExpanded.add(`${group.key}::${group.subGroups[0].key}`);
+        }
+      }
+    }
+
+    this.expandedMainAccordionKeys = nextMainExpanded;
+    this.expandedSubAccordionKeys = nextSubExpanded;
   }
 
   private getCategoryMapKey(category: MenuCategory): string {

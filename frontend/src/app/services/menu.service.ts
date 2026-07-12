@@ -75,6 +75,13 @@ export class MenuService {
     );
   }
 
+  getSubCategories(): Observable<MenuSubCategory[]> {
+    return this.http.get<MenuSubCategory[]>(`${this.apiUrl}/subcategories`).pipe(
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(handleServiceError('MenuService.getSubCategories'))
+    );
+  }
+
   // Get category by ID
   getCategory(id: string): Observable<MenuCategory> {
     return this.http.get<MenuCategory>(`${this.apiUrl}/categories/${id}`).pipe(

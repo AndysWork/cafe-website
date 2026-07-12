@@ -135,97 +135,134 @@
       <span>Showing <strong>{{ filteredItems.length }}</strong> result{{ filteredItems.length !== 1 ? 's' : '' }} for "<em>{{ searchQuery }}</em>"</span>
     </div>
 
-    <!-- Menu Items Grid -->
-    <div *ngIf="filteredItems.length > 0" class="menu-grid">
-      <div
-        *ngFor="let item of filteredItems; trackBy: trackByItemId"
-        class="menu-card"
-        [class.in-cart]="getCartQuantity(item.id) > 0"
-        [class.just-added]="recentlyAdded.has(item.id)"
-        [class.unavailable]="item.isAvailable === false">
-
-        <!-- Image Section -->
-        <div class="card-image-wrapper">
-          <img *ngIf="getListImageUrl(item)" [src]="getListImageUrl(item)" [alt]="getDisplayText(item.name)" class="card-image" loading="lazy"/>
-          <div *ngIf="!getListImageUrl(item)" class="card-image-placeholder">
-            <span class="placeholder-icon">🍽️</span>
-          </div>
-          <!-- Availability Badge -->
-          <span *ngIf="item.isAvailable === false" class="badge-unavailable">Out of Stock</span>
-          <span *ngIf="item.isAvailable !== false && getCartQuantity(item.id) > 0" class="badge-in-cart">
-            ✓ In Cart
+    <!-- Category/Subcategory Accordions -->
+    <div *ngIf="filteredItems.length > 0" class="menu-accordion-root">
+      <section class="category-accordion" *ngFor="let categoryGroup of accordionGroups; trackBy: trackByObjId">
+        <button
+          type="button"
+          class="category-accordion-head"
+          [attr.aria-expanded]="isMainAccordionExpanded(categoryGroup.key)"
+          (click)="toggleMainAccordion(categoryGroup.key)">
+          <span class="category-title-wrap">
+            <span class="category-title">{{ categoryGroup.name }}</span>
+            <span class="category-item-count">{{ categoryGroup.itemCount }} items</span>
           </span>
-          <!-- Category Tag -->
-          <span class="card-category-tag">{{ item.categoryName }}</span>
-          <!-- Dietary Badge -->
-          <span class="badge-dietary" [ngClass]="item.dietaryType || 'veg'">
-            {{ normalizeDietaryType(item.dietaryType) === 'veg' ? '🟢' : (normalizeDietaryType(item.dietaryType) === 'non-veg' ? '🔴' : '🟡') }}
-            {{ normalizeDietaryType(item.dietaryType) | titlecase }}
-          </span>
-          <!-- Favorite Heart -->
-          <button class="btn-favorite" [class.favorited]="isFavorite(item.id)" (click)="toggleFavorite(item, $event)" aria-label="Toggle favorite">
-            <span class="heart-icon">{{ isFavorite(item.id) ? '❤️' : '🤍' }}</span>
-          </button>
-        </div>
+          <span class="accordion-caret">{{ isMainAccordionExpanded(categoryGroup.key) ? '−' : '+' }}</span>
+        </button>
 
-        <!-- Card Body -->
-        <div class="card-body" (click)="openDetail(item)">
-          <h3 class="card-title">{{ getDisplayText(item.name) }}</h3>
-          <p class="card-description" *ngIf="item.description">{{ item.description }}</p>
-          <div class="card-social-proof" *ngIf="totalReviews > 0">
-            ⭐ {{ averageRating | number:'1.1-1' }} · {{ totalReviews }} reviews
-          </div>
-
-          <div *ngIf="item.isAvailable === false" class="substitute-box" (click)="$event.stopPropagation()">
-            <button class="btn-substitute" (click)="toggleUnavailableSuggestions(item.id, $event)">
-              {{ isUnavailableSuggestionsOpen(item.id) ? 'Hide alternatives' : 'See alternatives' }}
-            </button>
-            <div *ngIf="isUnavailableSuggestionsOpen(item.id)" class="substitute-list">
-              <button
-                *ngFor="let alt of getSubstituteItems(item)"
-                class="substitute-chip"
-                (click)="addSubstituteToCart(alt, $event)">
-                {{ getDisplayText(alt.name) }} · ₹{{ getWebPrice(alt) }}
-              </button>
-              <span *ngIf="getSubstituteItems(item).length === 0" class="substitute-empty">
-                No close alternatives right now.
+        <div class="category-accordion-body" *ngIf="isMainAccordionExpanded(categoryGroup.key)">
+          <section
+            class="subcategory-accordion"
+            [id]="getSubAccordionDomId(categoryGroup.key, subGroup.key)"
+            *ngFor="let subGroup of categoryGroup.subGroups; trackBy: trackByObjId">
+            <button
+              type="button"
+              class="subcategory-accordion-head"
+              [attr.aria-expanded]="isSubAccordionExpanded(categoryGroup.key, subGroup.key)"
+              (click)="toggleSubAccordion(categoryGroup.key, subGroup.key)">
+              <span class="subcategory-title">{{ subGroup.name }}</span>
+              <span class="subcategory-meta">
+                <span class="subcategory-count">{{ subGroup.items.length }}</span>
+                <span class="accordion-caret">{{ isSubAccordionExpanded(categoryGroup.key, subGroup.key) ? '−' : '+' }}</span>
               </span>
-            </div>
-          </div>
+            </button>
 
-          <div class="card-footer">
-            <div class="price-block">
-              <span class="price">₹{{ getWebPrice(item) }}</span>
-              <small class="points-preview">Earn ~{{ getEstimatedEarnPoints(item) }} pts</small>
-            </div>
+            <div class="subcategory-accordion-body" *ngIf="isSubAccordionExpanded(categoryGroup.key, subGroup.key)">
+              <div class="menu-grid">
+                <div
+                  *ngFor="let item of subGroup.items; trackBy: trackByItemId"
+                  class="menu-card"
+                  [class.in-cart]="getCartQuantity(item.id) > 0"
+                  [class.just-added]="recentlyAdded.has(item.id)"
+                  [class.unavailable]="item.isAvailable === false">
 
-            <!-- Add to Cart / Quantity Control -->
-            <div class="cart-actions">
-              <!-- Not in cart: show Add button -->
-              <button
-                *ngIf="getCartQuantity(item.id) === 0"
-                class="btn-add"
-                (click)="$event.stopPropagation(); addToCart(item)"
-                [disabled]="item.isAvailable === false || !canOrderItem(item)">
-                <span class="btn-add-icon">+</span>
-                <span class="btn-add-text">ADD+</span>
-              </button>
-              <small
-                *ngIf="getCartQuantity(item.id) === 0 && hasCustomizations(item)"
-                class="customizable-help-text">
-                Customizable
-              </small>
+                  <!-- Image Section -->
+                  <div class="card-image-wrapper">
+                    <img *ngIf="getListImageUrl(item)" [src]="getListImageUrl(item)" [alt]="getDisplayText(item.name)" class="card-image" loading="lazy"/>
+                    <div *ngIf="!getListImageUrl(item)" class="card-image-placeholder">
+                      <span class="placeholder-icon">🍽️</span>
+                    </div>
+                    <!-- Availability Badge -->
+                    <span *ngIf="item.isAvailable === false" class="badge-unavailable">Out of Stock</span>
+                    <span *ngIf="item.isAvailable !== false && getCartQuantity(item.id) > 0" class="badge-in-cart">
+                      ✓ In Cart
+                    </span>
+                    <!-- Category Tag -->
+                    <span class="card-category-tag">{{ item.categoryName }}</span>
+                    <!-- Dietary Badge -->
+                    <span class="badge-dietary" [ngClass]="item.dietaryType || 'veg'">
+                      {{ normalizeDietaryType(item.dietaryType) === 'veg' ? '🟢' : (normalizeDietaryType(item.dietaryType) === 'non-veg' ? '🔴' : '🟡') }}
+                      {{ normalizeDietaryType(item.dietaryType) | titlecase }}
+                    </span>
+                    <!-- Favorite Heart -->
+                    <button class="btn-favorite" [class.favorited]="isFavorite(item.id)" (click)="toggleFavorite(item, $event)" aria-label="Toggle favorite">
+                      <span class="heart-icon">{{ isFavorite(item.id) ? '❤️' : '🤍' }}</span>
+                    </button>
+                  </div>
 
-              <!-- In cart: show +/- controls -->
-              <div *ngIf="getCartQuantity(item.id) > 0" class="qty-control">
-                <button class="qty-btn minus" (click)="$event.stopPropagation(); decreaseQuantity(item)" aria-label="Decrease quantity">−</button>
-                <span class="qty-value" aria-live="polite">{{ getCartQuantity(item.id) }}</span>
-                <button class="qty-btn plus" (click)="$event.stopPropagation(); increaseQuantity(item)" aria-label="Increase quantity" [disabled]="!canOrderItem(item)">+</button>
+                  <!-- Card Body -->
+                  <div class="card-body" (click)="openDetail(item)">
+                    <h3 class="card-title">{{ getDisplayText(item.name) }}</h3>
+                    <p class="card-description" *ngIf="item.description">{{ item.description }}</p>
+                    <div class="card-social-proof" *ngIf="totalReviews > 0">
+                      ⭐ {{ averageRating | number:'1.1-1' }} · {{ totalReviews }} reviews
+                    </div>
+
+                    <div *ngIf="item.isAvailable === false" class="substitute-box" (click)="$event.stopPropagation()">
+                      <button class="btn-substitute" (click)="toggleUnavailableSuggestions(item.id, $event)">
+                        {{ isUnavailableSuggestionsOpen(item.id) ? 'Hide alternatives' : 'See alternatives' }}
+                      </button>
+                      <div *ngIf="isUnavailableSuggestionsOpen(item.id)" class="substitute-list">
+                        <button
+                          *ngFor="let alt of getSubstituteItems(item)"
+                          class="substitute-chip"
+                          (click)="addSubstituteToCart(alt, $event)">
+                          {{ getDisplayText(alt.name) }} · ₹{{ getWebPrice(alt) }}
+                        </button>
+                        <span *ngIf="getSubstituteItems(item).length === 0" class="substitute-empty">
+                          No close alternatives right now.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="card-footer">
+                      <div class="price-block">
+                        <span class="price">₹{{ getWebPrice(item) }}</span>
+                        <small class="points-preview">Earn ~{{ getEstimatedEarnPoints(item) }} pts</small>
+                      </div>
+
+                      <!-- Add to Cart / Quantity Control -->
+                      <div class="cart-actions">
+                        <!-- Not in cart: show Add button -->
+                        <button
+                          *ngIf="getCartQuantity(item.id) === 0"
+                          class="btn-add"
+                          (click)="$event.stopPropagation(); addToCart(item)"
+                          [disabled]="item.isAvailable === false || !canOrderItem(item)">
+                          <span class="btn-add-icon">+</span>
+                          <span class="btn-add-text">ADD</span>
+                        </button>
+                        <small
+                          *ngIf="getCartQuantity(item.id) === 0 && hasCustomizations(item)"
+                          class="customizable-help-text">
+                          Customizable
+                        </small>
+
+                        <!-- In cart: show +/- controls -->
+                        <div *ngIf="getCartQuantity(item.id) > 0" class="qty-control">
+                          <button class="qty-btn minus" (click)="$event.stopPropagation(); decreaseQuantity(item)" aria-label="Decrease quantity">−</button>
+                          <span class="qty-value" aria-live="polite">{{ getCartQuantity(item.id) }}</span>
+                          <button class="qty-btn plus" (click)="$event.stopPropagation(); increaseQuantity(item)" aria-label="Increase quantity" [disabled]="!canOrderItem(item)">+</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
         </div>
-      </div>
+      </section>
     </div>
 
     <!-- Empty State -->
@@ -288,9 +325,13 @@
         </div>
 
         <div class="drawer-subcategory-list" *ngIf="isCategoryExpanded(category)">
-          <span class="drawer-subcategory-chip" *ngFor="let subCategory of getCategorySubCategoryNames(category); trackBy: trackByIndex">
+          <button
+            type="button"
+            class="drawer-subcategory-chip"
+            *ngFor="let subCategory of getCategorySubCategoryNames(category); trackBy: trackByIndex"
+            (click)="navigateToSubCategory(category, subCategory)">
             {{ subCategory }}
-          </span>
+          </button>
         </div>
       </div>
     </div>
