@@ -41,6 +41,12 @@ public class User
     [BsonElement("phoneNumber")]
     public string? PhoneNumber { get; set; }
 
+    [BsonElement("gender")]
+    public string? Gender { get; set; }
+
+    [BsonElement("dateOfBirth")]
+    public DateTime? DateOfBirth { get; set; }
+
     [BsonElement("profilePictureUrl")]
     public string? ProfilePictureUrl { get; set; }
 
@@ -116,6 +122,8 @@ public class LoginResponse
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public string? PhoneNumber { get; set; }
+    public string? Gender { get; set; }
+    public DateTime? DateOfBirth { get; set; }
     public string? ProfilePictureUrl { get; set; }
     public string? DefaultOutletId { get; set; }
     public List<string>? AssignedOutlets { get; set; }
@@ -145,6 +153,11 @@ public class RegisterRequest
     
     [IndianPhoneNumber]
     public string? PhoneNumber { get; set; }
+
+    [StringLength(20, ErrorMessage = "Gender cannot exceed 20 characters")]
+    public string? Gender { get; set; }
+
+    public DateTime? DateOfBirth { get; set; }
 }
 
 public class UpdateProfileRequest
@@ -161,6 +174,11 @@ public class UpdateProfileRequest
     
     [IndianPhoneNumber]
     public string? PhoneNumber { get; set; }
+
+    [StringLength(20, ErrorMessage = "Gender cannot exceed 20 characters")]
+    public string? Gender { get; set; }
+
+    public DateTime? DateOfBirth { get; set; }
 }
 
 public class UpdateUserRoleRequest

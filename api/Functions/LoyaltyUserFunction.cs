@@ -77,6 +77,14 @@ public class LoyaltyUserFunction
             // Refresh account after expiry processing
             account = await _mongo.GetOrCreateLoyaltyAccountAsync(userId, username);
 
+            // Auto-credit tier-configured birthday points once per year when the user visits on their birthday.
+            var (birthdayAwarded, birthdayPointsAwarded) = await _mongo.CheckAndAwardBirthdayBonusAsync(userId);
+            if (birthdayAwarded)
+            {
+                account = await _mongo.GetOrCreateLoyaltyAccountAsync(userId, username);
+                _log.LogInformation("Auto-awarded {Points} birthday bonus points to user {UserId}", birthdayPointsAwarded, userId);
+            }
+
             // Check birthday bonus
             var birthdayAvailable = _mongo.IsBirthdayBonusAvailable(account);
             var birthdayBonusPoints = _mongo.GetBirthdayBonusPoints(account.Tier);

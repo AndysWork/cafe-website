@@ -1514,6 +1514,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (!string.IsNullOrWhiteSpace(profile.PhoneNumber))
             updates.Add(updateBuilder.Set(x => x.PhoneNumber, profile.PhoneNumber));
 
+        if (!string.IsNullOrWhiteSpace(profile.Gender))
+            updates.Add(updateBuilder.Set(x => x.Gender, profile.Gender));
+
+        if (profile.DateOfBirth.HasValue)
+            updates.Add(updateBuilder.Set(x => x.DateOfBirth, profile.DateOfBirth.Value.Date));
+
         if (updates.Count == 0) return false;
 
         var combinedUpdate = updateBuilder.Combine(updates);
@@ -2234,6 +2240,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<LoyaltyAccount> GetOrCreateLoyaltyAccountAsync(string userId, string username)
     {
         var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
+        var user = await _users.Find(x => x.Id == userId).FirstOrDefaultAsync();
         
         if (account == null)
         {
@@ -2247,18 +2254,21 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 Tier = "Bronze",
                 ReferralCode = await GenerateUniqueReferralCodeAsync(),
                 LoyaltyCardNumber = GenerateLoyaltyCardNumber(),
+                DateOfBirth = user?.DateOfBirth?.Date,
                 CreatedAt = GetIstNow(),
                 UpdatedAt = GetIstNow()
             };
             await _loyaltyAccounts.InsertOneAsync(account);
         }
-        else if (string.IsNullOrEmpty(account.ReferralCode) || string.IsNullOrEmpty(account.LoyaltyCardNumber))
+        else if (string.IsNullOrEmpty(account.ReferralCode) || string.IsNullOrEmpty(account.LoyaltyCardNumber) || (!account.DateOfBirth.HasValue && user?.DateOfBirth.HasValue == true))
         {
             // Backfill referral code and card number for existing accounts
             if (string.IsNullOrEmpty(account.ReferralCode))
                 account.ReferralCode = await GenerateUniqueReferralCodeAsync();
             if (string.IsNullOrEmpty(account.LoyaltyCardNumber))
                 account.LoyaltyCardNumber = GenerateLoyaltyCardNumber();
+            if (!account.DateOfBirth.HasValue && user?.DateOfBirth.HasValue == true)
+                account.DateOfBirth = user.DateOfBirth.Value.Date;
             account.UpdatedAt = GetIstNow();
             await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
         }

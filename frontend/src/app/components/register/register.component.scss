@@ -283,6 +283,38 @@ $error-border: #fecaca;
     }
   }
 
+  select {
+    width: 100%;
+    padding: 15px 48px 15px 48px;
+    font-size: 0.95rem;
+    border: 2px solid $border-color;
+    border-radius: 14px;
+    background: $bg-light;
+    color: $text-dark;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+
+    &:focus {
+      outline: none;
+      border-color: $primary;
+      background: $white;
+      box-shadow: 0 0 0 4px rgba($primary, 0.1);
+    }
+
+    &:focus ~ label {
+      top: -10px;
+      left: 14px;
+      font-size: 0.78rem;
+      color: $primary;
+      background: $white;
+      padding: 0 6px;
+    }
+  }
+
   label {
     position: absolute;
     left: 48px;
@@ -297,6 +329,15 @@ $error-border: #fecaca;
     .required {
       color: $secondary;
     }
+  }
+
+  &.has-value label {
+    top: -10px;
+    left: 14px;
+    font-size: 0.78rem;
+    color: $primary;
+    background: $white;
+    padding: 0 6px;
   }
 
   &:focus-within .input-icon {
@@ -322,6 +363,23 @@ $error-border: #fecaca;
     &:hover {
       color: $primary;
     }
+  }
+}
+
+.input-group.select-group {
+  label {
+    top: -10px;
+    left: 14px;
+    font-size: 0.78rem;
+    color: $primary;
+    background: $white;
+    padding: 0 6px;
+    transform: none;
+  }
+
+  select {
+    padding-top: 18px;
+    padding-bottom: 12px;
   }
 }
 

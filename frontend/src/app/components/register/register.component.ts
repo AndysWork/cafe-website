@@ -18,6 +18,8 @@ export class RegisterComponent {
   firstName = '';
   lastName = '';
   phoneNumber = '';
+  gender = '';
+  dateOfBirth = '';
   errorMessage = '';
   isLoading = false;
   showPassword = false;
@@ -87,6 +89,17 @@ export class RegisterComponent {
       return;
     }
 
+    if (this.dateOfBirth && !this.isValidDateOfBirth(this.dateOfBirth)) {
+      this.errorMessage = 'Please enter a valid date of birth';
+      return;
+    }
+
+    const normalizedGender = this.normalizeGender(this.gender);
+    if (this.gender && !normalizedGender) {
+      this.errorMessage = 'Please select a valid gender';
+      return;
+    }
+
     this.isLoading = true;
     this.authService.register({
       username: this.username,
@@ -94,7 +107,9 @@ export class RegisterComponent {
       password: this.password,
       firstName: this.firstName,
       lastName: this.lastName,
-      phoneNumber: this.phoneNumber
+      phoneNumber: this.phoneNumber,
+      gender: normalizedGender || undefined,
+      dateOfBirth: this.dateOfBirth || undefined
     }).subscribe({
       next: () => {
         this.isLoading = false;
@@ -120,5 +135,31 @@ export class RegisterComponent {
   private isValidPhone(phone: string): boolean {
     const phoneRegex = /^[6-9]\d{9}$/;
     return phoneRegex.test(phone.replace(/\s+/g, ''));
+  }
+
+  private isValidDateOfBirth(value: string): boolean {
+    const dob = new Date(value);
+    if (Number.isNaN(dob.getTime())) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (dob > today) return false;
+
+    const age = today.getFullYear() - dob.getFullYear() - ((today.getMonth() < dob.getMonth() || (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) ? 1 : 0);
+    return age >= 5 && age <= 120;
+  }
+
+  private normalizeGender(value: string): string | null {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) return null;
+
+    const allowed: Record<string, string> = {
+      male: 'male',
+      female: 'female',
+      other: 'other',
+      prefer_not_to_say: 'prefer_not_to_say'
+    };
+
+    return allowed[normalized] ?? null;
   }
 }

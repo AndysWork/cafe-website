@@ -27,6 +27,10 @@ export class ProfileComponent implements OnInit {
   firstName = '';
   lastName = '';
   phoneNumber = '';
+  gender = '';
+  dateOfBirth = '';
+  canEditGender = true;
+  canEditDateOfBirth = true;
   profileMessage = '';
   profileError = '';
   isUpdatingProfile = false;
@@ -84,6 +88,10 @@ export class ProfileComponent implements OnInit {
       this.firstName = this.user.firstName || '';
       this.lastName = this.user.lastName || '';
       this.phoneNumber = this.user.phoneNumber || '';
+      this.gender = this.user.gender || '';
+      this.dateOfBirth = this.formatDateForInput(this.user.dateOfBirth);
+      this.canEditGender = !this.user.gender;
+      this.canEditDateOfBirth = !this.user.dateOfBirth;
 
       this.loadLatestMenuSnapshot();
       this.loadLastDeliveredOrder();
@@ -225,12 +233,31 @@ export class ProfileComponent implements OnInit {
     if (this.phoneNumber?.trim()) {
       updateData.phoneNumber = this.phoneNumber.trim();
     }
+    if (this.canEditGender && this.gender?.trim()) {
+      updateData.gender = this.gender.trim().toLowerCase();
+    }
+    if (this.canEditDateOfBirth && this.dateOfBirth) {
+      updateData.dateOfBirth = this.dateOfBirth;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      this.isUpdatingProfile = false;
+      this.profileError = 'No changes to save';
+      setTimeout(() => this.profileError = '', 3000);
+      return;
+    }
 
     this.authService.updateProfile(updateData).subscribe({
       next: () => {
         this.isUpdatingProfile = false;
         this.profileMessage = 'Profile updated successfully!';
         this.user = this.authService.getCurrentUser();
+        if (this.user) {
+          this.gender = this.user.gender || this.gender;
+          this.dateOfBirth = this.formatDateForInput(this.user.dateOfBirth) || this.dateOfBirth;
+          this.canEditGender = !this.user.gender;
+          this.canEditDateOfBirth = !this.user.dateOfBirth;
+        }
         setTimeout(() => this.profileMessage = '', 3000);
       },
       error: (error) => {
@@ -239,6 +266,22 @@ export class ProfileComponent implements OnInit {
         setTimeout(() => this.profileError = '', 5000);
       }
     });
+  }
+
+  getGenderDisplay(value?: string): string {
+    if (!value) return '';
+    if (value === 'prefer_not_to_say') return 'Prefer not to say';
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
+
+  private formatDateForInput(value?: string): string {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   changePassword(): void {

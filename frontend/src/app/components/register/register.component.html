@@ -98,7 +98,7 @@
         </div>
         <div class="field-errors" *ngIf="emailField.touched && emailField.invalid">
           <span class="field-error" *ngIf="emailField.errors?.['required']">Email is required</span>
-          <span class="field-error" *ngIf="emailField.errors?.['email'] && !emailField.errors?.['required']">Please enter a valid email address</span>
+          <span class="field-error" *ngIf="emailField.errors && emailField.errors['email'] && !emailField.errors['required']">Please enter a valid email address</span>
         </div>
 
         <!-- Phone -->
@@ -111,7 +111,32 @@
         </div>
         <div class="field-errors" *ngIf="phoneField.touched && phoneField.invalid">
           <span class="field-error" *ngIf="phoneField.errors?.['required']">Phone number is required</span>
-          <span class="field-error" *ngIf="phoneField.errors?.['pattern'] && !phoneField.errors?.['required']">Enter a valid 10-digit Indian phone number</span>
+          <span class="field-error" *ngIf="phoneField.errors && phoneField.errors['pattern'] && !phoneField.errors['required']">Enter a valid 10-digit Indian phone number</span>
+        </div>
+
+        <!-- Gender + Date of Birth -->
+        <div class="form-row">
+          <div class="input-group select-group" [class.has-value]="gender">
+            <span class="input-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0 1 13 0"/></svg>
+            </span>
+            <select id="gender" name="gender" [(ngModel)]="gender">
+              <option value="">Select gender (optional)</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+              <option value="prefer_not_to_say">Prefer not to say</option>
+            </select>
+            <label for="gender">Gender</label>
+          </div>
+
+          <div class="input-group" [class.has-value]="dateOfBirth">
+            <span class="input-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </span>
+            <input type="date" id="dateOfBirth" name="dateOfBirth" [(ngModel)]="dateOfBirth" />
+            <label for="dateOfBirth">Date of Birth</label>
+          </div>
         </div>
 
         <!-- Password -->

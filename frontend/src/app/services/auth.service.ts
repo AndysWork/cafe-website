@@ -14,6 +14,8 @@ export interface User {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  gender?: string;
+  dateOfBirth?: string;
   profilePictureUrl?: string;
   token?: string;
   defaultOutletId?: string;
@@ -32,6 +34,8 @@ export interface RegisterRequest {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  gender?: string;
+  dateOfBirth?: string;
 }
 
 export interface LoginResponse {
@@ -42,6 +46,8 @@ export interface LoginResponse {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  gender?: string;
+  dateOfBirth?: string;
   profilePictureUrl?: string;
   defaultOutletId?: string;
   assignedOutlets?: string[];
@@ -84,6 +90,8 @@ export class AuthService {
               firstName: response.firstName,
               lastName: response.lastName,
               phoneNumber: response.phoneNumber,
+              gender: response.gender,
+              dateOfBirth: response.dateOfBirth,
               profilePictureUrl: response.profilePictureUrl,
               token: response.token,
               defaultOutletId: response.defaultOutletId,
@@ -159,15 +167,19 @@ export class AuthService {
     });
   }
 
-  updateProfile(data: { firstName?: string; lastName?: string; phoneNumber?: string }): Observable<any> {
+  updateProfile(data: { firstName?: string; lastName?: string; phoneNumber?: string; gender?: string; dateOfBirth?: string }): Observable<any> {
     return this.http.put(`${this.apiUrl}/auth/profile`, data).pipe(
       tap((response: any) => {
         if (response.data) {
           const phoneNumber = response.data.phoneNumber ?? response.data.PhoneNumber;
+          const gender = response.data.gender ?? response.data.Gender;
+          const dateOfBirth = response.data.dateOfBirth ?? response.data.DateOfBirth;
           this.authStore.updateProfile({
             firstName: response.data.firstName,
             lastName: response.data.lastName,
             phoneNumber,
+            gender,
+            dateOfBirth,
             profilePictureUrl: response.data.profilePictureUrl
           });
         }

@@ -99,6 +99,29 @@
           <label>Phone Number</label>
           <input type="tel" [(ngModel)]="phoneNumber" placeholder="Enter phone number" />
         </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Gender</label>
+            <select [(ngModel)]="gender" [disabled]="!canEditGender" class="profile-select" [class.input-disabled]="!canEditGender">
+              <option value="">Select gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+              <option value="prefer_not_to_say">Prefer not to say</option>
+            </select>
+            <small class="field-help" *ngIf="!canEditGender">Locked after first save: {{ getGenderDisplay(gender) }}</small>
+            <small class="field-help" *ngIf="canEditGender">You can set this only once.</small>
+          </div>
+
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <input type="date" [(ngModel)]="dateOfBirth" [disabled]="!canEditDateOfBirth" [class.input-disabled]="!canEditDateOfBirth" />
+            <small class="field-help" *ngIf="!canEditDateOfBirth">Locked after first save.</small>
+            <small class="field-help" *ngIf="canEditDateOfBirth">You can set this only once.</small>
+          </div>
+        </div>
+
         <button class="btn-submit" (click)="updateProfile()" [disabled]="isUpdatingProfile">
           {{ isUpdatingProfile ? 'Saving...' : '💾 Save Changes' }}
         </button>

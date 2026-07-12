@@ -159,6 +159,8 @@ public class AuthFunction
                     FirstName = user.FirstName,
                     LastName = user.LastName,
                     PhoneNumber = user.PhoneNumber,
+                    Gender = user.Gender,
+                    DateOfBirth = user.DateOfBirth,
                     ProfilePictureUrl = user.ProfilePictureUrl,
                     DefaultOutletId = user.DefaultOutletId,
                     AssignedOutlets = user.AssignedOutlets
@@ -214,12 +216,14 @@ public class AuthFunction
             registerRequest.FirstName = InputSanitizer.Sanitize(registerRequest.FirstName);
             registerRequest.LastName = InputSanitizer.Sanitize(registerRequest.LastName);
             registerRequest.PhoneNumber = InputSanitizer.SanitizePhoneNumber(registerRequest.PhoneNumber);
+            registerRequest.Gender = InputSanitizer.Sanitize(registerRequest.Gender);
 
             // Check for dangerous content
             if (InputSanitizer.IsPotentiallyDangerous(registerRequest.Username) ||
                 InputSanitizer.IsPotentiallyDangerous(registerRequest.Email) ||
                 InputSanitizer.IsPotentiallyDangerous(registerRequest.FirstName) ||
-                InputSanitizer.IsPotentiallyDangerous(registerRequest.LastName))
+                InputSanitizer.IsPotentiallyDangerous(registerRequest.LastName) ||
+                InputSanitizer.IsPotentiallyDangerous(registerRequest.Gender))
             {
                 auditLogger.LogSecurityEvent("XSS Attempt in Registration", null, ipAddress,
                     $"Username: {registerRequest.Username}, Email: {registerRequest.Email}", SecuritySeverity.High);
@@ -235,6 +239,32 @@ public class AuthFunction
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(validationError!.Value);
                 return badRequest;
+            }
+
+            if (registerRequest.DateOfBirth.HasValue)
+            {
+                var dob = registerRequest.DateOfBirth.Value.Date;
+                var today = MongoService.GetIstNow().Date;
+                if (dob > today)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Date of birth cannot be in the future" });
+                    return badRequest;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(registerRequest.Gender))
+            {
+                var normalizedGender = registerRequest.Gender.Trim().ToLowerInvariant();
+                var validGenders = new[] { "male", "female", "other", "prefer_not_to_say" };
+                if (!validGenders.Contains(normalizedGender))
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Gender must be male, female, other, or prefer_not_to_say" });
+                    return badRequest;
+                }
+
+                registerRequest.Gender = normalizedGender;
             }
 
             // Check if username already exists
@@ -269,6 +299,8 @@ public class AuthFunction
                 FirstName = registerRequest.FirstName,
                 LastName = registerRequest.LastName,
                 PhoneNumber = registerRequest.PhoneNumber,
+                Gender = registerRequest.Gender,
+                DateOfBirth = registerRequest.DateOfBirth?.Date,
                 IsActive = true,
                 CreatedAt = MongoService.GetIstNow()
             };
@@ -413,6 +445,8 @@ public class AuthFunction
                 updateRequest.Email = InputSanitizer.SanitizeEmail(updateRequest.Email);
             if (updateRequest.PhoneNumber != null)
                 updateRequest.PhoneNumber = InputSanitizer.SanitizePhoneNumber(updateRequest.PhoneNumber);
+            if (updateRequest.Gender != null)
+                updateRequest.Gender = InputSanitizer.Sanitize(updateRequest.Gender);
 
             // Validate request
             if (!ValidationHelper.TryValidate(updateRequest, out var validationError))
@@ -420,6 +454,64 @@ public class AuthFunction
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(validationError!.Value);
                 return badRequest;
+            }
+
+            var existingUserData = await _mongo.GetUserByIdAsync(userId!);
+            if (existingUserData == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
+                return notFound;
+            }
+
+            if (!string.IsNullOrWhiteSpace(updateRequest.Gender))
+            {
+                var normalizedGender = updateRequest.Gender.Trim().ToLowerInvariant();
+                var validGenders = new[] { "male", "female", "other", "prefer_not_to_say" };
+                if (!validGenders.Contains(normalizedGender))
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Gender must be male, female, other, or prefer_not_to_say" });
+                    return badRequest;
+                }
+
+                if (!string.IsNullOrWhiteSpace(existingUserData.Gender)
+                    && !string.Equals(existingUserData.Gender, normalizedGender, StringComparison.OrdinalIgnoreCase))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Gender is already set and cannot be changed" });
+                    return conflict;
+                }
+
+                updateRequest.Gender = normalizedGender;
+            }
+
+            if (updateRequest.DateOfBirth.HasValue)
+            {
+                var dob = updateRequest.DateOfBirth.Value.Date;
+                var today = MongoService.GetIstNow().Date;
+                if (dob > today)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Date of birth cannot be in the future" });
+                    return badRequest;
+                }
+
+                var age = today.Year - dob.Year;
+                if (dob > today.AddYears(-age)) age--;
+                if (age < 5 || age > 120)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Please enter a valid date of birth" });
+                    return badRequest;
+                }
+
+                if (existingUserData.DateOfBirth.HasValue && existingUserData.DateOfBirth.Value.Date != dob)
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Date of birth is already set and cannot be changed" });
+                    return conflict;
+                }
             }
 
             // Check if email is already taken by another user
@@ -465,6 +557,8 @@ public class AuthFunction
                     user.LastName,
                     user.Email,
                     phoneNumber = user.PhoneNumber ?? string.Empty,
+                    user.Gender,
+                    user.DateOfBirth,
                     user.ProfilePictureUrl
                 }
             });
