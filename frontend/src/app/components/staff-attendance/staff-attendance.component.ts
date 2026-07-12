@@ -34,9 +34,10 @@ export class StaffAttendanceComponent implements OnInit {
   monthlyLeaveBalance: MyMonthlyLeaveBalanceResponse | null = null;
 
   leaveForm = {
-    leaveType: 'casual' as 'casual' | 'sick' | 'earned' | 'unpaid',
+    leaveType: 'earned' as 'earned',
     startDate: '',
     endDate: '',
+    isHalfDay: false,
     reason: ''
   };
 
@@ -121,6 +122,18 @@ export class StaffAttendanceComponent implements OnInit {
     this.loadMonthlyLeaveBalance();
   }
 
+  onHalfDayToggle(): void {
+    if (this.leaveForm.isHalfDay) {
+      this.leaveForm.endDate = this.leaveForm.startDate;
+    }
+  }
+
+  onLeaveStartDateChange(): void {
+    if (this.leaveForm.isHalfDay) {
+      this.leaveForm.endDate = this.leaveForm.startDate;
+    }
+  }
+
   getMonthlyQuotaFromBalance(annualBalance?: number, available?: number): number {
     if (typeof annualBalance === 'number') {
       return Math.max(0, Math.round((annualBalance / 12) * 100) / 100);
@@ -149,8 +162,10 @@ export class StaffAttendanceComponent implements OnInit {
     this.attendanceService.createMyLeaveRequest(this.leaveForm).subscribe({
       next: () => {
         this.uiStore.success('Leave request submitted');
+        this.leaveForm.isHalfDay = false;
         this.leaveForm.reason = '';
         this.loadMyLeaves();
+        this.loadMonthlyLeaveBalance();
       },
       error: () => this.uiStore.error('Unable to submit leave request')
     });

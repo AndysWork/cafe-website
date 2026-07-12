@@ -24,7 +24,7 @@ public interface IStaffRepository
     Task<bool> UpdateStaffPositionAsync(string staffId, string position, string updatedBy);
     Task<bool> UpdateStaffPerformanceRatingAsync(string staffId, decimal rating, string updatedBy);
     Task<bool> AddStaffDocumentAsync(string staffId, StaffDocument document);
-    Task<bool> UpdateStaffLeaveBalancesAsync(string staffId, int annual, int sick, int casual, string updatedBy);
+    Task<bool> UpdateStaffLeaveBalancesAsync(string staffId, double annual, double sick, double casual, string updatedBy);
     Task<bool> DeleteStaffAsync(string staffId, string deletedBy);
     Task<bool> HardDeleteStaffAsync(string staffId);
     Task<List<Staff>> SearchStaffAsync(string searchTerm);

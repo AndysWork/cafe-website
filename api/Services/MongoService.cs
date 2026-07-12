@@ -1943,7 +1943,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     }
 
     // Update staff leave balances
-    public async Task<bool> UpdateStaffLeaveBalancesAsync(string staffId, int annual, int sick, int casual, string updatedBy)
+    public async Task<bool> UpdateStaffLeaveBalancesAsync(string staffId, double annual, double sick, double casual, string updatedBy)
     {
         var update = Builders<Staff>.Update
             .Set(s => s.AnnualLeaveBalance, annual)

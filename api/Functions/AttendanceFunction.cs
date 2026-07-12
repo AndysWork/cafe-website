@@ -363,6 +363,20 @@ public class AttendanceFunction
                 return badReq;
             }
 
+            if (request.EndDate.Date < request.StartDate.Date)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "End date must be same or after start date" });
+                return badReq;
+            }
+
+            if (request.IsHalfDay && request.EndDate.Date != request.StartDate.Date)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Half-day leave must be for a single date" });
+                return badReq;
+            }
+
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
             var leave = new LeaveRequest
@@ -373,6 +387,7 @@ public class AttendanceFunction
                 LeaveType = InputSanitizer.Sanitize(request.LeaveType),
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
+                IsHalfDay = request.IsHalfDay,
                 Reason = InputSanitizer.Sanitize(request.Reason),
                 Status = "pending",
                 CreatedAt = MongoService.GetIstNow()
@@ -426,6 +441,13 @@ public class AttendanceFunction
                 return badReq;
             }
 
+            if (request.IsHalfDay && request.EndDate.Date != request.StartDate.Date)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Half-day leave must be for a single date" });
+                return badReq;
+            }
+
             var leave = new LeaveRequest
             {
                 OutletId = outletId,
@@ -434,6 +456,7 @@ public class AttendanceFunction
                 LeaveType = InputSanitizer.Sanitize(request.LeaveType),
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
+                IsHalfDay = request.IsHalfDay,
                 Reason = InputSanitizer.Sanitize(request.Reason),
                 Status = "pending",
                 CreatedAt = MongoService.GetIstNow()
@@ -730,14 +753,41 @@ public class AttendanceFunction
             }
 
             var validStatuses = new[] { "approved", "rejected" };
-            if (!validStatuses.Contains(request.Status.ToLower()))
+            var normalizedStatus = request.Status.ToLowerInvariant();
+            if (!validStatuses.Contains(normalizedStatus))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = "Status must be 'approved' or 'rejected'" });
                 return badReq;
             }
 
-            var success = await _mongo.UpdateLeaveRequestStatusAsync(id, request.Status.ToLower());
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth) ?? "default";
+            var leaves = await _mongo.GetLeaveRequestsAsync(outletId, null);
+            var leave = leaves.FirstOrDefault(l => string.Equals(l.Id, id, StringComparison.Ordinal));
+            if (leave == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Leave request not found" });
+                return notFound;
+            }
+
+            if (leave.Status.Equals("approved", StringComparison.OrdinalIgnoreCase) && normalizedStatus == "approved")
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Leave request is already approved" });
+                return badReq;
+            }
+
+            if (normalizedStatus == "approved")
+            {
+                var deductionResult = await TryDeductLeaveBalanceForApprovalAsync(req, leave);
+                if (deductionResult != null)
+                {
+                    return deductionResult;
+                }
+            }
+
+            var success = await _mongo.UpdateLeaveRequestStatusAsync(id, normalizedStatus);
 
             if (!success)
             {
@@ -747,7 +797,7 @@ public class AttendanceFunction
             }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { message = $"Leave request {request.Status}" });
+            await response.WriteAsJsonAsync(new { message = $"Leave request {request.Status}", deductedUnits = normalizedStatus == "approved" ? GetLeaveUnits(leave.StartDate, leave.EndDate, leave.IsHalfDay) : 0 });
             return response;
         }
         catch (Exception ex)
@@ -1002,21 +1052,116 @@ public class AttendanceFunction
         };
     }
 
-    private static int SumOverlapDaysByType(IEnumerable<LeaveRequest> leaves, string leaveType, DateTime monthStart, DateTime monthEnd)
+    private async Task<HttpResponseData?> TryDeductLeaveBalanceForApprovalAsync(HttpRequestData req, LeaveRequest leave)
+    {
+        var staff = await _mongo.GetStaffByIdAsync(leave.StaffId);
+        if (staff == null)
+        {
+            var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+            await notFound.WriteAsJsonAsync(new { error = "Staff linked to leave request was not found" });
+            return notFound;
+        }
+
+        var unitsToDeduct = GetLeaveUnits(leave.StartDate, leave.EndDate, leave.IsHalfDay);
+        var leaveType = leave.LeaveType.Trim().ToLowerInvariant();
+
+        var annual = staff.AnnualLeaveBalance;
+        var sick = staff.SickLeaveBalance;
+        var casual = staff.CasualLeaveBalance;
+
+        switch (leaveType)
+        {
+            case "earned":
+                if (annual < unitsToDeduct)
+                    return await CreateInsufficientBalanceResponse(req, "earned", annual, unitsToDeduct);
+                annual = RoundLeaveBalance(annual - unitsToDeduct);
+                break;
+            case "sick":
+                if (sick < unitsToDeduct)
+                    return await CreateInsufficientBalanceResponse(req, "sick", sick, unitsToDeduct);
+                sick = RoundLeaveBalance(sick - unitsToDeduct);
+                break;
+            case "casual":
+                if (casual < unitsToDeduct)
+                    return await CreateInsufficientBalanceResponse(req, "casual", casual, unitsToDeduct);
+                casual = RoundLeaveBalance(casual - unitsToDeduct);
+                break;
+            case "unpaid":
+                return null;
+            default:
+                return null;
+        }
+
+        var success = await _mongo.UpdateStaffLeaveBalancesAsync(
+            leave.StaffId,
+            annual,
+            sick,
+            casual,
+            "leave-approval");
+
+        if (!success)
+        {
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to update staff leave balance during approval" });
+            return error;
+        }
+
+        return null;
+    }
+
+    private static async Task<HttpResponseData> CreateInsufficientBalanceResponse(HttpRequestData req, string leaveType, double available, double requested)
+    {
+        var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+        await badReq.WriteAsJsonAsync(new
+        {
+            error = $"Insufficient {leaveType} leave balance",
+            available,
+            requested
+        });
+        return badReq;
+    }
+
+    private static double SumOverlapDaysByType(IEnumerable<LeaveRequest> leaves, string leaveType, DateTime monthStart, DateTime monthEnd)
     {
         return leaves
             .Where(l => string.Equals(l.LeaveType, leaveType, StringComparison.OrdinalIgnoreCase))
-            .Sum(l => GetOverlappingDays(l.StartDate, l.EndDate, monthStart, monthEnd));
+            .Sum(l => GetOverlappingUnits(l, monthStart, monthEnd));
     }
 
-    private static int GetOverlappingDays(DateTime rangeStart, DateTime rangeEnd, DateTime monthStart, DateTime monthEnd)
+    private static double GetOverlappingUnits(LeaveRequest leave, DateTime monthStart, DateTime monthEnd)
     {
-        var start = rangeStart.Date > monthStart.Date ? rangeStart.Date : monthStart.Date;
-        var end = rangeEnd.Date < monthEnd.Date ? rangeEnd.Date : monthEnd.Date;
-        return end < start ? 0 : (end - start).Days + 1;
+        var start = leave.StartDate.Date > monthStart.Date ? leave.StartDate.Date : monthStart.Date;
+        var end = leave.EndDate.Date < monthEnd.Date ? leave.EndDate.Date : monthEnd.Date;
+        if (end < start)
+        {
+            return 0;
+        }
+
+        if (leave.IsHalfDay)
+        {
+            return 0.5;
+        }
+
+        return (end - start).Days + 1;
     }
 
-    private static double GetMonthlyQuota(int annualBalance)
+    private static double GetLeaveUnits(DateTime startDate, DateTime endDate, bool isHalfDay)
+    {
+        if (isHalfDay)
+        {
+            return 0.5;
+        }
+
+        var days = (endDate.Date - startDate.Date).Days + 1;
+        return Math.Max(0, days);
+    }
+
+    private static double RoundLeaveBalance(double balance)
+    {
+        return Math.Round(Math.Max(0, balance), 2);
+    }
+
+    private static double GetMonthlyQuota(double annualBalance)
     {
         if (annualBalance <= 0)
         {
@@ -1091,7 +1236,7 @@ public class UpdateLeaveStatusRequest
 public class CreateMyLeaveRequestDto
 {
     [Required]
-    [AllowedValuesList("sick", "casual", "earned", "unpaid")]
+    [AllowedValuesList("earned")]
     public string LeaveType { get; set; } = string.Empty;
 
     [Required]
@@ -1099,6 +1244,8 @@ public class CreateMyLeaveRequestDto
 
     [Required]
     public DateTime EndDate { get; set; }
+
+    public bool IsHalfDay { get; set; }
 
     [Required]
     [StringLength(500)]

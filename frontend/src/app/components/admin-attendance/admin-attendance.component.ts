@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AttendanceService, Attendance, LeaveRequest } from '../../services/attendance.service';
+import { AttendanceService, Attendance, LeaveRequest, CreateLeaveRequest } from '../../services/attendance.service';
 import { StaffService } from '../../services/staff.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
@@ -33,7 +33,7 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
   reportData: Attendance[] = [];
 
   showLeaveModal = false;
-  leaveForm = { staffId: '', leaveType: 'casual', startDate: '', endDate: '', reason: '' };
+  leaveForm: CreateLeaveRequest = { staffId: '', leaveType: 'earned', startDate: '', endDate: '', isHalfDay: false, reason: '' };
 
   constructor(
     private attendanceService: AttendanceService,
@@ -77,7 +77,7 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
   }
 
   openLeaveModal() {
-    this.leaveForm = { staffId: '', leaveType: 'casual', startDate: '', endDate: '', reason: '' };
+    this.leaveForm = { staffId: '', leaveType: 'earned', startDate: '', endDate: '', isHalfDay: false, reason: '' };
     this.showLeaveModal = true;
   }
 
@@ -86,6 +86,18 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
       next: () => { this.uiStore.success('Leave request submitted'); this.showLeaveModal = false; this.loadData(); },
       error: () => this.uiStore.error('Failed to submit leave request')
     });
+  }
+
+  onLeaveStartDateChange(): void {
+    if (this.leaveForm.isHalfDay) {
+      this.leaveForm.endDate = this.leaveForm.startDate;
+    }
+  }
+
+  onHalfDayToggle(): void {
+    if (this.leaveForm.isHalfDay) {
+      this.leaveForm.endDate = this.leaveForm.startDate;
+    }
   }
 
   updateLeaveStatus(id: string, status: string) {

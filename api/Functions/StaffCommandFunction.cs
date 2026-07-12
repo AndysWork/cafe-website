@@ -899,9 +899,9 @@ public class UpdatePerformanceRatingRequest
 
 public class UpdateLeaveBalancesRequest
 {
-    public int AnnualLeave { get; set; }
-    public int SickLeave { get; set; }
-    public int CasualLeave { get; set; }
+    public double AnnualLeave { get; set; }
+    public double SickLeave { get; set; }
+    public double CasualLeave { get; set; }
 }
 
 public class SendStaffEmailRequest

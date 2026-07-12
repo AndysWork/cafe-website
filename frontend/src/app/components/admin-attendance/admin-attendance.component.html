@@ -79,7 +79,7 @@
         <tbody>
           <tr *ngFor="let l of leaveRequests; trackBy: trackById">
             <td class="fw-bold">{{ l.staffName }}</td>
-            <td>{{ l.leaveType }}</td>
+            <td>{{ l.leaveType }}<span *ngIf="l.isHalfDay"> (Half Day)</span></td>
             <td>{{ l.startDate | date:'mediumDate' }}</td>
             <td>{{ l.endDate | date:'mediumDate' }}</td>
             <td>{{ l.reason }}</td>
@@ -108,13 +108,18 @@
         </div>
         <div class="form-group"><label>Leave Type</label>
           <select [(ngModel)]="leaveForm.leaveType" name="leaveType">
-            <option value="casual">Casual</option><option value="sick">Sick</option>
-            <option value="earned">Earned</option><option value="unpaid">Unpaid</option>
+            <option value="earned">Earned</option>
           </select>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>From *</label><input type="date" [(ngModel)]="leaveForm.startDate" name="startDate" required></div>
-          <div class="form-group"><label>To *</label><input type="date" [(ngModel)]="leaveForm.endDate" name="endDate" required></div>
+          <div class="form-group"><label>From *</label><input type="date" [(ngModel)]="leaveForm.startDate" (ngModelChange)="onLeaveStartDateChange()" name="startDate" required></div>
+          <div class="form-group"><label>To *</label><input type="date" [(ngModel)]="leaveForm.endDate" [disabled]="!!leaveForm.isHalfDay" name="endDate" required></div>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" [(ngModel)]="leaveForm.isHalfDay" (ngModelChange)="onHalfDayToggle()" name="isHalfDay">
+            Half Day Leave
+          </label>
         </div>
         <div class="form-group"><label>Reason *</label><textarea [(ngModel)]="leaveForm.reason" name="reason" rows="3" required></textarea></div>
         <div class="modal-actions">

@@ -154,21 +154,25 @@
       <label>
         <span>Leave Type</span>
         <select [(ngModel)]="leaveForm.leaveType">
-          <option value="casual">Casual</option>
-          <option value="sick">Sick</option>
           <option value="earned">Earned</option>
-          <option value="unpaid">Unpaid</option>
         </select>
       </label>
       <label>
         <span>Start Date</span>
-        <input type="date" [(ngModel)]="leaveForm.startDate" />
+        <input type="date" [(ngModel)]="leaveForm.startDate" (ngModelChange)="onLeaveStartDateChange()" />
       </label>
       <label>
         <span>End Date</span>
-        <input type="date" [(ngModel)]="leaveForm.endDate" />
+        <input type="date" [(ngModel)]="leaveForm.endDate" [disabled]="leaveForm.isHalfDay" />
       </label>
     </div>
+
+    <label class="row" style="margin: 8px 0 14px; align-items: center; gap: 10px;">
+      <span class="label">Half Day</span>
+      <span class="value">
+        <input type="checkbox" [(ngModel)]="leaveForm.isHalfDay" (ngModelChange)="onHalfDayToggle()" />
+      </span>
+    </label>
 
     <label class="leave-reason">
       <span>Reason</span>
@@ -196,7 +200,7 @@
       </thead>
       <tbody>
         <tr *ngFor="let leave of myLeaves">
-          <td>{{ leave.leaveType }}</td>
+          <td>{{ leave.leaveType }}<span *ngIf="leave.isHalfDay"> (Half Day)</span></td>
           <td>{{ leave.startDate | date:'mediumDate' }}</td>
           <td>{{ leave.endDate | date:'mediumDate' }}</td>
           <td><span class="status" [class.approved]="leave.status === 'approved'" [class.rejected]="leave.status === 'rejected'">{{ leave.status }}</span></td>

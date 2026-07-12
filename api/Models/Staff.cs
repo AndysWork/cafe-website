@@ -139,13 +139,13 @@ public class Staff
 
     // Leave Balance
     [BsonElement("annualLeaveBalance")]
-    public int AnnualLeaveBalance { get; set; } = 0;
+    public double AnnualLeaveBalance { get; set; } = 0;
 
     [BsonElement("sickLeaveBalance")]
-    public int SickLeaveBalance { get; set; } = 0;
+    public double SickLeaveBalance { get; set; } = 0;
 
     [BsonElement("casualLeaveBalance")]
-    public int CasualLeaveBalance { get; set; } = 0;
+    public double CasualLeaveBalance { get; set; } = 0;
 }
 
 public class StaffShift

@@ -122,9 +122,10 @@ export interface LeaveRequest {
   id?: string;
   staffId: string;
   staffName?: string;
-  leaveType: 'casual' | 'sick' | 'earned' | 'unpaid';
+  leaveType: 'earned';
   startDate: string;
   endDate: string;
+  isHalfDay?: boolean;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   outletId?: string;
@@ -133,16 +134,18 @@ export interface LeaveRequest {
 
 export interface CreateLeaveRequest {
   staffId: string;
-  leaveType: string;
+  leaveType: 'earned';
   startDate: string;
   endDate: string;
+  isHalfDay?: boolean;
   reason: string;
 }
 
 export interface CreateMyLeaveRequest {
-  leaveType: 'casual' | 'sick' | 'earned' | 'unpaid';
+  leaveType: 'earned';
   startDate: string;
   endDate: string;
+  isHalfDay?: boolean;
   reason: string;
 }
 

@@ -128,6 +128,9 @@ public class LeaveRequest
     [BsonElement("endDate")]
     public DateTime EndDate { get; set; }
 
+    [BsonElement("isHalfDay")]
+    public bool IsHalfDay { get; set; }
+
     [BsonElement("reason")]
     public string Reason { get; set; } = string.Empty;
 
@@ -157,7 +160,7 @@ public class CreateLeaveRequestDto
     public string StaffId { get; set; } = string.Empty;
 
     [Required]
-    [AllowedValuesList("sick", "casual", "earned", "unpaid")]
+    [AllowedValuesList("earned")]
     public string LeaveType { get; set; } = string.Empty;
 
     [Required]
@@ -165,6 +168,8 @@ public class CreateLeaveRequestDto
 
     [Required]
     public DateTime EndDate { get; set; }
+
+    public bool IsHalfDay { get; set; }
 
     [Required] [StringLength(500)]
     public string Reason { get; set; } = string.Empty;
