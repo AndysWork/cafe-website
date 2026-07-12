@@ -368,6 +368,70 @@ $danger: #ff5252;
   &.error { color: $danger; background: rgba($danger, .06); }
 }
 
+.available-coupons {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.available-coupons-title {
+  font-size: .8rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.available-coupons-loading {
+  font-size: .82rem;
+  color: #64748b;
+}
+
+.available-coupons-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.coupon-chip {
+  border: 1px solid #bae6fd;
+  background: #e0f2fe;
+  color: #0c4a6e;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all .2s ease;
+
+  &:hover:not(:disabled) {
+    background: #bae6fd;
+    border-color: #7dd3fc;
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+  }
+}
+
+.coupon-chip-code {
+  font-size: .8rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.coupon-chip-meta {
+  font-size: .72rem;
+  font-weight: 600;
+  color: #0369a1;
+}
+
 /* Loyalty Section */
 .loyalty-section {
   margin-bottom: 24px; padding: 16px; background: rgba($primary, .03); border-radius: 12px; border: 1px solid rgba($primary, .1);

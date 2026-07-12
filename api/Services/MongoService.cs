@@ -8088,9 +8088,6 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var kitchenRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "admin",
-            "sysadmin",
-            "sys-admin",
-            "superadmin",
             "manager",
             "cook",
             "chef",

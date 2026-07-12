@@ -250,7 +250,7 @@ public class MenuFunction
         if (string.IsNullOrWhiteSpace(role)) return false;
 
         var normalized = role.Trim().ToLowerInvariant();
-        return normalized == "admin" || normalized == "sysadmin" || normalized == "sys-admin" || normalized == "superadmin";
+        return normalized == "admin";
     }
 
     private static bool IsVisibleToCustomers(bool? flag)

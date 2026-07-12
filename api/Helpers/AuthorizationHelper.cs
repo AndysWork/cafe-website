@@ -11,7 +11,7 @@ public static class AuthorizationHelper
         if (string.IsNullOrWhiteSpace(role)) return false;
 
         var normalized = role.Trim().ToLowerInvariant();
-        return normalized == "admin" || normalized == "sysadmin" || normalized == "sys-admin" || normalized == "superadmin";
+        return normalized == "admin";
     }
 
     public static async Task<(bool isAuthorized, string? userId, string? role, HttpResponseData? errorResponse)> 
@@ -145,7 +145,7 @@ public static class AuthorizationHelper
 
         var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.ToLowerInvariant();
-        var kitchenRoles = new[] { "admin", "sysadmin", "sys-admin", "superadmin", "manager", "cook", "chef", "sous-chef" };
+        var kitchenRoles = new[] { "admin", "manager", "cook", "chef", "sous-chef" };
 
         if (string.IsNullOrWhiteSpace(role) || !kitchenRoles.Contains(role))
         {

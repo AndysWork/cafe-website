@@ -275,6 +275,28 @@
           <div *ngIf="couponMessage" class="coupon-message" [class.success]="couponValid" [class.error]="!couponValid && couponMessage">
             {{ couponValid ? '✅' : '❌' }} {{ couponMessage }}
           </div>
+
+          <div class="available-coupons" *ngIf="loadingAvailableOffers || availableOffers.length > 0">
+            <div class="available-coupons-title">Available Coupons</div>
+
+            <div class="available-coupons-loading" *ngIf="loadingAvailableOffers">
+              Loading coupons...
+            </div>
+
+            <div class="available-coupons-list" *ngIf="!loadingAvailableOffers && availableOffers.length > 0">
+              <button
+                type="button"
+                class="coupon-chip"
+                *ngFor="let offer of availableOffers"
+                (click)="onAvailableCouponClick(offer.code)"
+                [disabled]="couponValid || validatingCoupon"
+                [title]="(offer.title || 'Offer') + ': ' + (offer.description || '')"
+              >
+                <span class="coupon-chip-code">{{ offer.code }}</span>
+                <span class="coupon-chip-meta" *ngIf="offer.minOrderAmount">Min ₹{{ offer.minOrderAmount }}</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Loyalty Points Section -->

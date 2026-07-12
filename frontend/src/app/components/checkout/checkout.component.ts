@@ -17,6 +17,7 @@ import { Subscription } from 'rxjs';
 import { getIstInputDate } from '../../utils/date-utils';
 import QRCode from 'qrcode';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { Offer } from '../../services/offers.service';
 
 @Component({
   selector: 'app-checkout',
@@ -78,6 +79,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   couponValid = false;
   validatingCoupon = false;
   appliedCouponOfferId = '';
+  availableOffers: Offer[] = [];
+  loadingAvailableOffers = false;
   private lastCouponValidationKey = '';
 
   // Loyalty state
@@ -169,6 +172,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.loadUpiRuntimeConfig();
     this.loadPendingPaymentRecovery();
     this.loadCheckoutDraft();
+    this.loadAvailableOffers();
     this.ensureSupportedPaymentMethod();
     this.refreshOutletSuggestions();
 
@@ -469,6 +473,33 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   // Coupon methods
+  loadAvailableOffers() {
+    this.loadingAvailableOffers = true;
+
+    this.offersService.getActiveOffers().subscribe({
+      next: (offers) => {
+        this.availableOffers = (offers || [])
+          .filter(offer => offer.isActive !== false && !!offer.code)
+          .sort((a, b) => ((a.title || '').localeCompare(b.title || '')));
+        this.loadingAvailableOffers = false;
+      },
+      error: () => {
+        this.availableOffers = [];
+        this.loadingAvailableOffers = false;
+      }
+    });
+  }
+
+  onAvailableCouponClick(code?: string) {
+    const normalizedCode = (code || '').trim().toUpperCase();
+    if (!normalizedCode || this.couponValid || this.validatingCoupon) {
+      return;
+    }
+
+    this.couponCode = normalizedCode;
+    this.couponMessage = '';
+  }
+
   applyCoupon() {
     const normalizedCouponCode = this.couponCode.trim().toUpperCase();
     if (!normalizedCouponCode) return;
