@@ -548,6 +548,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (item.WebPrice <= 0)
             item.WebPrice = item.ShopSellingPrice;
 
+        if (!item.IsVisibleToCustomers.HasValue)
+            item.IsVisibleToCustomers = true;
+
         item.CreatedDate = GetIstNow();
         item.LastUpdated = GetIstNow();
         await _menu.InsertOneAsync(item);
@@ -613,6 +616,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         updates.Add(updateBuilder.Set(x => x.ShopSellingPrice, item.ShopSellingPrice));
         updates.Add(updateBuilder.Set(x => x.WebPrice, item.WebPrice > 0 ? item.WebPrice : item.ShopSellingPrice));
         updates.Add(updateBuilder.Set(x => x.IsAvailable, item.IsAvailable));
+
+        if (item.IsVisibleToCustomers.HasValue)
+            updates.Add(updateBuilder.Set(x => x.IsVisibleToCustomers, item.IsVisibleToCustomers));
         
         var combinedUpdate = updateBuilder.Combine(updates);
         var result = await _menu.UpdateOneAsync(x => x.Id == id, combinedUpdate);
@@ -954,6 +960,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             FutureWebPrice = source.FutureWebPrice,
             ImageUrl = source.ImageUrl,
             ImageThumbnailUrl = source.ImageThumbnailUrl,
+            IsVisibleToCustomers = source.IsVisibleToCustomers ?? true,
             DietaryType = source.DietaryType,
             IsAvailable = true,
             Variants = source.Variants ?? new List<MenuItemVariant>(),
@@ -1223,6 +1230,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         category.Name = normalizedName;
 
+        if (!category.IsVisibleToCustomers.HasValue)
+            category.IsVisibleToCustomers = true;
+
         var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
         var duplicateFilter = Builders<MenuCategory>.Filter.And(
             Builders<MenuCategory>.Filter.Eq(x => x.OutletId, category.OutletId),
@@ -1341,6 +1351,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             throw new InvalidOperationException("Subcategory name is required.");
 
         subCategory.Name = normalizedName;
+
+        if (!subCategory.IsVisibleToCustomers.HasValue)
+            subCategory.IsVisibleToCustomers = true;
 
         var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
         var duplicateFilter = Builders<MenuSubCategory>.Filter.And(

@@ -1,21 +1,49 @@
 ﻿<div class="menu-mgmt">
-
   <!-- ───── Header ───── -->
   <div class="page-header">
     <div class="header-left">
       <h1 class="page-title">Menu Management</h1>
-      <p class="page-sub">Manage items, variants &amp; pricing across all outlets</p>
+      <p class="page-sub">
+        Manage items, variants &amp; pricing across all outlets
+      </p>
     </div>
     <div class="header-right">
-      <button class="btn btn-icon" (click)="refreshMenuItems()" [disabled]="loading" title="Refresh">
+      <!-- <button class="btn btn-icon" (click)="refreshMenuItems()" [disabled]="loading" title="Refresh">
         <span [class.spinning]="loading">🔄</span>
+      </button> -->
+      <button
+        class="btn btn-warn"
+        (click)="syncRecipePricesToMenu()"
+        [disabled]="loading || syncingRecipePrices"
+        title="Sync recipe prices"
+        aria-label="Sync recipe prices"
+      >
+        {{ syncingRecipePrices ? "⏳" : "🔁" }}
       </button>
-      <button class="btn btn-warn" (click)="syncRecipePricesToMenu()" [disabled]="loading || syncingRecipePrices">
-        {{ syncingRecipePrices ? '⏳ Syncing…' : '🔁 Sync Recipe Prices' }}
+      <button
+        class="btn btn-secondary"
+        (click)="openUploadModal()"
+        title="Upload Excel"
+        aria-label="Upload Excel"
+      >
+        📤
       </button>
-      <button class="btn btn-secondary" (click)="openUploadModal()">📤 Upload Excel</button>
-      <button class="btn btn-secondary" (click)="openCreateAddOnModal()">➕ Add Add-On Item</button>
-      <button class="btn btn-primary" (click)="openCreateModal()">➕ Add Item</button>
+      <button
+        class="btn btn-secondary"
+        (click)="openCreateAddOnModal()"
+        title="Add add-on item"
+        aria-label="Add add-on item"
+      >
+        🧩
+      </button>
+      <button
+        class="btn btn-primary"
+        (click)="openCreateModal()"
+        title="Add menu item"
+        aria-label="Add menu item"
+      >
+        ➕
+      </button>
     </div>
   </div>
 
@@ -23,16 +51,32 @@
   <div class="filter-bar">
     <div class="search-wrap">
       <span class="search-ico">🔍</span>
-      <input type="text" [(ngModel)]="searchTerm" placeholder="Search menu items…" class="search-inp" />
-      <button *ngIf="searchTerm" class="search-clear" (click)="searchTerm = ''">✕</button>
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        placeholder="Search menu items…"
+        class="search-inp"
+      />
+      <button *ngIf="searchTerm" class="search-clear" (click)="searchTerm = ''">
+        ✕
+      </button>
     </div>
 
     <select [(ngModel)]="filterCategory" class="cat-select">
       <option value="">All Categories</option>
-      <option *ngFor="let cat of categories; trackBy: trackByObjId" [value]="getCategoryKey(cat)">{{ cat.name }}</option>
+      <option
+        *ngFor="let cat of categories; trackBy: trackByObjId"
+        [value]="getCategoryKey(cat)"
+      >
+        {{ cat.name }}
+      </option>
     </select>
 
-    <span class="item-count">{{ visibleMenuItems.length }} item{{ visibleMenuItems.length !== 1 ? 's' : '' }}</span>
+    <span class="item-count"
+      >{{ visibleMenuItems.length }} item{{
+        visibleMenuItems.length !== 1 ? "s" : ""
+      }}</span
+    >
   </div>
 
   <div class="stock-tabs" *ngIf="menuItems.length > 0">
@@ -40,7 +84,8 @@
       type="button"
       class="stock-tab"
       [class.active]="activeStockTab === 'active'"
-      (click)="activeStockTab = 'active'">
+      (click)="activeStockTab = 'active'"
+    >
       Active Items
       <span class="tab-count">{{ activeMenuItems.length }}</span>
     </button>
@@ -48,7 +93,8 @@
       type="button"
       class="stock-tab"
       [class.active]="activeStockTab === 'outOfStock'"
-      (click)="activeStockTab = 'outOfStock'">
+      (click)="activeStockTab = 'outOfStock'"
+    >
       Out of Stock Items
       <span class="tab-count">{{ outOfStockMenuItems.length }}</span>
     </button>
@@ -61,156 +107,399 @@
   </div>
 
   <!-- ───── Empty States ───── -->
-  <div class="state-box" *ngIf="!loading && visibleMenuItems.length === 0 && menuItems.length > 0">
+  <div
+    class="state-box"
+    *ngIf="!loading && visibleMenuItems.length === 0 && menuItems.length > 0"
+  >
     <div class="empty-icon">🔍</div>
     <p>
-      {{ activeStockTab === 'active' ? 'No active items match your filters.' : 'No out of stock items match your filters.' }}
+      {{
+        activeStockTab === "active"
+          ? "No active items match your filters."
+          : "No out of stock items match your filters."
+      }}
     </p>
-    <button class="btn btn-secondary" (click)="searchTerm = ''; filterCategory = ''">Clear Filters</button>
+    <button
+      class="btn btn-secondary"
+      (click)="searchTerm = ''; filterCategory = ''"
+    >
+      Clear Filters
+    </button>
   </div>
 
   <div class="state-box" *ngIf="!loading && menuItems.length === 0">
     <div class="empty-icon">🍽️</div>
     <p>No menu items yet.</p>
-    <button class="btn btn-primary" (click)="openCreateModal()">➕ Add your first item</button>
+    <button class="btn btn-primary" (click)="openCreateModal()">
+      ➕ Add your first item
+    </button>
   </div>
 
-  <!-- ───── Cards Grid ───── -->
-  <div class="cards-grid" *ngIf="visibleMenuItems.length > 0">
-    <div class="menu-card" *ngFor="let item of visibleMenuItems; trackBy: trackByObjId"
-         [class.unavailable]="item.isAvailable === false">
-
-      <!-- Card Image -->
-      <div class="card-image">
-        <img *ngIf="item.imageThumbnailUrl || item.imageUrl" [src]="item.imageThumbnailUrl || item.imageUrl" [alt]="item.name" loading="lazy" />
-        <span *ngIf="!(item.imageThumbnailUrl || item.imageUrl)" class="img-placeholder">🍽️</span>
-        <span class="stock-pill" [class.out]="item.isAvailable === false">
-          {{ item.isAvailable !== false ? 'In Stock' : 'Out of Stock' }}
+  <!-- ───── Cards Accordion Grid ───── -->
+  <div class="admin-menu-accordion" *ngIf="visibleMenuItems.length > 0">
+    <section
+      class="admin-category-accordion"
+      *ngFor="let categoryGroup of groupedVisibleMenuItems; trackBy: trackByKey"
+    >
+      <button
+        type="button"
+        class="admin-category-accordion-head"
+        [attr.aria-expanded]="isCategoryAccordionExpanded(categoryGroup.key)"
+        (click)="toggleCategoryAccordion(categoryGroup.key)"
+      >
+        <span class="admin-category-title-wrap">
+          <span class="admin-category-title">{{ categoryGroup.name }}</span>
+          <span class="admin-category-count"
+            >{{ categoryGroup.itemCount }} items</span
+          >
+          <span
+            class="visibility-chip"
+            [class.hidden-to-customer]="!categoryGroup.isVisibleToCustomers"
+            [title]="categoryGroup.isVisibleToCustomers ? 'Visible to customers' : 'Hidden from customers'"
+            (click)="$event.stopPropagation(); toggleCategoryCustomerVisibility(categoryGroup)"
+          >
+            {{ categoryGroup.isVisibleToCustomers ? "👁️" : "🙈" }}
+          </span>
         </span>
-      </div>
+        <span class="admin-accordion-caret">{{
+          isCategoryAccordionExpanded(categoryGroup.key) ? "−" : "+"
+        }}</span>
+      </button>
 
-      <!-- Card Body -->
-      <div class="card-body">
-        <div class="card-top">
-          <div class="card-title-group">
-            <h3 class="item-name">{{ item.name }}</h3>
-            <div class="item-tags">
-              <span class="cat-pill">{{ item.category }}</span>
-              <span class="dietary-pill" [ngClass]="normalizeDietaryType(item.dietaryType)">{{ getDietaryLabel(item.dietaryType) }}</span>
-              <span class="cat-pill" *ngIf="item.isAddOnOnly">Add-On Only</span>
+      <div
+        class="admin-category-accordion-body"
+        *ngIf="isCategoryAccordionExpanded(categoryGroup.key)"
+      >
+        <section
+          class="admin-subcategory-accordion"
+          *ngFor="let subGroup of categoryGroup.subGroups; trackBy: trackByKey"
+        >
+          <button
+            type="button"
+            class="admin-subcategory-accordion-head"
+            [attr.aria-expanded]="
+              isSubCategoryAccordionExpanded(categoryGroup.key, subGroup.key)
+            "
+            (click)="
+              toggleSubCategoryAccordion(categoryGroup.key, subGroup.key)
+            "
+          >
+            <span class="admin-subcategory-title-wrap">
+              <span class="admin-subcategory-title">{{ subGroup.name }}</span>
+              <span
+                class="visibility-chip"
+                [class.hidden-to-customer]="!subGroup.isVisibleToCustomers"
+                [title]="subGroup.isVisibleToCustomers ? 'Visible to customers' : 'Hidden from customers'"
+                (click)="$event.stopPropagation(); toggleSubCategoryCustomerVisibility(subGroup)"
+              >
+                {{ subGroup.isVisibleToCustomers ? "👁️" : "🙈" }}
+              </span>
+            </span>
+            <span class="admin-subcategory-meta">
+              <span class="admin-subcategory-count">{{
+                subGroup.items.length
+              }}</span>
+              <span class="admin-accordion-caret">{{
+                isSubCategoryAccordionExpanded(categoryGroup.key, subGroup.key)
+                  ? "−"
+                  : "+"
+              }}</span>
+            </span>
+          </button>
+
+          <div
+            class="admin-subcategory-accordion-body"
+            *ngIf="
+              isSubCategoryAccordionExpanded(categoryGroup.key, subGroup.key)
+            "
+          >
+            <div class="cards-grid">
+              <div
+                class="menu-card"
+                *ngFor="let item of subGroup.items; trackBy: trackByObjId"
+                [class.unavailable]="item.isAvailable === false"
+              >
+                <!-- Card Image -->
+                <div class="card-image">
+                  <img
+                    *ngIf="item.imageThumbnailUrl || item.imageUrl"
+                    [src]="item.imageThumbnailUrl || item.imageUrl"
+                    [alt]="item.name"
+                    loading="lazy"
+                  />
+                  <span
+                    *ngIf="!(item.imageThumbnailUrl || item.imageUrl)"
+                    class="img-placeholder"
+                    >🍽️</span
+                  >
+                  <span
+                    class="stock-pill"
+                    [class.out]="item.isAvailable === false"
+                  >
+                    {{
+                      item.isAvailable !== false ? "In Stock" : "Out of Stock"
+                    }}
+                  </span>
+                </div>
+
+                <!-- Card Body -->
+                <div class="card-body">
+                  <div class="card-top">
+                    <div class="card-title-group">
+                      <h3 class="item-name">{{ item.name }}</h3>
+                      <div class="item-tags">
+                        <span class="cat-pill">{{ item.category }}</span>
+                        <span
+                          class="dietary-pill"
+                          [ngClass]="normalizeDietaryType(item.dietaryType)"
+                          >{{ getDietaryLabel(item.dietaryType) }}</span
+                        >
+                        <span class="cat-pill" *ngIf="item.isAddOnOnly"
+                          >Add-On Only</span
+                        >
+                      </div>
+                    </div>
+                    <div class="card-actions">
+                      <button
+                        class="icon-btn visibility-btn"
+                        (click)="toggleItemCustomerVisibility(item)"
+                        [title]="
+                          isVisibleToCustomers(item.isVisibleToCustomers)
+                            ? 'Hide from customers'
+                            : 'Show to customers'
+                        "
+                        [class.is-hidden]="!isVisibleToCustomers(item.isVisibleToCustomers)"
+                      >
+                        {{ isVisibleToCustomers(item.isVisibleToCustomers) ? "👁️" : "🙈" }}
+                      </button>
+                      <button
+                        class="icon-btn toggle-btn"
+                        (click)="toggleAvailability(item)"
+                        [title]="
+                          item.isAvailable !== false
+                            ? 'Mark Out of Stock'
+                            : 'Mark In Stock'
+                        "
+                        [class.is-out]="item.isAvailable !== false"
+                      >
+                        {{ item.isAvailable !== false ? "🚫" : "✅" }}
+                      </button>
+                      <button
+                        class="icon-btn edit-btn"
+                        (click)="openEditModal(item)"
+                        title="Edit"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        class="icon-btn del-btn"
+                        (click)="deleteMenuItem(item)"
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+
+                  <p class="item-desc" *ngIf="item.description">
+                    {{ item.description }}
+                  </p>
+
+                  <!-- Pricing row -->
+                  <div class="price-row">
+                    <div class="price-block">
+                      <span class="price-label">Web</span>
+                      <span class="price-val"
+                        >₹{{ item.webPrice || item.shopSellingPrice }}</span
+                      >
+                      <span
+                        class="future-price"
+                        *ngIf="
+                          item.futureWebPrice &&
+                          item.futureWebPrice !==
+                            (item.webPrice || item.shopSellingPrice)
+                        "
+                      >
+                        → ₹{{ item.futureWebPrice }}
+                        <span
+                          [class.up]="
+                            item.futureWebPrice >
+                            (item.webPrice || item.shopSellingPrice)
+                          "
+                          [class.dn]="
+                            item.futureWebPrice <
+                            (item.webPrice || item.shopSellingPrice)
+                          "
+                        >
+                          {{
+                            item.futureWebPrice >
+                            (item.webPrice || item.shopSellingPrice)
+                              ? "↑"
+                              : "↓"
+                          }}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="price-block">
+                      <span class="price-label">Online</span>
+                      <span class="price-val">₹{{ item.onlinePrice }}</span>
+                      <span
+                        class="future-price"
+                        *ngIf="
+                          item.futureOnlinePrice &&
+                          item.futureOnlinePrice !== item.onlinePrice
+                        "
+                      >
+                        → ₹{{ item.futureOnlinePrice }}
+                        <span
+                          [class.up]="item.futureOnlinePrice > item.onlinePrice"
+                          [class.dn]="item.futureOnlinePrice < item.onlinePrice"
+                        >
+                          {{
+                            item.futureOnlinePrice > item.onlinePrice
+                              ? "↑"
+                              : "↓"
+                          }}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="price-block">
+                      <span class="price-label">Shop</span>
+                      <span class="price-val"
+                        >₹{{ item.shopSellingPrice }}</span
+                      >
+                      <span
+                        class="future-price"
+                        *ngIf="
+                          item.futureShopPrice &&
+                          item.futureShopPrice !== item.shopSellingPrice
+                        "
+                      >
+                        → ₹{{ item.futureShopPrice }}
+                        <span
+                          [class.up]="
+                            item.futureShopPrice > item.shopSellingPrice
+                          "
+                          [class.dn]="
+                            item.futureShopPrice < item.shopSellingPrice
+                          "
+                        >
+                          {{
+                            item.futureShopPrice > item.shopSellingPrice
+                              ? "↑"
+                              : "↓"
+                          }}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="price-block" *ngIf="item.packagingCharge">
+                      <span class="price-label">Pkg</span>
+                      <span class="price-val secondary"
+                        >₹{{ item.packagingCharge }}</span
+                      >
+                    </div>
+                  </div>
+
+                  <!-- Variants -->
+                  <div
+                    class="variants-wrap"
+                    *ngIf="item.variants && item.variants.length > 0"
+                  >
+                    <span class="variants-label">Variants</span>
+                    <div class="variant-chips">
+                      <span
+                        class="v-chip"
+                        *ngFor="let v of item.variants; trackBy: trackByIndex"
+                      >
+                        {{ v.variantName }} <strong>₹{{ v.price }}</strong
+                        ><em *ngIf="v.quantity"> ({{ v.quantity }})</em>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    class="variants-wrap"
+                    *ngIf="item.addOns && item.addOns.length > 0"
+                  >
+                    <span class="variants-label">Add-Ons</span>
+                    <div class="variant-chips">
+                      <span
+                        class="v-chip"
+                        *ngFor="let a of item.addOns; trackBy: trackByIndex"
+                      >
+                        {{ a.name }} <strong>+₹{{ a.price }}</strong>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="card-actions">
-            <button class="icon-btn toggle-btn"
-              (click)="toggleAvailability(item)"
-              [title]="item.isAvailable !== false ? 'Mark Out of Stock' : 'Mark In Stock'"
-              [class.is-out]="item.isAvailable !== false">
-              {{ item.isAvailable !== false ? '🚫' : '✅' }}
-            </button>
-            <button class="icon-btn edit-btn" (click)="openEditModal(item)" title="Edit">✏️</button>
-            <button class="icon-btn del-btn" (click)="deleteMenuItem(item)" title="Delete">🗑️</button>
-          </div>
-        </div>
-
-        <p class="item-desc" *ngIf="item.description">{{ item.description }}</p>
-
-        <!-- Pricing row -->
-        <div class="price-row">
-          <div class="price-block">
-            <span class="price-label">Web</span>
-            <span class="price-val">₹{{ item.webPrice || item.shopSellingPrice }}</span>
-            <span class="future-price" *ngIf="item.futureWebPrice && item.futureWebPrice !== (item.webPrice || item.shopSellingPrice)">
-              → ₹{{ item.futureWebPrice }}
-              <span [class.up]="item.futureWebPrice > (item.webPrice || item.shopSellingPrice)"
-                    [class.dn]="item.futureWebPrice < (item.webPrice || item.shopSellingPrice)">
-                {{ item.futureWebPrice > (item.webPrice || item.shopSellingPrice) ? '↑' : '↓' }}
-              </span>
-            </span>
-          </div>
-          <div class="price-block">
-            <span class="price-label">Online</span>
-            <span class="price-val">₹{{ item.onlinePrice }}</span>
-            <span class="future-price" *ngIf="item.futureOnlinePrice && item.futureOnlinePrice !== item.onlinePrice">
-              → ₹{{ item.futureOnlinePrice }}
-              <span [class.up]="item.futureOnlinePrice > item.onlinePrice"
-                    [class.dn]="item.futureOnlinePrice < item.onlinePrice">
-                {{ item.futureOnlinePrice > item.onlinePrice ? '↑' : '↓' }}
-              </span>
-            </span>
-          </div>
-          <div class="price-block">
-            <span class="price-label">Shop</span>
-            <span class="price-val">₹{{ item.shopSellingPrice }}</span>
-            <span class="future-price" *ngIf="item.futureShopPrice && item.futureShopPrice !== item.shopSellingPrice">
-              → ₹{{ item.futureShopPrice }}
-              <span [class.up]="item.futureShopPrice > item.shopSellingPrice"
-                    [class.dn]="item.futureShopPrice < item.shopSellingPrice">
-                {{ item.futureShopPrice > item.shopSellingPrice ? '↑' : '↓' }}
-              </span>
-            </span>
-          </div>
-          <div class="price-block" *ngIf="item.packagingCharge">
-            <span class="price-label">Pkg</span>
-            <span class="price-val secondary">₹{{ item.packagingCharge }}</span>
-          </div>
-        </div>
-
-        <!-- Variants -->
-        <div class="variants-wrap" *ngIf="item.variants && item.variants.length > 0">
-          <span class="variants-label">Variants</span>
-          <div class="variant-chips">
-            <span class="v-chip" *ngFor="let v of item.variants; trackBy: trackByIndex">
-              {{ v.variantName }} <strong>₹{{ v.price }}</strong><em *ngIf="v.quantity"> ({{ v.quantity }})</em>
-            </span>
-          </div>
-        </div>
-
-        <div class="variants-wrap" *ngIf="item.addOns && item.addOns.length > 0">
-          <span class="variants-label">Add-Ons</span>
-          <div class="variant-chips">
-            <span class="v-chip" *ngFor="let a of item.addOns; trackBy: trackByIndex">
-              {{ a.name }} <strong>+₹{{ a.price }}</strong>
-            </span>
-          </div>
-        </div>
+        </section>
       </div>
-    </div>
+    </section>
   </div>
 
   <!-- ───── Add / Edit Modal ───── -->
   <div class="overlay" *ngIf="showModal" (click)="closeModal()">
     <div class="modal edit-modal" (click)="$event.stopPropagation()">
-
       <div class="modal-head">
-        <h2>{{ isEditMode ? '✏️ Edit Item' : '➕ Add Menu Item' }}</h2>
+        <h2>{{ isEditMode ? "✏️ Edit Item" : "➕ Add Menu Item" }}</h2>
         <button class="close-btn" (click)="closeModal()">✕</button>
       </div>
 
       <div class="modal-body">
         <form class="mform">
-
           <!-- Name -->
           <div class="fg full">
             <label>Item Name <span class="req">*</span></label>
-            <input type="text" [(ngModel)]="formData.name" name="name" placeholder="e.g. Cappuccino" required />
+            <input
+              type="text"
+              [(ngModel)]="formData.name"
+              name="name"
+              placeholder="e.g. Cappuccino"
+              required
+            />
           </div>
 
           <!-- Category + SubCategory -->
           <div class="fg-row two-col">
             <div class="fg">
               <label>Category <span class="req">*</span></label>
-              <select [(ngModel)]="formData.categoryId" name="categoryId"
-                      (change)="onCategoryChange(formData.categoryId!)" required>
+              <select
+                [(ngModel)]="formData.categoryId"
+                name="categoryId"
+                (change)="onCategoryChange(formData.categoryId!)"
+                required
+              >
                 <option value="">Select Category</option>
-                <option *ngFor="let cat of categories; trackBy: trackByObjId" [value]="getCategoryKey(cat)">{{ cat.name }}</option>
+                <option
+                  *ngFor="let cat of categories; trackBy: trackByObjId"
+                  [value]="getCategoryKey(cat)"
+                >
+                  {{ cat.name }}
+                </option>
               </select>
             </div>
             <div class="fg">
               <label>Sub Category</label>
-              <select [(ngModel)]="formData.subCategoryId" name="subCategoryId"
-                      [disabled]="!formData.categoryId || filteredSubCategories.length === 0">
+              <select
+                [(ngModel)]="formData.subCategoryId"
+                name="subCategoryId"
+                [disabled]="
+                  !formData.categoryId || filteredSubCategories.length === 0
+                "
+              >
                 <option [ngValue]="undefined">– None –</option>
-                <option *ngFor="let sc of filteredSubCategories; trackBy: trackByObjId" [value]="getSubCategoryKey(sc)">{{ sc.name }}</option>
+                <option
+                  *ngFor="
+                    let sc of filteredSubCategories;
+                    trackBy: trackByObjId
+                  "
+                  [value]="getSubCategoryKey(sc)"
+                >
+                  {{ sc.name }}
+                </option>
               </select>
             </div>
           </div>
@@ -218,8 +507,12 @@
           <!-- Description -->
           <div class="fg full">
             <label>Description</label>
-            <textarea [(ngModel)]="formData.description" name="description" rows="2"
-                      placeholder="Brief description of the item…"></textarea>
+            <textarea
+              [(ngModel)]="formData.description"
+              name="description"
+              rows="2"
+              placeholder="Brief description of the item…"
+            ></textarea>
           </div>
 
           <!-- Dietary Type -->
@@ -235,7 +528,11 @@
 
           <div class="fg full">
             <label class="check-label">
-              <input type="checkbox" [(ngModel)]="formData.isAddOnOnly" name="isAddOnOnly" />
+              <input
+                type="checkbox"
+                [(ngModel)]="formData.isAddOnOnly"
+                name="isAddOnOnly"
+              />
               <span>Add-On Only (hide from customer main menu)</span>
             </label>
           </div>
@@ -247,10 +544,26 @@
               <div *ngIf="imagePreview" class="img-preview">
                 <img [src]="imagePreview" alt="Preview" />
                 <div class="img-actions">
-                  <button type="button" class="btn btn-sm btn-danger" (click)="removeImage()" *ngIf="imageFile">✕ Remove</button>
-                  <button type="button" class="btn btn-sm btn-danger" (click)="deleteExistingImage()"
-                          *ngIf="!imageFile && isEditMode && selectedItem?.imageUrl" [disabled]="uploadingImage">🗑️ Delete</button>
-                  <label for="imgInput" class="btn btn-sm btn-secondary">📷 Change</label>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-danger"
+                    (click)="removeImage()"
+                    *ngIf="imageFile"
+                  >
+                    ✕ Remove
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-danger"
+                    (click)="deleteExistingImage()"
+                    *ngIf="!imageFile && isEditMode && selectedItem?.imageUrl"
+                    [disabled]="uploadingImage"
+                  >
+                    🗑️ Delete
+                  </button>
+                  <label for="imgInput" class="btn btn-sm btn-secondary"
+                    >📷 Change</label
+                  >
                 </div>
               </div>
               <div *ngIf="!imagePreview" class="img-placeholder-area">
@@ -259,8 +572,13 @@
                 </label>
                 <p class="hint">JPEG, PNG, WebP, GIF — max 5 MB</p>
               </div>
-              <input type="file" id="imgInput" accept="image/jpeg,image/png,image/webp,image/gif"
-                     (change)="onImageSelected($event)" style="display:none" />
+              <input
+                type="file"
+                id="imgInput"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                (change)="onImageSelected($event)"
+                style="display: none"
+              />
             </div>
           </div>
 
@@ -270,58 +588,150 @@
           <div class="fg-row">
             <div class="fg">
               <label>Online Price <span class="req">*</span></label>
-              <input type="number" [(ngModel)]="formData.onlinePrice" name="onlinePrice" placeholder="0.00" step="0.01" required />
+              <input
+                type="number"
+                [(ngModel)]="formData.onlinePrice"
+                name="onlinePrice"
+                placeholder="0.00"
+                step="0.01"
+                required
+              />
             </div>
             <div class="fg">
               <label>Shop Price</label>
-              <input type="number" [(ngModel)]="formData.shopSellingPrice" name="shopSellingPrice" placeholder="0.00" step="0.01" />
+              <input
+                type="number"
+                [(ngModel)]="formData.shopSellingPrice"
+                name="shopSellingPrice"
+                placeholder="0.00"
+                step="0.01"
+              />
             </div>
             <div class="fg">
               <label>Web Price</label>
-              <input type="number" [(ngModel)]="formData.webPrice" name="webPrice" placeholder="0.00" step="0.01" />
+              <input
+                type="number"
+                [(ngModel)]="formData.webPrice"
+                name="webPrice"
+                placeholder="0.00"
+                step="0.01"
+              />
             </div>
           </div>
 
           <div class="fg-row two-col">
             <div class="fg">
               <label>Making Price</label>
-              <input type="number" [(ngModel)]="formData.makingPrice" name="makingPrice" placeholder="0.00" step="0.01" />
+              <input
+                type="number"
+                [(ngModel)]="formData.makingPrice"
+                name="makingPrice"
+                placeholder="0.00"
+                step="0.01"
+              />
             </div>
             <div class="fg">
               <label>Packaging Charge</label>
-              <input type="number" [(ngModel)]="formData.packagingCharge" name="packagingCharge" placeholder="0.00" step="0.01" />
+              <input
+                type="number"
+                [(ngModel)]="formData.packagingCharge"
+                name="packagingCharge"
+                placeholder="0.00"
+                step="0.01"
+              />
             </div>
           </div>
 
           <!-- Future Prices -->
           <div class="future-section">
-            <div class="future-label">📅 Future Pricing <small>(optional)</small></div>
+            <div class="future-label">
+              📅 Future Pricing <small>(optional)</small>
+            </div>
             <div class="fg-row">
               <div class="fg">
                 <label>Future Web Price</label>
-                <input type="number" [(ngModel)]="formData.futureWebPrice" name="futureWebPrice" placeholder="0.00" step="0.01" />
-                <small *ngIf="formData.futureWebPrice && (formData.webPrice || formData.shopSellingPrice)" class="price-diff"
-                       [class.pos]="(formData.futureWebPrice - (formData.webPrice || formData.shopSellingPrice || 0)) > 0"
-                       [class.neg]="(formData.futureWebPrice - (formData.webPrice || formData.shopSellingPrice || 0)) < 0">
-                  Δ ₹{{ (formData.futureWebPrice - (formData.webPrice || formData.shopSellingPrice || 0)).toFixed(2) }}
+                <input
+                  type="number"
+                  [(ngModel)]="formData.futureWebPrice"
+                  name="futureWebPrice"
+                  placeholder="0.00"
+                  step="0.01"
+                />
+                <small
+                  *ngIf="
+                    formData.futureWebPrice &&
+                    (formData.webPrice || formData.shopSellingPrice)
+                  "
+                  class="price-diff"
+                  [class.pos]="
+                    formData.futureWebPrice -
+                      (formData.webPrice || formData.shopSellingPrice || 0) >
+                    0
+                  "
+                  [class.neg]="
+                    formData.futureWebPrice -
+                      (formData.webPrice || formData.shopSellingPrice || 0) <
+                    0
+                  "
+                >
+                  Δ ₹{{
+                    (
+                      formData.futureWebPrice -
+                      (formData.webPrice || formData.shopSellingPrice || 0)
+                    ).toFixed(2)
+                  }}
                 </small>
               </div>
               <div class="fg">
                 <label>Future Online Price</label>
-                <input type="number" [(ngModel)]="formData.futureOnlinePrice" name="futureOnlinePrice" placeholder="0.00" step="0.01" />
-                <small *ngIf="formData.futureOnlinePrice && formData.onlinePrice" class="price-diff"
-                       [class.pos]="(formData.futureOnlinePrice - formData.onlinePrice) > 0"
-                       [class.neg]="(formData.futureOnlinePrice - formData.onlinePrice) < 0">
-                  Δ ₹{{ (formData.futureOnlinePrice - formData.onlinePrice).toFixed(2) }}
+                <input
+                  type="number"
+                  [(ngModel)]="formData.futureOnlinePrice"
+                  name="futureOnlinePrice"
+                  placeholder="0.00"
+                  step="0.01"
+                />
+                <small
+                  *ngIf="formData.futureOnlinePrice && formData.onlinePrice"
+                  class="price-diff"
+                  [class.pos]="
+                    formData.futureOnlinePrice - formData.onlinePrice > 0
+                  "
+                  [class.neg]="
+                    formData.futureOnlinePrice - formData.onlinePrice < 0
+                  "
+                >
+                  Δ ₹{{
+                    (formData.futureOnlinePrice - formData.onlinePrice).toFixed(
+                      2
+                    )
+                  }}
                 </small>
               </div>
               <div class="fg">
                 <label>Future Shop Price</label>
-                <input type="number" [(ngModel)]="formData.futureShopPrice" name="futureShopPrice" placeholder="0.00" step="0.01" />
-                <small *ngIf="formData.futureShopPrice && formData.shopSellingPrice" class="price-diff"
-                       [class.pos]="(formData.futureShopPrice - formData.shopSellingPrice) > 0"
-                       [class.neg]="(formData.futureShopPrice - formData.shopSellingPrice) < 0">
-                  Δ ₹{{ (formData.futureShopPrice - formData.shopSellingPrice).toFixed(2) }}
+                <input
+                  type="number"
+                  [(ngModel)]="formData.futureShopPrice"
+                  name="futureShopPrice"
+                  placeholder="0.00"
+                  step="0.01"
+                />
+                <small
+                  *ngIf="formData.futureShopPrice && formData.shopSellingPrice"
+                  class="price-diff"
+                  [class.pos]="
+                    formData.futureShopPrice - formData.shopSellingPrice > 0
+                  "
+                  [class.neg]="
+                    formData.futureShopPrice - formData.shopSellingPrice < 0
+                  "
+                >
+                  Δ ₹{{
+                    (
+                      formData.futureShopPrice - formData.shopSellingPrice
+                    ).toFixed(2)
+                  }}
                 </small>
               </div>
             </div>
@@ -330,54 +740,144 @@
           <!-- Variants -->
           <div class="section-divider">Variants</div>
           <div class="variant-form">
-            <input type="text" [(ngModel)]="newVariant.variantName" name="vName" placeholder="Name (e.g. 250ml)" />
-            <input type="number" [(ngModel)]="newVariant.price" name="vPrice" placeholder="Price" step="0.01" />
-            <input type="number" [(ngModel)]="newVariant.quantity" name="vQty" placeholder="Qty (opt.)" />
-            <button type="button" class="btn btn-primary" (click)="addVariant()">➕ Add</button>
+            <input
+              type="text"
+              [(ngModel)]="newVariant.variantName"
+              name="vName"
+              placeholder="Name (e.g. 250ml)"
+            />
+            <input
+              type="number"
+              [(ngModel)]="newVariant.price"
+              name="vPrice"
+              placeholder="Price"
+              step="0.01"
+            />
+            <input
+              type="number"
+              [(ngModel)]="newVariant.quantity"
+              name="vQty"
+              placeholder="Qty (opt.)"
+            />
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="addVariant()"
+            >
+              ➕ Add
+            </button>
           </div>
 
-          <div class="variant-chips-edit" *ngIf="formData.variants && formData.variants.length > 0">
-            <div class="v-chip editable" *ngFor="let v of formData.variants; let i = index; trackBy: trackByIndex">
-              <span>{{ v.variantName }} — ₹{{ v.price }}<em *ngIf="v.quantity"> ({{ v.quantity }})</em></span>
+          <div
+            class="variant-chips-edit"
+            *ngIf="formData.variants && formData.variants.length > 0"
+          >
+            <div
+              class="v-chip editable"
+              *ngFor="
+                let v of formData.variants;
+                let i = index;
+                trackBy: trackByIndex
+              "
+            >
+              <span
+                >{{ v.variantName }} — ₹{{ v.price
+                }}<em *ngIf="v.quantity"> ({{ v.quantity }})</em></span
+              >
               <button type="button" (click)="removeVariant(i)">✕</button>
             </div>
           </div>
 
           <div class="section-divider">Add-Ons</div>
           <div class="variant-form existing-addon-row">
-            <select [(ngModel)]="selectedExistingAddOnItemId" name="existingAddOnItemId">
+            <select
+              [(ngModel)]="selectedExistingAddOnItemId"
+              name="existingAddOnItemId"
+            >
               <option value="">Select existing menu item as add-on</option>
-              <option *ngFor="let m of addOnCandidateItems; trackBy: trackByObjId" [value]="m.id">
-                {{ m.name }} - ₹{{ m.webPrice || m.shopSellingPrice || m.onlinePrice || 0 }}
+              <option
+                *ngFor="let m of addOnCandidateItems; trackBy: trackByObjId"
+                [value]="m.id"
+              >
+                {{ m.name }} - ₹{{
+                  m.webPrice || m.shopSellingPrice || m.onlinePrice || 0
+                }}
               </option>
             </select>
-            <button type="button" class="btn btn-secondary" (click)="addExistingItemAsAddOn()">Add From Existing</button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="addExistingItemAsAddOn()"
+            >
+              Add From Existing
+            </button>
           </div>
 
           <div class="variant-form">
-            <input type="text" [(ngModel)]="newAddOn.name" name="aName" placeholder="Add-on name (e.g. Extra Cheese)" />
-            <input type="number" [(ngModel)]="newAddOn.price" name="aPrice" placeholder="Price" step="0.01" />
+            <input
+              type="text"
+              [(ngModel)]="newAddOn.name"
+              name="aName"
+              placeholder="Add-on name (e.g. Extra Cheese)"
+            />
+            <input
+              type="number"
+              [(ngModel)]="newAddOn.price"
+              name="aPrice"
+              placeholder="Price"
+              step="0.01"
+            />
             <label class="check-label">
-              <input type="checkbox" [(ngModel)]="newAddOn.isActive" name="aIsActive" />
+              <input
+                type="checkbox"
+                [(ngModel)]="newAddOn.isActive"
+                name="aIsActive"
+              />
               <span>Active</span>
             </label>
-            <button type="button" class="btn btn-primary" (click)="addAddOn()">➕ Add</button>
+            <button type="button" class="btn btn-primary" (click)="addAddOn()">
+              ➕ Add
+            </button>
           </div>
 
-          <div class="variant-chips-edit" *ngIf="formData.addOns && formData.addOns.length > 0">
-            <div class="v-chip editable" *ngFor="let a of formData.addOns; let i = index; trackBy: trackByIndex">
-              <span>{{ a.name }} — +₹{{ a.price }}<em *ngIf="a.isActive === false"> (inactive)</em></span>
+          <div
+            class="variant-chips-edit"
+            *ngIf="formData.addOns && formData.addOns.length > 0"
+          >
+            <div
+              class="v-chip editable"
+              *ngFor="
+                let a of formData.addOns;
+                let i = index;
+                trackBy: trackByIndex
+              "
+            >
+              <span
+                >{{ a.name }} — +₹{{ a.price
+                }}<em *ngIf="a.isActive === false"> (inactive)</em></span
+              >
               <button type="button" (click)="removeAddOn(i)">✕</button>
             </div>
           </div>
-
         </form>
       </div>
 
       <div class="modal-foot">
         <button class="btn btn-ghost" (click)="closeModal()">Cancel</button>
-        <button class="btn btn-primary" (click)="saveMenuItem()" [disabled]="loading || uploadingImage">
-          {{ uploadingImage ? '⏳ Uploading…' : loading ? '⏳ Saving…' : isEditMode ? '💾 Update' : '✅ Create' }}
+        <button
+          class="btn btn-primary"
+          (click)="saveMenuItem()"
+          [disabled]="loading || uploadingImage"
+        >
+          {{
+            uploadingImage
+              ? "⏳ Uploading…"
+              : loading
+                ? "⏳ Saving…"
+                : isEditMode
+                  ? "💾 Update"
+                  : "✅ Create"
+          }}
         </button>
       </div>
     </div>
@@ -386,7 +886,6 @@
   <!-- ───── Upload Modal ───── -->
   <div class="overlay" *ngIf="showUploadModal" (click)="closeUploadModal()">
     <div class="modal upload-modal" (click)="$event.stopPropagation()">
-
       <div class="modal-head">
         <h2>📤 Upload Menu Items</h2>
         <button class="close-btn" (click)="closeUploadModal()">✕</button>
@@ -397,19 +896,44 @@
         <div class="upload-hint-box">
           <p class="hint-title">📋 Required Excel columns:</p>
           <div class="col-tags">
-            <span *ngFor="let c of ['category_name','subcategory_name','catalogue_name','variant_name','current_price','description']">{{ c }}</span>
+            <span
+              *ngFor="
+                let c of [
+                  'category_name',
+                  'subcategory_name',
+                  'catalogue_name',
+                  'variant_name',
+                  'current_price',
+                  'description',
+                ]
+              "
+              >{{ c }}</span
+            >
           </div>
-          <button class="btn btn-sm btn-secondary" (click)="downloadTemplate()">📥 Download Template</button>
+          <button class="btn btn-sm btn-secondary" (click)="downloadTemplate()">
+            📥 Download Template
+          </button>
         </div>
 
         <!-- Drop Zone -->
-        <div class="drop-zone" [class.active]="dragOver"
-             (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+        <div
+          class="drop-zone"
+          [class.active]="dragOver"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+        >
           <div *ngIf="!selectedFile" class="drop-prompt">
             <div class="drop-ico">📁</div>
             <p>Drag &amp; drop an Excel file, or</p>
             <label for="uploadInput" class="btn btn-primary">Browse File</label>
-            <input type="file" id="uploadInput" accept=".xlsx,.xls" (change)="onFileSelected($event)" style="display:none" />
+            <input
+              type="file"
+              id="uploadInput"
+              accept=".xlsx,.xls"
+              (change)="onFileSelected($event)"
+              style="display: none"
+            />
             <p class="hint">.xlsx / .xls supported</p>
           </div>
           <div *ngIf="selectedFile" class="file-chip">
@@ -418,47 +942,75 @@
               <strong>{{ selectedFile.name }}</strong>
               <small>{{ (selectedFile.size / 1024).toFixed(2) }} KB</small>
             </div>
-            <button class="icon-btn" (click)="clearUploadSelection()" [disabled]="uploading">✕</button>
+            <button
+              class="icon-btn"
+              (click)="clearUploadSelection()"
+              [disabled]="uploading"
+            >
+              ✕
+            </button>
           </div>
         </div>
 
         <!-- Options -->
         <div class="upload-opts" *ngIf="selectedFile">
           <label class="check-label">
-            <input type="checkbox" [(ngModel)]="clearExisting" [disabled]="uploading" />
+            <input
+              type="checkbox"
+              [(ngModel)]="clearExisting"
+              [disabled]="uploading"
+            />
             <span>Clear existing menu items before upload</span>
           </label>
           <p class="warn-hint">⚠️ This will delete all current menu items</p>
         </div>
 
         <div class="upload-act" *ngIf="selectedFile">
-          <button class="btn btn-primary" (click)="uploadFile()" [disabled]="uploading">
-            {{ uploading ? '⏳ Uploading…' : '🚀 Upload Menu Items' }}
+          <button
+            class="btn btn-primary"
+            (click)="uploadFile()"
+            [disabled]="uploading"
+          >
+            {{ uploading ? "⏳ Uploading…" : "🚀 Upload Menu Items" }}
           </button>
         </div>
 
         <!-- Error -->
-        <div class="alert-box error" *ngIf="uploadError">⚠️ {{ uploadError }}</div>
+        <div class="alert-box error" *ngIf="uploadError">
+          ⚠️ {{ uploadError }}
+        </div>
 
         <!-- Result -->
         <div class="upload-result" *ngIf="uploadResult">
           <div class="result-head">✅ Upload Successful!</div>
           <p>{{ uploadResult.message }}</p>
           <div class="result-stats">
-            <div class="stat-item"><strong>{{ uploadResult.processedItems }}</strong><span>Processed</span></div>
-            <div class="stat-item"><strong>{{ uploadResult.savedItems }}</strong><span>Saved</span></div>
+            <div class="stat-item">
+              <strong>{{ uploadResult.processedItems }}</strong
+              ><span>Processed</span>
+            </div>
+            <div class="stat-item">
+              <strong>{{ uploadResult.savedItems }}</strong
+              ><span>Saved</span>
+            </div>
           </div>
           <div *ngIf="uploadResult.errors?.length > 0" class="errors-box">
             <h4>⚠️ Errors ({{ uploadResult.errors.length }})</h4>
-            <div class="err-item" *ngFor="let e of uploadResult.errors; trackBy: trackByIndex">{{ e }}</div>
+            <div
+              class="err-item"
+              *ngFor="let e of uploadResult.errors; trackBy: trackByIndex"
+            >
+              {{ e }}
+            </div>
           </div>
         </div>
       </div>
 
       <div class="modal-foot">
-        <button class="btn btn-ghost" (click)="closeUploadModal()">Close</button>
+        <button class="btn btn-ghost" (click)="closeUploadModal()">
+          Close
+        </button>
       </div>
     </div>
   </div>
-
 </div>

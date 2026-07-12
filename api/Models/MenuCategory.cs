@@ -18,6 +18,9 @@ public class MenuCategory : ISoftDeletable
     [BsonRepresentation(BsonType.ObjectId)]
     public string OutletId { get; set; } = string.Empty; // Multi-outlet support
 
+    [BsonElement("isVisibleToCustomers")]
+    public bool? IsVisibleToCustomers { get; set; } = true;
+
     // Soft-delete support
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }

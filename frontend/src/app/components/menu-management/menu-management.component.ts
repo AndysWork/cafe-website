@@ -46,6 +46,7 @@ interface MenuItem {
   isAvailable?: boolean;
   imageUrl?: string;
   imageThumbnailUrl?: string;
+  isVisibleToCustomers?: boolean;
   createdBy: string;
   createdDate: string;
   lastUpdatedBy: string;
@@ -56,6 +57,7 @@ interface Category {
   id?: string;
   _id?: string;
   name: string;
+  isVisibleToCustomers?: boolean;
 }
 
 interface SubCategory {
@@ -63,6 +65,24 @@ interface SubCategory {
   _id?: string;
   categoryId: string;
   name: string;
+  isVisibleToCustomers?: boolean;
+}
+
+interface AdminSubCategoryAccordionGroup {
+  key: string;
+  name: string;
+  subCategoryId?: string;
+  isVisibleToCustomers: boolean;
+  items: MenuItem[];
+}
+
+interface AdminCategoryAccordionGroup {
+  key: string;
+  name: string;
+  categoryId?: string;
+  isVisibleToCustomers: boolean;
+  itemCount: number;
+  subGroups: AdminSubCategoryAccordionGroup[];
 }
 
 @Component({
@@ -94,6 +114,8 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
   searchTerm = '';
   filterCategory = '';
   activeStockTab: 'active' | 'outOfStock' = 'active';
+  private collapsedCategoryAccordionKeys: Set<string> = new Set();
+  private collapsedSubCategoryAccordionKeys: Set<string> = new Set();
 
   // Upload properties
   selectedFile: File | null = null;
@@ -329,6 +351,123 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
   get visibleMenuItems(): MenuItem[] {
     return this.activeStockTab === 'active' ? this.activeMenuItems : this.outOfStockMenuItems;
+  }
+
+  get groupedVisibleMenuItems(): AdminCategoryAccordionGroup[] {
+    const categoryMap = new Map<string, {
+      key: string;
+      name: string;
+      categoryId?: string;
+      items: MenuItem[];
+      subMap: Map<string, AdminSubCategoryAccordionGroup>;
+    }>();
+
+    for (const item of this.visibleMenuItems) {
+      const categoryKey = this.normalizeToken(item.categoryId) || `name:${this.normalizeToken(item.category) || 'uncategorized'}`;
+      const categoryName = item.category || this.getCategoryNameByKey(item.categoryId) || 'Uncategorized';
+
+      if (!categoryMap.has(categoryKey)) {
+        categoryMap.set(categoryKey, {
+          key: categoryKey,
+          name: categoryName,
+          items: [],
+          subMap: new Map<string, AdminSubCategoryAccordionGroup>()
+        });
+      }
+
+      const categoryGroup = categoryMap.get(categoryKey)!;
+      categoryGroup.items.push(item);
+
+      const categoryId = item.categoryId || undefined;
+      if (categoryId && !categoryGroup.key.startsWith('name:')) {
+        categoryGroup.categoryId = categoryId;
+      }
+
+      const subCategoryName = this.getSubCategoryNameByItem(item);
+      const subCategoryKey = this.normalizeToken(item.subCategoryId)
+        || `name:${this.normalizeToken(subCategoryName) || 'general'}`;
+
+      if (!categoryGroup.subMap.has(subCategoryKey)) {
+        const subCategoryRef = this.subCategories.find(sc =>
+          this.normalizeToken(this.getSubCategoryKey(sc)) === this.normalizeToken(item.subCategoryId)
+        );
+
+        categoryGroup.subMap.set(subCategoryKey, {
+          key: subCategoryKey,
+          name: subCategoryName,
+          subCategoryId: item.subCategoryId || this.getSubCategoryKey(subCategoryRef) || undefined,
+          isVisibleToCustomers: this.isVisibleToCustomers(subCategoryRef?.isVisibleToCustomers),
+          items: []
+        });
+      }
+
+      categoryGroup.subMap.get(subCategoryKey)!.items.push(item);
+    }
+
+    return Array.from(categoryMap.values()).map(group => {
+      const categoryId = group.categoryId;
+      const categoryRef = this.categories.find(c => this.normalizeToken(this.getCategoryKey(c)) === this.normalizeToken(categoryId));
+
+      return {
+        key: group.key,
+        name: group.name,
+        categoryId,
+        isVisibleToCustomers: this.isVisibleToCustomers(categoryRef?.isVisibleToCustomers),
+        itemCount: group.items.length,
+        subGroups: Array.from(group.subMap.values())
+      };
+    });
+  }
+
+  isVisibleToCustomers(flag?: boolean): boolean {
+    return flag !== false;
+  }
+
+  isCategoryAccordionExpanded(key: string): boolean {
+    return !this.collapsedCategoryAccordionKeys.has(key);
+  }
+
+  toggleCategoryAccordion(key: string): void {
+    if (this.collapsedCategoryAccordionKeys.has(key)) {
+      this.collapsedCategoryAccordionKeys.delete(key);
+    } else {
+      this.collapsedCategoryAccordionKeys.add(key);
+    }
+
+    this.collapsedCategoryAccordionKeys = new Set(this.collapsedCategoryAccordionKeys);
+  }
+
+  isSubCategoryAccordionExpanded(categoryKey: string, subKey: string): boolean {
+    return !this.collapsedSubCategoryAccordionKeys.has(`${categoryKey}::${subKey}`);
+  }
+
+  toggleSubCategoryAccordion(categoryKey: string, subKey: string): void {
+    const key = `${categoryKey}::${subKey}`;
+
+    if (this.collapsedSubCategoryAccordionKeys.has(key)) {
+      this.collapsedSubCategoryAccordionKeys.delete(key);
+    } else {
+      this.collapsedSubCategoryAccordionKeys.add(key);
+    }
+
+    this.collapsedSubCategoryAccordionKeys = new Set(this.collapsedSubCategoryAccordionKeys);
+  }
+
+  trackByKey(index: number, item: { key?: string }): string {
+    return item?.key || `${index}`;
+  }
+
+  private getSubCategoryNameByItem(item: MenuItem): string {
+    const itemSubCategoryKey = this.normalizeToken(item.subCategoryId);
+    if (!itemSubCategoryKey) {
+      return 'General';
+    }
+
+    const subCategory = this.subCategories.find(sc =>
+      this.normalizeToken(this.getSubCategoryKey(sc)) === itemSubCategoryKey
+    );
+
+    return subCategory?.name || 'General';
   }
 
   openCreateModal(): void {
@@ -612,6 +751,121 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
           }
         });
     }
+  }
+
+  toggleItemCustomerVisibility(item: MenuItem): void {
+    const nextValue = !this.isVisibleToCustomers(item.isVisibleToCustomers);
+    const actionLabel = nextValue ? 'show to customers' : 'hide from customers';
+
+    if (!confirm(`Are you sure you want to ${actionLabel} "${item.name}"?`)) {
+      return;
+    }
+
+    this.loading = true;
+
+    const payload = {
+      ...item,
+      isVisibleToCustomers: nextValue,
+      lastUpdatedBy: 'Admin',
+      lastUpdated: getIstNow().toISOString()
+    };
+
+    this.http.put(`${environment.apiUrl}/menu/${item.id}`, payload)
+      .subscribe({
+        next: () => {
+          this.loading = false;
+          this.loadMenuItems();
+        },
+        error: (error) => {
+          console.error('Error toggling customer visibility:', error);
+          this.loading = false;
+          this.uiStore.error('Failed to update customer visibility');
+        }
+      });
+  }
+
+  toggleCategoryCustomerVisibility(group: AdminCategoryAccordionGroup): void {
+    if (!group.categoryId) {
+      this.uiStore.warning('This category cannot be updated from this view.');
+      return;
+    }
+
+    const category = this.categories.find(c =>
+      this.normalizeToken(this.getCategoryKey(c)) === this.normalizeToken(group.categoryId)
+    );
+
+    if (!category) {
+      this.uiStore.warning('Category record not found. Please refresh and try again.');
+      return;
+    }
+
+    const nextValue = !this.isVisibleToCustomers(category.isVisibleToCustomers);
+    const actionLabel = nextValue ? 'show to customers' : 'hide from customers';
+
+    if (!confirm(`Are you sure you want to ${actionLabel} category "${category.name}"?`)) {
+      return;
+    }
+
+    this.loading = true;
+    const categoryId = this.getCategoryKey(category);
+
+    this.http.put(`${environment.apiUrl}/categories/${categoryId}`, {
+      ...category,
+      id: categoryId,
+      isVisibleToCustomers: nextValue
+    }).subscribe({
+      next: () => {
+        this.loading = false;
+        this.loadCategories();
+      },
+      error: (error) => {
+        console.error('Error toggling category visibility:', error);
+        this.loading = false;
+        this.uiStore.error('Failed to update category visibility');
+      }
+    });
+  }
+
+  toggleSubCategoryCustomerVisibility(group: AdminSubCategoryAccordionGroup): void {
+    if (!group.subCategoryId) {
+      this.uiStore.warning('This subcategory cannot be updated from this view.');
+      return;
+    }
+
+    const subCategory = this.subCategories.find(sc =>
+      this.normalizeToken(this.getSubCategoryKey(sc)) === this.normalizeToken(group.subCategoryId)
+    );
+
+    if (!subCategory) {
+      this.uiStore.warning('Subcategory record not found. Please refresh and try again.');
+      return;
+    }
+
+    const nextValue = !this.isVisibleToCustomers(subCategory.isVisibleToCustomers);
+    const actionLabel = nextValue ? 'show to customers' : 'hide from customers';
+
+    if (!confirm(`Are you sure you want to ${actionLabel} subcategory "${subCategory.name}"?`)) {
+      return;
+    }
+
+    this.loading = true;
+    const subCategoryId = this.getSubCategoryKey(subCategory);
+
+    this.http.put(`${environment.apiUrl}/subcategories/${subCategoryId}`, {
+      ...subCategory,
+      id: subCategoryId,
+      isVisibleToCustomers: nextValue
+    }).subscribe({
+      next: () => {
+        this.loading = false;
+        this.loadSubCategories();
+      },
+      error: (error) => {
+        console.error('Error toggling subcategory visibility:', error);
+        this.loading = false;
+        this.uiStore.error('Failed to update subcategory visibility');
+      }
+    });
   }
 
   // Image methods

@@ -334,7 +334,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   applyFilters() {
-    let items = this.menuItems.filter(item => item.isAddOnOnly !== true);
+    let items = this.menuItems.filter(item => item.isAddOnOnly !== true && this.isItemVisibleToCustomers(item));
 
     if (this.selectedOutletId) {
       const selectedMatchKeys = this.getSelectedOutletMatchKeys();
@@ -755,6 +755,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       m.id !== item.id &&
       m.isAvailable !== false &&
       m.isAddOnOnly !== true &&
+      this.isItemVisibleToCustomers(m) &&
       m.categoryId === item.categoryId
     );
 
@@ -769,15 +770,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   getCategoryItemCount(categoryId: string | null): number {
-    const selectedMatchKeys = this.getSelectedOutletMatchKeys();
-
-    const visibleItems = this.menuItems.filter(item => {
-      if (item.isAddOnOnly === true) return false;
-
-      if (!this.selectedOutletId) return true;
-      const itemOutletId = this.getItemOutletId(item);
-      return !itemOutletId || selectedMatchKeys.includes(itemOutletId);
-    });
+    const visibleItems = this.getVisibleMenuItemsForSelectedOutlet();
 
     if (!categoryId) return visibleItems.length;
     return visibleItems.filter(item => this.matchesSelectedCategory(item, categoryId)).length;
@@ -791,6 +784,10 @@ export class MenuComponent implements OnInit, OnDestroy {
 
     // Prefer category records from the category endpoint when they map to selected outlet items.
     for (const category of this.categories) {
+      if (!this.isVisibleToCustomers(category.isVisibleToCustomers)) {
+        continue;
+      }
+
       const hasMatch = outletItems.some(item => this.matchesCategoryRecordToItem(category, item));
       if (!hasMatch) {
         continue;
@@ -843,7 +840,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   private getVisibleMenuItemsForSelectedOutlet(): MenuItem[] {
-    let items = this.menuItems.filter(item => item.isAddOnOnly !== true);
+    let items = this.menuItems.filter(item => item.isAddOnOnly !== true && this.isItemVisibleToCustomers(item));
 
     if (!this.selectedOutletId) {
       return items;
@@ -916,11 +913,17 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   private buildSubCategoryIdNameMap(): Map<string, string> {
     const map = new Map<string, string>();
+    const hiddenSubCategoryIds = new Set(
+      this.subCategories
+        .filter(sc => !this.isVisibleToCustomers(sc.isVisibleToCustomers))
+        .map(sc => this.normalizeKey(sc.id))
+        .filter(id => !!id)
+    );
 
     for (const subCategory of this.subCategories) {
       const id = this.normalizeKey(subCategory.id);
       const name = this.getDisplayText(subCategory.name).trim();
-      if (!id || !name) continue;
+      if (!id || !name || hiddenSubCategoryIds.has(id)) continue;
 
       if (!map.has(id)) {
         map.set(id, name);
@@ -931,7 +934,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       for (const subCategory of category.subCategories || []) {
         const id = this.normalizeKey(subCategory.id);
         const name = this.getDisplayText(subCategory.name).trim();
-        if (!id || !name) continue;
+        if (!id || !name || hiddenSubCategoryIds.has(id)) continue;
 
         if (!map.has(id)) {
           map.set(id, name);
@@ -951,6 +954,34 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
 
     return map;
+  }
+
+  private isVisibleToCustomers(flag?: boolean): boolean {
+    return flag !== false;
+  }
+
+  private isItemVisibleToCustomers(item: MenuItem): boolean {
+    if (!this.isVisibleToCustomers(item.isVisibleToCustomers)) {
+      return false;
+    }
+
+    const itemCategoryId = this.normalizeKey(item.categoryId);
+    if (itemCategoryId) {
+      const category = this.categories.find(c => this.normalizeKey(c.id) === itemCategoryId);
+      if (category && !this.isVisibleToCustomers(category.isVisibleToCustomers)) {
+        return false;
+      }
+    }
+
+    const itemSubCategoryId = this.normalizeKey(item.subCategoryId);
+    if (itemSubCategoryId) {
+      const subCategory = this.subCategories.find(sc => this.normalizeKey(sc.id) === itemSubCategoryId);
+      if (subCategory && !this.isVisibleToCustomers(subCategory.isVisibleToCustomers)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private rebuildAccordionGroups(): void {

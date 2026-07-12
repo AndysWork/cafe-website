@@ -9,6 +9,7 @@ using System.Net;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
+using System.Linq;
 
 namespace Cafe.Api.Functions;
 
@@ -33,6 +34,7 @@ public class SubCategoryFunction
     {
         try
         {
+            var role = GetRoleFromAuthorizationHeader(req);
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             if (string.IsNullOrEmpty(outletId))
             {
@@ -42,6 +44,11 @@ public class SubCategoryFunction
             }
 
             var subcategories = await _mongo.GetSubCategoriesAsync(outletId);
+            if (!IsAdminLikeRole(role))
+            {
+                subcategories = subcategories.Where(sc => sc.IsVisibleToCustomers != false).ToList();
+            }
+
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(subcategories);
             return res;
@@ -242,5 +249,27 @@ public class SubCategoryFunction
             await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
+    }
+
+    private static bool IsAdminLikeRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return false;
+
+        var normalized = role.Trim().ToLowerInvariant();
+        return normalized == "admin" || normalized == "sysadmin" || normalized == "sys-admin" || normalized == "superadmin";
+    }
+
+    private string? GetRoleFromAuthorizationHeader(HttpRequestData req)
+    {
+        var authHeader = req.Headers.TryGetValues("Authorization", out var values)
+            ? values.FirstOrDefault()
+            : null;
+
+        if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var token = authHeader.Substring("Bearer ".Length).Trim();
+        var principal = _auth.ValidateToken(token);
+        return principal?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
     }
 }

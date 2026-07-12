@@ -70,6 +70,9 @@ public class CafeMenuItem : ISoftDeletable
     [BsonElement("imageThumbnailUrl")]
     [StringLength(500, ErrorMessage = "Image thumbnail URL cannot exceed 500 characters")]
     public string ImageThumbnailUrl { get; set; } = string.Empty;
+
+    [BsonElement("isVisibleToCustomers")]
+    public bool? IsVisibleToCustomers { get; set; } = true;
     
     public bool IsAvailable { get; set; } = true;
     

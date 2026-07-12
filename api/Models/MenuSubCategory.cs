@@ -23,6 +23,9 @@ public class MenuSubCategory : ISoftDeletable
     [StringLength(100, MinimumLength = 2, ErrorMessage = "Sub-category name must be between 2 and 100 characters")]
     public string Name { get; set; } = string.Empty;
 
+    [BsonElement("isVisibleToCustomers")]
+    public bool? IsVisibleToCustomers { get; set; } = true;
+
     // Temporary property for file upload processing (not saved to DB)
     [BsonIgnore]
     public string? CategoryName { get; set; }

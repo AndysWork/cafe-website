@@ -43,7 +43,7 @@ public class MenuFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
@@ -51,6 +51,12 @@ public class MenuFunction
             // Allow public access without outlet ID (returns all menu items)
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
             var items = await _mongo.GetMenuAsync(outletId, page, pageSize);
+
+            if (!IsAdminLikeRole(role))
+            {
+                items = await FilterVisibleMenuItemsForCustomerAsync(items, outletId);
+            }
+
             NormalizeMenuImageUrls(items);
             var res = req.CreateResponse(HttpStatusCode.OK);
             if (page.HasValue && pageSize.HasValue)
@@ -89,7 +95,7 @@ public class MenuFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
@@ -102,6 +108,11 @@ public class MenuFunction
             }
             
             var items = await _mongo.GetMenuItemsByCategoryAsync(categoryId, outletId);
+            if (!IsAdminLikeRole(role))
+            {
+                items = await FilterVisibleMenuItemsForCustomerAsync(items, outletId);
+            }
+
             NormalizeMenuImageUrls(items);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
@@ -135,7 +146,7 @@ public class MenuFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
@@ -148,6 +159,11 @@ public class MenuFunction
             }
             
             var items = await _mongo.GetMenuItemsBySubCategoryAsync(subCategoryId, outletId);
+            if (!IsAdminLikeRole(role))
+            {
+                items = await FilterVisibleMenuItemsForCustomerAsync(items, outletId);
+            }
+
             NormalizeMenuImageUrls(items);
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(items);
@@ -183,7 +199,7 @@ public class MenuFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
@@ -203,6 +219,17 @@ public class MenuFunction
                 return notFound;
             }
 
+            if (!IsAdminLikeRole(role))
+            {
+                var filteredItems = await FilterVisibleMenuItemsForCustomerAsync(new List<CafeMenuItem> { item }, outletId);
+                if (filteredItems.Count == 0)
+                {
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = "Menu item not found" });
+                    return notFound;
+                }
+            }
+
             NormalizeMenuImageUrl(item);
 
             var res = req.CreateResponse(HttpStatusCode.OK);
@@ -216,6 +243,47 @@ public class MenuFunction
             await res.WriteAsJsonAsync(new { error = "An internal error occurred" });
             return res;
         }
+    }
+
+    private static bool IsAdminLikeRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return false;
+
+        var normalized = role.Trim().ToLowerInvariant();
+        return normalized == "admin" || normalized == "sysadmin" || normalized == "sys-admin" || normalized == "superadmin";
+    }
+
+    private static bool IsVisibleToCustomers(bool? flag)
+    {
+        return flag != false;
+    }
+
+    private async Task<List<CafeMenuItem>> FilterVisibleMenuItemsForCustomerAsync(List<CafeMenuItem> items, string? outletId)
+    {
+        if (items == null || items.Count == 0)
+        {
+            return new List<CafeMenuItem>();
+        }
+
+        var categories = await _mongo.GetCategoriesAsync(outletId);
+        var hiddenCategoryIds = categories
+            .Where(c => !IsVisibleToCustomers(c.IsVisibleToCustomers))
+            .Select(c => c.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var subCategories = await _mongo.GetSubCategoriesAsync(outletId);
+        var hiddenSubCategoryIds = subCategories
+            .Where(sc => !IsVisibleToCustomers(sc.IsVisibleToCustomers))
+            .Select(sc => sc.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return items.Where(item =>
+                IsVisibleToCustomers(item.IsVisibleToCustomers)
+                && (string.IsNullOrWhiteSpace(item.CategoryId) || !hiddenCategoryIds.Contains(item.CategoryId))
+                && (string.IsNullOrWhiteSpace(item.SubCategoryId) || !hiddenSubCategoryIds.Contains(item.SubCategoryId)))
+            .ToList();
     }
 
     /// <summary>

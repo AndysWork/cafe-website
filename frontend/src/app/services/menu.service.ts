@@ -10,6 +10,7 @@ export interface MenuSubCategory {
   id: string;
   name: string;
   categoryId: string;
+  isVisibleToCustomers?: boolean;
 }
 
 export interface MenuCategory {
@@ -17,6 +18,7 @@ export interface MenuCategory {
   name: string;
   description?: string;
   imageUrl?: string;
+  isVisibleToCustomers?: boolean;
   subCategories?: MenuSubCategory[];
 }
 
@@ -37,6 +39,7 @@ export interface MenuItem {
   imageUrl?: string;
   imageThumbnailUrl?: string;
   isAvailable?: boolean;
+  isVisibleToCustomers?: boolean;
   makingPrice?: number;
   packagingCharge?: number;
   shopSellingPrice?: number;
