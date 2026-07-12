@@ -208,8 +208,13 @@
                 (click)="$event.stopPropagation(); addToCart(item)"
                 [disabled]="item.isAvailable === false || !canOrderItem(item)">
                 <span class="btn-add-icon">+</span>
-                <span class="btn-add-text">{{ hasCustomizations(item) ? 'CUSTOMIZE' : 'ADD' }}</span>
+                <span class="btn-add-text">ADD+</span>
               </button>
+              <small
+                *ngIf="getCartQuantity(item.id) === 0 && hasCustomizations(item)"
+                class="customizable-help-text">
+                Customizable
+              </small>
 
               <!-- In cart: show +/- controls -->
               <div *ngIf="getCartQuantity(item.id) > 0" class="qty-control">
@@ -234,6 +239,63 @@
   </div>
 
   <!-- Floating Cart Button -->
+  <button
+    type="button"
+    class="mobile-category-hamburger"
+    (click)="toggleCategoryDrawer()"
+    [attr.aria-expanded]="showCategoryDrawer"
+    aria-label="Open menu categories">
+    ☰ Categories
+  </button>
+
+  <div class="mobile-category-backdrop" *ngIf="showCategoryDrawer" (click)="closeCategoryDrawer()"></div>
+
+  <aside class="mobile-category-drawer" [class.open]="showCategoryDrawer" aria-label="Categories drawer">
+    <div class="drawer-head">
+      <h4>Categories</h4>
+      <button type="button" (click)="closeCategoryDrawer()" aria-label="Close categories">✕</button>
+    </div>
+
+    <div class="drawer-list">
+      <div class="drawer-category-row">
+        <button
+          class="drawer-category-main"
+          [class.active]="selectedCategoryId === null"
+          (click)="filterByCategory(null)">
+          <span class="drawer-category-name">All</span>
+          <span class="drawer-count">{{ getCategoryItemCount(null) }}</span>
+        </button>
+      </div>
+
+      <div class="drawer-category-group" *ngFor="let category of visibleCategories; trackBy: trackByObjId">
+        <div class="drawer-category-row">
+          <button
+            class="drawer-category-main"
+            [class.active]="selectedCategoryId === category.id"
+            (click)="filterByCategory(category.id)">
+            <span class="drawer-category-name">{{ category.name }}</span>
+            <span class="drawer-count">{{ getCategoryItemCount(category.id) }}</span>
+          </button>
+
+          <button
+            *ngIf="categoryHasSubCategories(category)"
+            type="button"
+            class="drawer-expand"
+            [attr.aria-label]="'Expand sub-categories for ' + category.name"
+            (click)="toggleCategoryExpansion(category, $event)">
+            {{ isCategoryExpanded(category) ? '−' : '+' }}
+          </button>
+        </div>
+
+        <div class="drawer-subcategory-list" *ngIf="isCategoryExpanded(category)">
+          <span class="drawer-subcategory-chip" *ngFor="let subCategory of getCategorySubCategoryNames(category); trackBy: trackByIndex">
+            {{ subCategory }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
   <button
     *ngIf="cart.itemCount > 0"
     class="floating-cart"

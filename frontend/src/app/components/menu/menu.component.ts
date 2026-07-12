@@ -28,6 +28,9 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   categories: MenuCategory[] = [];
   visibleCategories: MenuCategory[] = [];
+  showCategoryDrawer = false;
+  private expandedDrawerCategoryIds: Set<string> = new Set();
+  private categorySubCategoryMap = new Map<string, string[]>();
   menuItems: MenuItem[] = [];
   filteredItems: MenuItem[] = [];
   selectedCategoryId: string | null = null;
@@ -371,7 +374,45 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   filterByCategory(categoryId: string | null) {
     this.selectedCategoryId = categoryId;
+    this.showCategoryDrawer = false;
     this.applyFilters();
+  }
+
+  toggleCategoryDrawer() {
+    this.showCategoryDrawer = !this.showCategoryDrawer;
+  }
+
+  closeCategoryDrawer() {
+    this.showCategoryDrawer = false;
+  }
+
+  categoryHasSubCategories(category: MenuCategory): boolean {
+    return this.getCategorySubCategoryNames(category).length > 0;
+  }
+
+  getCategorySubCategoryNames(category: MenuCategory): string[] {
+    const key = this.getCategoryMapKey(category);
+    return key ? (this.categorySubCategoryMap.get(key) || []) : [];
+  }
+
+  isCategoryExpanded(category: MenuCategory): boolean {
+    const key = this.getCategoryMapKey(category);
+    return !!key && this.expandedDrawerCategoryIds.has(key);
+  }
+
+  toggleCategoryExpansion(category: MenuCategory, event: Event): void {
+    event.stopPropagation();
+
+    const key = this.getCategoryMapKey(category);
+    if (!key) return;
+
+    if (this.expandedDrawerCategoryIds.has(key)) {
+      this.expandedDrawerCategoryIds.delete(key);
+    } else {
+      this.expandedDrawerCategoryIds.add(key);
+    }
+
+    this.expandedDrawerCategoryIds = new Set(this.expandedDrawerCategoryIds);
   }
 
   getCartQuantity(itemId: string): number {
@@ -637,6 +678,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     const outletItems = this.getVisibleMenuItemsForSelectedOutlet();
     const results: MenuCategory[] = [];
     const seen = new Set<string>();
+    const seenNameTokens = new Set<string>();
 
     // Prefer category records from the category endpoint when they map to selected outlet items.
     for (const category of this.categories) {
@@ -645,12 +687,20 @@ export class MenuComponent implements OnInit, OnDestroy {
         continue;
       }
 
-      const key = this.normalizeKey(category.id) || `name:${this.normalizeCategoryToken(category.name)}`;
+      const nameToken = this.normalizeCategoryToken(this.normalizeText(category.name));
+      if (nameToken && seenNameTokens.has(nameToken)) {
+        continue;
+      }
+
+      const key = this.normalizeKey(category.id) || `name:${nameToken}`;
       if (seen.has(key)) {
         continue;
       }
 
       seen.add(key);
+      if (nameToken) {
+        seenNameTokens.add(nameToken);
+      }
       results.push(category);
     }
 
@@ -661,17 +711,19 @@ export class MenuComponent implements OnInit, OnDestroy {
         continue;
       }
 
-      const token = this.normalizeCategoryToken(rawName);
+      const token = this.normalizeCategoryToken(this.normalizeText(rawName));
       const syntheticId = `name:${token}`;
-      if (!token || seen.has(syntheticId)) {
+      if (!token || seen.has(syntheticId) || seenNameTokens.has(token)) {
         continue;
       }
 
       seen.add(syntheticId);
+      seenNameTokens.add(token);
       results.push({ id: syntheticId, name: rawName });
     }
 
     this.visibleCategories = results;
+    this.categorySubCategoryMap = this.buildCategorySubCategoryMap(results, outletItems);
 
     if (this.selectedCategoryId) {
       const selectedExists = this.visibleCategories.some(c => c.id === this.selectedCategoryId);
@@ -695,6 +747,88 @@ export class MenuComponent implements OnInit, OnDestroy {
     });
 
     return items;
+  }
+
+  private buildCategorySubCategoryMap(categories: MenuCategory[], outletItems: MenuItem[]): Map<string, string[]> {
+    const map = new Map<string, string[]>();
+    const subCategoryNameById = this.buildSubCategoryIdNameMap();
+
+    for (const category of categories) {
+      const key = this.getCategoryMapKey(category);
+      if (!key) continue;
+
+      const subCategories = new Set<string>();
+      const categoryIdKey = this.normalizeKey(category.id);
+      const categoryNameToken = this.normalizeCategoryToken(this.normalizeText(category.name));
+
+      const relatedCategories = this.categories.filter(sourceCategory => {
+        const sourceIdKey = this.normalizeKey(sourceCategory.id);
+        const sourceNameToken = this.normalizeCategoryToken(this.normalizeText(sourceCategory.name));
+
+        return (categoryIdKey && sourceIdKey && categoryIdKey === sourceIdKey)
+          || (categoryNameToken && sourceNameToken && categoryNameToken === sourceNameToken);
+      });
+
+      for (const relatedCategory of relatedCategories) {
+        for (const subCategory of relatedCategory.subCategories || []) {
+          const name = this.getDisplayText(subCategory.name).trim();
+          if (name) subCategories.add(name);
+        }
+      }
+
+      for (const subCategory of category.subCategories || []) {
+        const name = this.getDisplayText(subCategory.name).trim();
+        if (name) subCategories.add(name);
+      }
+
+      for (const item of outletItems) {
+        if (!this.matchesCategoryRecordToItem(category, item)) continue;
+
+        const itemSubCategoryName = this.getDisplayText(item.subCategoryName || '').trim();
+        if (itemSubCategoryName) {
+          subCategories.add(itemSubCategoryName);
+          continue;
+        }
+
+        const itemSubCategoryId = this.normalizeKey(item.subCategoryId);
+        if (itemSubCategoryId) {
+          const lookedUpName = subCategoryNameById.get(itemSubCategoryId);
+          if (lookedUpName) {
+            subCategories.add(lookedUpName);
+          }
+        }
+      }
+
+      map.set(key, Array.from(subCategories));
+    }
+
+    return map;
+  }
+
+  private buildSubCategoryIdNameMap(): Map<string, string> {
+    const map = new Map<string, string>();
+
+    for (const category of this.categories) {
+      for (const subCategory of category.subCategories || []) {
+        const id = this.normalizeKey(subCategory.id);
+        const name = this.getDisplayText(subCategory.name).trim();
+        if (!id || !name) continue;
+
+        if (!map.has(id)) {
+          map.set(id, name);
+        }
+      }
+    }
+
+    return map;
+  }
+
+  private getCategoryMapKey(category: MenuCategory): string {
+    const normalizedId = this.normalizeKey(category.id);
+    if (normalizedId) return normalizedId;
+
+    const token = this.normalizeCategoryToken(this.normalizeText(category.name));
+    return token ? `name:${token}` : '';
   }
 
   private matchesCategoryRecordToItem(category: MenuCategory, item: MenuItem): boolean {
