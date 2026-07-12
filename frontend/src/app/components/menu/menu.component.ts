@@ -12,7 +12,7 @@ import { OutletService } from '../../services/outlet.service';
 import { Outlet } from '../../models/outlet.model';
 import { UIStore } from '../../store/ui.store';
 import { Router } from '@angular/router';
-import { decodeHtmlEntities, resolveWebSalePrice } from '../../utils/text-utils';
+import { decodeHtmlEntities } from '../../utils/text-utils';
 
 @Component({
   selector: 'app-menu',
@@ -818,7 +818,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   trackByIndex(index: number): number { return index; }
 
   getWebPrice(item: MenuItem): number {
-    return resolveWebSalePrice(item.webPrice, item.shopSellingPrice, item.onlinePrice);
+    const webPrice = Number(item.webPrice || 0);
+    return Number.isFinite(webPrice) && webPrice > 0 ? webPrice : 0;
   }
 
   getDisplayText(value?: string | null): string {
