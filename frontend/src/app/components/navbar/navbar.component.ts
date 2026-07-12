@@ -149,7 +149,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const clickedInside = target.closest('.dropdown');
+    const clickedInside = target.closest('.profile-dropdown');
 
     if (!clickedInside && this.activeDropdown) {
       this.activeDropdown = null;

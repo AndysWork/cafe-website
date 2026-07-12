@@ -104,7 +104,7 @@
           </a>
         </li>
 
-        <!-- Menu (Guests + Customers) -->
+        <!-- Menu (Customers + Admin only) -->
         <li class="nav-item" *ngIf="canBrowseMenu">
           <a
             routerLink="/menu"
@@ -160,8 +160,8 @@
           </a>
         </li>
 
-        <!-- Profile (Customers + Partners) -->
-        <li class="nav-item" *ngIf="(isPartnerUser || isKitchenUser || isCustomer) && !isHomeScreen">
+        <!-- Profile (All non-admin authenticated roles) -->
+        <li class="nav-item" *ngIf="(isPartnerUser || isKitchenUser || isCustomer || isManager) && !isHomeScreen">
           <a
             routerLink="/profile"
             routerLinkActive="active"
