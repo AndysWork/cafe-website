@@ -172,6 +172,22 @@ export class MenuComponent implements OnInit, OnDestroy {
     return outlet._id || outlet.id || '';
   }
 
+  getCompactOutletLabel(outlet: Outlet): string {
+    const name = (outlet.outletName || '').trim();
+    const code = (outlet.outletCode || '').trim().toLowerCase();
+    const normalizedName = name.toLowerCase();
+
+    if (normalizedName.includes('kanchrapara')) {
+      return 'Kanchrapara';
+    }
+
+    if (normalizedName.includes('kampa') || code.includes('kpa')) {
+      return 'Kampa';
+    }
+
+    return name || 'Outlet';
+  }
+
   private getOutletMatchKeys(outlet: Outlet | null | undefined): string[] {
     if (!outlet) return [];
 
