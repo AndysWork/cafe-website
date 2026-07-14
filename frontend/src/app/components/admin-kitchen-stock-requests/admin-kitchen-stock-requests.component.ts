@@ -16,9 +16,11 @@ export class AdminKitchenStockRequestsComponent implements OnInit {
   private uiStore = inject(UIStore);
 
   loading = true;
-  statusFilter: 'pending' | 'approved' | 'rejected' | '' = 'pending';
+  statusFilter: 'pending' | 'approved' | 'rejected' | '' = '';
   reviewNotes: Record<string, string> = {};
   requests: KitchenVoiceStockRequest[] = [];
+  totalCount = 0;
+  pendingCount = 0;
 
   ngOnInit(): void {
     this.loadRequests();
@@ -29,6 +31,8 @@ export class AdminKitchenStockRequestsComponent implements OnInit {
     this.requestService.getAdminRequests(this.statusFilter || undefined).subscribe({
       next: (res) => {
         this.requests = res.items || [];
+        this.totalCount = res.count || 0;
+        this.pendingCount = res.pendingCount || 0;
         this.loading = false;
       },
       error: () => {
@@ -36,6 +40,15 @@ export class AdminKitchenStockRequestsComponent implements OnInit {
         this.uiStore.error('Unable to load kitchen stock requests');
       }
     });
+  }
+
+  setStatusFilter(filter: 'pending' | 'approved' | 'rejected' | ''): void {
+    if (this.statusFilter === filter) {
+      return;
+    }
+
+    this.statusFilter = filter;
+    this.loadRequests();
   }
 
   review(request: KitchenVoiceStockRequest, decision: 'approved' | 'rejected'): void {
