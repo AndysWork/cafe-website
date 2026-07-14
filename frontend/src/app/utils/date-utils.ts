@@ -35,7 +35,7 @@ function parseDateInput(value: Date | string): Date {
 
   // Datetime strings without timezone are interpreted as IST local time.
   const istLocal = raw.match(
-    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?$/
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,7}))?$/
   );
   if (istLocal) {
     const year = Number(istLocal[1]);
@@ -44,7 +44,8 @@ function parseDateInput(value: Date | string): Date {
     const hour = Number(istLocal[4]);
     const minute = Number(istLocal[5]);
     const second = Number(istLocal[6] || 0);
-    const millisecond = Number((istLocal[7] || '0').padEnd(3, '0'));
+    const fraction = istLocal[7] || '0';
+    const millisecond = Number((fraction + '000').slice(0, 3));
     const utcMs = Date.UTC(year, month - 1, day, hour, minute, second, millisecond) - IST_OFFSET_MS;
     return new Date(utcMs);
   }

@@ -398,7 +398,25 @@ public partial class MongoService : IOperationsRepository
     public async Task<List<LeaveRequest>> GetLeaveRequestsAsync(string outletId, string? status = null)
     {
         var filterBuilder = Builders<LeaveRequest>.Filter;
-        var filter = filterBuilder.Eq(r => r.OutletId, outletId);
+        var hasValidOutletId = !string.IsNullOrWhiteSpace(outletId)
+            && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase)
+            && MongoDB.Bson.ObjectId.TryParse(outletId, out _);
+
+        FilterDefinition<LeaveRequest> filter;
+        if (hasValidOutletId)
+        {
+            // OutletId is stored as ObjectId-represented string, so only valid ObjectId values can be used here.
+            // Also include legacy records where outletId might be missing/null.
+            filter = filterBuilder.Or(
+                filterBuilder.Eq(r => r.OutletId, outletId),
+                filterBuilder.Exists(r => r.OutletId, false),
+                filterBuilder.Eq(r => r.OutletId, null));
+        }
+        else
+        {
+            filter = filterBuilder.Empty;
+        }
+
         if (!string.IsNullOrEmpty(status))
             filter &= filterBuilder.Eq(r => r.Status, status);
 

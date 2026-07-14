@@ -5,7 +5,7 @@ import { AttendanceService, Attendance, LeaveRequest, CreateLeaveRequest } from 
 import { StaffService } from '../../services/staff.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
-import { Subscription } from 'rxjs';
+import { Subscription, interval } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { getIstInputDate, formatIstDate } from '../../utils/date-utils';
 
@@ -20,6 +20,7 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
   private uiStore = inject(UIStore);
   private outletSub?: Subscription;
+  private refreshSub?: Subscription;
 
   todayAttendance: Attendance[] = [];
   leaveRequests: LeaveRequest[] = [];
@@ -50,20 +51,20 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
       .pipe(filter(o => o !== null))
       .subscribe(() => this.loadData());
     if (this.outletService.getSelectedOutlet()) this.loadData();
+
+    this.refreshSub = interval(15000).subscribe(() => {
+      this.refreshAttendanceSnapshot();
+    });
   }
 
-  ngOnDestroy() { this.outletSub?.unsubscribe(); }
+  ngOnDestroy() {
+    this.outletSub?.unsubscribe();
+    this.refreshSub?.unsubscribe();
+  }
 
   loadData() {
     this.loading = true;
-    this.attendanceService.getTodayAttendance().subscribe({
-      next: a => {
-        this.todayAttendance = a;
-        this.applyAttendanceNameFallbacks();
-        this.loading = false;
-      },
-      error: () => { this.uiStore.error('Failed to load attendance'); this.loading = false; }
-    });
+    this.refreshAttendanceSnapshot(true);
     this.staffService.getAllStaff(true).subscribe({
       next: s => {
         this.staffList = s;
@@ -77,8 +78,25 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
       next: l => {
         this.leaveRequests = l;
         this.applyLeaveNameFallbacks();
+        this.loading = false;
       },
-      error: () => {}
+      error: () => { this.loading = false; }
+    });
+  }
+
+  private refreshAttendanceSnapshot(showError = false): void {
+    this.attendanceService.getTodayAttendance().subscribe({
+      next: a => {
+        this.todayAttendance = a;
+        this.applyAttendanceNameFallbacks();
+        this.loading = false;
+      },
+      error: () => {
+        if (showError) {
+          this.uiStore.error('Failed to load attendance');
+        }
+        this.loading = false;
+      }
     });
   }
 
@@ -124,11 +142,48 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
   }
 
   isStaffClockedIn(staffId: string): boolean {
-    return this.todayAttendance.some(a => a.staffId === staffId && a.clockIn && !a.clockOut);
+    const normalizedStaffId = this.normalizeId(staffId);
+    if (!normalizedStaffId) {
+      return false;
+    }
+
+    return this.todayAttendance
+      .filter(a => this.normalizeId(a.staffId) === normalizedStaffId)
+      .some(a => this.isAttendanceInProgress(a));
   }
 
   getTodayAttendanceForStaff(staffId: string): Attendance | undefined {
-    return this.todayAttendance.find(a => a.staffId === staffId);
+    const normalizedStaffId = this.normalizeId(staffId);
+    const records = this.todayAttendance.filter(a => this.normalizeId(a.staffId) === normalizedStaffId);
+    if (records.length === 0) {
+      return undefined;
+    }
+
+    return records.find(a => this.isAttendanceInProgress(a)) || records[0];
+  }
+
+  getShiftLabelForStaff(staff: any): string {
+    const attendance = this.getTodayAttendanceForStaff(this.getStaffId(staff));
+    if (attendance?.scheduledShiftLabel && attendance.scheduledShiftLabel.trim()) {
+      return attendance.scheduledShiftLabel;
+    }
+
+    const shifts = Array.isArray(staff?.shifts) ? staff.shifts : [];
+    const today = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' }).format(new Date());
+    const todaysShifts = shifts.filter((s: any) => {
+      const day = (s?.dayOfWeek || '').toString().trim().toLowerCase();
+      const todayDay = today.toLowerCase();
+      return day === todayDay && (s?.isActive !== false);
+    });
+
+    if (todaysShifts.length > 0) {
+      return todaysShifts
+        .map((s: any) => (s?.shiftName || '').toString().trim())
+        .filter((name: string) => !!name)
+        .join(' + ') || 'Assigned Shift';
+    }
+
+    return 'No shift configured';
   }
 
   getStaffId(staff: any): string {
@@ -185,6 +240,19 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
       minute: '2-digit',
       hour12: true
     });
+  }
+
+  private normalizeId(value?: string): string {
+    return (value || '').trim().toLowerCase();
+  }
+
+  private isAttendanceInProgress(record: Attendance): boolean {
+    const hasOpenSession = (record.sessions || []).some(session => {
+      const status = (session.status || '').toLowerCase();
+      return (status === 'in-progress') || (!!session.clockIn && !session.clockOut);
+    });
+
+    return hasOpenSession || (!!record.clockIn && !record.clockOut);
   }
 
   private rebuildStaffNameIndex(): void {

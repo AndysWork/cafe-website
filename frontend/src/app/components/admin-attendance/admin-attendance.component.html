@@ -27,7 +27,7 @@
         </div>
         <div class="card-body">
           <p>{{ getStaffRole(staff) }} · {{ getStaffPhone(staff) }}</p>
-          <p>Shift: {{ getTodayAttendanceForStaff(getStaffId(staff))?.scheduledShiftLabel || 'Default shift' }}</p>
+          <p>Shift: {{ getShiftLabelForStaff(staff) }}</p>
           <p>Scheduled: {{ (getTodayAttendanceForStaff(getStaffId(staff))?.scheduledHours ?? 0) | number:'1.1-2' }}h</p>
           <p>Worked: {{ (getTodayAttendanceForStaff(getStaffId(staff))?.hoursWorked ?? 0) | number:'1.1-2' }}h</p>
           <p>OT: {{ (getTodayAttendanceForStaff(getStaffId(staff))?.overtimeHours ?? 0) | number:'1.1-2' }}h</p>
