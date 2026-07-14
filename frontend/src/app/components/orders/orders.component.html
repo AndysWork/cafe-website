@@ -197,6 +197,16 @@
                 — {{ getPaymentStatusIcon(order.paymentStatus) }} {{ order.paymentStatus | titlecase }}
               </span>
             </div>
+
+            <div class="info-chip" *ngIf="!isAdmin && order.status === 'delivered'">
+              <span class="info-label">⭐ Loyalty</span>
+              <span *ngIf="order.loyaltyPointsAwarded && (order.loyaltyPointsAwardedValue || 0) > 0">
+                +{{ order.loyaltyPointsAwardedValue }} points credited
+              </span>
+              <span *ngIf="!order.loyaltyPointsAwarded || (order.loyaltyPointsAwardedValue || 0) <= 0">
+                Points credit pending
+              </span>
+            </div>
           </div>
 
           <!-- Receipt Image -->
@@ -221,6 +231,13 @@
                     (click)="reorderItems(order); $event.stopPropagation()">
               🔄 Reorder
             </button>
+
+            <a *ngIf="!isAdmin && order.status === 'delivered'"
+               class="btn-reorder"
+               [routerLink]="['/orders', order.id]"
+               (click)="$event.stopPropagation()">
+              ⭐ Rate Order
+            </a>
 
             <button *ngIf="!isAdmin && canCancelOrder(order)"
                     class="btn-cancel"

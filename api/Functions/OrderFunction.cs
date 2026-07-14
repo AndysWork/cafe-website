@@ -1776,21 +1776,18 @@ public class OrderFunction
 
     private async Task TryAwardWorkflowLoyaltyPointsAsync(Order order)
     {
-        if (order.LoyaltyPointsAwarded || order.Status != "delivered") return;
+        if (order.Status != "delivered") return;
 
         var issues = await _orderRepo.GetOrderIssuesAsync(order.Id!);
         var hasOpenIssue = issues.Any(i => i.Status == "open" || i.Status == "in-progress");
         if (hasOpenIssue) return;
 
-        var review = await _orderRepo.GetReviewByOrderIdAsync(order.Id!);
-        if (review == null) return;
-
         var paidBillValue = GetEligiblePaidBillValue(order);
-        var pointsToAward = (int)Math.Floor(paidBillValue * BillToPointRate);
-        if (HasOrderAndItemRatings(order, review))
-        {
-            pointsToAward += ReviewWithItemRatingsBonusPoints;
-        }
+        var basePoints = (int)Math.Floor(paidBillValue * BillToPointRate);
+        if (basePoints <= 0) return;
+
+        var alreadyAwarded = Math.Max(0, order.LoyaltyPointsAwardedValue);
+        var pointsToAward = basePoints - alreadyAwarded;
         if (pointsToAward <= 0) return;
 
         await _outbox.EnqueueAsync("LoyaltyPointsAwardExact", "Order", order.Id!,
@@ -1806,7 +1803,7 @@ public class OrderFunction
             new { UserId = order.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Order #{order.Id?[^6..]}" });
 
         order.LoyaltyPointsAwarded = true;
-        order.LoyaltyPointsAwardedValue = pointsToAward;
+        order.LoyaltyPointsAwardedValue = alreadyAwarded + pointsToAward;
         order.UpdatedAt = MongoService.GetIstNow();
         await _orderRepo.UpdateOrderAsync(order);
 

@@ -12,11 +12,14 @@ namespace Cafe.Api.Functions;
 
 public class DeliveryPartnerFunction
 {
+    private const decimal BillToPointRate = 0.10m; // ₹1 = 0.1 loyalty points
+
     private readonly IOperationsRepository _mongo;
     private readonly IOrderRepository _orderRepo;
     private readonly NotificationService _notificationService;
     private readonly DeliveryRoutingService _deliveryRoutingService;
     private readonly AuthService _auth;
+    private readonly OutboxService _outbox;
     private readonly ILogger _log;
     private readonly IdempotencyService _idempotency;
 
@@ -27,6 +30,7 @@ public class DeliveryPartnerFunction
         DeliveryRoutingService deliveryRoutingService,
         IdempotencyService idempotency,
         AuthService auth,
+        OutboxService outbox,
         ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
@@ -35,6 +39,7 @@ public class DeliveryPartnerFunction
         _deliveryRoutingService = deliveryRoutingService;
         _idempotency = idempotency;
         _auth = auth;
+        _outbox = outbox;
         _log = loggerFactory.CreateLogger<DeliveryPartnerFunction>();
     }
 
@@ -783,6 +788,36 @@ public class DeliveryPartnerFunction
                 return conflict;
             }
 
+            // Ensure partners who self-accept still get route details just like manager assignment flow.
+            var routeOrder = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (routeOrder != null
+                && string.Equals(routeOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(routeOrder.DeliveryAddress)
+                && !string.IsNullOrWhiteSpace(routeOrder.OutletId)
+                && string.IsNullOrWhiteSpace(routeOrder.DeliveryRouteShortUrl))
+            {
+                var quote = await _deliveryRoutingService.BuildRouteQuoteAsync(routeOrder.OutletId!, routeOrder.DeliveryAddress!);
+                if (quote != null)
+                {
+                    var routeLink = await _deliveryRoutingService.CreateOrReuseShortLinkAsync(
+                        routeOrder.OutletId!,
+                        routeOrder.DeliveryAddress!,
+                        quote.MapUrl,
+                        routeOrder.Id,
+                        quote.DistanceKm,
+                        quote.EtaMinutes);
+
+                    routeOrder.DeliveryRouteUrl = routeLink.FullMapUrl;
+                    routeOrder.DeliveryRouteShortCode = routeLink.Code;
+                    routeOrder.DeliveryRouteShortUrl = routeLink.ShortUrl;
+                    routeOrder.DeliveryDistanceKm = routeLink.DistanceKm;
+                    routeOrder.DeliveryEtaMinutes = routeLink.EtaMinutes;
+                    routeOrder.DeliveryRouteUpdatedAt = MongoService.GetIstNow();
+                    routeOrder.UpdatedAt = MongoService.GetIstNow();
+                    await _orderRepo.UpdateOrderAsync(routeOrder);
+                }
+            }
+
             var assignedOrder = await _orderRepo.GetOrderByIdAsync(orderId);
             if (assignedOrder != null && !string.IsNullOrWhiteSpace(assignedOrder.UserId))
             {
@@ -851,6 +886,117 @@ public class DeliveryPartnerFunction
         catch (Exception ex)
         {
             _log.LogError(ex, "Error completing delivery");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("MarkMyOrderDelivered")]
+    public async Task<HttpResponseData> MarkMyOrderDelivered(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "partner/delivery/orders/{orderId}/delivered")] HttpRequestData req,
+        string orderId)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            if (!IsPartnerRole(role))
+            {
+                var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
+                return forbiddenRole;
+            }
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid user context" });
+                return unauthorized;
+            }
+
+            var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId);
+            if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner profile not found" });
+                return notFound;
+            }
+
+            var order = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            if (!string.Equals(order.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Only delivery orders can be marked delivered" });
+                return badReq;
+            }
+
+            if (!string.Equals(order.DeliveryPartnerId, partner.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "This order is not assigned to you" });
+                return forbidden;
+            }
+
+            if (string.Equals(order.Status, "delivered", StringComparison.OrdinalIgnoreCase))
+            {
+                var ok = req.CreateResponse(HttpStatusCode.OK);
+                await ok.WriteAsJsonAsync(new { message = "Order already marked delivered", status = "delivered" });
+                return ok;
+            }
+
+            if (!string.Equals(order.Status, "out-for-delivery", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Order must be out-for-delivery before marking delivered" });
+                return badReq;
+            }
+
+            if (string.Equals(order.PaymentMethod, "cod", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Confirm COD payment before marking order delivered" });
+                return badReq;
+            }
+
+            var now = MongoService.GetIstNow();
+            order.Status = "delivered";
+            order.CompletedAt = now;
+            order.UpdatedAt = now;
+
+            var updated = await _orderRepo.UpdateOrderAsync(order);
+            if (!updated)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Failed to update order status" });
+                return conflict;
+            }
+
+            await TryAwardWorkflowLoyaltyPointsAsync(order);
+
+            await _mongo.CompleteDeliveryAsync(partner.Id);
+
+            if (!string.IsNullOrWhiteSpace(order.UserId))
+            {
+                await _notificationService.SendOrderStatusNotificationAsync(order, "delivered");
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Order marked delivered", status = "delivered" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error marking order {OrderId} delivered from partner dashboard", orderId);
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;
@@ -2070,6 +2216,51 @@ public class DeliveryPartnerFunction
             "year" => (new DateTime(d.Year, 1, 1), new DateTime(d.Year + 1, 1, 1)),
             _ => (d, d.AddDays(1))
         };
+    }
+
+    private async Task TryAwardWorkflowLoyaltyPointsAsync(Order order)
+    {
+        if (order.Status != "delivered") return;
+
+        var issues = await _orderRepo.GetOrderIssuesAsync(order.Id!);
+        var hasOpenIssue = issues.Any(i => i.Status == "open" || i.Status == "in-progress");
+        if (hasOpenIssue) return;
+
+        var basePoints = (int)Math.Floor(Math.Max(0m, order.Total) * BillToPointRate);
+        if (basePoints <= 0) return;
+
+        var alreadyAwarded = Math.Max(0, order.LoyaltyPointsAwardedValue);
+        var pointsToAward = basePoints - alreadyAwarded;
+        if (pointsToAward <= 0) return;
+
+        await _outbox.EnqueueAsync("LoyaltyPointsAwardExact", "Order", order.Id!,
+            new { UserId = order.UserId, Points = pointsToAward, Reason = $"Order #{order.Id} completion", OrderId = order.Id });
+
+        if (!string.IsNullOrEmpty(order.PhoneNumber))
+        {
+            await _outbox.EnqueueAsync("LoyaltyWhatsApp", "Order", order.Id!,
+                new
+                {
+                    PhoneNumber = order.PhoneNumber,
+                    Username = order.Username ?? "Customer",
+                    PointsEarned = pointsToAward,
+                    TotalPoints = alreadyAwarded + pointsToAward
+                });
+        }
+
+        await _outbox.EnqueueAsync("LoyaltyNotification", "Order", order.Id!,
+            new
+            {
+                UserId = order.UserId,
+                PointsEarned = pointsToAward,
+                TotalPoints = alreadyAwarded + pointsToAward,
+                Reason = $"Order #{order.Id?[^6..]}"
+            });
+
+        order.LoyaltyPointsAwarded = true;
+        order.LoyaltyPointsAwardedValue = alreadyAwarded + pointsToAward;
+        order.UpdatedAt = MongoService.GetIstNow();
+        await _orderRepo.UpdateOrderAsync(order);
     }
 
     private static string? GetIdempotencyKey(HttpRequestData req)

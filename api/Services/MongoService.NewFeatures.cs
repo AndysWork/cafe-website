@@ -982,9 +982,15 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<decimal> GetOutstandingCodAmountAsync(string partnerId)
     {
-        var codLogs = await _codCollectionLogs.Find(c => c.PartnerId == partnerId && c.Collected && !c.ConfirmedByAdmin)
-            .ToListAsync();
-        return codLogs.Sum(c => c.Amount);
+        var filter = Builders<Order>.Filter.Eq(o => o.DeliveryPartnerId, partnerId)
+            & Builders<Order>.Filter.Eq(o => o.OrderType, "delivery")
+            & Builders<Order>.Filter.Eq(o => o.PaymentMethod, "cod")
+            & Builders<Order>.Filter.Ne(o => o.PaymentStatus, "paid")
+            & Builders<Order>.Filter.Ne(o => o.IsDeleted, true)
+            & Builders<Order>.Filter.In(o => o.Status, new[] { "confirmed", "preparing", "ready", "out-for-delivery" });
+
+        var pendingCodOrders = await _orders.Find(filter).ToListAsync();
+        return pendingCodOrders.Sum(o => o.Total);
     }
 
     public async Task<DeliveryPartnerReview> AddDeliveryPartnerReviewAsync(DeliveryPartnerReview review)

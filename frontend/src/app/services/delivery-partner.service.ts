@@ -320,6 +320,15 @@ export class DeliveryPartnerService {
     );
   }
 
+  markOrderDelivered(orderId: string): Observable<{ message: string; status: string }> {
+    return this.http.post<{ message: string; status: string }>(
+      `${this.apiUrl}/partner/delivery/orders/${orderId}/delivered`,
+      {}
+    ).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.markOrderDelivered'))
+    );
+  }
+
   acceptDeliveryOrder(orderId: string): Observable<{ message: string; assigned: boolean; orderId: string; partnerId: string }> {
     return this.http.post<{ message: string; assigned: boolean; orderId: string; partnerId: string }>(
       `${this.apiUrl}/partner/delivery/orders/${orderId}/accept`,

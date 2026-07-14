@@ -48,6 +48,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
   acceptingRequest: Record<string, boolean> = {};
   acceptingParcel: Record<string, boolean> = {};
   completingParcel: Record<string, boolean> = {};
+  markingDelivered: Record<string, boolean> = {};
   autoAcceptParcelTaskId: string | null = null;
 
   ngOnInit(): void {
@@ -270,6 +271,35 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
     });
   }
 
+  canMarkDelivered(order: { id?: string; status: string; paymentMethod?: string; paymentStatus?: string }): boolean {
+    if (!order.id || order.status !== 'out-for-delivery') {
+      return false;
+    }
+
+    const isCod = order.paymentMethod === 'cod';
+    return !isCod || order.paymentStatus === 'paid';
+  }
+
+  markDelivered(order: { id?: string }): void {
+    if (!order.id) {
+      this.uiStore.error('Invalid order');
+      return;
+    }
+
+    this.markingDelivered[order.id] = true;
+    this.partnerService.markOrderDelivered(order.id).subscribe({
+      next: () => {
+        this.uiStore.success('Order marked delivered');
+        this.markingDelivered[order.id!] = false;
+        this.loadDashboard();
+      },
+      error: (error) => {
+        this.markingDelivered[order.id!] = false;
+        this.uiStore.error(error.error?.error || 'Failed to mark order delivered');
+      }
+    });
+  }
+
   acceptRequest(order: { id?: string }): void {
     if (!order.id) {
       this.uiStore.error('Invalid order');
@@ -360,5 +390,15 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
 
   formatStatus(status: string): string {
     return status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  getDeliveryMapUrl(order: { deliveryRouteShortUrl?: string; deliveryRouteUrl?: string; deliveryAddress?: string }): string | null {
+    if (order.deliveryRouteShortUrl) return order.deliveryRouteShortUrl;
+    if (order.deliveryRouteUrl) return order.deliveryRouteUrl;
+
+    const address = (order.deliveryAddress || '').trim();
+    if (!address) return null;
+
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
   }
 }
