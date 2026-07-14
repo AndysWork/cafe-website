@@ -59,7 +59,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get isKitchenUser(): boolean {
-    return this.currentUser?.role === 'cook' || this.currentUser?.role === 'chef' || this.currentUser?.role === 'sous-chef';
+    return this.currentUser?.role === 'cook'
+      || this.currentUser?.role === 'chef'
+      || this.currentUser?.role === 'sous-chef'
+      || this.currentUser?.role === 'kitchen'
+      || this.currentUser?.role === 'kitchen-staff'
+      || this.currentUser?.role === 'kitchen-helper';
   }
 
   get isStaffRoleUser(): boolean {

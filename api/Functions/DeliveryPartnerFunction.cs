@@ -105,6 +105,24 @@ public class DeliveryPartnerFunction
         return false;
     }
 
+    private static string NormalizeRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return string.Empty;
+        return role.Trim().ToLowerInvariant().Replace("_", "-").Replace(" ", "-");
+    }
+
+    private static bool IsPartnerRole(string? role)
+    {
+        var normalized = NormalizeRole(role);
+        return normalized == "partner" || normalized == "delivery-partner";
+    }
+
+    private static bool IsPartnerOrManagerRole(string? role)
+    {
+        var normalized = NormalizeRole(role);
+        return IsPartnerRole(normalized) || normalized == "admin" || normalized == "manager";
+    }
+
     [Function("CreateDeliveryPartner")]
     public async Task<HttpResponseData> CreateDeliveryPartner(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/delivery-partners")] HttpRequestData req)
@@ -444,7 +462,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner")
+            if (!IsPartnerRole(role))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -490,7 +508,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner")
+            if (!IsPartnerRole(role))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -567,7 +585,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner")
+            if (!IsPartnerRole(role))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -681,7 +699,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner")
+            if (!IsPartnerRole(role))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -1450,7 +1468,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner" && role != "admin" && role != "manager")
+            if (!IsPartnerOrManagerRole(role))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -1738,7 +1756,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner" && role != "admin" && role != "manager")
+            if (!IsPartnerOrManagerRole(role))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -1812,7 +1830,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner" && role != "admin" && role != "manager")
+            if (!IsPartnerOrManagerRole(role))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -1888,7 +1906,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner" && role != "admin" && role != "manager")
+            if (!IsPartnerOrManagerRole(role))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -1975,7 +1993,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (role != "partner" && role != "delivery-partner" && role != "admin" && role != "manager")
+            if (!IsPartnerOrManagerRole(role))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });

@@ -37,7 +37,7 @@ function getErrorMessage(error: HttpErrorResponse, url: string): string {
   } else if (error.status === 400) {
     return serverMessage || 'Invalid request';
   } else if (error.status === 403) {
-    return 'You do not have permission for this action';
+    return serverMessage || 'You do not have permission for this action';
   } else if (error.status === 404) {
     return 'The requested resource was not found';
   } else if (error.status === 409) {
@@ -74,6 +74,29 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       }
     }),
     catchError((error: HttpErrorResponse) => {
+      const isMutatingMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method.toUpperCase());
+      const csrfCode = error.error?.code;
+      const refreshedCsrfToken = error.error?.csrfToken;
+      const alreadyRetriedForCsrf = req.headers.has('X-CSRF-Retry');
+
+      if (error.status === 403 &&
+          isMutatingMethod &&
+          csrfCode === 'csrf_token_invalid' &&
+          typeof refreshedCsrfToken === 'string' &&
+          refreshedCsrfToken.length > 0 &&
+          !alreadyRetriedForCsrf) {
+        localStorage.setItem('csrfToken', refreshedCsrfToken);
+
+        const retryReq = req.clone({
+          setHeaders: {
+            'X-CSRF-Token': refreshedCsrfToken,
+            'X-CSRF-Retry': '1'
+          }
+        });
+
+        return next(retryReq);
+      }
+
       if (error.status === 401) {
         // Skip auto-logout for login/register requests
         if (!req.url.includes('/auth/login') && !req.url.includes('/auth/register')) {

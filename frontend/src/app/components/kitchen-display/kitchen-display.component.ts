@@ -170,7 +170,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
 
     this.kitchenService.updateOrderStatus(orderId, status).subscribe({
       next: () => { this.uiStore.success('Status updated'); this.loadData(); },
-      error: () => this.uiStore.error('Failed to update status')
+      error: (err) => this.uiStore.error(err?.error?.error || 'Failed to update status')
     });
   }
 

@@ -229,9 +229,19 @@ public class KitchenDisplayFunction
                 }
 
                 order.KitchenChecklist = normalized;
-                order.KitchenPrepStartedAt ??= order.CreatedAt;
-                order.KitchenReadyAt = MongoService.GetIstNow();
-                order.KptMinutes = Math.Round((decimal)(order.KitchenReadyAt.Value - order.KitchenPrepStartedAt.Value).TotalMinutes, 2);
+                var readyAt = MongoService.GetIstNow();
+                order.KitchenPrepStartedAt ??= order.KitchenAssignedAt ?? readyAt;
+                order.KitchenReadyAt = readyAt;
+
+                var prepStartAt = order.KitchenPrepStartedAt.Value;
+                if (prepStartAt > readyAt)
+                {
+                    prepStartAt = readyAt;
+                    order.KitchenPrepStartedAt = prepStartAt;
+                }
+
+                var kptMinutes = Math.Max((readyAt - prepStartAt).TotalMinutes, 0);
+                order.KptMinutes = Math.Round((decimal)kptMinutes, 2);
             }
 
             if (requestedStatus == "delivered" && !string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
@@ -317,7 +327,11 @@ public class KitchenDisplayFunction
             if (todayCompleted.Any())
             {
                 avgPrepTime = todayCompleted
-                    .Select(o => o.KptMinutes.HasValue ? (double)o.KptMinutes.Value : (o.UpdatedAt - o.CreatedAt).TotalMinutes)
+                    .Select(o => o.KptMinutes.HasValue
+                        ? (double)o.KptMinutes.Value
+                        : (o.KitchenReadyAt.HasValue && o.KitchenPrepStartedAt.HasValue
+                            ? Math.Max((o.KitchenReadyAt.Value - o.KitchenPrepStartedAt.Value).TotalMinutes, 0)
+                            : 0))
                     .DefaultIfEmpty(0)
                     .Average();
             }
@@ -417,7 +431,9 @@ public class KitchenDisplayFunction
                 avgKitchenPreparationTimeMinutes = staffCompletedOrders
                     .Select(o => o.KptMinutes.HasValue
                         ? (double)o.KptMinutes.Value
-                        : Math.Max(((o.KitchenReadyAt ?? o.UpdatedAt) - o.CreatedAt).TotalMinutes, 0))
+                        : (o.KitchenReadyAt.HasValue && o.KitchenPrepStartedAt.HasValue
+                            ? Math.Max((o.KitchenReadyAt.Value - o.KitchenPrepStartedAt.Value).TotalMinutes, 0)
+                            : 0))
                     .DefaultIfEmpty(0)
                     .Average();
             }
@@ -492,7 +508,8 @@ public class KitchenDisplayFunction
                 return badReq;
             }
 
-            var attendance = await _mongo.ClockInAsync(staff!.Id!, $"{staff.FirstName} {staff.LastName}".Trim(), outletId!);
+            var clientNow = ResolveClientNow(req);
+            var attendance = await _mongo.ClockInAsync(staff!.Id!, $"{staff.FirstName} {staff.LastName}".Trim(), outletId!, clockInAt: clientNow);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { message = "Shift started", attendance });
@@ -524,7 +541,8 @@ public class KitchenDisplayFunction
                 return badReq;
             }
 
-            var attendance = await _mongo.ClockOutAsync(staff!.Id!, outletId!);
+            var clientNow = ResolveClientNow(req);
+            var attendance = await _mongo.ClockOutAsync(staff!.Id!, outletId!, clockOutAt: clientNow);
             if (attendance == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
@@ -562,10 +580,11 @@ public class KitchenDisplayFunction
                 return badReq;
             }
 
-            var attendance = await _mongo.GetTodayAttendanceAsync(staff!.Id!, outletId!);
+            var clientNow = ResolveClientNow(req);
+            var attendance = await _mongo.GetTodayAttendanceAsync(staff!.Id!, outletId!, clientNow);
             if (attendance == null)
             {
-                attendance = await _mongo.ClockInAsync(staff.Id!, $"{staff.FirstName} {staff.LastName}".Trim(), outletId!);
+                attendance = await _mongo.ClockInAsync(staff.Id!, $"{staff.FirstName} {staff.LastName}".Trim(), outletId!, clockInAt: clientNow);
             }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -622,7 +641,12 @@ public class KitchenDisplayFunction
 
     private static bool IsKitchenOpsRole(string? role)
     {
-        return role == "cook" || role == "chef" || role == "sous-chef";
+        return role == "cook"
+            || role == "chef"
+            || role == "sous-chef"
+            || role == "kitchen"
+            || role == "kitchen-staff"
+            || role == "kitchen-helper";
     }
 
     private static bool IsValidObjectId(string? value)
@@ -674,6 +698,49 @@ public class KitchenDisplayFunction
             return (staff, null, "No valid outlet is assigned to this staff account");
         }
         return (staff, outletId, null);
+    }
+
+    private static DateTime ResolveClientNow(HttpRequestData req)
+    {
+        var headers = req.Headers;
+
+        if (!TryGetSingleHeader(headers, "x-client-epoch-ms", out var epochRaw)
+            || !long.TryParse(epochRaw, out var epochMs))
+        {
+            return MongoService.GetIstNow();
+        }
+
+        try
+        {
+            var utc = DateTimeOffset.FromUnixTimeMilliseconds(epochMs).UtcDateTime;
+
+            if (TryGetSingleHeader(headers, "x-client-timezone-offset-minutes", out var offsetRaw)
+                && int.TryParse(offsetRaw, out var offsetMinutes)
+                && offsetMinutes >= -840
+                && offsetMinutes <= 840)
+            {
+                var local = utc - TimeSpan.FromMinutes(offsetMinutes);
+                return DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
+            }
+
+            return DateTime.SpecifyKind(utc, DateTimeKind.Unspecified);
+        }
+        catch
+        {
+            return MongoService.GetIstNow();
+        }
+    }
+
+    private static bool TryGetSingleHeader(HttpHeadersCollection headers, string key, out string value)
+    {
+        value = string.Empty;
+        if (!headers.TryGetValues(key, out var values))
+        {
+            return false;
+        }
+
+        value = values.FirstOrDefault() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(value);
     }
 }
 

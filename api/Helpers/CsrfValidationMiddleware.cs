@@ -119,8 +119,15 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
 
         if (string.IsNullOrWhiteSpace(csrfToken) || !CsrfTokenManager.ValidateToken(csrfToken, userId))
         {
+            var refreshedCsrfToken = CsrfTokenManager.GenerateToken(userId);
             var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
-            await forbidden.WriteAsJsonAsync(new { error = "Invalid or missing CSRF token" });
+            forbidden.Headers.Add("X-CSRF-Token", refreshedCsrfToken);
+            await forbidden.WriteAsJsonAsync(new
+            {
+                error = "Invalid or missing CSRF token",
+                code = "csrf_token_invalid",
+                csrfToken = refreshedCsrfToken
+            });
             context.GetInvocationResult().Value = forbidden;
             return;
         }

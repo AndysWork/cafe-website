@@ -42,7 +42,7 @@ export const kitchenGuard: CanActivateFn = (route, state) => {
   }
 
   const role = authStore.userRole();
-  const allowed = ['admin', 'manager', 'cook', 'chef', 'sous-chef'];
+  const allowed = ['admin', 'manager', 'assistant-manager', 'cook', 'chef', 'sous-chef', 'kitchen', 'kitchen-staff', 'kitchen-helper'];
   if (allowed.includes(role)) {
     return true;
   }
