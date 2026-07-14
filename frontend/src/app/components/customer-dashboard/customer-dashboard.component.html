@@ -45,7 +45,7 @@
   </section>
 
   <section class="content-grid">
-    <article class="card panel">
+    <article class="card panel live-orders-panel">
       <div class="panel-header">
         <h2>Live Order Status</h2>
         <span class="live-dot" *ngIf="activeOrdersCount > 0">LIVE</span>
@@ -53,15 +53,19 @@
 
       <div *ngIf="loadingOrders" class="empty">Refreshing orders...</div>
 
-      <ul *ngIf="!loadingOrders && activeOrders.length > 0" class="order-list">
-        <li *ngFor="let order of activeOrders">
+      <ul *ngIf="!loadingOrders && activeOrders.length > 0" class="order-list live-list">
+        <li *ngFor="let order of activeOrders" class="live-order-card">
           <div class="row-top">
-            <strong>#{{ order.id.slice(-6).toUpperCase() }}</strong>
-            <span class="status">{{ getStatusIcon(order.status) }} {{ getStatusLabel(order.status) }}</span>
+            <div class="id-wrap">
+              <strong>#{{ order.id.slice(-6).toUpperCase() }}</strong>
+              <span class="status">{{ getStatusIcon(order.status) }} {{ getStatusLabel(order.status) }}</span>
+            </div>
+            <a class="track-link" [routerLink]="['/orders', order.id]">Track</a>
           </div>
           <div class="row-bottom">
-            <span>{{ order.items.length }} item(s) • ₹{{ order.total | number:'1.0-0' }}</span>
-            <span>{{ formatDate(order.createdAt) }}</span>
+            <span class="pill">{{ order.items.length }} item(s)</span>
+            <span class="pill">₹{{ order.total | number:'1.0-0' }}</span>
+            <span class="timestamp">{{ formatDate(order.createdAt) }}</span>
           </div>
         </li>
       </ul>

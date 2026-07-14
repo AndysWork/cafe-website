@@ -564,8 +564,7 @@ public class ManagerOperationsFunction
 
     private static bool IsUsableOutletId(string? outletId)
     {
-        return !string.IsNullOrWhiteSpace(outletId)
-               && !string.Equals(outletId.Trim(), "default", StringComparison.OrdinalIgnoreCase);
+        return !string.IsNullOrWhiteSpace(outletId);
     }
 }
 

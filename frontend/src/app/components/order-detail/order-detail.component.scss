@@ -687,6 +687,7 @@ $shadow-md: 0 4px 14px rgba(0,0,0,0.1);
     user-select: none;
 
     &.filled { color: #f59e0b; }
+    &.active { color: #f59e0b; }
     &.selectable:hover { transform: scale(1.15); }
   }
 }

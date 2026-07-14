@@ -114,7 +114,13 @@ public static class AuthorizationHelper
         var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
 
         var normalizedRole = NormalizeRole(role);
-        if (!IsAdminLikeRole(role) && normalizedRole != "manager")
+        var managerLikeRoles = new HashSet<string>
+        {
+            "manager",
+            "assistant-manager"
+        };
+
+        if (!IsAdminLikeRole(role) && !managerLikeRoles.Contains(normalizedRole))
         {
             var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
             await forbidden.WriteAsJsonAsync(new { error = "Admin or Manager access required" });

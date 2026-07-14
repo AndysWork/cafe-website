@@ -229,6 +229,7 @@
             class="star selectable"
             [class.active]="s <= (reviewHoverRating || reviewRating)"
             (click)="setRating(s)"
+            (touchstart)="setRating(s); $event.preventDefault()"
             (mouseenter)="reviewHoverRating = s"
             (mouseleave)="reviewHoverRating = 0">
             ★
@@ -252,6 +253,7 @@
                 class="star selectable"
                 [class.active]="s <= (getItemHoverRating(item.menuItemId) || getItemRating(item.menuItemId))"
                 (click)="setItemRating(item.menuItemId, s)"
+                (touchstart)="setItemRating(item.menuItemId, s); $event.preventDefault()"
                 (mouseenter)="itemReviewHoverRatings[item.menuItemId] = s"
                 (mouseleave)="itemReviewHoverRatings[item.menuItemId] = 0">
                 ★

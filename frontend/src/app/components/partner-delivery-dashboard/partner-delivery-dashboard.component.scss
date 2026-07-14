@@ -230,6 +230,58 @@
   padding: 0.7rem;
 }
 
+.live-order-card {
+  display: grid;
+  gap: 0.7rem;
+  border-color: #d9ebe3;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fffb 100%);
+}
+
+.live-order-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.live-order-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.pill-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #dbe4ea;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.76rem;
+}
+
+.route-chip a {
+  color: #0f766e;
+  font-weight: 700;
+  text-decoration: none;
+  margin-left: 0.2rem;
+}
+
+.cod-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.cod-actions input {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.82rem;
+  min-width: 170px;
+}
+
 .order-card h3 {
   margin: 0;
   font-size: 0.95rem;
@@ -262,6 +314,26 @@
   font-size: 1rem;
   letter-spacing: 0.03em;
   color: #b45309;
+}
+
+@media (max-width: 760px) {
+  .live-order-top {
+    flex-direction: column;
+  }
+
+  .order-meta {
+    text-align: left;
+    justify-items: start;
+  }
+
+  .cod-actions {
+    flex-direction: column;
+  }
+
+  .cod-actions input,
+  .cod-actions .btn-primary {
+    width: 100%;
+  }
 }
 
 .loading {

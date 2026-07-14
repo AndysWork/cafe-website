@@ -223,23 +223,28 @@
     <h2>Active Orders</h2>
     <div *ngIf="d.activeOrders.length === 0" class="empty">No active orders assigned.</div>
     <div class="orders" *ngIf="d.activeOrders.length > 0">
-      <article class="order-card" *ngFor="let order of d.activeOrders">
-        <div>
-          <h3>#{{ order.id }}</h3>
-          <p>{{ order.deliveryAddress || 'Address unavailable' }}</p>
-          <small *ngIf="getDeliveryMapUrl(order) as mapUrl">
-            Route: <a [href]="mapUrl" target="_blank" rel="noopener">Open map link</a>
-          </small>
-          <small *ngIf="order.deliveryDistanceKm || order.deliveryEtaMinutes">
+      <article class="order-card live-order-card" *ngFor="let order of d.activeOrders">
+        <div class="live-order-top">
+          <div>
+            <h3>#{{ order.id }}</h3>
+            <p>{{ order.deliveryAddress || 'Address unavailable' }}</p>
+          </div>
+          <div class="order-meta">
+            <span>{{ formatStatus(order.status) }}</span>
+            <strong>Rs {{ order.total | number:'1.0-2' }}</strong>
+          </div>
+        </div>
+
+        <div class="live-order-pills">
+          <small *ngIf="order.deliveryDistanceKm || order.deliveryEtaMinutes" class="pill-chip">
             {{ order.deliveryDistanceKm ? (order.deliveryDistanceKm | number:'1.0-1') + ' km' : '' }}
             {{ order.deliveryDistanceKm && order.deliveryEtaMinutes ? ' • ' : '' }}
             {{ order.deliveryEtaMinutes ? (order.deliveryEtaMinutes + ' min ETA') : '' }}
           </small>
-          <small>Payment: {{ (order.paymentMethod || '-') | uppercase }} • {{ order.paymentStatus || '-' }}</small>
-        </div>
-        <div class="order-meta">
-          <span>{{ formatStatus(order.status) }}</span>
-          <strong>Rs {{ order.total | number:'1.0-2' }}</strong>
+          <small class="pill-chip">Payment: {{ (order.paymentMethod || '-') | uppercase }} • {{ order.paymentStatus || '-' }}</small>
+          <small *ngIf="getDeliveryMapUrl(order) as mapUrl" class="pill-chip route-chip">
+            Route: <a [href]="mapUrl" target="_blank" rel="noopener">Open map link</a>
+          </small>
         </div>
 
         <div class="cod-actions" *ngIf="canPickup(order)">

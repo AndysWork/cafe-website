@@ -40,6 +40,11 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
   checklistItems: KitchenChecklistItem[] = [];
   activeSpeechKey: string | null = null;
   selectedLanguage = 'en';
+  private knownIncomingOrderIds = new Set<string>();
+  private hasHydratedOrders = false;
+  private audioContext: AudioContext | null = null;
+  private audioUnlocked = false;
+  private readonly unlockAudioHandler = () => this.unlockAudio();
 
   constructor(private kitchenService: KitchenDisplayService) {}
 
@@ -49,6 +54,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
 
   ngOnInit() {
     this.selectedLanguage = this.getCurrentTranslateLanguage();
+    this.registerAudioUnlockListeners();
 
     this.webPush.registerKitchenWebPush('kitchen-display').catch(() => {
       // Keep kitchen display functional even if push setup fails.
@@ -66,8 +72,90 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
   ngOnDestroy() {
     this.outletSub?.unsubscribe();
     this.pollSub?.unsubscribe();
+    this.unregisterAudioUnlockListeners();
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close().catch(() => {
+        // Ignore teardown errors.
+      });
+    }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+    }
+  }
+
+  private registerAudioUnlockListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.addEventListener('pointerdown', this.unlockAudioHandler, { passive: true });
+    window.addEventListener('keydown', this.unlockAudioHandler);
+    window.addEventListener('touchstart', this.unlockAudioHandler, { passive: true });
+  }
+
+  private unregisterAudioUnlockListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.removeEventListener('pointerdown', this.unlockAudioHandler);
+    window.removeEventListener('keydown', this.unlockAudioHandler);
+    window.removeEventListener('touchstart', this.unlockAudioHandler);
+  }
+
+  private unlockAudio(): void {
+    if (this.audioUnlocked) {
+      return;
+    }
+
+    const AudioContextCtor = typeof window !== 'undefined'
+      ? (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
+      : undefined;
+
+    if (!AudioContextCtor) {
+      return;
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new AudioContextCtor();
+    }
+
+    this.audioContext.resume()
+      .then(() => {
+        this.audioUnlocked = this.audioContext?.state === 'running';
+        if (this.audioUnlocked) {
+          this.unregisterAudioUnlockListeners();
+        }
+      })
+      .catch(() => {
+        // Browser may block audio until an allowed interaction.
+      });
+  }
+
+  private playNewOrderAlert(): void {
+    if (!this.audioContext || this.audioContext.state !== 'running') {
+      return;
+    }
+
+    const now = this.audioContext.currentTime;
+    const pattern = [0, 0.18, 0.36];
+
+    for (const offset of pattern) {
+      const oscillator = this.audioContext.createOscillator();
+      const gain = this.audioContext.createGain();
+
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(920, now + offset);
+
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.22, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.14);
+
+      oscillator.connect(gain);
+      gain.connect(this.audioContext.destination);
+
+      oscillator.start(now + offset);
+      oscillator.stop(now + offset + 0.15);
     }
   }
 
@@ -153,7 +241,26 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
 
   loadData() {
     this.kitchenService.getKitchenOrders().subscribe({
-      next: o => { this.orders = o; this.loading = false; },
+      next: o => {
+        const incomingOrderIds = new Set(
+          o
+            .filter(order => ['pending', 'confirmed', 'preparing'].includes(order.status))
+            .map(order => order.id)
+        );
+
+        const hasNewIncomingOrder = this.hasHydratedOrders
+          && Array.from(incomingOrderIds).some(id => !this.knownIncomingOrderIds.has(id));
+
+        this.orders = o;
+        this.loading = false;
+        this.knownIncomingOrderIds = incomingOrderIds;
+
+        if (this.hasHydratedOrders && hasNewIncomingOrder) {
+          this.playNewOrderAlert();
+        }
+
+        this.hasHydratedOrders = true;
+      },
       error: () => { this.loading = false; }
     });
     this.kitchenService.getKitchenStats().subscribe({

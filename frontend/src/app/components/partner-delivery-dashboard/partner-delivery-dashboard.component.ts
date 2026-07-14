@@ -1,10 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DeliveryPartnerService, PartnerDashboard, PartnerPayoutSummary } from '../../services/delivery-partner.service';
 import { WebPushService } from '../../services/web-push.service';
 import { UIStore } from '../../store/ui.store';
+import { Subscription, interval } from 'rxjs';
 
 @Component({
   selector: 'app-partner-delivery-dashboard',
@@ -13,7 +14,7 @@ import { UIStore } from '../../store/ui.store';
   templateUrl: './partner-delivery-dashboard.component.html',
   styleUrls: ['./partner-delivery-dashboard.component.scss']
 })
-export class PartnerDeliveryDashboardComponent implements OnInit {
+export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   private partnerService = inject(DeliveryPartnerService);
   private webPush = inject(WebPushService);
   private uiStore = inject(UIStore);
@@ -50,8 +51,16 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
   completingParcel: Record<string, boolean> = {};
   markingDelivered: Record<string, boolean> = {};
   autoAcceptParcelTaskId: string | null = null;
+  private pollSub?: Subscription;
+  private knownPendingRequestIds = new Set<string>();
+  private hasHydratedPendingRequests = false;
+  private audioContext: AudioContext | null = null;
+  private audioUnlocked = false;
+  private readonly unlockAudioHandler = () => this.unlockAudio();
 
   ngOnInit(): void {
+    this.registerAudioUnlockListeners();
+
     this.webPush.registerPartnerWebPush('partner-dashboard').catch(() => {
       // Keep dashboard functional even if push registration fails.
     });
@@ -63,13 +72,109 @@ export class PartnerDeliveryDashboardComponent implements OnInit {
     }
 
     this.loadDashboard();
+    this.pollSub = interval(15000).subscribe(() => this.loadDashboard());
+  }
+
+  ngOnDestroy(): void {
+    this.pollSub?.unsubscribe();
+    this.unregisterAudioUnlockListeners();
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close().catch(() => {
+        // Ignore teardown errors.
+      });
+    }
+  }
+
+  private registerAudioUnlockListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.addEventListener('pointerdown', this.unlockAudioHandler, { passive: true });
+    window.addEventListener('keydown', this.unlockAudioHandler);
+    window.addEventListener('touchstart', this.unlockAudioHandler, { passive: true });
+  }
+
+  private unregisterAudioUnlockListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.removeEventListener('pointerdown', this.unlockAudioHandler);
+    window.removeEventListener('keydown', this.unlockAudioHandler);
+    window.removeEventListener('touchstart', this.unlockAudioHandler);
+  }
+
+  private unlockAudio(): void {
+    if (this.audioUnlocked) {
+      return;
+    }
+
+    const AudioContextCtor = typeof window !== 'undefined'
+      ? (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
+      : undefined;
+
+    if (!AudioContextCtor) {
+      return;
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new AudioContextCtor();
+    }
+
+    this.audioContext.resume()
+      .then(() => {
+        this.audioUnlocked = this.audioContext?.state === 'running';
+        if (this.audioUnlocked) {
+          this.unregisterAudioUnlockListeners();
+        }
+      })
+      .catch(() => {
+        // Browser may block audio until an allowed interaction.
+      });
+  }
+
+  private playIncomingRequestAlert(): void {
+    if (!this.audioContext || this.audioContext.state !== 'running') {
+      return;
+    }
+
+    const now = this.audioContext.currentTime;
+    const pattern = [0, 0.16, 0.32];
+
+    for (const offset of pattern) {
+      const oscillator = this.audioContext.createOscillator();
+      const gain = this.audioContext.createGain();
+
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(860, now + offset);
+
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.2, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.12);
+
+      oscillator.connect(gain);
+      gain.connect(this.audioContext.destination);
+
+      oscillator.start(now + offset);
+      oscillator.stop(now + offset + 0.13);
+    }
   }
 
   loadDashboard(): void {
     this.loading = true;
     this.partnerService.getPartnerDashboard().subscribe({
       next: data => {
+        const pendingRequestIds = new Set((data.pendingRequests || []).map(r => r.id).filter((id): id is string => !!id));
+        const hasNewPendingRequest = this.hasHydratedPendingRequests
+          && Array.from(pendingRequestIds).some(id => !this.knownPendingRequestIds.has(id));
+
         this.dashboard = data;
+        this.knownPendingRequestIds = pendingRequestIds;
+        if (this.hasHydratedPendingRequests && hasNewPendingRequest) {
+          this.playIncomingRequestAlert();
+        }
+        this.hasHydratedPendingRequests = true;
         this.initializeCodDrafts();
         this.tryAutoAcceptParcelTask();
         this.loading = false;

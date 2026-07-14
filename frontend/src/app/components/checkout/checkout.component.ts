@@ -679,12 +679,18 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         this.clearPendingPaymentRecovery();
         this.clearCheckoutDraft();
 
-        // Save new address if requested
-        if (this.showNewAddressForm && this.saveNewAddress && this.newAddressLabel.trim()) {
+        // Save new address if requested (including first-time users with no saved addresses yet)
+        if ((this.showNewAddressForm || this.savedAddresses.length === 0) && this.saveNewAddress && this.newAddressLabel.trim()) {
+          const currentUser = this.authService.getCurrentUser();
+          const collectorName =
+            currentUser?.firstName?.trim()
+            || currentUser?.username?.trim()
+            || 'Customer';
+
           const newAddr: AddAddressRequest = {
             label: this.newAddressLabel.trim(),
             fullAddress: this.deliveryAddress.trim(),
-            collectorName: '',
+            collectorName,
             collectorPhone: this.phoneNumber.trim()
           };
           this.addressService.addAddress(newAddr).subscribe({
