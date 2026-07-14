@@ -298,7 +298,7 @@ public class AttendanceFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var records = await _mongo.GetAllTodayAttendanceAsync(outletId ?? "default");
+            var records = await _mongo.GetAllTodayAttendanceAsync(outletId ?? string.Empty);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(records);
@@ -329,8 +329,8 @@ public class AttendanceFunction
             DateTime startDate = DateTime.TryParse(startDateStr, out var sd) ? sd : MongoService.GetIstNow().AddDays(-30);
             DateTime endDate = DateTime.TryParse(endDateStr, out var ed) ? ed : MongoService.GetIstNow();
 
-            var records = await _mongo.GetAttendanceByDateRangeAsync(outletId ?? "default", startDate, endDate);
-            var summary = await _mongo.GetAttendanceSummaryAsync(outletId ?? "default", startDate, endDate);
+            var records = await _mongo.GetAttendanceByDateRangeAsync(outletId ?? string.Empty, startDate, endDate);
+            var summary = await _mongo.GetAttendanceSummaryAsync(outletId ?? string.Empty, startDate, endDate);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { records, summary });
@@ -512,6 +512,67 @@ public class AttendanceFunction
         catch (Exception ex)
         {
             _log.LogError(ex, "Error getting self leave requests");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("DeleteMyLeaveRequest")]
+    public async Task<HttpResponseData> DeleteMyLeaveRequest(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "attendance/my/leave/{id}")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized || string.IsNullOrWhiteSpace(userId)) return errorResponse!;
+
+            var (staff, _, _, resolveError) = await ResolveStaffAndShiftAsync(req, userId);
+            if (staff == null || !string.IsNullOrWhiteSpace(resolveError))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = resolveError ?? "Staff profile not linked" });
+                return badReq;
+            }
+
+            var leave = await _mongo.GetLeaveRequestByIdAsync(id);
+            if (leave == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Leave request not found" });
+                return notFound;
+            }
+
+            if (!string.Equals(leave.StaffId, staff.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "You can only delete your own leave requests" });
+                return forbidden;
+            }
+
+            if (!string.Equals(leave.Status, "pending", StringComparison.OrdinalIgnoreCase))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Only pending leave requests can be deleted" });
+                return badReq;
+            }
+
+            var deleted = await _mongo.DeleteLeaveRequestAsync(id);
+            if (!deleted)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Failed to delete leave request" });
+                return conflict;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Leave request deleted" });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting self leave request");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;
@@ -744,8 +805,8 @@ public class AttendanceFunction
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
-            if (!isAuthorized) return errorResponse!;
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized || string.IsNullOrWhiteSpace(userId)) return errorResponse!;
 
             var (request, validationError) = await ValidationHelper.ValidateBody<UpdateLeaveStatusRequest>(req);
             if (validationError != null) return validationError;
@@ -765,9 +826,7 @@ public class AttendanceFunction
                 return badReq;
             }
 
-            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth) ?? "default";
-            var leaves = await _mongo.GetLeaveRequestsAsync(outletId, null);
-            var leave = leaves.FirstOrDefault(l => string.Equals(l.Id, id, StringComparison.Ordinal));
+            var leave = await _mongo.GetLeaveRequestByIdAsync(id);
             if (leave == null)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
@@ -782,16 +841,23 @@ public class AttendanceFunction
                 return badReq;
             }
 
+            if (leave.Status.Equals("rejected", StringComparison.OrdinalIgnoreCase) && normalizedStatus == "rejected")
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Leave request is already rejected" });
+                return badReq;
+            }
+
             if (normalizedStatus == "approved")
             {
-                var deductionResult = await TryDeductLeaveBalanceForApprovalAsync(req, leave);
+                var deductionResult = await TryDeductLeaveBalanceForApprovalAsync(req, leave, userId);
                 if (deductionResult != null)
                 {
                     return deductionResult;
                 }
             }
 
-            var success = await _mongo.UpdateLeaveRequestStatusAsync(id, normalizedStatus);
+            var success = await _mongo.UpdateLeaveRequestStatusAsync(id, normalizedStatus, userId);
 
             if (!success)
             {
@@ -1056,7 +1122,7 @@ public class AttendanceFunction
         };
     }
 
-    private async Task<HttpResponseData?> TryDeductLeaveBalanceForApprovalAsync(HttpRequestData req, LeaveRequest leave)
+    private async Task<HttpResponseData?> TryDeductLeaveBalanceForApprovalAsync(HttpRequestData req, LeaveRequest leave, string updatedByUserId)
     {
         var staff = await _mongo.GetStaffByIdAsync(leave.StaffId);
         if (staff == null)
@@ -1101,7 +1167,7 @@ public class AttendanceFunction
             annual,
             sick,
             casual,
-            "leave-approval");
+            updatedByUserId);
 
         if (!success)
         {

@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { DeliveryPartnerService, PartnerDashboard, PartnerPayoutSummary } from '../../services/delivery-partner.service';
+import { DeliveryPartnerService, PartnerDashboard } from '../../services/delivery-partner.service';
 import { WebPushService } from '../../services/web-push.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription, interval } from 'rxjs';
@@ -22,9 +22,8 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   private router = inject(Router);
 
   dashboard: PartnerDashboard | null = null;
-  payoutSummary: PartnerPayoutSummary | null = null;
   loading = true;
-  periodType: 'day' | 'week' | 'month' | 'year' = 'day';
+  activeShiftModal: 'start' | 'end' | 'trip' | 'history' | null = null;
   shiftForm = {
     startOdometerKm: '',
     endOdometerKm: '',
@@ -178,7 +177,6 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
         this.initializeCodDrafts();
         this.tryAutoAcceptParcelTask();
         this.loading = false;
-        this.loadPayout();
       },
       error: () => {
         this.uiStore.error('Failed to load partner dashboard');
@@ -187,15 +185,15 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  loadPayout(): void {
-    this.partnerService.getMyPayoutSummary(this.periodType).subscribe({
-      next: payout => {
-        this.payoutSummary = payout;
-      },
-      error: () => {
-        this.uiStore.error('Failed to load payout summary');
-      }
-    });
+  openShiftModal(modal: 'start' | 'end' | 'trip' | 'history'): void {
+    if (modal === 'trip' && !this.tripForm.shiftId && this.dashboard?.activeShift?.id) {
+      this.tripForm.shiftId = this.dashboard.activeShift.id;
+    }
+    this.activeShiftModal = modal;
+  }
+
+  closeShiftModal(): void {
+    this.activeShiftModal = null;
   }
 
   startShift(): void {
@@ -218,6 +216,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
         this.shiftForm.endOdometerKm = '';
         this.shiftForm.notes = '';
         this.submittingShiftStart = false;
+        this.closeShiftModal();
         this.loadDashboard();
       },
       error: () => {
@@ -256,6 +255,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
         this.shiftForm.endOdometerKm = '';
         this.shiftForm.notes = '';
         this.submittingShiftEnd = false;
+        this.closeShiftModal();
         this.loadDashboard();
       },
       error: () => {
@@ -303,6 +303,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
           notes: ''
         };
         this.submittingTrip = false;
+        this.closeShiftModal();
         this.loadDashboard();
       },
       error: () => {

@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AttendanceService, Attendance, LeaveRequest, MyAttendanceResponse, MyMonthlyLeaveBalanceResponse } from '../../services/attendance.service';
 import { KitchenDisplayService } from '../../services/kitchen-display.service';
 import { AuthStore } from '../../store/auth.store';
@@ -33,6 +34,7 @@ export class StaffAttendanceComponent implements OnInit {
   canShiftOut = false;
   actionMessage = '';
   leavesLoading = false;
+  deletingLeaveId = '';
   leaveBalanceLoading = false;
   myLeaves: LeaveRequest[] = [];
   selectedLeaveMonth = this.getCurrentMonth();
@@ -71,6 +73,11 @@ export class StaffAttendanceComponent implements OnInit {
   }
 
   startShift(): void {
+    if (!this.canStartShiftAction) {
+      this.uiStore.error(this.actionMessage || 'Shift start is not available right now');
+      return;
+    }
+
     if (this.useKitchenShiftActions())
     {
       this.kitchenService.shiftIn().subscribe({
@@ -94,6 +101,11 @@ export class StaffAttendanceComponent implements OnInit {
   }
 
   endShift(): void {
+    if (!this.canEndShiftAction) {
+      this.uiStore.error(this.actionMessage || 'Shift end is not available right now');
+      return;
+    }
+
     if (this.useKitchenShiftActions())
     {
       this.kitchenService.shiftOut().subscribe({
@@ -130,6 +142,52 @@ export class StaffAttendanceComponent implements OnInit {
         this.uiStore.error('Unable to load leave requests');
       }
     });
+  }
+
+  deleteLeaveRequest(leave: LeaveRequest): void {
+    if (!leave.id) {
+      this.uiStore.error('Invalid leave request');
+      return;
+    }
+
+    if (leave.status !== 'pending') {
+      this.uiStore.error('Only pending leave requests can be deleted');
+      return;
+    }
+
+    if (!confirm('Delete this pending leave request?')) {
+      return;
+    }
+
+    this.deletingLeaveId = leave.id;
+    this.attendanceService.deleteMyLeaveRequest(leave.id).subscribe({
+      next: () => {
+        this.uiStore.success('Leave request deleted');
+        this.deletingLeaveId = '';
+        this.loadMyLeaves();
+        this.loadMonthlyLeaveBalance();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.deletingLeaveId = '';
+        this.uiStore.error(this.getApiErrorMessage(error, 'Unable to delete leave request'));
+      }
+    });
+  }
+
+  private getApiErrorMessage(error: HttpErrorResponse, fallback: string): string {
+    const apiError = error?.error;
+    if (typeof apiError === 'string' && apiError.trim()) {
+      return apiError;
+    }
+
+    if (apiError && typeof apiError === 'object') {
+      const message = apiError.message || apiError.error;
+      if (typeof message === 'string' && message.trim()) {
+        return message;
+      }
+    }
+
+    return fallback;
   }
 
   loadMonthlyLeaveBalance(): void {
@@ -206,7 +264,7 @@ export class StaffAttendanceComponent implements OnInit {
 
   get canStartShiftAction(): boolean {
     if (this.useKitchenShiftActions()) {
-      return !this.isInShift;
+      return this.canShiftIn && !this.isInShift;
     }
 
     return this.canShiftIn;
@@ -214,7 +272,7 @@ export class StaffAttendanceComponent implements OnInit {
 
   get canEndShiftAction(): boolean {
     if (this.useKitchenShiftActions()) {
-      return this.isInShift;
+      return this.canShiftOut && this.isInShift;
     }
 
     return this.canShiftOut;

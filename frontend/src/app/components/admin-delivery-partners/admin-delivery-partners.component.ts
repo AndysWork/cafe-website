@@ -75,6 +75,7 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
   };
   showFuelModal = false;
   fuelForm = { date: '', petrolPricePerLitre: '' };
+  quickFuelSubmitting = false;
   showCodModal = false;
   codForm = { partnerId: '', orderId: '', amount: '', collectionReference: '', notes: '' };
   payoutPeriodType: 'day' | 'week' | 'month' | 'year' = 'day';
@@ -474,6 +475,30 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     this.fuelForm = { date, petrolPricePerLitre: '' };
     this.showFuelModal = true;
+  }
+
+  submitQuickFuelPrice() {
+    const petrolPricePerLitre = Number(this.fuelForm.petrolPricePerLitre);
+    if (!this.fuelForm.date || !Number.isFinite(petrolPricePerLitre) || petrolPricePerLitre <= 0) {
+      this.uiStore.error('Enter valid date and fuel price');
+      return;
+    }
+
+    this.quickFuelSubmitting = true;
+    this.partnerService.upsertFuelPrice({
+      date: this.fuelForm.date,
+      petrolPricePerLitre
+    }).subscribe({
+      next: () => {
+        this.uiStore.success('Fuel price updated');
+        this.quickFuelSubmitting = false;
+        Object.keys(this.payoutSummaryByPartner).forEach(partnerId => this.loadPayout(partnerId));
+      },
+      error: () => {
+        this.quickFuelSubmitting = false;
+        this.uiStore.error('Failed to update fuel price');
+      }
+    });
   }
 
   submitFuelPrice() {

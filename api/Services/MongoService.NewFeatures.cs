@@ -188,7 +188,22 @@ public partial class MongoService : IOperationsRepository
     public async Task<List<Attendance>> GetAllTodayAttendanceAsync(string outletId)
     {
         var today = GetIstNow().Date;
-        return await _attendance.Find(a => a.OutletId == outletId && a.Date == today)
+        var hasValidOutletId = !string.IsNullOrWhiteSpace(outletId)
+            && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase)
+            && MongoDB.Bson.ObjectId.TryParse(outletId, out _);
+
+        var filterBuilder = Builders<Attendance>.Filter;
+        var filter = filterBuilder.Eq(a => a.Date, today);
+
+        if (hasValidOutletId)
+        {
+            filter &= filterBuilder.Or(
+                filterBuilder.Eq(a => a.OutletId, outletId),
+                filterBuilder.Exists(a => a.OutletId, false),
+                filterBuilder.Eq(a => a.OutletId, null));
+        }
+
+        return await _attendance.Find(filter)
             .ToListAsync();
     }
 
@@ -276,7 +291,7 @@ public partial class MongoService : IOperationsRepository
         string? shiftKey = null,
         DateTime? clockOutAt = null)
     {
-        var now = clockOutAt ?? GetIstNow();
+        var now = NormalizeToIstWallClock(clockOutAt ?? GetIstNow());
         var existing = await GetTodayAttendanceAsync(staffId, outletId, now);
         if (existing == null)
             return existing;
@@ -296,8 +311,14 @@ public partial class MongoService : IOperationsRepository
         if (targetSession == null)
             return existing;
 
+        var clockInAt = NormalizeToIstWallClock(targetSession.ClockIn!.Value);
+        if (now < clockInAt)
+        {
+            now = clockInAt;
+        }
+
         targetSession.ClockOut = now;
-        targetSession.HoursWorked = Math.Round((now - targetSession.ClockIn!.Value).TotalHours, 2);
+        targetSession.HoursWorked = Math.Round(Math.Max(0, (now - clockInAt).TotalHours), 2);
 
         if (scheduledHours.HasValue)
         {
@@ -317,6 +338,22 @@ public partial class MongoService : IOperationsRepository
 
         await _attendance.ReplaceOneAsync(a => a.Id == existing.Id, existing);
         return existing;
+    }
+
+    private static DateTime NormalizeToIstWallClock(DateTime value)
+    {
+        if (value.Kind == DateTimeKind.Utc)
+        {
+            return DateTime.SpecifyKind(ConvertToIst(value), DateTimeKind.Unspecified);
+        }
+
+        if (value.Kind == DateTimeKind.Local)
+        {
+            var ist = TimeZoneInfo.ConvertTime(value, IstTimeZone);
+            return DateTime.SpecifyKind(ist, DateTimeKind.Unspecified);
+        }
+
+        return DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
     }
 
     private static void RecalculateAttendanceAggregate(Attendance attendance)
@@ -362,9 +399,20 @@ public partial class MongoService : IOperationsRepository
     public async Task<List<Attendance>> GetAttendanceByDateRangeAsync(string outletId, DateTime start, DateTime end, string? staffId = null)
     {
         var filterBuilder = Builders<Attendance>.Filter;
-        var filter = filterBuilder.Eq(a => a.OutletId, outletId)
-            & filterBuilder.Gte(a => a.Date, start.Date)
+        var hasValidOutletId = !string.IsNullOrWhiteSpace(outletId)
+            && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase)
+            && MongoDB.Bson.ObjectId.TryParse(outletId, out _);
+
+        var filter = filterBuilder.Gte(a => a.Date, start.Date)
             & filterBuilder.Lte(a => a.Date, end.Date);
+
+        if (hasValidOutletId)
+        {
+            filter &= filterBuilder.Or(
+                filterBuilder.Eq(a => a.OutletId, outletId),
+                filterBuilder.Exists(a => a.OutletId, false),
+                filterBuilder.Eq(a => a.OutletId, null));
+        }
 
         if (!string.IsNullOrEmpty(staffId))
             filter &= filterBuilder.Eq(a => a.StaffId, staffId);
@@ -425,6 +473,11 @@ public partial class MongoService : IOperationsRepository
             .ToListAsync();
     }
 
+    public async Task<LeaveRequest?> GetLeaveRequestByIdAsync(string id)
+    {
+        return await _leaveRequests.Find(r => r.Id == id).FirstOrDefaultAsync();
+    }
+
     public async Task<bool> UpdateLeaveRequestStatusAsync(string id, string status, string? approvedBy = null)
     {
         var update = Builders<LeaveRequest>.Update
@@ -433,7 +486,13 @@ public partial class MongoService : IOperationsRepository
             update = update.Set(r => r.ApprovedBy, approvedBy);
 
         var result = await _leaveRequests.UpdateOneAsync(r => r.Id == id, update);
-        return result.ModifiedCount > 0;
+        return result.MatchedCount > 0;
+    }
+
+    public async Task<bool> DeleteLeaveRequestAsync(string id)
+    {
+        var result = await _leaveRequests.DeleteOneAsync(r => r.Id == id);
+        return result.DeletedCount > 0;
     }
 
     #endregion
@@ -677,7 +736,18 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<List<DeliveryPartner>> GetDeliveryPartnersAsync(string outletId)
     {
-        return await _deliveryPartners.Find(p => p.OutletId == outletId && p.IsActive)
+        var hasValidOutletId = !string.IsNullOrWhiteSpace(outletId)
+            && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase)
+            && ObjectId.TryParse(outletId, out _);
+
+        var filterBuilder = Builders<DeliveryPartner>.Filter;
+        var filter = filterBuilder.Eq(p => p.IsActive, true);
+        if (hasValidOutletId)
+        {
+            filter &= filterBuilder.Eq(p => p.OutletId, outletId);
+        }
+
+        return await _deliveryPartners.Find(filter)
             .SortBy(p => p.Name)
             .ToListAsync();
     }
@@ -689,8 +759,19 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<DeliveryPartner?> GetAvailableDeliveryPartnerAsync(string outletId)
     {
-        return await _deliveryPartners.Find(p =>
-            p.OutletId == outletId && p.IsActive && p.Status == "available")
+        var hasValidOutletId = !string.IsNullOrWhiteSpace(outletId)
+            && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase)
+            && ObjectId.TryParse(outletId, out _);
+
+        var filterBuilder = Builders<DeliveryPartner>.Filter;
+        var filter = filterBuilder.Eq(p => p.IsActive, true)
+            & filterBuilder.Eq(p => p.Status, "available");
+        if (hasValidOutletId)
+        {
+            filter &= filterBuilder.Eq(p => p.OutletId, outletId);
+        }
+
+        return await _deliveryPartners.Find(filter)
             .SortByDescending(p => p.Rating)
             .FirstOrDefaultAsync();
     }

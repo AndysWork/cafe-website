@@ -1,0 +1,64 @@
+<section class="payout-shell" *ngIf="!loading">
+  <header class="payout-hero">
+    <h1>Delivery Partner Payout Access</h1>
+    <button class="btn-refresh" (click)="loadSummaries()">Refresh</button>
+  </header>
+
+  <section class="salary-panel">
+    <h2>Salary from Staff Data</h2>
+    <p class="salary-value">Rs {{ monthlySalary | number:'1.0-2' }}</p>
+    <p class="hint">Salary Type: {{ salaryType }}</p>
+    <p *ngIf="!salaryLoaded" class="hint warning">Staff salary is unavailable. Monthly total excludes base salary.</p>
+  </section>
+
+  <section class="fuel-panel">
+    <h2>Enter Daily Fuel Price (One Time)</h2>
+    <div class="fuel-grid">
+      <label>
+        Date
+        <input type="date" [(ngModel)]="fuelForm.date" name="fuelDate" />
+      </label>
+      <label>
+        Petrol Price / Litre
+        <input type="number" min="1" step="0.01" [(ngModel)]="fuelForm.petrolPricePerLitre" name="fuelPrice" placeholder="e.g. 105.40" />
+      </label>
+      <button class="btn-refresh" (click)="submitMyFuelPrice()" [disabled]="submittingFuelPrice">
+        {{ submittingFuelPrice ? 'Submitting...' : 'Submit Fuel Price' }}
+      </button>
+    </div>
+    <p class="hint warning">Fuel price can be entered only once per day and cannot be changed later.</p>
+  </section>
+
+  <div class="cards-grid">
+    <article class="card">
+      <h3>Daily Payout (Distance-Based)</h3>
+      <p class="value">Rs {{ dailySummary?.payoutAmount || 0 | number:'1.0-2' }}</p>
+      <p class="meta">Distance: {{ dailySummary?.totalDistanceKm || 0 | number:'1.0-2' }} km</p>
+      <p class="meta">Deliveries: {{ dailySummary?.totalDeliveries || 0 }}</p>
+      <p class="meta">Fuel Price: Rs {{ dailySummary?.fuelPricePerLitre || 0 | number:'1.0-2' }}</p>
+
+      <div class="daily-summary" *ngIf="dailySummary as ds">
+        <h4>Payout Summary</h4>
+        <div class="summary-grid">
+          <p><span>Period</span><strong>{{ ds.periodStart | date:'mediumDate' }} - {{ ds.periodEnd | date:'mediumDate' }}</strong></p>
+          <p><span>Trip Distance</span><strong>{{ ds.tripDistanceKm | number:'1.0-2' }} km</strong></p>
+          <p><span>Shift Distance</span><strong>{{ ds.shiftDistanceKm | number:'1.0-2' }} km</strong></p>
+          <p><span>Litres Used</span><strong>{{ ds.litresConsumed | number:'1.0-3' }} L</strong></p>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <h3>Monthly Payout (Salary + Distance)</h3>
+      <p class="value">Rs {{ estimatedMonthlyTotal | number:'1.0-2' }}</p>
+      <p class="meta">Salary: Rs {{ monthlySalary | number:'1.0-2' }}</p>
+      <p class="meta">Distance Payout: Rs {{ monthlySummary?.payoutAmount || 0 | number:'1.0-2' }}</p>
+      <p class="meta">Monthly Distance: {{ monthlySummary?.totalDistanceKm || 0 | number:'1.0-2' }} km</p>
+    </article>
+  </div>
+</section>
+
+<section *ngIf="loading" class="loading">
+  <div class="spinner"></div>
+  <p>Loading payout details...</p>
+</section>

@@ -5,6 +5,7 @@ using Cafe.Api.Helpers;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
 using Cafe.Api.Services;
+using MongoDB.Bson;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ public class ManagerOperationsFunction
 
     private readonly IOperationsRepository _ops;
     private readonly IOrderRepository _orders;
+    private readonly IUserRepository _users;
     private readonly AuthService _auth;
     private readonly NotificationService _notification;
     private readonly ILogger<ManagerOperationsFunction> _log;
@@ -27,12 +29,14 @@ public class ManagerOperationsFunction
     public ManagerOperationsFunction(
         IOperationsRepository ops,
         IOrderRepository orders,
+        IUserRepository users,
         AuthService auth,
         NotificationService notification,
         ILoggerFactory loggerFactory)
     {
         _ops = ops;
         _orders = orders;
+        _users = users;
         _auth = auth;
         _notification = notification;
         _log = loggerFactory.CreateLogger<ManagerOperationsFunction>();
@@ -47,7 +51,7 @@ public class ManagerOperationsFunction
             var (ok, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!ok) return authError!;
 
-            var outletId = ResolveOutletId(req);
+            var outletId = await ResolveOutletIdAsync(req);
             if (string.IsNullOrWhiteSpace(outletId))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -155,7 +159,7 @@ public class ManagerOperationsFunction
             var (ok, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!ok) return authError!;
 
-            var outletId = ResolveOutletId(req);
+            var outletId = await ResolveOutletIdAsync(req);
             if (string.IsNullOrWhiteSpace(outletId))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -192,7 +196,7 @@ public class ManagerOperationsFunction
             var (ok, userId, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!ok) return authError!;
 
-            var outletId = ResolveOutletId(req);
+            var outletId = await ResolveOutletIdAsync(req);
             if (string.IsNullOrWhiteSpace(outletId))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -259,7 +263,7 @@ public class ManagerOperationsFunction
             var (ok, userId, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!ok) return authError!;
 
-            var outletId = ResolveOutletId(req);
+            var outletId = await ResolveOutletIdAsync(req);
             if (string.IsNullOrWhiteSpace(outletId))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -320,7 +324,7 @@ public class ManagerOperationsFunction
             var (ok, userId, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!ok) return authError!;
 
-            var outletId = ResolveOutletId(req);
+            var outletId = await ResolveOutletIdAsync(req);
             if (string.IsNullOrWhiteSpace(outletId))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -383,7 +387,7 @@ public class ManagerOperationsFunction
             var (ok, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!ok) return authError!;
 
-            var outletId = ResolveOutletId(req);
+            var outletId = await ResolveOutletIdAsync(req);
             if (string.IsNullOrWhiteSpace(outletId))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -518,12 +522,12 @@ public class ManagerOperationsFunction
             : null;
     }
 
-    private string? ResolveOutletId(HttpRequestData req)
+    private async Task<string?> ResolveOutletIdAsync(HttpRequestData req)
     {
         var fromRequest = OutletHelper.GetOutletIdForAdmin(req, _auth);
         if (IsUsableOutletId(fromRequest))
         {
-            return fromRequest;
+            return fromRequest!.Trim();
         }
 
         if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
@@ -551,20 +555,46 @@ public class ManagerOperationsFunction
         }
 
         var assignedOutletsRaw = principal.FindFirst("AssignedOutlets")?.Value;
-        if (string.IsNullOrWhiteSpace(assignedOutletsRaw))
+        if (!string.IsNullOrWhiteSpace(assignedOutletsRaw))
+        {
+            var fromAssignedClaims = assignedOutletsRaw
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(v => v.Trim().Trim('"', '[', ']'))
+                .FirstOrDefault(IsUsableOutletId);
+
+            if (!string.IsNullOrWhiteSpace(fromAssignedClaims))
+            {
+                return fromAssignedClaims;
+            }
+        }
+
+        var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(userId))
         {
             return null;
         }
 
-        return assignedOutletsRaw
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(v => v.Trim())
+        var user = await _users.GetUserByIdAsync(userId);
+        if (user == null)
+        {
+            return null;
+        }
+
+        if (IsUsableOutletId(user.DefaultOutletId))
+        {
+            return user.DefaultOutletId!.Trim();
+        }
+
+        return (user.AssignedOutlets ?? new List<string>())
+            .Select(v => v?.Trim().Trim('"', '[', ']'))
             .FirstOrDefault(IsUsableOutletId);
     }
 
     private static bool IsUsableOutletId(string? outletId)
     {
-        return !string.IsNullOrWhiteSpace(outletId);
+        return !string.IsNullOrWhiteSpace(outletId)
+            && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase)
+            && ObjectId.TryParse(outletId.Trim().Trim('"', '[', ']'), out _);
     }
 }
 

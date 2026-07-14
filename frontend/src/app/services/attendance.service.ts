@@ -263,6 +263,12 @@ export class AttendanceService {
     );
   }
 
+  deleteMyLeaveRequest(id: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/attendance/my/leave/${id}`, this.withDeviceTimeHeaders()).pipe(
+      catchError(handleServiceError('AttendanceService.deleteMyLeaveRequest'))
+    );
+  }
+
   getMyMonthlyLeaveBalance(month?: string): Observable<MyMonthlyLeaveBalanceResponse> {
     const query = month ? `?month=${encodeURIComponent(month)}` : '';
     return this.http.get<MyMonthlyLeaveBalanceResponse>(`${this.apiUrl}/attendance/my/leave-balance${query}`, this.withDeviceTimeHeaders()).pipe(

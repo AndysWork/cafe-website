@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AttendanceService, Attendance, LeaveRequest, CreateLeaveRequest } from '../../services/attendance.service';
 import { StaffService } from '../../services/staff.service';
 import { OutletService } from '../../services/outlet.service';
@@ -137,8 +138,24 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
   updateLeaveStatus(id: string, status: string) {
     this.attendanceService.updateLeaveStatus(id, status).subscribe({
       next: () => { this.uiStore.success('Leave ' + status); this.loadData(); },
-      error: () => this.uiStore.error('Failed to update leave status')
+      error: (error: HttpErrorResponse) => this.uiStore.error(this.getApiErrorMessage(error, 'Failed to update leave status'))
     });
+  }
+
+  private getApiErrorMessage(error: HttpErrorResponse, fallback: string): string {
+    const apiError = error?.error;
+    if (typeof apiError === 'string' && apiError.trim()) {
+      return apiError;
+    }
+
+    if (apiError && typeof apiError === 'object') {
+      const message = apiError.message || apiError.error;
+      if (typeof message === 'string' && message.trim()) {
+        return message;
+      }
+    }
+
+    return fallback;
   }
 
   isStaffClockedIn(staffId: string): boolean {

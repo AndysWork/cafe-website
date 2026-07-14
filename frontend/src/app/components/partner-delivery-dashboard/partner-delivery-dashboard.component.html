@@ -30,38 +30,28 @@
     </article>
   </div>
 
-  <section class="panel" *ngIf="d.activeShift as shift">
-    <h2>Active Shift</h2>
-    <div class="panel-grid">
-      <div><label>Started</label><p>{{ shift.startedAt | date:'medium' }}</p></div>
-      <div><label>Start Odometer</label><p>{{ shift.startOdometerKm }} km</p></div>
-      <div><label>Status</label><p>{{ formatStatus(shift.status) }}</p></div>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>Shift History</h2>
-    <div *ngIf="!d.recentShifts || d.recentShifts.length === 0" class="empty">No shift history found.</div>
-    <div class="orders" *ngIf="d.recentShifts && d.recentShifts.length > 0">
-      <article class="order-card" *ngFor="let shift of d.recentShifts">
-        <div>
-          <h3>{{ formatStatus(shift.status) }} Shift</h3>
-          <p>Started: {{ shift.startedAt | date:'medium' }}</p>
-          <small *ngIf="shift.endedAt">Ended: {{ shift.endedAt | date:'medium' }}</small>
-        </div>
-        <div class="order-meta">
-          <span>{{ shift.startOdometerKm | number:'1.0-2' }} km → {{ (shift.endOdometerKm ?? shift.startOdometerKm) | number:'1.0-2' }} km</span>
-          <strong>{{ shift.totalDistanceKm | number:'1.0-2' }} km</strong>
-        </div>
-      </article>
-    </div>
-  </section>
-
   <section class="panel action-panel">
     <h2>Shift Actions</h2>
-    <div class="action-grid">
-      <div class="action-card">
-        <h3>Start Shift</h3>
+    <div class="action-buttons">
+      <button class="btn-primary" (click)="openShiftModal('start')">Shift Start</button>
+      <button class="btn-danger" (click)="openShiftModal('end')">Shift End</button>
+      <button class="btn-primary" (click)="openShiftModal('trip')">Log Trip</button>
+      <button class="btn-primary" (click)="openShiftModal('history')">Shift History</button>
+    </div>
+    <p class="hint">Use these actions to open dedicated screens for shift operations.</p>
+  </section>
+
+  <div class="modal-overlay" *ngIf="activeShiftModal" (click)="closeShiftModal()">
+    <section class="shift-modal" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <h3 *ngIf="activeShiftModal === 'start'">Shift Start</h3>
+        <h3 *ngIf="activeShiftModal === 'end'">Shift End</h3>
+        <h3 *ngIf="activeShiftModal === 'trip'">Log Trip</h3>
+        <h3 *ngIf="activeShiftModal === 'history'">Shift History</h3>
+        <button class="btn-close" (click)="closeShiftModal()">Close</button>
+      </header>
+
+      <div class="modal-body" *ngIf="activeShiftModal === 'start'">
         <p *ngIf="d.activeShift" class="hint">You already have an active shift.</p>
         <div class="field-row">
           <label>Start Odometer</label>
@@ -76,89 +66,85 @@
         </button>
       </div>
 
-      <div class="action-card">
-        <h3>End Shift</h3>
+      <div class="modal-body" *ngIf="activeShiftModal === 'end'">
         <p *ngIf="!d.activeShift" class="hint">No active shift to end.</p>
         <div class="field-row">
           <label>End Odometer</label>
           <input type="number" min="0" step="0.01" [(ngModel)]="shiftForm.endOdometerKm" [disabled]="!d.activeShift" />
         </div>
+        <div class="field-row">
+          <label>Notes</label>
+          <input type="text" [(ngModel)]="shiftForm.notes" [disabled]="!d.activeShift" />
+        </div>
         <button class="btn-danger" (click)="endShift()" [disabled]="!d.activeShift || submittingShiftEnd">
           {{ submittingShiftEnd ? 'Ending...' : 'End Shift' }}
         </button>
       </div>
-    </div>
-  </section>
 
-  <section class="panel action-panel">
-    <h2>Trip Log</h2>
-    <p class="hint" *ngIf="!d.activeShift">Start a shift first to log trips.</p>
-    <div class="action-grid trip-grid">
-      <div class="field-row">
-        <label>Shift ID</label>
-        <input type="text" [(ngModel)]="tripForm.shiftId" [disabled]="!d.activeShift" [placeholder]="d.activeShift?.id || 'Shift ID'" />
+      <div class="modal-body" *ngIf="activeShiftModal === 'trip'">
+        <p class="hint" *ngIf="!d.activeShift">Start a shift first to log trips.</p>
+        <div class="action-grid trip-grid">
+          <div class="field-row">
+            <label>Shift ID</label>
+            <input type="text" [(ngModel)]="tripForm.shiftId" [disabled]="!d.activeShift" [placeholder]="d.activeShift?.id || 'Shift ID'" />
+          </div>
+          <div class="field-row">
+            <label>Trip Type</label>
+            <select [(ngModel)]="tripForm.tripType" [disabled]="!d.activeShift">
+              <option value="delivery">Delivery</option>
+              <option value="outlet-transfer">Outlet Transfer</option>
+              <option value="market-stop">Market Stop</option>
+              <option value="misc">Misc</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label>Order ID</label>
+            <input type="text" [(ngModel)]="tripForm.orderId" [disabled]="!d.activeShift" />
+          </div>
+          <div class="field-row">
+            <label>Start Odometer</label>
+            <input type="number" min="0" step="0.01" [(ngModel)]="tripForm.startOdometerKm" [disabled]="!d.activeShift" />
+          </div>
+          <div class="field-row">
+            <label>End Odometer</label>
+            <input type="number" min="0" step="0.01" [(ngModel)]="tripForm.endOdometerKm" [disabled]="!d.activeShift" />
+          </div>
+          <div class="field-row">
+            <label>Start Point</label>
+            <input type="text" [(ngModel)]="tripForm.startPointLabel" [disabled]="!d.activeShift" />
+          </div>
+          <div class="field-row">
+            <label>End Point</label>
+            <input type="text" [(ngModel)]="tripForm.endPointLabel" [disabled]="!d.activeShift" />
+          </div>
+          <div class="field-row full-row">
+            <label>Notes</label>
+            <input type="text" [(ngModel)]="tripForm.notes" [disabled]="!d.activeShift" />
+          </div>
+        </div>
+        <button class="btn-primary" (click)="logTrip()" [disabled]="!d.activeShift || submittingTrip">
+          {{ submittingTrip ? 'Saving...' : 'Log Trip' }}
+        </button>
       </div>
-      <div class="field-row">
-        <label>Trip Type</label>
-        <select [(ngModel)]="tripForm.tripType" [disabled]="!d.activeShift">
-          <option value="delivery">Delivery</option>
-          <option value="outlet-transfer">Outlet Transfer</option>
-          <option value="market-stop">Market Stop</option>
-          <option value="misc">Misc</option>
-        </select>
-      </div>
-      <div class="field-row">
-        <label>Order ID</label>
-        <input type="text" [(ngModel)]="tripForm.orderId" [disabled]="!d.activeShift" />
-      </div>
-      <div class="field-row">
-        <label>Start Odometer</label>
-        <input type="number" min="0" step="0.01" [(ngModel)]="tripForm.startOdometerKm" [disabled]="!d.activeShift" />
-      </div>
-      <div class="field-row">
-        <label>End Odometer</label>
-        <input type="number" min="0" step="0.01" [(ngModel)]="tripForm.endOdometerKm" [disabled]="!d.activeShift" />
-      </div>
-      <div class="field-row">
-        <label>Start Point</label>
-        <input type="text" [(ngModel)]="tripForm.startPointLabel" [disabled]="!d.activeShift" />
-      </div>
-      <div class="field-row">
-        <label>End Point</label>
-        <input type="text" [(ngModel)]="tripForm.endPointLabel" [disabled]="!d.activeShift" />
-      </div>
-      <div class="field-row full-row">
-        <label>Notes</label>
-        <input type="text" [(ngModel)]="tripForm.notes" [disabled]="!d.activeShift" />
-      </div>
-    </div>
-    <button class="btn-primary" (click)="logTrip()" [disabled]="!d.activeShift || submittingTrip">
-      {{ submittingTrip ? 'Saving...' : 'Log Trip' }}
-    </button>
-  </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Payout Summary</h2>
-      <select [(ngModel)]="periodType" (change)="loadPayout()">
-        <option value="day">Day</option>
-        <option value="week">Week</option>
-        <option value="month">Month</option>
-        <option value="year">Year</option>
-      </select>
-    </div>
-
-    <div *ngIf="payoutSummary as payout" class="panel-grid">
-      <div><label>Period</label><p>{{ payout.periodStart | date:'mediumDate' }} - {{ payout.periodEnd | date:'mediumDate' }}</p></div>
-      <div><label>Distance (Used)</label><p>{{ payout.totalDistanceKm | number:'1.0-2' }} km</p></div>
-      <div><label>Trip Distance</label><p>{{ payout.tripDistanceKm | number:'1.0-2' }} km</p></div>
-      <div><label>Shift Distance</label><p>{{ payout.shiftDistanceKm | number:'1.0-2' }} km</p></div>
-      <div><label>Deliveries</label><p>{{ payout.totalDeliveries }}</p></div>
-      <div><label>Fuel Price</label><p>Rs {{ payout.fuelPricePerLitre | number:'1.0-2' }}</p></div>
-      <div><label>Litres</label><p>{{ payout.litresConsumed | number:'1.0-3' }}</p></div>
-      <div><label>Estimated Payout</label><p class="highlight">Rs {{ payout.payoutAmount | number:'1.0-2' }}</p></div>
-    </div>
-  </section>
+      <div class="modal-body" *ngIf="activeShiftModal === 'history'">
+        <div *ngIf="!d.recentShifts || d.recentShifts.length === 0" class="empty">No shift history found.</div>
+        <div class="orders" *ngIf="d.recentShifts && d.recentShifts.length > 0">
+          <article class="order-card" *ngFor="let shift of d.recentShifts">
+            <div>
+              <h3>{{ formatStatus(shift.status) }} Shift</h3>
+              <p>Started: {{ shift.startedAt | date:'dd MMM y, h:mm a':'+0530' }} IST</p>
+              <small *ngIf="shift.endedAt">Ended: {{ shift.endedAt | date:'dd MMM y, h:mm a':'+0530' }} IST</small>
+            </div>
+            <div class="order-meta">
+              <span>{{ shift.startOdometerKm | number:'1.0-2' }} km → {{ (shift.endOdometerKm ?? shift.startOdometerKm) | number:'1.0-2' }} km</span>
+              <strong>{{ shift.totalDistanceKm | number:'1.0-2' }} km</strong>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <section class="panel">
     <h2>Pending Parcel Tasks</h2>

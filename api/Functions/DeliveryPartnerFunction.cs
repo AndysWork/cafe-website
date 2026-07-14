@@ -1854,12 +1854,12 @@ public class DeliveryPartnerFunction
             var totalDistance = Math.Max(tripDistance, shiftDistance);
             var totalDeliveries = trips.Count(t => t.TripType == "delivery");
 
-            var fuel = await _mongo.GetFuelPriceAsync(partner.OutletId, periodStart.Date)
-                ?? await _mongo.UpsertFuelPriceAsync(partner.OutletId, periodStart.Date, 105);
+            var fuel = await _mongo.GetFuelPriceAsync(partner.OutletId, periodStart.Date);
+            var fuelPricePerLitre = fuel?.PetrolPricePerLitre ?? 105;
 
             var mileage = partner.MileageKmpl <= 0 ? 40 : partner.MileageKmpl;
             var litresConsumed = mileage > 0 ? totalDistance / mileage : 0;
-            var payoutAmount = Math.Round(litresConsumed * fuel.PetrolPricePerLitre, 2, MidpointRounding.AwayFromZero);
+            var payoutAmount = Math.Round(litresConsumed * fuelPricePerLitre, 2, MidpointRounding.AwayFromZero);
 
             var responseModel = new PartnerPayoutSummaryResponse
             {
@@ -1871,7 +1871,7 @@ public class DeliveryPartnerFunction
                 ShiftDistanceKm = Math.Round(shiftDistance, 2, MidpointRounding.AwayFromZero),
                 TotalDeliveries = totalDeliveries,
                 MileageKmpl = mileage,
-                FuelPricePerLitre = fuel.PetrolPricePerLitre,
+                FuelPricePerLitre = fuelPricePerLitre,
                 LitresConsumed = Math.Round(litresConsumed, 3, MidpointRounding.AwayFromZero),
                 PayoutAmount = payoutAmount
             };
@@ -2190,12 +2190,12 @@ public class DeliveryPartnerFunction
             var totalDistance = Math.Max(tripDistance, shiftDistance);
             var totalDeliveries = trips.Count(t => t.TripType == "delivery");
 
-            var fuel = await _mongo.GetFuelPriceAsync(partner.OutletId, periodStart.Date)
-                ?? await _mongo.UpsertFuelPriceAsync(partner.OutletId, periodStart.Date, 105);
+            var fuel = await _mongo.GetFuelPriceAsync(partner.OutletId, periodStart.Date);
+            var fuelPricePerLitre = fuel?.PetrolPricePerLitre ?? 105;
 
             var mileage = partner.MileageKmpl <= 0 ? 40 : partner.MileageKmpl;
             var litresConsumed = mileage > 0 ? totalDistance / mileage : 0;
-            var payoutAmount = Math.Round(litresConsumed * fuel.PetrolPricePerLitre, 2, MidpointRounding.AwayFromZero);
+            var payoutAmount = Math.Round(litresConsumed * fuelPricePerLitre, 2, MidpointRounding.AwayFromZero);
 
             var responseModel = new PartnerPayoutSummaryResponse
             {
@@ -2207,7 +2207,7 @@ public class DeliveryPartnerFunction
                 ShiftDistanceKm = Math.Round(shiftDistance, 2, MidpointRounding.AwayFromZero),
                 TotalDeliveries = totalDeliveries,
                 MileageKmpl = mileage,
-                FuelPricePerLitre = fuel.PetrolPricePerLitre,
+                FuelPricePerLitre = fuelPricePerLitre,
                 LitresConsumed = Math.Round(litresConsumed, 3, MidpointRounding.AwayFromZero),
                 PayoutAmount = payoutAmount
             };
@@ -2219,6 +2219,69 @@ public class DeliveryPartnerFunction
         catch (Exception ex)
         {
             _log.LogError(ex, "Error getting self-service partner payout summary");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred" });
+            return res;
+        }
+    }
+
+    [Function("SetMyDailyFuelPrice")]
+    public async Task<HttpResponseData> SetMyDailyFuelPrice(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "partner/delivery/fuel-price")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            if (!IsPartnerRole(role))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Delivery partner access required" });
+                return forbidden;
+            }
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid user context" });
+                return unauthorized;
+            }
+
+            var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId);
+            if (partner == null || string.IsNullOrWhiteSpace(partner.Id))
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner profile not found" });
+                return notFound;
+            }
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpsertFuelPriceRequest>(req);
+            if (validationError != null) return validationError;
+
+            var targetDate = request.Date.Date;
+            var existing = await _mongo.GetFuelPriceAsync(partner.OutletId, targetDate);
+            if (existing != null)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new
+                {
+                    error = "Fuel price for this date is already set and cannot be changed.",
+                    date = targetDate.ToString("yyyy-MM-dd"),
+                    petrolPricePerLitre = existing.PetrolPricePerLitre
+                });
+                return conflict;
+            }
+
+            var price = await _mongo.UpsertFuelPriceAsync(partner.OutletId, targetDate, request.PetrolPricePerLitre);
+
+            var response = req.CreateResponse(HttpStatusCode.Created);
+            await response.WriteAsJsonAsync(price);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error setting self-service daily fuel price");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;

@@ -104,6 +104,18 @@
           </a>
         </li>
 
+        <li class="nav-item" *ngIf="isPartnerUser && !isHomeScreen">
+          <a
+            routerLink="/partner/payout"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">💰</span>
+            Payout Access
+          </a>
+        </li>
+
         <!-- Menu (Customers + Admin only) -->
         <li class="nav-item" *ngIf="canBrowseMenu">
           <a

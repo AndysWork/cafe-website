@@ -196,6 +196,7 @@
           <th>To</th>
           <th>Status</th>
           <th>Reason</th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody>
@@ -205,6 +206,16 @@
           <td>{{ leave.endDate | date:'mediumDate' }}</td>
           <td><span class="status" [class.approved]="leave.status === 'approved'" [class.rejected]="leave.status === 'rejected'">{{ leave.status }}</span></td>
           <td>{{ leave.reason }}</td>
+          <td>
+            <button
+              class="btn end"
+              *ngIf="leave.status === 'pending'"
+              [disabled]="deletingLeaveId === leave.id"
+              (click)="deleteLeaveRequest(leave)">
+              {{ deletingLeaveId === leave.id ? 'Deleting...' : 'Delete' }}
+            </button>
+            <span *ngIf="leave.status !== 'pending'">-</span>
+          </td>
         </tr>
       </tbody>
     </table>

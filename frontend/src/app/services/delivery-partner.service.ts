@@ -415,4 +415,10 @@ export class DeliveryPartnerService {
       catchError(handleServiceError('DeliveryPartnerService.getMyPayoutSummary'))
     );
   }
+
+  setMyDailyFuelPrice(payload: { date: string; petrolPricePerLitre: number }): Observable<{ id?: string; date: string; petrolPricePerLitre: number }> {
+    return this.http.put<{ id?: string; date: string; petrolPricePerLitre: number }>(`${this.apiUrl}/partner/delivery/fuel-price`, payload).pipe(
+      catchError(handleServiceError('DeliveryPartnerService.setMyDailyFuelPrice'))
+    );
+  }
 }

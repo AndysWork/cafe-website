@@ -87,5 +87,7 @@ public interface IStaffRepository
     // Leave
     Task<LeaveRequest> CreateLeaveRequestAsync(LeaveRequest request);
     Task<List<LeaveRequest>> GetLeaveRequestsAsync(string outletId, string? status = null);
+    Task<LeaveRequest?> GetLeaveRequestByIdAsync(string id);
     Task<bool> UpdateLeaveRequestStatusAsync(string id, string status, string? approvedBy = null);
+    Task<bool> DeleteLeaveRequestAsync(string id);
 }
