@@ -378,12 +378,16 @@ public class AttendanceFunction
             }
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var staff = await _mongo.GetStaffByIdAsync(request.StaffId);
+            var staffName = staff == null
+                ? string.Empty
+                : $"{staff.FirstName} {staff.LastName}".Trim();
 
             var leave = new LeaveRequest
             {
                 OutletId = outletId ?? "default",
                 StaffId = InputSanitizer.Sanitize(request.StaffId),
-                StaffName = "",
+                StaffName = staffName,
                 LeaveType = InputSanitizer.Sanitize(request.LeaveType),
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,

@@ -996,12 +996,43 @@ public partial class MongoService : IOperationsRepository
         var filter = Builders<Order>.Filter.Eq(o => o.DeliveryPartnerId, partnerId)
             & Builders<Order>.Filter.Eq(o => o.OrderType, "delivery")
             & Builders<Order>.Filter.Eq(o => o.PaymentMethod, "cod")
-            & Builders<Order>.Filter.Ne(o => o.PaymentStatus, "paid")
             & Builders<Order>.Filter.Ne(o => o.IsDeleted, true)
             & Builders<Order>.Filter.In(o => o.Status, new[] { "confirmed", "preparing", "ready", "out-for-delivery" });
 
         var pendingCodOrders = await _orders.Find(filter).ToListAsync();
-        return pendingCodOrders.Sum(o => o.Total);
+        if (pendingCodOrders.Count == 0)
+        {
+            return 0;
+        }
+
+        var orderIds = pendingCodOrders
+            .Select(o => o.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Cast<string>()
+            .ToList();
+
+        var collectedOrderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (orderIds.Count > 0)
+        {
+            var collectedLogs = await _codCollectionLogs
+                .Find(Builders<CODCollectionLog>.Filter.In(c => c.OrderId, orderIds)
+                    & Builders<CODCollectionLog>.Filter.Eq(c => c.Collected, true))
+                .Project(c => c.OrderId)
+                .ToListAsync();
+
+            foreach (var orderId in collectedLogs)
+            {
+                if (!string.IsNullOrWhiteSpace(orderId))
+                {
+                    collectedOrderIds.Add(orderId);
+                }
+            }
+        }
+
+        return pendingCodOrders
+            .Where(o => !string.Equals(o.PaymentStatus?.Trim(), "paid", StringComparison.OrdinalIgnoreCase))
+            .Where(o => string.IsNullOrWhiteSpace(o.Id) || !collectedOrderIds.Contains(o.Id))
+            .Sum(o => o.Total);
     }
 
     public async Task<DeliveryPartnerReview> AddDeliveryPartnerReviewAsync(DeliveryPartnerReview review)

@@ -5,6 +5,7 @@ import { AttendanceService, Attendance, LeaveRequest, MyAttendanceResponse, MyMo
 import { KitchenDisplayService } from '../../services/kitchen-display.service';
 import { AuthStore } from '../../store/auth.store';
 import { UIStore } from '../../store/ui.store';
+import { formatIstDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-staff-attendance',
@@ -222,6 +223,18 @@ export class StaffAttendanceComponent implements OnInit {
   get sessionHistory(): NonNullable<Attendance['sessions']> {
     return [...(this.attendance?.sessions || [])]
       .sort((a, b) => (a.clockIn || '').localeCompare(b.clockIn || ''));
+  }
+
+  formatIstTime(value?: string): string {
+    if (!value) {
+      return '-';
+    }
+
+    return formatIstDate(value, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   }
 
   private applySchedule(schedule?: MyAttendanceResponse['schedule']): void {

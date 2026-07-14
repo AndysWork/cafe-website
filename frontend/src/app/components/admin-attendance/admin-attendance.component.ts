@@ -7,7 +7,7 @@ import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { getIstInputDate } from '../../utils/date-utils';
+import { getIstInputDate, formatIstDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-admin-attendance',
@@ -24,6 +24,7 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
   todayAttendance: Attendance[] = [];
   leaveRequests: LeaveRequest[] = [];
   staffList: any[] = [];
+  private staffNameById: Record<string, string> = {};
   loading = true;
   activeTab: 'attendance' | 'leave' = 'attendance';
 
@@ -56,22 +57,37 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
   loadData() {
     this.loading = true;
     this.attendanceService.getTodayAttendance().subscribe({
-      next: a => { this.todayAttendance = a; this.loading = false; },
+      next: a => {
+        this.todayAttendance = a;
+        this.applyAttendanceNameFallbacks();
+        this.loading = false;
+      },
       error: () => { this.uiStore.error('Failed to load attendance'); this.loading = false; }
     });
-    this.staffService.getAllStaff().subscribe({
-      next: s => this.staffList = s,
+    this.staffService.getAllStaff(true).subscribe({
+      next: s => {
+        this.staffList = s;
+        this.rebuildStaffNameIndex();
+        this.applyAttendanceNameFallbacks();
+        this.applyLeaveNameFallbacks();
+      },
       error: () => {}
     });
     this.attendanceService.getLeaveRequests().subscribe({
-      next: l => this.leaveRequests = l,
+      next: l => {
+        this.leaveRequests = l;
+        this.applyLeaveNameFallbacks();
+      },
       error: () => {}
     });
   }
 
   loadReport() {
     this.attendanceService.getAttendanceReport(this.startDate, this.endDate, this.selectedStaffId || undefined).subscribe({
-      next: r => this.reportData = r,
+      next: r => {
+        this.reportData = r;
+        this.applyReportNameFallbacks();
+      },
       error: () => this.uiStore.error('Failed to load report')
     });
   }
@@ -115,5 +131,108 @@ export class AdminAttendanceComponent implements OnInit, OnDestroy {
     return this.todayAttendance.find(a => a.staffId === staffId);
   }
 
-  trackById(_: number, item: any) { return item.id; }
+  getStaffId(staff: any): string {
+    return staff?.id || staff?._id || '';
+  }
+
+  getStaffDisplayName(staff: any): string {
+    const fromName = (staff?.name || '').toString().trim();
+    if (fromName) {
+      return fromName;
+    }
+
+    const first = (staff?.firstName || '').toString().trim();
+    const last = (staff?.lastName || '').toString().trim();
+    const combined = `${first} ${last}`.trim();
+    if (combined) {
+      return combined;
+    }
+
+    return staff?.employeeId || this.getStaffId(staff) || 'Unknown Staff';
+  }
+
+  getStaffRole(staff: any): string {
+    return staff?.role || staff?.position || '-';
+  }
+
+  getStaffPhone(staff: any): string {
+    return staff?.phone || staff?.phoneNumber || '-';
+  }
+
+  resolveAttendanceStaffName(record: Attendance): string {
+    if (record.staffName && record.staffName.trim()) {
+      return record.staffName;
+    }
+
+    return this.staffNameById[record.staffId] || record.staffId || 'Unknown Staff';
+  }
+
+  resolveLeaveStaffName(record: LeaveRequest): string {
+    if (record.staffName && record.staffName.trim()) {
+      return record.staffName;
+    }
+
+    return this.staffNameById[record.staffId] || record.staffId || 'Unknown Staff';
+  }
+
+  formatIstTime(value?: string): string {
+    if (!value) {
+      return '-';
+    }
+
+    return formatIstDate(value, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  }
+
+  private rebuildStaffNameIndex(): void {
+    const map: Record<string, string> = {};
+    for (const staff of this.staffList || []) {
+      const id = this.getStaffId(staff);
+      if (!id) {
+        continue;
+      }
+
+      map[id] = this.getStaffDisplayName(staff);
+    }
+
+    this.staffNameById = map;
+  }
+
+  private applyAttendanceNameFallbacks(): void {
+    if (!this.todayAttendance?.length) {
+      return;
+    }
+
+    this.todayAttendance = this.todayAttendance.map(a => ({
+      ...a,
+      staffName: a.staffName && a.staffName.trim() ? a.staffName : this.staffNameById[a.staffId] || a.staffName
+    }));
+  }
+
+  private applyLeaveNameFallbacks(): void {
+    if (!this.leaveRequests?.length) {
+      return;
+    }
+
+    this.leaveRequests = this.leaveRequests.map(l => ({
+      ...l,
+      staffName: l.staffName && l.staffName.trim() ? l.staffName : this.staffNameById[l.staffId] || l.staffName
+    }));
+  }
+
+  private applyReportNameFallbacks(): void {
+    if (!this.reportData?.length) {
+      return;
+    }
+
+    this.reportData = this.reportData.map(r => ({
+      ...r,
+      staffName: r.staffName && r.staffName.trim() ? r.staffName : this.staffNameById[r.staffId] || r.staffName
+    }));
+  }
+
+  trackById(_: number, item: any) { return item?.id || item?._id || item?.staffId; }
 }

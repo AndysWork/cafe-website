@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
@@ -149,6 +150,11 @@ export interface CreateMyLeaveRequest {
   reason: string;
 }
 
+interface AttendanceReportResponse {
+  records: Attendance[];
+  summary?: any[];
+}
+
 export interface MyPayslipHistoryEntry {
   period: string;
   workedHours: number;
@@ -219,7 +225,8 @@ export class AttendanceService {
   getAttendanceReport(startDate: string, endDate: string, staffId?: string): Observable<Attendance[]> {
     let url = `${this.apiUrl}/attendance/report?startDate=${startDate}&endDate=${endDate}`;
     if (staffId) url += `&staffId=${staffId}`;
-    return this.http.get<Attendance[]>(url, this.withDeviceTimeHeaders()).pipe(
+    return this.http.get<Attendance[] | AttendanceReportResponse>(url, this.withDeviceTimeHeaders()).pipe(
+      map(response => Array.isArray(response) ? response : (response.records || [])),
       catchError(handleServiceError('AttendanceService.getAttendanceReport'))
     );
   }

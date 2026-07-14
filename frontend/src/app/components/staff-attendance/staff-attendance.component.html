@@ -32,11 +32,11 @@
     </div>
     <div class="row">
       <span class="label">Clock In</span>
-      <span class="value">{{ attendance?.clockIn ? (attendance!.clockIn | date:'shortTime') : '-' }}</span>
+      <span class="value">{{ formatIstTime(attendance?.clockIn) }}</span>
     </div>
     <div class="row">
       <span class="label">Clock Out</span>
-      <span class="value">{{ attendance?.clockOut ? (attendance!.clockOut | date:'shortTime') : '-' }}</span>
+      <span class="value">{{ formatIstTime(attendance?.clockOut) }}</span>
     </div>
     <div class="row">
       <span class="label">Hours Worked</span>
@@ -79,8 +79,8 @@
         <tr *ngFor="let s of sessionHistory">
           <td>{{ s.shiftName }}</td>
           <td>{{ s.shiftStartTime || '-' }} - {{ s.shiftEndTime || '-' }}</td>
-          <td>{{ s.clockIn ? (s.clockIn | date:'shortTime') : '-' }}</td>
-          <td>{{ s.clockOut ? (s.clockOut | date:'shortTime') : '-' }}</td>
+          <td>{{ formatIstTime(s.clockIn) }}</td>
+          <td>{{ formatIstTime(s.clockOut) }}</td>
           <td>{{ s.hoursWorked | number:'1.1-2' }}h</td>
           <td>{{ s.status }}</td>
         </tr>

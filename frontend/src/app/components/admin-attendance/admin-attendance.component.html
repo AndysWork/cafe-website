@@ -20,18 +20,18 @@
     <div *ngIf="!loading" class="cards-grid">
       <div class="card" *ngFor="let staff of staffList; trackBy: trackById">
         <div class="card-header">
-          <span class="card-title">{{ staff.name }}</span>
-          <span class="badge" [class.active]="isStaffClockedIn(staff.id)" [class.inactive]="!isStaffClockedIn(staff.id)">
-            {{ isStaffClockedIn(staff.id) ? '🟢 On Duty' : '⚪ Off Duty' }}
+          <span class="card-title">{{ getStaffDisplayName(staff) }}</span>
+          <span class="badge" [class.active]="isStaffClockedIn(getStaffId(staff))" [class.inactive]="!isStaffClockedIn(getStaffId(staff))">
+            {{ isStaffClockedIn(getStaffId(staff)) ? '🟢 On Duty' : '⚪ Off Duty' }}
           </span>
         </div>
         <div class="card-body">
-          <p>{{ staff.role }} · {{ staff.phone }}</p>
-          <p>Shift: {{ getTodayAttendanceForStaff(staff.id)?.scheduledShiftLabel || 'Default shift' }}</p>
-          <p>Scheduled: {{ (getTodayAttendanceForStaff(staff.id)?.scheduledHours ?? 0) | number:'1.1-2' }}h</p>
-          <p>Worked: {{ (getTodayAttendanceForStaff(staff.id)?.hoursWorked ?? 0) | number:'1.1-2' }}h</p>
-          <p>OT: {{ (getTodayAttendanceForStaff(staff.id)?.overtimeHours ?? 0) | number:'1.1-2' }}h</p>
-          <p>UT: {{ (getTodayAttendanceForStaff(staff.id)?.undertimeHours ?? 0) | number:'1.1-2' }}h</p>
+          <p>{{ getStaffRole(staff) }} · {{ getStaffPhone(staff) }}</p>
+          <p>Shift: {{ getTodayAttendanceForStaff(getStaffId(staff))?.scheduledShiftLabel || 'Default shift' }}</p>
+          <p>Scheduled: {{ (getTodayAttendanceForStaff(getStaffId(staff))?.scheduledHours ?? 0) | number:'1.1-2' }}h</p>
+          <p>Worked: {{ (getTodayAttendanceForStaff(getStaffId(staff))?.hoursWorked ?? 0) | number:'1.1-2' }}h</p>
+          <p>OT: {{ (getTodayAttendanceForStaff(getStaffId(staff))?.overtimeHours ?? 0) | number:'1.1-2' }}h</p>
+          <p>UT: {{ (getTodayAttendanceForStaff(getStaffId(staff))?.undertimeHours ?? 0) | number:'1.1-2' }}h</p>
         </div>
       </div>
     </div>
@@ -43,7 +43,7 @@
         <input type="date" [(ngModel)]="endDate">
         <select [(ngModel)]="selectedStaffId">
           <option value="">All Staff</option>
-          <option *ngFor="let s of staffList" [value]="s.id">{{ s.name }}</option>
+          <option *ngFor="let s of staffList" [value]="getStaffId(s)">{{ getStaffDisplayName(s) }}</option>
         </select>
         <button class="btn-filter" (click)="loadReport()">🔍 Load Report</button>
       </div>
@@ -52,11 +52,11 @@
           <thead><tr><th>Staff</th><th>Date</th><th>Shift</th><th>Clock In</th><th>Clock Out</th><th>Worked</th><th>Scheduled</th><th>OT</th><th>UT</th><th>Status</th></tr></thead>
           <tbody>
             <tr *ngFor="let a of reportData">
-              <td class="fw-bold">{{ a.staffName }}</td>
+              <td class="fw-bold">{{ resolveAttendanceStaffName(a) }}</td>
               <td>{{ a.date | date:'mediumDate' }}</td>
               <td>{{ a.scheduledShiftLabel || '-' }}</td>
-              <td>{{ a.clockIn | date:'shortTime' }}</td>
-              <td>{{ a.clockOut ? (a.clockOut | date:'shortTime') : '-' }}</td>
+              <td>{{ formatIstTime(a.clockIn) }}</td>
+              <td>{{ formatIstTime(a.clockOut) }}</td>
               <td>{{ (a.hoursWorked ?? 0) | number:'1.1-1' }}h</td>
               <td>{{ (a.scheduledHours ?? 0) | number:'1.1-1' }}h</td>
               <td>{{ (a.overtimeHours ?? 0) | number:'1.1-1' }}h</td>
@@ -78,7 +78,7 @@
         <thead><tr><th>Staff</th><th>Type</th><th>From</th><th>To</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           <tr *ngFor="let l of leaveRequests; trackBy: trackById">
-            <td class="fw-bold">{{ l.staffName }}</td>
+            <td class="fw-bold">{{ resolveLeaveStaffName(l) }}</td>
             <td>{{ l.leaveType }}<span *ngIf="l.isHalfDay"> (Half Day)</span></td>
             <td>{{ l.startDate | date:'mediumDate' }}</td>
             <td>{{ l.endDate | date:'mediumDate' }}</td>
@@ -103,7 +103,7 @@
         <div class="form-group"><label>Staff *</label>
           <select [(ngModel)]="leaveForm.staffId" name="staffId" required>
             <option value="">Select Staff</option>
-            <option *ngFor="let s of staffList" [value]="s.id">{{ s.name }}</option>
+            <option *ngFor="let s of staffList" [value]="getStaffId(s)">{{ getStaffDisplayName(s) }}</option>
           </select>
         </div>
         <div class="form-group"><label>Leave Type</label>
