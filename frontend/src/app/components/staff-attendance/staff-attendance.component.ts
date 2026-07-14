@@ -2,6 +2,8 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AttendanceService, Attendance, LeaveRequest, MyAttendanceResponse, MyMonthlyLeaveBalanceResponse } from '../../services/attendance.service';
+import { KitchenDisplayService } from '../../services/kitchen-display.service';
+import { AuthStore } from '../../store/auth.store';
 import { UIStore } from '../../store/ui.store';
 
 @Component({
@@ -13,6 +15,8 @@ import { UIStore } from '../../store/ui.store';
 })
 export class StaffAttendanceComponent implements OnInit {
   private attendanceService = inject(AttendanceService);
+  private kitchenService = inject(KitchenDisplayService);
+  private authStore = inject(AuthStore);
   private uiStore = inject(UIStore);
 
   loading = true;
@@ -66,6 +70,18 @@ export class StaffAttendanceComponent implements OnInit {
   }
 
   startShift(): void {
+    if (this.useKitchenShiftActions())
+    {
+      this.kitchenService.shiftIn().subscribe({
+        next: () => {
+          this.uiStore.success('Shift started');
+          this.loadToday();
+        },
+        error: () => this.uiStore.error('Unable to start shift')
+      });
+      return;
+    }
+
     this.attendanceService.startMyShift().subscribe({
       next: (res) => {
         this.attendance = res.attendance;
@@ -77,6 +93,18 @@ export class StaffAttendanceComponent implements OnInit {
   }
 
   endShift(): void {
+    if (this.useKitchenShiftActions())
+    {
+      this.kitchenService.shiftOut().subscribe({
+        next: () => {
+          this.uiStore.success('Shift ended');
+          this.loadToday();
+        },
+        error: () => this.uiStore.error('Unable to end shift')
+      });
+      return;
+    }
+
     this.attendanceService.endMyShift().subscribe({
       next: (res) => {
         this.attendance = res.attendance;
@@ -175,6 +203,22 @@ export class StaffAttendanceComponent implements OnInit {
     return !!this.attendance?.clockIn && !this.attendance?.clockOut;
   }
 
+  get canStartShiftAction(): boolean {
+    if (this.useKitchenShiftActions()) {
+      return !this.isInShift;
+    }
+
+    return this.canShiftIn;
+  }
+
+  get canEndShiftAction(): boolean {
+    if (this.useKitchenShiftActions()) {
+      return this.isInShift;
+    }
+
+    return this.canShiftOut;
+  }
+
   get sessionHistory(): NonNullable<Attendance['sessions']> {
     return [...(this.attendance?.sessions || [])]
       .sort((a, b) => (a.clockIn || '').localeCompare(b.clockIn || ''));
@@ -211,5 +255,10 @@ export class StaffAttendanceComponent implements OnInit {
     const now = new Date();
     const month = `${now.getMonth() + 1}`.padStart(2, '0');
     return `${now.getFullYear()}-${month}`;
+  }
+
+  private useKitchenShiftActions(): boolean {
+    const role = this.authStore.userRole();
+    return role === 'manager' || role === 'cook' || role === 'chef' || role === 'sous-chef';
   }
 }

@@ -52,8 +52,8 @@
     </div>
 
     <div class="actions">
-      <button class="btn start" (click)="startShift()" [disabled]="!canShiftIn">Shift Start</button>
-      <button class="btn end" (click)="endShift()" [disabled]="!canShiftOut">Shift End</button>
+      <button class="btn start" (click)="startShift()" [disabled]="!canStartShiftAction">Shift Start</button>
+      <button class="btn end" (click)="endShift()" [disabled]="!canEndShiftAction">Shift End</button>
       <button class="btn refresh" (click)="loadToday()">Refresh</button>
     </div>
 

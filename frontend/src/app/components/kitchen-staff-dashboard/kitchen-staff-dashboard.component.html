@@ -74,6 +74,10 @@
       <p *ngIf="dashboard.shift.shiftName">Shift: {{ dashboard.shift.shiftName }}</p>
       <p *ngIf="dashboard.shift.clockIn">In: {{ dashboard.shift.clockIn | date:'shortTime' }}</p>
       <p *ngIf="dashboard.shift.clockOut">Out: {{ dashboard.shift.clockOut | date:'shortTime' }}</p>
+      <div class="voice-actions" style="margin-top: 10px;">
+        <button class="action-btn send" (click)="shiftIn()" [disabled]="dashboard.shift.isInShift">Shift Start</button>
+        <button class="action-btn stop" (click)="shiftOut()" [disabled]="!dashboard.shift.isInShift">Shift End</button>
+      </div>
     </section>
 
     <section class="card">

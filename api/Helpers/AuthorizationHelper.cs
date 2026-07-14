@@ -6,11 +6,16 @@ namespace Cafe.Api.Helpers;
 
 public static class AuthorizationHelper
 {
+    private static string NormalizeRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return string.Empty;
+
+        return role.Trim().ToLowerInvariant().Replace("_", "-").Replace(" ", "-");
+    }
+
     private static bool IsAdminLikeRole(string? role)
     {
-        if (string.IsNullOrWhiteSpace(role)) return false;
-
-        var normalized = role.Trim().ToLowerInvariant();
+        var normalized = NormalizeRole(role);
         return normalized == "admin";
     }
 
@@ -108,7 +113,7 @@ public static class AuthorizationHelper
         var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
 
-        var normalizedRole = role?.Trim().ToLowerInvariant();
+        var normalizedRole = NormalizeRole(role);
         if (!IsAdminLikeRole(role) && normalizedRole != "manager")
         {
             var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
@@ -144,14 +149,26 @@ public static class AuthorizationHelper
         }
 
         var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.ToLowerInvariant();
-        var kitchenRoles = new[] { "admin", "manager", "cook", "chef", "sous-chef" };
+        var rawRole = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        var role = NormalizeRole(rawRole);
+        var kitchenRoles = new HashSet<string>
+        {
+            "admin",
+            "manager",
+            "assistant-manager",
+            "cook",
+            "chef",
+            "sous-chef",
+            "kitchen",
+            "kitchen-staff",
+            "kitchen-helper"
+        };
 
         if (string.IsNullOrWhiteSpace(role) || !kitchenRoles.Contains(role))
         {
             var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
             await forbidden.WriteAsJsonAsync(new { error = "Kitchen access role required" });
-            return (false, userId, role, forbidden);
+            return (false, userId, rawRole, forbidden);
         }
 
         return (true, userId, role, null);
