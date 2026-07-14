@@ -70,7 +70,8 @@ export class CustomerReviewsComponent implements OnInit {
     return new Date(date).toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata'
     });
   }
 

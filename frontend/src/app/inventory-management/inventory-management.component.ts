@@ -396,7 +396,7 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
 
   formatDate(date: Date | undefined): string {
     if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-IN');
+    return new Date(date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
   }
 
   // Alert notification

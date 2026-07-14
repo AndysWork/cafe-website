@@ -853,7 +853,7 @@ export class OnlineProfitTrackerComponent implements OnInit, OnDestroy {
     const lines: string[] = [
       'Online Profit Report',
       `Period: ${this.startDate} to ${this.endDate}   Platform: ${this.platform}`,
-      `Generated: ${new Date().toLocaleString('en-IN')}`,
+      `Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
       '',
       'THRESHOLDS',
       '----------',

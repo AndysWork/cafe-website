@@ -128,7 +128,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
     sortedSales.forEach(sale => {
       const date = convertToIst(new Date(sale.date));
       const year = date.getFullYear().toString();
-      const month = date.toLocaleString('default', { month: 'long' });
+      const month = date.toLocaleString('en-IN', { month: 'long', timeZone: 'Asia/Kolkata' });
       const weekLabel = this.getWeekLabel(date);
 
       if (!this.groupedSales[year]) {
@@ -146,7 +146,7 @@ export class AdminSalesComponent implements OnInit, OnDestroy {
     // Auto-expand current year, month, and week
     const currentDate = getIstNow();
     const currentYear = currentDate.getFullYear().toString();
-    const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
+    const currentMonth = currentDate.toLocaleString('en-IN', { month: 'long', timeZone: 'Asia/Kolkata' });
     const currentWeek = this.getWeekLabel(currentDate);
     this.expandedYears.add(currentYear);
     this.expandedMonths.add(`${currentYear}-${currentMonth}`);

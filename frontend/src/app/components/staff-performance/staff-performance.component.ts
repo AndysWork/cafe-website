@@ -243,7 +243,7 @@ export class StaffPerformanceComponent implements OnInit {
   formatPeriod(period: string): string {
     const [year, month] = period.split('-');
     const date = new Date(parseInt(year), parseInt(month) - 1);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+    return date.toLocaleDateString('en-IN', { year: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' });
   }
 
   getOvertimeHours(record: StaffPerformanceRecord): number {

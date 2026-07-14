@@ -1240,6 +1240,7 @@ public class DeliveryPartnerFunction
             var dayEnd = dayStart.AddDays(1);
 
             var activeShift = await _mongo.GetActiveShiftForPartnerAsync(partner.Id);
+            var recentShifts = await _mongo.GetPartnerShiftsAsync(partner.Id!, pageSize: 20);
             var activeOrders = await _mongo.GetActiveOrdersForPartnerAsync(partner.Id, partner.OutletId);
             var parcelTasks = await _mongo.GetParcelTasksForPartnerAsync(partner.Id, null, 100);
             var outletOrders = await _orderRepo.GetAllOrdersAsync(partner.OutletId);
@@ -1268,6 +1269,7 @@ public class DeliveryPartnerFunction
             {
                 Profile = partner,
                 ActiveShift = activeShift,
+                RecentShifts = recentShifts,
                 ActiveOrders = activeOrders,
                 PendingRequests = pendingRequests,
                 ActiveParcelTasks = parcelTasks.Where(t => t.Status == "accepted").OrderByDescending(t => t.CreatedAt).ToList(),
@@ -1410,8 +1412,15 @@ public class DeliveryPartnerFunction
                 return badReq;
             }
 
+            var latestShifts = await _mongo.GetPartnerShiftsAsync(partner.Id!, pageSize: 5);
+            var endedShift = latestShifts.FirstOrDefault(s => s.Id == shiftId);
+
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { message = "Shift ended successfully" });
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Shift ended successfully",
+                shift = endedShift
+            });
             return response;
         }
         catch (Exception ex)
@@ -1838,8 +1847,11 @@ public class DeliveryPartnerFunction
 
             var (periodStart, periodEnd) = GetPeriodRange(periodType, referenceDate);
 
-            var totalDistance = await _mongo.GetPartnerDistanceAsync(partner.Id, periodStart, periodEnd);
             var trips = await _mongo.GetPartnerTripsAsync(partner.Id, periodStart, periodEnd);
+            var shifts = await _mongo.GetPartnerShiftsAsync(partner.Id, periodStart, periodEnd, page: 1, pageSize: 500);
+            var tripDistance = trips.Sum(t => t.DistanceKm);
+            var shiftDistance = shifts.Sum(s => s.TotalDistanceKm);
+            var totalDistance = Math.Max(tripDistance, shiftDistance);
             var totalDeliveries = trips.Count(t => t.TripType == "delivery");
 
             var fuel = await _mongo.GetFuelPriceAsync(partner.OutletId, periodStart.Date)
@@ -1855,6 +1867,8 @@ public class DeliveryPartnerFunction
                 PeriodStart = periodStart,
                 PeriodEnd = periodEnd,
                 TotalDistanceKm = Math.Round(totalDistance, 2, MidpointRounding.AwayFromZero),
+                TripDistanceKm = Math.Round(tripDistance, 2, MidpointRounding.AwayFromZero),
+                ShiftDistanceKm = Math.Round(shiftDistance, 2, MidpointRounding.AwayFromZero),
                 TotalDeliveries = totalDeliveries,
                 MileageKmpl = mileage,
                 FuelPricePerLitre = fuel.PetrolPricePerLitre,
@@ -2169,8 +2183,11 @@ public class DeliveryPartnerFunction
 
             var (periodStart, periodEnd) = GetPeriodRange(periodType, referenceDate);
 
-            var totalDistance = await _mongo.GetPartnerDistanceAsync(partner.Id, periodStart, periodEnd);
             var trips = await _mongo.GetPartnerTripsAsync(partner.Id, periodStart, periodEnd);
+            var shifts = await _mongo.GetPartnerShiftsAsync(partner.Id, periodStart, periodEnd, page: 1, pageSize: 500);
+            var tripDistance = trips.Sum(t => t.DistanceKm);
+            var shiftDistance = shifts.Sum(s => s.TotalDistanceKm);
+            var totalDistance = Math.Max(tripDistance, shiftDistance);
             var totalDeliveries = trips.Count(t => t.TripType == "delivery");
 
             var fuel = await _mongo.GetFuelPriceAsync(partner.OutletId, periodStart.Date)
@@ -2186,6 +2203,8 @@ public class DeliveryPartnerFunction
                 PeriodStart = periodStart,
                 PeriodEnd = periodEnd,
                 TotalDistanceKm = Math.Round(totalDistance, 2, MidpointRounding.AwayFromZero),
+                TripDistanceKm = Math.Round(tripDistance, 2, MidpointRounding.AwayFromZero),
+                ShiftDistanceKm = Math.Round(shiftDistance, 2, MidpointRounding.AwayFromZero),
                 TotalDeliveries = totalDeliveries,
                 MileageKmpl = mileage,
                 FuelPricePerLitre = fuel.PetrolPricePerLitre,

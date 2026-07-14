@@ -97,6 +97,7 @@ export interface ParcelRouteQuote {
 export interface PartnerDashboard {
   profile: DeliveryPartner | null;
   activeShift: DeliveryShift | null;
+  recentShifts: DeliveryShift[];
   activeOrders: Array<{
     id?: string;
     status: string;
@@ -141,6 +142,8 @@ export interface PartnerPayoutSummary {
   periodStart: string;
   periodEnd: string;
   totalDistanceKm: number;
+  tripDistanceKm: number;
+  shiftDistanceKm: number;
   totalDeliveries: number;
   mileageKmpl: number;
   fuelPricePerLitre: number;
@@ -360,8 +363,8 @@ export class DeliveryPartnerService {
     );
   }
 
-  endMyShift(shiftId: string, payload: { endOdometerKm: number; endLatitude?: number; endLongitude?: number; notes?: string }): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>(`${this.apiUrl}/partner/delivery/shift/${shiftId}/end`, payload).pipe(
+  endMyShift(shiftId: string, payload: { endOdometerKm: number; endLatitude?: number; endLongitude?: number; notes?: string }): Observable<{ message: string; shift?: DeliveryShift }> {
+    return this.http.post<{ message: string; shift?: DeliveryShift }>(`${this.apiUrl}/partner/delivery/shift/${shiftId}/end`, payload).pipe(
       catchError(handleServiceError('DeliveryPartnerService.endMyShift'))
     );
   }

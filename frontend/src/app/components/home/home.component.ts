@@ -450,7 +450,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!value) return 'Limited period';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'Limited period';
-    return `Valid till ${date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+    return `Valid till ${date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}`;
   }
 
   ngAfterViewInit() {

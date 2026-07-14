@@ -245,17 +245,17 @@
 
         <div class="item-rating-section" *ngIf="order.items?.length">
           <p class="review-prompt">Rate individual items (submit all item ratings to earn +3 loyalty points):</p>
-          <div class="item-rating-row" *ngFor="let item of order.items; trackBy: trackByName">
+          <div class="item-rating-row" *ngFor="let item of order.items; let i = index; trackBy: trackByReviewItem">
             <span class="item-rating-name">{{ item.name }}</span>
             <div class="star-selector compact">
               <span
                 *ngFor="let s of [1,2,3,4,5]"
                 class="star selectable"
-                [class.active]="s <= (getItemHoverRating(item.menuItemId) || getItemRating(item.menuItemId))"
-                (click)="setItemRating(item.menuItemId, s)"
-                (touchstart)="setItemRating(item.menuItemId, s); $event.preventDefault()"
-                (mouseenter)="itemReviewHoverRatings[item.menuItemId] = s"
-                (mouseleave)="itemReviewHoverRatings[item.menuItemId] = 0">
+                [class.active]="s <= (getItemHoverRating(item, i) || getItemRating(item, i))"
+                (click)="setItemRating(item, i, s)"
+                (touchstart)="setItemRating(item, i, s); $event.preventDefault()"
+                (mouseenter)="setItemHoverRating(item, i, s)"
+                (mouseleave)="clearItemHoverRating(item, i)">
                 ★
               </span>
             </div>

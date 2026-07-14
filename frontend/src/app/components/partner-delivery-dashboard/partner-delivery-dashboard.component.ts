@@ -245,8 +245,13 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
       endOdometerKm,
       notes: this.shiftForm.notes.trim() || undefined
     }).subscribe({
-      next: () => {
-        this.uiStore.success('Shift ended');
+      next: (res) => {
+        const endedDistance = res.shift?.totalDistanceKm;
+        if (typeof endedDistance === 'number') {
+          this.uiStore.success(`Shift ended. Total distance: ${endedDistance.toFixed(2)} km`);
+        } else {
+          this.uiStore.success('Shift ended');
+        }
         this.shiftForm.startOdometerKm = '';
         this.shiftForm.endOdometerKm = '';
         this.shiftForm.notes = '';

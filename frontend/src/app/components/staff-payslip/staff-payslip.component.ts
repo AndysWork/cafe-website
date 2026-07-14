@@ -53,7 +53,7 @@ export class StaffPayslipComponent implements OnInit {
 
     y += 24;
     doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, y);
+    doc.text(`Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`, 40, y);
 
     y += 22;
     doc.setFontSize(12);

@@ -906,13 +906,24 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<decimal> GetPartnerDistanceAsync(string partnerId, DateTime fromDate, DateTime toDate)
     {
-        var filterBuilder = Builders<PartnerTripLog>.Filter;
-        var filter = filterBuilder.Eq(t => t.PartnerId, partnerId) &
-                     filterBuilder.Gte(t => t.StartedAt, fromDate) &
-                     filterBuilder.Lte(t => t.StartedAt, toDate);
+        var tripFilterBuilder = Builders<PartnerTripLog>.Filter;
+        var tripFilter = tripFilterBuilder.Eq(t => t.PartnerId, partnerId) &
+                         tripFilterBuilder.Gte(t => t.StartedAt, fromDate) &
+                         tripFilterBuilder.Lte(t => t.StartedAt, toDate);
 
-        var trips = await _partnerTripLogs.Find(filter).ToListAsync();
-        return trips.Sum(t => t.DistanceKm);
+        var shiftFilterBuilder = Builders<DeliveryShift>.Filter;
+        var shiftFilter = shiftFilterBuilder.Eq(s => s.PartnerId, partnerId) &
+                          shiftFilterBuilder.Gte(s => s.StartedAt, fromDate) &
+                          shiftFilterBuilder.Lte(s => s.StartedAt, toDate);
+
+        var trips = await _partnerTripLogs.Find(tripFilter).ToListAsync();
+        var shifts = await _deliveryShifts.Find(shiftFilter).ToListAsync();
+
+        var tripDistance = trips.Sum(t => t.DistanceKm);
+        var shiftDistance = shifts.Sum(s => s.TotalDistanceKm);
+
+        // Use the larger source to avoid undercounting when only one source is maintained.
+        return Math.Max(tripDistance, shiftDistance);
     }
 
     public async Task<FuelPriceDaily> UpsertFuelPriceAsync(string outletId, DateTime date, decimal petrolPricePerLitre)

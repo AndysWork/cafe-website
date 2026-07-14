@@ -298,8 +298,11 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     }
     this.reviewSubmitting = true;
     const itemRatingsPayload = this.order?.items
-      .map(i => ({ menuItemId: i.menuItemId, rating: this.itemReviewRatings[i.menuItemId] || 0 }))
-      .filter(i => i.rating > 0) || [];
+      .map((item, index) => ({
+        menuItemId: item.menuItemId,
+        rating: this.getItemRating(item, index)
+      }))
+      .filter(i => !!i.menuItemId && i.rating > 0) || [];
 
     this.reviewService.createReview({
       orderId: this.orderId,
@@ -319,21 +322,39 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  setItemRating(menuItemId: string, star: number) {
-    this.itemReviewRatings[menuItemId] = star;
+  private getItemReviewKey(item: any, index: number): string {
+    const baseId = item?.menuItemId || item?.id || item?.name || 'item';
+    const variant = item?.selectedVariantName || item?.selectedVariantId || '';
+    return `${baseId}::${variant}::${index}`;
   }
 
-  getItemRating(menuItemId: string): number {
-    return this.itemReviewRatings[menuItemId] || 0;
+  setItemRating(item: any, index: number, star: number) {
+    this.itemReviewRatings[this.getItemReviewKey(item, index)] = star;
   }
 
-  getItemHoverRating(menuItemId: string): number {
-    return this.itemReviewHoverRatings[menuItemId] || 0;
+  setItemHoverRating(item: any, index: number, star: number) {
+    this.itemReviewHoverRatings[this.getItemReviewKey(item, index)] = star;
+  }
+
+  clearItemHoverRating(item: any, index: number) {
+    this.itemReviewHoverRatings[this.getItemReviewKey(item, index)] = 0;
+  }
+
+  getItemRating(item: any, index: number): number {
+    return this.itemReviewRatings[this.getItemReviewKey(item, index)] || 0;
+  }
+
+  getItemHoverRating(item: any, index: number): number {
+    return this.itemReviewHoverRatings[this.getItemReviewKey(item, index)] || 0;
   }
 
   hasAllItemRatings(): boolean {
     if (!this.order || !this.order.items || this.order.items.length === 0) return false;
-    return this.order.items.every(i => (this.itemReviewRatings[i.menuItemId] || 0) > 0);
+    return this.order.items.every((item, index) => this.getItemRating(item, index) > 0);
+  }
+
+  trackByReviewItem(index: number, item: any): string {
+    return this.getItemReviewKey(item, index);
   }
 
   trackByName(index: number, item: any): string { return item.name; }

@@ -484,6 +484,7 @@ public class PartnerDashboardResponse
 {
     public DeliveryPartner? Profile { get; set; }
     public DeliveryShift? ActiveShift { get; set; }
+    public List<DeliveryShift> RecentShifts { get; set; } = new();
     public List<Order> ActiveOrders { get; set; } = new();
     public List<Order> PendingRequests { get; set; } = new();
     public List<ParcelDeliveryTask> ActiveParcelTasks { get; set; } = new();
@@ -510,6 +511,8 @@ public class PartnerPayoutSummaryResponse
     public DateTime PeriodStart { get; set; }
     public DateTime PeriodEnd { get; set; }
     public decimal TotalDistanceKm { get; set; }
+    public decimal TripDistanceKm { get; set; }
+    public decimal ShiftDistanceKm { get; set; }
     public int TotalDeliveries { get; set; }
     public decimal MileageKmpl { get; set; }
     public decimal FuelPricePerLitre { get; set; }

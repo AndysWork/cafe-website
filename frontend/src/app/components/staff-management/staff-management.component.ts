@@ -490,7 +490,7 @@ export class StaffManagementComponent implements OnInit {
 
   formatDate(date: Date | string | undefined): string {
     if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
   }
 
   getStaffCount(): number {

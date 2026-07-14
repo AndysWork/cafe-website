@@ -39,6 +39,24 @@
     </div>
   </section>
 
+  <section class="panel">
+    <h2>Shift History</h2>
+    <div *ngIf="!d.recentShifts || d.recentShifts.length === 0" class="empty">No shift history found.</div>
+    <div class="orders" *ngIf="d.recentShifts && d.recentShifts.length > 0">
+      <article class="order-card" *ngFor="let shift of d.recentShifts">
+        <div>
+          <h3>{{ formatStatus(shift.status) }} Shift</h3>
+          <p>Started: {{ shift.startedAt | date:'medium' }}</p>
+          <small *ngIf="shift.endedAt">Ended: {{ shift.endedAt | date:'medium' }}</small>
+        </div>
+        <div class="order-meta">
+          <span>{{ shift.startOdometerKm | number:'1.0-2' }} km → {{ (shift.endOdometerKm ?? shift.startOdometerKm) | number:'1.0-2' }} km</span>
+          <strong>{{ shift.totalDistanceKm | number:'1.0-2' }} km</strong>
+        </div>
+      </article>
+    </div>
+  </section>
+
   <section class="panel action-panel">
     <h2>Shift Actions</h2>
     <div class="action-grid">
@@ -132,7 +150,9 @@
 
     <div *ngIf="payoutSummary as payout" class="panel-grid">
       <div><label>Period</label><p>{{ payout.periodStart | date:'mediumDate' }} - {{ payout.periodEnd | date:'mediumDate' }}</p></div>
-      <div><label>Distance</label><p>{{ payout.totalDistanceKm | number:'1.0-2' }} km</p></div>
+      <div><label>Distance (Used)</label><p>{{ payout.totalDistanceKm | number:'1.0-2' }} km</p></div>
+      <div><label>Trip Distance</label><p>{{ payout.tripDistanceKm | number:'1.0-2' }} km</p></div>
+      <div><label>Shift Distance</label><p>{{ payout.shiftDistanceKm | number:'1.0-2' }} km</p></div>
       <div><label>Deliveries</label><p>{{ payout.totalDeliveries }}</p></div>
       <div><label>Fuel Price</label><p>Rs {{ payout.fuelPricePerLitre | number:'1.0-2' }}</p></div>
       <div><label>Litres</label><p>{{ payout.litresConsumed | number:'1.0-3' }}</p></div>

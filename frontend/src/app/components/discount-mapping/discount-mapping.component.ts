@@ -73,7 +73,8 @@ export class DiscountMappingComponent implements OnInit, OnDestroy {
     return new Date(date).toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata'
     });
   }
 

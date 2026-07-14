@@ -788,7 +788,7 @@ export class BonusCalculationComponent implements OnInit {
       'Base Salary': `₹${this.calculationResult.baseSalary}`,
       'Bonus Amount': `₹${this.calculationResult.bonusAmount}`,
       'Total Pay': `₹${this.calculationResult.totalPayAmount || (this.calculationResult.baseSalary + this.calculationResult.bonusAmount)}`,
-      'Generated': new Date().toLocaleString()
+      'Generated': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
     };
 
     // Add bonus breakdown
@@ -1003,7 +1003,7 @@ export class BonusCalculationComponent implements OnInit {
         </div>
         <div class="info-row">
           <span class="info-label">Pay Period:</span>
-          <span class="info-value">${new Date(this.calculationResult.calculationPeriod.startDate).toLocaleDateString()} - ${new Date(this.calculationResult.calculationPeriod.endDate).toLocaleDateString()}</span>
+          <span class="info-value">${new Date(this.calculationResult.calculationPeriod.startDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} - ${new Date(this.calculationResult.calculationPeriod.endDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
         </div>
       </div>
 
@@ -1059,7 +1059,7 @@ export class BonusCalculationComponent implements OnInit {
       </div>
 
       <div class="footer">
-        <p>Generated on ${new Date().toLocaleString()}</p>
+        <p>Generated on ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
         <p>This is a computer-generated document. No signature is required.</p>
       </div>
 

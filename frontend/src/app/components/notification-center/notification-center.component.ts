@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { NotificationStore } from '../../store/notification.store';
 import { AppNotification } from '../../services/notification-api.service';
+import { parseIstDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-notification-center',
@@ -390,17 +391,41 @@ export class NotificationCenterComponent {
   }
 
   getTimeAgo(dateStr: string): string {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
+    const date = this.parseNotificationDate(dateStr);
+    if (!date) {
+      return 'Time unavailable';
+    }
 
+    const nowMs = Date.now();
+    const diffMs = nowMs - date.getTime();
+
+    // Handle future timestamps caused by clock skew/timezone serialization issues.
+    if (diffMs < -60_000) {
+      const aheadMin = Math.floor(Math.abs(diffMs) / 60_000);
+      if (aheadMin < 60) return `in ${aheadMin}m`;
+      const aheadHours = Math.floor(aheadMin / 60);
+      if (aheadHours < 24) return `in ${aheadHours}h`;
+      const aheadDays = Math.floor(aheadHours / 24);
+      if (aheadDays < 7) return `in ${aheadDays}d`;
+      return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
+    }
+
+    const diffMin = Math.floor(Math.max(0, diffMs) / 60_000);
     if (diffMin < 1) return 'Just now';
     if (diffMin < 60) return `${diffMin}m ago`;
     const diffHours = Math.floor(diffMin / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
+  }
+
+  private parseNotificationDate(value: string): Date | null {
+    if (!value) {
+      return null;
+    }
+
+    const parsed = parseIstDate(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 }
