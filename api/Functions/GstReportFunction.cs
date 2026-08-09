@@ -13,12 +13,14 @@ namespace Cafe.Api.Functions;
 public class GstReportFunction
 {
     private readonly IOrderRepository _mongo;
+    private readonly IFinanceRepository _finance;
     private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public GstReportFunction(IOrderRepository mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public GstReportFunction(IOrderRepository mongo, IFinanceRepository finance, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
+        _finance = finance;
         _auth = auth;
         _log = loggerFactory.CreateLogger<GstReportFunction>();
     }
@@ -33,37 +35,52 @@ public class GstReportFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var monthStr = req.Query["month"];
-            var yearStr = req.Query["year"];
-
-            int month = int.TryParse(monthStr, out var m) ? m : MongoService.GetIstNow().Month;
-            int year = int.TryParse(yearStr, out var y) ? y : MongoService.GetIstNow().Year;
-
-            var startDate = new DateTime(year, month, 1);
-            var endDate = startDate.AddMonths(1).AddSeconds(-1);
+            var (startDate, endDate, month, year) = ResolveDateRange(req);
 
             var orders = await _mongo.GetAllOrdersAsync(outletId);
             var monthOrders = orders.Where(o => o.CreatedAt >= startDate && o.CreatedAt <= endDate && o.Status != "cancelled").ToList();
 
-            var totalTaxableValue = monthOrders.Sum(o => o.Subtotal);
-            var totalCgst = monthOrders.Sum(o => o.Tax / 2);
-            var totalSgst = monthOrders.Sum(o => o.Tax / 2);
-            var totalTax = monthOrders.Sum(o => o.Tax);
-            var totalInvoiceValue = monthOrders.Sum(o => o.Total);
+            var marketplaceSales = await GetMarketplaceSalesAsync(startDate, endDate, outletId);
+
+            var offlineTaxableValue = monthOrders.Sum(o => o.Subtotal);
+            var offlineTax = monthOrders.Sum(o => o.Tax);
+            var offlineInvoiceValue = monthOrders.Sum(o => o.Total);
+
+            var onlineTaxableValue = marketplaceSales.Sum(s => s.BillSubTotal);
+            var onlineTax = marketplaceSales.Sum(s => s.GST);
+            var onlineInvoiceValue = marketplaceSales.Sum(s => s.BillSubTotal + s.GST);
+
+            var totalTaxableValue = offlineTaxableValue + onlineTaxableValue;
+            var totalTax = offlineTax + onlineTax;
+            var totalCgst = totalTax / 2;
+            var totalSgst = totalTax / 2;
+            var totalInvoiceValue = offlineInvoiceValue + onlineInvoiceValue;
 
             var gstSummary = new
             {
+                period = $"{startDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd}",
                 month,
                 year,
-                totalOrders = monthOrders.Count,
+                totalOrders = monthOrders.Count + marketplaceSales.Count,
+                offlineOrders = monthOrders.Count,
+                onlineOrders = marketplaceSales.Count,
+                totalSales = Math.Round(totalTaxableValue, 2),
+                totalTaxableAmount = Math.Round(totalTaxableValue, 2),
                 totalTaxableValue = Math.Round(totalTaxableValue, 2),
                 cgst = Math.Round(totalCgst, 2),
                 sgst = Math.Round(totalSgst, 2),
+                igst = 0m,
                 totalGst = Math.Round(totalTax, 2),
+                totalWithGst = Math.Round(totalInvoiceValue, 2),
                 totalInvoiceValue = Math.Round(totalInvoiceValue, 2),
                 hsnSummary = new[]
                 {
                     new { hsnCode = "9963", description = "Food & Beverage Services", taxableValue = Math.Round(totalTaxableValue, 2), cgstRate = 2.5m, sgstRate = 2.5m, cgstAmount = Math.Round(totalCgst, 2), sgstAmount = Math.Round(totalSgst, 2) }
+                },
+                breakdown = new
+                {
+                    offline = new { taxableValue = Math.Round(offlineTaxableValue, 2), gst = Math.Round(offlineTax, 2), invoiceValue = Math.Round(offlineInvoiceValue, 2) },
+                    online = new { taxableValue = Math.Round(onlineTaxableValue, 2), gst = Math.Round(onlineTax, 2), invoiceValue = Math.Round(onlineInvoiceValue, 2) }
                 }
             };
 
@@ -90,17 +107,11 @@ public class GstReportFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var monthStr = req.Query["month"];
-            var yearStr = req.Query["year"];
-
-            int month = int.TryParse(monthStr, out var m) ? m : MongoService.GetIstNow().Month;
-            int year = int.TryParse(yearStr, out var y) ? y : MongoService.GetIstNow().Year;
-
-            var startDate = new DateTime(year, month, 1);
-            var endDate = startDate.AddMonths(1).AddSeconds(-1);
+            var (startDate, endDate, month, year) = ResolveDateRange(req);
 
             var orders = await _mongo.GetAllOrdersAsync(outletId);
             var monthOrders = orders.Where(o => o.CreatedAt >= startDate && o.CreatedAt <= endDate && o.Status != "cancelled").ToList();
+            var marketplaceSales = await GetMarketplaceSalesAsync(startDate, endDate, outletId);
 
             using var package = new ExcelPackage();
 
@@ -120,16 +131,18 @@ public class GstReportFunction
             StyleHeader(b2cLargeWs, 1, 7);
 
             var largeOrders = monthOrders.Where(o => o.Total >= 250000).ToList();
+            var largeOnlineSales = marketplaceSales.Where(s => (s.BillSubTotal + s.GST) >= 250000).ToList();
             int row = 2;
-            if (largeOrders.Count > 0)
+            if (largeOrders.Count > 0 || largeOnlineSales.Count > 0)
             {
-                var taxableValue = largeOrders.Sum(o => o.Subtotal);
+                var taxableValue = largeOrders.Sum(o => o.Subtotal) + largeOnlineSales.Sum(s => s.BillSubTotal);
+                var largeTax = largeOrders.Sum(o => o.Tax) + largeOnlineSales.Sum(s => s.GST);
                 b2cLargeWs.Cells[row, 1].Value = "West Bengal";
                 b2cLargeWs.Cells[row, 2].Value = 5;
                 b2cLargeWs.Cells[row, 3].Value = 100;
                 b2cLargeWs.Cells[row, 4].Value = (double)taxableValue;
-                b2cLargeWs.Cells[row, 5].Value = (double)(taxableValue * 0.025m);
-                b2cLargeWs.Cells[row, 6].Value = (double)(taxableValue * 0.025m);
+                b2cLargeWs.Cells[row, 5].Value = (double)(largeTax / 2);
+                b2cLargeWs.Cells[row, 6].Value = (double)(largeTax / 2);
                 b2cLargeWs.Cells[row, 7].Value = 0;
             }
 
@@ -146,14 +159,16 @@ public class GstReportFunction
             StyleHeader(b2cSmallWs, 1, 8);
 
             var smallOrders = monthOrders.Where(o => o.Total < 250000).ToList();
-            var smallTaxable = smallOrders.Sum(o => o.Subtotal);
+            var smallOnlineSales = marketplaceSales.Where(s => (s.BillSubTotal + s.GST) < 250000).ToList();
+            var smallTaxable = smallOrders.Sum(o => o.Subtotal) + smallOnlineSales.Sum(s => s.BillSubTotal);
+            var smallTax = smallOrders.Sum(o => o.Tax) + smallOnlineSales.Sum(s => s.GST);
             b2cSmallWs.Cells[2, 1].Value = "OE";
             b2cSmallWs.Cells[2, 2].Value = "West Bengal";
             b2cSmallWs.Cells[2, 3].Value = 5;
             b2cSmallWs.Cells[2, 4].Value = 100;
             b2cSmallWs.Cells[2, 5].Value = (double)smallTaxable;
-            b2cSmallWs.Cells[2, 6].Value = (double)(smallTaxable * 0.025m);
-            b2cSmallWs.Cells[2, 7].Value = (double)(smallTaxable * 0.025m);
+            b2cSmallWs.Cells[2, 6].Value = (double)(smallTax / 2);
+            b2cSmallWs.Cells[2, 7].Value = (double)(smallTax / 2);
             b2cSmallWs.Cells[2, 8].Value = 0;
 
             // HSN Summary
@@ -168,16 +183,17 @@ public class GstReportFunction
             hsnWs.Cells[1, 8].Value = "Total Tax";
             StyleHeader(hsnWs, 1, 8);
 
-            var totalTaxable = monthOrders.Sum(o => o.Subtotal);
-            var totalItems = monthOrders.Sum(o => o.Items.Sum(i => i.Quantity));
+            var totalTaxable = monthOrders.Sum(o => o.Subtotal) + marketplaceSales.Sum(s => s.BillSubTotal);
+            var totalTax = monthOrders.Sum(o => o.Tax) + marketplaceSales.Sum(s => s.GST);
+            var totalItems = monthOrders.Sum(o => o.Items.Sum(i => i.Quantity)) + marketplaceSales.Sum(s => s.OrderedItems.Sum(i => i.Quantity));
             hsnWs.Cells[2, 1].Value = "9963";
             hsnWs.Cells[2, 2].Value = "Food & Beverage Services";
             hsnWs.Cells[2, 3].Value = "NOS";
             hsnWs.Cells[2, 4].Value = totalItems;
             hsnWs.Cells[2, 5].Value = (double)totalTaxable;
-            hsnWs.Cells[2, 6].Value = (double)(totalTaxable * 0.025m);
-            hsnWs.Cells[2, 7].Value = (double)(totalTaxable * 0.025m);
-            hsnWs.Cells[2, 8].Value = (double)(totalTaxable * 0.05m);
+            hsnWs.Cells[2, 6].Value = (double)(totalTax / 2);
+            hsnWs.Cells[2, 7].Value = (double)(totalTax / 2);
+            hsnWs.Cells[2, 8].Value = (double)totalTax;
 
             foreach (var ws in package.Workbook.Worksheets)
                 ws.Cells.AutoFitColumns();
@@ -204,5 +220,37 @@ public class GstReportFunction
         range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
         range.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(14, 165, 233));
         range.Style.Font.Color.SetColor(System.Drawing.Color.White);
+    }
+
+    private async Task<List<OnlineSale>> GetMarketplaceSalesAsync(DateTime startDate, DateTime endDate, string? outletId)
+    {
+        var sales = await _finance.GetOnlineSalesByDateRangeAsync(null, startDate, endDate, outletId, includeWebSales: false);
+        return sales
+            .Where(s => string.Equals(s.Platform, "Swiggy", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(s.Platform, "Zomato", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private static (DateTime startDate, DateTime endDate, int month, int year) ResolveDateRange(HttpRequestData req)
+    {
+        var startDateStr = req.Query["startDate"];
+        var endDateStr = req.Query["endDate"];
+
+        if (DateTime.TryParse(startDateStr, out var parsedStart) && DateTime.TryParse(endDateStr, out var parsedEnd))
+        {
+            var startDate = parsedStart.Date;
+            var endDate = parsedEnd.Date.AddDays(1).AddTicks(-1);
+            return (startDate, endDate, startDate.Month, startDate.Year);
+        }
+
+        var monthStr = req.Query["month"];
+        var yearStr = req.Query["year"];
+
+        int month = int.TryParse(monthStr, out var m) ? m : MongoService.GetIstNow().Month;
+        int year = int.TryParse(yearStr, out var y) ? y : MongoService.GetIstNow().Year;
+
+        var monthStartDate = new DateTime(year, month, 1);
+        var monthEndDate = monthStartDate.AddMonths(1).AddSeconds(-1);
+        return (monthStartDate, monthEndDate, month, year);
     }
 }

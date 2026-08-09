@@ -40,16 +40,25 @@ public class ReportExportFunction
             DateTime endDate = DateTime.TryParse(endDateStr, out var ed) ? ed : MongoService.GetIstNow();
 
             var sales = await _mongo.GetSalesByDateRangeAsync(startDate, endDate, outletId);
+            var onlineSales = await GetMarketplaceSalesAsync(startDate, endDate, outletId);
 
             if (format == "csv")
             {
-                var csv = "Date,Item Name,Payment Method,Amount,Notes\n";
+                var csv = "Date,Source,Platform,Item Name,Payment Method,Amount,Notes\n";
                 foreach (var s in sales)
                 {
                     foreach (var item in s.Items)
                     {
-                        csv += $"{s.Date:yyyy-MM-dd},{EscapeCsv(item.ItemName)},{s.PaymentMethod},{item.TotalPrice:F2},{EscapeCsv(s.Notes ?? "")}\n";
+                        csv += $"{s.Date:yyyy-MM-dd},Offline,Store,{EscapeCsv(item.ItemName)},{EscapeCsv(s.PaymentMethod)},{item.TotalPrice:F2},{EscapeCsv(s.Notes ?? "")}\n";
                     }
+                }
+
+                foreach (var online in onlineSales)
+                {
+                    var itemSummary = online.OrderedItems.Count > 0
+                        ? string.Join(" | ", online.OrderedItems.Select(i => $"{i.ItemName} x{i.Quantity}"))
+                        : online.OrderId;
+                    csv += $"{online.OrderAt:yyyy-MM-dd},Online,{EscapeCsv(online.Platform)},{EscapeCsv(itemSummary)},Platform Payout,{online.Payout:F2},{EscapeCsv(online.CustomerName ?? string.Empty)}\n";
                 }
 
                 var csvResponse = req.CreateResponse(HttpStatusCode.OK);
@@ -62,13 +71,15 @@ public class ReportExportFunction
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add("Sales Report");
             ws.Cells[1, 1].Value = "Date";
-            ws.Cells[1, 2].Value = "Payment Method";
-            ws.Cells[1, 3].Value = "Item Name";
-            ws.Cells[1, 4].Value = "Quantity";
-            ws.Cells[1, 5].Value = "Amount (₹)";
-            ws.Cells[1, 6].Value = "Notes";
+            ws.Cells[1, 2].Value = "Source";
+            ws.Cells[1, 3].Value = "Platform";
+            ws.Cells[1, 4].Value = "Payment Method";
+            ws.Cells[1, 5].Value = "Item Name";
+            ws.Cells[1, 6].Value = "Quantity";
+            ws.Cells[1, 7].Value = "Amount (₹)";
+            ws.Cells[1, 8].Value = "Notes";
 
-            using (var range = ws.Cells[1, 1, 1, 6])
+            using (var range = ws.Cells[1, 1, 1, 8])
             {
                 range.Style.Font.Bold = true;
                 range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
@@ -82,20 +93,38 @@ public class ReportExportFunction
                 foreach (var item in s.Items)
                 {
                     ws.Cells[row, 1].Value = s.Date.ToString("yyyy-MM-dd");
-                    ws.Cells[row, 2].Value = s.PaymentMethod;
-                    ws.Cells[row, 3].Value = item.ItemName;
-                    ws.Cells[row, 4].Value = item.Quantity;
-                    ws.Cells[row, 5].Value = (double)item.TotalPrice;
-                    ws.Cells[row, 6].Value = s.Notes ?? "";
+                    ws.Cells[row, 2].Value = "Offline";
+                    ws.Cells[row, 3].Value = "Store";
+                    ws.Cells[row, 4].Value = s.PaymentMethod;
+                    ws.Cells[row, 5].Value = item.ItemName;
+                    ws.Cells[row, 6].Value = item.Quantity;
+                    ws.Cells[row, 7].Value = (double)item.TotalPrice;
+                    ws.Cells[row, 8].Value = s.Notes ?? "";
                     row++;
                 }
             }
 
-            ws.Cells[row + 1, 4].Value = "Total:";
-            ws.Cells[row + 1, 4].Style.Font.Bold = true;
-            ws.Cells[row + 1, 5].Value = (double)sales.Sum(s => s.TotalAmount);
-            ws.Cells[row + 1, 5].Style.Font.Bold = true;
-            ws.Cells[row + 1, 5].Style.Numberformat.Format = "#,##0.00";
+            foreach (var online in onlineSales)
+            {
+                ws.Cells[row, 1].Value = online.OrderAt.ToString("yyyy-MM-dd");
+                ws.Cells[row, 2].Value = "Online";
+                ws.Cells[row, 3].Value = online.Platform;
+                ws.Cells[row, 4].Value = "Platform Payout";
+                ws.Cells[row, 5].Value = online.OrderedItems.Count > 0
+                    ? string.Join(" | ", online.OrderedItems.Select(i => $"{i.ItemName} x{i.Quantity}"))
+                    : online.OrderId;
+                ws.Cells[row, 6].Value = online.OrderedItems.Sum(i => i.Quantity);
+                ws.Cells[row, 7].Value = (double)online.Payout;
+                ws.Cells[row, 8].Value = online.CustomerName ?? "";
+                row++;
+            }
+
+            var combinedTotal = sales.Sum(s => s.TotalAmount) + onlineSales.Sum(s => s.Payout);
+            ws.Cells[row + 1, 6].Value = "Total:";
+            ws.Cells[row + 1, 6].Style.Font.Bold = true;
+            ws.Cells[row + 1, 7].Value = (double)combinedTotal;
+            ws.Cells[row + 1, 7].Style.Font.Bold = true;
+            ws.Cells[row + 1, 7].Style.Numberformat.Format = "#,##0.00";
 
             ws.Cells.AutoFitColumns();
 
@@ -269,9 +298,12 @@ public class ReportExportFunction
             DateTime endDate = DateTime.TryParse(endDateStr, out var ed) ? ed : MongoService.GetIstNow();
 
             var sales = await _mongo.GetSalesByDateRangeAsync(startDate, endDate, outletId);
+            var onlineSales = await GetMarketplaceSalesAsync(startDate, endDate, outletId);
             var expenses = await _mongo.GetExpensesByDateRangeAsync(startDate, endDate, outletId);
 
-            var totalRevenue = sales.Sum(s => s.TotalAmount);
+            var offlineRevenue = sales.Sum(s => s.TotalAmount);
+            var onlineRevenue = onlineSales.Sum(s => s.Payout);
+            var totalRevenue = offlineRevenue + onlineRevenue;
             var totalExpenses = expenses.Sum(e => e.Amount);
             var profit = totalRevenue - totalExpenses;
 
@@ -286,9 +318,16 @@ public class ReportExportFunction
             ws.Cells[3, 1].Value = "REVENUE";
             ws.Cells[3, 1].Style.Font.Bold = true;
 
-            var revByType = sales.SelectMany(s => s.Items)
+            var offlineRevenueRows = sales.SelectMany(s => s.Items)
                 .GroupBy(i => i.ItemName)
-                .Select(g => new { Type = g.Key, Amount = g.Sum(i => i.TotalPrice) })
+                .Select(g => new { Type = g.Key, Amount = g.Sum(i => i.TotalPrice) });
+
+            var onlineRevenueRows = onlineSales
+                .GroupBy(s => s.Platform)
+                .Select(g => new { Type = $"{g.Key} (Payout)", Amount = g.Sum(i => i.Payout) });
+
+            var revByType = offlineRevenueRows
+                .Concat(onlineRevenueRows)
                 .OrderByDescending(x => x.Amount);
 
             int row = 4;
@@ -303,6 +342,15 @@ public class ReportExportFunction
             ws.Cells[row, 1].Style.Font.Bold = true;
             ws.Cells[row, 2].Value = (double)totalRevenue;
             ws.Cells[row, 2].Style.Font.Bold = true;
+            ws.Cells[row, 2].Style.Numberformat.Format = "#,##0.00";
+
+            row++;
+            ws.Cells[row, 1].Value = "  Offline Revenue";
+            ws.Cells[row, 2].Value = (double)offlineRevenue;
+            ws.Cells[row, 2].Style.Numberformat.Format = "#,##0.00";
+            row++;
+            ws.Cells[row, 1].Value = "  Online Revenue (Swiggy/Zomato payout)";
+            ws.Cells[row, 2].Value = (double)onlineRevenue;
             ws.Cells[row, 2].Style.Numberformat.Format = "#,##0.00";
 
             row += 2;
@@ -357,5 +405,14 @@ public class ReportExportFunction
         if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
             return $"\"{value.Replace("\"", "\"\"")}\"";
         return value;
+    }
+
+    private async Task<List<OnlineSale>> GetMarketplaceSalesAsync(DateTime startDate, DateTime endDate, string? outletId)
+    {
+        var allOnlineSales = await _mongo.GetOnlineSalesByDateRangeAsync(null, startDate, endDate, outletId, includeWebSales: false);
+        return allOnlineSales
+            .Where(s => string.Equals(s.Platform, "Swiggy", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(s.Platform, "Zomato", StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 }
