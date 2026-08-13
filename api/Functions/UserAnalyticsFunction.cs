@@ -272,13 +272,13 @@ public class UserAnalyticsFunction
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var period = query["period"]?.ToLowerInvariant();
 
-            var now = DateTime.UtcNow;
+            var now = MongoService.GetIstNow();
             DateTime? periodStart = period switch
             {
                 "daily" => now.Date,
                 "weekly" => now.Date.AddDays(-(int)now.DayOfWeek),
-                "monthly" => new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc),
-                "yearly" => new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                "monthly" => new DateTime(now.Year, now.Month, 1),
+                "yearly" => new DateTime(now.Year, 1, 1),
                 _ => null
             };
 
@@ -287,7 +287,7 @@ public class UserAnalyticsFunction
                 "daily" => 1,
                 "weekly" => 7,
                 "monthly" => DateTime.DaysInMonth(now.Year, now.Month),
-                "yearly" => (now - new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc)).Days + 1,
+                "yearly" => (now - new DateTime(now.Year, 1, 1)).Days + 1,
                 _ => 30
             };
 
@@ -375,3 +375,4 @@ public class UserAnalyticsFunction
         }
     }
 }
+

@@ -7,6 +7,7 @@ import { OutletService } from '../../services/outlet.service';
 import { AuthService } from '../../services/auth.service';
 import { Staff, StaffStatistics, StaffShift, EMPLOYMENT_TYPES, COMMON_POSITIONS, DEPARTMENTS, DAYS_OF_WEEK, SALARY_TYPES, GENDERS, DOCUMENT_TYPES } from '../../models/staff.model';
 import { Outlet } from '../../models/outlet.model';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-staff-management',
@@ -260,24 +261,9 @@ export class StaffManagementComponent implements OnInit {
         return date;
       }
 
-      // Convert to Date object if string
-      const dateObj = typeof date === 'string' ? new Date(date) : date;
-
-      // Check if valid date
-      if (isNaN(dateObj.getTime())) {
-        return undefined;
-      }
-
-      // Convert to IST (Indian Standard Time - UTC+5:30) and format as yyyy-MM-dd
-      const istDateString = dateObj.toLocaleString('en-CA', {
-        timeZone: 'Asia/Kolkata',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-
-      // en-CA locale returns dates in yyyy-MM-dd format
-      return istDateString.split(',')[0].trim();
+      // Normalize backend dates to IST date-only format for HTML date inputs.
+      const normalized = getIstInputDate(date);
+      return normalized || undefined;
     } catch (error) {
       console.error('Error formatting date:', error);
       return undefined;
@@ -285,17 +271,7 @@ export class StaffManagementComponent implements OnInit {
   }
 
   private getTodayInIST(): string {
-    // Get current date in IST timezone
-    const today = new Date();
-    const istDateString = today.toLocaleString('en-CA', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-
-    // en-CA locale returns dates in yyyy-MM-dd format
-    return istDateString.split(',')[0].trim();
+    return getIstInputDate();
   }
 
   closeModal(): void {
@@ -353,15 +329,16 @@ export class StaffManagementComponent implements OnInit {
     if (!value) return undefined;
 
     if (value instanceof Date) {
-      return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())).toISOString();
+      const normalized = getIstInputDate(value);
+      return normalized || undefined;
     }
 
     const trimmed = value.trim();
     if (!trimmed) return undefined;
 
-    // Convert date-only input from HTML date controls to ISO datetime for .NET DateTime parsing.
+    // Keep date-only payload to preserve calendar-day semantics across timezones.
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      return `${trimmed}T00:00:00Z`;
+      return trimmed;
     }
 
     const parsed = new Date(trimmed);
@@ -369,7 +346,8 @@ export class StaffManagementComponent implements OnInit {
       return undefined;
     }
 
-    return parsed.toISOString();
+    const normalized = getIstInputDate(parsed);
+    return normalized || undefined;
   }
 
   validateForm(): boolean {

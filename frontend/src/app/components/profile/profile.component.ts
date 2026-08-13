@@ -10,6 +10,7 @@ import { OrderService, Order, OrderItem } from '../../services/order.service';
 import { CartService } from '../../services/cart.service';
 import { UIStore } from '../../store/ui.store';
 import { NotificationStore } from '../../store';
+import { getIstIsoString } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-profile',
@@ -664,7 +665,7 @@ export class ProfileComponent implements OnInit {
     try {
       const parsed = JSON.parse(raw);
       this.checkoutDraft = {
-        timestamp: parsed.timestamp || new Date().toISOString(),
+          timestamp: parsed.timestamp || getIstIsoString(),
         cartItemCount: Number(parsed.cartItemCount || 0),
         grandTotal: Number(parsed.grandTotal || 0)
       };

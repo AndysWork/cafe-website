@@ -177,8 +177,8 @@ public class OverheadCostFunction
                 _logger.LogInformation($"OutletId from header: {outletId}");
             }
             
-            overheadCost.CreatedAt = DateTime.UtcNow;
-            overheadCost.UpdatedAt = DateTime.UtcNow;
+            overheadCost.CreatedAt = MongoService.GetIstNow();
+            overheadCost.UpdatedAt = MongoService.GetIstNow();
 
             var createdOverheadCost = await _mongoService.CreateOverheadCostAsync(overheadCost);
             _logger.LogInformation($"Successfully created overhead cost with ID: {createdOverheadCost.Id}");
@@ -223,7 +223,7 @@ public class OverheadCostFunction
 
             // Ensure the OutletId matches the request header
             overheadCost.OutletId = outletId;
-            overheadCost.UpdatedAt = DateTime.UtcNow;
+            overheadCost.UpdatedAt = MongoService.GetIstNow();
 
             var success = await _mongoService.UpdateOverheadCostAsync(id, overheadCost);
             if (!success)
@@ -399,3 +399,4 @@ public class OverheadCostFunction
         }
     }
 }
+

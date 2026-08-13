@@ -118,7 +118,7 @@ public partial class MongoService : IInventoryRepository
 
     public async Task<List<Inventory>> GetExpiringItemsAsync(int daysThreshold = 7, string? outletId = null)
     {
-        var thresholdDate = DateTime.UtcNow.AddDays(daysThreshold);
+        var thresholdDate = MongoService.GetIstNow().AddDays(daysThreshold);
         var filterBuilder = Builders<Inventory>.Filter;
         var filters = new List<FilterDefinition<Inventory>>
         {
@@ -140,8 +140,8 @@ public partial class MongoService : IInventoryRepository
 
     public async Task<Inventory> CreateInventoryAsync(Inventory inventory)
     {
-        inventory.CreatedAt = DateTime.UtcNow;
-        inventory.UpdatedAt = DateTime.UtcNow;
+        inventory.CreatedAt = MongoService.GetIstNow();
+        inventory.UpdatedAt = MongoService.GetIstNow();
         inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
         inventory.Status = DetermineStockStatus(inventory);
 
@@ -153,7 +153,7 @@ public partial class MongoService : IInventoryRepository
     {
         // Ensure TotalValue is always calculated from CurrentStock * CostPerUnit
         inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
-        inventory.UpdatedAt = DateTime.UtcNow;
+        inventory.UpdatedAt = MongoService.GetIstNow();
         inventory.Status = DetermineStockStatus(inventory);
 
         var result = await _inventory.ReplaceOneAsync(i => i.Id == id, inventory);
@@ -191,7 +191,7 @@ public partial class MongoService : IInventoryRepository
             Reason = reason,
             ReferenceNumber = referenceNumber,
             PerformedBy = performedBy,
-            TransactionDate = DateTime.UtcNow
+            TransactionDate = MongoService.GetIstNow()
         };
 
         await _inventoryTransactions.InsertOneAsync(transaction);
@@ -200,14 +200,14 @@ public partial class MongoService : IInventoryRepository
         try
         {
             inventory.CurrentStock = stockAfter;
-            inventory.UpdatedAt = DateTime.UtcNow;
+            inventory.UpdatedAt = MongoService.GetIstNow();
             inventory.LastUpdatedBy = performedBy;
             inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
             inventory.Status = DetermineStockStatus(inventory);
 
             if (type == TransactionType.StockIn)
             {
-                inventory.LastRestockDate = DateTime.UtcNow;
+                inventory.LastRestockDate = MongoService.GetIstNow();
             }
 
             var result = await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
@@ -246,7 +246,7 @@ public partial class MongoService : IInventoryRepository
             ReferenceNumber = referenceNumber,
             Reason = "Stock purchase/receipt",
             PerformedBy = performedBy,
-            TransactionDate = DateTime.UtcNow
+            TransactionDate = MongoService.GetIstNow()
         };
 
         await _inventoryTransactions.InsertOneAsync(transaction);
@@ -264,15 +264,15 @@ public partial class MongoService : IInventoryRepository
                 inventory.LastPurchasePrice = costPerUnit.Value;
             }
 
-            inventory.LastPurchaseDate = DateTime.UtcNow;
-            inventory.LastRestockDate = DateTime.UtcNow;
+            inventory.LastPurchaseDate = MongoService.GetIstNow();
+            inventory.LastRestockDate = MongoService.GetIstNow();
             
             if (!string.IsNullOrEmpty(supplierName))
             {
                 inventory.SupplierName = supplierName;
             }
 
-            inventory.UpdatedAt = DateTime.UtcNow;
+            inventory.UpdatedAt = MongoService.GetIstNow();
             inventory.LastUpdatedBy = performedBy;
             inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
             inventory.Status = DetermineStockStatus(inventory);
@@ -309,7 +309,7 @@ public partial class MongoService : IInventoryRepository
             StockAfter = inventory.CurrentStock - quantity,
             Reason = reason,
             PerformedBy = performedBy,
-            TransactionDate = DateTime.UtcNow
+            TransactionDate = MongoService.GetIstNow()
         };
 
         await _inventoryTransactions.InsertOneAsync(transaction);
@@ -318,7 +318,7 @@ public partial class MongoService : IInventoryRepository
         try
         {
             inventory.CurrentStock -= quantity;
-            inventory.UpdatedAt = DateTime.UtcNow;
+            inventory.UpdatedAt = MongoService.GetIstNow();
             inventory.LastUpdatedBy = performedBy;
             inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
             inventory.Status = DetermineStockStatus(inventory);
@@ -414,7 +414,7 @@ public partial class MongoService : IInventoryRepository
     {
         var update = Builders<StockAlert>.Update
             .Set(a => a.IsResolved, true)
-            .Set(a => a.ResolvedAt, DateTime.UtcNow)
+            .Set(a => a.ResolvedAt, MongoService.GetIstNow())
             .Set(a => a.ResolvedBy, resolvedBy);
 
         var result = await _stockAlerts.UpdateOneAsync(a => a.Id == alertId, update);
@@ -431,7 +431,7 @@ public partial class MongoService : IInventoryRepository
 
         var update = Builders<StockAlert>.Update
             .Set(a => a.IsResolved, true)
-            .Set(a => a.ResolvedAt, DateTime.UtcNow)
+            .Set(a => a.ResolvedAt, MongoService.GetIstNow())
             .Set(a => a.ResolvedBy, resolvedBy);
 
         await _stockAlerts.UpdateManyAsync(filter, update);
@@ -460,7 +460,7 @@ public partial class MongoService : IInventoryRepository
                     Message = $"{inventory.IngredientName} is running low. Current: {inventory.CurrentStock}{inventory.Unit}, Minimum: {inventory.MinimumStock}{inventory.Unit}",
                     CurrentStock = inventory.CurrentStock,
                     ThresholdValue = inventory.MinimumStock,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = MongoService.GetIstNow()
                 });
             }
         }
@@ -483,7 +483,7 @@ public partial class MongoService : IInventoryRepository
                     Severity = AlertSeverity.Critical,
                     Message = $"{inventory.IngredientName} is OUT OF STOCK!",
                     CurrentStock = 0,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = MongoService.GetIstNow()
                 });
             }
         }
@@ -491,7 +491,7 @@ public partial class MongoService : IInventoryRepository
         // Check for expiring stock
         if (inventory.ExpiryDate.HasValue)
         {
-            var daysUntilExpiry = (inventory.ExpiryDate.Value - DateTime.UtcNow).Days;
+            var daysUntilExpiry = (inventory.ExpiryDate.Value - MongoService.GetIstNow()).Days;
             
             if (daysUntilExpiry <= 7 && daysUntilExpiry > 0)
             {
@@ -510,7 +510,7 @@ public partial class MongoService : IInventoryRepository
                         Severity = daysUntilExpiry <= 3 ? AlertSeverity.Critical : AlertSeverity.Warning,
                         Message = $"{inventory.IngredientName} expires in {daysUntilExpiry} days",
                         CurrentStock = inventory.CurrentStock,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = MongoService.GetIstNow()
                     });
                 }
             }
@@ -531,7 +531,7 @@ public partial class MongoService : IInventoryRepository
                         Severity = AlertSeverity.Critical,
                         Message = $"{inventory.IngredientName} has EXPIRED!",
                         CurrentStock = inventory.CurrentStock,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = MongoService.GetIstNow()
                     });
                 }
             }
@@ -594,7 +594,7 @@ public partial class MongoService : IInventoryRepository
 
         if (inventory.ExpiryDate.HasValue)
         {
-            var daysUntilExpiry = (inventory.ExpiryDate.Value - DateTime.UtcNow).Days;
+            var daysUntilExpiry = (inventory.ExpiryDate.Value - MongoService.GetIstNow()).Days;
             if (daysUntilExpiry <= 7)
                 return StockStatus.Expiring;
         }
@@ -610,3 +610,4 @@ public partial class MongoService : IInventoryRepository
 
     #endregion
 }
+

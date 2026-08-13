@@ -339,7 +339,7 @@ public class PriceUpdateFunction
             }
 
             ingredient.AutoUpdateEnabled = !ingredient.AutoUpdateEnabled;
-            ingredient.UpdatedAt = DateTime.UtcNow;
+            ingredient.UpdatedAt = MongoService.GetIstNow();
 
             var updated = await _mongoService.UpdateIngredientAsync(id, ingredient);
             if (!updated)
@@ -367,3 +367,4 @@ public class PriceUpdateFunction
         }
     }
 }
+

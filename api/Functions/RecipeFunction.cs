@@ -175,8 +175,8 @@ namespace Cafe.Api.Functions
                     recipe.Notes = InputSanitizer.Sanitize(recipe.Notes);
                 }
 
-                recipe.CreatedAt = DateTime.UtcNow;
-                recipe.UpdatedAt = DateTime.UtcNow;
+                recipe.CreatedAt = MongoService.GetIstNow();
+                recipe.UpdatedAt = MongoService.GetIstNow();
 
                 var createdRecipe = await _mongoService.CreateRecipeAsync(recipe);
 
@@ -232,7 +232,7 @@ namespace Cafe.Api.Functions
                 }
 
                 recipe.Id = id;
-                recipe.UpdatedAt = DateTime.UtcNow;
+                recipe.UpdatedAt = MongoService.GetIstNow();
 
                 var updated = await _mongoService.UpdateRecipeAsync(id, recipe);
                 if (!updated)
@@ -347,7 +347,7 @@ namespace Cafe.Api.Functions
                         profitPercentage = recipe.ProfitMargin,
                         sellingPrice
                     },
-                    calculatedAt = DateTime.UtcNow
+                    calculatedAt = MongoService.GetIstNow()
                 };
 
                 var response = req.CreateResponse(HttpStatusCode.OK);

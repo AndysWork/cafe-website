@@ -8,6 +8,7 @@ import {
   ManagerOpsBoardResponse,
   ManagerOpsService
 } from '../../services/manager-ops.service';
+import { getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-manager-operations-board',
@@ -82,7 +83,7 @@ export class ManagerOperationsBoardComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.errorMessage = '';
 
-    const date = new Date().toISOString().slice(0, 10);
+    const date = getIstInputDate();
     forkJoin({
       board: this.managerOps.getBoard(),
       reconciliation: this.managerOps.getAuditReconciliation(date),

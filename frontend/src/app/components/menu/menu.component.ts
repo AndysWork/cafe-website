@@ -13,6 +13,7 @@ import { Outlet } from '../../models/outlet.model';
 import { UIStore } from '../../store/ui.store';
 import { Router } from '@angular/router';
 import { decodeHtmlEntities } from '../../utils/text-utils';
+import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
 
 interface MenuSubCategoryAccordionGroup {
   key: string;
@@ -1313,7 +1314,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     try {
       const parsed = JSON.parse(raw);
       this.checkoutDraft = {
-        timestamp: parsed.timestamp || new Date().toISOString(),
+        timestamp: parsed.timestamp || getIstIsoString(),
         cartItemCount: Number(parsed.cartItemCount || 0),
         grandTotal: Number(parsed.grandTotal || 0)
       };

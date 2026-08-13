@@ -1,4 +1,4 @@
-﻿using MongoDB.Driver;
+using MongoDB.Driver;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
 using Microsoft.Extensions.Logging;
@@ -128,10 +128,10 @@ public partial class MongoService
         // Ensure defaults before saving
         EnsureOverheadCostDefaults(overheadCost);
         
-        overheadCost.CreatedAt = DateTime.UtcNow;
-        overheadCost.UpdatedAt = DateTime.UtcNow;
+        overheadCost.CreatedAt = MongoService.GetIstNow();
+        overheadCost.UpdatedAt = MongoService.GetIstNow();
         
-        _logger.LogDebug($"[Overhead Cost] Creating: {overheadCost.CostType}, Monthly: ₹{overheadCost.MonthlyCost}, PerMin: ₹{overheadCost.CostPerMinute:F4}, OutletId: {overheadCost.OutletId ?? "SHARED"}");
+        _logger.LogDebug($"[Overhead Cost] Creating: {overheadCost.CostType}, Monthly: ?{overheadCost.MonthlyCost}, PerMin: ?{overheadCost.CostPerMinute:F4}, OutletId: {overheadCost.OutletId ?? "SHARED"}");
         
         await _overheadCosts.InsertOneAsync(overheadCost);
         return overheadCost;
@@ -142,9 +142,9 @@ public partial class MongoService
         // Ensure defaults before updating
         EnsureOverheadCostDefaults(overheadCost);
         
-        overheadCost.UpdatedAt = DateTime.UtcNow;
+        overheadCost.UpdatedAt = MongoService.GetIstNow();
         
-        _logger.LogDebug($"[Overhead Cost] Updating: {overheadCost.CostType}, Monthly: ₹{overheadCost.MonthlyCost}, PerMin: ₹{overheadCost.CostPerMinute:F4}, OutletId: {overheadCost.OutletId ?? "SHARED"}");
+        _logger.LogDebug($"[Overhead Cost] Updating: {overheadCost.CostType}, Monthly: ?{overheadCost.MonthlyCost}, PerMin: ?{overheadCost.CostPerMinute:F4}, OutletId: {overheadCost.OutletId ?? "SHARED"}");
         
         var result = await _overheadCosts.ReplaceOneAsync(
             o => o.Id == id,
@@ -171,7 +171,7 @@ public partial class MongoService
         _logger.LogDebug($"[Overhead Calculation] Retrieved {activeOverheads.Count} active overhead costs");
         foreach (var oh in activeOverheads)
         {
-            _logger.LogDebug($"[Overhead Calculation]   - {oh.CostType}: Monthly=₹{oh.MonthlyCost}, PerMin=₹{oh.CostPerMinute:F4}, OutletId={oh.OutletId ?? "SHARED"}");
+            _logger.LogDebug($"[Overhead Calculation]   - {oh.CostType}: Monthly=?{oh.MonthlyCost}, PerMin=?{oh.CostPerMinute:F4}, OutletId={oh.OutletId ?? "SHARED"}");
         }
         
         var allocation = new OverheadAllocation
@@ -199,8 +199,8 @@ public partial class MongoService
             allocation.Costs.Sum(c => c.AllocatedCost), 2
         );
 
-        _logger.LogDebug($"[Overhead Calculation] Total overhead cost: ₹{allocation.TotalOverheadCost:F2}");
-        _logger.LogDebug($"[Overhead Calculation] Breakdown: {string.Join(", ", allocation.Costs.Select(c => $"{c.CostType}=₹{c.AllocatedCost:F2}"))}");
+        _logger.LogDebug($"[Overhead Calculation] Total overhead cost: ?{allocation.TotalOverheadCost:F2}");
+        _logger.LogDebug($"[Overhead Calculation] Breakdown: {string.Join(", ", allocation.Costs.Select(c => $"{c.CostType}=?{c.AllocatedCost:F2}"))}");
 
         return allocation;
     }
@@ -259,9 +259,10 @@ public partial class MongoService
 
         var update = Builders<OverheadCost>.Update
             .Set(o => o.OutletId, targetOutletId)
-            .Set(o => o.UpdatedAt, DateTime.UtcNow);
+            .Set(o => o.UpdatedAt, MongoService.GetIstNow());
 
         var result = await _overheadCosts.UpdateManyAsync(filter, update);
         return (int)result.ModifiedCount;
     }
 }
+

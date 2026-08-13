@@ -20,7 +20,7 @@ import {
   DEFAULT_BONUS_TIERS,
   BonusTier,
 } from '../../models/bonus.model';
-import { getIstInputDate } from '../../utils/date-utils';
+import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-bonus-calculation',
@@ -473,7 +473,7 @@ export class BonusCalculationComponent implements OnInit {
       baseSalary: this.selectedStaff.salary,
       totalPayAmount: Math.round(totalPayAmount * 100) / 100,
       status: 'pending',
-      calculatedAt: new Date().toISOString(),
+      calculatedAt: getIstIsoString(),
     };
 
     this.showCalculationDetails = true;

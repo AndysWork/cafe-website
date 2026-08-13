@@ -1,6 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System.ComponentModel.DataAnnotations;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -39,7 +40,7 @@ public class BonusConfiguration : ISoftDeletable
     public bool IsActive { get; set; } = true;
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
     public DateTime? UpdatedAt { get; set; }
@@ -201,7 +202,7 @@ public class StaffPerformanceRecord
     public string? OutletId { get; set; }
 
     [BsonElement("recordDate")]
-    public DateTime RecordDate { get; set; } = DateTime.UtcNow;
+    public DateTime RecordDate { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("period")]
     public string Period { get; set; } = string.Empty; // e.g., "2026-01", "2026-W04"
@@ -263,7 +264,7 @@ public class StaffPerformanceRecord
     public DateTime? CalculatedAt { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
     public DateTime? UpdatedAt { get; set; }
@@ -286,4 +287,5 @@ public class BonusCalculationDetail
     [BsonElement("amount")]
     public decimal Amount { get; set; } = 0;
 }
+
 

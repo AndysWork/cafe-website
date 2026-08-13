@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -45,8 +46,8 @@ public class UserActivityEvent
     /// <summary>Outlet ID context</summary>
     public string? OutletId { get; set; }
 
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    [BsonDateTimeOptions(Kind = DateTimeKind.Unspecified)]
+    public DateTime Timestamp { get; set; } = MongoService.GetIstNow();
 }
 
 /// <summary>
@@ -64,13 +65,13 @@ public class UserSession
 
     public string SessionId { get; set; } = string.Empty;
 
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Unspecified)]
     public DateTime LoginTime { get; set; }
 
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Unspecified)]
     public DateTime? LogoutTime { get; set; }
 
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Unspecified)]
     public DateTime LastActiveTime { get; set; }
 
     /// <summary>Whether the session is still considered active</summary>
@@ -177,3 +178,4 @@ public class TrackBatchRequest
 {
     public List<TrackEventRequest> Events { get; set; } = new();
 }
+

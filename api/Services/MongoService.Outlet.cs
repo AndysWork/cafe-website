@@ -1,4 +1,4 @@
-﻿using MongoDB.Driver;
+using MongoDB.Driver;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
 using Microsoft.Extensions.Caching.Memory;
@@ -155,7 +155,7 @@ public partial class MongoService
 
         var update = Builders<Outlet>.Update
             .Set(o => o.IsDeleted, true)
-            .Set(o => o.DeletedAt, DateTime.UtcNow)
+            .Set(o => o.DeletedAt, MongoService.GetIstNow())
             .Set(o => o.IsActive, false);
         var result = await _outlets.UpdateOneAsync(o => o.Id == id && o.IsDeleted != true, update);
         InvalidateOutletCache(id);
@@ -200,9 +200,10 @@ public partial class MongoService
             };
 
             await _outlets.InsertOneAsync(defaultOutlet);
-            _logger.LogDebug($"✓ Default outlet created: {defaultOutlet.OutletName} ({defaultOutlet.OutletCode})");
+            _logger.LogDebug($"? Default outlet created: {defaultOutlet.OutletName} ({defaultOutlet.OutletCode})");
         }
     }
 
     #endregion
 }
+

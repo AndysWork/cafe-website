@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -46,8 +47,8 @@ public class Inventory
     public string? Notes { get; set; }
 
     // Audit
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
     public string? CreatedBy { get; set; }
     public string? LastUpdatedBy { get; set; }
 }
@@ -95,7 +96,7 @@ public class InventoryTransaction
     // Metadata
     public string Reason { get; set; } = string.Empty; // Purchase, Sale, Wastage, etc.
     public string? Notes { get; set; }
-    public DateTime TransactionDate { get; set; } = DateTime.UtcNow;
+    public DateTime TransactionDate { get; set; } = MongoService.GetIstNow();
     public string PerformedBy { get; set; } = "admin";
 }
 
@@ -130,7 +131,7 @@ public class StockAlert
     public DateTime? ResolvedAt { get; set; }
     public string? ResolvedBy { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 }
 
 public enum AlertType
@@ -175,3 +176,4 @@ public class InventoryItem
     public decimal Value { get; set; }
     public StockStatus Status { get; set; }
 }
+

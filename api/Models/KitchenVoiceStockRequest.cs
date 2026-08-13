@@ -1,6 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System.ComponentModel.DataAnnotations;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -50,10 +51,10 @@ public class KitchenVoiceStockRequest
     public DateTime? ReviewedAt { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 }
 
 public class CreateKitchenVoiceStockRequest
@@ -79,3 +80,4 @@ public class ReviewKitchenVoiceStockRequest
     [StringLength(300, ErrorMessage = "Note cannot exceed 300 characters")]
     public string? Note { get; set; }
 }
+

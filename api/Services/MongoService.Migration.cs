@@ -17,7 +17,7 @@ public partial class MongoService
 
         var update = Builders<FrozenItem>.Update
             .Set(item => item.OutletId, outletId)
-            .Set(item => item.UpdatedAt, DateTime.UtcNow);
+            .Set(item => item.UpdatedAt, MongoService.GetIstNow());
 
         var result = await _frozenItems.UpdateManyAsync(filter, update);
         return (int)result.ModifiedCount;
@@ -35,7 +35,7 @@ public partial class MongoService
 
         var update = Builders<Ingredient>.Update
             .Set(item => item.OutletId, outletId)
-            .Set(item => item.UpdatedAt, DateTime.UtcNow);
+            .Set(item => item.UpdatedAt, MongoService.GetIstNow());
 
         var result = await _ingredients.UpdateManyAsync(filter, update);
         return (int)result.ModifiedCount;
@@ -189,3 +189,4 @@ public partial class MongoService
         public bool NeedsMigration { get; set; }
     }
 }
+

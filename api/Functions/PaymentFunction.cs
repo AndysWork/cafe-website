@@ -108,7 +108,7 @@ public class PaymentFunction
                 return badRequest;
             }
 
-            var razorpayOrder = await _razorpay.CreateOrderAsync(request.Amount, request.Receipt ?? $"order_{DateTime.UtcNow.Ticks}");
+            var razorpayOrder = await _razorpay.CreateOrderAsync(request.Amount, request.Receipt ?? $"order_{MongoService.GetIstNow().Ticks}");
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new CreatePaymentOrderResponse
@@ -505,3 +505,4 @@ public class UpiConfigResponse
     public bool UpiQrEnabled { get; set; }
     public bool RazorpayEnabled { get; set; }
 }
+

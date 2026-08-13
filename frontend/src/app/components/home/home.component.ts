@@ -15,6 +15,7 @@ import { OrderService, Order, OrderItem } from '../../services/order.service';
 import { CartService } from '../../services/cart.service';
 import { MenuService, MenuItem as ServiceMenuItem } from '../../services/menu.service';
 import { UIStore } from '../../store/ui.store';
+import { getIstIsoString } from '../../utils/date-utils';
 
 declare const L: any;
 
@@ -313,7 +314,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     try {
       const parsed = JSON.parse(raw);
       this.checkoutDraft = {
-        timestamp: parsed.timestamp || new Date().toISOString(),
+          timestamp: parsed.timestamp || getIstIsoString(),
         cartItemCount: Number(parsed.cartItemCount || 0),
         grandTotal: Number(parsed.grandTotal || 0)
       };

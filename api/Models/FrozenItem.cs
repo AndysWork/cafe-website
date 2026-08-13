@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -47,7 +48,7 @@ public class FrozenItem
     public DateTime? ExpiryDate { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
     public DateTime? UpdatedAt { get; set; }
@@ -64,3 +65,4 @@ public class FrozenItemUpload
     public string Vendor { get; set; } = string.Empty;
     public DateTime? ExpiryDate { get; set; }
 }
+

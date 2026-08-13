@@ -139,7 +139,7 @@ public partial class MongoService
             existingEntry.RefundAmountRecovery = request.RefundAmountRecovery;
             existingEntry.Notes = request.Notes;
             existingEntry.LeaveHours = request.LeaveHours;
-            existingEntry.UpdatedAt = DateTime.UtcNow;
+            existingEntry.UpdatedAt = MongoService.GetIstNow();
             
             // Update shifts if provided (including empty array to clear all shifts)
             if (request.Shifts != null)
@@ -173,8 +173,8 @@ public partial class MongoService
                 Notes = request.Notes,
                 LeaveHours = request.LeaveHours,
                 Shifts = request.Shifts ?? new List<PerformanceShift>(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
             };
 
             await _dailyPerformanceEntries.InsertOneAsync(newEntry);
@@ -316,7 +316,7 @@ public partial class MongoService
         }
 
         entry.Shifts.Add(shift);
-        entry.UpdatedAt = DateTime.UtcNow;
+        entry.UpdatedAt = MongoService.GetIstNow();
 
         await _dailyPerformanceEntries.ReplaceOneAsync(e => e.Id == entryId, entry);
 
@@ -347,7 +347,7 @@ public partial class MongoService
         shift.RefundAmountRecovery = updatedShift.RefundAmountRecovery;
         shift.Notes = updatedShift.Notes;
 
-        entry.UpdatedAt = DateTime.UtcNow;
+        entry.UpdatedAt = MongoService.GetIstNow();
 
         await _dailyPerformanceEntries.ReplaceOneAsync(e => e.Id == entryId, entry);
 
@@ -369,7 +369,7 @@ public partial class MongoService
         }
 
         entry.Shifts?.Remove(shift);
-        entry.UpdatedAt = DateTime.UtcNow;
+        entry.UpdatedAt = MongoService.GetIstNow();
 
         await _dailyPerformanceEntries.ReplaceOneAsync(e => e.Id == entryId, entry);
 
@@ -388,3 +388,4 @@ public partial class MongoService
     }
 }
     #endregion
+

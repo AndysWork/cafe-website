@@ -84,7 +84,7 @@ public class InitializeIngredientsFunction
 
     private List<Ingredient> GetCafeIngredients()
     {
-        var now = DateTime.UtcNow;
+        var now = MongoService.GetIstNow();
         return new List<Ingredient>
         {
             // TEA & BEVERAGES BASE
@@ -174,3 +174,4 @@ public class InitializeIngredientsFunction
         };
     }
 }
+

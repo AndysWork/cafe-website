@@ -27,7 +27,7 @@ public class PriceUpdateScheduler
     // public async Task Run([TimerTrigger("0 0 2 * * *")] TimerInfo timerInfo)
     public async Task RunScheduledPriceUpdate()
     {
-        _logger.LogInformation($"Price update scheduler triggered at: {DateTime.UtcNow}");
+        _logger.LogInformation($"Price update scheduler triggered at: {MongoService.GetIstNow()}");
 
         try
         {
@@ -42,7 +42,7 @@ public class PriceUpdateScheduler
             // Check if enough time has passed since last update
             if (settings.LastUpdateRun.HasValue)
             {
-                var hoursSinceLastUpdate = (DateTime.UtcNow - settings.LastUpdateRun.Value).TotalHours;
+                var hoursSinceLastUpdate = (MongoService.GetIstNow() - settings.LastUpdateRun.Value).TotalHours;
                 if (hoursSinceLastUpdate < settings.UpdateFrequencyHours)
                 {
                     _logger.LogInformation($"Only {hoursSinceLastUpdate:F2} hours since last update. Skipping.");
@@ -118,7 +118,7 @@ public class PriceUpdateScheduler
             }
 
             // Update last run time
-            settings.LastUpdateRun = DateTime.UtcNow;
+            settings.LastUpdateRun = MongoService.GetIstNow();
             await _mongoService.SavePriceUpdateSettingsAsync(settings);
 
             _logger.LogInformation($"Automatic price update completed: {updated} updated, {failed} failed, {ingredients.Count} total");
@@ -129,3 +129,4 @@ public class PriceUpdateScheduler
         }
     }
 }
+

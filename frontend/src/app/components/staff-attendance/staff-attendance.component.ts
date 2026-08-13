@@ -6,7 +6,7 @@ import { AttendanceService, Attendance, LeaveRequest, MyAttendanceResponse, MyMo
 import { KitchenDisplayService } from '../../services/kitchen-display.service';
 import { AuthStore } from '../../store/auth.store';
 import { UIStore } from '../../store/ui.store';
-import { formatIstDate } from '../../utils/date-utils';
+import { formatIstDate, getIstInputDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-staff-attendance',
@@ -49,7 +49,7 @@ export class StaffAttendanceComponent implements OnInit {
   };
 
   ngOnInit(): void {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getIstInputDate();
     this.leaveForm.startDate = today;
     this.leaveForm.endDate = today;
     this.loadToday();

@@ -270,5 +270,6 @@ public class PriceFetchResult
     public string? MarketName { get; set; }
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
-    public DateTime FetchedAt { get; set; } = DateTime.UtcNow;
+    public DateTime FetchedAt { get; set; } = MongoService.GetIstNow();
 }
+

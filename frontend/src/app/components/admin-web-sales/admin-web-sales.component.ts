@@ -11,7 +11,7 @@ import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery
 import { PaymentService } from '../../services/payment.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
-import { getIstDateString, getIstInputDate, formatIstDateTime } from '../../utils/date-utils';
+import { getIstDateString, getIstFileStamp, getIstInputDate, formatIstDateTime } from '../../utils/date-utils';
 
 interface OnlineSaleSummaryItem {
   id?: string;
@@ -249,7 +249,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
 
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const stamp = getIstFileStamp();
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = `upi-reconciliation-${stamp}.csv`;

@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -26,8 +27,8 @@ public class OverheadCost
     public string? Description { get; set; }
     
     // Audit fields
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
     public string? CreatedBy { get; set; }
     public string? LastUpdatedBy { get; set; }
 }
@@ -48,3 +49,4 @@ public class OverheadAllocation
     public List<OverheadCostCalculation> Costs { get; set; } = new();
     public decimal TotalOverheadCost { get; set; }
 }
+

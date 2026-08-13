@@ -3,9 +3,26 @@
  * IST is UTC+5:30
  */
 
-const IST_OFFSET_MINUTES = 330; // 5 hours 30 minutes
-const IST_OFFSET_MS = IST_OFFSET_MINUTES * 60_000;
 const IST_TIME_ZONE = 'Asia/Kolkata';
+
+function createIstDate(
+  year: number,
+  month: number,
+  day: number,
+  hour: number = 0,
+  minute: number = 0,
+  second: number = 0,
+  millisecond: number = 0
+): Date {
+  const yyyy = String(year).padStart(4, '0');
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  const hh = String(hour).padStart(2, '0');
+  const mi = String(minute).padStart(2, '0');
+  const ss = String(second).padStart(2, '0');
+  const mmm = String(millisecond).padStart(3, '0');
+  return new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}.${mmm}+05:30`);
+}
 
 function parseDateInput(value: Date | string): Date {
   if (value instanceof Date) {
@@ -30,7 +47,7 @@ function parseDateInput(value: Date | string): Date {
     const year = Number(dateOnly[1]);
     const month = Number(dateOnly[2]);
     const day = Number(dateOnly[3]);
-    return new Date(Date.UTC(year, month - 1, day) - IST_OFFSET_MS);
+    return createIstDate(year, month, day);
   }
 
   // Datetime strings without timezone are interpreted as IST local time.
@@ -46,8 +63,7 @@ function parseDateInput(value: Date | string): Date {
     const second = Number(istLocal[6] || 0);
     const fraction = istLocal[7] || '0';
     const millisecond = Number((fraction + '000').slice(0, 3));
-    const utcMs = Date.UTC(year, month - 1, day, hour, minute, second, millisecond) - IST_OFFSET_MS;
-    return new Date(utcMs);
+    return createIstDate(year, month, day, hour, minute, second, millisecond);
   }
 
   // ISO strings with timezone (or browser-parseable strings) are parsed natively.
@@ -69,6 +85,25 @@ function getIstParts(date: Date): { year: number; month: number; day: number } {
     year: getPart('year'),
     month: getPart('month'),
     day: getPart('day')
+  };
+}
+
+function getIstTimeParts(date: Date): { hour: number; minute: number; second: number } {
+  const parts = new Intl.DateTimeFormat('en-IN', {
+    timeZone: IST_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(parts.find(p => p.type === type)?.value || '0');
+
+  return {
+    hour: getPart('hour'),
+    minute: getPart('minute'),
+    second: getPart('second')
   };
 }
 
@@ -150,7 +185,7 @@ export function getIstStartOfDay(date?: Date | string): Date {
   if (Number.isNaN(parsed.getTime())) return new Date(Number.NaN);
 
   const { year, month, day } = getIstParts(parsed);
-  return new Date(Date.UTC(year, month - 1, day) - IST_OFFSET_MS);
+  return createIstDate(year, month, day);
 }
 
 /**
@@ -161,7 +196,45 @@ export function getIstEndOfDay(date?: Date | string): Date {
   if (Number.isNaN(parsed.getTime())) return new Date(Number.NaN);
 
   const { year, month, day } = getIstParts(parsed);
-  return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - IST_OFFSET_MS);
+  return createIstDate(year, month, day, 23, 59, 59, 999);
+}
+
+/**
+ * Get IST date-time string in ISO-like format with fixed +05:30 offset.
+ */
+export function getIstIsoString(date?: Date | string): string {
+  const parsed = date ? convertToIst(date) : getIstNow();
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const { year, month, day } = getIstParts(parsed);
+  const { hour, minute, second } = getIstTimeParts(parsed);
+  const yyyy = String(year).padStart(4, '0');
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  const hh = String(hour).padStart(2, '0');
+  const mi = String(minute).padStart(2, '0');
+  const ss = String(second).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}+05:30`;
+}
+
+/**
+ * Get compact IST timestamp suitable for filenames.
+ */
+export function getIstFileStamp(date?: Date | string): string {
+  const parsed = date ? convertToIst(date) : getIstNow();
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const { year, month, day } = getIstParts(parsed);
+  const { hour, minute, second } = getIstTimeParts(parsed);
+  const yyyy = String(year).padStart(4, '0');
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  const hh = String(hour).padStart(2, '0');
+  const mi = String(minute).padStart(2, '0');
+  const ss = String(second).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd}-${hh}-${mi}-${ss}`;
 }
 
 /**

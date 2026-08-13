@@ -8,6 +8,7 @@ import { AnalyticsTrackingService } from '../../services/analytics-tracking.serv
 import { LoyaltyService } from '../../services/loyalty.service';
 import { Subscription } from 'rxjs';
 import { decodeHtmlEntities, resolveWebSalePrice } from '../../utils/text-utils';
+import { getIstIsoString } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-cart',
@@ -295,7 +296,7 @@ export class CartComponent implements OnInit, OnDestroy {
     try {
       const parsed = JSON.parse(raw);
       this.checkoutDraft = {
-        timestamp: parsed.timestamp || new Date().toISOString(),
+        timestamp: parsed.timestamp || getIstIsoString(),
         cartItemCount: Number(parsed.cartItemCount || 0),
         grandTotal: Number(parsed.grandTotal || 0)
       };

@@ -1,4 +1,4 @@
-﻿using MongoDB.Driver;
+using MongoDB.Driver;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
 using Microsoft.Extensions.Logging;
@@ -37,7 +37,7 @@ public partial class MongoService
 
     public async Task<FrozenItem> CreateFrozenItemAsync(FrozenItem frozenItem)
     {
-        frozenItem.CreatedAt = DateTime.UtcNow;
+        frozenItem.CreatedAt = MongoService.GetIstNow();
         frozenItem.IsActive = true;
         frozenItem.Category = "frozen";
         await _frozenItems.InsertOneAsync(frozenItem);
@@ -49,7 +49,7 @@ public partial class MongoService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to sync frozen item {Id} to inventory — rolling back frozen item creation", frozenItem.Id);
+            _logger.LogError(ex, "Failed to sync frozen item {Id} to inventory � rolling back frozen item creation", frozenItem.Id);
             await _frozenItems.DeleteOneAsync(f => f.Id == frozenItem.Id);
             throw;
         }
@@ -59,7 +59,7 @@ public partial class MongoService
 
     public async Task<bool> UpdateFrozenItemAsync(string id, FrozenItem frozenItem, string? outletId = null)
     {
-        frozenItem.UpdatedAt = DateTime.UtcNow;
+        frozenItem.UpdatedAt = MongoService.GetIstNow();
         
         FilterDefinition<FrozenItem> filter;
         if (string.IsNullOrEmpty(outletId))
@@ -83,7 +83,7 @@ public partial class MongoService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to sync updated frozen item {Id} to inventory — rolling back update", id);
+                _logger.LogError(ex, "Failed to sync updated frozen item {Id} to inventory � rolling back update", id);
                 if (original != null)
                 {
                     await _frozenItems.ReplaceOneAsync(filter, original);
@@ -115,7 +115,7 @@ public partial class MongoService
 
         if (result.DeletedCount > 0 && frozenItem != null)
         {
-            // Deactivate inventory — best-effort, don't fail the delete
+            // Deactivate inventory � best-effort, don't fail the delete
             try
             {
                 var inventoryItem = await _inventory
@@ -125,7 +125,7 @@ public partial class MongoService
                 if (inventoryItem != null)
                 {
                     inventoryItem.IsActive = false;
-                    inventoryItem.UpdatedAt = DateTime.UtcNow;
+                    inventoryItem.UpdatedAt = MongoService.GetIstNow();
                     await _inventory.ReplaceOneAsync(inv => inv.Id == inventoryItem.Id, inventoryItem);
                 }
             }
@@ -158,14 +158,14 @@ public partial class MongoService
             existingInventory.Unit = "pc"; // pieces
             existingInventory.SupplierName = frozenItem.Vendor;
             existingInventory.LastPurchasePrice = frozenItem.BuyPrice;
-            existingInventory.LastPurchaseDate = DateTime.UtcNow;
+            existingInventory.LastPurchaseDate = MongoService.GetIstNow();
             existingInventory.CostPerUnit = perPiecePrice; // Cost per piece
             existingInventory.TotalValue = frozenItem.BuyPrice;
-            existingInventory.LastRestockDate = DateTime.UtcNow;
+            existingInventory.LastRestockDate = MongoService.GetIstNow();
             existingInventory.IsActive = frozenItem.IsActive;
             existingInventory.ExpiryDate = frozenItem.ExpiryDate;
-            existingInventory.UpdatedAt = DateTime.UtcNow;
-            existingInventory.Notes = $"Packet Weight: {frozenItem.PacketWeight}kg, Per Piece Price: ₹{perPiecePrice:F2}, Per Piece Weight: {frozenItem.PerPieceWeight}gm";
+            existingInventory.UpdatedAt = MongoService.GetIstNow();
+            existingInventory.Notes = $"Packet Weight: {frozenItem.PacketWeight}kg, Per Piece Price: ?{perPiecePrice:F2}, Per Piece Weight: {frozenItem.PerPieceWeight}gm";
 
             // Update stock status
             existingInventory.Status = existingInventory.CurrentStock <= existingInventory.MinimumStock
@@ -189,16 +189,16 @@ public partial class MongoService
                 ReorderQuantity = 50, // 50 pieces
                 SupplierName = frozenItem.Vendor,
                 LastPurchasePrice = frozenItem.BuyPrice,
-                LastPurchaseDate = DateTime.UtcNow,
+                LastPurchaseDate = MongoService.GetIstNow(),
                 CostPerUnit = perPiecePrice, // Cost per piece
                 TotalValue = frozenItem.BuyPrice,
                 Status = StockStatus.InStock,
                 IsActive = frozenItem.IsActive,
                 ExpiryDate = frozenItem.ExpiryDate,
-                LastRestockDate = DateTime.UtcNow,
-                Notes = $"Packet Weight: {frozenItem.PacketWeight}kg, Per Piece Price: ₹{perPiecePrice:F2}, Per Piece Weight: {frozenItem.PerPieceWeight}gm",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                LastRestockDate = MongoService.GetIstNow(),
+                Notes = $"Packet Weight: {frozenItem.PacketWeight}kg, Per Piece Price: ?{perPiecePrice:F2}, Per Piece Weight: {frozenItem.PerPieceWeight}gm",
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow()
             };
 
             await _inventory.InsertOneAsync(newInventory);
@@ -248,7 +248,7 @@ public partial class MongoService
                     existingItem.PerPiecePrice = item.PerPiecePrice;
                     existingItem.PerPieceWeight = item.PerPieceWeight;
                     existingItem.ExpiryDate = item.ExpiryDate;
-                    existingItem.UpdatedAt = DateTime.UtcNow;
+                    existingItem.UpdatedAt = MongoService.GetIstNow();
 
                     await _frozenItems.ReplaceOneAsync(f => f.Id == existingItem.Id, existingItem);
                     
@@ -271,7 +271,7 @@ public partial class MongoService
                         Category = "frozen",
                         IsActive = true,
                         OutletId = outletId,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = MongoService.GetIstNow()
                     };
 
                     await _frozenItems.InsertOneAsync(newItem);
@@ -315,3 +315,4 @@ public partial class MongoService
         return syncedCount;
     }
 }
+

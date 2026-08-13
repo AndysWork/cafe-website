@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models
 {
@@ -27,7 +28,7 @@ namespace Cafe.Api.Models
         public required string Unit { get; set; } // kg, gm, ml, pc, ltr
 
         [BsonElement("lastUpdated")]
-        public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+        public DateTime LastUpdated { get; set; } = MongoService.GetIstNow();
 
         [BsonElement("isActive")]
         public bool IsActive { get; set; } = true;
@@ -49,10 +50,10 @@ namespace Cafe.Api.Models
         public bool AutoUpdateEnabled { get; set; } = false;
 
         [BsonElement("createdAt")]
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
         [BsonElement("updatedAt")]
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 
         // Soft-delete support
         [BsonElement("isDeleted")]  public bool IsDeleted { get; set; }
@@ -264,9 +265,10 @@ namespace Cafe.Api.Models
         public KptAnalysis? KptAnalysis { get; set; }
 
         [BsonElement("createdAt")]
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
         [BsonElement("updatedAt")]
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
     }
 }
+

@@ -58,7 +58,7 @@ public partial class MongoService : IAnalyticsRepository
     {
         try
         {
-            evt.Timestamp = DateTime.UtcNow;
+            evt.Timestamp = MongoService.GetIstNow();
             await ActivityEvents.InsertOneAsync(evt);
         }
         catch (Exception ex)
@@ -72,7 +72,7 @@ public partial class MongoService : IAnalyticsRepository
         if (events.Count == 0) return;
         try
         {
-            foreach (var evt in events) evt.Timestamp = DateTime.UtcNow;
+            foreach (var evt in events) evt.Timestamp = MongoService.GetIstNow();
             await ActivityEvents.InsertManyAsync(events);
         }
         catch (Exception ex)
@@ -92,7 +92,7 @@ public partial class MongoService : IAnalyticsRepository
         );
         var update = Builders<UserSession>.Update
             .Set(s => s.IsActive, false)
-            .Set(s => s.LogoutTime, DateTime.UtcNow);
+            .Set(s => s.LogoutTime, MongoService.GetIstNow());
 
         // Capture existing active sessions for compensation
         var previousActiveSessions = await UserSessions.Find(filter).ToListAsync();
@@ -105,8 +105,8 @@ public partial class MongoService : IAnalyticsRepository
             Username = username,
             UserRole = role,
             SessionId = sessionId,
-            LoginTime = DateTime.UtcNow,
-            LastActiveTime = DateTime.UtcNow,
+            LoginTime = MongoService.GetIstNow(),
+            LastActiveTime = MongoService.GetIstNow(),
             IsActive = true
         };
 
@@ -139,7 +139,7 @@ public partial class MongoService : IAnalyticsRepository
             var filter = Builders<UserSession>.Filter.Eq(s => s.SessionId, sessionId);
             var update = Builders<UserSession>.Update
                 .Set(s => s.IsActive, false)
-                .Set(s => s.LogoutTime, DateTime.UtcNow);
+                .Set(s => s.LogoutTime, MongoService.GetIstNow());
             await UserSessions.UpdateOneAsync(filter, update);
         }
         catch (Exception ex)
@@ -153,7 +153,7 @@ public partial class MongoService : IAnalyticsRepository
         try
         {
             var filter = Builders<UserSession>.Filter.Eq(s => s.SessionId, sessionId);
-            var update = Builders<UserSession>.Update.Set(s => s.LastActiveTime, DateTime.UtcNow);
+            var update = Builders<UserSession>.Update.Set(s => s.LastActiveTime, MongoService.GetIstNow());
             await UserSessions.UpdateOneAsync(filter, update);
         }
         catch (Exception ex)
@@ -166,10 +166,10 @@ public partial class MongoService : IAnalyticsRepository
 
     public async Task<UserMetrics> GetUserMetricsAsync()
     {
-        var now = DateTime.UtcNow;
+        var now = MongoService.GetIstNow();
         var todayStart = now.Date;
         var weekStart = todayStart.AddDays(-(int)todayStart.DayOfWeek);
-        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var monthStart = new DateTime(now.Year, now.Month, 1);
 
         // Consider sessions inactive if no activity for 30 minutes
         var activeThreshold = now.AddMinutes(-30);
@@ -360,7 +360,7 @@ public partial class MongoService : IAnalyticsRepository
 
     public async Task<List<DailyActiveUserStat>> GetDailyActiveUsersAsync(int days = 30)
     {
-        var startDate = DateTime.UtcNow.Date.AddDays(-days);
+        var startDate = MongoService.GetIstNow().Date.AddDays(-days);
 
         var pipeline = new[]
         {
@@ -401,7 +401,7 @@ public partial class MongoService : IAnalyticsRepository
 
     public async Task<List<HourlyActivityStat>> GetHourlyActivityAsync()
     {
-        var todayStart = DateTime.UtcNow.Date;
+        var todayStart = MongoService.GetIstNow().Date;
         var pipeline = new[]
         {
             new BsonDocument("$match", new BsonDocument("Timestamp",
@@ -439,7 +439,7 @@ public partial class MongoService : IAnalyticsRepository
             LoginTime = s.LoginTime,
             LogoutTime = s.LogoutTime,
             LastActiveTime = s.LastActiveTime,
-            IsActive = s.IsActive && s.LastActiveTime > DateTime.UtcNow.AddMinutes(-30)
+            IsActive = s.IsActive && s.LastActiveTime > MongoService.GetIstNow().AddMinutes(-30)
         }).ToList();
     }
 
@@ -480,3 +480,4 @@ public partial class MongoService : IAnalyticsRepository
                 new CreateIndexOptions { ExpireAfter = TimeSpan.FromDays(90), Name = "ttl_activity_90d" }));
     }
 }
+

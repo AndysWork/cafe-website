@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
@@ -44,10 +45,10 @@ public class CustomerReview
     public int LoyaltyBonusPoints { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 }
 
 public class CreateReviewRequest
@@ -87,3 +88,4 @@ public class CreateItemRatingRequest
     [Range(1, 5)]
     public int Rating { get; set; }
 }
+

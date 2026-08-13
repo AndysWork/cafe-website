@@ -1,4 +1,4 @@
-﻿using MongoDB.Driver;
+using MongoDB.Driver;
 using MongoDB.Bson;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
@@ -15,32 +15,46 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoClient _client;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
     private static readonly TimeZoneInfo IstTimeZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+    private static readonly TimeSpan IstOffset = TimeSpan.FromMinutes(330);
     
     // Helper method to get current IST time
     public static DateTime GetIstNow()
     {
-        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IstTimeZone);
+        return TimeZoneInfo.ConvertTime(DateTimeOffset.Now, IstTimeZone).DateTime;
     }
     
-    // Helper method to convert UTC to IST
-    public static DateTime ConvertToIst(DateTime utcDateTime)
+    // Helper method to convert a source timestamp to IST
+    public static DateTime ConvertToIst(DateTime sourceDateTime)
     {
-        return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, IstTimeZone);
+        return TimeZoneInfo.ConvertTimeFromUtc(sourceDateTime, IstTimeZone);
     }
     
     // Helper method to convert IST to UTC for storage
     public static DateTime ConvertToUtc(DateTime istDateTime)
     {
-        return TimeZoneInfo.ConvertTimeToUtc(istDateTime, IstTimeZone);
+        return DateTime.SpecifyKind(istDateTime - IstOffset, DateTimeKind.Unspecified);
     }
 
-    // Get UTC range for a given IST calendar day [start, end)
-    private static (DateTime utcStart, DateTime utcEnd) GetUtcRangeForIstDay(DateTime istDate)
+    // Get storage-time range for a given IST calendar day [start, end)
+    private static (DateTime rangeStart, DateTime rangeEnd) GetStorageRangeForIstDay(DateTime istDate)
     {
         var istStart = new DateTime(istDate.Year, istDate.Month, istDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
-        var utcStart = TimeZoneInfo.ConvertTimeToUtc(istStart, IstTimeZone);
-        var utcEnd = utcStart.AddDays(1);
-        return (utcStart, utcEnd);
+        var rangeStart = istStart - IstOffset;
+        var rangeEnd = rangeStart.AddDays(1);
+        return (rangeStart, rangeEnd);
+    }
+
+    // Normalize incoming dates (including UTC/offset values) to an IST calendar day at 00:00.
+    private static DateTime NormalizeToIstCalendarDate(DateTime date)
+    {
+        var istDateTime = date.Kind switch
+        {
+            DateTimeKind.Local => TimeZoneInfo.ConvertTime(date, IstTimeZone),
+            DateTimeKind.Unspecified => date,
+            _ => ConvertToIst(date)
+        };
+
+        return new DateTime(istDateTime.Year, istDateTime.Month, istDateTime.Day, 0, 0, 0, DateTimeKind.Unspecified);
     }
 
     private readonly IMongoCollection<CafeMenuItem> _menu;
@@ -117,7 +131,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public IMongoDatabase Database => _database;
     public IMongoClient Client => _client;
 
-    // Projections for list queries — exclude heavy/sensitive fields not needed in list views
+    // Projections for list queries � exclude heavy/sensitive fields not needed in list views
     private static readonly ProjectionDefinition<User> _userListProjection =
         Builders<User>.Projection.Exclude(u => u.PasswordHash);
     private static readonly ProjectionDefinition<Staff> _staffListProjection =
@@ -151,13 +165,13 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         // Configure MongoDB connection pool settings
         var settings = MongoClientSettings.FromConnectionString(cs);
         
-        // Pool sizing — configurable via environment variables for per-environment tuning
+        // Pool sizing � configurable via environment variables for per-environment tuning
         settings.MaxConnectionPoolSize = int.TryParse(
             Environment.GetEnvironmentVariable("Mongo__MaxPoolSize"), out var maxPool) ? maxPool : 100;
         settings.MinConnectionPoolSize = int.TryParse(
             Environment.GetEnvironmentVariable("Mongo__MinPoolSize"), out var minPool) ? minPool : 5;
         
-        // Timeouts — fail fast on connection issues; prevent pool exhaustion queueing
+        // Timeouts � fail fast on connection issues; prevent pool exhaustion queueing
         settings.ConnectTimeout = TimeSpan.FromSeconds(10);
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(10);
         settings.SocketTimeout = TimeSpan.FromSeconds(30);
@@ -307,7 +321,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             Builders<PriceForecast>.Filter.Eq(p => p.IsFinalized, false)
         );
 
-        // MongoDB aggregation: $match → $sort → $group (get latest per MenuItemId)
+        // MongoDB aggregation: $match ? $sort ? $group (get latest per MenuItemId)
         var groupStage = new BsonDocument("$group", new BsonDocument
         {
             { "_id", "$MenuItemId" },
@@ -322,7 +336,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .AppendStage<BsonDocument>(groupStage)
             .ToListAsync();
 
-        // Safely convert BsonNull → null; only non-null values override the item's stored prices
+        // Safely convert BsonNull ? null; only non-null values override the item's stored prices
         static decimal? SafeDecimal(BsonDocument doc, string field)
         {
             var v = doc.GetValue(field, BsonNull.Value);
@@ -984,7 +998,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         var update = Builders<CafeMenuItem>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         var result = await _menu.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
         return result.ModifiedCount > 0;
     }
@@ -1058,7 +1072,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<CafeMenuItem>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         await _menu.UpdateManyAsync(x => x.IsDeleted != true, update);
     }
 
@@ -1067,7 +1081,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<CafeMenuItem>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         await _menu.UpdateManyAsync(m => m.OutletId == outletId && m.IsDeleted != true, update);
     }
 
@@ -1100,7 +1114,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
-    // Bulk sync all recipe making costs + shop prices → menu items across all outlets
+    // Bulk sync all recipe making costs + shop prices ? menu items across all outlets
     public async Task<int> SyncAllRecipePricesToMenuItemsAsync()
     {
         var recipes = await _recipes.Find(_ => true).ToListAsync();
@@ -1292,7 +1306,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         
         var update = Builders<MenuCategory>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         var result = await _categories.UpdateOneAsync(filter, update);
         InvalidateCategoryCache(outletId);
         return result.ModifiedCount > 0;
@@ -1413,7 +1427,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         
         var update = Builders<MenuSubCategory>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         var result = await _subCategories.UpdateOneAsync(filter, update);
         InvalidateSubCategoryCache(outletId);
         return result.ModifiedCount > 0;
@@ -1430,7 +1444,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<MenuCategory>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         await _categories.UpdateManyAsync(x => x.IsDeleted != true, update);
     }
 
@@ -1439,7 +1453,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<MenuSubCategory>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         await _subCategories.UpdateManyAsync(x => x.IsDeleted != true, update);
     }
     
@@ -1481,7 +1495,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
-    // Get all users (excludes PasswordHash — use GetUserByIdAsync for full document)
+    // Get all users (excludes PasswordHash � use GetUserByIdAsync for full document)
     public async Task<List<User>> GetAllUsersAsync() =>
         await _users.Find(_ => true)
             .Project<User>(_userListProjection)
@@ -1543,7 +1557,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
-    // ── Delivery Addresses ──
+    // -- Delivery Addresses --
 
     public async Task<List<DeliveryAddress>> GetUserAddressesAsync(string userId)
     {
@@ -1604,7 +1618,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
-    // ── Favorite Menu Items ──
+    // -- Favorite Menu Items --
 
     public async Task<List<string>> GetUserFavoritesAsync(string userId)
     {
@@ -1730,7 +1744,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     #region Staff Operations
 
-    // Get all staff members (excludes Documents — use GetStaffByIdAsync for full document)
+    // Get all staff members (excludes Documents � use GetStaffByIdAsync for full document)
     public async Task<List<Staff>> GetAllStaffAsync(int? page = null, int? pageSize = null)
     {
         var fluent = _staff.Find(_ => true)
@@ -1748,7 +1762,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await _staff.CountDocumentsAsync(_ => true);
     }
 
-    // Get active staff members only (excludes Documents — use GetStaffByIdAsync for full document)
+    // Get active staff members only (excludes Documents � use GetStaffByIdAsync for full document)
     public async Task<List<Staff>> GetActiveStaffAsync()
     {
         return await _staff.Find(s => s.IsActive)
@@ -2085,7 +2099,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return order;
     }
 
-    // Get user's orders (excludes RazorpaySignature — use GetOrderByIdAsync for full document)
+    // Get user's orders (excludes RazorpaySignature � use GetOrderByIdAsync for full document)
     public async Task<List<Order>> GetUserOrdersAsync(string userId, int? page = null, int? pageSize = null)
     {
         var fluent = _orders
@@ -2336,7 +2350,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         // Create transaction record with 1-year expiry
         var txDescription = multiplier > 1.0
-            ? $"{description} (×{multiplier} {account.Tier} bonus)"
+            ? $"{description} (�{multiplier} {account.Tier} bonus)"
             : description;
 
         var transaction = new PointsTransaction
@@ -2497,13 +2511,13 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<Reward>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         var result = await _rewards.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
         _cache.Remove("active_rewards");
         return result.ModifiedCount > 0;
     }
 
-    // ─── Points Transfer ───
+    // --- Points Transfer ---
     public async Task<(bool Success, string Message)> TransferPointsAsync(string fromUserId, string toUsername, int points)
     {
         if (points < 10)
@@ -2563,7 +2577,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return (true, $"Successfully transferred {points} points to {toUsername}");
     }
 
-    // ─── Referral Program ───
+    // --- Referral Program ---
     public async Task<LoyaltyAccount?> GetLoyaltyAccountByReferralCodeAsync(string referralCode)
     {
         return await _loyaltyAccounts.Find(x => x.ReferralCode == referralCode).FirstOrDefaultAsync();
@@ -2640,7 +2654,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return (true, $"Referral applied! You earned {refereeBonusPoints} bonus points. {referrer.Username} earned {referrerBonusPoints} points.");
     }
 
-    // ─── Birthday Rewards ───
+    // --- Birthday Rewards ---
     public async Task<(bool Success, string Message)> SetBirthdayAsync(string userId, DateTime dateOfBirth)
     {
         var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
@@ -2697,7 +2711,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             UserId = userId,
             Points = bonusPoints,
             Type = "earned",
-            Description = $"🎂 Happy Birthday! {account.Tier} tier bonus",
+            Description = $"?? Happy Birthday! {account.Tier} tier bonus",
             ExpiresAt = now.AddYears(1),
             CreatedAt = now
         });
@@ -2783,7 +2797,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return sanitized;
     }
 
-    // ─── Points Expiry ───
+    // --- Points Expiry ---
     public async Task<int> ProcessExpiredPointsAsync(string userId)
     {
         var now = GetIstNow();
@@ -2840,7 +2854,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return (expiringSoon.Sum(x => x.Points), expiringSoon.Min(x => x.ExpiresAt));
     }
 
-    // ─── Tier Helpers ───
+    // --- Tier Helpers ---
     public double GetTierMultiplier(string tier)
     {
         var normalized = NormalizeTierName(tier);
@@ -2856,7 +2870,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ?? Array.Empty<string>();
     }
 
-    // ─── Code Generation Helpers ───
+    // --- Code Generation Helpers ---
     private async Task<string> GenerateUniqueReferralCodeAsync()
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -3030,7 +3044,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 MinPoints = 0,
                 Multiplier = 1.0,
                 BirthdayBonusPoints = 50,
-                Benefits = new List<string> { "1× points on every order", "Birthday 50 pts" },
+                Benefits = new List<string> { "1� points on every order", "Birthday 50 pts" },
                 Color = "#cd7f32",
                 DisplayOrder = 1,
                 IsActive = true,
@@ -3042,7 +3056,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 MinPoints = 500,
                 Multiplier = 1.2,
                 BirthdayBonusPoints = 100,
-                Benefits = new List<string> { "1.2× points on every order", "Free packaging", "Birthday 100 pts" },
+                Benefits = new List<string> { "1.2� points on every order", "Free packaging", "Birthday 100 pts" },
                 Color = "#c0c0c0",
                 DisplayOrder = 2,
                 IsActive = true,
@@ -3054,7 +3068,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 MinPoints = 1500,
                 Multiplier = 1.5,
                 BirthdayBonusPoints = 200,
-                Benefits = new List<string> { "1.5× points on every order", "Free packaging", "Priority support", "Birthday 200 pts" },
+                Benefits = new List<string> { "1.5� points on every order", "Free packaging", "Priority support", "Birthday 200 pts" },
                 Color = "#ffd700",
                 DisplayOrder = 3,
                 IsActive = true,
@@ -3066,7 +3080,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 MinPoints = 3000,
                 Multiplier = 2.0,
                 BirthdayBonusPoints = 500,
-                Benefits = new List<string> { "2× points on every order", "Free packaging", "Priority support", "Exclusive offers", "Birthday 500 pts" },
+                Benefits = new List<string> { "2� points on every order", "Free packaging", "Priority support", "Exclusive offers", "Birthday 500 pts" },
                 Color = "#e5e4e2",
                 DisplayOrder = 4,
                 IsActive = true,
@@ -3123,11 +3137,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ Users indexes: username, email, phoneNumber, role");
+            _logger.LogInformation("  ✓ Users indexes: username, email, phoneNumber, role");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  Users indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ Users indexes warning: {ex.Message}");
         }
 
         // ========== Orders Collection ==========
@@ -3161,11 +3175,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ Orders indexes: userId+createdAt, status, createdAt, paymentStatus");
+            _logger.LogInformation("  ✓ Orders indexes: userId+createdAt, status, createdAt, paymentStatus");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  Orders indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ Orders indexes warning: {ex.Message}");
         }
 
         // ========== CafeMenu Collection ==========
@@ -3199,11 +3213,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ CafeMenu indexes: categoryId, subCategoryId, text search, onlinePrice");
+            _logger.LogInformation("  ✓ CafeMenu indexes: categoryId, subCategoryId, text search, onlinePrice");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  CafeMenu indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ CafeMenu indexes warning: {ex.Message}");
         }
 
         // ========== LoyaltyAccounts Collection ==========
@@ -3230,11 +3244,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ LoyaltyAccounts indexes: userId, tier, currentPoints");
+            _logger.LogInformation("  ✓ LoyaltyAccounts indexes: userId, tier, currentPoints");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  LoyaltyAccounts indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ LoyaltyAccounts indexes warning: {ex.Message}");
         }
 
         // ========== Offers Collection ==========
@@ -3261,11 +3275,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ Offers indexes: code, isActive+validTill, validFrom+validTill");
+            _logger.LogInformation("  ✓ Offers indexes: code, isActive+validTill, validFrom+validTill");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  Offers indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ Offers indexes warning: {ex.Message}");
         }
 
         // ========== Sales Collection ==========
@@ -3292,11 +3306,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ Sales indexes: date, recordedBy, paymentMethod");
+            _logger.LogInformation("  ✓ Sales indexes: date, recordedBy, paymentMethod");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  Sales indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ Sales indexes warning: {ex.Message}");
         }
 
         // ========== Expenses Collection ==========
@@ -3330,11 +3344,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ Expenses indexes: date, expenseType, expenseSource, recordedBy");
+            _logger.LogInformation("  ✓ Expenses indexes: date, expenseType, expenseSource, recordedBy");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  Expenses indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ Expenses indexes warning: {ex.Message}");
         }
 
         // ========== PointsTransactions Collection ==========
@@ -3354,11 +3368,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ PointsTransactions indexes: userId+createdAt, type");
+            _logger.LogInformation("  ✓ PointsTransactions indexes: userId+createdAt, type");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  PointsTransactions indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ PointsTransactions indexes warning: {ex.Message}");
         }
 
         // ========== Rewards Collection ==========
@@ -3371,11 +3385,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ Rewards indexes: isActive");
+            _logger.LogInformation("  ✓ Rewards indexes: isActive");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  Rewards indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ Rewards indexes warning: {ex.Message}");
         }
 
         // ========== PasswordResetTokens Collection ==========
@@ -3402,11 +3416,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ PasswordResetTokens indexes: token (unique), userId, expiresAt");
+            _logger.LogInformation("  ✓ PasswordResetTokens indexes: token (unique), userId, expiresAt");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  PasswordResetTokens indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ PasswordResetTokens indexes warning: {ex.Message}");
         }
 
         // ========== OnlineSales Collection ==========
@@ -3440,14 +3454,14 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             ));
             indexCount++;
 
-            _logger.LogInformation("  âœ“ OnlineSales indexes: platform, orderAt, platform+orderAt compound, orderId");
+            _logger.LogInformation("  ✓ OnlineSales indexes: platform, orderAt, platform+orderAt compound, orderId");
         }
         catch (Exception ex)
         {
-            _logger.LogInformation($"  âš  OnlineSales indexes warning: {ex.Message}");
+            _logger.LogInformation($"  ⚠ OnlineSales indexes warning: {ex.Message}");
         }
 
-        _logger.LogInformation($"âœ“ Database indexing completed! Created {indexCount} indexes across 10 collections");
+        _logger.LogInformation($"✓ Database indexing completed! Created {indexCount} indexes across 10 collections");
         _logger.LogInformation("Expected performance improvement: 50-70% for most queries");
 
         // ========== DailyPerformanceEntries Collection (CRITICAL for performance) ==========
@@ -3728,7 +3742,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             _logger.LogWarning(ex, "SubCategories indexes warning");
         }
 
-        // ========== CafeMenu — OutletId + CategoryId compound ==========
+        // ========== CafeMenu � OutletId + CategoryId compound ==========
         try
         {
             await _menu.Indexes.CreateOneAsync(new CreateIndexModel<CafeMenuItem>(
@@ -3744,7 +3758,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             _logger.LogWarning(ex, "CafeMenu outletId+categoryId index warning");
         }
 
-        // ========== Orders — UserId + Status compound ==========
+        // ========== Orders � UserId + Status compound ==========
         try
         {
             await _orders.Indexes.CreateOneAsync(new CreateIndexModel<Order>(
@@ -4092,7 +4106,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             _logger.LogWarning(ex, "StaffPerformanceRecords indexes warning");
         }
 
-        // ========== Inventory — OutletId + Status compound (for filtered queries) ==========
+        // ========== Inventory � OutletId + Status compound (for filtered queries) ==========
         try
         {
             await _inventory.Indexes.CreateOneAsync(new CreateIndexModel<Inventory>(
@@ -4162,7 +4176,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         };
 
         await _rewards.InsertManyAsync(defaultRewards);
-        _logger.LogInformation($"âœ“ Inserted {defaultRewards.Count} default rewards");
+        _logger.LogInformation($"✓ Inserted {defaultRewards.Count} default rewards");
     }
 
     #endregion
@@ -4237,7 +4251,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<Offer>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         var result = await _offers.UpdateOneAsync(o => o.Id == id && o.IsDeleted != true, update);
         InvalidateOfferCache();
         return result.ModifiedCount > 0;
@@ -4307,7 +4321,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             return new OfferValidationResponse
             {
                 IsValid = false,
-                Message = $"Minimum order amount of â‚¹{offer.MinOrderAmount.Value} required"
+                Message = $"Minimum order amount of ₹{offer.MinOrderAmount.Value} required"
             };
         }
 
@@ -4347,7 +4361,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<Order>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         var result = await _orders.UpdateOneAsync(x => x.Id == orderId && x.IsDeleted != true, update);
         return result.ModifiedCount > 0;
     }
@@ -4433,7 +4447,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<Sales>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         var result = await _sales.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
         return result.ModifiedCount > 0;
     }
@@ -4456,7 +4470,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             filter = builder.And(filter, builder.Eq(s => s.OutletId, outletId));
         }
 
-        // MongoDB aggregation: $match → $facet (summary + payment breakdown)
+        // MongoDB aggregation: $match ? $facet (summary + payment breakdown)
         var facetStage = new BsonDocument("$facet", new BsonDocument
         {
             { "summary", new BsonArray
@@ -4589,7 +4603,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         var update = Builders<Expense>.Update
             .Set(x => x.IsDeleted, true)
-            .Set(x => x.DeletedAt, DateTime.UtcNow);
+            .Set(x => x.DeletedAt, GetIstNow());
         var result = await _expenses.UpdateOneAsync(x => x.Id == id && x.IsDeleted != true, update);
         return result.ModifiedCount > 0;
     }
@@ -4705,7 +4719,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (!string.IsNullOrWhiteSpace(outletId))
             filter = builder.And(filter, builder.Eq(e => e.OutletId, outletId));
 
-        // MongoDB aggregation: $match → $facet (total + type breakdown)
+        // MongoDB aggregation: $match ? $facet (total + type breakdown)
         var facetStage = new BsonDocument("$facet", new BsonDocument
         {
             { "summary", new BsonArray
@@ -5286,6 +5300,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Create a new cash reconciliation record
     public async Task<DailyCashReconciliation> CreateCashReconciliationAsync(DailyCashReconciliation reconciliation, string userId)
     {
+        reconciliation.Date = NormalizeToIstCalendarDate(reconciliation.Date);
         reconciliation.ReconciledBy = userId;
         reconciliation.CreatedAt = GetIstNow();
         reconciliation.UpdatedAt = GetIstNow();
@@ -5307,7 +5322,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         }
         
         // Get today's expenses to calculate closing online balance
-        var (startOfDay, endOfDay) = GetUtcRangeForIstDay(reconciliation.Date);
+        var (startOfDay, endOfDay) = GetStorageRangeForIstDay(reconciliation.Date);
         var expenses = await _expenses
             .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
             .ToListAsync();
@@ -5338,7 +5353,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Get reconciliation for a specific date
     public async Task<DailyCashReconciliation?> GetCashReconciliationByDateAsync(DateTime date, string? outletId = null)
     {
-        var (startOfDay, endOfDay) = GetUtcRangeForIstDay(date);
+        date = NormalizeToIstCalendarDate(date);
+        var (startOfDay, endOfDay) = GetStorageRangeForIstDay(date);
         
         var filterBuilder = Builders<DailyCashReconciliation>.Filter;
         var filter = filterBuilder.Gte(r => r.Date, startOfDay) & filterBuilder.Lt(r => r.Date, endOfDay);
@@ -5358,13 +5374,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         
         if (startDate.HasValue)
         {
-            var (start, _) = GetUtcRangeForIstDay(startDate.Value);
+            var normalizedStart = NormalizeToIstCalendarDate(startDate.Value);
+            var (start, _) = GetStorageRangeForIstDay(normalizedStart);
             filter &= Builders<DailyCashReconciliation>.Filter.Gte(r => r.Date, start);
         }
         
         if (endDate.HasValue)
         {
-            var (_, endExclusive) = GetUtcRangeForIstDay(endDate.Value);
+            var normalizedEnd = NormalizeToIstCalendarDate(endDate.Value);
+            var (_, endExclusive) = GetStorageRangeForIstDay(normalizedEnd);
             filter &= Builders<DailyCashReconciliation>.Filter.Lt(r => r.Date, endExclusive);
         }
         
@@ -5382,6 +5400,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Update a cash reconciliation record
     public async Task<DailyCashReconciliation?> UpdateCashReconciliationAsync(string id, DailyCashReconciliation reconciliation)
     {
+        reconciliation.Date = NormalizeToIstCalendarDate(reconciliation.Date);
         reconciliation.UpdatedAt = GetIstNow();
         
         // Get previous day's closing balance for opening balance
@@ -5396,7 +5415,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         }
         
         // Get today's expenses to calculate closing online balance
-        var (startOfDay, endOfDay) = GetUtcRangeForIstDay(reconciliation.Date);
+        var (startOfDay, endOfDay) = GetStorageRangeForIstDay(reconciliation.Date);
         var expenses = await _expenses
             .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
             .ToListAsync();
@@ -5427,6 +5446,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Bulk create cash reconciliations
     public async Task<List<DailyCashReconciliation>> BulkCreateCashReconciliationsAsync(List<DailyCashReconciliation> reconciliations, string userId)
     {
+        reconciliations.ForEach(r => r.Date = NormalizeToIstCalendarDate(r.Date));
+
         // Sort by date to process in chronological order
         reconciliations = reconciliations.OrderBy(r => r.Date).ToList();
         
@@ -5471,8 +5492,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             reconciliation.OpeningOnlineBalance = openingOnlineBalance;
             
             // Get expenses for this date to calculate closing online balance
-            var startOfDay = reconciliation.Date.Date;
-            var endOfDay = startOfDay.AddDays(1);
+            var (startOfDay, endOfDay) = GetStorageRangeForIstDay(reconciliation.Date);
             var expenses = await _expenses
                 .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
                 .ToListAsync();
@@ -5542,7 +5562,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Get sales summary for expected values calculation
     public async Task<object> GetDailySalesSummaryForReconciliationAsync(DateTime date, string? outletId = null)
     {
-        var (startOfDay, endOfDay) = GetUtcRangeForIstDay(date);
+        var (startOfDay, endOfDay) = GetStorageRangeForIstDay(date);
         
         // Build filters with outlet ID
         var filterBuilder = Builders<Sales>.Filter;
@@ -5866,7 +5886,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             filter &= Builders<OnlineSale>.Filter.Eq(s => s.OutletId, outletId);
         }
 
-        // MongoDB aggregation: $match → $group by (date, platform) → $sort
+        // MongoDB aggregation: $match ? $group by (date, platform) ? $sort
         var groupStage = new BsonDocument("$group", new BsonDocument
         {
             { "_id", new BsonDocument { { "date", new BsonDocument("$dateToString", new BsonDocument { { "format", "%Y-%m-%d" }, { "date", "$orderAt" } }) }, { "platform", "$platform" } } },
@@ -6076,8 +6096,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     UsageCount = g.Count(),
                     TotalDiscountAmount = totalDiscount,
                     AverageDiscountAmount = g.Any() ? totalDiscount / g.Count() : 0,
-                    FirstUsed = ordered.First().OrderAt.ToUniversalTime(),
-                    LastUsed = ordered.Last().OrderAt.ToUniversalTime(),
+                    FirstUsed = ConvertToUtc(ordered.First().OrderAt),
+                    LastUsed = ConvertToUtc(ordered.Last().OrderAt),
                     IsActive = hasStatus ? couponStatusMap[key].IsActive : true,
                     MaxValue = hasStatus ? couponStatusMap[key].MaxValue : null,
                     DiscountPercentage = hasStatus ? couponStatusMap[key].DiscountPercentage : null
@@ -6611,7 +6631,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await _ingredients.Find(i => i.Id == id && i.OutletId == outletId && i.IsDeleted != true).FirstOrDefaultAsync();
     }
 
-    // Raw lookup ignoring soft-delete and outlet — used for update pre-check
+    // Raw lookup ignoring soft-delete and outlet � used for update pre-check
     public async Task<Ingredient?> GetIngredientByIdRawAsync(string id)
     {
         return await _ingredients.Find(i => i.Id == id).FirstOrDefaultAsync();
@@ -6650,7 +6670,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<bool> UpdateIngredientAsync(string id, Ingredient ingredient, string? outletId = null)
     {
-        // Ingredients are global — upsert by ID so localStorage-only ingredients get persisted
+        // Ingredients are global � upsert by ID so localStorage-only ingredients get persisted
         var filter = Builders<Ingredient>.Filter.Eq(i => i.Id, id);
         var options = new ReplaceOptions { IsUpsert = true };
         var result = await _ingredients.ReplaceOneAsync(filter, ingredient, options);
@@ -6676,7 +6696,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         
         var update = Builders<Ingredient>.Update
             .Set(i => i.IsDeleted, true)
-            .Set(i => i.DeletedAt, DateTime.UtcNow);
+            .Set(i => i.DeletedAt, GetIstNow());
         var result = await _ingredients.UpdateOneAsync(filter, update);
         return result.ModifiedCount > 0;
     }
@@ -6915,8 +6935,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             } : null,
             PreparationTimeMinutes = sourceRecipe.PreparationTimeMinutes,
             KptAnalysis = sourceRecipe.KptAnalysis,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = GetIstNow(),
+            UpdatedAt = GetIstNow()
         };
 
         await _recipes.InsertOneAsync(targetRecipe);
@@ -7223,7 +7243,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                     // Check if outlet has configured overhead costs
                     if (overheadAllocation.Costs != null && overheadAllocation.Costs.Any())
                     {
-                        _logger.LogDebug("[Recipe Copy] âœ… Using outlet-specific overhead costs for {outlet.OutletName}");
+                        _logger.LogDebug("[Recipe Copy] ✅ Using outlet-specific overhead costs for {outlet.OutletName}");
                         _logger.LogDebug("[Recipe Copy]    Found {overheadAllocation.Costs.Count} configured overhead cost types");
                         
                         // Map the overhead allocation to OverheadCosts structure
@@ -7231,7 +7251,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                         
                         foreach (var cost in overheadAllocation.Costs)
                         {
-                            _logger.LogDebug("[Recipe Copy]    - {cost.CostType}: â‚¹{cost.AllocatedCost:F2}");
+                            _logger.LogDebug("[Recipe Copy]    - {cost.CostType}: ₹{cost.AllocatedCost:F2}");
                             switch (cost.CostType.ToLower())
                             {
                                 case "rent":
@@ -7259,12 +7279,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                         overheadCosts.OperationalHoursPerDay = sourceRecipe.OverheadCosts.OperationalHoursPerDay;
                         overheadCosts.WorkingDaysPerMonth = sourceRecipe.OverheadCosts.WorkingDaysPerMonth;
                         
-                        _logger.LogDebug("[Recipe Copy]    Total overhead: â‚¹{totalLabour + totalRent + totalElectricity + totalMisc:F2} (Misc: â‚¹{overheadCosts.Miscellaneous:F2})");
+                        _logger.LogDebug("[Recipe Copy]    Total overhead: ₹{totalLabour + totalRent + totalElectricity + totalMisc:F2} (Misc: ₹{overheadCosts.Miscellaneous:F2})");
                     }
                     else
                     {
-                        _logger.LogDebug("[Recipe Copy] âš ï¸ No overhead costs configured for outlet {outlet.OutletName}");
-                        _logger.LogDebug("[Recipe Copy] âš ï¸ Falling back to source outlet's overhead costs");
+                        _logger.LogDebug("[Recipe Copy] ⚠️ No overhead costs configured for outlet {outlet.OutletName}");
+                        _logger.LogDebug("[Recipe Copy] ⚠️ Falling back to source outlet's overhead costs");
                         
                         // Fallback to source overhead costs if target outlet has no configuration
                         overheadCosts = new OverheadCosts
@@ -7278,7 +7298,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                             WorkingDaysPerMonth = sourceRecipe.OverheadCosts.WorkingDaysPerMonth
                         };
                         
-                        _logger.LogDebug("[Recipe Copy]    Labour: â‚¹{overheadCosts.LabourCharge:F2}, Rent: â‚¹{overheadCosts.RentAllocation:F2}, Electricity: â‚¹{overheadCosts.ElectricityCharge:F2}, Misc: â‚¹{overheadCosts.Miscellaneous:F2}");
+                        _logger.LogDebug("[Recipe Copy]    Labour: ₹{overheadCosts.LabourCharge:F2}, Rent: ₹{overheadCosts.RentAllocation:F2}, Electricity: ₹{overheadCosts.ElectricityCharge:F2}, Misc: ₹{overheadCosts.Miscellaneous:F2}");
                     }
                 }
                 else
@@ -7415,10 +7435,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
                     await _recipes.ReplaceOneAsync(r => r.Id == existingRecipe.Id, existingRecipe);
                     
-                    _logger.LogDebug("[Recipe Copy] âœ… Successfully updated recipe in outlet {outlet.OutletName}");
+                    _logger.LogDebug("[Recipe Copy] ✅ Successfully updated recipe in outlet {outlet.OutletName}");
                     _logger.LogDebug("[Recipe Copy]    - Ingredients: {sourceRecipe.Ingredients.Count}");
-                    _logger.LogDebug("[Recipe Copy]    - Total Making Cost: â‚¹{totalMakingCost}");
-                    _logger.LogDebug("[Recipe Copy]    - Overhead Costs: â‚¹{totalOverheadCost}");
+                    _logger.LogDebug("[Recipe Copy]    - Total Making Cost: ₹{totalMakingCost}");
+                    _logger.LogDebug("[Recipe Copy]    - Overhead Costs: ₹{totalOverheadCost}");
                     
                     // Update all recipe pricing fields for this outlet
                     if (!string.IsNullOrEmpty(menuItem?.Id))
@@ -7469,10 +7489,10 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
                     await _recipes.InsertOneAsync(newRecipe);
                     
-                    _logger.LogDebug("[Recipe Copy] âœ… Successfully created recipe in outlet {outlet.OutletName}");
+                    _logger.LogDebug("[Recipe Copy] ✅ Successfully created recipe in outlet {outlet.OutletName}");
                     _logger.LogDebug("[Recipe Copy]    - Ingredients: {sourceRecipe.Ingredients.Count}");
-                    _logger.LogDebug("[Recipe Copy]    - Total Making Cost: â‚¹{totalMakingCost}");
-                    _logger.LogDebug("[Recipe Copy]    - Overhead Costs: â‚¹{totalOverheadCost}");
+                    _logger.LogDebug("[Recipe Copy]    - Total Making Cost: ₹{totalMakingCost}");
+                    _logger.LogDebug("[Recipe Copy]    - Overhead Costs: ₹{totalOverheadCost}");
                     
                     // Update all recipe pricing fields for this outlet
                     if (!string.IsNullOrEmpty(menuItem?.Id))
@@ -7664,7 +7684,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<List<IngredientPriceHistory>> GetPriceHistoryAsync(string ingredientId, int days = 30)
     {
-        var startDate = DateTime.UtcNow.AddDays(-days);
+        var startDate = GetIstNow().AddDays(-days);
         return await _priceHistory
             .Find(h => h.IngredientId == ingredientId && h.RecordedAt >= startDate)
             .SortByDescending(h => h.RecordedAt)
@@ -7715,7 +7735,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             Unit = ingredient.Unit,
             Source = source,
             MarketName = marketName,
-            RecordedAt = DateTime.UtcNow,
+            RecordedAt = GetIstNow(),
             ChangePercentage = changePercentage
         };
         await SavePriceHistoryAsync(history);
@@ -7725,9 +7745,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         ingredient.MarketPrice = newPrice;
         ingredient.PriceChangePercentage = changePercentage;
         ingredient.PriceSource = source;
-        ingredient.LastPriceFetch = DateTime.UtcNow;
-        ingredient.LastUpdated = DateTime.UtcNow;
-        ingredient.UpdatedAt = DateTime.UtcNow;
+        ingredient.LastPriceFetch = GetIstNow();
+        ingredient.LastUpdated = GetIstNow();
+        ingredient.UpdatedAt = GetIstNow();
 
         return await UpdateIngredientAsync(ingredientId, ingredient);
     }
@@ -7755,13 +7775,13 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (existing != null)
         {
             settings.Id = existing.Id;
-            settings.UpdatedAt = DateTime.UtcNow;
+            settings.UpdatedAt = GetIstNow();
             await _priceSettings.ReplaceOneAsync(s => s.Id == existing.Id, settings);
         }
         else
         {
-            settings.CreatedAt = DateTime.UtcNow;
-            settings.UpdatedAt = DateTime.UtcNow;
+            settings.CreatedAt = GetIstNow();
+            settings.UpdatedAt = GetIstNow();
             await _priceSettings.InsertOneAsync(settings);
         }
         return settings;
@@ -8297,3 +8317,5 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     #endregion
 }
+
+

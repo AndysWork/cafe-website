@@ -9,7 +9,7 @@ import { MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { environment } from '../../../environments/environment';
-import { getIstNow } from '../../utils/date-utils';
+import { getIstIsoString } from '../../utils/date-utils';
 
 interface MenuItemVariant {
   variantName: string;
@@ -666,7 +666,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
         createdBy: this.selectedItem.createdBy,
         createdDate: this.selectedItem.createdDate,
         lastUpdatedBy: 'Admin',
-        lastUpdated: getIstNow().toISOString()
+        lastUpdated: getIstIsoString()
       };
 
       this.http.put(`${environment.apiUrl}/menu/${this.selectedItem.id}`, updatePayload)
@@ -691,9 +691,9 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       const createPayload = {
         ...payload,
         createdBy: 'Admin',
-        createdDate: getIstNow().toISOString(),
+        createdDate: getIstIsoString(),
         lastUpdatedBy: 'Admin',
-        lastUpdated: getIstNow().toISOString()
+        lastUpdated: getIstIsoString()
       };
 
       this.http.post<any>(`${environment.apiUrl}/menu`, createPayload)
@@ -767,7 +767,7 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
       ...item,
       isVisibleToCustomers: nextValue,
       lastUpdatedBy: 'Admin',
-      lastUpdated: getIstNow().toISOString()
+      lastUpdated: getIstIsoString()
     };
 
     this.http.put(`${environment.apiUrl}/menu/${item.id}`, payload)

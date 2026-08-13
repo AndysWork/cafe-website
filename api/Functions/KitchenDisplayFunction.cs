@@ -712,18 +712,18 @@ public class KitchenDisplayFunction
 
         try
         {
-            var utc = DateTimeOffset.FromUnixTimeMilliseconds(epochMs).UtcDateTime;
+            var instant = DateTimeOffset.FromUnixTimeMilliseconds(epochMs).DateTime;
 
             if (TryGetSingleHeader(headers, "x-client-timezone-offset-minutes", out var offsetRaw)
                 && int.TryParse(offsetRaw, out var offsetMinutes)
                 && offsetMinutes >= -840
                 && offsetMinutes <= 840)
             {
-                var local = utc - TimeSpan.FromMinutes(offsetMinutes);
+                var local = instant - TimeSpan.FromMinutes(offsetMinutes);
                 return DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
             }
 
-            return DateTime.SpecifyKind(utc, DateTimeKind.Unspecified);
+            return DateTime.SpecifyKind(instant, DateTimeKind.Unspecified);
         }
         catch
         {

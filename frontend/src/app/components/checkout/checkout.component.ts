@@ -14,7 +14,7 @@ import { OutletService } from '../../services/outlet.service';
 import { Outlet } from '../../models/outlet.model';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
-import { getIstInputDate } from '../../utils/date-utils';
+import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
 import QRCode from 'qrcode';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { Offer } from '../../services/offers.service';
@@ -979,7 +979,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     const snapshot = {
       amount: this.grandTotal,
       reason,
-      timestamp: new Date().toISOString()
+        timestamp: getIstIsoString()
     };
     this.pendingPaymentRecovery = snapshot;
     localStorage.setItem(this.pendingPaymentStorageKey, JSON.stringify(snapshot));
@@ -1026,7 +1026,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       useLoyaltyPoints: this.useLoyaltyPoints,
       paymentMethod: this.paymentMethod,
       cartItemCount: this.cart.itemCount,
-      timestamp: new Date().toISOString(),
+        timestamp: getIstIsoString(),
       grandTotal: this.grandTotal
     };
 

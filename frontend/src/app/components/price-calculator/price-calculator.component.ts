@@ -22,7 +22,7 @@ import {
   INGREDIENT_CATEGORIES,
   MEASUREMENT_UNITS
 } from '../../models/ingredient.model';
-import { getIstInputDate } from '../../utils/date-utils';
+import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-price-calculator',
@@ -1604,7 +1604,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
         forecastData.history = this.savedPriceForecast.history || [];
         forecastData.history.push({
-          changeDate: new Date().toISOString(),
+          changeDate: getIstIsoString(),
           changedBy: 'Current User',
           makePrice: this.savedPriceForecast.makePrice,
           packagingCost: this.savedPriceForecast.packagingCost,

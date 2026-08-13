@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models
 {
@@ -77,9 +78,9 @@ namespace Cafe.Api.Models
         // New multi-shift support
         public List<PerformanceShift> Shifts { get; set; } = new List<PerformanceShift>();
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
     }
 
     public class UpsertDailyPerformanceRequest
@@ -146,3 +147,4 @@ namespace Cafe.Api.Models
         public List<PerformanceShift>? Shifts { get; set; }
     }
 }
+

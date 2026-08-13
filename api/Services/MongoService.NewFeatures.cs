@@ -52,7 +52,7 @@ public partial class MongoService : IOperationsRepository
     {
         var update = Builders<DeliveryZone>.Update
             .Set(z => z.IsDeleted, true)
-            .Set(z => z.DeletedAt, DateTime.UtcNow);
+            .Set(z => z.DeletedAt, MongoService.GetIstNow());
         var result = await _deliveryZones.UpdateOneAsync(z => z.Id == id && z.IsDeleted != true, update);
         return result.ModifiedCount > 0;
     }
@@ -342,15 +342,15 @@ public partial class MongoService : IOperationsRepository
 
     private static DateTime NormalizeToIstWallClock(DateTime value)
     {
-        if (value.Kind == DateTimeKind.Utc)
-        {
-            return DateTime.SpecifyKind(ConvertToIst(value), DateTimeKind.Unspecified);
-        }
-
         if (value.Kind == DateTimeKind.Local)
         {
             var ist = TimeZoneInfo.ConvertTime(value, IstTimeZone);
             return DateTime.SpecifyKind(ist, DateTimeKind.Unspecified);
+        }
+
+        if (value.Kind != DateTimeKind.Unspecified)
+        {
+            return DateTime.SpecifyKind(ConvertToIst(value), DateTimeKind.Unspecified);
         }
 
         return DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
@@ -532,7 +532,7 @@ public partial class MongoService : IOperationsRepository
     {
         var update = Builders<ComboMeal>.Update
             .Set(c => c.IsDeleted, true)
-            .Set(c => c.DeletedAt, DateTime.UtcNow);
+            .Set(c => c.DeletedAt, MongoService.GetIstNow());
         var result = await _comboMeals.UpdateOneAsync(c => c.Id == id && c.IsDeleted != true, update);
         return result.ModifiedCount > 0;
     }
@@ -698,7 +698,7 @@ public partial class MongoService : IOperationsRepository
 
         var update = Builders<SubscriptionPlan>.Update
             .Set(p => p.IsDeleted, true)
-            .Set(p => p.DeletedAt, DateTime.UtcNow)
+            .Set(p => p.DeletedAt, MongoService.GetIstNow())
             .Set(p => p.IsActive, false);
         var result = await _subscriptionPlans.UpdateOneAsync(p => p.Id == id && p.IsDeleted != true, update);
         return result.ModifiedCount > 0;
@@ -1500,3 +1500,4 @@ public partial class MongoService : IOperationsRepository
 
     #endregion
 }
+

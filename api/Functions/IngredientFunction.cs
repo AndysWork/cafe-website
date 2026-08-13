@@ -158,9 +158,9 @@ namespace Cafe.Api.Functions
                 ingredient.Unit = InputSanitizer.Sanitize(ingredient.Unit);
 
                 ingredient.OutletId = outletId;
-                ingredient.CreatedAt = DateTime.UtcNow;
-                ingredient.UpdatedAt = DateTime.UtcNow;
-                ingredient.LastUpdated = DateTime.UtcNow;
+                ingredient.CreatedAt = MongoService.GetIstNow();
+                ingredient.UpdatedAt = MongoService.GetIstNow();
+                ingredient.LastUpdated = MongoService.GetIstNow();
                 ingredient.IsActive = true;
 
                 var createdIngredient = await _mongoService.CreateIngredientAsync(ingredient);
@@ -222,9 +222,9 @@ namespace Cafe.Api.Functions
 
                 ingredient.Id = id;
                 ingredient.OutletId = currentIngredient?.OutletId; // Preserve original OutletId
-                ingredient.CreatedAt = currentIngredient?.CreatedAt ?? DateTime.UtcNow;
-                ingredient.UpdatedAt = DateTime.UtcNow;
-                ingredient.LastUpdated = DateTime.UtcNow;
+                ingredient.CreatedAt = currentIngredient?.CreatedAt ?? MongoService.GetIstNow();
+                ingredient.UpdatedAt = MongoService.GetIstNow();
+                ingredient.LastUpdated = MongoService.GetIstNow();
                 ingredient.IsDeleted = false; // Restore if soft-deleted
 
                 bool isMajorPriceChange = false;
@@ -246,7 +246,7 @@ namespace Cafe.Api.Functions
                         Unit = ingredient.Unit,
                         ChangePercentage = priceChangePercentage,
                         Source = ingredient.PriceSource ?? "manual",
-                        RecordedAt = DateTime.UtcNow,
+                        RecordedAt = MongoService.GetIstNow(),
                         Notes = $"Updated by admin. Previous: ?{currentIngredient.MarketPrice}"
                     });
 
@@ -348,7 +348,7 @@ namespace Cafe.Api.Functions
             </div>
             <div class='price-row'>
                 <span class='label'>Updated:</span>
-                <span>{DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC</span>
+                <span>{MongoService.GetIstNow():yyyy-MM-dd HH:mm} UTC</span>
             </div>
         </div>
         <p><strong>Action Required:</strong> Review this price change and consider updating menu prices if necessary.</p>

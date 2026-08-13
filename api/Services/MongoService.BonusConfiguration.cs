@@ -85,7 +85,7 @@ public partial class MongoService : IStaffRepository
     {
         var update = Builders<BonusConfiguration>.Update
             .Set(b => b.IsDeleted, true)
-            .Set(b => b.DeletedAt, DateTime.UtcNow)
+            .Set(b => b.DeletedAt, MongoService.GetIstNow())
             .Set(b => b.IsActive, false);
         var result = await _bonusConfigurations.UpdateOneAsync(b => b.Id == id && b.IsDeleted != true, update);
         return result.ModifiedCount > 0;
@@ -323,3 +323,4 @@ public partial class MongoService : IStaffRepository
 
     #endregion
 }
+
