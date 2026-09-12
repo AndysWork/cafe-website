@@ -3,6 +3,20 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
+export interface StockBatch {
+  id?: string;
+  batchNumber?: string;
+  initialQuantity: number;
+  remainingQuantity: number;
+  costPerUnit: number;
+  purchasePrice?: number;
+  supplierName?: string;
+  referenceNumber?: string;
+  expiryDate?: Date;
+  receivedDate: Date;
+  isDepleted?: boolean;
+}
+
 export interface Inventory {
   id?: string;
   ingredientId?: string;
@@ -24,6 +38,7 @@ export interface Inventory {
   expiryDate?: Date;
   storageLocation?: string;
   notes?: string;
+  batches?: StockBatch[];
   isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -64,16 +79,49 @@ export interface StockAlert {
   createdAt: Date;
 }
 
+export interface CategoryInventorySummary {
+  category: string;
+  itemCount: number;
+  totalValue: number;
+  percentageOfTotal: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+}
+
+export interface ExpiringBatchItem {
+  inventoryId: string;
+  itemName: string;
+  category: string;
+  batchId: string;
+  batchNumber?: string;
+  remainingQuantity: number;
+  unit: string;
+  costPerUnit: number;
+  batchValue: number;
+  expiryDate?: Date;
+  daysRemaining: number;
+  shelfLifeThresholdDays: number;
+  urgency: 'expired' | 'critical' | 'warning' | 'good';
+}
+
 export interface InventoryReport {
   totalItems: number;
   activeItems: number;
+  inStockItems?: number;
   lowStockItems: number;
   outOfStockItems: number;
   expiringItems: number;
+  totalBatchesCount?: number;
+  activeBatchesCount?: number;
   totalValue: number;
+  totalInventoryValue?: number;
   averageCostPerItem: number;
+  monthlyWastageLoss?: number;
+  lastUpdated?: Date;
   topValueItems: InventoryItem[];
   criticalItems: InventoryItem[];
+  expiringBatches?: ExpiringBatchItem[];
+  categorySummaries?: CategoryInventorySummary[];
   recentTransactions: InventoryTransaction[];
 }
 
@@ -82,22 +130,29 @@ export interface InventoryItem {
   name: string;
   category: string;
   currentStock: number;
+  minimumStock?: number;
   unit: string;
   value: number;
+  costPerUnit?: number;
+  earliestExpiryDate?: Date;
+  daysUntilExpiry?: number;
   status: string;
 }
 
 export interface StockInRequest {
   quantity: number;
   costPerUnit?: number;
+  purchasePrice?: number;
   supplierName?: string;
   referenceNumber?: string;
+  expiryDate?: Date | string;
   performedBy?: string;
 }
 
 export interface StockOutRequest {
   quantity: number;
   reason?: string;
+  batchId?: string;
   performedBy?: string;
 }
 
@@ -106,6 +161,32 @@ export interface StockAdjustmentRequest {
   reason?: string;
   referenceNumber?: string;
   performedBy?: string;
+}
+
+export interface LogBatchWastageRequest {
+  batchId?: string;
+  quantity: number;
+  reason: string;
+  notes?: string;
+  performedBy?: string;
+}
+
+export interface LogBatchWastageResult {
+  success: boolean;
+  message: string;
+  quantityWasted: number;
+  unit: string;
+  financialLoss: number;
+  remainingStock: number;
+  wastageRecordId?: string;
+}
+
+export interface BulkUploadResult {
+  success: number;
+  failed: number;
+  total: number;
+  errors: string[];
+  message: string;
 }
 
 @Injectable({
@@ -167,6 +248,10 @@ export class InventoryService {
     return this.http.post(`${this.apiUrl}/item/${id}/stock-out`, request);
   }
 
+  logBatchWastage(id: string, request: LogBatchWastageRequest): Observable<LogBatchWastageResult> {
+    return this.http.post<LogBatchWastageResult>(`${this.apiUrl}/item/${id}/wastage`, request);
+  }
+
   adjustStock(id: string, request: StockAdjustmentRequest): Observable<any> {
     return this.http.post(`${this.apiUrl}/item/${id}/adjust`, request);
   }
@@ -193,6 +278,17 @@ export class InventoryService {
 
   resolveAlert(alertId: string, resolvedBy: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/alerts/${alertId}/resolve`, { resolvedBy });
+  }
+
+  // Excel Bulk Upload & Template
+  downloadTemplate(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/template`, { responseType: 'blob' });
+  }
+
+  uploadInventoryExcel(file: File): Observable<BulkUploadResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<BulkUploadResult>(`${this.apiUrl}/upload`, formData);
   }
 
   // Reports

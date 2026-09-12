@@ -19,8 +19,11 @@ public interface IInventoryRepository
     Task<bool> UpdateInventoryAsync(string id, Inventory inventory);
     Task<bool> DeleteInventoryAsync(string id);
     Task<bool> AdjustStockAsync(string inventoryId, decimal quantityChange, TransactionType type, string reason, string performedBy, string? referenceNumber = null);
-    Task<bool> StockInAsync(string inventoryId, decimal quantity, decimal? costPerUnit, string? supplierName, string? referenceNumber, string performedBy);
-    Task<bool> StockOutAsync(string inventoryId, decimal quantity, string reason, string performedBy);
+    Task<bool> StockInAsync(string inventoryId, decimal quantity, decimal? costPerUnit, string? supplierName, string? referenceNumber, string performedBy, DateTime? expiryDate = null, decimal? purchasePrice = null);
+    Task<bool> StockOutAsync(string inventoryId, decimal quantity, string reason, string performedBy, string? batchId = null);
+    Task<LogBatchWastageResult> LogBatchWastageAsync(string inventoryId, LogBatchWastageRequest request);
+    Task<int> DeductInventoryForOrderRecipesAsync(Order order);
+    Task<BulkUploadInventoryResult> BulkUploadInventoryAsync(List<InventoryItemUpload> items, string outletId, string performedBy);
 
     // Transactions
     Task<List<InventoryTransaction>> GetAllInventoryTransactionsAsync(string? outletId = null);
@@ -38,7 +41,7 @@ public interface IInventoryRepository
 
     // Reports
     Task<InventoryReport> GetInventoryReportAsync();
-    Task<object> GetInventoryReportAsync(string? outletId);
+    Task<InventoryReport> GetInventoryReportAsync(string? outletId);
 
     // Frozen Items
     Task<List<FrozenItem>> GetAllFrozenItemsAsync(string? outletId = null);

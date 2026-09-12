@@ -36,116 +36,359 @@
   <div *ngIf="activeView === 'dashboard' && !loading">
     <!-- Dashboard with data -->
     <div *ngIf="report" class="dashboard-view">
-    <!-- Summary Cards -->
-    <div class="summary-cards">
-      <div class="card">
-        <h3>Total Items</h3>
-        <p class="big-number">{{ report.totalItems }}</p>
-      </div>
-      <div class="card">
-        <h3>Total Value</h3>
-        <p class="big-number">{{ formatCurrency(report.totalValue) }}</p>
-      </div>
-      <div class="card status-card">
-        <h3>Active Items</h3>
-        <p class="big-number" style="color: green;">{{ report.activeItems || 0 }}</p>
-      </div>
-      <div class="card status-card">
-        <h3>Low Stock</h3>
-        <p class="big-number" style="color: orange;">{{ report.lowStockItems || 0 }}</p>
-      </div>
-      <div class="card status-card">
-        <h3>Out of Stock</h3>
-        <p class="big-number" style="color: red;">{{ report.outOfStockItems || 0 }}</p>
-      </div>
-      <div class="card status-card">
-        <h3>Expiring Soon</h3>
-        <p class="big-number" style="color: purple;">{{ report.expiringItems || 0 }}</p>
-      </div>
-    </div>
 
-    <!-- Critical Items -->
-    <div *ngIf="report.criticalItems && report.criticalItems.length > 0" class="section">
-      <h2>🚨 Critical Items</h2>
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Category</th>
-              <th>Current Stock</th>
-              <th>Status</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let item of report.criticalItems">
-              <td>{{ item.name }}</td>
-              <td>{{ item.category }}</td>
-              <td>{{ item.currentStock }} {{ item.unit }}</td>
-              <td>
-                <span class="status-badge" [style.background-color]="getStatusColor(item.status)">
-                  {{ item.status }}
-                </span>
-              </td>
-              <td>{{ formatCurrency(item.value) }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- Dashboard Action Bar -->
+      <div class="dashboard-hero-banner">
+        <div class="hero-left">
+          <h2>📊 Inventory Intelligence &amp; Stock Health</h2>
+          <p class="hero-subtitle">
+            Real-time stock valuation, category capital allocation, shelf-life radars, and smart reorder alerts
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button (click)="createNewItem()" class="btn btn-primary hero-btn">
+            ➕ Add Item
+          </button>
+          <button (click)="openUploadModal()" class="btn hero-btn btn-hero-upload">
+            📤 Upload Excel
+          </button>
+          <button (click)="loadInventory()" class="btn btn-secondary hero-btn">
+            📦 Catalog ({{ report.totalItems }})
+          </button>
+          <button (click)="loadAlerts()" class="btn hero-btn btn-alert-shortcut" [class.has-alerts]="alerts.length > 0">
+            🔔 Alerts <span class="badge" *ngIf="alerts.length > 0">{{ alerts.length }}</span>
+          </button>
+          <button (click)="loadDashboard()" class="btn btn-icon-refresh" title="Refresh Dashboard">
+            🔄
+          </button>
+        </div>
       </div>
-    </div>
 
-    <!-- Top Value Items -->
-    <div *ngIf="report.topValueItems && report.topValueItems.length > 0" class="section">
-      <h2>💎 Top Value Items</h2>
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Category</th>
-              <th>Stock</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let item of report.topValueItems">
-              <td>{{ item.name }}</td>
-              <td>{{ item.category }}</td>
-              <td>{{ item.currentStock }} {{ item.unit }}</td>
-              <td><strong>{{ formatCurrency(item.value) }}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Recent Activity -->
-    <div *ngIf="report.recentTransactions && report.recentTransactions.length > 0" class="section">
-      <h2>📝 Recent Transactions</h2>
-      <div class="transactions-list">
-        <div *ngFor="let transaction of report.recentTransactions" class="transaction-item">
-          <div class="transaction-icon">{{ getTransactionIcon(transaction.type) }}</div>
-          <div class="transaction-details">
-            <strong>{{ transaction.ingredientName }}</strong>
-            <span class="transaction-type">{{ transaction.type }}</span>
+      <!-- Primary KPI Metric Cards -->
+      <div class="dashboard-kpi-grid">
+        <!-- 1. Total Valuation (Featured 2-column span) -->
+        <div class="kpi-card kpi-val-card kpi-featured">
+          <div class="kpi-icon-wrapper val-bg">💰</div>
+          <div class="kpi-info">
+            <div class="kpi-label-row">
+              <span class="kpi-label">Total Inventory Value</span>
+              <span class="kpi-pill-badge val-badge">{{ report.totalItems }} Items Tracked</span>
+            </div>
+            <span class="kpi-value val-hero-text">{{ formatCurrency(report.totalValue || report.totalInventoryValue || 0) }}</span>
+            <span class="kpi-meta">Average Valuation: <strong>{{ formatCurrency(report.averageCostPerItem || 0) }}</strong> / item</span>
           </div>
-          <div class="transaction-quantity">
-            {{ transaction.quantity }} {{ transaction.unit }}
+        </div>
+
+        <!-- 2. Healthy / In Stock -->
+        <div class="kpi-card kpi-status-healthy clickable" (click)="filterDashboardByStatus('InStock')">
+          <div class="kpi-icon-wrapper good-bg">✅</div>
+          <div class="kpi-info">
+            <span class="kpi-label">In Stock &amp; Healthy</span>
+            <span class="kpi-value good-text">{{ report.inStockItems || (report.totalItems - report.lowStockItems - report.outOfStockItems) || 0 }}</span>
+            <span class="kpi-meta">Above reorder point <span class="card-arrow">→</span></span>
           </div>
-          <div class="transaction-date">
-            {{ formatDate(transaction.transactionDate) }}
+        </div>
+
+        <!-- 3. Low Stock -->
+        <div class="kpi-card kpi-status-low clickable" (click)="filterDashboardByStatus('LowStock')">
+          <div class="kpi-icon-wrapper warn-bg">⚠️</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Low Stock</span>
+            <span class="kpi-value warn-text">{{ report.lowStockItems || 0 }}</span>
+            <span class="kpi-meta">Below safety threshold <span class="card-arrow">→</span></span>
+          </div>
+        </div>
+
+        <!-- 4. Out of Stock -->
+        <div class="kpi-card kpi-status-out clickable" (click)="filterDashboardByStatus('OutOfStock')">
+          <div class="kpi-icon-wrapper danger-bg">❌</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Out of Stock</span>
+            <span class="kpi-value danger-text">{{ report.outOfStockItems || 0 }}</span>
+            <span class="kpi-meta">Depleted items <span class="card-arrow">→</span></span>
+          </div>
+        </div>
+
+        <!-- 5. Expiring Soon -->
+        <div class="kpi-card kpi-status-exp clickable" (click)="filterDashboardByStatus('Expiring')">
+          <div class="kpi-icon-wrapper exp-bg">⏰</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Expiring Batches</span>
+            <span class="kpi-value exp-text">{{ report.expiringItems || (report.expiringBatches ? report.expiringBatches.length : 0) }}</span>
+            <span class="kpi-meta">Within shelf-life <span class="card-arrow">→</span></span>
+          </div>
+        </div>
+
+        <!-- 6. Active Batches Tracked -->
+        <div class="kpi-card kpi-status-batches">
+          <div class="kpi-icon-wrapper batch-bg">🏷️</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Active Batches</span>
+            <span class="kpi-value batch-text">{{ report.activeBatchesCount || 0 }}</span>
+            <span class="kpi-meta">FIFO stock rotation active</span>
+          </div>
+        </div>
+
+        <!-- 7. Monthly Wastage Loss -->
+        <div class="kpi-card kpi-status-wastage">
+          <div class="kpi-icon-wrapper waste-bg">🗑️</div>
+          <div class="kpi-info">
+            <span class="kpi-label">30-Day Wastage Loss</span>
+            <span class="kpi-value waste-text">{{ formatCurrency(report.monthlyWastageLoss || 0) }}</span>
+            <span class="kpi-meta">Recorded loss write-offs</span>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- Two-Column Analytics Layout -->
+      <div class="dashboard-analytics-grid">
+        <!-- Category Capital Distribution -->
+        <div class="section category-distribution-section" *ngIf="report.categorySummaries && report.categorySummaries.length > 0">
+          <div class="section-heading-row">
+            <div>
+              <h3>📂 Category Capital Allocation</h3>
+              <p class="section-sub">Breakdown of inventory investments &amp; stock health by food group</p>
+            </div>
+            <small class="legend-note">Click category to filter</small>
+          </div>
+
+          <div class="category-bars-list">
+            <div *ngFor="let cat of report.categorySummaries"
+                 class="cat-bar-item clickable"
+                 (click)="filterDashboardByCategory(cat.category)"
+                 title="Click to view all {{ cat.category }} items">
+              <div class="cat-bar-header">
+                <span class="cat-name">
+                  <strong>{{ cat.category }}</strong>
+                  <small class="cat-items-badge">({{ cat.itemCount }} {{ cat.itemCount === 1 ? 'item' : 'items' }})</small>
+                </span>
+                <div class="cat-stats">
+                  <span class="cat-value">{{ formatCurrency(cat.totalValue) }}</span>
+                  <span class="cat-pct">{{ cat.percentageOfTotal }}%</span>
+                </div>
+              </div>
+              <div class="cat-progress-track">
+                <div class="cat-progress-fill" [style.width.%]="cat.percentageOfTotal"></div>
+              </div>
+              <div class="cat-health-tags" *ngIf="cat.lowStockCount > 0 || cat.outOfStockCount > 0">
+                <span *ngIf="cat.outOfStockCount > 0" class="tag-danger">{{ cat.outOfStockCount }} out of stock</span>
+                <span *ngIf="cat.lowStockCount > 0" class="tag-warn">{{ cat.lowStockCount }} low stock</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- High Capital Assets (Top Value Items) -->
+        <div class="section top-value-section" *ngIf="report.topValueItems && report.topValueItems.length > 0">
+          <div class="section-heading-row">
+            <div>
+              <h3>💎 High-Value Stock Assets</h3>
+              <p class="section-sub">Highest monetary capital tied up in inventory items</p>
+            </div>
+          </div>
+
+          <div class="top-value-list">
+            <div *ngFor="let item of report.topValueItems; let idx = index" class="top-val-card">
+              <div class="top-val-rank">#{{ idx + 1 }}</div>
+              <div class="top-val-details">
+                <div class="top-val-title-row">
+                  <strong class="item-name">{{ item.name }}</strong>
+                  <span class="item-cat-badge">{{ item.category }}</span>
+                </div>
+                <div class="top-val-metrics">
+                  <span>Stock: <strong>{{ item.currentStock }} {{ item.unit }}</strong></span>
+                  <span>Cost/Unit: <strong>{{ formatCurrency(item.costPerUnit || 0) }}</strong></span>
+                </div>
+              </div>
+              <div class="top-val-price">
+                <span class="val-num">{{ formatCurrency(item.value) }}</span>
+                <button (click)="openStockModalForReportItem(item, 'in')" class="btn-micro-in" title="Quick Stock In">
+                  📥 In
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expiring Batches Radar (Next 30 Days) -->
+      <div class="section expiring-radar-section" *ngIf="report.expiringBatches && report.expiringBatches.length > 0">
+        <div class="section-heading-row">
+          <div>
+            <h3>⏰ Expiring Batches Radar (Shelf-Life Priority)</h3>
+            <p class="section-sub">Active batches closest to expiration — take action to prevent food spoilage</p>
+          </div>
+          <span class="radar-badge">{{ report.expiringBatches.length }} {{ report.expiringBatches.length === 1 ? 'batch' : 'batches' }} flagged</span>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Item &amp; Category</th>
+                <th>Batch #</th>
+                <th>Remaining Stock</th>
+                <th>Batch Value</th>
+                <th>Expiry Date</th>
+                <th>Days Remaining</th>
+                <th>Urgency Status</th>
+                <th>Quick Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let batch of report.expiringBatches">
+                <td>
+                  <strong>{{ batch.itemName }}</strong>
+                  <span class="category-tag">{{ batch.category }}</span>
+                </td>
+                <td>
+                  <code>{{ batch.batchNumber }}</code>
+                </td>
+                <td>
+                  <strong>{{ batch.remainingQuantity }}</strong> {{ batch.unit }}
+                </td>
+                <td>{{ formatCurrency(batch.batchValue) }}</td>
+                <td>{{ formatDate(batch.expiryDate) }}</td>
+                <td>
+                  <span class="days-pill" [class.urgent]="batch.daysRemaining <= 1">
+                    {{ batch.daysRemaining < 0 ? (-batch.daysRemaining + 'd ago') : (batch.daysRemaining === 0 ? 'Today' : batch.daysRemaining + 'd left') }}
+                  </span>
+                </td>
+                <td>
+                  <span class="expiry-pill"
+                        [class.expired]="batch.urgency === 'expired'"
+                        [class.critical]="batch.urgency === 'critical'"
+                        [class.warning]="batch.urgency === 'warning'"
+                        [class.good]="batch.urgency === 'good'">
+                    <span *ngIf="batch.urgency === 'expired'">⛔ Expired</span>
+                    <span *ngIf="batch.urgency === 'critical'">🚨 Critical (≤1d)</span>
+                    <span *ngIf="batch.urgency === 'warning'">⚠️ Warning (≤{{ batch.shelfLifeThresholdDays }}d)</span>
+                    <span *ngIf="batch.urgency === 'good'">📅 OK</span>
+                  </span>
+                </td>
+                <td class="action-buttons">
+                  <button (click)="openWastageForExpiringBatch(batch)"
+                          class="btn-icon btn-danger"
+                          title="Log as Wastage to Wastage register">
+                    🗑️
+                  </button>
+                  <button (click)="openStockModalForReportItem(batch, 'in')"
+                          class="btn-icon"
+                          title="Restock Item">
+                    📥
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Critical Items Action Grid -->
+      <div *ngIf="report.criticalItems && report.criticalItems.length > 0" class="section critical-action-section">
+        <div class="section-heading-row">
+          <div>
+            <h2>🚨 Critical Items Needing Immediate Action</h2>
+            <p class="section-sub">Out of stock, running low, or expiring items requiring kitchen attention</p>
+          </div>
+          <button (click)="filterDashboardByStatus('LowStock')" class="btn-text-link">
+            View All in Catalog →
+          </button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Category</th>
+                <th>Current Stock</th>
+                <th>Min Reorder Point</th>
+                <th>Earliest Expiry</th>
+                <th>Status</th>
+                <th>Asset Value</th>
+                <th>Quick Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of report.criticalItems">
+                <td><strong>{{ item.name }}</strong></td>
+                <td><span class="category-tag">{{ item.category }}</span></td>
+                <td>
+                  <strong [style.color]="item.currentStock <= 0 ? '#DC2626' : (item.currentStock <= (item.minimumStock || 0) ? '#D97706' : '#15803D')">
+                    {{ item.currentStock }} {{ item.unit }}
+                  </strong>
+                </td>
+                <td>{{ item.minimumStock || 0 }} {{ item.unit }}</td>
+                <td>
+                  <span *ngIf="item.earliestExpiryDate" class="expiry-pill"
+                        [class.expired]="item.daysUntilExpiry !== null && item.daysUntilExpiry! < 0"
+                        [class.critical]="item.daysUntilExpiry !== null && item.daysUntilExpiry! >= 0 && item.daysUntilExpiry! <= 1"
+                        [class.warning]="item.daysUntilExpiry !== null && item.daysUntilExpiry! > 1 && item.daysUntilExpiry! <= 7">
+                    {{ formatDate(item.earliestExpiryDate) }}
+                    <small *ngIf="item.daysUntilExpiry !== null">({{ item.daysUntilExpiry! <= 0 ? 'Expired' : item.daysUntilExpiry + 'd' }})</small>
+                  </span>
+                  <span *ngIf="!item.earliestExpiryDate" class="text-muted">-</span>
+                </td>
+                <td>
+                  <span class="status-badge" [style.background-color]="getStatusColor(item.status)">
+                    {{ item.status }}
+                  </span>
+                </td>
+                <td>{{ formatCurrency(item.value) }}</td>
+                <td class="action-buttons">
+                  <button (click)="openStockModalForReportItem(item, 'in')" class="btn-icon" title="Quick Stock In">📥</button>
+                  <button (click)="openStockModalForReportItem(item, 'out')" class="btn-icon" title="Quick Stock Out">📤</button>
+                  <button (click)="openBatchModalForReportItem(item)" class="btn-icon" title="View Batches">🏷️</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Recent Live Operations Activity -->
+      <div *ngIf="report.recentTransactions && report.recentTransactions.length > 0" class="section recent-transactions-section">
+        <div class="section-heading-row">
+          <div>
+            <h2>📝 Recent Stock Operations Activity</h2>
+            <p class="section-sub">Live audit trail of receipts, usages, wastage, and kitchen sync deductions</p>
+          </div>
+          <button (click)="loadTransactions()" class="btn-text-link">
+            Full Transaction History →
+          </button>
+        </div>
+
+        <div class="transactions-list">
+          <div *ngFor="let transaction of report.recentTransactions" class="transaction-item">
+            <div class="transaction-icon">{{ getTransactionIcon(transaction.type) }}</div>
+            <div class="transaction-details">
+              <div class="trans-top">
+                <strong>{{ transaction.ingredientName }}</strong>
+                <span class="transaction-badge">{{ transaction.type }}</span>
+              </div>
+              <div class="trans-reason" *ngIf="transaction.reason">
+                {{ transaction.reason }}
+              </div>
+              <small class="trans-performed">By: {{ transaction.performedBy || 'System' }}</small>
+            </div>
+            <div class="transaction-quantity">
+              <span class="qty-val">{{ transaction.quantity }} {{ transaction.unit }}</span>
+              <span class="cost-val" *ngIf="transaction.totalCost">{{ formatCurrency(transaction.totalCost) }}</span>
+            </div>
+            <div class="transaction-date">
+              {{ formatDate(transaction.transactionDate) }}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Empty state -->
     <div *ngIf="!report" class="empty-state">
       <h2>📦 No Inventory Data</h2>
       <p>Unable to load dashboard data. Please check your connection and try again.</p>
-      <button (click)="loadDashboard()" class="btn-primary">Reload Dashboard</button>
+      <button (click)="loadDashboard()" class="btn btn-primary">Reload Dashboard</button>
     </div>
   </div>
 
@@ -177,13 +420,29 @@
       <button (click)="createNewItem()" class="btn btn-primary">
         ➕ Add New Item
       </button>
+
+      <button (click)="openUploadModal()" class="btn btn-upload-toolbar" title="Bulk Upload Inventory from Excel">
+        📤 Upload Excel
+      </button>
     </div>
 
 
 
     <!-- Inventory Table -->
     <div class="section">
-      <h2>Inventory Items ({{ filteredItems.length }})</h2>
+      <div class="section-title-row">
+        <div>
+          <h2>Inventory Items ({{ filteredItems.length }})</h2>
+          <p class="section-subtitle">Showing live stock, weighted average buying costs, batch expirations, and smart shelf-life alerts</p>
+        </div>
+        <div class="shelf-life-legend">
+          <span class="legend-title">Shelf-life alert rules:</span>
+          <span class="legend-chip">🍗 Meat/Chicken: <strong>1d</strong></span>
+          <span class="legend-chip">🥬 Veg: <strong>2d</strong></span>
+          <span class="legend-chip">🍞 Bakery: <strong>3d</strong></span>
+          <span class="legend-chip">❄️ Frozen: <strong>1 mo</strong></span>
+        </div>
+      </div>
       <div class="table-container">
         <table>
           <thead>
@@ -192,9 +451,10 @@
               <th>Category</th>
               <th>Current Stock</th>
               <th>Min/Max</th>
-              <th>Buy Price</th>
-              <th>Cost/Unit</th>
+              <th>Avg Buy Price</th>
+              <th>Avg Cost/Unit</th>
               <th>Total Value</th>
+              <th>Expiry & Batches</th>
               <th>Status</th>
               <th>Supplier</th>
               <th>Actions</th>
@@ -202,13 +462,62 @@
           </thead>
           <tbody>
             <tr *ngFor="let item of filteredItems">
-              <td><strong>{{ item.ingredientName }}</strong></td>
-              <td>{{ item.category }}</td>
-              <td>{{ item.currentStock }} {{ item.unit }}</td>
+              <td>
+                <strong>{{ item.ingredientName }}</strong>
+                <div *ngIf="getActiveBatchesCount(item) > 0" class="batch-count-pill" (click)="openBatchModal(item)" title="Click to view batches">
+                  🏷️ {{ getActiveBatchesCount(item) }} {{ getActiveBatchesCount(item) === 1 ? 'batch' : 'batches' }}
+                </div>
+              </td>
+              <td>
+                <span class="category-tag">{{ item.category }}</span>
+              </td>
+              <td>
+                <strong>{{ item.currentStock }}</strong> {{ item.unit }}
+              </td>
               <td>{{ item.minimumStock }} / {{ item.maximumStock }}</td>
-              <td>{{ formatCurrency(item.lastPurchasePrice || 0) }}</td>
-              <td>{{ formatCurrency(item.costPerUnit) }}</td>
-              <td>{{ formatCurrency(item.totalValue) }}</td>
+              <td>
+                <div class="price-cell">
+                  <span>{{ formatCurrency(getWeightedAverageBuyingPrice(item)) }}</span>
+                  <small *ngIf="getActiveBatchesCount(item) > 1" class="avg-hint">weighted avg</small>
+                </div>
+              </td>
+              <td>
+                <div class="price-cell">
+                  <span>{{ formatCurrency(getWeightedAverageCostPerUnit(item)) }}</span>
+                  <small *ngIf="getActiveBatchesCount(item) > 1" class="avg-hint">weighted avg</small>
+                </div>
+              </td>
+              <td><strong>{{ formatCurrency(item.totalValue) }}</strong></td>
+              <td>
+                <!-- Expiry and Batch Info with Category Warning -->
+                <div class="expiry-cell">
+                  <ng-container *ngIf="getExpiryWarningInfo(item) as exp">
+                    <span *ngIf="exp.level !== 'none'"
+                          class="expiry-pill"
+                          [class.expired]="exp.level === 'expired'"
+                          [class.critical]="exp.level === 'critical'"
+                          [class.warning]="exp.level === 'warning'"
+                          [class.good]="exp.level === 'good'"
+                          (click)="openBatchModal(item)"
+                          [title]="'Threshold for ' + item.category + ' is ' + getCategoryExpiryLabel(item.category) + '. Click to view all batches.'">
+                      <span *ngIf="exp.level === 'expired'">⛔</span>
+                      <span *ngIf="exp.level === 'critical'">🚨</span>
+                      <span *ngIf="exp.level === 'warning'">⚠️</span>
+                      <span *ngIf="exp.level === 'good'">📅</span>
+                      {{ exp.message }}
+                    </span>
+                    <span *ngIf="exp.level === 'none'" class="no-expiry-text">
+                      No expiry date
+                    </span>
+                  </ng-container>
+                  <button *ngIf="item.batches && item.batches.length > 0"
+                          (click)="openBatchModal(item)"
+                          class="btn-batch-view"
+                          title="View batches & expiry dates">
+                    🔍 View Batches
+                  </button>
+                </div>
+              </td>
               <td>
                 <span class="status-badge" [style.background-color]="getStatusColor(item.status)">
                   {{ item.status }}
@@ -218,6 +527,7 @@
               <td class="action-buttons">
                 <button (click)="openStockModal(item, 'in')" class="btn-icon" title="Stock In">📥</button>
                 <button (click)="openStockModal(item, 'out')" class="btn-icon" title="Stock Out">📤</button>
+                <button (click)="openBatchModal(item)" class="btn-icon" title="View Batches & Expiry Dates">🏷️</button>
                 <button (click)="editItem(item)" class="btn-icon" title="Edit">✏️</button>
                 <button (click)="loadTransactions(item)" class="btn-icon" title="History">📝</button>
                 <button (click)="deleteItem(item)" class="btn-icon btn-danger" title="Delete">🗑️</button>
@@ -302,58 +612,282 @@
 
   <!-- STOCK MODAL (Stock In/Out) -->
   <div *ngIf="showStockModal" class="modal-backdrop" (click)="closeStockModal()">
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal stock-modal" [class.stock-in-modal]="stockModalType === 'in'" [class.stock-out-modal]="stockModalType === 'out'" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3>{{ stockModalType === 'in' ? '📥 Stock In' : '📤 Stock Out' }}</h3>
-        <button (click)="closeStockModal()" class="btn-close">✕</button>
+        <div class="header-title-group">
+          <div class="header-icon-badge" [class.in]="stockModalType === 'in'" [class.out]="stockModalType === 'out'">
+            <span *ngIf="stockModalType === 'in'">📥</span>
+            <span *ngIf="stockModalType === 'out'">📤</span>
+          </div>
+          <div>
+            <h3>{{ stockModalType === 'in' ? 'Stock In' : 'Stock Out' }}</h3>
+            <p class="header-subtitle">
+              {{ stockModalType === 'in' ? 'Add incoming goods to current inventory' : 'Deduct used, damaged, or expired stock' }}
+            </p>
+          </div>
+        </div>
+        <button (click)="closeStockModal()" class="btn-close" aria-label="Close modal">✕</button>
       </div>
 
       <div class="modal-body">
-        <p><strong>Item:</strong> {{ selectedItem?.ingredientName }}</p>
-        <p><strong>Current Stock:</strong> {{ selectedItem?.currentStock }} {{ selectedItem?.unit }}</p>
+        <!-- Item Info Card -->
+        <div class="stock-item-card">
+          <div class="item-header-row">
+            <div class="item-identity">
+              <span class="item-icon">📦</span>
+              <div class="item-text">
+                <h4 class="item-name">{{ selectedItem?.ingredientName }}</h4>
+                <div class="item-meta">
+                  <span class="category-badge">{{ selectedItem?.category }}</span>
+                  <span *ngIf="selectedItem && selectedItem.storageLocation" class="location-badge">📍 {{ selectedItem.storageLocation }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="item-stock-stat">
+              <span class="stock-stat-label">Current Stock</span>
+              <span class="stock-stat-val">{{ selectedItem?.currentStock }} <small>{{ selectedItem?.unit }}</small></span>
+              <span class="status-pill" [style.background-color]="getStatusColor(selectedItem?.status || '')">
+                {{ selectedItem?.status }}
+              </span>
+            </div>
+          </div>
+        </div>
 
         <!-- Stock In Form -->
-        <div *ngIf="stockModalType === 'in'" class="form">
+        <div *ngIf="stockModalType === 'in'" class="stock-form">
           <div class="form-group">
-            <label>Quantity *</label>
-            <input type="number" [(ngModel)]="stockInForm.quantity" min="0" step="0.01" />
+            <label for="stockInQty">Quantity to Add <span class="required">*</span></label>
+            <div class="input-with-addon">
+              <input id="stockInQty" type="number" [(ngModel)]="stockInForm.quantity" min="0.01" step="0.01" placeholder="Enter quantity" autofocus />
+              <span class="input-addon">{{ selectedItem?.unit || 'units' }}</span>
+            </div>
+            <div class="quick-qty-chips">
+              <span class="quick-chips-label">Quick add:</span>
+              <button type="button" class="chip-btn" (click)="addStockInQty(1)">+1</button>
+              <button type="button" class="chip-btn" (click)="addStockInQty(5)">+5</button>
+              <button type="button" class="chip-btn" (click)="addStockInQty(10)">+10</button>
+              <button type="button" class="chip-btn" (click)="addStockInQty(25)">+25</button>
+              <button type="button" class="chip-btn" (click)="addStockInQty(50)">+50</button>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Cost Per Unit</label>
-            <input type="number" [(ngModel)]="stockInForm.costPerUnit" min="0" step="0.01" />
+
+          <!-- Projected Stock Calculation Banner -->
+          <div class="calculation-banner in" *ngIf="stockInForm.quantity && stockInForm.quantity > 0">
+            <div class="calc-row">
+              <div class="calc-step">
+                <span class="calc-label">Current</span>
+                <span class="calc-value">{{ selectedItem?.currentStock || 0 }} {{ selectedItem?.unit }}</span>
+              </div>
+              <span class="calc-operator">+</span>
+              <div class="calc-step">
+                <span class="calc-label">Adding</span>
+                <span class="calc-value highlighted in">+{{ stockInForm.quantity }} {{ selectedItem?.unit }}</span>
+              </div>
+              <span class="calc-operator">=</span>
+              <div class="calc-step result">
+                <span class="calc-label">New Stock</span>
+                <span class="calc-value total in">{{ ((selectedItem?.currentStock || 0) + stockInForm.quantity) | number:'1.0-2' }} {{ selectedItem?.unit }}</span>
+              </div>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Supplier Name</label>
-            <input type="text" [(ngModel)]="stockInForm.supplierName" />
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label for="stockInCost">Cost Per Unit</label>
+              <div class="input-with-addon prefix">
+                <span class="input-addon prefix">₹</span>
+                <input id="stockInCost" type="number" [(ngModel)]="stockInForm.costPerUnit" (ngModelChange)="onStockInCostPerUnitChange()" min="0" step="0.01" placeholder="0.00" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="stockInBuyPrice">Total Buy Price (Batch)</label>
+              <div class="input-with-addon prefix">
+                <span class="input-addon prefix">₹</span>
+                <input id="stockInBuyPrice" type="number" [(ngModel)]="stockInForm.purchasePrice" (ngModelChange)="onStockInPurchasePriceChange()" min="0" step="0.01" placeholder="0.00" />
+              </div>
+            </div>
           </div>
+
+          <div class="form-row-2col">
+            <div class="form-group expiry-form-group">
+              <div class="label-with-meta">
+                <label for="stockInExpiry">
+                  <span class="label-icon">📅</span> Expiry Date
+                </label>
+                <span class="expiry-guide-hint" *ngIf="selectedItem && selectedItem.category">
+                  Rule: <strong>{{ getCategoryExpiryLabel(selectedItem.category) }}</strong>
+                </span>
+              </div>
+              <div class="expiry-input-wrapper">
+                <input id="stockInExpiry"
+                       type="date"
+                       [(ngModel)]="stockInForm.expiryDate"
+                       class="expiry-date-input"
+                       [class.has-value]="!!stockInForm.expiryDate" />
+                <button type="button"
+                        *ngIf="stockInForm.expiryDate"
+                        (click)="stockInForm.expiryDate = ''"
+                        class="btn-clear-date"
+                        title="Clear expiry date">✕</button>
+              </div>
+
+              <!-- Quick Shelf-life Preset Buttons -->
+              <div class="quick-expiry-presets" *ngIf="selectedItem">
+                <button type="button" class="preset-chip" (click)="setQuickExpiry(1)" title="+1 Day from today">1d</button>
+                <button type="button" class="preset-chip" (click)="setQuickExpiry(2)" title="+2 Days from today">2d</button>
+                <button type="button" class="preset-chip" (click)="setQuickExpiry(3)" title="+3 Days from today">3d</button>
+                <button type="button" class="preset-chip" (click)="setQuickExpiry(7)" title="+7 Days from today">7d</button>
+                <button type="button" class="preset-chip" (click)="setQuickExpiry(30)" title="+1 Month from today">1m</button>
+                <button type="button" class="preset-chip" (click)="setQuickExpiry(90)" title="+3 Months from today">3m</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="stockInRef">Reference / Invoice #</label>
+              <input id="stockInRef" type="text" [(ngModel)]="stockInForm.referenceNumber" placeholder="e.g. INV-1029" />
+            </div>
+          </div>
+
           <div class="form-group">
-            <label>Reference Number</label>
-            <input type="text" [(ngModel)]="stockInForm.referenceNumber" />
+            <label for="stockInSupplier">Supplier Name</label>
+            <input id="stockInSupplier" type="text" [(ngModel)]="stockInForm.supplierName" placeholder="e.g. Metro Cash & Carry" />
+          </div>
+
+          <div *ngIf="stockInForm.quantity && (stockInForm.costPerUnit || stockInForm.purchasePrice)" class="total-cost-preview">
+            <span>Estimated Total Addition Value:</span>
+            <strong>{{ formatCurrency(stockInForm.purchasePrice || ((stockInForm.quantity || 0) * (stockInForm.costPerUnit || 0))) }}</strong>
           </div>
         </div>
 
         <!-- Stock Out Form -->
-        <div *ngIf="stockModalType === 'out'" class="form">
-          <div class="form-group">
-            <label>Quantity *</label>
-            <input type="number" [(ngModel)]="stockOutForm.quantity" min="0" [max]="selectedItem?.currentStock || 0" step="0.01" />
+        <div *ngIf="stockModalType === 'out'" class="stock-form">
+          <!-- Source Stock / Batch Selector (Ordered by Expiry Date) -->
+          <div class="form-group" *ngIf="selectedItem">
+            <div class="label-with-meta">
+              <label for="stockOutBatchSelect">
+                Deduct From Stock Batch
+                <span class="expiry-guide-hint">(Ordered by earliest expiry)</span>
+              </label>
+              <span class="available-hint">
+                Available: <strong>{{ getStockOutAvailableQuantity() }} {{ selectedItem.unit }}</strong>
+              </span>
+            </div>
+
+            <div class="batch-selector-container" *ngIf="getActiveBatchesSortedByExpiry(selectedItem) as activeBatches">
+              <div class="batch-select-dropdown-wrapper">
+                <select id="stockOutBatchSelect"
+                        [(ngModel)]="stockOutForm.batchId"
+                        (ngModelChange)="selectStockOutBatch($event)"
+                        class="batch-select-dropdown">
+                  <option value="">🔄 Auto FIFO (Earliest Expiry First — Recommended)</option>
+                  <option *ngFor="let batch of activeBatches" [value]="batch.id">
+                    {{ batch.batchNumber || batch.referenceNumber || 'Batch' }} | Stock: {{ batch.remainingQuantity }} {{ selectedItem.unit }} | Exp: {{ batch.expiryDate ? formatDate(batch.expiryDate) : 'No exp' }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- Visual Batch Cards Grid for quick selection -->
+              <div class="batch-cards-carousel" *ngIf="activeBatches.length > 0">
+                <div class="batch-choice-card"
+                     [class.selected]="!stockOutForm.batchId"
+                     (click)="selectStockOutBatch('')">
+                  <div class="choice-header">
+                    <span class="choice-title">🔄 Auto FIFO</span>
+                    <span class="badge-fifo">Optimal</span>
+                  </div>
+                  <div class="choice-meta">Earliest expiring stock used first</div>
+                </div>
+
+                <div *ngFor="let b of activeBatches"
+                     class="batch-choice-card"
+                     [class.selected]="stockOutForm.batchId === b.id"
+                     (click)="selectStockOutBatch(b.id)">
+                  <div class="choice-header">
+                    <span class="choice-title">{{ b.batchNumber || b.referenceNumber || 'Batch' }}</span>
+                    <span class="choice-qty">{{ b.remainingQuantity }} {{ selectedItem.unit }}</span>
+                  </div>
+                  <div class="choice-meta">
+                    <span *ngIf="b.expiryDate" [class.exp-warn]="getDaysUntilExpiry(b.expiryDate) !== null && getDaysUntilExpiry(b.expiryDate)! <= getCategoryExpiryWarningDays(selectedItem.category)">
+                      Exp: {{ formatDate(b.expiryDate) }}
+                      <small *ngIf="getDaysUntilExpiry(b.expiryDate) as dl">({{ dl <= 0 ? 'Expired' : dl + 'd left' }})</small>
+                    </span>
+                    <span *ngIf="!b.expiryDate" class="text-muted">No expiry</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+
           <div class="form-group">
-            <label>Reason</label>
-            <input type="text" [(ngModel)]="stockOutForm.reason" placeholder="e.g., Used for recipe" />
+            <div class="label-with-meta">
+              <label for="stockOutQty">Quantity to Deduct <span class="required">*</span></label>
+              <span class="available-hint" *ngIf="selectedItem">
+                Limit: <strong>{{ getStockOutAvailableQuantity() }} {{ selectedItem.unit }}</strong>
+              </span>
+            </div>
+            <div class="input-with-addon">
+              <input id="stockOutQty" type="number" [(ngModel)]="stockOutForm.quantity" min="0.01" [max]="getStockOutAvailableQuantity()" step="0.01" placeholder="Enter quantity" autofocus />
+              <span class="input-addon">{{ selectedItem?.unit || 'units' }}</span>
+            </div>
+            <div class="quick-qty-chips">
+              <span class="quick-chips-label">Quick select:</span>
+              <button type="button" class="chip-btn" (click)="addStockOutQty(1)">1</button>
+              <button type="button" class="chip-btn" (click)="addStockOutQty(5)">5</button>
+              <button type="button" class="chip-btn" (click)="addStockOutQty(10)">10</button>
+              <button type="button" class="chip-btn chip-all" (click)="setStockOutAll()">All ({{ getStockOutAvailableQuantity() }})</button>
+            </div>
+          </div>
+
+          <!-- Projected Remaining Stock Calculation Banner -->
+          <div class="calculation-banner out" *ngIf="stockOutForm.quantity && stockOutForm.quantity > 0" [class.exceeded]="stockOutForm.quantity > getStockOutAvailableQuantity()">
+            <div class="calc-row" *ngIf="stockOutForm.quantity <= getStockOutAvailableQuantity()">
+              <div class="calc-step">
+                <span class="calc-label">Available</span>
+                <span class="calc-value">{{ getStockOutAvailableQuantity() }} {{ selectedItem?.unit }}</span>
+              </div>
+              <span class="calc-operator">-</span>
+              <div class="calc-step">
+                <span class="calc-label">Deducting</span>
+                <span class="calc-value highlighted out">-{{ stockOutForm.quantity }} {{ selectedItem?.unit }}</span>
+              </div>
+              <span class="calc-operator">=</span>
+              <div class="calc-step result">
+                <span class="calc-label">Remaining</span>
+                <span class="calc-value total out">{{ (getStockOutAvailableQuantity() - stockOutForm.quantity) | number:'1.0-2' }} {{ selectedItem?.unit }}</span>
+              </div>
+            </div>
+            <div class="stock-warning" *ngIf="stockOutForm.quantity > getStockOutAvailableQuantity()">
+              ⚠️ Quantity exceeds available stock ({{ getStockOutAvailableQuantity() }} {{ selectedItem?.unit }})!
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="stockOutReason">Reason for Deduction</label>
+            <div class="quick-reasons-grid">
+              <button type="button"
+                *ngFor="let reason of commonStockOutReasons"
+                class="reason-pill"
+                [class.active]="stockOutForm.reason === reason"
+                (click)="stockOutForm.reason = reason">
+                {{ reason }}
+              </button>
+            </div>
+            <input id="stockOutReason" type="text" [(ngModel)]="stockOutForm.reason" placeholder="Or type a custom reason..." class="custom-reason-input" />
           </div>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button *ngIf="stockModalType === 'in'" (click)="submitStockIn()" class="btn btn-success">
-          ✔️ Add Stock
-        </button>
-        <button *ngIf="stockModalType === 'out'" (click)="submitStockOut()" class="btn btn-warning">
-          ✔️ Remove Stock
-        </button>
-        <button (click)="closeStockModal()" class="btn btn-secondary">
+        <button (click)="closeStockModal()" class="btn btn-secondary" [disabled]="loading">
           Cancel
+        </button>
+        <button *ngIf="stockModalType === 'in'" (click)="submitStockIn()" class="btn btn-stock-in" [disabled]="loading || !stockInForm.quantity || stockInForm.quantity <= 0">
+          <span *ngIf="!loading">📥 Confirm Stock In</span>
+          <span *ngIf="loading">Adding Stock...</span>
+        </button>
+        <button *ngIf="stockModalType === 'out'" (click)="submitStockOut()" class="btn btn-stock-out" [disabled]="loading || !stockOutForm.quantity || stockOutForm.quantity <= 0 || stockOutForm.quantity > getStockOutAvailableQuantity()">
+          <span *ngIf="!loading">📤 Confirm Stock Out</span>
+          <span *ngIf="loading">Removing Stock...</span>
         </button>
       </div>
     </div>
@@ -361,98 +895,446 @@
 
   <!-- INVENTORY FORM MODAL (Create/Edit) -->
   <div *ngIf="showInventoryModal" class="modal-backdrop" (click)="closeInventoryModal()">
-    <div class="modal modal-large" (click)="$event.stopPropagation()">
+    <div class="modal item-form-modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3>{{ selectedItem ? '✏️ Edit' : '➕ New' }} Inventory Item</h3>
-        <button (click)="closeInventoryModal()" class="btn-close">✕</button>
+        <div class="header-title-group">
+          <div class="header-icon-badge in">
+            <span>{{ selectedItem ? '✏️' : '➕' }}</span>
+          </div>
+          <div>
+            <h3>{{ selectedItem ? 'Edit' : 'New' }} Inventory Item</h3>
+            <p class="header-subtitle">
+              {{ selectedItem ? 'Update item configuration and stock thresholds' : 'Define item and stock alert thresholds. Stock is added later via Stock IN.' }}
+            </p>
+          </div>
+        </div>
+        <button (click)="closeInventoryModal()" class="btn-close" aria-label="Close modal">✕</button>
       </div>
 
       <div class="modal-body">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Item Name *</label>
-            <input type="text" [(ngModel)]="inventoryForm.ingredientName" />
+        <div class="form-grid compact-grid">
+          <div class="form-group full-width">
+            <label for="invItemName">
+              <span>Item Name <span class="required">*</span></span>
+            </label>
+            <input id="invItemName" type="text" [(ngModel)]="inventoryForm.ingredientName" placeholder="e.g., Amul Fresh Milk" autofocus />
           </div>
 
           <div class="form-group">
-            <label>Category *</label>
-            <select [(ngModel)]="inventoryForm.category">
+            <label for="invCategory">
+              <span>Category <span class="required">*</span></span>
+            </label>
+            <select id="invCategory" [(ngModel)]="inventoryForm.category">
               <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label>Unit *</label>
-            <select [(ngModel)]="inventoryForm.unit">
+            <label for="invUnit">
+              <span>Unit <span class="required">*</span></span>
+            </label>
+            <select id="invUnit" [(ngModel)]="inventoryForm.unit">
               <option *ngFor="let unit of measurementUnits" [value]="unit">{{ unit }}</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label>Current Stock</label>
-            <input type="number" [(ngModel)]="inventoryForm.currentStock" min="0" step="0.01"
-                   (ngModelChange)="calculateCostPerUnit()" />
+            <label for="invMinStock">
+              <span>Minimum Stock</span>
+              <small class="field-hint">(Alert Threshold)</small>
+            </label>
+            <input id="invMinStock" type="number" [(ngModel)]="inventoryForm.minimumStock" min="0" step="0.01" placeholder="0" />
           </div>
 
           <div class="form-group">
-            <label>Minimum Stock</label>
-            <input type="number" [(ngModel)]="inventoryForm.minimumStock" min="0" step="0.01" />
+            <label for="invMaxStock">
+              <span>Maximum Stock</span>
+              <small class="field-hint">(Overstock Limit)</small>
+            </label>
+            <input id="invMaxStock" type="number" [(ngModel)]="inventoryForm.maximumStock" min="0" step="0.01" placeholder="0" />
           </div>
 
           <div class="form-group">
-            <label>Maximum Stock</label>
-            <input type="number" [(ngModel)]="inventoryForm.maximumStock" min="0" step="0.01" />
+            <label for="invReorderQty">
+              <span>Reorder Quantity</span>
+              <small class="field-hint">(Suggested PO size)</small>
+            </label>
+            <input id="invReorderQty" type="number" [(ngModel)]="inventoryForm.reorderQuantity" min="0" step="0.01" placeholder="0" />
           </div>
 
           <div class="form-group">
-            <label>Reorder Quantity</label>
-            <input type="number" [(ngModel)]="inventoryForm.reorderQuantity" min="0" step="0.01" />
+            <label for="invStorageLoc">
+              <span>Storage Location</span>
+            </label>
+            <input id="invStorageLoc" type="text" [(ngModel)]="inventoryForm.storageLocation" placeholder="e.g., Cold Storage Rack A" />
           </div>
 
+          <!-- Buy Price (Auto-Calculated & Saved as per Stock In & Stock Out Values) -->
           <div class="form-group">
-            <label>Buy Price (Total)</label>
-            <input type="number" [(ngModel)]="inventoryForm.lastPurchasePrice" min="0" step="0.01"
-                   (ngModelChange)="calculateCostPerUnit()" />
+            <label>
+              <span>Buy Price</span>
+              <small class="auto-calc-tag">Auto-Calculated</small>
+            </label>
+            <div class="auto-calc-display-box">
+              <span class="auto-calc-val">{{ formatCurrency(inventoryForm.lastPurchasePrice || 0) }}</span>
+              <span class="auto-calc-note">Saved as per Stock In &amp; Stock Out</span>
+            </div>
           </div>
 
+          <!-- Cost Per Unit (Auto-Calculated & Saved as per Stock In & Stock Out Values) -->
           <div class="form-group">
-            <label>Cost Per Unit</label>
-            <input type="number" [(ngModel)]="inventoryForm.costPerUnit" min="0" step="0.01" readonly />
-          </div>
-
-          <div class="form-group">
-            <label>Supplier Name</label>
-            <input type="text" [(ngModel)]="inventoryForm.supplierName" />
-          </div>
-
-          <div class="form-group">
-            <label>Supplier Contact</label>
-            <input type="text" [(ngModel)]="inventoryForm.supplierContact" />
-          </div>
-
-          <div class="form-group">
-            <label>Storage Location</label>
-            <input type="text" [(ngModel)]="inventoryForm.storageLocation" />
-          </div>
-
-          <div class="form-group">
-            <label>Expiry Date</label>
-            <input type="date" [(ngModel)]="inventoryForm.expiryDate" />
-          </div>
-
-          <div class="form-group full-width">
-            <label>Notes</label>
-            <textarea [(ngModel)]="inventoryForm.notes" rows="2"></textarea>
+            <label>
+              <span>Cost Per Unit</span>
+              <small class="auto-calc-tag">Auto-Calculated</small>
+            </label>
+            <div class="auto-calc-display-box">
+              <span class="auto-calc-val">{{ formatCurrency(inventoryForm.costPerUnit || 0) }}</span>
+              <span class="auto-calc-note">Saved as per Stock In &amp; Stock Out</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button (click)="saveInventory()" class="btn btn-success">
-          💾 {{ selectedItem ? 'Update' : 'Create' }}
+        <button (click)="closeInventoryModal()" class="btn btn-secondary" [disabled]="loading">
+          Cancel
         </button>
-        <button (click)="closeInventoryModal()" class="btn btn-secondary">
-          ❌ Cancel
+        <button (click)="saveInventory()" class="btn btn-primary" [disabled]="loading || !inventoryForm.ingredientName || !inventoryForm.unit">
+          💾 {{ selectedItem ? 'Save Changes' : 'Create Item' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BATCH & EXPIRY DETAILS MODAL -->
+  <div *ngIf="showBatchModal && selectedBatchItem" class="modal-backdrop" (click)="closeBatchModal()">
+    <div class="modal modal-large batch-details-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="header-title-group">
+          <div class="header-icon-badge in">🏷️</div>
+          <div>
+            <h3>Stock Batches & Expiry Breakdown</h3>
+            <p class="header-subtitle">
+              {{ selectedBatchItem.ingredientName }} ({{ selectedBatchItem.category }}) — Total Stock: {{ selectedBatchItem.currentStock }} {{ selectedBatchItem.unit }}
+            </p>
+          </div>
+        </div>
+        <button (click)="closeBatchModal()" class="btn-close" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Summary Cards -->
+        <div class="batch-summary-grid">
+          <div class="batch-metric-card">
+            <span class="metric-title">Weighted Avg Buy Price</span>
+            <span class="metric-num">{{ formatCurrency(getWeightedAverageBuyingPrice(selectedBatchItem)) }}</span>
+            <small>Across active stock</small>
+          </div>
+          <div class="batch-metric-card">
+            <span class="metric-title">Weighted Avg Cost/Unit</span>
+            <span class="metric-num">{{ formatCurrency(getWeightedAverageCostPerUnit(selectedBatchItem)) }}</span>
+            <small>Current valuation basis</small>
+          </div>
+          <div class="batch-metric-card">
+            <span class="metric-title">Category Expiry Rule</span>
+            <span class="metric-num">{{ getCategoryExpiryLabel(selectedBatchItem.category) }}</span>
+            <small>Alert threshold</small>
+          </div>
+          <div class="batch-metric-card">
+            <span class="metric-title">Active Batches</span>
+            <span class="metric-num">{{ getActiveBatchesCount(selectedBatchItem) }}</span>
+            <small>In rotation (FIFO)</small>
+          </div>
+        </div>
+
+        <!-- Batches List -->
+        <div class="batch-table-container" *ngIf="selectedBatchItem.batches && selectedBatchItem.batches.length > 0">
+          <table class="batch-table">
+            <thead>
+              <tr>
+                <th>Batch / Ref #</th>
+                <th>Received Date</th>
+                <th>Remaining / Initial</th>
+                <th>Cost / Unit</th>
+                <th>Batch Buy Price</th>
+                <th>Expiry Date</th>
+                <th>Shelf-life Status</th>
+                <th>Supplier</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let batch of selectedBatchItem.batches" [class.depleted-row]="batch.remainingQuantity <= 0">
+                <td>
+                  <strong>{{ batch.batchNumber || batch.referenceNumber || 'Standard Batch' }}</strong>
+                  <div *ngIf="batch.remainingQuantity <= 0" class="depleted-tag">Depleted</div>
+                </td>
+                <td>{{ formatDate(batch.receivedDate) }}</td>
+                <td>
+                  <strong>{{ batch.remainingQuantity }}</strong> / {{ batch.initialQuantity }} {{ selectedBatchItem.unit }}
+                </td>
+                <td>{{ formatCurrency(batch.costPerUnit) }}</td>
+                <td>{{ batch.purchasePrice ? formatCurrency(batch.purchasePrice) : 'N/A' }}</td>
+                <td>
+                  <span *ngIf="batch.expiryDate">
+                    {{ formatDate(batch.expiryDate) }}
+                  </span>
+                  <span *ngIf="!batch.expiryDate" class="text-muted">Not specified</span>
+                </td>
+                <td>
+                  <ng-container *ngIf="batch.remainingQuantity > 0 && batch.expiryDate; else depletedOrNoExp">
+                    <ng-container *ngIf="getDaysUntilExpiry(batch.expiryDate) as d">
+                      <span *ngIf="d < 0" class="badge-exp badge-expired">Expired ({{ -d }}d ago)</span>
+                      <span *ngIf="d === 0" class="badge-exp badge-critical">Expires today!</span>
+                      <span *ngIf="d > 0 && d <= 1" class="badge-exp badge-critical">🚨 {{ d }} day left</span>
+                      <span *ngIf="d > 1 && d <= getCategoryExpiryWarningDays(selectedBatchItem.category)" class="badge-exp badge-warning">
+                        ⚠️ {{ d }} days left
+                      </span>
+                      <span *ngIf="d > getCategoryExpiryWarningDays(selectedBatchItem.category)" class="badge-exp badge-good">
+                        ✅ {{ d }} days left
+                      </span>
+                    </ng-container>
+                  </ng-container>
+                  <ng-template #depletedOrNoExp>
+                    <span *ngIf="batch.remainingQuantity <= 0" class="text-muted">Consumed</span>
+                    <span *ngIf="batch.remainingQuantity > 0 && !batch.expiryDate" class="text-muted">-</span>
+                  </ng-template>
+                </td>
+                <td>{{ batch.supplierName || 'N/A' }}</td>
+                <td>
+                  <button *ngIf="batch.remainingQuantity > 0"
+                          (click)="openWastageModal(batch)"
+                          class="btn-wastage-action"
+                          title="Log as Wastage to Wastage module">
+                    🗑️ Log Wastage
+                  </button>
+                  <span *ngIf="batch.remainingQuantity <= 0" class="text-muted">-</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div *ngIf="!selectedBatchItem.batches || selectedBatchItem.batches.length === 0" class="empty-batch-state">
+          <p>📦 No individual batches recorded yet for this item.</p>
+          <p class="empty-batch-sub">New Stock IN receipts will automatically generate tracked batches with distinct expiry dates and buying prices.</p>
+          <div *ngIf="selectedBatchItem.expiryDate" class="legacy-expiry-card">
+            <span>Legacy Expiry Date on Record:</span>
+            <strong>{{ formatDate(selectedBatchItem.expiryDate) }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeBatchModal(); openStockModal(selectedBatchItem, 'in')" class="btn btn-stock-in">
+          📥 Add New Stock Batch
+        </button>
+        <button (click)="closeBatchModal()" class="btn btn-secondary">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BATCH WASTAGE LOGGING POPUP MODAL -->
+  <div *ngIf="showWastageConfirmModal" class="modal-backdrop" (click)="closeWastageModal()">
+    <div class="modal stock-modal stock-out-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="header-title-group">
+          <div class="header-icon-badge out">🗑️</div>
+          <div>
+            <h3>Log Batch Wastage</h3>
+            <p class="header-subtitle">Directly deducts inventory &amp; records in the Wastage Loss register</p>
+          </div>
+        </div>
+        <button (click)="closeWastageModal()" class="btn-close" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="stock-item-card">
+          <div class="item-header-row">
+            <div class="item-identity">
+              <span class="item-icon">⚠️</span>
+              <div class="item-text">
+                <h4 class="item-name">{{ selectedBatchItem?.ingredientName }}</h4>
+                <div class="item-meta">
+                  <span class="category-badge">Batch: {{ selectedWastageBatch?.batchNumber || selectedWastageBatch?.id }}</span>
+                  <span *ngIf="selectedWastageBatch?.expiryDate" class="location-badge">
+                    Exp: {{ formatDate(selectedWastageBatch?.expiryDate) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="item-stock-stat">
+              <span class="stock-stat-label">Batch Stock</span>
+              <span class="stock-stat-val">{{ selectedWastageBatch?.remainingQuantity }} <small>{{ selectedBatchItem?.unit }}</small></span>
+              <span class="status-pill" style="background-color: #EF4444;">Wastage</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="stock-form">
+          <div class="form-group">
+            <div class="label-with-meta">
+              <label for="wasteQty">Quantity to Waste <span class="required">*</span></label>
+              <span class="available-hint">Max: <strong>{{ selectedWastageBatch?.remainingQuantity }} {{ selectedBatchItem?.unit }}</strong></span>
+            </div>
+            <div class="input-with-addon">
+              <input id="wasteQty" type="number" [(ngModel)]="wastageQuantity" min="0.01" [max]="selectedWastageBatch?.remainingQuantity || 0" step="0.01" />
+              <span class="input-addon">{{ selectedBatchItem?.unit || 'units' }}</span>
+            </div>
+          </div>
+
+          <!-- Financial Loss Banner -->
+          <div class="calculation-banner out">
+            <div class="calc-row">
+              <div class="calc-step">
+                <span class="calc-label">Cost/Unit</span>
+                <span class="calc-value">₹{{ (selectedWastageBatch?.costPerUnit || selectedBatchItem?.costPerUnit || 0) | number:'1.2-2' }}</span>
+              </div>
+              <span class="calc-operator">×</span>
+              <div class="calc-step">
+                <span class="calc-label">Wasted Qty</span>
+                <span class="calc-value highlighted out">{{ wastageQuantity || 0 }} {{ selectedBatchItem?.unit }}</span>
+              </div>
+              <span class="calc-operator">=</span>
+              <div class="calc-step result">
+                <span class="calc-label">Financial Loss</span>
+                <span class="calc-value total out">
+                  ₹{{ ((wastageQuantity || 0) * (selectedWastageBatch?.costPerUnit || selectedBatchItem?.costPerUnit || 0)) | number:'1.2-2' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="wasteReason">Reason for Wastage</label>
+            <div class="quick-reasons-grid">
+              <button type="button" class="reason-pill" [class.active]="wastageReason === 'Expired'" (click)="wastageReason = 'Expired'">Expired</button>
+              <button type="button" class="reason-pill" [class.active]="wastageReason === 'Spoiled'" (click)="wastageReason = 'Spoiled'">Spoiled</button>
+              <button type="button" class="reason-pill" [class.active]="wastageReason === 'Damaged'" (click)="wastageReason = 'Damaged'">Damaged</button>
+              <button type="button" class="reason-pill" [class.active]="wastageReason === 'Quality Issue'" (click)="wastageReason = 'Quality Issue'">Quality Issue</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="wasteNotes">Notes / Investigation</label>
+            <input id="wasteNotes" type="text" [(ngModel)]="wastageNotes" placeholder="Reason for disposal, discard details..." />
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeWastageModal()" class="btn btn-secondary" [disabled]="loading">
+          Cancel
+        </button>
+        <button (click)="confirmLogWastage()" class="btn btn-stock-out" [disabled]="loading || !wastageQuantity || wastageQuantity <= 0 || wastageQuantity > (selectedWastageBatch?.remainingQuantity || 0)">
+          <span *ngIf="!loading">🗑️ Confirm &amp; Log Loss</span>
+          <span *ngIf="loading">Recording Loss...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXCEL BULK UPLOAD MODAL -->
+  <div *ngIf="showUploadModal" class="modal-backdrop" (click)="closeUploadModal()">
+    <div class="modal upload-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="header-title-group">
+          <div class="header-icon-badge upload-badge">📤</div>
+          <div>
+            <h3>Bulk Upload Inventory Items</h3>
+            <p class="header-subtitle">Import or update multiple inventory items and stock batches using an Excel spreadsheet</p>
+          </div>
+        </div>
+        <button (click)="closeUploadModal()" class="btn-close" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Step 1: Download Template -->
+        <div class="upload-step-card">
+          <div class="step-num-badge">1</div>
+          <div class="step-content">
+            <h4>Download Excel Template</h4>
+            <p>Get the official formatted template pre-configured with sample items, category guides, and column validation.</p>
+            <button type="button" (click)="downloadTemplate()" class="btn-download-template">
+              📥 Download Template (.xlsx)
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Upload File -->
+        <div class="upload-step-card">
+          <div class="step-num-badge">2</div>
+          <div class="step-content">
+            <h4>Upload Completed Excel File</h4>
+            <p>Select or drag &amp; drop your completed spreadsheet (.xlsx or .xls).</p>
+
+            <div class="file-dropzone"
+                 [class.dragging]="isDragging"
+                 (dragover)="onDragOver($event)"
+                 (dragleave)="onDragLeave($event)"
+                 (drop)="onDrop($event)"
+                 (click)="fileInput.click()">
+              <input #fileInput
+                     id="excelFileInput"
+                     type="file"
+                     accept=".xlsx,.xls"
+                     style="display: none;"
+                     (change)="onFileSelected($event)" />
+
+              <div *ngIf="!selectedUploadFile" class="dropzone-empty">
+                <span class="dropzone-icon">📁</span>
+                <p class="dropzone-title">Click to browse or drag &amp; drop your Excel file here</p>
+                <small class="dropzone-sub">Supports .xlsx and .xls (Max 10MB)</small>
+              </div>
+
+              <div *ngIf="selectedUploadFile" class="dropzone-file" (click)="$event.stopPropagation()">
+                <div class="file-info-row">
+                  <span class="file-icon">📊</span>
+                  <div class="file-text">
+                    <strong class="file-name">{{ selectedUploadFile.name }}</strong>
+                    <small class="file-size">{{ (selectedUploadFile.size / 1024) | number:'1.1-1' }} KB</small>
+                  </div>
+                  <button type="button" (click)="removeSelectedFile()" class="btn-remove-file" title="Remove file">✕</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload Result Summary -->
+        <div *ngIf="uploadResult" class="upload-result-card" [class.has-errors]="uploadResult.failed > 0">
+          <div class="result-header">
+            <span class="result-icon">{{ uploadResult.failed === 0 ? '🎉' : '⚠️' }}</span>
+            <div class="result-summary-text">
+              <strong>{{ uploadResult.message }}</strong>
+              <div class="result-stats">
+                <span class="badge-success-count">✅ {{ uploadResult.success }} Succeeded</span>
+                <span *ngIf="uploadResult.failed > 0" class="badge-fail-count">❌ {{ uploadResult.failed }} Failed</span>
+                <span class="badge-total-count">Total: {{ uploadResult.total }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="uploadResult.errors && uploadResult.errors.length > 0" class="upload-error-list">
+            <div class="error-list-title">Issues encountered:</div>
+            <ul>
+              <li *ngFor="let err of uploadResult.errors">{{ err }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeUploadModal()" class="btn btn-secondary" [disabled]="uploading">
+          {{ uploadResult && uploadResult.success > 0 ? 'Close' : 'Cancel' }}
+        </button>
+        <button (click)="uploadExcelFile()"
+                class="btn btn-stock-in"
+                [disabled]="!selectedUploadFile || uploading">
+          <span *ngIf="!uploading">📤 Upload &amp; Process Excel</span>
+          <span *ngIf="uploading">⏳ Processing Spreadsheet...</span>
         </button>
       </div>
     </div>

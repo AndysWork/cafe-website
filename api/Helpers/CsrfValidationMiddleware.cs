@@ -32,6 +32,7 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
     private static readonly System.Text.RegularExpressions.Regex[] ExcludedPathPatterns =
     {
         new("^/api/menu/[^/]+/image$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
+        new("^/api/inventory/upload$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
         new("^/api/recipes(?:/.*)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
         new("^/api/priceforecasts(?:/.*)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
         new("^/api/analytics/(track(?:/batch)?|session|heartbeat)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled)

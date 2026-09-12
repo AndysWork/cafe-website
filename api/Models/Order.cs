@@ -43,6 +43,9 @@ public class Order : ISoftDeletable
     [BsonElement("status")]
     public string Status { get; set; } = "pending"; // scheduled/pending, confirmed, preparing, ready, out-for-delivery, delivered, cancelled
 
+    [BsonElement("inventoryDeducted")]
+    public bool InventoryDeducted { get; set; } = false;
+
     [BsonElement("paymentStatus")]
     public string PaymentStatus { get; set; } = "pending"; // pending, paid, refunded
 

@@ -7854,33 +7854,6 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return alerts;
     }
 
-    public async Task<object> GetInventoryReportAsync(string? outletId = null)
-    {
-        var filterBuilder = Builders<Inventory>.Filter;
-        var filter = filterBuilder.Empty;
-        
-        if (!string.IsNullOrEmpty(outletId))
-            filter = filterBuilder.Eq(i => i.OutletId, outletId);
-        
-        var inventory = await _inventory.Find(filter).ToListAsync();
-        
-        var totalItems = inventory.Count;
-        var activeItems = inventory.Count(i => i.IsActive);
-        var lowStockItems = inventory.Count(i => i.CurrentStock <= i.MinimumStock);
-        var outOfStockItems = inventory.Count(i => i.CurrentStock <= 0);
-        var totalValue = inventory.Sum(i => i.CurrentStock * i.CostPerUnit);
-        
-        return new
-        {
-            TotalItems = totalItems,
-            ActiveItems = activeItems,
-            LowStockItems = lowStockItems,
-            OutOfStockItems = outOfStockItems,
-            TotalValue = totalValue,
-            LastUpdated = GetIstNow()
-        };
-    }
-
     public async Task<int> MigrateInventoryTransactionOutletIdsAsync(string? defaultOutletId = null)
     {
         // Get all transactions without outlet ID

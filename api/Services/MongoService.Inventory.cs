@@ -12,6 +12,27 @@ public partial class MongoService : IInventoryRepository
 
     // ==== INVENTORY CRUD ====
 
+    private void EnsureBatchesPopulated(Inventory inventory)
+    {
+        if (inventory == null) return;
+        inventory.Batches ??= new List<StockBatch>();
+        if (inventory.Batches.Count == 0 && inventory.CurrentStock > 0)
+        {
+            inventory.Batches.Add(new StockBatch
+            {
+                Id = MongoDB.Bson.ObjectId.GenerateNewId().ToString(),
+                BatchNumber = "INITIAL-STOCK",
+                InitialQuantity = inventory.CurrentStock,
+                RemainingQuantity = inventory.CurrentStock,
+                CostPerUnit = inventory.CostPerUnit,
+                PurchasePrice = inventory.LastPurchasePrice ?? (inventory.CurrentStock * inventory.CostPerUnit),
+                SupplierName = inventory.SupplierName,
+                ExpiryDate = inventory.ExpiryDate,
+                ReceivedDate = inventory.CreatedAt
+            });
+        }
+    }
+
     public async Task<List<Inventory>> GetAllInventoryAsync(string? outletId = null, int? page = null, int? pageSize = null)
     {
         // If no outlet is selected, return empty list instead of all data
@@ -21,10 +42,14 @@ public partial class MongoService : IInventoryRepository
         var filter = Builders<Inventory>.Filter.Eq(i => i.OutletId, outletId);
         var fluent = _inventory.Find(filter).SortBy(i => i.IngredientName);
         
+        List<Inventory> list;
         if (page.HasValue && pageSize.HasValue)
-            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
-        
-        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+            list = await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+        else
+            list = await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+
+        foreach (var item in list) EnsureBatchesPopulated(item);
+        return list;
     }
 
     public async Task<long> GetAllInventoryCountAsync(string? outletId = null)
@@ -50,15 +75,21 @@ public partial class MongoService : IInventoryRepository
         var filter = filterBuilder.And(filters);
         var fluent = _inventory.Find(filter).SortBy(i => i.IngredientName);
         
+        List<Inventory> list;
         if (page.HasValue && pageSize.HasValue)
-            return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
-        
-        return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+            list = await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
+        else
+            list = await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+
+        foreach (var item in list) EnsureBatchesPopulated(item);
+        return list;
     }
 
     public async Task<Inventory?> GetInventoryByIdAsync(string id)
     {
-        return await _inventory.Find(i => i.Id == id).FirstOrDefaultAsync();
+        var item = await _inventory.Find(i => i.Id == id).FirstOrDefaultAsync();
+        if (item != null) EnsureBatchesPopulated(item);
+        return item;
     }
 
     public async Task<Inventory?> GetInventoryByIngredientIdAsync(string ingredientId)
@@ -142,7 +173,37 @@ public partial class MongoService : IInventoryRepository
     {
         inventory.CreatedAt = MongoService.GetIstNow();
         inventory.UpdatedAt = MongoService.GetIstNow();
-        inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
+
+        // Stock is added later via Stock IN, so initialize clean values if not provided
+        if (inventory.CurrentStock <= 0)
+        {
+            inventory.CurrentStock = 0;
+            inventory.CostPerUnit = 0;
+            inventory.LastPurchasePrice = 0;
+            inventory.TotalValue = 0;
+            inventory.Batches = new List<StockBatch>();
+        }
+        else
+        {
+            inventory.Batches ??= new List<StockBatch>();
+            if (inventory.Batches.Count == 0)
+            {
+                inventory.Batches.Add(new StockBatch
+                {
+                    Id = MongoDB.Bson.ObjectId.GenerateNewId().ToString(),
+                    BatchNumber = "INITIAL-STOCK",
+                    InitialQuantity = inventory.CurrentStock,
+                    RemainingQuantity = inventory.CurrentStock,
+                    CostPerUnit = inventory.CostPerUnit,
+                    PurchasePrice = inventory.LastPurchasePrice ?? (inventory.CurrentStock * inventory.CostPerUnit),
+                    SupplierName = inventory.SupplierName,
+                    ExpiryDate = inventory.ExpiryDate,
+                    ReceivedDate = MongoService.GetIstNow()
+                });
+            }
+            inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
+        }
+
         inventory.Status = DetermineStockStatus(inventory);
 
         await _inventory.InsertOneAsync(inventory);
@@ -151,12 +212,28 @@ public partial class MongoService : IInventoryRepository
 
     public async Task<bool> UpdateInventoryAsync(string id, Inventory inventory)
     {
-        // Ensure TotalValue is always calculated from CurrentStock * CostPerUnit
-        inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
-        inventory.UpdatedAt = MongoService.GetIstNow();
-        inventory.Status = DetermineStockStatus(inventory);
+        var existing = await GetInventoryByIdAsync(id);
+        if (existing == null) return false;
 
-        var result = await _inventory.ReplaceOneAsync(i => i.Id == id, inventory);
+        // Update configurable catalog fields only (Item Name, Category, Unit, Min/Max/Reorder Stock, Storage Location)
+        existing.IngredientName = inventory.IngredientName;
+        existing.Category = inventory.Category;
+        existing.Unit = inventory.Unit;
+        existing.MinimumStock = inventory.MinimumStock;
+        existing.MaximumStock = inventory.MaximumStock;
+        existing.ReorderQuantity = inventory.ReorderQuantity;
+        existing.StorageLocation = inventory.StorageLocation;
+
+        // Buy price, Cost per unit, and Stock remain auto-calculated and preserved from stock transactions
+        existing.UpdatedAt = MongoService.GetIstNow();
+        if (!string.IsNullOrEmpty(inventory.LastUpdatedBy))
+        {
+            existing.LastUpdatedBy = inventory.LastUpdatedBy;
+        }
+        existing.TotalValue = existing.CurrentStock * existing.CostPerUnit;
+        existing.Status = DetermineStockStatus(existing);
+
+        var result = await _inventory.ReplaceOneAsync(i => i.Id == id, existing);
         return result.ModifiedCount > 0;
     }
 
@@ -226,10 +303,32 @@ public partial class MongoService : IInventoryRepository
         }
     }
 
-    public async Task<bool> StockInAsync(string inventoryId, decimal quantity, decimal? costPerUnit, string? supplierName, string? referenceNumber, string performedBy)
+    public async Task<bool> StockInAsync(string inventoryId, decimal quantity, decimal? costPerUnit, string? supplierName, string? referenceNumber, string performedBy, DateTime? expiryDate = null, decimal? purchasePrice = null)
     {
         var inventory = await GetInventoryByIdAsync(inventoryId);
         if (inventory == null) return false;
+
+        inventory.Batches ??= new List<StockBatch>();
+
+        // Calculate unit cost if purchase price given but not costPerUnit
+        var effectiveCostPerUnit = costPerUnit ?? (purchasePrice.HasValue && quantity > 0 ? purchasePrice.Value / quantity : (decimal?)null);
+        var effectivePurchasePrice = purchasePrice ?? (effectiveCostPerUnit.HasValue ? effectiveCostPerUnit.Value * quantity : (decimal?)null);
+
+        // Create new stock batch
+        var newBatch = new StockBatch
+        {
+            BatchNumber = !string.IsNullOrWhiteSpace(referenceNumber) ? referenceNumber : $"BATCH-{MongoService.GetIstNow():yyMMddHHmmss}",
+            InitialQuantity = quantity,
+            RemainingQuantity = quantity,
+            CostPerUnit = effectiveCostPerUnit ?? inventory.CostPerUnit,
+            PurchasePrice = effectivePurchasePrice,
+            SupplierName = supplierName ?? inventory.SupplierName,
+            ReferenceNumber = referenceNumber,
+            ExpiryDate = expiryDate ?? inventory.ExpiryDate,
+            ReceivedDate = MongoService.GetIstNow()
+        };
+
+        inventory.Batches.Add(newBatch);
 
         var transaction = new InventoryTransaction
         {
@@ -238,12 +337,14 @@ public partial class MongoService : IInventoryRepository
             Type = TransactionType.StockIn,
             Quantity = quantity,
             Unit = inventory.Unit,
-            CostPerUnit = costPerUnit,
-            TotalCost = costPerUnit.HasValue ? quantity * costPerUnit.Value : null,
+            CostPerUnit = effectiveCostPerUnit,
+            TotalCost = effectivePurchasePrice,
             StockBefore = inventory.CurrentStock,
             StockAfter = inventory.CurrentStock + quantity,
             SupplierName = supplierName,
             ReferenceNumber = referenceNumber,
+            ExpiryDate = expiryDate,
+            BatchId = newBatch.Id,
             Reason = "Stock purchase/receipt",
             PerformedBy = performedBy,
             TransactionDate = MongoService.GetIstNow()
@@ -255,13 +356,47 @@ public partial class MongoService : IInventoryRepository
         try
         {
             inventory.CurrentStock += quantity;
-            
-            if (costPerUnit.HasValue)
+
+            // Compute weighted average cost per unit across all active batches (or fallback to running formula)
+            var activeBatches = inventory.Batches.Where(b => b.RemainingQuantity > 0).ToList();
+            if (activeBatches.Any())
             {
-                // Update cost per unit with weighted average
-                decimal totalCost = (inventory.CurrentStock - quantity) * inventory.CostPerUnit + quantity * costPerUnit.Value;
+                var totalActiveValue = activeBatches.Sum(b => b.RemainingQuantity * b.CostPerUnit);
+                var totalActiveQty = activeBatches.Sum(b => b.RemainingQuantity);
+                if (totalActiveQty > 0)
+                {
+                    inventory.CostPerUnit = totalActiveValue / totalActiveQty;
+                }
+            }
+            else if (effectiveCostPerUnit.HasValue)
+            {
+                decimal totalCost = (inventory.CurrentStock - quantity) * inventory.CostPerUnit + quantity * effectiveCostPerUnit.Value;
                 inventory.CostPerUnit = totalCost / inventory.CurrentStock;
-                inventory.LastPurchasePrice = costPerUnit.Value;
+            }
+
+            if (effectivePurchasePrice.HasValue)
+            {
+                inventory.LastPurchasePrice = effectivePurchasePrice.Value;
+            }
+            else if (effectiveCostPerUnit.HasValue)
+            {
+                inventory.LastPurchasePrice = effectiveCostPerUnit.Value;
+            }
+
+            // Expiry date is earliest active batch expiry date, or provided expiry date
+            var earliestActiveExpiry = inventory.Batches
+                .Where(b => b.RemainingQuantity > 0 && b.ExpiryDate.HasValue)
+                .OrderBy(b => b.ExpiryDate)
+                .Select(b => b.ExpiryDate)
+                .FirstOrDefault();
+
+            if (earliestActiveExpiry.HasValue)
+            {
+                inventory.ExpiryDate = earliestActiveExpiry;
+            }
+            else if (expiryDate.HasValue)
+            {
+                inventory.ExpiryDate = expiryDate;
             }
 
             inventory.LastPurchaseDate = MongoService.GetIstNow();
@@ -293,10 +428,57 @@ public partial class MongoService : IInventoryRepository
         }
     }
 
-    public async Task<bool> StockOutAsync(string inventoryId, decimal quantity, string reason, string performedBy)
+    public async Task<bool> StockOutAsync(string inventoryId, decimal quantity, string reason, string performedBy, string? batchId = null)
     {
         var inventory = await GetInventoryByIdAsync(inventoryId);
         if (inventory == null || inventory.CurrentStock < quantity) return false;
+
+        inventory.Batches ??= new List<StockBatch>();
+
+        decimal remainingToDeduct = quantity;
+        string? targetedBatchNumber = null;
+
+        if (!string.IsNullOrWhiteSpace(batchId))
+        {
+            var targetBatch = inventory.Batches.FirstOrDefault(b => b.Id == batchId && b.RemainingQuantity > 0);
+            if (targetBatch != null)
+            {
+                targetedBatchNumber = targetBatch.BatchNumber ?? targetBatch.Id;
+                if (targetBatch.RemainingQuantity < quantity)
+                {
+                    return false; // Cannot deduct more than is available in the selected batch
+                }
+
+                targetBatch.RemainingQuantity -= quantity;
+                remainingToDeduct = 0;
+            }
+        }
+
+        // If no specific batch targeted or fallback, deduct FIFO ordered by expiry date (earliest first), then received date
+        if (remainingToDeduct > 0)
+        {
+            var eligibleBatches = inventory.Batches
+                .Where(b => b.RemainingQuantity > 0)
+                .OrderBy(b => b.ExpiryDate ?? DateTime.MaxValue)
+                .ThenBy(b => b.ReceivedDate)
+                .ToList();
+
+            foreach (var batch in eligibleBatches)
+            {
+                if (remainingToDeduct <= 0) break;
+
+                if (batch.RemainingQuantity <= remainingToDeduct)
+                {
+                    remainingToDeduct -= batch.RemainingQuantity;
+                    batch.RemainingQuantity = 0;
+                }
+                else
+                {
+                    batch.RemainingQuantity -= remainingToDeduct;
+                    remainingToDeduct = 0;
+                }
+            }
+        }
 
         var transaction = new InventoryTransaction
         {
@@ -307,7 +489,8 @@ public partial class MongoService : IInventoryRepository
             Unit = inventory.Unit,
             StockBefore = inventory.CurrentStock,
             StockAfter = inventory.CurrentStock - quantity,
-            Reason = reason,
+            Reason = !string.IsNullOrEmpty(targetedBatchNumber) ? $"{reason} (Batch: {targetedBatchNumber})" : reason,
+            BatchId = batchId,
             PerformedBy = performedBy,
             TransactionDate = MongoService.GetIstNow()
         };
@@ -318,6 +501,30 @@ public partial class MongoService : IInventoryRepository
         try
         {
             inventory.CurrentStock -= quantity;
+
+            // Recalculate weighted cost per unit & earliest expiry date from remaining batches
+            var activeBatches = inventory.Batches.Where(b => b.RemainingQuantity > 0).ToList();
+            if (activeBatches.Any())
+            {
+                var totalActiveValue = activeBatches.Sum(b => b.RemainingQuantity * b.CostPerUnit);
+                var totalActiveQty = activeBatches.Sum(b => b.RemainingQuantity);
+                if (totalActiveQty > 0)
+                {
+                    inventory.CostPerUnit = totalActiveValue / totalActiveQty;
+                }
+
+                var earliestActiveExpiry = activeBatches
+                    .Where(b => b.ExpiryDate.HasValue)
+                    .OrderBy(b => b.ExpiryDate)
+                    .Select(b => b.ExpiryDate)
+                    .FirstOrDefault();
+
+                if (earliestActiveExpiry.HasValue)
+                {
+                    inventory.ExpiryDate = earliestActiveExpiry;
+                }
+            }
+
             inventory.UpdatedAt = MongoService.GetIstNow();
             inventory.LastUpdatedBy = performedBy;
             inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
@@ -337,6 +544,352 @@ public partial class MongoService : IInventoryRepository
             await _inventoryTransactions.DeleteOneAsync(t => t.Id == transaction.Id);
             throw;
         }
+    }
+
+    // ==== 1-CLICK WASTAGE LOGGING FOR BATCHES ====
+
+    public async Task<LogBatchWastageResult> LogBatchWastageAsync(string inventoryId, LogBatchWastageRequest request)
+    {
+        var inventory = await GetInventoryByIdAsync(inventoryId);
+        if (inventory == null)
+        {
+            return new LogBatchWastageResult { Success = false, Message = "Inventory item not found" };
+        }
+
+        inventory.Batches ??= new List<StockBatch>();
+
+        // Find target batch if specified, otherwise pick earliest expired/expiring batch
+        StockBatch? targetBatch = null;
+        if (!string.IsNullOrWhiteSpace(request.BatchId))
+        {
+            targetBatch = inventory.Batches.FirstOrDefault(b => b.Id == request.BatchId);
+        }
+
+        if (targetBatch == null)
+        {
+            targetBatch = inventory.Batches
+                .Where(b => b.RemainingQuantity > 0)
+                .OrderBy(b => b.ExpiryDate ?? DateTime.MaxValue)
+                .ThenBy(b => b.ReceivedDate)
+                .FirstOrDefault();
+        }
+
+        if (targetBatch == null)
+        {
+            return new LogBatchWastageResult { Success = false, Message = "No active batch found with stock to waste" };
+        }
+
+        decimal qtyToWaste = request.Quantity > 0 ? Math.Min(request.Quantity, targetBatch.RemainingQuantity) : targetBatch.RemainingQuantity;
+        if (qtyToWaste <= 0)
+        {
+            return new LogBatchWastageResult { Success = false, Message = "Quantity to waste must be greater than zero" };
+        }
+
+        decimal unitCost = targetBatch.CostPerUnit > 0 ? targetBatch.CostPerUnit : inventory.CostPerUnit;
+        decimal financialLoss = Math.Round(qtyToWaste * unitCost, 2);
+
+        // Deduct from batch
+        targetBatch.RemainingQuantity -= qtyToWaste;
+        inventory.CurrentStock = Math.Max(0, inventory.CurrentStock - qtyToWaste);
+
+        // Recalculate inventory cost and earliest expiry
+        var activeBatches = inventory.Batches.Where(b => b.RemainingQuantity > 0).ToList();
+        if (activeBatches.Any())
+        {
+            var totalActiveVal = activeBatches.Sum(b => b.RemainingQuantity * b.CostPerUnit);
+            var totalActiveQty = activeBatches.Sum(b => b.RemainingQuantity);
+            if (totalActiveQty > 0)
+            {
+                inventory.CostPerUnit = totalActiveVal / totalActiveQty;
+            }
+            var earliestExp = activeBatches.Where(b => b.ExpiryDate.HasValue).OrderBy(b => b.ExpiryDate).Select(b => b.ExpiryDate).FirstOrDefault();
+            if (earliestExp.HasValue) inventory.ExpiryDate = earliestExp;
+        }
+
+        inventory.UpdatedAt = MongoService.GetIstNow();
+        inventory.LastUpdatedBy = request.PerformedBy ?? "admin";
+        inventory.TotalValue = inventory.CurrentStock * inventory.CostPerUnit;
+        inventory.Status = DetermineStockStatus(inventory);
+
+        // Record Inventory Transaction
+        var transaction = new InventoryTransaction
+        {
+            InventoryId = inventoryId,
+            IngredientName = inventory.IngredientName,
+            Type = TransactionType.Wastage,
+            Quantity = qtyToWaste,
+            Unit = inventory.Unit,
+            CostPerUnit = unitCost,
+            TotalCost = financialLoss,
+            StockBefore = inventory.CurrentStock + qtyToWaste,
+            StockAfter = inventory.CurrentStock,
+            Reason = $"Wastage: {request.Reason} (Batch: {targetBatch.BatchNumber ?? targetBatch.Id})",
+            BatchId = targetBatch.Id,
+            PerformedBy = request.PerformedBy ?? "admin",
+            TransactionDate = MongoService.GetIstNow()
+        };
+        await _inventoryTransactions.InsertOneAsync(transaction);
+
+        // Record in WastageRecords module
+        var wastageRecord = new WastageRecord
+        {
+            OutletId = inventory.OutletId ?? "default",
+            Date = MongoService.GetIstNow(),
+            Reason = !string.IsNullOrWhiteSpace(request.Reason) ? request.Reason.ToLowerInvariant() : "expired",
+            Notes = $"Item: {inventory.IngredientName}, Batch: {targetBatch.BatchNumber ?? targetBatch.Id}. {request.Notes}".Trim(),
+            RecordedBy = request.PerformedBy ?? "admin",
+            Items = new List<WastageItem>
+            {
+                new WastageItem
+                {
+                    ItemName = inventory.IngredientName,
+                    IngredientId = inventory.IngredientId,
+                    Quantity = qtyToWaste,
+                    Unit = inventory.Unit,
+                    CostPerUnit = unitCost,
+                    TotalCost = financialLoss
+                }
+            },
+            TotalValue = financialLoss,
+            CreatedAt = MongoService.GetIstNow()
+        };
+        await _wastageRecords.InsertOneAsync(wastageRecord);
+
+        await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
+
+        return new LogBatchWastageResult
+        {
+            Success = true,
+            Message = $"Logged {qtyToWaste} {inventory.Unit} of {inventory.IngredientName} as wastage (Loss: ₹{financialLoss:F2})",
+            QuantityWasted = qtyToWaste,
+            Unit = inventory.Unit,
+            FinancialLoss = financialLoss,
+            RemainingStock = inventory.CurrentStock,
+            WastageRecordId = wastageRecord.Id
+        };
+    }
+
+    // ==== RECIPE-INVENTORY SYNC DEDUCTIONS ====
+
+    public async Task<int> DeductInventoryForOrderRecipesAsync(Order order)
+    {
+        if (order == null || order.Items == null || order.Items.Count == 0) return 0;
+        if (order.InventoryDeducted) return 0; // Prevent double deduction
+
+        int ingredientsDeductedCount = 0;
+        var outletId = order.OutletId;
+
+        // Fetch all active recipes
+        var allRecipes = await _recipes.Find(_ => true).ToListAsync();
+        if (allRecipes.Count == 0) return 0;
+
+        foreach (var orderItem in order.Items)
+        {
+            var matchingRecipe = allRecipes.FirstOrDefault(r =>
+                (!string.IsNullOrEmpty(r.MenuItemId) && r.MenuItemId == orderItem.MenuItemId) ||
+                string.Equals(r.MenuItemName?.Trim(), orderItem.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            if (matchingRecipe == null || matchingRecipe.Ingredients == null || matchingRecipe.Ingredients.Count == 0)
+            {
+                continue;
+            }
+
+            decimal orderItemQty = orderItem.Quantity > 0 ? orderItem.Quantity : 1;
+
+            foreach (var ingredientUsage in matchingRecipe.Ingredients)
+            {
+                decimal totalDeductQty = ingredientUsage.Quantity * orderItemQty;
+                if (totalDeductQty <= 0) continue;
+
+                // Find matching inventory item by IngredientId or Name and outlet
+                Inventory? invItem = null;
+                if (!string.IsNullOrEmpty(ingredientUsage.IngredientId))
+                {
+                    var filter = Builders<Inventory>.Filter.Eq(i => i.IngredientId, ingredientUsage.IngredientId);
+                    if (!string.IsNullOrEmpty(outletId))
+                    {
+                        filter = Builders<Inventory>.Filter.And(filter, Builders<Inventory>.Filter.Eq(i => i.OutletId, outletId));
+                    }
+                    invItem = await _inventory.Find(filter).FirstOrDefaultAsync();
+                }
+
+                if (invItem == null && !string.IsNullOrEmpty(ingredientUsage.IngredientName))
+                {
+                    var filter = Builders<Inventory>.Filter.Regex(i => i.IngredientName,
+                        new MongoDB.Bson.BsonRegularExpression($"^{System.Text.RegularExpressions.Regex.Escape(ingredientUsage.IngredientName.Trim())}$", "i"));
+                    if (!string.IsNullOrEmpty(outletId))
+                    {
+                        filter = Builders<Inventory>.Filter.And(filter, Builders<Inventory>.Filter.Eq(i => i.OutletId, outletId));
+                    }
+                    invItem = await _inventory.Find(filter).FirstOrDefaultAsync();
+                }
+
+                if (invItem != null && invItem.Id != null)
+                {
+                    try
+                    {
+                        await StockOutAsync(
+                            invItem.Id,
+                            totalDeductQty,
+                            $"Recipe sync: Order #{order.Id?[^6..]} ({orderItem.Name} x{orderItemQty})",
+                            "Kitchen-KOT"
+                        );
+                        ingredientsDeductedCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to auto-deduct recipe inventory for {Ingredient} in order {OrderId}", ingredientUsage.IngredientName, order.Id);
+                    }
+                }
+            }
+        }
+
+        // Mark order as inventory deducted
+        if (order.Id != null)
+        {
+            await _orders.UpdateOneAsync(
+                Builders<Order>.Filter.Eq(o => o.Id, order.Id),
+                Builders<Order>.Update.Set(o => o.InventoryDeducted, true)
+            );
+        }
+
+        return ingredientsDeductedCount;
+    }
+
+    // ==== BULK UPLOAD INVENTORY (EXCEL) ====
+
+    public async Task<BulkUploadInventoryResult> BulkUploadInventoryAsync(List<InventoryItemUpload> items, string outletId, string performedBy)
+    {
+        var result = new BulkUploadInventoryResult
+        {
+            Total = items?.Count ?? 0
+        };
+
+        if (items == null || items.Count == 0)
+        {
+            result.Message = "No items provided in upload file";
+            return result;
+        }
+
+        int rowIndex = 1; // Header is row 1
+        foreach (var item in items)
+        {
+            rowIndex++;
+            try
+            {
+                if (string.IsNullOrWhiteSpace(item.ItemName))
+                {
+                    result.Errors.Add($"Row {rowIndex}: Item name is required");
+                    result.Failed++;
+                    continue;
+                }
+
+                var itemName = item.ItemName.Trim();
+                var category = !string.IsNullOrWhiteSpace(item.Category) ? item.Category.Trim() : "Other";
+                var unit = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "kg";
+                var minStock = item.MinimumStock >= 0 ? item.MinimumStock : 5;
+                var maxStock = item.MaximumStock >= 0 ? item.MaximumStock : 50;
+                var reorderQty = item.ReorderQuantity >= 0 ? item.ReorderQuantity : 10;
+                var storageLocation = item.StorageLocation?.Trim();
+
+                // Look for existing inventory item by name in this outlet (case-insensitive)
+                var existing = await _inventory
+                    .Find(i => i.OutletId == outletId &&
+                               i.IngredientName.ToLower() == itemName.ToLower())
+                    .FirstOrDefaultAsync();
+
+                if (existing != null)
+                {
+                    // Update catalog properties
+                    existing.Category = category;
+                    existing.Unit = unit;
+                    existing.MinimumStock = minStock;
+                    existing.MaximumStock = maxStock;
+                    existing.ReorderQuantity = reorderQty;
+                    if (!string.IsNullOrEmpty(storageLocation))
+                    {
+                        existing.StorageLocation = storageLocation;
+                    }
+                    existing.UpdatedAt = MongoService.GetIstNow();
+                    existing.LastUpdatedBy = performedBy;
+
+                    await _inventory.ReplaceOneAsync(i => i.Id == existing.Id, existing);
+
+                    // If initial stock > 0 was provided, add as a new batch
+                    if (item.InitialStock > 0)
+                    {
+                        decimal? unitCost = item.CostPerUnit > 0 ? item.CostPerUnit : (decimal?)null;
+                        await StockInAsync(
+                            existing.Id!,
+                            item.InitialStock,
+                            unitCost,
+                            item.SupplierName ?? existing.SupplierName,
+                            "EXCEL-UPLOAD",
+                            performedBy,
+                            item.ExpiryDate,
+                            unitCost.HasValue ? item.InitialStock * unitCost.Value : (decimal?)null
+                        );
+                    }
+
+                    result.Success++;
+                }
+                else
+                {
+                    // Create new inventory item
+                    var newInventory = new Inventory
+                    {
+                        OutletId = outletId,
+                        IngredientName = itemName,
+                        Category = category,
+                        Unit = unit,
+                        MinimumStock = minStock,
+                        MaximumStock = maxStock,
+                        ReorderQuantity = reorderQty,
+                        StorageLocation = storageLocation,
+                        CurrentStock = 0,
+                        CostPerUnit = 0,
+                        LastPurchasePrice = 0,
+                        TotalValue = 0,
+                        Status = StockStatus.OutOfStock,
+                        IsActive = true,
+                        CreatedAt = MongoService.GetIstNow(),
+                        UpdatedAt = MongoService.GetIstNow(),
+                        CreatedBy = performedBy,
+                        LastUpdatedBy = performedBy,
+                        Batches = new List<StockBatch>()
+                    };
+
+                    await _inventory.InsertOneAsync(newInventory);
+
+                    // If initial stock > 0, record as batch via StockInAsync
+                    if (item.InitialStock > 0)
+                    {
+                        decimal? unitCost = item.CostPerUnit > 0 ? item.CostPerUnit : (decimal?)null;
+                        await StockInAsync(
+                            newInventory.Id!,
+                            item.InitialStock,
+                            unitCost,
+                            item.SupplierName,
+                            "EXCEL-UPLOAD",
+                            performedBy,
+                            item.ExpiryDate,
+                            unitCost.HasValue ? item.InitialStock * unitCost.Value : (decimal?)null
+                        );
+                    }
+
+                    result.Success++;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing bulk inventory upload row {Row}: {ItemName}", rowIndex, item.ItemName);
+                result.Errors.Add($"Row {rowIndex} ({item.ItemName}): {ex.Message}");
+                result.Failed++;
+            }
+        }
+
+        result.Message = $"Processed {result.Total} rows: {result.Success} succeeded, {result.Failed} failed.";
+        return result;
     }
 
     // ==== TRANSACTIONS ====
@@ -488,12 +1041,19 @@ public partial class MongoService : IInventoryRepository
             }
         }
 
-        // Check for expiring stock
-        if (inventory.ExpiryDate.HasValue)
+        // Check for expiring stock (considering category-specific shelf-life thresholds)
+        var earliestExpiry = inventory.Batches?
+            .Where(b => b.RemainingQuantity > 0 && b.ExpiryDate.HasValue)
+            .OrderBy(b => b.ExpiryDate)
+            .Select(b => b.ExpiryDate)
+            .FirstOrDefault() ?? inventory.ExpiryDate;
+
+        if (earliestExpiry.HasValue)
         {
-            var daysUntilExpiry = (inventory.ExpiryDate.Value - MongoService.GetIstNow()).Days;
+            var daysUntilExpiry = (earliestExpiry.Value.Date - MongoService.GetIstNow().Date).Days;
+            var warningThreshold = GetCategoryExpiryWarningDays(inventory.Category);
             
-            if (daysUntilExpiry <= 7 && daysUntilExpiry > 0)
+            if (daysUntilExpiry <= warningThreshold && daysUntilExpiry > 0)
             {
                 var existingAlert = await _stockAlerts.Find(a =>
                     a.InventoryId == inventory.Id &&
@@ -507,8 +1067,8 @@ public partial class MongoService : IInventoryRepository
                         InventoryId = inventory.Id,
                         IngredientName = inventory.IngredientName,
                         Type = AlertType.ExpiringStock,
-                        Severity = daysUntilExpiry <= 3 ? AlertSeverity.Critical : AlertSeverity.Warning,
-                        Message = $"{inventory.IngredientName} expires in {daysUntilExpiry} days",
+                        Severity = daysUntilExpiry <= 1 ? AlertSeverity.Critical : AlertSeverity.Warning,
+                        Message = $"{inventory.IngredientName} ({inventory.Category}) expires in {daysUntilExpiry} {(daysUntilExpiry == 1 ? "day" : "days")} (Threshold: {warningThreshold}d)",
                         CurrentStock = inventory.CurrentStock,
                         CreatedAt = MongoService.GetIstNow()
                     });
@@ -542,60 +1102,226 @@ public partial class MongoService : IInventoryRepository
 
     public async Task<InventoryReport> GetInventoryReportAsync()
     {
-        var allInventory = await GetActiveInventoryAsync();
+        return await GetInventoryReportAsync(null);
+    }
 
-        var report = new InventoryReport
+    public async Task<InventoryReport> GetInventoryReportAsync(string? outletId)
+    {
+        var allInventory = await GetActiveInventoryAsync(outletId);
+        foreach (var item in allInventory)
+        {
+            EnsureBatchesPopulated(item);
+        }
+
+        var today = MongoService.GetIstNow().Date;
+
+        var inStock = allInventory.Count(i => i.Status == StockStatus.InStock);
+        var lowStock = allInventory.Count(i => i.Status == StockStatus.LowStock);
+        var outOfStock = allInventory.Count(i => i.Status == StockStatus.OutOfStock);
+        var expiring = allInventory.Count(i => i.Status == StockStatus.Expiring);
+        var totalValue = allInventory.Sum(i => i.TotalValue);
+
+        // Compute total batches & active batches
+        int totalBatches = 0;
+        int activeBatches = 0;
+        var expiringBatchesList = new List<ExpiringBatchItem>();
+
+        foreach (var inv in allInventory)
+        {
+            if (inv.Batches == null) continue;
+            totalBatches += inv.Batches.Count;
+
+            foreach (var b in inv.Batches.Where(b => b.RemainingQuantity > 0))
+            {
+                activeBatches++;
+
+                if (b.ExpiryDate.HasValue)
+                {
+                    int daysLeft = (b.ExpiryDate.Value.Date - today).Days;
+                    int threshold = GetCategoryExpiryWarningDays(inv.Category);
+
+                    if (daysLeft <= Math.Max(30, threshold))
+                    {
+                        string urgency = daysLeft < 0 ? "expired"
+                            : (daysLeft <= 1 ? "critical"
+                            : (daysLeft <= threshold ? "warning" : "good"));
+
+                        expiringBatchesList.Add(new ExpiringBatchItem
+                        {
+                            InventoryId = inv.Id ?? string.Empty,
+                            ItemName = inv.IngredientName,
+                            Category = inv.Category,
+                            BatchId = b.Id,
+                            BatchNumber = b.BatchNumber ?? b.ReferenceNumber ?? "Batch",
+                            RemainingQuantity = b.RemainingQuantity,
+                            Unit = inv.Unit,
+                            CostPerUnit = b.CostPerUnit > 0 ? b.CostPerUnit : inv.CostPerUnit,
+                            BatchValue = b.RemainingQuantity * (b.CostPerUnit > 0 ? b.CostPerUnit : inv.CostPerUnit),
+                            ExpiryDate = b.ExpiryDate,
+                            DaysRemaining = daysLeft,
+                            ShelfLifeThresholdDays = threshold,
+                            Urgency = urgency
+                        });
+                    }
+                }
+            }
+        }
+
+        // 30-day Wastage Loss
+        decimal monthlyWastageLoss = 0;
+        try
+        {
+            var thirtyDaysAgo = MongoService.GetIstNow().AddDays(-30);
+            var wastageFilterBuilder = Builders<WastageRecord>.Filter;
+            var wastageFilter = wastageFilterBuilder.Gte(w => w.Date, thirtyDaysAgo);
+            if (!string.IsNullOrEmpty(outletId))
+            {
+                wastageFilter = wastageFilterBuilder.And(wastageFilter, wastageFilterBuilder.Eq(w => w.OutletId, outletId));
+            }
+            var recentWastage = await _wastageRecords.Find(wastageFilter).ToListAsync();
+            monthlyWastageLoss = recentWastage.Sum(w => w.TotalValue);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to compute monthly wastage loss for inventory report");
+        }
+
+        // Category Summaries
+        var categorySummaries = allInventory
+            .GroupBy(i => !string.IsNullOrWhiteSpace(i.Category) ? i.Category : "Other")
+            .Select(g =>
+            {
+                var catValue = g.Sum(x => x.TotalValue);
+                return new CategoryInventorySummary
+                {
+                    Category = g.Key,
+                    ItemCount = g.Count(),
+                    TotalValue = catValue,
+                    PercentageOfTotal = totalValue > 0 ? Math.Round((catValue / totalValue) * 100, 1) : 0,
+                    LowStockCount = g.Count(x => x.Status == StockStatus.LowStock),
+                    OutOfStockCount = g.Count(x => x.Status == StockStatus.OutOfStock)
+                };
+            })
+            .OrderByDescending(c => c.TotalValue)
+            .ToList();
+
+        // Critical Items with expiry insights
+        var criticalItems = allInventory
+            .Where(i => i.Status == StockStatus.OutOfStock || i.Status == StockStatus.LowStock || i.Status == StockStatus.Expiring)
+            .Select(i =>
+            {
+                var earliestBatchExpiry = i.Batches?
+                    .Where(b => b.RemainingQuantity > 0 && b.ExpiryDate.HasValue)
+                    .OrderBy(b => b.ExpiryDate)
+                    .Select(b => b.ExpiryDate)
+                    .FirstOrDefault() ?? i.ExpiryDate;
+
+                int? daysUntilExp = earliestBatchExpiry.HasValue ? (earliestBatchExpiry.Value.Date - today).Days : null;
+
+                return new InventoryItem
+                {
+                    Id = i.Id,
+                    Name = i.IngredientName,
+                    Category = i.Category,
+                    CurrentStock = i.CurrentStock,
+                    MinimumStock = i.MinimumStock,
+                    Unit = i.Unit,
+                    Value = i.TotalValue,
+                    CostPerUnit = i.CostPerUnit,
+                    EarliestExpiryDate = earliestBatchExpiry,
+                    DaysUntilExpiry = daysUntilExp,
+                    Status = i.Status
+                };
+            })
+            .OrderBy(i => i.Status == StockStatus.OutOfStock ? 0 : (i.Status == StockStatus.Expiring ? 1 : 2))
+            .ThenBy(i => i.DaysUntilExpiry ?? 999)
+            .Take(15)
+            .ToList();
+
+        // Top value items
+        var topValueItems = allInventory
+            .OrderByDescending(i => i.TotalValue)
+            .Take(6)
+            .Select(i => new InventoryItem
+            {
+                Id = i.Id,
+                Name = i.IngredientName,
+                Category = i.Category,
+                CurrentStock = i.CurrentStock,
+                Unit = i.Unit,
+                Value = i.TotalValue,
+                CostPerUnit = i.CostPerUnit,
+                Status = i.Status
+            })
+            .ToList();
+
+        // Recent transactions
+        List<InventoryTransaction> recentTransactions;
+        try
+        {
+            recentTransactions = await GetRecentTransactionsAsync(10, outletId);
+        }
+        catch
+        {
+            recentTransactions = await GetRecentTransactionsAsync(10);
+        }
+
+        return new InventoryReport
         {
             TotalItems = allInventory.Count,
-            InStockItems = allInventory.Count(i => i.Status == StockStatus.InStock),
-            LowStockItems = allInventory.Count(i => i.Status == StockStatus.LowStock),
-            OutOfStockItems = allInventory.Count(i => i.Status == StockStatus.OutOfStock),
-            ExpiringItems = allInventory.Count(i => i.Status == StockStatus.Expiring),
-            TotalInventoryValue = allInventory.Sum(i => i.TotalValue),
-            AverageCostPerItem = allInventory.Any() ? allInventory.Average(i => i.TotalValue) : 0,
-            TopValueItems = allInventory.OrderByDescending(i => i.TotalValue)
-                .Take(10)
-                .Select(i => new InventoryItem
-                {
-                    Id = i.Id,
-                    Name = i.IngredientName,
-                    Category = i.Category,
-                    CurrentStock = i.CurrentStock,
-                    Unit = i.Unit,
-                    Value = i.TotalValue,
-                    Status = i.Status
-                }).ToList(),
-            CriticalItems = allInventory.Where(i =>
-                i.Status == StockStatus.OutOfStock ||
-                i.Status == StockStatus.LowStock ||
-                i.Status == StockStatus.Expiring)
-                .Select(i => new InventoryItem
-                {
-                    Id = i.Id,
-                    Name = i.IngredientName,
-                    Category = i.Category,
-                    CurrentStock = i.CurrentStock,
-                    Unit = i.Unit,
-                    Value = i.TotalValue,
-                    Status = i.Status
-                }).ToList(),
-            RecentTransactions = await GetRecentTransactionsAsync(10)
+            ActiveItems = allInventory.Count(i => i.IsActive),
+            InStockItems = inStock,
+            LowStockItems = lowStock,
+            OutOfStockItems = outOfStock,
+            ExpiringItems = expiring,
+            TotalBatchesCount = totalBatches,
+            ActiveBatchesCount = activeBatches,
+            TotalInventoryValue = totalValue,
+            AverageCostPerItem = allInventory.Any() ? Math.Round(totalValue / allInventory.Count, 2) : 0,
+            MonthlyWastageLoss = monthlyWastageLoss,
+            LastUpdated = MongoService.GetIstNow(),
+            TopValueItems = topValueItems,
+            CriticalItems = criticalItems,
+            ExpiringBatches = expiringBatchesList.OrderBy(b => b.DaysRemaining).Take(10).ToList(),
+            CategorySummaries = categorySummaries,
+            RecentTransactions = recentTransactions
         };
-
-        return report;
     }
 
     // ==== HELPER METHODS ====
+
+    private int GetCategoryExpiryWarningDays(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category)) return 7;
+        var lower = category.Trim().ToLowerInvariant();
+        if (lower.Contains("chicken") || lower.Contains("meat") || lower.Contains("poultry") || lower.Contains("fish") || lower.Contains("seafood"))
+            return 1;
+        if (lower.Contains("vegetable") || lower.Contains("fruit") || lower.Contains("produce") || lower.Contains("herb"))
+            return 2;
+        if (lower.Contains("bakery") || lower.Contains("bread") || lower.Contains("pastry") || lower.Contains("dairy") || lower.Contains("milk"))
+            return 3;
+        if (lower.Contains("frozen"))
+            return 30; // 1 month
+        return 7; // Default 7 days
+    }
 
     private StockStatus DetermineStockStatus(Inventory inventory)
     {
         if (inventory.CurrentStock == 0)
             return StockStatus.OutOfStock;
 
-        if (inventory.ExpiryDate.HasValue)
+        // Check earliest expiry across batches or direct ExpiryDate
+        var earliestExpiry = inventory.Batches?
+            .Where(b => b.RemainingQuantity > 0 && b.ExpiryDate.HasValue)
+            .OrderBy(b => b.ExpiryDate)
+            .Select(b => b.ExpiryDate)
+            .FirstOrDefault() ?? inventory.ExpiryDate;
+
+        if (earliestExpiry.HasValue)
         {
-            var daysUntilExpiry = (inventory.ExpiryDate.Value - MongoService.GetIstNow()).Days;
-            if (daysUntilExpiry <= 7)
+            var daysUntilExpiry = (earliestExpiry.Value.Date - MongoService.GetIstNow().Date).Days;
+            var warningThreshold = GetCategoryExpiryWarningDays(inventory.Category);
+            if (daysUntilExpiry <= warningThreshold)
                 return StockStatus.Expiring;
         }
 

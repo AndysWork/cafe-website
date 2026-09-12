@@ -269,6 +269,23 @@ public class KitchenDisplayFunction
                 return conflict;
             }
 
+            // Recipe-Inventory Sync: When kitchen accepts order into 'preparing' or 'ready', deduct inventory ingredients
+            if ((requestedStatus == "preparing" || requestedStatus == "ready") && !order.InventoryDeducted)
+            {
+                try
+                {
+                    var deductedCount = await _mongo.DeductInventoryForOrderRecipesAsync(order);
+                    if (deductedCount > 0)
+                    {
+                        _log.LogInformation("Deducted {Count} inventory recipe ingredients for Order {OrderId}", deductedCount, order.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "Failed to sync inventory recipes for Order {OrderId}", order.Id);
+                }
+            }
+
             var deliveryNotificationQueued = false;
             if (requestedStatus == "ready"
                 && string.Equals(order.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)

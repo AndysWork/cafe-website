@@ -12,12 +12,14 @@ namespace Cafe.Api.Functions;
 public class KotFunction
 {
     private readonly IOrderRepository _mongo;
+    private readonly IInventoryRepository _inventoryRepo;
     private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public KotFunction(IOrderRepository mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public KotFunction(IOrderRepository mongo, IInventoryRepository inventoryRepo, AuthService auth, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
+        _inventoryRepo = inventoryRepo;
         _auth = auth;
         _log = loggerFactory.CreateLogger<KotFunction>();
     }
@@ -88,6 +90,23 @@ public class KotFunction
             sb.AppendLine("");
 
             var kotText = sb.ToString();
+
+            // Recipe-Inventory Sync: When KOT is generated/dispatched, auto-deduct recipe inventory if not yet deducted
+            if (!order.InventoryDeducted)
+            {
+                try
+                {
+                    var count = await _inventoryRepo.DeductInventoryForOrderRecipesAsync(order);
+                    if (count > 0)
+                    {
+                        _log.LogInformation("KOT dispatch auto-deducted {Count} recipe ingredients for Order {OrderId}", count, order.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "Failed to auto-deduct recipe inventory during KOT generation for Order {OrderId}", order.Id);
+                }
+            }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
