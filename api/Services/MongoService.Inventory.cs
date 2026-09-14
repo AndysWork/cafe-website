@@ -169,6 +169,72 @@ public partial class MongoService : IInventoryRepository
             .ToListAsync();
     }
 
+    private async Task SyncInventoryItemToIngredientAsync(Inventory inventory)
+    {
+        if (inventory == null || string.IsNullOrWhiteSpace(inventory.IngredientName)) return;
+
+        try
+        {
+            var normName = inventory.IngredientName.Trim();
+            var price = inventory.CostPerUnit > 0 ? inventory.CostPerUnit : (inventory.LastPurchasePrice ?? 0);
+
+            Ingredient? existing = null;
+            if (!string.IsNullOrEmpty(inventory.IngredientId))
+            {
+                existing = await _ingredients.Find(i => i.Id == inventory.IngredientId).FirstOrDefaultAsync();
+            }
+
+            if (existing == null)
+            {
+                existing = await _ingredients.Find(i =>
+                    i.Name.ToLower() == normName.ToLower() &&
+                    (i.OutletId == inventory.OutletId || i.OutletId == null) &&
+                    i.IsDeleted != true
+                ).FirstOrDefaultAsync();
+            }
+
+            if (existing != null)
+            {
+                existing.Name = normName;
+                existing.Category = inventory.Category;
+                existing.Unit = inventory.Unit;
+                if (price > 0)
+                {
+                    existing.MarketPrice = price;
+                }
+                existing.IsActive = inventory.IsActive;
+                existing.UpdatedAt = MongoService.GetIstNow();
+                existing.LastUpdated = MongoService.GetIstNow();
+                existing.PriceSource = "inventory";
+
+                await _ingredients.ReplaceOneAsync(i => i.Id == existing.Id, existing);
+                inventory.IngredientId = existing.Id;
+            }
+            else
+            {
+                var newIng = new Ingredient
+                {
+                    Name = normName,
+                    Category = inventory.Category,
+                    Unit = inventory.Unit,
+                    MarketPrice = price,
+                    OutletId = inventory.OutletId,
+                    IsActive = inventory.IsActive,
+                    PriceSource = "inventory",
+                    CreatedAt = MongoService.GetIstNow(),
+                    UpdatedAt = MongoService.GetIstNow(),
+                    LastUpdated = MongoService.GetIstNow()
+                };
+                await _ingredients.InsertOneAsync(newIng);
+                inventory.IngredientId = newIng.Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync inventory item {ItemName} to ingredients collection", inventory.IngredientName);
+        }
+    }
+
     public async Task<Inventory> CreateInventoryAsync(Inventory inventory)
     {
         inventory.CreatedAt = MongoService.GetIstNow();
@@ -206,6 +272,9 @@ public partial class MongoService : IInventoryRepository
 
         inventory.Status = DetermineStockStatus(inventory);
 
+        // Sync with ingredients collection so Price Calculator immediately recognizes it
+        await SyncInventoryItemToIngredientAsync(inventory);
+
         await _inventory.InsertOneAsync(inventory);
         return inventory;
     }
@@ -232,6 +301,8 @@ public partial class MongoService : IInventoryRepository
         }
         existing.TotalValue = existing.CurrentStock * existing.CostPerUnit;
         existing.Status = DetermineStockStatus(existing);
+
+        await SyncInventoryItemToIngredientAsync(existing);
 
         var result = await _inventory.ReplaceOneAsync(i => i.Id == id, existing);
         return result.ModifiedCount > 0;
@@ -413,6 +484,9 @@ public partial class MongoService : IInventoryRepository
             inventory.Status = DetermineStockStatus(inventory);
 
             var result = await _inventory.ReplaceOneAsync(i => i.Id == inventoryId, inventory);
+
+            // Sync updated cost per unit to ingredient record
+            await SyncInventoryItemToIngredientAsync(inventory);
 
             // Resolve alerts (best-effort)
             try { await ResolveAlertsAsync(inventoryId, new[] { AlertType.LowStock, AlertType.OutOfStock }, performedBy); }
@@ -814,6 +888,7 @@ public partial class MongoService : IInventoryRepository
                     existing.LastUpdatedBy = performedBy;
 
                     await _inventory.ReplaceOneAsync(i => i.Id == existing.Id, existing);
+                    await SyncInventoryItemToIngredientAsync(existing);
 
                     // If initial stock > 0 was provided, add as a new batch
                     if (item.InitialStock > 0)
@@ -860,6 +935,7 @@ public partial class MongoService : IInventoryRepository
                     };
 
                     await _inventory.InsertOneAsync(newInventory);
+                    await SyncInventoryItemToIngredientAsync(newInventory);
 
                     // If initial stock > 0, record as batch via StockInAsync
                     if (item.InitialStock > 0)
@@ -891,6 +967,191 @@ public partial class MongoService : IInventoryRepository
         result.Message = $"Processed {result.Total} rows: {result.Success} succeeded, {result.Failed} failed.";
         return result;
     }
+
+    // ==== TRANSACTIONS ====
+
+    #region Inventory Categories (Outlet-Scoped)
+
+    public async Task<List<InventoryCategory>> GetInventoryCategoriesAsync(string outletId)
+    {
+        if (string.IsNullOrWhiteSpace(outletId))
+            return new List<InventoryCategory>();
+
+        var filter = Builders<InventoryCategory>.Filter.And(
+            Builders<InventoryCategory>.Filter.Eq(c => c.OutletId, outletId),
+            Builders<InventoryCategory>.Filter.Ne(c => c.IsDeleted, true)
+        );
+
+        var categories = await _inventoryCategories.Find(filter)
+            .SortBy(c => c.DisplayOrder)
+            .ThenBy(c => c.Name)
+            .ToListAsync();
+
+        if (categories.Count == 0)
+        {
+            // Seed default inventory categories for this outlet
+            var defaults = new (string Name, string Description, int ShelfLife, int Order)[]
+            {
+                ("Vegetables", "Fresh produce, greens, herbs, and root vegetables", 2, 1),
+                ("Dairy", "Milk, cheese, butter, cream, and paneer", 3, 2),
+                ("Meats", "Fresh and chilled poultry, chicken, mutton, seafood", 1, 3),
+                ("Bakery", "Breads, buns, burger rolls, pizza bases, pastry", 3, 4),
+                ("frozen", "Frozen patties, fries, nuggets, and pre-prepped items", 30, 5),
+                ("Beverages", "Coffee beans, tea leaves, syrups, juices, concentrates", 90, 6),
+                ("Spices", "Whole spices, ground seasonings, masalas, and salt", 180, 7),
+                ("Oils", "Cooking oil, deep-frying fats, olive oil, ghee", 180, 8),
+                ("Grains", "Rice, flour, pasta, grains, and dry pulses", 180, 9),
+                ("Sauces", "Ketchup, mayonnaise, dips, culinary sauces, pastes", 60, 10),
+                ("Packaging", "Takeaway boxes, cups, lids, cutlery, bags", 365, 11),
+                ("Cleaning", "Dishwashing detergents, sanitizers, housekeeping", 365, 12),
+                ("Other", "Miscellaneous kitchen and cafe ingredients", 30, 13)
+            };
+
+            var toInsert = defaults.Select(d => new InventoryCategory
+            {
+                OutletId = outletId,
+                Name = d.Name,
+                Description = d.Description,
+                ShelfLifeDays = d.ShelfLife,
+                DisplayOrder = d.Order,
+                IsActive = true,
+                CreatedAt = MongoService.GetIstNow(),
+                UpdatedAt = MongoService.GetIstNow(),
+                CreatedBy = "System"
+            }).ToList();
+
+            try
+            {
+                await _inventoryCategories.InsertManyAsync(toInsert);
+                categories = toInsert;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to seed default inventory categories for outlet {OutletId}", outletId);
+            }
+        }
+
+        return categories;
+    }
+
+    public async Task<InventoryCategory?> GetInventoryCategoryByIdAsync(string id, string outletId)
+    {
+        var filter = Builders<InventoryCategory>.Filter.And(
+            Builders<InventoryCategory>.Filter.Eq(c => c.Id, id),
+            Builders<InventoryCategory>.Filter.Eq(c => c.OutletId, outletId),
+            Builders<InventoryCategory>.Filter.Ne(c => c.IsDeleted, true)
+        );
+        return await _inventoryCategories.Find(filter).FirstOrDefaultAsync();
+    }
+
+    public async Task<InventoryCategory> CreateInventoryCategoryAsync(InventoryCategory category)
+    {
+        if (string.IsNullOrWhiteSpace(category.OutletId))
+            throw new ArgumentException("OutletId is required");
+
+        category.Name = category.Name.Trim();
+        
+        // Check for duplicate name in this outlet (case-insensitive)
+        var exists = await _inventoryCategories.Find(c =>
+            c.OutletId == category.OutletId &&
+            c.Name.ToLower() == category.Name.ToLower() &&
+            c.IsDeleted != true).AnyAsync();
+
+        if (exists)
+        {
+            throw new InvalidOperationException($"Category '{category.Name}' already exists for this outlet.");
+        }
+
+        category.CreatedAt = MongoService.GetIstNow();
+        category.UpdatedAt = MongoService.GetIstNow();
+        category.IsDeleted = false;
+        category.IsActive = true;
+
+        await _inventoryCategories.InsertOneAsync(category);
+        return category;
+    }
+
+    public async Task<bool> UpdateInventoryCategoryAsync(string id, InventoryCategory category)
+    {
+        var existing = await _inventoryCategories.Find(c => c.Id == id && c.OutletId == category.OutletId && c.IsDeleted != true).FirstOrDefaultAsync();
+        if (existing == null) return false;
+
+        var oldName = existing.Name;
+        var newName = category.Name.Trim();
+
+        // Check if new name conflicts with another category in this outlet
+        if (!string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase))
+        {
+            var exists = await _inventoryCategories.Find(c =>
+                c.OutletId == category.OutletId &&
+                c.Id != id &&
+                c.Name.ToLower() == newName.ToLower() &&
+                c.IsDeleted != true).AnyAsync();
+
+            if (exists)
+            {
+                throw new InvalidOperationException($"Category '{newName}' already exists for this outlet.");
+            }
+
+            // Cascade category rename to existing inventory items in this outlet
+            try
+            {
+                var invFilter = Builders<Inventory>.Filter.And(
+                    Builders<Inventory>.Filter.Eq(i => i.OutletId, category.OutletId),
+                    Builders<Inventory>.Filter.Regex(i => i.Category, new MongoDB.Bson.BsonRegularExpression($"^{System.Text.RegularExpressions.Regex.Escape(oldName)}$", "i"))
+                );
+                await _inventory.UpdateManyAsync(invFilter, Builders<Inventory>.Update.Set(i => i.Category, newName));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to cascade category rename from '{Old}' to '{New}' in outlet {OutletId}", oldName, newName, category.OutletId);
+            }
+        }
+
+        existing.Name = newName;
+        existing.Description = category.Description;
+        existing.ShelfLifeDays = category.ShelfLifeDays > 0 ? category.ShelfLifeDays : 7;
+        existing.DisplayOrder = category.DisplayOrder;
+        existing.IsActive = category.IsActive;
+        existing.UpdatedAt = MongoService.GetIstNow();
+        if (!string.IsNullOrWhiteSpace(category.LastUpdatedBy))
+        {
+            existing.LastUpdatedBy = category.LastUpdatedBy;
+        }
+
+        var result = await _inventoryCategories.ReplaceOneAsync(c => c.Id == id, existing);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<(bool success, string? errorMessage)> DeleteInventoryCategoryAsync(string id, string outletId, string performedBy)
+    {
+        var existing = await _inventoryCategories.Find(c => c.Id == id && c.OutletId == outletId && c.IsDeleted != true).FirstOrDefaultAsync();
+        if (existing == null)
+        {
+            return (false, "Category not found.");
+        }
+
+        // Check if any active inventory items in this outlet use this category
+        var inUseCount = await _inventory.CountDocumentsAsync(i =>
+            i.OutletId == outletId &&
+            i.IsActive &&
+            i.Category.ToLower() == existing.Name.ToLower());
+
+        if (inUseCount > 0)
+        {
+            return (false, $"Cannot delete category '{existing.Name}' because {inUseCount} active inventory item(s) are assigned to it. Please reassign those items to another category first.");
+        }
+
+        var update = Builders<InventoryCategory>.Update
+            .Set(c => c.IsDeleted, true)
+            .Set(c => c.DeletedAt, MongoService.GetIstNow())
+            .Set(c => c.DeletedBy, performedBy);
+
+        var result = await _inventoryCategories.UpdateOneAsync(c => c.Id == id, update);
+        return (result.ModifiedCount > 0, null);
+    }
+
+    #endregion
 
     // ==== TRANSACTIONS ====
 

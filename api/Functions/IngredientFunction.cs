@@ -43,17 +43,25 @@ namespace Cafe.Api.Functions
                 var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _authService);
                 if (!isAuthorized) return errorResponse!;
 
-                _logger.LogInformation("Getting all ingredients");
+                var outletId = OutletHelper.GetOutletIdFromRequest(req, _authService);
+                _logger.LogInformation("Getting ingredients for outlet: {OutletId}", outletId ?? "all");
 
                 var (page, pageSize) = PaginationHelper.ParsePagination(req);
-                var ingredients = await _mongoService.GetAllIngredientsAsync(page, pageSize);
+                var ingredients = await _mongoService.GetIngredientsAsync(outletId);
 
                 var response = req.CreateResponse(HttpStatusCode.OK);
                 if (page.HasValue && pageSize.HasValue)
                 {
-                    var totalCount = await _mongoService.GetAllIngredientsCountAsync();
+                    var totalCount = ingredients.Count;
+                    var pagedIngredients = ingredients
+                        .Skip((page.Value - 1) * pageSize.Value)
+                        .Take(pageSize.Value)
+                        .ToList();
                     PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
+                    await response.WriteAsJsonAsync(pagedIngredients);
+                    return response;
                 }
+
                 await response.WriteAsJsonAsync(ingredients);
                 return response;
             }

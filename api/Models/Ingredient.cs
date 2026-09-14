@@ -270,5 +270,31 @@ namespace Cafe.Api.Models
         [BsonElement("updatedAt")]
         public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
     }
+
+    public class RecipeRowUpload
+    {
+        public string MenuItemName { get; set; } = string.Empty;
+        public string DietaryType { get; set; } = "veg";
+        public string IngredientName { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+        public string Unit { get; set; } = "kg";
+        public decimal? UnitPrice { get; set; }
+        public decimal? ProfitMargin { get; set; }
+        public decimal? PackagingCost { get; set; }
+        public decimal? ShopPrice { get; set; }
+        public decimal? OnlinePrice { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    public class BulkUploadRecipeResult
+    {
+        public int RecipesCreated { get; set; }
+        public int RecipesUpdated { get; set; }
+        public int TotalRows { get; set; }
+        public int TotalRecipes { get; set; }
+        public int FailedRows { get; set; }
+        public List<string> Errors { get; set; } = new();
+        public string Message { get; set; } = string.Empty;
+    }
 }
 

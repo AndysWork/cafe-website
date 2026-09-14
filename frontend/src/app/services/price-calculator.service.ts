@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of, forkJoin, throwError } from 'rxjs';
 import { map, catchError, switchMap } from 'rxjs/operators';
@@ -12,12 +12,25 @@ import {
   PriceUpdateSettings,
   COMMON_INGREDIENTS
 } from '../models/ingredient.model';
+import { OutletService } from './outlet.service';
 import { environment } from '../../environments/environment';
+
+export interface BulkUploadRecipeResult {
+  recipesCreated: number;
+  recipesUpdated: number;
+  totalRows: number;
+  totalRecipes: number;
+  failedRows: number;
+  errors: string[];
+  message: string;
+}
 
 @Injectable({
   providedIn: 'root'
 })
 export class PriceCalculatorService {
+  private http = inject(HttpClient);
+  private outletService = inject(OutletService);
   private apiUrl = environment.apiUrl || '/api';
 
   // Signal-based reactive state (replaces BehaviorSubjects)
@@ -27,13 +40,17 @@ export class PriceCalculatorService {
   public ingredients$ = toObservable(this.ingredientsSignal);
   public recipes$ = toObservable(this.recipesSignal);
 
-  constructor(private http: HttpClient) {
+  constructor() {
     this.loadIngredientsFromServer();
     this.loadRecipesFromServer();
   }
 
+  private getCurrentOutletId(): string | null {
+    return this.outletService.getSelectedOutletId();
+  }
+
   private getHeaders(): HttpHeaders {
-    const outletId = localStorage.getItem('selectedOutletId');
+    const outletId = this.getCurrentOutletId();
     let headers = new HttpHeaders();
 
     if (outletId) {
@@ -45,10 +62,11 @@ export class PriceCalculatorService {
 
   // Load data from server
   private loadIngredientsFromServer(): void {
+    const outletId = this.getCurrentOutletId() || 'default';
     this.http.get<Ingredient[]>(`${this.apiUrl}/ingredients`, { headers: this.getHeaders() })
       .pipe(catchError(() => {
         // If API fails, try localStorage as fallback
-        const stored = localStorage.getItem('cafe_ingredients');
+        const stored = localStorage.getItem(`cafe_ingredients_${outletId}`);
         if (stored) {
           return of(JSON.parse(stored));
         }
@@ -58,15 +76,16 @@ export class PriceCalculatorService {
       .subscribe(ingredients => {
         this.ingredientsSignal.set(ingredients);
         // Cache in localStorage as backup
-        localStorage.setItem('cafe_ingredients', JSON.stringify(ingredients));
+        localStorage.setItem(`cafe_ingredients_${outletId}`, JSON.stringify(ingredients));
       });
   }
 
   private loadRecipesFromServer(): void {
+    const outletId = this.getCurrentOutletId() || 'default';
     this.http.get<MenuItemRecipe[]>(`${this.apiUrl}/recipes`, { headers: this.getHeaders() })
       .pipe(catchError((error) => {
         console.error('Error loading recipes from API:', error);
-        const stored = localStorage.getItem('cafe_recipes');
+        const stored = localStorage.getItem(`cafe_recipes_${outletId}`);
         if (stored) {
           return of(JSON.parse(stored));
         }
@@ -74,7 +93,7 @@ export class PriceCalculatorService {
       }))
       .subscribe(recipes => {
         this.recipesSignal.set(recipes);
-        localStorage.setItem('cafe_recipes', JSON.stringify(recipes));
+        localStorage.setItem(`cafe_recipes_${outletId}`, JSON.stringify(recipes));
       });
   }
 
@@ -110,13 +129,18 @@ export class PriceCalculatorService {
   }
 
   addIngredient(ingredient: Ingredient): Observable<Ingredient> {
+    const outletId = this.getCurrentOutletId() || 'default';
+    if (!ingredient.outletId && outletId !== 'default') {
+      ingredient.outletId = outletId;
+    }
+
     return this.http.post<Ingredient>(`${this.apiUrl}/ingredients`, ingredient)
       .pipe(
         map(newIngredient => {
           const currentIngredients = this.ingredientsSignal();
           const updatedIngredients = [...currentIngredients, newIngredient];
           this.ingredientsSignal.set(updatedIngredients);
-          localStorage.setItem('cafe_ingredients', JSON.stringify(updatedIngredients));
+          localStorage.setItem(`cafe_ingredients_${outletId}`, JSON.stringify(updatedIngredients));
           return newIngredient;
         }),
         catchError((error) => {
@@ -130,14 +154,18 @@ export class PriceCalculatorService {
           const currentIngredients = this.ingredientsSignal();
           const updatedIngredients = [...currentIngredients, newIngredient];
           this.ingredientsSignal.set(updatedIngredients);
-          localStorage.setItem('cafe_ingredients', JSON.stringify(updatedIngredients));
+          localStorage.setItem(`cafe_ingredients_${outletId}`, JSON.stringify(updatedIngredients));
           return of(newIngredient);
         })
       );
   }
 
   updateIngredient(id: string, ingredient: Partial<Ingredient>): Observable<Ingredient> {
+    const outletId = this.getCurrentOutletId() || 'default';
     const updateData = { ...ingredient, id, lastUpdated: new Date() };
+    if (!updateData.outletId && outletId !== 'default') {
+      updateData.outletId = outletId;
+    }
 
     return this.http.put<Ingredient>(`${this.apiUrl}/ingredients/${id}`, updateData)
       .pipe(
@@ -147,7 +175,7 @@ export class PriceCalculatorService {
           if (index !== -1) {
             currentIngredients[index] = updatedIngredient;
             this.ingredientsSignal.set([...currentIngredients]);
-            localStorage.setItem('cafe_ingredients', JSON.stringify(currentIngredients));
+            localStorage.setItem(`cafe_ingredients_${outletId}`, JSON.stringify(currentIngredients));
           }
           return updatedIngredient;
         }),
@@ -163,7 +191,7 @@ export class PriceCalculatorService {
             };
             currentIngredients[index] = updatedIngredient;
             this.ingredientsSignal.set([...currentIngredients]);
-            localStorage.setItem('cafe_ingredients', JSON.stringify(currentIngredients));
+            localStorage.setItem(`cafe_ingredients_${outletId}`, JSON.stringify(currentIngredients));
             return of(updatedIngredient);
           }
           throw error;
@@ -172,13 +200,14 @@ export class PriceCalculatorService {
   }
 
   deleteIngredient(id: string): Observable<boolean> {
+    const outletId = this.getCurrentOutletId() || 'default';
     return this.http.delete(`${this.apiUrl}/ingredients/${id}`)
       .pipe(
         map(() => {
           const currentIngredients = this.ingredientsSignal();
           const filteredIngredients = currentIngredients.filter(ing => ing.id !== id);
           this.ingredientsSignal.set(filteredIngredients);
-          localStorage.setItem('cafe_ingredients', JSON.stringify(filteredIngredients));
+          localStorage.setItem(`cafe_ingredients_${outletId}`, JSON.stringify(filteredIngredients));
           return true;
         }),
         catchError((error) => {
@@ -186,7 +215,7 @@ export class PriceCalculatorService {
           const currentIngredients = this.ingredientsSignal();
           const filteredIngredients = currentIngredients.filter(ing => ing.id !== id);
           this.ingredientsSignal.set(filteredIngredients);
-          localStorage.setItem('cafe_ingredients', JSON.stringify(filteredIngredients));
+          localStorage.setItem(`cafe_ingredients_${outletId}`, JSON.stringify(filteredIngredients));
           return of(true);
         })
       );
@@ -223,6 +252,11 @@ export class PriceCalculatorService {
   }
 
   saveRecipe(recipe: MenuItemRecipe): Observable<MenuItemRecipe> {
+    const outletId = this.getCurrentOutletId() || 'default';
+    if (!recipe.outletId && outletId !== 'default') {
+      recipe.outletId = outletId;
+    }
+
     if (recipe.id) {
       // Update existing recipe
       return this.http.put<MenuItemRecipe>(`${this.apiUrl}/recipes/${recipe.id}`, recipe)
@@ -233,7 +267,7 @@ export class PriceCalculatorService {
             if (index !== -1) {
               currentRecipes[index] = updatedRecipe;
               this.recipesSignal.set([...currentRecipes]);
-              localStorage.setItem('cafe_recipes', JSON.stringify(currentRecipes));
+              localStorage.setItem(`cafe_recipes_${outletId}`, JSON.stringify(currentRecipes));
             }
             return updatedRecipe;
           }),
@@ -250,7 +284,7 @@ export class PriceCalculatorService {
             const currentRecipes = this.recipesSignal();
             const updatedRecipes = [...currentRecipes, newRecipe];
             this.recipesSignal.set(updatedRecipes);
-            localStorage.setItem('cafe_recipes', JSON.stringify(updatedRecipes));
+            localStorage.setItem(`cafe_recipes_${outletId}`, JSON.stringify(updatedRecipes));
             return newRecipe;
           }),
           catchError((error) => {
@@ -262,13 +296,14 @@ export class PriceCalculatorService {
   }
 
   deleteRecipe(id: string): Observable<boolean> {
+    const outletId = this.getCurrentOutletId() || 'default';
     return this.http.delete(`${this.apiUrl}/recipes/${id}`)
       .pipe(
         map(() => {
           const currentRecipes = this.recipesSignal();
           const filteredRecipes = currentRecipes.filter(recipe => recipe.id !== id);
           this.recipesSignal.set(filteredRecipes);
-          localStorage.setItem('cafe_recipes', JSON.stringify(filteredRecipes));
+          localStorage.setItem(`cafe_recipes_${outletId}`, JSON.stringify(filteredRecipes));
           return true;
         }),
         catchError((error) => {
@@ -276,10 +311,22 @@ export class PriceCalculatorService {
           const currentRecipes = this.recipesSignal();
           const filteredRecipes = currentRecipes.filter(recipe => recipe.id !== id);
           this.recipesSignal.set(filteredRecipes);
-          localStorage.setItem('cafe_recipes', JSON.stringify(filteredRecipes));
+          localStorage.setItem(`cafe_recipes_${outletId}`, JSON.stringify(filteredRecipes));
           return of(true);
         })
       );
+  }
+
+  // ===== RECIPE BULK UPLOAD & TEMPLATE =====
+
+  downloadRecipeTemplate(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/recipes/template`, { responseType: 'blob' });
+  }
+
+  uploadRecipesExcel(file: File): Observable<BulkUploadRecipeResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<BulkUploadRecipeResult>(`${this.apiUrl}/recipes/upload`, formData);
   }
 
   // ===== PRICE CALCULATION =====
@@ -347,19 +394,29 @@ export class PriceCalculatorService {
     unit: string,
     ingredient: Ingredient
   ): number {
-    // Normalize units
     let normalizedQuantity = quantity;
     let normalizedUnitPrice = ingredient.marketPrice;
 
-    // Handle conversions
-    if (unit === 'gm' && ingredient.unit === 'kg') {
+    const u1 = (unit || '').trim().toLowerCase();
+    const u2 = (ingredient.unit || '').trim().toLowerCase();
+
+    // Weight conversions (gm/g vs kg)
+    if ((u1 === 'gm' || u1 === 'g') && u2 === 'kg') {
       normalizedQuantity = quantity / 1000;
-    } else if (unit === 'kg' && ingredient.unit === 'gm') {
+    } else if (u1 === 'kg' && (u2 === 'gm' || u2 === 'g')) {
       normalizedUnitPrice = ingredient.marketPrice / 1000;
-    } else if (unit === 'ml' && ingredient.unit === 'ltr') {
+    }
+    // Volume conversions (ml vs ltr/l)
+    else if (u1 === 'ml' && (u2 === 'ltr' || u2 === 'l')) {
       normalizedQuantity = quantity / 1000;
-    } else if (unit === 'ltr' && ingredient.unit === 'ml') {
+    } else if ((u1 === 'ltr' || u1 === 'l') && u2 === 'ml') {
       normalizedUnitPrice = ingredient.marketPrice / 1000;
+    }
+    // Piece / Dozen conversions
+    else if ((u1 === 'pc' || u1 === 'pcs') && u2 === 'dozen') {
+      normalizedQuantity = quantity / 12;
+    } else if (u1 === 'dozen' && (u2 === 'pc' || u2 === 'pcs')) {
+      normalizedUnitPrice = ingredient.marketPrice / 12;
     }
 
     return normalizedQuantity * normalizedUnitPrice;

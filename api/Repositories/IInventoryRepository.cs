@@ -39,6 +39,13 @@ public interface IInventoryRepository
     Task<List<StockAlert>> GetCriticalAlertsAsync();
     Task<bool> ResolveAlertAsync(string alertId, string resolvedBy);
 
+    // Inventory Categories (Outlet-Scoped)
+    Task<List<InventoryCategory>> GetInventoryCategoriesAsync(string outletId);
+    Task<InventoryCategory?> GetInventoryCategoryByIdAsync(string id, string outletId);
+    Task<InventoryCategory> CreateInventoryCategoryAsync(InventoryCategory category);
+    Task<bool> UpdateInventoryCategoryAsync(string id, InventoryCategory category);
+    Task<(bool success, string? errorMessage)> DeleteInventoryCategoryAsync(string id, string outletId, string performedBy);
+
     // Reports
     Task<InventoryReport> GetInventoryReportAsync();
     Task<InventoryReport> GetInventoryReportAsync(string? outletId);

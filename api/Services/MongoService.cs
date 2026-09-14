@@ -85,6 +85,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<IngredientPriceHistory> _priceHistory;
     private readonly IMongoCollection<PriceUpdateSettings> _priceSettings;
     private readonly IMongoCollection<Inventory> _inventory;
+    private readonly IMongoCollection<InventoryCategory> _inventoryCategories;
     private readonly IMongoCollection<InventoryTransaction> _inventoryTransactions;
     private readonly IMongoCollection<StockAlert> _stockAlerts;
     private readonly IMongoCollection<OverheadCost> _overheadCosts;
@@ -209,6 +210,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _priceHistory = db.GetCollection<IngredientPriceHistory>("IngredientPriceHistory");
         _priceSettings = db.GetCollection<PriceUpdateSettings>("PriceUpdateSettings");
         _inventory = db.GetCollection<Inventory>("Inventory");
+        _inventoryCategories = db.GetCollection<InventoryCategory>("InventoryCategories");
         _inventoryTransactions = db.GetCollection<InventoryTransaction>("InventoryTransactions");
         _stockAlerts = db.GetCollection<StockAlert>("StockAlerts");
         _overheadCosts = db.GetCollection<OverheadCost>("OverheadCosts");
@@ -3529,6 +3531,28 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             _logger.LogWarning(ex, "Inventory indexes warning");
         }
 
+        // ========== InventoryCategories Collection ==========
+        try
+        {
+            await _inventoryCategories.Indexes.CreateOneAsync(new CreateIndexModel<InventoryCategory>(
+                Builders<InventoryCategory>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.IsDeleted),
+                new CreateIndexOptions { Name = "outletId_1_isDeleted_1", Background = true }
+            ));
+            indexCount++;
+
+            await _inventoryCategories.Indexes.CreateOneAsync(new CreateIndexModel<InventoryCategory>(
+                Builders<InventoryCategory>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.Name),
+                new CreateIndexOptions { Name = "outletId_1_name_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("InventoryCategories indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "InventoryCategories indexes warning");
+        }
+
         // ========== FrozenItems Collection ==========
         try
         {
@@ -6602,10 +6626,103 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<List<Ingredient>> GetIngredientsAsync(string? outletId = null)
     {
-        if (string.IsNullOrEmpty(outletId))
-            return await _ingredients.Find(i => i.IsDeleted != true).ToListAsync();
+        var isValidOutlet = !string.IsNullOrWhiteSpace(outletId) && ObjectId.TryParse(outletId, out _);
         
-        return await _ingredients.Find(i => i.OutletId == outletId && i.IsDeleted != true).ToListAsync();
+        FilterDefinition<Ingredient> filter;
+        if (isValidOutlet)
+        {
+            filter = Builders<Ingredient>.Filter.And(
+                Builders<Ingredient>.Filter.Ne(i => i.IsDeleted, true),
+                Builders<Ingredient>.Filter.Or(
+                    Builders<Ingredient>.Filter.Eq(i => i.OutletId, outletId),
+                    Builders<Ingredient>.Filter.Eq(i => i.OutletId, (string?)null)
+                )
+            );
+        }
+        else
+        {
+            filter = Builders<Ingredient>.Filter.Ne(i => i.IsDeleted, true);
+        }
+
+        var ingredients = await _ingredients.Find(filter).ToListAsync();
+
+        // Also query active items from the Inventory collection and merge them into ingredients
+        try
+        {
+            FilterDefinition<Inventory> invFilter;
+            if (isValidOutlet)
+            {
+                invFilter = Builders<Inventory>.Filter.And(
+                    Builders<Inventory>.Filter.Eq(i => i.IsActive, true),
+                    Builders<Inventory>.Filter.Or(
+                        Builders<Inventory>.Filter.Eq(i => i.OutletId, outletId),
+                        Builders<Inventory>.Filter.Eq(i => i.OutletId, (string?)null)
+                    )
+                );
+            }
+            else
+            {
+                invFilter = Builders<Inventory>.Filter.Eq(i => i.IsActive, true);
+            }
+
+            var inventoryItems = await _inventory.Find(invFilter).ToListAsync();
+            var existingNames = new HashSet<string>(ingredients.Select(i => (i.Name ?? string.Empty).Trim().ToLowerInvariant()));
+
+            foreach (var inv in inventoryItems)
+            {
+                var normName = (inv.IngredientName ?? string.Empty).Trim().ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(normName)) continue;
+
+                var price = inv.CostPerUnit > 0 ? inv.CostPerUnit : (inv.LastPurchasePrice ?? 0);
+
+                if (!existingNames.Contains(normName))
+                {
+                    ingredients.Add(new Ingredient
+                    {
+                        Id = inv.IngredientId ?? inv.Id,
+                        Name = inv.IngredientName ?? string.Empty,
+                        Category = !string.IsNullOrEmpty(inv.Category) ? inv.Category : "others",
+                        Unit = !string.IsNullOrEmpty(inv.Unit) ? inv.Unit : "kg",
+                        MarketPrice = price,
+                        OutletId = inv.OutletId,
+                        IsActive = inv.IsActive,
+                        PriceSource = "inventory",
+                        CreatedAt = inv.CreatedAt,
+                        UpdatedAt = inv.UpdatedAt,
+                        LastUpdated = inv.UpdatedAt
+                    });
+                    existingNames.Add(normName);
+                }
+                else
+                {
+                    var existing = ingredients.FirstOrDefault(i => (i.Name ?? string.Empty).Trim().ToLowerInvariant() == normName);
+                    if (existing != null && price > 0)
+                    {
+                        existing.MarketPrice = price;
+                        existing.PriceSource = "inventory";
+                        if (!string.IsNullOrEmpty(inv.Unit))
+                        {
+                            existing.Unit = inv.Unit;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to merge inventory items into GetIngredientsAsync");
+        }
+
+        var result = ingredients
+            .GroupBy(i => (i.Name ?? string.Empty).Trim().ToLowerInvariant())
+            .Select(g => g.OrderByDescending(i => isValidOutlet && i.OutletId == outletId ? 1 : 0)
+                          .ThenByDescending(i => i.UpdatedAt)
+                          .First())
+            .OrderBy(i => i.Category)
+            .ThenBy(i => i.Name)
+            .ToList();
+
+        return result;
     }
 
     public async Task<List<Ingredient>> GetAllIngredientsAsync(int? page = null, int? pageSize = null)
@@ -6738,8 +6855,20 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<List<MenuItemRecipe>> GetRecipesAsync(string? outletId = null)
     {
-        // Recipe is global by menu item name (shared across outlets), so outlet filter is ignored.
-        var recipes = await _recipes.Find(_ => true).ToListAsync();
+        var isValidOutlet = !string.IsNullOrWhiteSpace(outletId) && ObjectId.TryParse(outletId, out _);
+        List<MenuItemRecipe> recipes;
+        if (isValidOutlet)
+        {
+            var filter = Builders<MenuItemRecipe>.Filter.Or(
+                Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, outletId),
+                Builders<MenuItemRecipe>.Filter.Eq(r => r.OutletId, (string?)null)
+            );
+            recipes = await _recipes.Find(filter).ToListAsync();
+        }
+        else
+        {
+            recipes = await _recipes.Find(_ => true).ToListAsync();
+        }
         
         // Ensure all recipes have default overhead cost properties
         foreach (var recipe in recipes)
@@ -6747,13 +6876,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             EnsureOverheadCostsDefaults(recipe);
         }
 
-        // Keep one latest recipe per menu item name.
+        // Deduplicate per menu item name, prioritizing the recipe specifically saved for this outlet
         var deduped = recipes
             .GroupBy(r => (r.MenuItemName ?? string.Empty).Trim().ToLowerInvariant())
             .Select(group => group
-                .OrderByDescending(r => r.UpdatedAt)
+                .OrderByDescending(r => isValidOutlet && r.OutletId == outletId ? 1 : 0)
+                .ThenByDescending(r => r.UpdatedAt)
                 .ThenByDescending(r => r.CreatedAt)
                 .First())
+            .OrderBy(r => r.MenuItemName)
             .ToList();
 
         return deduped;
@@ -6769,8 +6900,14 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return recipe;
     }
 
-    public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAsync(string menuItemName)
+    public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAsync(string menuItemName, string? outletId = null)
     {
+        if (!string.IsNullOrWhiteSpace(outletId) && ObjectId.TryParse(outletId, out _))
+        {
+            var outletRecipe = await GetRecipeByMenuItemNameAndOutletAsync(menuItemName, outletId);
+            if (outletRecipe != null) return outletRecipe;
+        }
+
         var normalizedName = (menuItemName ?? string.Empty).Trim();
         var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
         var filter = Builders<MenuItemRecipe>.Filter.Regex(
@@ -6787,6 +6924,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     public async Task<MenuItemRecipe?> GetRecipeByMenuItemNameAndOutletAsync(string menuItemName, string outletId)
     {
+        if (string.IsNullOrWhiteSpace(outletId) || !ObjectId.TryParse(outletId, out _))
+        {
+            return await GetRecipeByMenuItemNameAsync(menuItemName);
+        }
+
         var normalizedName = (menuItemName ?? string.Empty).Trim();
         var escapedName = System.Text.RegularExpressions.Regex.Escape(normalizedName);
         var filter = Builders<MenuItemRecipe>.Filter.And(
@@ -6810,10 +6952,24 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         recipe.DietaryType = NormalizeDietaryType(recipe.DietaryType);
 
-        // Enforce one global recipe per menu item name.
+        if (string.IsNullOrWhiteSpace(recipe.OutletId) || !ObjectId.TryParse(recipe.OutletId, out _))
+        {
+            recipe.OutletId = null;
+        }
+
+        // Check if recipe already exists for this menu item IN THIS OUTLET
         if (!string.IsNullOrWhiteSpace(recipe.MenuItemName))
         {
-            var existing = await GetRecipeByMenuItemNameAsync(recipe.MenuItemName);
+            MenuItemRecipe? existing = null;
+            if (!string.IsNullOrEmpty(recipe.OutletId))
+            {
+                existing = await GetRecipeByMenuItemNameAndOutletAsync(recipe.MenuItemName, recipe.OutletId);
+            }
+            else
+            {
+                existing = await GetRecipeByMenuItemNameAsync(recipe.MenuItemName);
+            }
+
             if (existing != null)
             {
                 recipe.Id = existing.Id;
@@ -6828,8 +6984,6 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
                 }
 
                 await UpdateDietaryForMenuItemsByNameAsync(recipe.MenuItemName, recipe.DietaryType);
-                await DeleteDuplicateRecipesByNameAsync(recipe.MenuItemName, recipe.Id);
-                await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: true);
                 return recipe;
             }
         }
@@ -6843,10 +6997,6 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         }
 
         await UpdateDietaryForMenuItemsByNameAsync(recipe.MenuItemName, recipe.DietaryType);
-        await DeleteDuplicateRecipesByNameAsync(recipe.MenuItemName, recipe.Id);
-        
-        // Sync menu pricing across outlets but do not create per-outlet recipe duplicates.
-        await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: true);
         
         return recipe;
     }
@@ -6855,6 +7005,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         EnsureRecipeForecastDefaults(recipe);
         recipe.DietaryType = NormalizeDietaryType(recipe.DietaryType);
+
+        if (string.IsNullOrWhiteSpace(recipe.OutletId) || !ObjectId.TryParse(recipe.OutletId, out _))
+        {
+            recipe.OutletId = null;
+        }
+
         var result = await _recipes.ReplaceOneAsync(r => r.Id == id, recipe);
         
         // Update all pricing fields in the source menu item
@@ -6866,16 +7022,208 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         if (result.ModifiedCount > 0)
         {
             await UpdateDietaryForMenuItemsByNameAsync(recipe.MenuItemName, recipe.DietaryType);
-            await DeleteDuplicateRecipesByNameAsync(recipe.MenuItemName, recipe.Id);
-        }
-        
-        // Sync menu pricing to other outlets without creating recipe copies.
-        if (result.ModifiedCount > 0)
-        {
-            await CopyRecipeToOtherOutletsAsync(recipe, isUpdate: true);
         }
         
         return result.ModifiedCount > 0;
+    }
+
+    public async Task<BulkUploadRecipeResult> BulkUploadRecipesAsync(List<RecipeRowUpload> rows, string outletId, string performedBy)
+    {
+        var result = new BulkUploadRecipeResult
+        {
+            TotalRows = rows?.Count ?? 0
+        };
+
+        if (rows == null || rows.Count == 0)
+        {
+            result.Message = "No recipe rows found in upload file";
+            return result;
+        }
+
+        var groups = rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.MenuItemName))
+            .GroupBy(r => r.MenuItemName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        result.TotalRecipes = groups.Count;
+
+        // Preload active overhead costs for this outlet (or default)
+        var overheadCosts = await GetActiveOverheadCostsAsync(outletId);
+        decimal baseOverhead = 20; // default ₹20
+        if (overheadCosts.Any())
+        {
+            var calculated = overheadCosts.Sum(o => o.CostPerDay > 0 ? o.CostPerDay : (o.MonthlyCost > 0 ? o.MonthlyCost / (o.WorkingDaysPerMonth > 0 ? o.WorkingDaysPerMonth : 30) : 0));
+            if (calculated > 0 && calculated <= 100)
+            {
+                baseOverhead = calculated;
+            }
+        }
+
+        // Preload ingredients and menu items for this outlet
+        var existingIngredients = await GetIngredientsAsync(outletId);
+        var menuItems = await GetMenuAsync(outletId);
+
+        foreach (var group in groups)
+        {
+            try
+            {
+                var menuItemName = group.Key;
+                var firstRow = group.First();
+                var dietaryType = NormalizeDietaryType(firstRow.DietaryType);
+                var notes = firstRow.Notes?.Trim();
+                decimal profitMargin = firstRow.ProfitMargin.HasValue && firstRow.ProfitMargin.Value > 0 ? firstRow.ProfitMargin.Value : 30;
+                decimal packagingCost = firstRow.PackagingCost.HasValue && firstRow.PackagingCost.Value >= 0 ? firstRow.PackagingCost.Value : 0;
+                decimal? explicitShopPrice = firstRow.ShopPrice.HasValue && firstRow.ShopPrice.Value > 0 ? firstRow.ShopPrice.Value : (decimal?)null;
+                decimal? explicitOnlinePrice = firstRow.OnlinePrice.HasValue && firstRow.OnlinePrice.Value > 0 ? firstRow.OnlinePrice.Value : (decimal?)null;
+
+                var ingredientUsages = new List<IngredientUsage>();
+
+                foreach (var row in group)
+                {
+                    if (string.IsNullOrWhiteSpace(row.IngredientName) || row.Quantity <= 0)
+                    {
+                        continue;
+                    }
+
+                    var ingName = row.IngredientName.Trim();
+                    var unit = !string.IsNullOrWhiteSpace(row.Unit) ? row.Unit.Trim().ToLowerInvariant() : "kg";
+                    decimal unitPrice = row.UnitPrice.HasValue && row.UnitPrice.Value >= 0 ? row.UnitPrice.Value : 0;
+
+                    var matchingIng = existingIngredients.FirstOrDefault(i =>
+                        string.Equals(i.Name?.Trim(), ingName, StringComparison.OrdinalIgnoreCase));
+
+                    if (matchingIng == null)
+                    {
+                        matchingIng = new Ingredient
+                        {
+                            Name = ingName,
+                            Category = "others",
+                            Unit = unit,
+                            MarketPrice = unitPrice,
+                            OutletId = outletId,
+                            IsActive = true,
+                            CreatedAt = GetIstNow(),
+                            UpdatedAt = GetIstNow()
+                        };
+                        matchingIng = await CreateIngredientAsync(matchingIng);
+                        existingIngredients.Add(matchingIng);
+                    }
+                    else if (unitPrice == 0 && matchingIng.MarketPrice > 0)
+                    {
+                        unitPrice = matchingIng.MarketPrice;
+                    }
+
+                    var totalIngCost = Math.Round(row.Quantity * unitPrice, 2);
+
+                    ingredientUsages.Add(new IngredientUsage
+                    {
+                        IngredientId = matchingIng.Id ?? string.Empty,
+                        IngredientName = matchingIng.Name,
+                        Quantity = row.Quantity,
+                        Unit = unit,
+                        UnitPrice = unitPrice,
+                        TotalCost = totalIngCost
+                    });
+                }
+
+                if (ingredientUsages.Count == 0)
+                {
+                    result.Errors.Add($"Menu Item '{menuItemName}' has no valid ingredient rows with quantity > 0");
+                    result.FailedRows += group.Count();
+                    continue;
+                }
+
+                decimal totalIngredientCost = ingredientUsages.Sum(i => i.TotalCost);
+                decimal wastageCost = Math.Round((totalIngredientCost * 5) / 100, 2); // 5% wastage
+                decimal totalOverheadCost = baseOverhead + wastageCost;
+                decimal totalMakingCost = totalIngredientCost + totalOverheadCost;
+
+                decimal suggestedSellingPrice = profitMargin < 100
+                    ? Math.Round(totalMakingCost / (1 - (profitMargin / 100)), 2)
+                    : Math.Round(totalMakingCost * 1.5m, 2);
+
+                decimal shopPrice = explicitShopPrice ?? Math.Ceiling(suggestedSellingPrice);
+                decimal onlinePrice = explicitOnlinePrice ?? Math.Ceiling(shopPrice / 0.56m);
+                decimal onlinePayout = Math.Round(onlinePrice * 0.56m, 2);
+                decimal onlineProfit = Math.Round(onlinePayout - totalMakingCost - packagingCost, 2);
+                decimal offlineProfit = Math.Round(shopPrice - totalMakingCost, 2);
+                decimal webProfit = Math.Round(shopPrice - totalMakingCost - packagingCost, 2);
+
+                var matchingMenu = menuItems.FirstOrDefault(m =>
+                    string.Equals(m.Name?.Trim(), menuItemName, StringComparison.OrdinalIgnoreCase));
+
+                var recipe = new MenuItemRecipe
+                {
+                    MenuItemName = menuItemName,
+                    MenuItemId = matchingMenu?.Id,
+                    DietaryType = dietaryType,
+                    OutletId = outletId,
+                    Ingredients = ingredientUsages,
+                    OverheadCosts = new OverheadCosts
+                    {
+                        LabourCharge = 10,
+                        RentAllocation = 5,
+                        ElectricityCharge = 3,
+                        WastagePercentage = 5,
+                        Miscellaneous = 2,
+                        OperationalHoursPerDay = 11,
+                        WorkingDaysPerMonth = 30
+                    },
+                    TotalIngredientCost = totalIngredientCost,
+                    TotalOverheadCost = totalOverheadCost,
+                    TotalMakingCost = totalMakingCost,
+                    ProfitMargin = profitMargin,
+                    SuggestedSellingPrice = suggestedSellingPrice,
+                    ActualSellingPrice = shopPrice,
+                    Notes = notes,
+                    PriceForecast = new PriceForecastData
+                    {
+                        PackagingCost = packagingCost,
+                        OnlineDeduction = 44,
+                        OnlineDiscount = 0,
+                        ShopPrice = shopPrice,
+                        ShopDeliveryPrice = shopPrice + 10,
+                        OnlinePrice = onlinePrice,
+                        WebPrice = shopPrice,
+                        OnlinePayout = onlinePayout,
+                        OnlineProfit = onlineProfit,
+                        OfflineProfit = offlineProfit,
+                        TakeawayProfit = shopPrice - totalMakingCost,
+                        WebProfit = webProfit,
+                        FutureShopPrice = shopPrice,
+                        FutureOnlinePrice = onlinePrice,
+                        FutureWebPrice = shopPrice,
+                        FutureShopProfit = offlineProfit,
+                        FutureOnlineProfit = onlineProfit,
+                        FutureWebProfit = webProfit
+                    },
+                    CreatedAt = GetIstNow(),
+                    UpdatedAt = GetIstNow()
+                };
+
+                var existingRecipe = await GetRecipeByMenuItemNameAndOutletAsync(menuItemName, outletId);
+                if (existingRecipe != null)
+                {
+                    recipe.Id = existingRecipe.Id;
+                    await UpdateRecipeAsync(existingRecipe.Id!, recipe);
+                    result.RecipesUpdated++;
+                }
+                else
+                {
+                    await CreateRecipeAsync(recipe);
+                    result.RecipesCreated++;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing bulk recipe upload for {ItemName}", group.Key);
+                result.Errors.Add($"Recipe '{group.Key}': {ex.Message}");
+                result.FailedRows += group.Count();
+            }
+        }
+
+        result.Message = $"Successfully processed {result.TotalRecipes} recipes ({result.TotalRows} rows): {result.RecipesCreated} created, {result.RecipesUpdated} updated, {result.FailedRows} failed rows.";
+        return result;
     }
 
     public async Task<bool> DeleteRecipeAsync(string id)

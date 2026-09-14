@@ -29,7 +29,7 @@ public interface IPricingRepository
     // Recipes
     Task<List<MenuItemRecipe>> GetRecipesAsync(string? outletId = null);
     Task<MenuItemRecipe?> GetRecipeByIdAsync(string id);
-    Task<MenuItemRecipe?> GetRecipeByMenuItemNameAsync(string menuItemName);
+    Task<MenuItemRecipe?> GetRecipeByMenuItemNameAsync(string menuItemName, string? outletId = null);
     Task<MenuItemRecipe?> GetRecipeByMenuItemNameAndOutletAsync(string menuItemName, string outletId);
     Task<MenuItemRecipe> CreateRecipeAsync(MenuItemRecipe recipe);
     Task<bool> UpdateRecipeAsync(string id, MenuItemRecipe recipe);
@@ -38,6 +38,7 @@ public interface IPricingRepository
     Task<PriceForecast?> CopyPriceForecastFromOutletAsync(string menuItemName, string sourceOutletId, string targetOutletId);
     Task<bool> UpdateMenuItemFuturePricesAsync(string menuItemId, decimal? futureShopPrice, decimal? futureOnlinePrice, decimal? futureWebPrice);
     Task<int> SyncAllRecipePricesToMenuItemsAsync();
+    Task<BulkUploadRecipeResult> BulkUploadRecipesAsync(List<RecipeRowUpload> rows, string outletId, string performedBy);
 
     // Price History
     Task<List<IngredientPriceHistory>> GetPriceHistoryAsync(string ingredientId, int days = 30);

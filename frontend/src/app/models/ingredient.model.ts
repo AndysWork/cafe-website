@@ -1,5 +1,6 @@
 export interface Ingredient {
   id?: string;
+  outletId?: string;
   name: string;
   category: string; // 'vegetables', 'spices', 'dairy', 'meat', 'grains', 'oils', 'others'
   marketPrice: number; // Price per unit
@@ -52,6 +53,7 @@ export interface IngredientUsage {
 
 export interface MenuItemRecipe {
   id?: string;
+  outletId?: string;
   menuItemId?: string;
   menuItemName: string;
   dietaryType?: 'veg' | 'non-veg' | 'egg' | 'vegan' | string;

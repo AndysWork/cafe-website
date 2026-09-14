@@ -17,6 +17,18 @@ export interface StockBatch {
   isDepleted?: boolean;
 }
 
+export interface InventoryCategory {
+  id?: string;
+  outletId?: string;
+  name: string;
+  description?: string;
+  shelfLifeDays: number;
+  displayOrder?: number;
+  isActive?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface Inventory {
   id?: string;
   ingredientId?: string;
@@ -278,6 +290,23 @@ export class InventoryService {
 
   resolveAlert(alertId: string, resolvedBy: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/alerts/${alertId}/resolve`, { resolvedBy });
+  }
+
+  // Inventory Categories (Outlet-Scoped)
+  getInventoryCategories(): Observable<InventoryCategory[]> {
+    return this.http.get<InventoryCategory[]>(`${this.apiUrl}/categories`);
+  }
+
+  createInventoryCategory(category: Partial<InventoryCategory>): Observable<InventoryCategory> {
+    return this.http.post<InventoryCategory>(`${this.apiUrl}/categories`, category);
+  }
+
+  updateInventoryCategory(id: string, category: Partial<InventoryCategory>): Observable<any> {
+    return this.http.put(`${this.apiUrl}/categories/${id}`, category);
+  }
+
+  deleteInventoryCategory(id: string): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/categories/${id}`);
   }
 
   // Excel Bulk Upload & Template

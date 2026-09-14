@@ -12,7 +12,8 @@ import {
   CategoryInventorySummary,
   StockInRequest,
   StockOutRequest,
-  BulkUploadResult
+  BulkUploadResult,
+  InventoryCategory
 } from '../services/inventory.service';
 import { OutletService } from '../services/outlet.service';
 import { UIStore } from '../store/ui.store';
@@ -63,11 +64,23 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
   statusFilter = 'all';
   categoryFilter = 'all';
 
-  // Categories (from your ingredients)
-  categories = [
-    'Beverages', 'Dairy', 'Vegetables', 'Meats', 'Spices', 'Oils',
-    'Grains', 'Sauces', 'Bakery', 'Packaging', 'Cleaning', 'frozen', 'Other'
+  // Categories (Outlet-Scoped)
+  inventoryCategories: InventoryCategory[] = [];
+  categories: string[] = [
+    'Vegetables', 'Dairy', 'Meats', 'Bakery', 'frozen', 'Beverages',
+    'Spices', 'Oils', 'Grains', 'Sauces', 'Packaging', 'Cleaning', 'Other'
   ];
+
+  // Category Management Modal State
+  showCategoryModal = false;
+  categoryForm: Partial<InventoryCategory> = {
+    name: '',
+    description: '',
+    shelfLifeDays: 7,
+    displayOrder: 0
+  };
+  editingCategory: InventoryCategory | null = null;
+  categorySaving = false;
 
   measurementUnits = ['kg', 'g', 'L', 'ml', 'pcs', 'dozen', 'packet', 'box'];
 
@@ -87,13 +100,29 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
     this.outletSubscription = this.outletService.selectedOutlet$
       .pipe(filter(outlet => outlet !== null))
       .subscribe(() => {
+        this.loadCategories();
         this.loadDashboard();
       });
 
     // Load immediately if outlet is already selected
     if (this.outletService.getSelectedOutlet()) {
+      this.loadCategories();
       this.loadDashboard();
     }
+  }
+
+  loadCategories(): void {
+    this.inventoryService.getInventoryCategories().subscribe({
+      next: (cats) => {
+        if (cats && cats.length > 0) {
+          this.inventoryCategories = cats;
+          this.categories = cats.map(c => c.name);
+        }
+      },
+      error: (err) => {
+        console.error('Error loading inventory categories for outlet:', err);
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -744,17 +773,24 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
 
   getCategoryExpiryWarningDays(category: string | undefined): number {
     if (!category) return 7;
-    const lower = category.trim().toLowerCase();
-    if (lower.includes('chicken') || lower.includes('meat') || lower.includes('poultry') || lower.includes('fish') || lower.includes('seafood')) {
+    const catName = category.trim().toLowerCase();
+
+    // Check if customized in outlet inventory categories
+    const customCat = this.inventoryCategories.find(c => c.name.trim().toLowerCase() === catName);
+    if (customCat && customCat.shelfLifeDays > 0) {
+      return customCat.shelfLifeDays;
+    }
+
+    if (catName.includes('chicken') || catName.includes('meat') || catName.includes('poultry') || catName.includes('fish') || catName.includes('seafood')) {
       return 1;
     }
-    if (lower.includes('vegetable') || lower.includes('fruit') || lower.includes('produce') || lower.includes('herb')) {
+    if (catName.includes('vegetable') || catName.includes('fruit') || catName.includes('produce') || catName.includes('herb')) {
       return 2;
     }
-    if (lower.includes('bakery') || lower.includes('bread') || lower.includes('pastry') || lower.includes('dairy') || lower.includes('milk')) {
+    if (catName.includes('bakery') || catName.includes('bread') || catName.includes('pastry') || catName.includes('dairy') || catName.includes('milk')) {
       return 3;
     }
-    if (lower.includes('frozen')) {
+    if (catName.includes('frozen')) {
       return 30; // 1 month
     }
     return 7;
@@ -898,6 +934,115 @@ export class InventoryManagementComponent implements OnInit, OnDestroy {
         this.loading = false;
       }
     });
+  }
+
+  // ===== OUTLET CATEGORY MANAGEMENT =====
+  openCategoryModal(): void {
+    this.showCategoryModal = true;
+    this.cancelEditCategory();
+  }
+
+  closeCategoryModal(): void {
+    this.showCategoryModal = false;
+    this.cancelEditCategory();
+  }
+
+  startEditCategory(cat: InventoryCategory): void {
+    this.editingCategory = cat;
+    this.categoryForm = {
+      name: cat.name,
+      description: cat.description || '',
+      shelfLifeDays: cat.shelfLifeDays || 7,
+      displayOrder: cat.displayOrder || 0
+    };
+  }
+
+  cancelEditCategory(): void {
+    this.editingCategory = null;
+    this.categoryForm = {
+      name: '',
+      description: '',
+      shelfLifeDays: 7,
+      displayOrder: 0
+    };
+  }
+
+  saveCategory(): void {
+    if (!this.categoryForm.name?.trim()) {
+      this.uiStore.warning('Please enter category name');
+      return;
+    }
+
+    this.categorySaving = true;
+
+    if (this.editingCategory?.id) {
+      this.inventoryService.updateInventoryCategory(this.editingCategory.id, {
+        name: this.categoryForm.name.trim(),
+        description: this.categoryForm.description?.trim(),
+        shelfLifeDays: Number(this.categoryForm.shelfLifeDays) || 7,
+        displayOrder: Number(this.categoryForm.displayOrder) || 0
+      }).subscribe({
+        next: () => {
+          this.categorySaving = false;
+          this.showAlert(`Category '${this.categoryForm.name}' updated successfully`, 'success');
+          this.cancelEditCategory();
+          this.loadCategories();
+          this.loadInventory();
+        },
+        error: (err) => {
+          this.categorySaving = false;
+          const msg = err.error?.error || 'Failed to update category';
+          this.showAlert(msg, 'error');
+        }
+      });
+    } else {
+      this.inventoryService.createInventoryCategory({
+        name: this.categoryForm.name.trim(),
+        description: this.categoryForm.description?.trim(),
+        shelfLifeDays: Number(this.categoryForm.shelfLifeDays) || 7,
+        displayOrder: Number(this.categoryForm.displayOrder) || 0
+      }).subscribe({
+        next: (created) => {
+          this.categorySaving = false;
+          this.showAlert(`Category '${created.name}' created successfully`, 'success');
+          this.cancelEditCategory();
+          this.loadCategories();
+        },
+        error: (err) => {
+          this.categorySaving = false;
+          const msg = err.error?.error || 'Failed to create category';
+          this.showAlert(msg, 'error');
+        }
+      });
+    }
+  }
+
+  deleteCategory(cat: InventoryCategory): void {
+    if (!cat.id) return;
+    if (!confirm(`Are you sure you want to delete category "${cat.name}"?`)) {
+      return;
+    }
+
+    this.inventoryService.deleteInventoryCategory(cat.id).subscribe({
+      next: () => {
+        this.showAlert(`Category '${cat.name}' deleted successfully`, 'success');
+        if (this.editingCategory?.id === cat.id) {
+          this.cancelEditCategory();
+        }
+        this.loadCategories();
+        this.loadInventory();
+      },
+      error: (err) => {
+        const msg = err.error?.error || 'Failed to delete category';
+        this.showAlert(msg, 'error');
+      }
+    });
+  }
+
+  getCategoryItemCount(catName: string): number {
+    if (!catName) return 0;
+    const lower = catName.trim().toLowerCase();
+    return this.inventoryItems.filter(i => i.category && i.category.trim().toLowerCase() === lower).length;
   }
 
   // ===== HELPERS =====

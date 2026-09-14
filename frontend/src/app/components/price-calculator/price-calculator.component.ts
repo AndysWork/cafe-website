@@ -4,8 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { PriceCalculatorService } from '../../services/price-calculator.service';
+import { PriceCalculatorService, BulkUploadRecipeResult } from '../../services/price-calculator.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
+import { InventoryService, Inventory } from '../../services/inventory.service';
 import { OverheadCostService, OverheadCost, OverheadAllocation } from '../../services/overhead-cost.service';
 import { FrozenItemService } from '../../services/frozen-item.service';
 import { PriceForecastService, PriceForecast } from '../../services/price-forecast.service';
@@ -34,10 +35,12 @@ import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
 export class PriceCalculatorComponent implements OnInit, OnDestroy {
   private readonly defaultOnlineDeduction = 44;
   private uiStore = inject(UIStore);
+  private inventoryService = inject(InventoryService);
   private destroy$ = new Subject<void>();
 
   // Data
   ingredients: Ingredient[] = [];
+  inventoryItems: Inventory[] = [];
   recipes: MenuItemRecipe[] = [];
   menuItems: MenuItem[] = [];
   frozenItems: FrozenItem[] = [];
@@ -48,6 +51,13 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   recipeSearchTerm = '';
   recipeSortBy: 'name' | 'price' | 'category' | 'futureShopProfit' | 'futureOnlineProfit' | 'futureWebProfit' = 'name';
   recipeSortDir: 'asc' | 'desc' = 'asc';
+
+  // Recipe Bulk Upload Management
+  showRecipeUploadModal = false;
+  selectedRecipeUploadFile: File | null = null;
+  recipeUploading = false;
+  recipeUploadResult: BulkUploadRecipeResult | null = null;
+  recipeIsDragging = false;
 
   // Ingredient Management
   showIngredientModal = false;
@@ -190,6 +200,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadIngredients();
+    this.loadInventoryItems();
     this.loadRecipes();
     this.loadMenuItems();
     this.loadOverheadCosts();
@@ -206,6 +217,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       .subscribe(() => {
         // Reset data before loading new outlet data
         this.ingredients = [];
+        this.inventoryItems = [];
         this.recipes = [];
         this.menuItems = [];
         this.overheadCosts = [];
@@ -216,6 +228,7 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         this.priceCalculatorService.reloadData();
 
         this.loadIngredients();
+        this.loadInventoryItems();
         this.loadRecipes();
         this.loadMenuItems();
         this.loadOverheadCosts();
@@ -229,6 +242,19 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
   }
 
   // ===== DATA LOADING =====
+
+  loadInventoryItems(): void {
+    this.inventoryService.getActiveInventory()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (items) => {
+          this.inventoryItems = items || [];
+        },
+        error: (err) => {
+          console.error('Error loading inventory items in Price Calculator:', err);
+        }
+      });
+  }
 
   loadIngredients(): void {
     this.priceCalculatorService.getIngredients()
@@ -759,7 +785,21 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     }
   }
 
-  get filteredIngredients(): Ingredient[] {
+  get allAvailableIngredients(): Ingredient[] {
+    // Convert inventory items to ingredient format with live cost per unit
+    const inventoryAsIngredients: Ingredient[] = this.inventoryItems
+      .filter(item => item.isActive)
+      .map(item => ({
+        id: item.ingredientId || item.id,
+        name: item.ingredientName,
+        category: item.category,
+        marketPrice: item.costPerUnit > 0 ? item.costPerUnit : (item.lastPurchasePrice || 0),
+        unit: (item.unit as any) || 'kg',
+        isActive: item.isActive,
+        priceSource: 'inventory',
+        lastUpdated: item.updatedAt
+      }));
+
     // Convert frozen items to ingredient format
     const frozenAsIngredients: Ingredient[] = this.frozenItems
       .filter(item => item.isActive)
@@ -770,16 +810,56 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
         marketPrice: item.perPiecePrice,
         unit: 'pc' as const,
         isActive: item.isActive,
+        priceSource: 'frozen',
         lastUpdated: item.updatedAt
       }));
 
-    // Combine regular ingredients and frozen items
-    const allIngredients = [...this.ingredients, ...frozenAsIngredients];
+    // Combine regular ingredients, inventory items, and frozen items (deduped by name)
+    const ingredientMap = new Map<string, Ingredient>();
+
+    // 1. Regular database/defaults ingredients
+    for (const ing of this.ingredients) {
+      if (ing?.name) {
+        ingredientMap.set(ing.name.trim().toLowerCase(), ing);
+      }
+    }
+
+    // 2. Inventory items (override market price with live inventory cost if present)
+    for (const inv of inventoryAsIngredients) {
+      if (inv?.name) {
+        const key = inv.name.trim().toLowerCase();
+        const existing = ingredientMap.get(key);
+        if (existing) {
+          ingredientMap.set(key, {
+            ...existing,
+            id: existing.id || inv.id,
+            marketPrice: inv.marketPrice > 0 ? inv.marketPrice : existing.marketPrice,
+            unit: inv.unit || existing.unit,
+            priceSource: 'inventory'
+          });
+        } else {
+          ingredientMap.set(key, inv);
+        }
+      }
+    }
+
+    // 3. Frozen items
+    for (const frozen of frozenAsIngredients) {
+      if (frozen?.name) {
+        ingredientMap.set(frozen.name.trim().toLowerCase(), frozen);
+      }
+    }
+
+    return Array.from(ingredientMap.values());
+  }
+
+  get filteredIngredients(): Ingredient[] {
+    const allIngredients = this.allAvailableIngredients;
 
     const filtered = allIngredients.filter(ing => {
       const matchesSearch = !this.ingredientSearchTerm ||
         ing.name.toLowerCase().includes(this.ingredientSearchTerm.toLowerCase());
-      const matchesCategory = !this.selectedCategory || ing.category === this.selectedCategory;
+      const matchesCategory = !this.selectedCategory || ing.category?.toLowerCase() === this.selectedCategory.toLowerCase();
       // Show ingredient if isActive is true or undefined (default to active)
       const isActiveOrUndefined = ing.isActive !== false;
       return matchesSearch && matchesCategory && isActiveOrUndefined;
@@ -906,6 +986,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
 
   getPriceSourceBadge(source?: string): { label: string; class: string } {
     switch (source?.toLowerCase()) {
+      case 'inventory':
+        return { label: '📦 Inventory', class: 'badge-inventory' };
+      case 'frozen':
+        return { label: '🧊 Frozen', class: 'badge-frozen' };
       case 'agmarknet':
         return { label: '🌾 AGMARKNET', class: 'badge-agri' };
       case 'scraped':
@@ -1782,6 +1866,10 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
       this.currentRecipe.dietaryType = this.normalizeDietaryType(this.currentRecipe.dietaryType);
     }
 
+    if (this.currentOutlet?.id) {
+      this.currentRecipe.outletId = this.currentOutlet.id;
+    }
+
     // Add oil usage data to recipe if frying time is specified
     if (this.fryingTimeMinutes > 0) {
       this.currentRecipe.oilUsage = {
@@ -2326,6 +2414,133 @@ export class PriceCalculatorComponent implements OnInit, OnDestroy {
     a.download = 'frozen_items_template.csv';
     a.click();
     window.URL.revokeObjectURL(url);
+  }
+
+  // ===== RECIPE BULK UPLOAD MANAGEMENT =====
+
+  openRecipeUploadModal(): void {
+    this.showRecipeUploadModal = true;
+    this.selectedRecipeUploadFile = null;
+    this.recipeUploadResult = null;
+    this.recipeUploading = false;
+  }
+
+  closeRecipeUploadModal(): void {
+    this.showRecipeUploadModal = false;
+    this.selectedRecipeUploadFile = null;
+    this.recipeUploadResult = null;
+    this.recipeUploading = false;
+  }
+
+  onRecipeFileSelected(event: any): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.handleRecipeFile(input.files[0]);
+    }
+  }
+
+  onRecipeDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.recipeIsDragging = true;
+  }
+
+  onRecipeDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.recipeIsDragging = false;
+  }
+
+  onRecipeDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.recipeIsDragging = false;
+    if (event.dataTransfer && event.dataTransfer.files.length > 0) {
+      this.handleRecipeFile(event.dataTransfer.files[0]);
+    }
+  }
+
+  private handleRecipeFile(file: File): void {
+    const lowerName = file.name.toLowerCase();
+    if (!lowerName.endsWith('.xlsx') && !lowerName.endsWith('.xls')) {
+      this.uiStore.warning('Please select a valid Excel file (.xlsx or .xls)');
+      return;
+    }
+    this.selectedRecipeUploadFile = file;
+    this.recipeUploadResult = null;
+  }
+
+  removeSelectedRecipeFile(): void {
+    this.selectedRecipeUploadFile = null;
+    this.recipeUploadResult = null;
+    const fileInput = document.getElementById('recipeExcelFileInput') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+  }
+
+  downloadRecipeTemplate(): void {
+    this.priceCalculatorService.downloadRecipeTemplate().subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'recipes_template.xlsx';
+        a.click();
+        window.URL.revokeObjectURL(url);
+      },
+      error: (err) => {
+        console.error('Error downloading recipe template:', err);
+        const headers = 'MenuItemName,DietaryType,IngredientName,Quantity,Unit,UnitPrice,ProfitMargin,PackagingCost,ShopPrice,OnlinePrice,Notes\n';
+        const sample1 = 'Chicken Biryani,non-veg,Chicken Breast,0.25,kg,240,30,10,250,290,Signature Dum Biryani\n';
+        const sample2 = 'Chicken Biryani,non-veg,Basmati Rice,0.20,kg,80,,,,,\n';
+        const sample3 = 'Classic Cold Coffee,veg,Fresh Milk,0.25,ltr,56,35,5,90,120,Thick chilled coffee\n';
+        const sample4 = 'Classic Cold Coffee,veg,Coffee Decoction,0.05,ltr,150,,,,,\n';
+        const blob = new Blob([headers + sample1 + sample2 + sample3 + sample4], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'recipes_template.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+    });
+  }
+
+  uploadRecipeExcelFile(): void {
+    if (!this.selectedRecipeUploadFile) {
+      this.uiStore.warning('Please select an Excel file to upload');
+      return;
+    }
+
+    this.recipeUploading = true;
+    this.recipeUploadResult = null;
+
+    this.priceCalculatorService.uploadRecipesExcel(this.selectedRecipeUploadFile)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.recipeUploading = false;
+          this.recipeUploadResult = res;
+
+          if (res.recipesCreated > 0 || res.recipesUpdated > 0) {
+            this.showAlert(`✅ ${res.recipesCreated} recipes created, ${res.recipesUpdated} updated!`, 'success');
+            this.loadRecipes();
+            this.loadIngredients();
+            this.loadMenuItems();
+          } else {
+            this.showAlert(`⚠️ Upload completed with 0 recipes processed. Check details below.`, 'warning');
+          }
+
+          this.selectedRecipeUploadFile = null;
+          const fileInput = document.getElementById('recipeExcelFileInput') as HTMLInputElement;
+          if (fileInput) fileInput.value = '';
+        },
+        error: (err) => {
+          this.recipeUploading = false;
+          console.error('Error uploading recipe Excel:', err);
+          const errorMsg = err.error?.error || err.error?.message || 'Failed to upload recipe Excel spreadsheet.';
+          this.showAlert(errorMsg, 'error');
+        }
+      });
   }
 
   // ===== COPY MENU DATA FROM ANOTHER OUTLET =====

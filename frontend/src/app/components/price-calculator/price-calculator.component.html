@@ -8,6 +8,15 @@
         <p>Calculate accurate pricing for menu items based on ingredient costs and overheads</p>
       </div>
     </div>
+    <div class="header-right-actions">
+      <button type="button" class="btn-header-recipe-upload" (click)="openRecipeUploadModal()" title="Upload Bulk Recipes via Excel">
+        <span>📤</span> Upload Bulk Recipes
+      </button>
+      <div class="header-outlet-badge" *ngIf="currentOutlet">
+        <span class="outlet-dot"></span>
+        <span class="outlet-name">Outlet: <strong>{{ currentOutlet.outletName }}</strong></span>
+      </div>
+    </div>
   </div>
 
   <!-- Tab Navigation -->
@@ -24,7 +33,7 @@
       [class.active]="activeTab === 'ingredients'"
       (click)="activeTab = 'ingredients'">
       <span class="tab-icon">🥕</span>
-      Ingredients ({{ingredients.length}})
+      Ingredients ({{allAvailableIngredients.length}})
     </button>
     <button
       class="tab-btn"
@@ -59,6 +68,9 @@
           <div class="header-actions">
             <button class="btn-action" (click)="newRecipe()" title="New Recipe">
               <span>➕</span> New
+            </button>
+            <button class="btn-action btn-upload-recipe-action" (click)="openRecipeUploadModal()" title="Bulk Upload Recipes via Excel">
+              <span>📤</span> Bulk Upload
             </button>
             <button class="btn-action" (click)="openCopyRecipeModal()" title="Copy from Existing Recipe" style="background-color: #8b5cf6;">
               <span>📋</span> Copy Recipe
@@ -1119,7 +1131,16 @@
     <div class="recipes-management">
       <div class="recipes-header">
         <div class="recipes-header-info">
-          <h3>Saved Recipes</h3>
+          <div class="recipes-header-title-row">
+            <h3>Saved Recipes</h3>
+            <button
+              type="button"
+              class="btn-recipe-upload-toolbar"
+              (click)="openRecipeUploadModal()"
+              title="Bulk Upload Recipes via Excel">
+              <span>📤</span> Upload Bulk Recipes
+            </button>
+          </div>
           <p>{{filteredRecipes.length}} of {{recipes.length}} recipe{{recipes.length === 1 ? '' : 's'}}</p>
         </div>
         <input
@@ -1160,6 +1181,13 @@
             ▦ Table
           </button>
         </div>
+        <button
+          type="button"
+          class="btn-recipe-upload-toolbar"
+          (click)="openRecipeUploadModal()"
+          title="Bulk Upload Recipes via Excel">
+          <span>📤</span> Upload Recipes
+        </button>
       </div>
 
       <div class="recipes-grid" *ngIf="recipeViewMode === 'grid'">
@@ -1212,8 +1240,8 @@
                   <span class="stat-value">₹{{(forecast.webPrice || forecast.shopPrice || forecast.onlinePrice || 0).toFixed(2)}}
                     <small
                       class="profit-badge"
-                      [class.loss]="(forecast.webProfit ?? forecast.offlineProfit ?? 0) < 0">
-                      ({{(forecast.webProfit ?? forecast.offlineProfit ?? 0) >= 0 ? '+' : ''}}₹{{(forecast.webProfit ?? forecast.offlineProfit ?? 0).toFixed(2)}})
+                      [class.loss]="(forecast.webProfit || 0) < 0">
+                      ({{ (forecast.webProfit || 0) >= 0 ? '+' : '' }}₹{{ (forecast.webProfit || 0).toFixed(2) }})
                     </small>
                   </span>
                 </div>
@@ -1339,9 +1367,14 @@
       <div class="no-data-state" *ngIf="recipes.length === 0">
         <span class="no-data-icon">📋</span>
         <p>No saved recipes yet</p>
-        <button class="btn-primary" (click)="activeTab = 'calculator'">
-          Create Your First Recipe
-        </button>
+        <div class="empty-state-buttons">
+          <button class="btn-primary" (click)="activeTab = 'calculator'">
+            ➕ Create Your First Recipe
+          </button>
+          <button class="btn-secondary btn-upload-empty" (click)="openRecipeUploadModal()">
+            <span>📤</span> Bulk Upload Recipes via Excel
+          </button>
+        </div>
       </div>
 
       <div class="no-data-state" *ngIf="recipes.length > 0 && filteredRecipes.length === 0">
@@ -2184,6 +2217,111 @@
         </button>
         <button class="btn-primary" (click)="copyFromRecipe()" [disabled]="!selectedRecipeToCopy">
           <span>📋 Copy Recipe</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Upload Recipes Modal -->
+  <div class="modal-overlay" *ngIf="showRecipeUploadModal" (click)="closeRecipeUploadModal()">
+    <div class="modal-content recipe-upload-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span class="modal-header-icon">📤</span>
+          <div>
+            <h2>Bulk Upload Recipes via Excel</h2>
+            <p class="modal-header-sub" *ngIf="currentOutlet">
+              Target Outlet: <strong>{{ currentOutlet.outletName }}</strong>
+            </p>
+          </div>
+        </div>
+        <button class="modal-close" (click)="closeRecipeUploadModal()">✖</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Step 1: Download Template -->
+        <div class="upload-step-box">
+          <div class="step-badge">1</div>
+          <div class="step-body">
+            <h4>Download Excel Recipe Template</h4>
+            <p>Download our pre-structured recipe template with multi-ingredient sample dishes (Chicken Biryani, Cold Coffee, Paneer Butter Masala, French Fries).</p>
+            <button type="button" class="btn-download-recipe-template" (click)="downloadRecipeTemplate()">
+              <span>📥</span> Download Template (.xlsx)
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Upload File -->
+        <div class="upload-step-box">
+          <div class="step-badge">2</div>
+          <div class="step-body">
+            <h4>Upload Completed Excel File</h4>
+            <p>Select or drag &amp; drop your completed spreadsheet (.xlsx or .xls).</p>
+
+            <div class="recipe-dropzone"
+                 [class.dragging]="recipeIsDragging"
+                 (dragover)="onRecipeDragOver($event)"
+                 (dragleave)="onRecipeDragLeave($event)"
+                 (drop)="onRecipeDrop($event)"
+                 (click)="recipeFileInput.click()">
+              <input #recipeFileInput
+                     id="recipeExcelFileInput"
+                     type="file"
+                     accept=".xlsx,.xls"
+                     style="display: none;"
+                     (change)="onRecipeFileSelected($event)" />
+
+              <div *ngIf="!selectedRecipeUploadFile" class="dropzone-prompt">
+                <span class="dropzone-icon">📊</span>
+                <p class="dropzone-title">Click to browse or drag &amp; drop recipe spreadsheet here</p>
+                <small class="dropzone-hint">Supports .xlsx and .xls (Max 10MB)</small>
+              </div>
+
+              <div *ngIf="selectedRecipeUploadFile" class="dropzone-selected-file" (click)="$event.stopPropagation()">
+                <span class="file-icon">📑</span>
+                <div class="file-info">
+                  <strong class="file-name">{{ selectedRecipeUploadFile.name }}</strong>
+                  <small class="file-size">{{ (selectedRecipeUploadFile.size / 1024) | number:'1.1-1' }} KB</small>
+                </div>
+                <button type="button" class="btn-remove-selected-file" (click)="removeSelectedRecipeFile()" title="Remove file">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result Summary -->
+        <div *ngIf="recipeUploadResult" class="recipe-upload-result-box" [class.has-errors]="recipeUploadResult.failedRows > 0">
+          <div class="result-header-row">
+            <span class="result-emoji">{{ recipeUploadResult.failedRows === 0 ? '🎉' : '⚠️' }}</span>
+            <div class="result-text">
+              <strong>{{ recipeUploadResult.message }}</strong>
+              <div class="result-metrics">
+                <span class="metric-pill success">✅ {{ recipeUploadResult.recipesCreated }} Created</span>
+                <span class="metric-pill update">🔄 {{ recipeUploadResult.recipesUpdated }} Updated</span>
+                <span *ngIf="recipeUploadResult.failedRows > 0" class="metric-pill fail">❌ {{ recipeUploadResult.failedRows }} Failed Rows</span>
+                <span class="metric-pill total">Total: {{ recipeUploadResult.totalRecipes }} Recipes</span>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="recipeUploadResult.errors && recipeUploadResult.errors.length > 0" class="result-error-list">
+            <span class="error-title">Issues encountered:</span>
+            <ul>
+              <li *ngFor="let err of recipeUploadResult.errors">{{ err }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeRecipeUploadModal()" [disabled]="recipeUploading">
+          {{ recipeUploadResult && (recipeUploadResult.recipesCreated > 0 || recipeUploadResult.recipesUpdated > 0) ? 'Close' : 'Cancel' }}
+        </button>
+        <button class="btn-primary"
+                (click)="uploadRecipeExcelFile()"
+                [disabled]="!selectedRecipeUploadFile || recipeUploading">
+          <span *ngIf="!recipeUploading">📤 Upload &amp; Build Recipes</span>
+          <span *ngIf="recipeUploading">⏳ Processing Recipes...</span>
         </button>
       </div>
     </div>

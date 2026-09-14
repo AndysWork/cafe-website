@@ -12,6 +12,11 @@
     border-radius: 16px;
     margin-bottom: 2rem;
     box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
 
     .header-left {
       display: flex;
@@ -33,6 +38,71 @@
           margin: 0;
           opacity: 0.95;
           font-size: 1rem;
+        }
+      }
+    }
+
+    .header-right-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+
+      .btn-header-recipe-upload {
+        background: #ffffff;
+        border: none;
+        color: #0369A1;
+        padding: 0.65rem 1.35rem;
+        border-radius: 9999px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+
+        span {
+          font-size: 1.1rem;
+        }
+
+        &:hover {
+          background: #f0fdf4;
+          color: #047857;
+          transform: translateY(-2px);
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+        }
+
+        &:active {
+          transform: translateY(0);
+        }
+      }
+
+      .header-outlet-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        padding: 0.5rem 1.1rem;
+        border-radius: 9999px;
+        backdrop-filter: blur(4px);
+        font-size: 0.95rem;
+
+        .outlet-dot {
+          width: 10px;
+          height: 10px;
+          background: #10B981;
+          border-radius: 50%;
+          box-shadow: 0 0 8px #10B981;
+        }
+
+        .outlet-name {
+          strong {
+            color: #ffffff;
+            font-weight: 700;
+          }
         }
       }
     }
@@ -135,6 +205,18 @@
       .header-actions {
         display: flex;
         gap: 0.5rem;
+        flex-wrap: wrap;
+
+        .btn-upload-recipe-action {
+          background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%) !important;
+          color: white !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+          }
+        }
       }
     }
   }
@@ -908,10 +990,21 @@
       flex-wrap: wrap;
 
       .recipes-header-info {
-        h3 {
-          margin: 0;
-          font-size: 1.1rem;
-          color: #1e293b;
+        display: flex;
+        flex-direction: column;
+
+        .recipes-header-title-row {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          flex-wrap: wrap;
+
+          h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: #1e293b;
+            font-weight: 800;
+          }
         }
 
         p {
@@ -1702,6 +1795,36 @@
       font-size: 1.1rem;
       margin-bottom: 1.5rem;
     }
+
+    .empty-state-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+
+      .btn-upload-empty {
+        background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+        color: white;
+        border: none;
+        padding: 0.85rem 1.6rem;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+
+        &:hover {
+          background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
+          transform: translateY(-2px);
+          box-shadow: 0 6px 16px rgba(124, 58, 237, 0.35);
+        }
+      }
+    }
   }
 
   // ===== PRICE TRACKING STYLES =====
@@ -1733,6 +1856,16 @@
 
     &.badge-api {
       background: linear-gradient(135deg, #38BDF8 0%, #7c3aed 100%);
+      color: white;
+    }
+
+    &.badge-inventory {
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      color: white;
+    }
+
+    &.badge-frozen {
+      background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
       color: white;
     }
 
@@ -3784,6 +3917,320 @@
 
     .price-comparison-grid {
       grid-template-columns: 1fr;
+    }
+  }
+
+  // Bulk Upload Recipes Toolbar Button & Modal
+  .btn-recipe-upload-toolbar {
+    background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+
+    &:hover {
+      background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(124, 58, 237, 0.35);
+    }
+  }
+
+  .recipe-upload-modal {
+    max-width: 620px;
+    width: 95%;
+    border-top: 4px solid #8B5CF6;
+
+    .modal-header {
+      background: linear-gradient(180deg, #F5F3FF 0%, #FFFFFF 100%);
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      .modal-header-title {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+
+        .modal-header-icon {
+          font-size: 2rem;
+          background: #EDE9FE;
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        h2 {
+          margin: 0;
+          font-size: 1.25rem;
+          color: #1E293B;
+          font-weight: 700;
+        }
+
+        .modal-header-sub {
+          margin: 0.2rem 0 0 0;
+          font-size: 0.8rem;
+          color: #64748B;
+
+          strong {
+            color: #7C3AED;
+          }
+        }
+      }
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+    }
+
+    .upload-step-box {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 1.1rem 1.25rem;
+      margin-bottom: 1.25rem;
+
+      .step-badge {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #8B5CF6;
+        color: white;
+        font-weight: 700;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      .step-body {
+        flex: 1;
+
+        h4 {
+          margin: 0 0 0.25rem 0;
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: #0F172A;
+        }
+
+        p {
+          margin: 0 0 0.75rem 0;
+          font-size: 0.8rem;
+          color: #64748B;
+          line-height: 1.4;
+        }
+
+        .btn-download-recipe-template {
+          background: white;
+          border: 1.5px solid #CBD5E1;
+          color: #1E293B;
+          padding: 0.5rem 1rem;
+          border-radius: 8px;
+          font-size: 0.825rem;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          transition: all 0.15s ease;
+
+          &:hover {
+            background: #F1F5F9;
+            border-color: #8B5CF6;
+            color: #7C3AED;
+            transform: translateY(-1px);
+          }
+        }
+      }
+    }
+
+    .recipe-dropzone {
+      border: 2px dashed #CBD5E1;
+      border-radius: 10px;
+      background: white;
+      padding: 1.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        border-color: #8B5CF6;
+        background: #F5F3FF;
+      }
+
+      &.dragging {
+        border-color: #7C3AED;
+        background: #EDE9FE;
+        transform: scale(1.01);
+      }
+
+      .dropzone-prompt {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+
+        .dropzone-icon {
+          font-size: 2.5rem;
+        }
+
+        .dropzone-title {
+          margin: 0;
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: #1E293B;
+        }
+
+        .dropzone-hint {
+          font-size: 0.75rem;
+          color: #94A3B8;
+        }
+      }
+
+      .dropzone-selected-file {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+
+        .file-icon {
+          font-size: 1.8rem;
+        }
+
+        .file-info {
+          flex: 1;
+          text-align: left;
+          display: flex;
+          flex-direction: column;
+
+          .file-name {
+            font-size: 0.875rem;
+            color: #0F172A;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .file-size {
+            font-size: 0.725rem;
+            color: #64748B;
+          }
+        }
+
+        .btn-remove-selected-file {
+          background: none;
+          border: none;
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #94A3B8;
+          cursor: pointer;
+
+          &:hover {
+            background: #FEE2E2;
+            color: #EF4444;
+          }
+        }
+      }
+    }
+
+    .recipe-upload-result-box {
+      background: #F0FDF4;
+      border: 1px solid #86EFAC;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-top: 1rem;
+
+      &.has-errors {
+        background: #FFFBEB;
+        border-color: #FCD34D;
+      }
+
+      .result-header-row {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+
+        .result-emoji {
+          font-size: 1.5rem;
+        }
+
+        .result-text {
+          flex: 1;
+
+          strong {
+            font-size: 0.9rem;
+            color: #0F172A;
+          }
+
+          .result-metrics {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+
+            .metric-pill {
+              font-size: 0.725rem;
+              font-weight: 600;
+              padding: 2px 8px;
+              border-radius: 10px;
+
+              &.success { background: #DCFCE7; color: #166534; }
+              &.update { background: #E0F2FE; color: #0369A1; }
+              &.fail { background: #FEE2E2; color: #991B1B; }
+              &.total { background: #E2E8F0; color: #475569; }
+            }
+          }
+        }
+      }
+
+      .result-error-list {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px dashed #FCD34D;
+
+        .error-title {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #92400E;
+        }
+
+        ul {
+          margin: 0.35rem 0 0 0;
+          padding-left: 1.2rem;
+          max-height: 100px;
+          overflow-y: auto;
+
+          li {
+            font-size: 0.75rem;
+            color: #B45309;
+            margin-bottom: 2px;
+          }
+        }
+      }
     }
   }
 }

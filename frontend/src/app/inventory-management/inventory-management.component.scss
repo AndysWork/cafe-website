@@ -2761,3 +2761,298 @@
     }
   }
 }
+
+// Category Toolbar & Hero Buttons
+.btn-category-toolbar {
+  padding: 10px 16px;
+  background: #FFFFFF;
+  border: 1.5px solid #8B5CF6;
+  color: #7C3AED;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #F5F3FF;
+    border-color: #7C3AED;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.15);
+  }
+}
+
+.btn-hero-cat {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.3) !important;
+    border-color: rgba(255, 255, 255, 0.5) !important;
+    transform: translateY(-2px);
+  }
+}
+
+.heading-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+// Category Manager Modal
+.category-manager-modal {
+  max-width: 850px;
+  width: 95%;
+  border-top: 4px solid #8B5CF6;
+
+  .modal-header {
+    background: linear-gradient(180deg, #F5F3FF 0%, #FFFFFF 100%);
+  }
+
+  .cat-badge {
+    background: #EDE9FE;
+    color: #7C3AED;
+    box-shadow: 0 2px 6px rgba(139, 92, 246, 0.2);
+  }
+
+  // Category Form Card
+  .cat-form-card {
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    transition: all 0.2s ease;
+
+    &.editing {
+      border-color: #8B5CF6;
+      background: #FBF9FF;
+      box-shadow: 0 0 0 1px #8B5CF6;
+    }
+
+    .cat-form-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+
+      h4 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0F172A;
+      }
+
+      .btn-cancel-edit {
+        background: none;
+        border: none;
+        color: #EF4444;
+        font-size: 0.825rem;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+
+        &:hover {
+          background: #FEE2E2;
+        }
+      }
+    }
+
+    .cat-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+
+      @media (max-width: 600px) {
+        grid-template-columns: 1fr;
+      }
+
+      .full-width {
+        grid-column: 1 / -1;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+
+        label {
+          font-size: 0.825rem;
+          font-weight: 600;
+          color: #334155;
+          display: flex;
+          align-items: center;
+
+          .required {
+            color: #EF4444;
+            margin-left: 3px;
+          }
+
+          .field-hint {
+            font-size: 0.725rem;
+            color: #64748B;
+            font-weight: normal;
+            margin-left: 4px;
+          }
+        }
+
+        input[type="text"],
+        input[type="number"] {
+          padding: 9px 12px;
+          border: 1.5px solid #CBD5E1;
+          border-radius: 8px;
+          font-size: 0.925rem;
+          color: #0F172A;
+          background: #FFFFFF;
+          box-sizing: border-box;
+
+          &:focus {
+            outline: none;
+            border-color: #8B5CF6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+          }
+        }
+
+        .input-with-addon {
+          display: flex;
+          border: 1.5px solid #CBD5E1;
+          border-radius: 8px;
+          background: #FFFFFF;
+          overflow: hidden;
+
+          input {
+            border: none;
+            flex: 1;
+            padding: 9px 12px;
+            font-size: 0.925rem;
+            color: #0F172A;
+
+            &:focus {
+              outline: none;
+            }
+          }
+
+          .input-addon {
+            padding: 0 12px;
+            background: #F1F5F9;
+            color: #475569;
+            font-size: 0.825rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            border-left: 1px solid #E2E8F0;
+          }
+
+          &:focus-within {
+            border-color: #8B5CF6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+          }
+        }
+      }
+    }
+
+    .cat-form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+
+      .btn-primary {
+        background-color: #7C3AED;
+
+        &:hover:not(:disabled) {
+          background-color: #6D28D9;
+        }
+      }
+    }
+  }
+
+  // Category Table
+  .cat-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    h4 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #0F172A;
+    }
+
+    .cat-table-hint {
+      font-size: 0.775rem;
+      color: #64748B;
+    }
+  }
+
+  .cat-table-container {
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+
+    .cat-table {
+      width: 100%;
+      border-collapse: collapse;
+
+      th {
+        background: #F8FAFC;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
+      tr.highlight-row {
+        background: #F5F3FF !important;
+      }
+
+      .cat-tag {
+        font-size: 0.9rem;
+        color: #0F172A;
+      }
+
+      .shelf-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        background: #FEF3C7;
+        color: #92400E;
+        font-weight: 600;
+        font-size: 0.775rem;
+        border-radius: 6px;
+      }
+
+      .items-count-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.75rem;
+        background: #F1F5F9;
+        color: #64748B;
+        font-weight: 500;
+
+        &.has-items {
+          background: #E0F2FE;
+          color: #0369A1;
+          font-weight: 600;
+        }
+      }
+
+      .cat-desc-text {
+        font-size: 0.8rem;
+        color: #64748B;
+      }
+    }
+  }
+}
+

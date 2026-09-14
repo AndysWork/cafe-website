@@ -52,6 +52,9 @@
           <button (click)="openUploadModal()" class="btn hero-btn btn-hero-upload">
             📤 Upload Excel
           </button>
+          <button (click)="openCategoryModal()" class="btn hero-btn btn-hero-cat" title="Manage Outlet Categories">
+            ⚙️ Categories
+          </button>
           <button (click)="loadInventory()" class="btn btn-secondary hero-btn">
             📦 Catalog ({{ report.totalItems }})
           </button>
@@ -149,7 +152,10 @@
               <h3>📂 Category Capital Allocation</h3>
               <p class="section-sub">Breakdown of inventory investments &amp; stock health by food group</p>
             </div>
-            <small class="legend-note">Click category to filter</small>
+            <div class="heading-links">
+              <button (click)="openCategoryModal()" class="btn-text-link">⚙️ Manage Categories →</button>
+              <small class="legend-note">Click category to filter</small>
+            </div>
           </div>
 
           <div class="category-bars-list">
@@ -423,6 +429,10 @@
 
       <button (click)="openUploadModal()" class="btn btn-upload-toolbar" title="Bulk Upload Inventory from Excel">
         📤 Upload Excel
+      </button>
+
+      <button (click)="openCategoryModal()" class="btn btn-category-toolbar" title="Manage Outlet Inventory Categories">
+        ⚙️ Categories
       </button>
     </div>
 
@@ -1335,6 +1345,114 @@
                 [disabled]="!selectedUploadFile || uploading">
           <span *ngIf="!uploading">📤 Upload &amp; Process Excel</span>
           <span *ngIf="uploading">⏳ Processing Spreadsheet...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CATEGORY MANAGEMENT MODAL (Outlet-Scoped) -->
+  <div *ngIf="showCategoryModal" class="modal-backdrop" (click)="closeCategoryModal()">
+    <div class="modal modal-large category-manager-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="header-title-group">
+          <div class="header-icon-badge cat-badge">⚙️</div>
+          <div>
+            <h3>Inventory Categories (Outlet-Scoped)</h3>
+            <p class="header-subtitle">
+              Add, update, or remove inventory categories and configure custom shelf-life expiry rules for this outlet
+            </p>
+          </div>
+        </div>
+        <button (click)="closeCategoryModal()" class="btn-close" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Add / Edit Category Form Card -->
+        <div class="cat-form-card" [class.editing]="!!editingCategory">
+          <div class="cat-form-header">
+            <h4>{{ editingCategory ? '✏️ Edit Category: ' + editingCategory.name : '➕ Add New Inventory Category' }}</h4>
+            <button *ngIf="editingCategory" (click)="cancelEditCategory()" class="btn-cancel-edit">✕ Cancel Edit</button>
+          </div>
+
+          <div class="cat-form-grid">
+            <div class="form-group">
+              <label for="catName">Category Name <span class="required">*</span></label>
+              <input id="catName" type="text" [(ngModel)]="categoryForm.name" placeholder="e.g., Sea Food, Gourmet Syrups" autofocus />
+            </div>
+
+            <div class="form-group">
+              <label for="catShelfLife">
+                Shelf-Life Expiry Warning (Days)
+                <small class="field-hint">(Alert Threshold)</small>
+              </label>
+              <div class="input-with-addon">
+                <input id="catShelfLife" type="number" [(ngModel)]="categoryForm.shelfLifeDays" min="1" max="730" placeholder="7" />
+                <span class="input-addon">days</span>
+              </div>
+            </div>
+
+            <div class="form-group full-width">
+              <label for="catDesc">Description <small class="field-hint">(Optional)</small></label>
+              <input id="catDesc" type="text" [(ngModel)]="categoryForm.description" placeholder="Brief note on items included in this category" />
+            </div>
+          </div>
+
+          <div class="cat-form-actions">
+            <button type="button" (click)="saveCategory()" class="btn btn-primary" [disabled]="categorySaving || !categoryForm.name">
+              <span *ngIf="!categorySaving">{{ editingCategory ? '💾 Update Category' : '➕ Add Category' }}</span>
+              <span *ngIf="categorySaving">Saving...</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Categories List Table -->
+        <div class="cat-table-header">
+          <h4>Active Categories ({{ inventoryCategories.length }})</h4>
+          <small class="cat-table-hint">Shelf-life days determine when badges &amp; alerts turn warning (⚠️) or critical (🚨)</small>
+        </div>
+
+        <div class="table-container cat-table-container">
+          <table class="cat-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Shelf-Life Warning Rule</th>
+                <th>Assigned Items</th>
+                <th>Description</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let cat of inventoryCategories" [class.highlight-row]="editingCategory?.id === cat.id">
+                <td>
+                  <strong class="cat-tag">{{ cat.name }}</strong>
+                </td>
+                <td>
+                  <span class="shelf-pill">
+                    ⏱️ {{ cat.shelfLifeDays }} {{ cat.shelfLifeDays === 1 ? 'day' : 'days' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="items-count-badge" [class.has-items]="getCategoryItemCount(cat.name) > 0">
+                    {{ getCategoryItemCount(cat.name) }} items
+                  </span>
+                </td>
+                <td>
+                  <span class="cat-desc-text">{{ cat.description || '-' }}</span>
+                </td>
+                <td class="action-buttons">
+                  <button (click)="startEditCategory(cat)" class="btn-icon" title="Edit Category">✏️</button>
+                  <button (click)="deleteCategory(cat)" class="btn-icon btn-danger" title="Delete Category">🗑️</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeCategoryModal()" class="btn btn-secondary">
+          Close
         </button>
       </div>
     </div>
