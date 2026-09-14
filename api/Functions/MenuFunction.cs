@@ -43,9 +43,7 @@ public class MenuFunction
     {
         try
         {
-            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-            if (!isAuthorized) return errorResponse!;
-
+            var role = AuthorizationHelper.GetRoleFromAuthorizationHeader(req, _auth);
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             // Allow public access without outlet ID (returns all menu items)
@@ -95,9 +93,7 @@ public class MenuFunction
     {
         try
         {
-            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-            if (!isAuthorized) return errorResponse!;
-
+            var role = AuthorizationHelper.GetRoleFromAuthorizationHeader(req, _auth);
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             if (string.IsNullOrWhiteSpace(outletId))
@@ -146,9 +142,7 @@ public class MenuFunction
     {
         try
         {
-            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-            if (!isAuthorized) return errorResponse!;
-
+            var role = AuthorizationHelper.GetRoleFromAuthorizationHeader(req, _auth);
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             if (string.IsNullOrWhiteSpace(outletId))
@@ -199,9 +193,7 @@ public class MenuFunction
     {
         try
         {
-            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-            if (!isAuthorized) return errorResponse!;
-
+            var role = AuthorizationHelper.GetRoleFromAuthorizationHeader(req, _auth);
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             
             if (string.IsNullOrWhiteSpace(outletId))

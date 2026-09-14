@@ -51,16 +51,28 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.subs.push(
+      this.dineInService.isBillLoading$.subscribe(loading => {
+        this.loading = loading;
+      }),
       this.dineInService.isBillModalOpen$.subscribe(open => {
         this.isOpen = open;
         if (open) {
-          this.refresh();
+          this.loadAvailableOffers();
+          this.loadLoyaltyAccount();
+          if (!this.dineInService.isViewingSpecificSession) {
+            this.refresh();
+          }
         }
       }),
-      this.dineInService.activeBill$.subscribe(bill => {
+      this.dineInService.displayedBill$.subscribe(bill => {
         this.bill = bill;
+        if (bill) {
+          this.loading = false;
+        }
         if (bill?.tableNumber) {
-          this.tableNumber = bill.tableNumber;
+          this.tableNumber = this.dineInService.sanitizeTableNumber(bill.tableNumber);
+        } else if (this.dineInService.viewingTableNumber) {
+          this.tableNumber = this.dineInService.viewingTableNumber;
         }
         if (bill?.couponCode) {
           this.couponInput = bill.couponCode;
@@ -70,7 +82,7 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
         }
       }),
       this.dineInService.activeTable$.subscribe(table => {
-        if (!this.tableNumber) {
+        if (!this.dineInService.isViewingSpecificSession && !this.tableNumber) {
           this.tableNumber = table;
         }
       })
@@ -82,6 +94,8 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
   }
 
   close(): void {
+    this.tableNumber = '';
+    this.bill = null;
     this.dineInService.closeBillModal();
   }
 
@@ -258,6 +272,8 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
           this.uiStore.notify('Cash settlement requested! Staff have been notified to collect payment at your table or counter.', 'info');
         } else {
           this.uiStore.success('Payment recorded successfully! Thank you for dining with us.');
+          // Clean up the active table from localStorage once bill is settled so it doesn't linger
+          this.dineInService.clearTableSession();
         }
       },
       error: (err) => {
@@ -329,6 +345,10 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
   }
 
   finishDining(): void {
+    if (this.dineInService.isViewingSpecificSession) {
+      this.close();
+      return;
+    }
     this.dineInService.clearTableSession();
     this.close();
     this.router.navigate(['/']);

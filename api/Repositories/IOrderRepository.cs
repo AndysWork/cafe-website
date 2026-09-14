@@ -35,6 +35,7 @@ public interface IOrderRepository
     // Dine-In Table Sessions
     Task<DineInSession> CreateDineInSessionAsync(DineInSession session);
     Task<DineInSession?> GetActiveDineInSessionByTableAsync(string outletId, string tableNumber);
+    Task<DineInSession?> GetLatestDineInSessionByTableAsync(string outletId, string tableNumber);
     Task<DineInSession?> GetDineInSessionByIdAsync(string sessionId);
     Task<List<DineInSession>> GetActiveDineInSessionsAsync(string outletId);
     Task<List<DineInSession>> GetUserDineInSessionsAsync(string userId);

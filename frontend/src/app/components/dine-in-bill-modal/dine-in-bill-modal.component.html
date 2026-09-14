@@ -359,7 +359,7 @@
               <span>🖨️ Print / Save Receipt</span>
             </button>
             <button class="btn-primary-action" (click)="finishDining()">
-              <span>👋 Finish & Clear Table</span>
+              <span>{{ dineInService.isViewingSpecificSession ? '✕ Close Bill' : '👋 Finish & Clear Table' }}</span>
             </button>
           </div>
         </section>

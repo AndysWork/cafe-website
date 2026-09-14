@@ -73,18 +73,128 @@
       <button class="btn-primary" (click)="switchTab('book')">Book Now</button>
     </div>
     <div class="reservation-list">
-      <div *ngFor="let r of myReservations" class="reservation-card">
+      <div *ngFor="let r of myReservations" class="reservation-card" [class.seated]="r.status === 'seated'">
         <div class="res-header">
           <span class="res-date">{{ formatDate(r.reservationDate) }}</span>
-          <span class="res-status" [class]="getStatusClass(r.status)">{{ r.status }}</span>
+          <span class="res-status" [class]="getStatusClass(r.status)">
+            {{ r.status === 'seated' ? 'Dining In (Seated)' : r.status }}
+          </span>
         </div>
         <div class="res-details">
-          <span>{{ r.timeSlot }} · {{ r.partySize }} guests</span>
-          <span *ngIf="r.tableNumber">Table #{{ r.tableNumber }}</span>
+          <span>🕒 {{ r.timeSlot }} · 👥 {{ r.partySize }} guests</span>
+          <span class="res-table" *ngIf="r.tableNumber">🍽️ Table {{ formatTableDisplay(r.tableNumber) }}</span>
         </div>
-        <p *ngIf="r.specialRequests" class="res-notes">{{ r.specialRequests }}</p>
-        <button *ngIf="r.status === 'pending' || r.status === 'confirmed'"
-                class="btn-cancel" (click)="cancelReservation(r.id!)">Cancel</button>
+        <p *ngIf="r.specialRequests" class="res-notes">Note: {{ r.specialRequests }}</p>
+
+        <!-- Day-of-Reservation Actions -->
+        <div class="res-actions-row">
+          <!-- Check in / Start Dining Button -->
+          <button
+            *ngIf="(r.status === 'confirmed' || r.status === 'pending') && isReservationToday(r.reservationDate)"
+            type="button"
+            class="btn-checkin"
+            (click)="openCheckInModal(r)"
+            [disabled]="checkingInId === r.id"
+          >
+            {{ checkingInId === r.id ? 'Checking In...' : '🍽️ Check In & Start Dining' }}
+          </button>
+
+          <!-- Seated state: Go to Menu / View Bill -->
+          <button
+            *ngIf="r.status === 'seated'"
+            type="button"
+            class="btn-open-menu"
+            (click)="openCheckInModal(r)"
+          >
+            🍽️ Order / View Table {{ r.tableNumber }}
+          </button>
+
+          <!-- Completed state: Only show View Paid Bill -->
+          <button
+            *ngIf="r.status === 'completed'"
+            type="button"
+            class="btn-view-paid-bill"
+            (click)="viewPaidBill(r)"
+          >
+            🧾 View Paid Bill
+          </button>
+
+          <button *ngIf="r.status === 'pending' || r.status === 'confirmed'"
+                  type="button"
+                  class="btn-cancel"
+                  (click)="cancelReservation(r.id!)">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Check-In Table Selection Modal (Strict 1-10 Validation) -->
+  <div class="checkin-modal-overlay" *ngIf="showCheckInModal" (click)="closeCheckInModal()">
+    <div class="checkin-modal-box" (click)="$event.stopPropagation()">
+      <button type="button" class="modal-close-btn" (click)="closeCheckInModal()" aria-label="Close">✕</button>
+
+      <div class="modal-header">
+        <span class="header-icon">🍽️</span>
+        <h3>Check In to Table</h3>
+        <p *ngIf="selectedReservationForCheckIn">
+          Party of <strong>{{ selectedReservationForCheckIn.partySize }} guests</strong> for <strong>{{ selectedReservationForCheckIn.customerName }}</strong>
+        </p>
+      </div>
+
+      <!-- Quick Chips 1-10 -->
+      <div class="table-presets">
+        <span class="preset-label">Select Table (1 to 10):</span>
+        <div class="preset-chips">
+          <button
+            type="button"
+            class="preset-chip"
+            *ngFor="let t of allowedTables"
+            [class.active]="checkInTableInput === t"
+            (click)="selectCheckInTable(t)"
+          >
+            Table {{ t }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Numeric Input (Min 1, Max 10) -->
+      <div class="table-input-field">
+        <label for="checkInTableNum">Or Type Table Number (1 - 10)</label>
+        <div class="input-wrapper">
+          <input
+            id="checkInTableNum"
+            type="number"
+            min="1"
+            max="10"
+            step="1"
+            [(ngModel)]="checkInTableInput"
+            placeholder="1 - 10"
+            (keyup.enter)="isTableValid(checkInTableInput) && confirmCheckIn()"
+            [class.invalid]="checkInTableValidationError"
+          />
+          <span class="input-badge" *ngIf="isTableValid(checkInTableInput)">✓ Valid</span>
+        </div>
+        <small class="table-error-hint" *ngIf="checkInTableValidationError">
+          ⚠️ {{ checkInTableValidationError }}
+        </small>
+        <small class="table-info-hint" *ngIf="!checkInTableValidationError">
+          Only tables 1 to 10 are valid for Dine-In seating.
+        </small>
+      </div>
+
+      <!-- Modal Actions -->
+      <div class="modal-actions">
+        <button type="button" class="btn-dismiss" (click)="closeCheckInModal()">Cancel</button>
+        <button
+          type="button"
+          class="btn-confirm-checkin"
+          (click)="confirmCheckIn()"
+          [disabled]="!isTableValid(checkInTableInput) || checkingInId !== null"
+        >
+          {{ checkingInId ? 'Checking In...' : 'Confirm Table & Start Dining' }}
+        </button>
       </div>
     </div>
   </div>

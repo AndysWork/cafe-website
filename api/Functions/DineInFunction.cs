@@ -21,6 +21,7 @@ public class DineInFunction
     private readonly IUserRepository _userRepo;
     private readonly IOfferRepository _offerRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
+    private readonly IOperationsRepository _operationsRepo;
     private readonly IRazorpayService _razorpay;
     private readonly AuthService _auth;
     private readonly OutboxService _outbox;
@@ -34,6 +35,7 @@ public class DineInFunction
         IUserRepository userRepo,
         IOfferRepository offerRepo,
         ILoyaltyRepository loyaltyRepo,
+        IOperationsRepository operationsRepo,
         IRazorpayService razorpay,
         AuthService auth,
         OutboxService outbox,
@@ -46,6 +48,7 @@ public class DineInFunction
         _userRepo = userRepo;
         _offerRepo = offerRepo;
         _loyaltyRepo = loyaltyRepo;
+        _operationsRepo = operationsRepo;
         _razorpay = razorpay;
         _auth = auth;
         _outbox = outbox;
@@ -83,8 +86,17 @@ public class DineInFunction
             var session = await _orderRepo.GetActiveDineInSessionByTableAsync(outletId, tableNumber);
             if (session == null)
             {
+                var latest = await _orderRepo.GetLatestDineInSessionByTableAsync(outletId, tableNumber);
+                var isSettled = latest != null && latest.Status == "paid";
+                var latestBill = isSettled ? await BuildBillResponseAsync(latest!) : null;
+
                 var okEmpty = req.CreateResponse(HttpStatusCode.OK);
-                await okEmpty.WriteAsJsonAsync(new { session = (object?)null });
+                await okEmpty.WriteAsJsonAsync(new
+                {
+                    session = (object?)null,
+                    isTableSettled = isSettled,
+                    latestPaidSession = latestBill
+                });
                 return okEmpty;
             }
 
@@ -98,6 +110,108 @@ public class DineInFunction
             _log.LogError(ex, "Error getting active dine-in session");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "Failed to load dine-in session" });
+            return res;
+        }
+    }
+
+    /// <summary>
+    /// Gets the bill for a specific table reservation (whether active, seated, or completed).
+    /// </summary>
+    [Function("GetReservationBill")]
+    public async Task<HttpResponseData> GetReservationBill(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dine-in/reservations/{reservationId}/bill")] HttpRequestData req,
+        string reservationId)
+    {
+        try
+        {
+            var reservation = await _operationsRepo.GetReservationByIdAsync(reservationId);
+            if (reservation == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Reservation not found" });
+                return notFound;
+            }
+
+            DineInSession? session = null;
+            if (!string.IsNullOrWhiteSpace(reservation.DineInSessionId))
+            {
+                session = await _orderRepo.GetDineInSessionByIdAsync(reservation.DineInSessionId);
+            }
+
+            // If reservation is completed, ensure we don't return an empty/unpaid session
+            if (reservation.Status == "completed" && (session == null || session.Status != "paid" || session.OrderIds.Count == 0))
+            {
+                var userSessions = await _orderRepo.GetUserDineInSessionsAsync(reservation.UserId ?? string.Empty);
+                var cleanResTable = System.Text.RegularExpressions.Regex.Replace(reservation.TableNumber ?? string.Empty, @"(?i)^table\s*", string.Empty).Trim();
+
+                var paidSession = userSessions.FirstOrDefault(s =>
+                    s.Status == "paid" &&
+                    s.OrderIds.Count > 0 &&
+                    (!string.IsNullOrWhiteSpace(cleanResTable) &&
+                     System.Text.RegularExpressions.Regex.Replace(s.TableNumber ?? string.Empty, @"(?i)^table\s*", string.Empty).Trim().Equals(cleanResTable, StringComparison.OrdinalIgnoreCase)));
+
+                if (paidSession != null)
+                {
+                    session = paidSession;
+                    _ = _operationsRepo.UpdateReservationStatusAsync(reservation.Id!, "completed", reservation.TableNumber, paidSession.Id);
+                }
+            }
+
+            // Fallback 1: Search by customer userId if reservation was created by user
+            if (session == null && !string.IsNullOrWhiteSpace(reservation.UserId) && reservation.UserId != "guest_dinein")
+            {
+                var userSessions = await _orderRepo.GetUserDineInSessionsAsync(reservation.UserId);
+                var cleanResTable = System.Text.RegularExpressions.Regex.Replace(reservation.TableNumber ?? string.Empty, @"(?i)^table\s*", string.Empty).Trim();
+
+                session = userSessions.FirstOrDefault(s =>
+                {
+                    if (reservation.Status == "completed" && s.Status != "paid") return false;
+                    if (!string.IsNullOrWhiteSpace(cleanResTable))
+                    {
+                        var cleanSessionTable = System.Text.RegularExpressions.Regex.Replace(s.TableNumber ?? string.Empty, @"(?i)^table\s*", string.Empty).Trim();
+                        return cleanSessionTable.Equals(cleanResTable, StringComparison.OrdinalIgnoreCase);
+                    }
+                    return true;
+                });
+
+                if (session != null)
+                {
+                    _ = _operationsRepo.UpdateReservationStatusAsync(reservation.Id!, reservation.Status, reservation.TableNumber, session.Id);
+                }
+            }
+
+            // Fallback 2: Search by table number
+            if (session == null && !string.IsNullOrWhiteSpace(reservation.TableNumber))
+            {
+                session = await _orderRepo.GetLatestDineInSessionByTableAsync(reservation.OutletId, reservation.TableNumber);
+                if (session == null)
+                {
+                    session = await _orderRepo.GetLatestDineInSessionByTableAsync(string.Empty, reservation.TableNumber);
+                }
+
+                if (session != null)
+                {
+                    _ = _operationsRepo.UpdateReservationStatusAsync(reservation.Id!, reservation.Status, reservation.TableNumber, session.Id);
+                }
+            }
+
+            if (session == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "No dining bill recorded for this reservation yet." });
+                return notFound;
+            }
+
+            var bill = await BuildBillResponseAsync(session);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(bill);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting bill for reservation {ReservationId}", reservationId);
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "Failed to load reservation bill" });
             return res;
         }
     }
@@ -357,6 +471,7 @@ public class DineInFunction
             await _orderRepo.CreateOrderAsync(order);
 
             // Append order to session and update running totals
+            session.OrderIds ??= new List<string>();
             session.OrderIds.Add(newOrderId);
             if (string.IsNullOrWhiteSpace(session.CustomerName) && !string.IsNullOrWhiteSpace(username))
                 session.CustomerName = username;
@@ -662,6 +777,16 @@ public class DineInFunction
                 {
                     await _orderRepo.UpdatePaymentStatusAsync(orderId, "paid", session.RazorpayPaymentId, session.RazorpaySignature, session.RazorpayOrderId);
                     await _orderRepo.UpdateOrderStatusAsync(orderId, "delivered");
+                }
+
+                // If this DineInSession was spawned from a table reservation, mark reservation as 'completed'
+                try
+                {
+                    await _operationsRepo.CompleteReservationForDineInSessionAsync(session);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "Could not update table reservation to completed for session {SessionId}", session.Id);
                 }
 
                 if (!string.IsNullOrWhiteSpace(session.UserId) && session.UserId != "guest_dinein")

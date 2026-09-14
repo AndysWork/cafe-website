@@ -3,12 +3,19 @@
   <div class="orders-hero">
     <div class="hero-bg"></div>
     <div class="hero-content">
-      <h1>{{ isAdmin ? 'All Orders' : 'My Orders' }}</h1>
-      <p>{{ isAdmin ? 'Manage customer orders' : 'Track your orders in real-time' }}</p>
+      <h1>{{ isAdmin ? "All Orders" : "My Orders" }}</h1>
+      <p>
+        {{
+          isAdmin ? "Manage customer orders" : "Track your orders in real-time"
+        }}
+      </p>
     </div>
     <div class="hero-wave">
       <svg viewBox="0 0 1440 100" preserveAspectRatio="none">
-        <path d="M0,60L60,55C120,50,240,40,360,42C480,44,600,58,720,62C840,66,960,60,1080,52C1200,44,1320,36,1380,32L1440,28L1440,100L0,100Z" fill="#f8f9fb"/>
+        <path
+          d="M0,60L60,55C120,50,240,40,360,42C480,44,600,58,720,62C840,66,960,60,1080,52C1200,44,1320,36,1380,32L1440,28L1440,100L0,100Z"
+          fill="#f8f9fb"
+        />
       </svg>
     </div>
   </div>
@@ -23,39 +30,128 @@
     <div *ngIf="pendingPaymentRecovery" class="payment-recovery-banner">
       <div>
         <strong>Payment retry available</strong>
-        <p>{{ pendingPaymentRecovery.reason }} (₹{{ pendingPaymentRecovery.amount }})</p>
+        <p>
+          {{ pendingPaymentRecovery.reason }} (₹{{
+            pendingPaymentRecovery.amount
+          }})
+        </p>
       </div>
       <div class="banner-actions">
-        <button class="btn-retry-payment" (click)="retryPendingPayment()">Retry</button>
-        <button class="btn-dismiss-payment" (click)="dismissPendingPaymentRecovery()">Dismiss</button>
-      </div>
-    </div>
-
-    <div *ngIf="!isAdmin && quickReorderPresets.length > 0" class="quick-reorder-section">
-      <h3>⚡ Quick Reorder Presets</h3>
-      <div class="quick-preset-list">
-        <button class="quick-preset" *ngFor="let preset of quickReorderPresets; trackBy: trackByKey" (click)="reorderPreset(preset)">
-          <span class="preset-title">{{ preset.label }}</span>
-          <span class="preset-meta">Ordered {{ preset.occurrenceCount }} times</span>
+        <button class="btn-retry-payment" (click)="retryPendingPayment()">
+          Retry
+        </button>
+        <button
+          class="btn-dismiss-payment"
+          (click)="dismissPendingPaymentRecovery()"
+        >
+          Dismiss
         </button>
       </div>
     </div>
 
-    <!-- Filter Tabs -->
-    <div *ngIf="orders.length > 0" class="filter-tabs">
+    <div
+      *ngIf="!isAdmin && quickReorderPresets.length > 0"
+      class="quick-reorder-section"
+    >
+      <h3>⚡ Quick Reorder Presets</h3>
+      <div class="quick-preset-list">
+        <button
+          class="quick-preset"
+          *ngFor="let preset of quickReorderPresets; trackBy: trackByKey"
+          (click)="reorderPreset(preset)"
+        >
+          <span class="preset-title">{{ preset.label }}</span>
+          <span class="preset-meta"
+            >Ordered {{ preset.occurrenceCount }} times</span
+          >
+        </button>
+      </div>
+    </div>
+
+    <!-- Category / Experience Switcher (Delivery vs Dine-In vs Pickup vs Table Reservations) -->
+    <div class="order-type-nav" *ngIf="!isAdmin">
+      <div class="type-pill-group">
+        <button
+          type="button"
+          class="type-pill"
+          [class.active]="activeOrderTypeFilter === 'all'"
+          (click)="setOrderTypeFilter('all')"
+        >
+          <span class="type-icon">✨</span>
+          <span class="type-text">All Orders</span>
+          <span class="type-badge">{{ getOrderTypeCount("all") }}</span>
+        </button>
+        <button
+          type="button"
+          class="type-pill pill-delivery"
+          [class.active]="activeOrderTypeFilter === 'delivery'"
+          (click)="setOrderTypeFilter('delivery')"
+        >
+          <span class="type-icon">🛵</span>
+          <span class="type-text">Home Delivery</span>
+          <span class="type-badge">{{ getOrderTypeCount("delivery") }}</span>
+        </button>
+        <button
+          type="button"
+          class="type-pill pill-dinein"
+          [class.active]="activeOrderTypeFilter === 'dine-in'"
+          (click)="setOrderTypeFilter('dine-in')"
+        >
+          <span class="type-icon">🍽️</span>
+          <span class="type-text">Dine-In Orders</span>
+          <span class="type-badge">{{ getOrderTypeCount("dine-in") }}</span>
+        </button>
+        <button
+          type="button"
+          class="type-pill pill-pickup"
+          [class.active]="activeOrderTypeFilter === 'pickup'"
+          (click)="setOrderTypeFilter('pickup')"
+        >
+          <span class="type-icon">🛍️</span>
+          <span class="type-text">Takeaway / Pickup</span>
+          <span class="type-badge">{{ getOrderTypeCount("pickup") }}</span>
+        </button>
+        <button
+          type="button"
+          class="type-pill pill-reservation"
+          [class.active]="activeOrderTypeFilter === 'reservation'"
+          (click)="setOrderTypeFilter('reservation')"
+        >
+          <span class="type-icon">📅</span>
+          <span class="type-text">Table Bookings</span>
+          <span class="type-badge" *ngIf="reservations.length > 0">{{
+            reservations.length
+          }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Tabs (Status Filter: All / In Progress / Completed / Cancelled) -->
+    <div
+      *ngIf="orders.length > 0 || reservations.length > 0"
+      class="filter-tabs"
+    >
       <button
         *ngFor="let f of statusFilters; trackBy: trackByKey"
         class="tab"
         [class.active]="activeFilter === f.key"
-        (click)="activeFilter = f.key">
+        (click)="activeFilter = f.key"
+      >
         {{ f.label }}
-        <span class="tab-count">{{ getFilterCount(f.key) }}</span>
+        <span
+          class="tab-count"
+          *ngIf="activeOrderTypeFilter !== 'reservation'"
+          >{{ getFilterCount(f.key) }}</span
+        >
       </button>
     </div>
 
     <!-- Loading Skeleton -->
     <div *ngIf="isLoading" class="skeleton-list">
-      <div class="skeleton-card" *ngFor="let s of [1,2,3]; trackBy: trackByIndex">
+      <div
+        class="skeleton-card"
+        *ngFor="let s of [1, 2, 3]; trackBy: trackByIndex"
+      >
         <div class="skel-row">
           <div class="skel-circle shimmer"></div>
           <div class="skel-lines">
@@ -77,42 +173,231 @@
     </div>
 
     <!-- Empty State -->
-    <div *ngIf="!isLoading && !errorMessage && orders.length === 0" class="empty-state">
+    <div
+      *ngIf="!isLoading && !errorMessage && orders.length === 0"
+      class="empty-state"
+    >
       <div class="empty-illustration">🛒</div>
-      <h3>{{ isAdmin ? 'No orders yet' : 'No orders found' }}</h3>
-      <p>{{ isAdmin ? 'Customer orders will appear here.' : 'You haven\'t placed any orders yet. Let\'s fix that!' }}</p>
+      <h3>{{ isAdmin ? "No orders yet" : "No orders found" }}</h3>
+      <p>
+        {{
+          isAdmin
+            ? "Customer orders will appear here."
+            : "You haven't placed any orders yet. Let's fix that!"
+        }}
+      </p>
       <a *ngIf="!isAdmin" routerLink="/menu" class="btn-browse">
         🍽️ Browse Menu
       </a>
     </div>
 
-    <!-- Filtered Empty State -->
-    <div *ngIf="!isLoading && !errorMessage && orders.length > 0 && filteredOrders.length === 0" class="empty-state small">
-      <p>No {{ activeFilter }} orders found</p>
-      <button class="btn-link" (click)="activeFilter = 'all'">View all orders</button>
+    <!-- Filtered Empty State (Orders) -->
+    <div
+      *ngIf="
+        !isLoading &&
+        !errorMessage &&
+        activeOrderTypeFilter !== 'reservation' &&
+        orders.length > 0 &&
+        filteredOrders.length === 0
+      "
+      class="empty-state small"
+    >
+      <p>
+        No {{ activeFilter === "all" ? "" : activeFilter }}
+        {{
+          activeOrderTypeFilter === "all" ? "" : activeOrderTypeFilter
+        }}
+        orders found
+      </p>
+      <button
+        class="btn-link"
+        (click)="activeFilter = 'all'; activeOrderTypeFilter = 'all'"
+      >
+        View all orders
+      </button>
+    </div>
+
+    <!-- Reservations Section (When Tab is Selected or All) -->
+    <div
+      *ngIf="!isAdmin && activeOrderTypeFilter === 'reservation'"
+      class="reservations-orders-container"
+    >
+      <div *ngIf="isLoadingReservations" class="skeleton-list">
+        <div
+          class="skeleton-card"
+          *ngFor="let s of [1, 2]; trackBy: trackByIndex"
+        >
+          <div class="skel-row">
+            <div class="skel-circle shimmer"></div>
+            <div class="skel-lines">
+              <div class="skel-line wide shimmer"></div>
+              <div class="skel-line medium shimmer"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        *ngIf="!isLoadingReservations && filteredReservations.length === 0"
+        class="empty-state small"
+      >
+        <div class="empty-illustration">📅</div>
+        <h3>No Table Bookings Found</h3>
+        <p>
+          You don't have any
+          {{ activeFilter === "all" ? "" : activeFilter }} table reservations.
+        </p>
+        <button class="btn-browse" (click)="goToReservations()">
+          📅 Book a Table
+        </button>
+      </div>
+
+      <div
+        *ngIf="!isLoadingReservations && filteredReservations.length > 0"
+        class="orders-list"
+      >
+        <div
+          *ngFor="let res of filteredReservations"
+          class="order-card reservation-card"
+          [class.status-active]="
+            res.status === 'confirmed' || res.status === 'seated'
+          "
+        >
+          <div class="card-header" style="cursor: default">
+            <div class="header-left">
+              <div class="type-badge-pill badge-type-reservation">
+                <span>📅 Table Reservation</span>
+              </div>
+              <div class="header-info">
+                <div class="order-id">
+                  <span
+                    >{{ res.customerName }} ({{ res.partySize }} Guests)</span
+                  >
+                </div>
+                <div class="order-meta">
+                  <span class="meta-date"
+                    >Date: {{ formatDate(res.reservationDate) }} • Slot:
+                    {{ res.timeSlot }}</span
+                  >
+                  <span *ngIf="res.tableNumber" class="table-allocated-badge"
+                    >🍽️ Assigned Table {{ res.tableNumber }}</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="header-right">
+              <div class="header-summary">
+                <span class="status-chip" [ngClass]="res.status">
+                  {{
+                    res.status === "seated"
+                      ? "🍽️ Dining In"
+                      : res.status === "completed"
+                        ? "🎉 Visited"
+                        : res.status === "confirmed"
+                          ? "✅ Confirmed"
+                          : res.status
+                  }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="res-details-box">
+              <div class="info-chip" *ngIf="res.tableNumber">
+                <span class="info-label">🍽️ Table</span>
+                <strong>Table #{{ res.tableNumber }}</strong>
+              </div>
+              <div class="info-chip">
+                <span class="info-label">🕒 Time Slot</span>
+                <span>{{ res.timeSlot }}</span>
+              </div>
+              <div class="info-chip">
+                <span class="info-label">👥 Party</span>
+                <span>{{ res.partySize }} Person(s)</span>
+              </div>
+              <div class="info-chip" *ngIf="res.specialRequests">
+                <span class="info-label">📝 Special Note</span>
+                <span>{{ res.specialRequests }}</span>
+              </div>
+            </div>
+
+            <div class="card-actions">
+              <button
+                *ngIf="res.status === 'completed' || res.dineInSessionId"
+                type="button"
+                class="btn-reorder"
+                style="background: #e23744; color: #fff; border-color: #e23744"
+                (click)="viewReservationBill(res)"
+              >
+                🧾 View Visit Bill & Receipt
+              </button>
+              <button
+                type="button"
+                class="btn-reorder"
+                (click)="goToReservations()"
+              >
+                Manage Reservations
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Orders List -->
-    <div *ngIf="!isLoading && !errorMessage && filteredOrders.length > 0" class="orders-list">
+    <div
+      *ngIf="
+        !isLoading &&
+        !errorMessage &&
+        activeOrderTypeFilter !== 'reservation' &&
+        filteredOrders.length > 0
+      "
+      class="orders-list"
+    >
       <div
         *ngFor="let order of filteredOrders; trackBy: trackByObjId"
         class="order-card"
         [class.expanded]="isExpanded(order.id)"
         [class.status-delivered]="order.status === 'delivered'"
         [class.status-cancelled]="order.status === 'cancelled'"
-        [class.status-active]="!['delivered','cancelled'].includes(order.status)">
-
+        [class.status-active]="
+          !['delivered', 'cancelled'].includes(order.status)
+        "
+      >
         <!-- Collapsed Header — always visible -->
         <div class="card-header" (click)="toggleExpand(order.id)">
           <div class="header-left">
             <span class="status-dot" [ngClass]="order.status"></span>
             <div class="header-info">
-              <div class="order-id">
-                <a [routerLink]="['/orders', order.id]" (click)="$event.stopPropagation()" class="order-id-link">#{{ order.id | slice:-6 }}</a>
+              <div class="order-id-row">
+                <div
+                  class="type-badge-pill"
+                  [ngClass]="getOrderTypeBadgeClass(order)"
+                >
+                  <span
+                    >{{ getOrderTypeIcon(order) }}
+                    {{ getOrderTypeLabel(order) }}</span
+                  >
+                </div>
+                <div class="order-id">
+                  <a
+                    [routerLink]="['/orders', order.id]"
+                    (click)="$event.stopPropagation()"
+                    class="order-id-link"
+                    >#{{ order.id | slice: -6 }}</a
+                  >
+                </div>
               </div>
               <div class="order-meta">
                 <span class="meta-date">{{ formatDate(order.createdAt) }}</span>
-                <span *ngIf="isAdmin" class="meta-user">· {{ order.username }}</span>
+                <span *ngIf="isAdmin" class="meta-user"
+                  >· {{ order.username }}</span
+                >
+                <span *ngIf="order.dineInSessionId" class="meta-session-tag"
+                  >· Dine-In Tab</span
+                >
               </div>
             </div>
           </div>
@@ -120,10 +405,13 @@
             <div class="header-summary">
               <span class="order-total-badge">₹{{ order.total }}</span>
               <span class="status-chip" [ngClass]="order.status">
-                {{ getStatusIcon(order.status) }} {{ getStatusDisplayText(order.status) }}
+                {{ getStatusIcon(order.status) }}
+                {{ getStatusDisplayText(order.status) }}
               </span>
             </div>
-            <span class="expand-arrow" [class.open]="isExpanded(order.id)">▾</span>
+            <span class="expand-arrow" [class.open]="isExpanded(order.id)"
+              >▾</span
+            >
           </div>
         </div>
 
@@ -132,7 +420,10 @@
           <!-- Items Table -->
           <div class="items-section">
             <div class="items-header">Items Ordered</div>
-            <div class="item-row" *ngFor="let item of order.items; trackBy: trackByName">
+            <div
+              class="item-row"
+              *ngFor="let item of order.items; trackBy: trackByName"
+            >
               <div class="item-info">
                 <span class="item-name">{{ item.name }}</span>
                 <span class="item-qty">× {{ item.quantity }}</span>
@@ -159,7 +450,10 @@
               <span>🏷️ Coupon ({{ order.couponCode }})</span>
               <span>−₹{{ order.discountAmount }}</span>
             </div>
-            <div *ngIf="order.loyaltyDiscountAmount" class="price-row discount-row">
+            <div
+              *ngIf="order.loyaltyDiscountAmount"
+              class="price-row discount-row"
+            >
               <span>⭐ Loyalty ({{ order.loyaltyPointsUsed }} pts)</span>
               <span>−₹{{ order.loyaltyDiscountAmount }}</span>
             </div>
@@ -169,14 +463,73 @@
             </div>
           </div>
 
-          <!-- Delivery Info -->
-          <div class="delivery-info" *ngIf="order.deliveryAddress || order.phoneNumber || order.preparationNotes || order.notes">
+          <!-- Context / Fulfillment Info (Different based on Order Type) -->
+          <div class="delivery-info">
+            <!-- Dine-In Highlight Box -->
+            <div
+              class="order-context-box dinein-context"
+              *ngIf="getOrderType(order) === 'dine-in'"
+            >
+              <div class="context-header">
+                <span class="context-icon">🍽️</span>
+                <div>
+                  <strong>Dine-In Session Order</strong>
+                  <p>
+                    Prepared and served directly to
+                    <strong>Table {{ order.tableNumber || "?" }}</strong> at the
+                    cafe.
+                  </p>
+                </div>
+              </div>
+              <div class="context-details" *ngIf="order.dineInSessionId">
+                <span
+                  >Tab Session:
+                  <code>#{{ order.dineInSessionId | slice: -6 }}</code></span
+                >
+                <button
+                  type="button"
+                  class="btn-context-action"
+                  (click)="viewDineInBill(order); $event.stopPropagation()"
+                >
+                  🧾 View Complete Table Bill
+                </button>
+              </div>
+            </div>
+
+            <!-- Takeaway / Pickup Highlight Box -->
+            <div
+              class="order-context-box pickup-context"
+              *ngIf="getOrderType(order) === 'pickup'"
+            >
+              <div class="context-header">
+                <span class="context-icon">🛍️</span>
+                <div>
+                  <strong>Takeaway / Self-Pickup</strong>
+                  <p>Pick up hot and fresh from the cafe counter when ready.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Delivery Highlight Box -->
+            <div
+              class="order-context-box delivery-context"
+              *ngIf="getOrderType(order) === 'delivery'"
+            >
+              <div class="context-header">
+                <span class="context-icon">🛵</span>
+                <div>
+                  <strong>Home Delivery</strong>
+                  <p>Delivered to your doorstep by our delivery fleet.</p>
+                </div>
+              </div>
+            </div>
+
             <div *ngIf="order.deliveryAddress" class="info-chip">
-              <span class="info-label">📍 Address</span>
+              <span class="info-label">📍 Delivery Address</span>
               <span>{{ order.deliveryAddress }}</span>
             </div>
             <div *ngIf="order.phoneNumber" class="info-chip">
-              <span class="info-label">📞 Phone</span>
+              <span class="info-label">📞 Contact Phone</span>
               <span>{{ order.phoneNumber }}</span>
             </div>
             <div *ngIf="order.preparationNotes" class="info-chip">
@@ -184,26 +537,45 @@
               <span>{{ order.preparationNotes }}</span>
             </div>
             <div *ngIf="order.notes" class="info-chip">
-              <span class="info-label">📝 Notes</span>
+              <span class="info-label">📝 Order Notes</span>
               <span>{{ order.notes }}</span>
             </div>
             <div class="info-chip">
-              <span class="info-label">💳 Payment</span>
-              <span class="payment-badge"
+              <span class="info-label">💳 Payment Method</span>
+              <span
+                class="payment-badge"
                 [class.payment-paid]="order.paymentStatus === 'paid'"
-                [class.payment-pending]="order.paymentStatus === 'pending'"
-                [class.payment-refunded]="order.paymentStatus === 'refunded'">
-                {{ order.paymentMethod === 'razorpay' ? '🔒 Online' : (order.paymentMethod === 'upi-qr' ? '📱 UPI QR' : '💵 Cash on Delivery') }}
-                — {{ getPaymentStatusIcon(order.paymentStatus) }} {{ order.paymentStatus | titlecase }}
+                [class.payment-pending]="
+                  order.paymentStatus === 'pending' ||
+                  order.paymentStatus === 'unpaid'
+                "
+                [class.payment-refunded]="order.paymentStatus === 'refunded'"
+              >
+                {{ getPaymentMethodDisplayText(order.paymentMethod) }}
+                — {{ getPaymentStatusIcon(order.paymentStatus) }}
+                {{ order.paymentStatus | titlecase }}
               </span>
             </div>
 
-            <div class="info-chip" *ngIf="!isAdmin && order.status === 'delivered'">
-              <span class="info-label">⭐ Loyalty</span>
-              <span *ngIf="order.loyaltyPointsAwarded && (order.loyaltyPointsAwardedValue || 0) > 0">
+            <div
+              class="info-chip"
+              *ngIf="!isAdmin && order.status === 'delivered'"
+            >
+              <span class="info-label">⭐ Loyalty Reward</span>
+              <span
+                *ngIf="
+                  order.loyaltyPointsAwarded &&
+                  (order.loyaltyPointsAwardedValue || 0) > 0
+                "
+              >
                 +{{ order.loyaltyPointsAwardedValue }} points credited
               </span>
-              <span *ngIf="!order.loyaltyPointsAwarded || (order.loyaltyPointsAwardedValue || 0) <= 0">
+              <span
+                *ngIf="
+                  !order.loyaltyPointsAwarded ||
+                  (order.loyaltyPointsAwardedValue || 0) <= 0
+                "
+              >
                 Points credit pending
               </span>
             </div>
@@ -213,45 +585,94 @@
           <div class="receipt-section">
             <div class="receipt-header">🧾 Receipt / Invoice</div>
             <div *ngIf="order.receiptImageUrl" class="receipt-preview">
-              <img [src]="order.receiptImageUrl" alt="Order receipt" loading="lazy">
-              <button class="btn-remove-receipt" (click)="deleteReceipt(order.id); $event.stopPropagation()">✕ Remove</button>
+              <img
+                [src]="order.receiptImageUrl"
+                alt="Order receipt"
+                loading="lazy"
+              />
+              <button
+                class="btn-remove-receipt"
+                (click)="deleteReceipt(order.id); $event.stopPropagation()"
+              >
+                ✕ Remove
+              </button>
             </div>
-            <div *ngIf="!order.receiptImageUrl" class="receipt-upload-area" (click)="receiptInput.click(); $event.stopPropagation()">
-              <span *ngIf="uploadingReceiptForId !== order.id">📸 Upload Receipt Image</span>
-              <span *ngIf="uploadingReceiptForId === order.id">⏳ Uploading...</span>
-              <span class="upload-hint">JPG, PNG, WebP • Max 5MB • Auto-compressed</span>
-              <input #receiptInput type="file" accept="image/jpeg,image/png,image/webp,image/gif" (change)="onReceiptSelected($event, order.id)" hidden>
+            <div
+              *ngIf="!order.receiptImageUrl"
+              class="receipt-upload-area"
+              (click)="receiptInput.click(); $event.stopPropagation()"
+            >
+              <span *ngIf="uploadingReceiptForId !== order.id"
+                >📸 Upload Receipt Image</span
+              >
+              <span *ngIf="uploadingReceiptForId === order.id"
+                >⏳ Uploading...</span
+              >
+              <span class="upload-hint"
+                >JPG, PNG, WebP • Max 5MB • Auto-compressed</span
+              >
+              <input
+                #receiptInput
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                (change)="onReceiptSelected($event, order.id)"
+                hidden
+              />
             </div>
           </div>
 
           <!-- Actions -->
           <div class="card-actions">
-            <button *ngIf="!isAdmin"
-                    class="btn-reorder"
-                    (click)="reorderItems(order); $event.stopPropagation()">
+            <button
+              *ngIf="
+                order.orderType === 'dine-in' ||
+                order.dineInSessionId ||
+                order.tableNumber
+              "
+              type="button"
+              class="btn-reorder"
+              style="background: #e23744; color: #fff; border-color: #e23744"
+              (click)="viewDineInBill(order); $event.stopPropagation()"
+            >
+              🧾 View Dining Bill
+            </button>
+
+            <button
+              *ngIf="!isAdmin"
+              class="btn-reorder"
+              (click)="reorderItems(order); $event.stopPropagation()"
+            >
               🔄 Reorder
             </button>
 
-            <a *ngIf="!isAdmin && order.status === 'delivered'"
-               class="btn-reorder"
-               [routerLink]="['/orders', order.id]"
-               (click)="$event.stopPropagation()">
+            <a
+              *ngIf="!isAdmin && order.status === 'delivered'"
+              class="btn-reorder"
+              [routerLink]="['/orders', order.id]"
+              (click)="$event.stopPropagation()"
+            >
               ⭐ Rate Order
             </a>
 
-            <button *ngIf="!isAdmin && canCancelOrder(order)"
-                    class="btn-cancel"
-                    (click)="cancelOrder(order.id); $event.stopPropagation()">
+            <button
+              *ngIf="!isAdmin && canCancelOrder(order)"
+              class="btn-cancel"
+              (click)="cancelOrder(order.id); $event.stopPropagation()"
+            >
               ✕ Cancel Order
             </button>
 
             <div *ngIf="isAdmin" class="admin-controls">
               <label class="select-label">Update Status:</label>
               <select
-                (change)="updateOrderStatus(order.id, $any($event.target).value); $event.stopPropagation()"
+                (change)="
+                  updateOrderStatus(order.id, $any($event.target).value);
+                  $event.stopPropagation()
+                "
                 [value]="order.status"
                 class="status-select"
-                (click)="$event.stopPropagation()">
+                (click)="$event.stopPropagation()"
+              >
                 <option value="scheduled">Scheduled</option>
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
@@ -261,14 +682,197 @@
                 <option value="delivered">Delivered</option>
                 <option value="cancelled">Cancelled</option>
               </select>
-              <button *ngIf="canRefundOrder(order)"
-                      class="btn-refund"
-                      (click)="refundOrder(order.id); $event.stopPropagation()">
+              <button
+                *ngIf="canRefundOrder(order)"
+                class="btn-refund"
+                (click)="refundOrder(order.id); $event.stopPropagation()"
+              >
                 ↩️ Refund Payment
               </button>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Floating Quick-Filter Dock (Similar to Dine-in / Menu Floating Dock) -->
+  <aside
+    class="orders-floating-dock"
+    *ngIf="!isAdmin"
+    role="toolbar"
+    aria-label="Orders quick filter dock"
+  >
+    <div class="dock-container">
+      <!-- Active Type Pill -->
+      <button
+        type="button"
+        class="dock-btn dock-btn-type"
+        (click)="toggleFilterSheet()"
+        aria-label="Filter Order Types"
+      >
+        <span class="btn-icon">
+          {{
+            activeOrderTypeFilter === "delivery"
+              ? "🛵"
+              : activeOrderTypeFilter === "dine-in"
+                ? "🍽️"
+                : activeOrderTypeFilter === "pickup"
+                  ? "🛍️"
+                  : activeOrderTypeFilter === "reservation"
+                    ? "📅"
+                    : "✨"
+          }}
+        </span>
+        <span class="btn-label">{{ activeOrderTypeLabel }}</span>
+        <span class="dock-caret">▾</span>
+      </button>
+
+      <!-- Active Status Quick Toggle -->
+      <button
+        type="button"
+        class="dock-btn dock-btn-status"
+        (click)="toggleFilterSheet()"
+        aria-label="Filter Status"
+      >
+        <span
+          class="status-indicator-dot"
+          [class.active-dot]="activeFilter === 'active'"
+        ></span>
+        <span class="btn-label">{{
+          activeFilter === "all"
+            ? "All Status"
+            : activeFilter === "active"
+              ? "Active"
+              : activeFilter === "delivered"
+                ? "Completed"
+                : "Cancelled"
+        }}</span>
+        <span class="dock-counter">{{
+          activeOrderTypeFilter === "reservation"
+            ? filteredReservations.length
+            : filteredOrders.length
+        }}</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Mobile Filter Bottom Sheet Overlay -->
+  <div
+    class="filter-sheet-backdrop"
+    *ngIf="isFilterSheetOpen"
+    (click)="closeFilterSheet()"
+  >
+    <div class="filter-sheet-panel" (click)="$event.stopPropagation()">
+      <div class="sheet-header">
+        <div class="sheet-title-group">
+          <span class="sheet-icon">⚡</span>
+          <h3>Filter Orders & Bookings</h3>
+        </div>
+        <button
+          type="button"
+          class="btn-sheet-close"
+          (click)="closeFilterSheet()"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="sheet-body">
+        <!-- Order Fulfillment Types -->
+        <div class="sheet-section">
+          <span class="section-heading">Order Type / Experience</span>
+          <div class="sheet-options-grid">
+            <button
+              type="button"
+              class="sheet-option-pill"
+              [class.selected]="activeOrderTypeFilter === 'all'"
+              (click)="setOrderTypeFilter('all')"
+            >
+              <span class="opt-icon">✨</span>
+              <span class="opt-name">All Orders</span>
+              <span class="opt-count">{{ getOrderTypeCount("all") }}</span>
+            </button>
+            <button
+              type="button"
+              class="sheet-option-pill pill-delivery"
+              [class.selected]="activeOrderTypeFilter === 'delivery'"
+              (click)="setOrderTypeFilter('delivery')"
+            >
+              <span class="opt-icon">🛵</span>
+              <span class="opt-name">Home Delivery</span>
+              <span class="opt-count">{{ getOrderTypeCount("delivery") }}</span>
+            </button>
+            <button
+              type="button"
+              class="sheet-option-pill pill-dinein"
+              [class.selected]="activeOrderTypeFilter === 'dine-in'"
+              (click)="setOrderTypeFilter('dine-in')"
+            >
+              <span class="opt-icon">🍽️</span>
+              <span class="opt-name">Dine-In</span>
+              <span class="opt-count">{{ getOrderTypeCount("dine-in") }}</span>
+            </button>
+            <button
+              type="button"
+              class="sheet-option-pill pill-pickup"
+              [class.selected]="activeOrderTypeFilter === 'pickup'"
+              (click)="setOrderTypeFilter('pickup')"
+            >
+              <span class="opt-icon">🛍️</span>
+              <span class="opt-name">Takeaway / Pickup</span>
+              <span class="opt-count">{{ getOrderTypeCount("pickup") }}</span>
+            </button>
+            <button
+              type="button"
+              class="sheet-option-pill pill-reservation"
+              [class.selected]="activeOrderTypeFilter === 'reservation'"
+              (click)="setOrderTypeFilter('reservation')"
+            >
+              <span class="opt-icon">📅</span>
+              <span class="opt-name">Table Bookings</span>
+              <span class="opt-count">{{ reservations.length }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Status Filter -->
+        <div class="sheet-section">
+          <span class="section-heading">Order Status</span>
+          <div class="sheet-options-grid status-grid">
+            <button
+              *ngFor="let f of statusFilters"
+              type="button"
+              class="sheet-option-pill"
+              [class.selected]="activeFilter === f.key"
+              (click)="activeFilter = f.key"
+            >
+              <span class="opt-name">{{ f.label }}</span>
+              <span
+                class="opt-count"
+                *ngIf="activeOrderTypeFilter !== 'reservation'"
+                >{{ getFilterCount(f.key) }}</span
+              >
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sheet-footer">
+        <button
+          type="button"
+          class="btn-sheet-apply"
+          (click)="closeFilterSheet()"
+        >
+          Show
+          {{
+            activeOrderTypeFilter === "reservation"
+              ? filteredReservations.length
+              : filteredOrders.length
+          }}
+          Results
+        </button>
       </div>
     </div>
   </div>

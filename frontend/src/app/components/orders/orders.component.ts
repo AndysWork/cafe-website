@@ -6,6 +6,8 @@ import { PaymentService } from '../../services/payment.service';
 import { AuthService } from '../../services/auth.service';
 import { CartService } from '../../services/cart.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
+import { DineInService } from '../../services/dine-in.service';
+import { TableReservationService, TableReservation } from '../../services/table-reservation.service';
 import { UIStore } from '../../store/ui.store';
 import { formatIstDateTime } from '../../utils/date-utils';
 import { Subscription } from 'rxjs';
@@ -27,13 +29,18 @@ interface QuickReorderPreset {
 export class OrdersComponent implements OnInit, OnDestroy {
   private readonly pendingPaymentStorageKey = 'pending_payment_recovery';
   private uiStore = inject(UIStore);
+  private dineInService = inject(DineInService);
+  private reservationService = inject(TableReservationService);
   orders: Order[] = [];
+  reservations: TableReservation[] = [];
   isLoading = false;
+  isLoadingReservations = false;
   errorMessage = '';
   isAdmin = false;
   successMessage = '';
   expandedOrderId: string | null = null;
   activeFilter: string = 'all';
+  activeOrderTypeFilter: 'all' | 'delivery' | 'dine-in' | 'pickup' | 'reservation' = 'all';
   quickReorderPresets: QuickReorderPreset[] = [];
   pendingPaymentRecovery: { amount: number; reason: string; timestamp: string } | null = null;
   private routeSub?: Subscription;
@@ -41,11 +48,13 @@ export class OrdersComponent implements OnInit, OnDestroy {
   private menuItemMap = new Map<string, MenuItem>();
 
   statusFilters = [
-    { key: 'all', label: 'All' },
-    { key: 'active', label: 'Active' },
-    { key: 'delivered', label: 'Delivered' },
+    { key: 'all', label: 'All Orders' },
+    { key: 'active', label: 'In Progress / Active' },
+    { key: 'delivered', label: 'Delivered / Completed' },
     { key: 'cancelled', label: 'Cancelled' }
   ];
+
+  isFilterSheetOpen = false;
 
   constructor(
     private orderService: OrderService,
@@ -68,6 +77,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
 
     this.loadOrders();
+    this.loadReservations();
     this.prefetchMenuItems();
     this.loadPendingPaymentRecovery();
   }
@@ -110,12 +120,120 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
   }
 
-  get filteredOrders(): Order[] {
-    if (this.activeFilter === 'all') return this.orders;
-    if (this.activeFilter === 'active') {
-      return this.orders.filter(o => !['delivered', 'cancelled'].includes(o.status));
+  loadReservations() {
+    if (this.isAdmin) return;
+    this.isLoadingReservations = true;
+    this.reservationService.getMyReservations().subscribe({
+      next: (res) => {
+        this.reservations = res || [];
+        this.isLoadingReservations = false;
+      },
+      error: (err) => {
+        console.warn('Could not load reservations in orders view', err);
+        this.isLoadingReservations = false;
+      }
+    });
+  }
+
+  // --- Order Type Categorization & Helpers ---
+  getOrderType(order: Order): 'delivery' | 'dine-in' | 'pickup' {
+    if (order.orderType === 'dine-in' || !!order.dineInSessionId || !!order.tableNumber) {
+      return 'dine-in';
     }
-    return this.orders.filter(o => o.status === this.activeFilter);
+    if (order.orderType === 'pickup') {
+      return 'pickup';
+    }
+    return 'delivery';
+  }
+
+  getOrderTypeLabel(order: Order): string {
+    const type = this.getOrderType(order);
+    switch (type) {
+      case 'dine-in':
+        return order.tableNumber ? `Dine-In • Table ${order.tableNumber}` : 'Dine-In Tab';
+      case 'pickup':
+        return 'Takeaway / Pickup';
+      case 'delivery':
+      default:
+        return 'Home Delivery';
+    }
+  }
+
+  getOrderTypeIcon(order: Order): string {
+    const type = this.getOrderType(order);
+    switch (type) {
+      case 'dine-in': return '🍽️';
+      case 'pickup': return '🛍️';
+      case 'delivery': default: return '🛵';
+    }
+  }
+
+  getOrderTypeBadgeClass(order: Order): string {
+    const type = this.getOrderType(order);
+    return `badge-type-${type}`;
+  }
+
+  setOrderTypeFilter(type: 'all' | 'delivery' | 'dine-in' | 'pickup' | 'reservation') {
+    this.activeOrderTypeFilter = type;
+  }
+
+  get filteredOrders(): Order[] {
+    let list = this.orders;
+
+    // Filter by Order Type
+    if (this.activeOrderTypeFilter !== 'all' && this.activeOrderTypeFilter !== 'reservation') {
+      list = list.filter(o => this.getOrderType(o) === this.activeOrderTypeFilter);
+    }
+
+    // Filter by Status
+    if (this.activeFilter === 'all') return list;
+    if (this.activeFilter === 'active') {
+      return list.filter(o => !['delivered', 'cancelled'].includes(o.status));
+    }
+    return list.filter(o => o.status === this.activeFilter);
+  }
+
+  getOrderTypeCount(type: 'all' | 'delivery' | 'dine-in' | 'pickup' | 'reservation'): number {
+    if (type === 'all') return this.orders.length;
+    if (type === 'reservation') return this.reservations.length;
+    return this.orders.filter(o => this.getOrderType(o) === type).length;
+  }
+
+  get filteredReservations(): TableReservation[] {
+    if (this.activeFilter === 'all') return this.reservations;
+    if (this.activeFilter === 'active') {
+      return this.reservations.filter(r => r.status === 'pending' || r.status === 'confirmed' || r.status === 'seated');
+    }
+    if (this.activeFilter === 'delivered') {
+      return this.reservations.filter(r => r.status === 'completed');
+    }
+    if (this.activeFilter === 'cancelled') {
+      return this.reservations.filter(r => r.status === 'cancelled' || r.status === 'no-show');
+    }
+    return this.reservations;
+  }
+
+  get activeOrderTypeLabel(): string {
+    switch (this.activeOrderTypeFilter) {
+      case 'delivery': return 'Delivery';
+      case 'dine-in': return 'Dine-In';
+      case 'pickup': return 'Pickup';
+      case 'reservation': return 'Bookings';
+      default: return 'All Types';
+    }
+  }
+
+  get activeFilterLabel(): string {
+    const f = this.statusFilters.find(x => x.key === this.activeFilter);
+    return f ? f.label : 'All';
+  }
+
+  toggleFilterSheet(): void {
+    this.isFilterSheetOpen = !this.isFilterSheetOpen;
+  }
+
+  closeFilterSheet(): void {
+    this.isFilterSheetOpen = false;
   }
 
   getFilterCount(key: string): number {
@@ -209,9 +327,25 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   getPaymentStatusIcon(status: string): string {
     const icons: Record<string, string> = {
-      paid: '✅', pending: '⏳', refunded: '↩️'
+      paid: '✅', pending: '⏳', refunded: '↩️', unpaid: '⏳'
     };
     return icons[status] || '❓';
+  }
+
+  getPaymentMethodDisplayText(method?: string): string {
+    switch (method) {
+      case 'dine_in_tab':
+        return '🍽️ Dine-In Tab Settlement';
+      case 'cash_at_counter':
+        return '💵 Cash at Counter';
+      case 'razorpay':
+        return '🔒 Online';
+      case 'upi-qr':
+        return '📱 UPI QR';
+      case 'cod':
+      default:
+        return '💵 Cash on Delivery';
+    }
   }
 
   // Receipt upload
@@ -358,6 +492,27 @@ export class OrdersComponent implements OnInit, OnDestroy {
         items: value.items,
         label: value.items.slice(0, 2).map(i => i.name).join(' + ') + (value.items.length > 2 ? '...' : '')
       }));
+  }
+
+  viewDineInBill(order: Order) {
+    if (order.dineInSessionId) {
+      this.dineInService.openBillModalWithSession(order.dineInSessionId, order.tableNumber || undefined);
+    } else if (order.tableNumber) {
+      this.dineInService.setTableNumber(order.tableNumber);
+      this.dineInService.openBillModal();
+    }
+  }
+
+  viewReservationBill(reservation: TableReservation) {
+    if (reservation.id) {
+      this.dineInService.viewReservationBill(reservation.id, reservation.tableNumber, reservation.dineInSessionId);
+    } else if (reservation.dineInSessionId) {
+      this.dineInService.openBillModalWithSession(reservation.dineInSessionId, reservation.tableNumber);
+    }
+  }
+
+  goToReservations() {
+    this.router.navigate(['/reservations']);
   }
 
   trackByKey(index: number, item: any): string { return item.key; }

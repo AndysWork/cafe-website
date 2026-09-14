@@ -14,20 +14,33 @@ export interface TableReservation {
   tableNumber?: string;
   reservationDate: string;
   timeSlot: string;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no-show';
+  status: 'pending' | 'confirmed' | 'seated' | 'cancelled' | 'completed' | 'no-show';
   specialRequests?: string;
+  dineInSessionId?: string;
+  checkedInAt?: string;
   outletId?: string;
   createdAt?: string;
+}
+
+export interface CheckInReservationResponse {
+  reservationId: string;
+  tableNumber: string;
+  sessionId: string;
+  outletId: string;
+  status: string;
+  message: string;
 }
 
 export interface CreateReservationRequest {
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   partySize: number;
   tableNumber?: string;
   reservationDate: string;
   timeSlot: string;
   specialRequests?: string;
+  outletId?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -54,9 +67,15 @@ export class TableReservationService {
     );
   }
 
-  updateReservationStatus(id: string, status: string): Observable<{ message: string }> {
-    return this.http.put<{ message: string }>(`${this.apiUrl}/reservations/${id}/status`, { status }).pipe(
+  updateReservationStatus(id: string, status: string, tableNumber?: string): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.apiUrl}/reservations/${id}/status`, { status, tableNumber }).pipe(
       catchError(handleServiceError('TableReservationService.updateReservationStatus'))
+    );
+  }
+
+  checkInReservation(id: string, tableNumber?: string): Observable<CheckInReservationResponse> {
+    return this.http.post<CheckInReservationResponse>(`${this.apiUrl}/reservations/${id}/check-in`, { tableNumber }).pipe(
+      catchError(handleServiceError('TableReservationService.checkInReservation'))
     );
   }
 }

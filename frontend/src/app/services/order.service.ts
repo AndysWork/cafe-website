@@ -37,8 +37,8 @@ export interface Order {
   loyaltyPointsUsed?: number;
   loyaltyDiscountAmount?: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'scheduled';
-  paymentStatus: 'pending' | 'paid' | 'refunded';
-  paymentMethod: 'cod' | 'razorpay' | 'upi-qr';
+  paymentStatus: 'pending' | 'paid' | 'refunded' | 'unpaid';
+  paymentMethod: 'cod' | 'razorpay' | 'upi-qr' | 'dine_in_tab' | 'cash_at_counter';
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   upiReference?: string;
@@ -64,6 +64,7 @@ export interface Order {
   deliveryEtaMinutes?: number;
   deliveryRouteUpdatedAt?: string;
   tableNumber?: string;
+  dineInSessionId?: string;
   loyaltyPointsAwarded?: boolean;
   loyaltyPointsAwardedValue?: number;
   createdAt: string;

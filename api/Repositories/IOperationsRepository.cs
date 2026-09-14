@@ -15,9 +15,14 @@ public interface IOperationsRepository
 
     // Table Reservations
     Task<TableReservation> CreateReservationAsync(TableReservation reservation);
-    Task<List<TableReservation>> GetReservationsAsync(string outletId, DateTime? date = null, int page = 1, int pageSize = 50);
+    Task<List<TableReservation>> GetReservationsAsync(string? outletId = null, DateTime? date = null, int page = 1, int pageSize = 50);
     Task<TableReservation?> GetReservationByIdAsync(string id);
-    Task<bool> UpdateReservationStatusAsync(string id, string status);
+    Task<TableReservation?> GetReservationBySessionIdAsync(string sessionId);
+    Task<TableReservation?> GetReservationByTableOrUserAsync(string outletId, string tableNumber, string? userId = null);
+    Task<bool> UpdateReservationStatusAsync(string id, string status, string? tableNumber = null, string? dineInSessionId = null);
+    Task<bool> CompleteReservationBySessionIdAsync(string sessionId);
+    Task<bool> CompleteReservationForDineInSessionAsync(DineInSession session);
+    Task<bool> UpdateReservationAsync(TableReservation reservation);
     Task<List<TableReservation>> GetUserReservationsAsync(string userId);
 
     // Delivery Partners

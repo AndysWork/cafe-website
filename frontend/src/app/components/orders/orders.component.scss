@@ -214,6 +214,569 @@ $radius-full: 9999px;
 }
 
 // ==========================================
+// CATEGORY / ORDER TYPE NAVIGATION PILLS
+// ==========================================
+.order-type-nav {
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+
+  .type-pill-group {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.2rem 0.2rem 0.6rem;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      height: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(226, 55, 68, 0.2);
+      border-radius: 4px;
+    }
+  }
+
+  .type-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.6rem 1rem;
+    border: 1.5px solid #e5e7eb;
+    border-radius: $radius-full;
+    background: white;
+    color: $text-dark;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    flex-shrink: 0;
+
+    &:hover {
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+    }
+
+    .type-icon {
+      font-size: 1rem;
+    }
+
+    .type-badge {
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 12px;
+      font-weight: 800;
+    }
+
+    &.active {
+      border-color: transparent;
+      color: white;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+      .type-badge {
+        background: rgba(255, 255, 255, 0.25);
+        color: white;
+      }
+    }
+
+    &.active:not(.pill-delivery):not(.pill-dinein):not(.pill-pickup):not(.pill-reservation) {
+      background: #1c1c1c;
+    }
+
+    &.pill-delivery.active {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+    }
+
+    &.pill-dinein.active {
+      background: linear-gradient(135deg, #e11d48, #be123c);
+    }
+
+    &.pill-pickup.active {
+      background: linear-gradient(135deg, #d97706, #b45309);
+    }
+
+    &.pill-reservation.active {
+      background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    }
+  }
+}
+
+// ==========================================
+// MOBILE FLOATING QUICK-FILTER DOCK
+// ==========================================
+.orders-floating-dock {
+  position: fixed;
+  bottom: max(14px, env(safe-area-inset-bottom, 14px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: auto;
+  max-width: calc(100vw - 24px);
+  animation: slideUpDock 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+
+  .dock-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(28, 28, 28, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.4),
+      0 4px 16px rgba(0, 0, 0, 0.25),
+      0 0 20px rgba(226, 55, 68, 0.25);
+  }
+
+  .dock-btn {
+    border: none;
+    background: transparent;
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+    user-select: none;
+    text-decoration: none;
+    color: white;
+
+    &:hover {
+      transform: translateY(-2px);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+
+    .btn-icon {
+      font-size: 1.05rem;
+      line-height: 1;
+    }
+
+    .btn-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .dock-caret {
+      font-size: 0.75rem;
+      opacity: 0.7;
+      margin-left: 1px;
+    }
+  }
+
+  .dock-btn-type {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+
+  .dock-btn-status {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+
+    .status-indicator-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+
+      &.active-dot {
+        background: #22c55e;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
+      }
+    }
+
+    .dock-counter {
+      background: rgba(255, 255, 255, 0.2);
+      font-size: 0.72rem;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-weight: 800;
+    }
+  }
+
+  .dock-btn-browse {
+    background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
+    color: white;
+    padding: 8px 16px;
+    box-shadow: 0 4px 14px rgba(226, 55, 68, 0.4);
+
+    &:hover {
+      box-shadow: 0 6px 18px rgba(226, 55, 68, 0.55);
+    }
+  }
+}
+
+@keyframes slideUpDock {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 25px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+// ==========================================
+// MOBILE FILTER BOTTOM SHEET
+// ==========================================
+.filter-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.filter-sheet-panel {
+  background: white;
+  width: 100%;
+  max-width: 520px;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+  padding: 1.5rem 1.25rem 2rem;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: slideUpSheet 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+
+  .sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+
+    .sheet-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      .sheet-icon {
+        font-size: 1.3rem;
+      }
+
+      h3 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: $text-dark;
+      }
+    }
+
+    .btn-sheet-close {
+      background: #f1f5f9;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+
+      &:hover {
+        background: #e2e8f0;
+      }
+    }
+  }
+
+  .sheet-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .sheet-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+
+    .section-heading {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #64748b;
+    }
+  }
+
+  .sheet-options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+
+    &.status-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .sheet-option-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.9rem;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #334155;
+    transition: all 0.2s;
+
+    .opt-icon {
+      font-size: 1.05rem;
+      margin-right: 0.4rem;
+    }
+
+    .opt-name {
+      flex: 1;
+      text-align: left;
+    }
+
+    .opt-count {
+      background: #e2e8f0;
+      color: #475569;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+
+    &:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+
+    &.selected {
+      background: #fff1f2;
+      border-color: #E23744;
+      color: #E23744;
+      box-shadow: 0 2px 8px rgba(226, 55, 68, 0.15);
+
+      .opt-count {
+        background: #E23744;
+        color: white;
+      }
+    }
+  }
+
+  .sheet-footer {
+    margin-top: 1.5rem;
+
+    .btn-sheet-apply {
+      width: 100%;
+      padding: 0.95rem;
+      background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(226, 55, 68, 0.35);
+      transition: opacity 0.2s;
+
+      &:active {
+        opacity: 0.9;
+      }
+    }
+  }
+}
+
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+// Order ID Row & Type Badge Pill
+.order-id-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.type-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+
+  &.badge-type-delivery {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+  }
+
+  &.badge-type-dinein {
+    background: #ffe4e6;
+    color: #e11d48;
+    border: 1px solid #fecdd3;
+  }
+
+  &.badge-type-pickup {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+  }
+
+  &.badge-type-reservation {
+    background: #f3e8ff;
+    color: #7c3aed;
+    border: 1px solid #ddd6fe;
+  }
+}
+
+.meta-session-tag {
+  color: #e11d48;
+  font-weight: 700;
+}
+
+.table-allocated-badge {
+  color: #e11d48;
+  font-weight: 700;
+  margin-left: 0.4rem;
+}
+
+// Order Context / Fulfillment Highlight Boxes
+.order-context-box {
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  .context-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+
+    .context-icon {
+      font-size: 1.25rem;
+      line-height: 1;
+      margin-top: 2px;
+    }
+
+    strong {
+      font-size: 0.88rem;
+      display: block;
+    }
+
+    p {
+      margin: 2px 0 0;
+      font-size: 0.8rem;
+      opacity: 0.9;
+    }
+  }
+
+  .context-details {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-top: 0.4rem;
+    border-top: 1px dashed rgba(0, 0, 0, 0.1);
+    font-size: 0.78rem;
+
+    code {
+      font-family: monospace;
+      font-weight: bold;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+  }
+
+  .btn-context-action {
+    background: #e11d48;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+
+  &.dinein-context {
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    color: #9f1239;
+    strong { color: #881337; }
+  }
+
+  &.pickup-context {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    strong { color: #78350f; }
+  }
+
+  &.delivery-context {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #075985;
+    strong { color: #0c4a6e; }
+  }
+}
+
+// Reservation card specific styles
+.reservation-card {
+  border-left: 4px solid #7c3aed !important;
+
+  .res-details-box {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-bottom: 0.85rem;
+  }
+}
+
+// ==========================================
 // FILTER TABS
 // ==========================================
 .filter-tabs {
@@ -828,28 +1391,41 @@ $radius-full: 9999px;
   }
 }
 
+// Desktop visibility for dock
+.orders-floating-dock {
+  display: none;
+}
+
 // ==========================================
-// RESPONSIVE â€” Tablet (768px)
+// RESPONSIVE — Tablet (768px)
 // ==========================================
 @media (max-width: 768px) {
+  .orders-floating-dock {
+    display: block;
+  }
+
+  .orders-content {
+    padding-bottom: 90px; // clearance for floating dock
+  }
+
+  .order-type-nav {
+    display: none; // seamlessly migrated to floating dock & bottom sheet on mobile!
+  }
+
+  .filter-tabs {
+    display: none; // moved to floating dock & sheet
+  }
+
   .orders-hero {
     padding: 2rem 1.25rem 3rem;
 
     .hero-content h1 { font-size: 1.85rem; }
     .hero-content p { font-size: 0.92rem; }
   }
-
-  .filter-tabs {
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    justify-content: center;
-
-    .tab { font-size: 0.84rem; padding: 0.5rem 0.95rem; }
-  }
 }
 
 // ==========================================
-// RESPONSIVE â€” Phablet (600px)
+// RESPONSIVE — Phablet (600px)
 // ==========================================
 @media (max-width: 600px) {
   .orders-hero {

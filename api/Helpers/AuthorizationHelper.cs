@@ -56,6 +56,20 @@ public static class AuthorizationHelper
         return (true, userId, role, null);
     }
 
+    public static string? GetRoleFromAuthorizationHeader(HttpRequestData req, AuthService authService)
+    {
+        var authHeader = req.Headers.TryGetValues("Authorization", out var values)
+            ? values.FirstOrDefault()
+            : null;
+
+        if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var token = authHeader.Substring("Bearer ".Length).Trim();
+        var principal = authService.ValidateToken(token);
+        return principal?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+    }
+
     public static async Task<(bool isAuthorized, string? userId, string? role, HttpResponseData? errorResponse)> 
         ValidateAuthenticatedUser(HttpRequestData req, AuthService authService)
     {

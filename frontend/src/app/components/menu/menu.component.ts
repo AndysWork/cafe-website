@@ -132,6 +132,9 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.activeTableNumber = this.dineInService.currentTable;
     this.tableSub = this.dineInService.activeTable$.subscribe(table => {
       this.activeTableNumber = table;
+      if (!table && this.route.snapshot.queryParams['table']) {
+        this.router.navigate([], { queryParams: { table: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      }
     });
 
     this.routeSub = this.route.queryParams.subscribe((params: any) => {
@@ -316,6 +319,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     } else {
       this.dineInService.clearTableSession();
       this.activeTableNumber = '';
+      this.router.navigate([], { queryParams: { table: null }, queryParamsHandling: 'merge', replaceUrl: true });
       this.uiStore.notify('Dine-In table cleared', 'info');
     }
     this.closeTableModal();

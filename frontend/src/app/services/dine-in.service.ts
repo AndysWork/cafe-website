@@ -5,6 +5,7 @@ import { environment } from '../../environments/environment';
 import { DineInBill, StartDineInSessionRequest, SettleDineInBillRequest } from '../models/dine-in.model';
 import { OutletService } from './outlet.service';
 import { AuthService } from './auth.service';
+import { UIStore } from '../store/ui.store';
 
 @Injectable({
   providedIn: 'root'
@@ -13,6 +14,7 @@ export class DineInService {
   private http = inject(HttpClient);
   private outletService = inject(OutletService);
   private authService = inject(AuthService);
+  private uiStore = inject(UIStore);
   private apiUrl = environment.apiUrl;
 
   private readonly TABLE_STORAGE_KEY = 'active_dinein_table';
@@ -24,14 +26,32 @@ export class DineInService {
   private activeBillSubject = new BehaviorSubject<DineInBill | null>(null);
   public activeBill$: Observable<DineInBill | null> = this.activeBillSubject.asObservable();
 
+  private displayedBillSubject = new BehaviorSubject<DineInBill | null>(null);
+  public displayedBill$: Observable<DineInBill | null> = this.displayedBillSubject.asObservable();
+
   private isBillModalOpenSubject = new BehaviorSubject<boolean>(false);
   public isBillModalOpen$ = this.isBillModalOpenSubject.asObservable();
+
+  private isBillLoadingSubject = new BehaviorSubject<boolean>(false);
+  public isBillLoading$ = this.isBillLoadingSubject.asObservable();
+
+  public isViewingSpecificSession = false;
+  private viewingSessionId: string | null = null;
+  public viewingTableNumber: string | null = null;
 
   constructor() {
     const table = this.loadStoredTable();
     if (table) {
       this.refreshActiveSession();
     }
+  }
+
+  public sanitizeTableNumber(table: string): string {
+    let trimmed = (table || '').trim();
+    if (trimmed.toLowerCase().startsWith('table')) {
+      trimmed = trimmed.substring(5).trim();
+    }
+    return trimmed;
   }
 
   public get currentTable(): string {
@@ -43,7 +63,7 @@ export class DineInService {
   }
 
   public setTableNumber(table: string): void {
-    const trimmed = (table || '').trim();
+    const trimmed = this.sanitizeTableNumber(table);
     if (trimmed) {
       localStorage.setItem(this.TABLE_STORAGE_KEY, trimmed);
       this.activeTableSubject.next(trimmed);
@@ -58,33 +78,117 @@ export class DineInService {
     localStorage.removeItem(this.SESSION_STORAGE_KEY);
     this.activeTableSubject.next('');
     this.activeBillSubject.next(null);
+    if (!this.isViewingSpecificSession) {
+      this.displayedBillSubject.next(null);
+    }
   }
 
   public openBillModal(): void {
+    this.isViewingSpecificSession = false;
+    this.viewingSessionId = null;
+    this.viewingTableNumber = null;
+    this.displayedBillSubject.next(this.activeBillSubject.value);
     this.isBillModalOpenSubject.next(true);
     this.refreshActiveSession();
   }
 
+  public openBillModalWithSession(sessionId: string, tableNumber?: string): void {
+    this.isViewingSpecificSession = true;
+    this.viewingSessionId = sessionId;
+    this.viewingTableNumber = tableNumber ? this.sanitizeTableNumber(tableNumber) : null;
+    this.isBillLoadingSubject.next(true);
+    this.isBillModalOpenSubject.next(true);
+    this.getSessionBill(sessionId).subscribe({
+      next: (bill) => {
+        this.isBillLoadingSubject.next(false);
+        this.displayedBillSubject.next(bill);
+      },
+      error: (err) => {
+        this.isBillLoadingSubject.next(false);
+        console.warn('Could not load session bill', err);
+        this.uiStore.error('Could not load bill details for this dining visit.');
+      }
+    });
+  }
+
+  public viewReservationBill(reservationId: string, tableNumber?: string, fallbackSessionId?: string): void {
+    this.isViewingSpecificSession = true;
+    this.viewingSessionId = fallbackSessionId || null;
+    this.viewingTableNumber = tableNumber ? this.sanitizeTableNumber(tableNumber) : null;
+    this.isBillLoadingSubject.next(true);
+    this.isBillModalOpenSubject.next(true);
+
+    this.http.get<DineInBill>(`${this.apiUrl}/dine-in/reservations/${reservationId}/bill`).subscribe({
+      next: (bill) => {
+        this.isBillLoadingSubject.next(false);
+        this.viewingSessionId = bill?.sessionId || fallbackSessionId || null;
+        this.displayedBillSubject.next(bill);
+      },
+      error: (err) => {
+        console.warn('Could not load reservation bill by reservation ID, trying fallback', err);
+        if (fallbackSessionId) {
+          this.getSessionBill(fallbackSessionId).subscribe({
+            next: (bill) => {
+              this.isBillLoadingSubject.next(false);
+              this.viewingSessionId = bill?.sessionId || fallbackSessionId;
+              this.displayedBillSubject.next(bill);
+            },
+            error: (err2) => {
+              this.isBillLoadingSubject.next(false);
+              console.error('Could not load fallback session bill', err2);
+              this.uiStore.error('No bill details found for this visit.');
+            }
+          });
+        } else {
+          this.isBillLoadingSubject.next(false);
+          this.uiStore.error(err?.error?.error || 'No bill details recorded for this reservation yet.');
+        }
+      }
+    });
+  }
+
   public closeBillModal(): void {
+    this.isViewingSpecificSession = false;
+    this.viewingSessionId = null;
+    this.viewingTableNumber = null;
+    this.displayedBillSubject.next(null);
+    this.isBillLoadingSubject.next(false);
     this.isBillModalOpenSubject.next(false);
   }
 
   public refreshActiveSession(): Observable<any> {
+    if (this.isViewingSpecificSession && this.viewingSessionId) {
+      return this.getSessionBill(this.viewingSessionId).pipe(
+        tap((bill) => {
+          this.displayedBillSubject.next(bill);
+        })
+      );
+    }
+
     const table = this.currentTable;
     if (!table) {
       this.activeBillSubject.next(null);
+      if (!this.isViewingSpecificSession) {
+        this.displayedBillSubject.next(null);
+      }
       return of(null);
     }
 
     const outletId = this.outletService.getSelectedOutletId() || '';
     const url = `${this.apiUrl}/dine-in/session/active?tableNumber=${encodeURIComponent(table)}${outletId ? `&outletId=${outletId}` : ''}`;
 
-    return this.http.get<{ session: DineInBill | null }>(url).pipe(
+    return this.http.get<{ session: DineInBill | null; isTableSettled?: boolean }>(url).pipe(
       tap((res) => {
         const bill = res?.session || null;
         this.activeBillSubject.next(bill);
+        if (!this.isViewingSpecificSession) {
+          this.displayedBillSubject.next(bill);
+        }
         if (bill?.sessionId) {
           localStorage.setItem(this.SESSION_STORAGE_KEY, bill.sessionId);
+        } else if (res?.isTableSettled || !bill) {
+          // Table was already paid/completed, clear it so it doesn't linger!
+          this.clearTableSession();
         }
       }),
       catchError((err) => {
@@ -205,7 +309,8 @@ export class DineInService {
 
   private loadStoredTable(): string {
     if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem(this.TABLE_STORAGE_KEY) || '';
+      const raw = localStorage.getItem(this.TABLE_STORAGE_KEY) || '';
+      return this.sanitizeTableNumber(raw);
     }
     return '';
   }

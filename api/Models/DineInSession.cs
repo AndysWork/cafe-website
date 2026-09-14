@@ -12,6 +12,7 @@ public class DineInSession
     public string? Id { get; set; }
 
     [BsonElement("outletId")]
+    [BsonSerializer(typeof(StringOrObjectIdSerializer))]
     [Required]
     public string OutletId { get; set; } = string.Empty;
 

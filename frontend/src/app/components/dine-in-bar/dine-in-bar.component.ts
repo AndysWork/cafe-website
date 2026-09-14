@@ -97,12 +97,24 @@ export class DineInBarComponent implements OnInit, OnDestroy {
   }
 
   get showViewBill(): boolean {
-    return !!this.tableNumber;
+    return !!this.tableNumber &&
+           !!this.bill &&
+           this.bill.status !== 'paid' &&
+           this.bill.status !== 'cancelled' &&
+           !this.dineInService.isViewingSpecificSession;
   }
 
   get isVisible(): boolean {
     if (!this.isCustomerRoute) return false;
     return this.showCategories || this.showCart || this.showViewBill;
+  }
+
+  get displayTableNumber(): string {
+    const raw = (this.tableNumber || '').trim();
+    if (raw.toLowerCase().startsWith('table')) {
+      return raw.substring(5).trim();
+    }
+    return raw;
   }
 
   toggleCategories(): void {

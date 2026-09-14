@@ -22,7 +22,7 @@ export class AdminReservationsComponent implements OnInit, OnDestroy {
 
   reservations: TableReservation[] = [];
   loading = true;
-  filterDate = getIstInputDate(new Date());
+  filterDate = '';
 
   constructor(private reservationService: TableReservationService) {}
 
@@ -30,17 +30,27 @@ export class AdminReservationsComponent implements OnInit, OnDestroy {
     this.outletSub = this.outletService.selectedOutlet$
       .pipe(filter(o => o !== null))
       .subscribe(() => this.loadReservations());
-    if (this.outletService.getSelectedOutlet()) this.loadReservations();
+    this.loadReservations();
   }
 
   ngOnDestroy() { this.outletSub?.unsubscribe(); }
 
   loadReservations() {
     this.loading = true;
-    this.reservationService.getReservations(this.filterDate).subscribe({
+    this.reservationService.getReservations(this.filterDate || undefined).subscribe({
       next: r => { this.reservations = r; this.loading = false; },
       error: () => { this.uiStore.error('Failed to load reservations'); this.loading = false; }
     });
+  }
+
+  showAllDates(): void {
+    this.filterDate = '';
+    this.loadReservations();
+  }
+
+  showToday(): void {
+    this.filterDate = getIstInputDate(new Date());
+    this.loadReservations();
   }
 
   updateStatus(id: string, status: string) {

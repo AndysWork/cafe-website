@@ -159,6 +159,19 @@
           </a>
         </li>
 
+        <!-- Regular User: Reservations -->
+        <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
+          <a
+            routerLink="/reservations"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">📅</span>
+            Reservations
+          </a>
+        </li>
+
         <!-- Regular User: Loyalty Points -->
         <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
           <a

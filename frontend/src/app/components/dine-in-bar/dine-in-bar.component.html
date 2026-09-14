@@ -41,7 +41,7 @@
     >
       <span class="btn-icon">🧾</span>
       <div class="bill-pill-content">
-        <span class="table-name">Table {{ tableNumber }}</span>
+        <span class="table-name">Table {{ displayTableNumber }}</span>
         <span class="bill-amount" *ngIf="bill && bill.grandTotal > 0">₹{{ bill.grandTotal | number:'1.0-0' }}</span>
         <span class="bill-sub" *ngIf="!bill || bill.grandTotal <= 0">View Bill</span>
       </div>

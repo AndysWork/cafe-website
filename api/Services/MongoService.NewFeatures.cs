@@ -80,10 +80,15 @@ public partial class MongoService : IOperationsRepository
         return reservation;
     }
 
-    public async Task<List<TableReservation>> GetReservationsAsync(string outletId, DateTime? date = null, int page = 1, int pageSize = 50)
+    public async Task<List<TableReservation>> GetReservationsAsync(string? outletId = null, DateTime? date = null, int page = 1, int pageSize = 50)
     {
         var filterBuilder = Builders<TableReservation>.Filter;
-        var filter = filterBuilder.Eq(r => r.OutletId, outletId);
+        var filter = FilterDefinition<TableReservation>.Empty;
+
+        if (!string.IsNullOrWhiteSpace(outletId))
+        {
+            filter &= filterBuilder.Eq(r => r.OutletId, outletId.Trim());
+        }
 
         if (date.HasValue)
         {
@@ -102,15 +107,197 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<TableReservation?> GetReservationByIdAsync(string id)
     {
-        return await _tableReservations.Find(r => r.Id == id).FirstOrDefaultAsync();
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        var cleanId = id.Trim();
+        var filter = Builders<TableReservation>.Filter.Eq("_id", cleanId);
+        if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<TableReservation>.Filter.Or(filter, Builders<TableReservation>.Filter.Eq("_id", objId));
+        }
+        return await _tableReservations.Find(filter).FirstOrDefaultAsync();
     }
 
-    public async Task<bool> UpdateReservationStatusAsync(string id, string status)
+    public async Task<TableReservation?> GetReservationBySessionIdAsync(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId)) return null;
+        var cleanId = sessionId.Trim();
+        var filter = Builders<TableReservation>.Filter.Eq("dineInSessionId", cleanId);
+        if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<TableReservation>.Filter.Or(filter, Builders<TableReservation>.Filter.Eq("dineInSessionId", objId));
+        }
+        return await _tableReservations.Find(filter).FirstOrDefaultAsync();
+    }
+
+    public async Task<TableReservation?> GetReservationByTableOrUserAsync(string outletId, string tableNumber, string? userId = null)
+    {
+        var filterBuilder = Builders<TableReservation>.Filter;
+        var cleanTable = System.Text.RegularExpressions.Regex.Replace(tableNumber.Trim(), @"(?i)^table\s*", string.Empty).Trim();
+        var tablePattern = string.IsNullOrWhiteSpace(cleanTable)
+            ? System.Text.RegularExpressions.Regex.Escape(tableNumber.Trim())
+            : $"^(?:Table\\s*)?{System.Text.RegularExpressions.Regex.Escape(cleanTable)}$";
+
+        var filter = filterBuilder.Regex(r => r.TableNumber, new MongoDB.Bson.BsonRegularExpression(tablePattern, "i")) &
+                     filterBuilder.Ne(r => r.Status, "cancelled");
+
+        if (!string.IsNullOrWhiteSpace(outletId))
+        {
+            var cleanOutlet = outletId.Trim();
+            if (MongoDB.Bson.ObjectId.TryParse(cleanOutlet, out var oId))
+            {
+                filter &= filterBuilder.Or(
+                    filterBuilder.Eq("outletId", cleanOutlet),
+                    filterBuilder.Eq("outletId", oId)
+                );
+            }
+            else
+            {
+                filter &= filterBuilder.Eq("outletId", cleanOutlet);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            var userFilter = filterBuilder.Eq(r => r.UserId, userId);
+            var userMatch = await _tableReservations.Find(filter & userFilter).SortByDescending(r => r.ReservationDate).FirstOrDefaultAsync();
+            if (userMatch != null) return userMatch;
+        }
+
+        return await _tableReservations.Find(filter).SortByDescending(r => r.ReservationDate).FirstOrDefaultAsync();
+    }
+
+    public async Task<bool> CompleteReservationBySessionIdAsync(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId)) return false;
+        var cleanId = sessionId.Trim();
+        var filter = Builders<TableReservation>.Filter.Eq("dineInSessionId", cleanId);
+        if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<TableReservation>.Filter.Or(filter, Builders<TableReservation>.Filter.Eq("dineInSessionId", objId));
+        }
+        filter &= Builders<TableReservation>.Filter.Ne(r => r.Status, "cancelled");
+
+        var update = Builders<TableReservation>.Update
+            .Set(r => r.Status, "completed")
+            .Set(r => r.UpdatedAt, GetIstNow());
+        var res = await _tableReservations.UpdateManyAsync(filter, update);
+        return res.ModifiedCount > 0;
+    }
+
+    public async Task<bool> CompleteReservationForDineInSessionAsync(DineInSession session)
+    {
+        if (session == null) return false;
+        var update = Builders<TableReservation>.Update
+            .Set(r => r.Status, "completed")
+            .Set(r => r.DineInSessionId, session.Id)
+            .Set(r => r.UpdatedAt, GetIstNow());
+
+        var filterBuilder = Builders<TableReservation>.Filter;
+        var orFilters = new List<FilterDefinition<TableReservation>>();
+
+        if (!string.IsNullOrWhiteSpace(session.Id))
+        {
+            var cleanId = session.Id.Trim();
+            orFilters.Add(filterBuilder.Eq(r => r.DineInSessionId, cleanId));
+            if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var sObjId))
+            {
+                orFilters.Add(filterBuilder.Eq("dineInSessionId", sObjId));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.TableNumber))
+        {
+            var cleanTable = System.Text.RegularExpressions.Regex.Replace(session.TableNumber.Trim(), @"(?i)^table\s*", string.Empty).Trim();
+            var tablePattern = string.IsNullOrWhiteSpace(cleanTable)
+                ? System.Text.RegularExpressions.Regex.Escape(session.TableNumber.Trim())
+                : $"^(?:Table\\s*)?{System.Text.RegularExpressions.Regex.Escape(cleanTable)}$";
+
+            var tableFilter = filterBuilder.Regex(r => r.TableNumber, new MongoDB.Bson.BsonRegularExpression(tablePattern, "i")) &
+                              filterBuilder.In(r => r.Status, new[] { "seated", "confirmed", "pending" });
+
+            if (!string.IsNullOrWhiteSpace(session.OutletId))
+            {
+                var cleanOutlet = session.OutletId.Trim();
+                if (MongoDB.Bson.ObjectId.TryParse(cleanOutlet, out var oId))
+                {
+                    tableFilter &= filterBuilder.Or(
+                        filterBuilder.Eq("outletId", cleanOutlet),
+                        filterBuilder.Eq("outletId", oId)
+                    );
+                }
+                else
+                {
+                    tableFilter &= filterBuilder.Eq("outletId", cleanOutlet);
+                }
+            }
+
+            orFilters.Add(tableFilter);
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.UserId) && session.UserId != "guest_dinein")
+        {
+            var userFilter = filterBuilder.Eq(r => r.UserId, session.UserId) &
+                             filterBuilder.In(r => r.Status, new[] { "seated", "confirmed", "pending" });
+            orFilters.Add(userFilter);
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.CustomerPhone))
+        {
+            var phoneFilter = filterBuilder.Eq(r => r.CustomerPhone, session.CustomerPhone.Trim()) &
+                              filterBuilder.In(r => r.Status, new[] { "seated", "confirmed", "pending" });
+            orFilters.Add(phoneFilter);
+        }
+
+        if (orFilters.Count == 0) return false;
+
+        var combinedFilter = filterBuilder.Or(orFilters) & filterBuilder.Ne(r => r.Status, "cancelled");
+        var res = await _tableReservations.UpdateManyAsync(combinedFilter, update);
+        return res.ModifiedCount > 0;
+    }
+
+    public async Task<bool> UpdateReservationStatusAsync(string id, string status, string? tableNumber = null, string? dineInSessionId = null)
     {
         var update = Builders<TableReservation>.Update
             .Set(r => r.Status, status)
             .Set(r => r.UpdatedAt, GetIstNow());
-        var result = await _tableReservations.UpdateOneAsync(r => r.Id == id, update);
+
+        if (!string.IsNullOrWhiteSpace(tableNumber))
+        {
+            update = update.Set(r => r.TableNumber, tableNumber.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(dineInSessionId))
+        {
+            update = update.Set(r => r.DineInSessionId, dineInSessionId.Trim());
+        }
+
+        if (status == "seated")
+        {
+            update = update.Set(r => r.CheckedInAt, GetIstNow());
+        }
+
+        var cleanId = id.Trim();
+        var filter = Builders<TableReservation>.Filter.Eq("_id", cleanId);
+        if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<TableReservation>.Filter.Or(filter, Builders<TableReservation>.Filter.Eq("_id", objId));
+        }
+
+        var result = await _tableReservations.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> UpdateReservationAsync(TableReservation reservation)
+    {
+        reservation.UpdatedAt = GetIstNow();
+        var cleanId = (reservation.Id ?? string.Empty).Trim();
+        var filter = Builders<TableReservation>.Filter.Eq("_id", cleanId);
+        if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<TableReservation>.Filter.Or(filter, Builders<TableReservation>.Filter.Eq("_id", objId));
+        }
+
+        var result = await _tableReservations.ReplaceOneAsync(filter, reservation);
         return result.ModifiedCount > 0;
     }
 

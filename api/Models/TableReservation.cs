@@ -13,7 +13,7 @@ public class TableReservation
     public string? Id { get; set; }
 
     [BsonElement("outletId")]
-    [BsonRepresentation(BsonType.ObjectId)]
+    [BsonSerializer(typeof(StringOrObjectIdSerializer))]
     public string OutletId { get; set; } = string.Empty;
 
     [BsonElement("userId")]
@@ -46,6 +46,13 @@ public class TableReservation
     [BsonElement("specialRequests")]
     public string? SpecialRequests { get; set; }
 
+    [BsonElement("dineInSessionId")]
+    [BsonSerializer(typeof(StringOrObjectIdSerializer))]
+    public string? DineInSessionId { get; set; }
+
+    [BsonElement("checkedInAt")]
+    public DateTime? CheckedInAt { get; set; }
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
@@ -68,6 +75,8 @@ public class CreateReservationRequest
 
     public string? TableNumber { get; set; }
 
+    public string? OutletId { get; set; }
+
     [Required]
     public DateTime ReservationDate { get; set; }
 
@@ -83,4 +92,23 @@ public class UpdateReservationStatusRequest
     [Required]
     [AllowedValuesList("pending", "confirmed", "seated", "completed", "cancelled", "no-show")]
     public string Status { get; set; } = string.Empty;
+
+    public string? TableNumber { get; set; }
+}
+
+public class CheckInReservationRequest
+{
+    [RegularExpression(@"^(?:[1-9]|10)$", ErrorMessage = "Table number must be between 1 and 10")]
+    public string? TableNumber { get; set; }
+}
+
+public class CheckInReservationResponse
+{
+    public string ReservationId { get; set; } = string.Empty;
+    public string TableNumber { get; set; } = string.Empty;
+    public string SessionId { get; set; } = string.Empty;
+    public string OutletId { get; set; } = string.Empty;
+    public string Status { get; set; } = "seated";
+    public string Message { get; set; } = string.Empty;
+    public DineInBillResponse? Session { get; set; }
 }

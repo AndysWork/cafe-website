@@ -206,8 +206,9 @@
   &.inactive { background: #fee2e2; color: #dc2626; }
   &.pending { background: #fef3c7; color: #d97706; }
   &.confirmed, &.approved { background: #dbeafe; color: #2563eb; }
+  &.seated { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
   &.completed, &.received { background: #dcfce7; color: #16a34a; }
-  &.cancelled, &.rejected { background: #fee2e2; color: #dc2626; }
+  &.cancelled, &.rejected, &.no-show { background: #fee2e2; color: #dc2626; }
   &.ordered { background: #e0e7ff; color: #4f46e5; }
   &.available { background: #dcfce7; color: #16a34a; }
   &.busy { background: #fef3c7; color: #d97706; }

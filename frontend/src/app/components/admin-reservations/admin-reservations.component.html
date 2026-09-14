@@ -4,8 +4,10 @@
   </div>
 
   <div class="filter-bar">
-    <input type="date" [(ngModel)]="filterDate">
+    <input type="date" [(ngModel)]="filterDate" (change)="loadReservations()">
     <button class="btn-filter" (click)="loadReservations()">🔍 Filter</button>
+    <button class="btn-filter" (click)="showToday()">📅 Today</button>
+    <button class="btn-filter" (click)="showAllDates()">📋 All Dates</button>
   </div>
 
   <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading reservations...</p></div>
@@ -41,7 +43,7 @@
           <td><span class="badge" [ngClass]="getStatusClass(r.status)">{{ r.status }}</span></td>
           <td class="actions-cell">
             <button *ngIf="r.status === 'pending'" class="btn-action" (click)="updateStatus(r.id!, 'confirmed')">✅ Confirm</button>
-            <button *ngIf="r.status === 'confirmed'" class="btn-action" (click)="updateStatus(r.id!, 'completed')">✔️ Complete</button>
+            <button *ngIf="r.status === 'confirmed' || r.status === 'seated'" class="btn-action" (click)="updateStatus(r.id!, 'completed')">✔️ Complete</button>
             <button *ngIf="r.status === 'pending' || r.status === 'confirmed'" class="btn-delete" (click)="updateStatus(r.id!, 'cancelled')">❌</button>
             <button *ngIf="r.status === 'confirmed'" class="btn-delete" (click)="updateStatus(r.id!, 'no-show')" title="No Show">🚫</button>
           </td>
