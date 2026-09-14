@@ -45,6 +45,25 @@
     </div>
   </div>
 
+  <!-- Dine-In Table Status Strip -->
+  <div class="dine-in-strip" *ngIf="activeTableNumber">
+    <div class="dine-strip-left">
+      <span class="dine-table-pill">🍽️ Table {{ activeTableNumber }}</span>
+      <span class="dine-summary-text">
+        Dine-In Active • Items ordered go directly to kitchen
+      </span>
+    </div>
+    <div class="dine-strip-right">
+      <button type="button" class="btn-strip-table" (click)="openTableModal()">Change Table</button>
+    </div>
+  </div>
+
+  <div class="dine-in-prompt-strip" *ngIf="!activeTableNumber">
+    <button class="btn-set-table" (click)="openTableModal()">
+      <span>🍽️ Dining in at the Cafe? Click to select your Table Number</span>
+    </button>
+  </div>
+
   <div class="recovery-banner ordering-closed-banner" *ngIf="!isOrderingOpen">
     <div>
       <strong>Shop Closed</strong>
@@ -275,16 +294,7 @@
     </div>
   </div>
 
-  <!-- Floating Cart Button -->
-  <button
-    type="button"
-    class="mobile-category-hamburger"
-    (click)="toggleCategoryDrawer()"
-    [attr.aria-expanded]="showCategoryDrawer"
-    aria-label="Open menu categories">
-    ☰ Categories
-  </button>
-
+  <!-- Mobile Category Drawer -->
   <div class="mobile-category-backdrop" *ngIf="showCategoryDrawer" (click)="closeCategoryDrawer()"></div>
 
   <aside class="mobile-category-drawer" [class.open]="showCategoryDrawer" aria-label="Categories drawer">
@@ -336,23 +346,6 @@
       </div>
     </div>
   </aside>
-
-  <button
-    *ngIf="cart.itemCount > 0"
-    class="floating-cart"
-    (click)="goToCart()">
-    <span class="cart-icon">🛒</span>
-    <span class="cart-info">
-      <span class="cart-count">{{ cart.itemCount }} item{{ cart.itemCount !== 1 ? 's' : '' }}</span>
-      <span class="cart-total">₹{{ cart.total }}</span>
-    </span>
-    <span class="cart-arrow">→</span>
-  </button>
-
-  <div *ngIf="cart.itemCount > 0" class="loyalty-cart-preview">
-    <span>Cart may earn <strong>{{ estimatedCartEarnPoints }}</strong> points</span>
-    <span *ngIf="loyaltyPointsAvailable > 0">Available redeem value: <strong>₹{{ maxRedeemValuePreview }}</strong></span>
-  </div>
 
   <!-- Detail Modal -->
   <div class="detail-modal-overlay" *ngIf="showDetailModal && selectedMenuItem" (click)="closeDetail()">
@@ -492,6 +485,51 @@
             Add to Cart — ₹{{ getCustomizationUnitPrice(customizationItem) * customizationQuantity }}
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table Selection Modal -->
+  <div class="table-modal-overlay" *ngIf="showTableModal" (click)="closeTableModal()">
+    <div class="table-modal-box" (click)="$event.stopPropagation()">
+      <button type="button" class="table-close-btn" (click)="closeTableModal()" aria-label="Close">✕</button>
+      <div class="table-modal-header">
+        <span class="modal-icon">🍽️</span>
+        <h3>Select Your Table</h3>
+        <p>Enter your Table Number to start your Dine-In tab. You can order food in rounds directly to the kitchen!</p>
+      </div>
+
+      <div class="table-presets">
+        <span class="preset-label">Quick Select Table:</span>
+        <div class="preset-chips">
+          <button
+            type="button"
+            class="preset-chip"
+            *ngFor="let t of ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']"
+            [class.active]="tableInput === t"
+            (click)="selectTablePreset(t)">
+            Table {{ t }}
+          </button>
+        </div>
+      </div>
+
+      <div class="table-input-group">
+        <label for="tableNumberInput">Or Enter Custom Table</label>
+        <input
+          id="tableNumberInput"
+          type="text"
+          [(ngModel)]="tableInput"
+          placeholder="e.g. 4 or T-12"
+          (keyup.enter)="saveTable()"
+          autofocus
+        />
+      </div>
+
+      <div class="table-modal-actions">
+        <button type="button" class="btn-cancel" (click)="closeTableModal()">Cancel</button>
+        <button type="button" class="btn-save-table" (click)="saveTable()">
+          {{ tableInput.trim() ? 'Confirm Table ' + tableInput.trim() : 'Clear Table' }}
+        </button>
       </div>
     </div>
   </div>

@@ -166,6 +166,13 @@ public class Order : ISoftDeletable
     [BsonElement("tableNumber")]
     public string? TableNumber { get; set; }
 
+    [BsonElement("dineInSessionId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? DineInSessionId { get; set; }
+
+    [BsonElement("roundNumber")]
+    public int RoundNumber { get; set; } = 1;
+
     [BsonElement("kitchenChecklist")]
     public List<KitchenChecklistItem> KitchenChecklist { get; set; } = new();
 
@@ -297,7 +304,7 @@ public class CreateOrderRequest
     [StringLength(500, ErrorMessage = "Delivery address cannot exceed 500 characters")]
     public string? DeliveryAddress { get; set; }
 
-    [AllowedValuesList("cod", "razorpay", "upi-qr")]
+    [AllowedValuesList("cod", "razorpay", "upi-qr", "dine_in_tab")]
     public string PaymentMethod { get; set; } = "cod";
 
     public string? RazorpayPaymentId { get; set; }
@@ -334,6 +341,10 @@ public class CreateOrderRequest
 
     [StringLength(20, ErrorMessage = "Table number cannot exceed 20 characters")]
     public string? TableNumber { get; set; }
+
+    public string? DineInSessionId { get; set; }
+
+    public int? RoundNumber { get; set; }
 
     public string? OutletId { get; set; }
 }
@@ -415,6 +426,8 @@ public class OrderResponse
     public int? DeliveryEtaMinutes { get; set; }
     public DateTime? DeliveryRouteUpdatedAt { get; set; }
     public string? TableNumber { get; set; }
+    public string? DineInSessionId { get; set; }
+    public int RoundNumber { get; set; } = 1;
     public bool LoyaltyPointsAwarded { get; set; }
     public int LoyaltyPointsAwardedValue { get; set; }
 }

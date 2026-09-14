@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subscription } from 'rxjs';
+import { Subscription, Observable } from 'rxjs';
 import { MenuService, MenuItem, MenuCategory, MenuSubCategory } from '../../services/menu.service';
 import { CartService, Cart } from '../../services/cart.service';
 import { FavoriteService } from '../../services/favorite.service';
@@ -11,7 +11,9 @@ import { LoyaltyService } from '../../services/loyalty.service';
 import { OutletService } from '../../services/outlet.service';
 import { Outlet } from '../../models/outlet.model';
 import { UIStore } from '../../store/ui.store';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
+import { DineInService } from '../../services/dine-in.service';
+import { DineInBill } from '../../models/dine-in.model';
 import { decodeHtmlEntities } from '../../utils/text-utils';
 import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
 
@@ -94,6 +96,21 @@ export class MenuComponent implements OnInit, OnDestroy {
   private orderingStatusTimer?: ReturnType<typeof setInterval>;
   private currentTime = new Date();
 
+  public dineInService = inject(DineInService);
+  private route = inject(ActivatedRoute);
+  public dineInBill$: Observable<DineInBill | null> = this.dineInService.activeBill$;
+
+  get currentDineInBill(): DineInBill | null {
+    return this.dineInService.currentBill;
+  }
+
+  activeTableNumber = '';
+  showTableModal = false;
+  tableInput = '';
+  private routeSub?: Subscription;
+  private tableSub?: Subscription;
+  private categoryDrawerSub?: Subscription;
+
   constructor(
     private menuService: MenuService,
     private cartService: CartService,
@@ -112,6 +129,19 @@ export class MenuComponent implements OnInit, OnDestroy {
       this.currentTime = new Date();
     }, 60000);
 
+    this.activeTableNumber = this.dineInService.currentTable;
+    this.tableSub = this.dineInService.activeTable$.subscribe(table => {
+      this.activeTableNumber = table;
+    });
+
+    this.routeSub = this.route.queryParams.subscribe((params: any) => {
+      const tableParam = params['table'];
+      if (tableParam) {
+        this.dineInService.setTableNumber(tableParam);
+        this.activeTableNumber = tableParam;
+      }
+    });
+
     this.initializeOutletAndMenu();
     this.loadFavorites();
     this.loadSocialProof();
@@ -120,6 +150,10 @@ export class MenuComponent implements OnInit, OnDestroy {
 
     this.cartSubscription = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
+    });
+
+    this.categoryDrawerSub = this.menuService.categoryDrawerOpen$.subscribe(open => {
+      this.showCategoryDrawer = open;
     });
 
     this.menuRefreshSubscription = this.menuService.menuItemsRefresh$.subscribe((refresh) => {
@@ -242,6 +276,10 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.routeSub?.unsubscribe();
+    this.tableSub?.unsubscribe();
+    this.categoryDrawerSub?.unsubscribe();
+    this.menuService.setCategoryDrawerOpen(false);
     this.menuRefreshSubscription?.unsubscribe();
     this.cartSubscription?.unsubscribe();
     if (this.orderingStatusTimer) {
@@ -254,6 +292,37 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   get isOrderingOpen(): boolean {
     return this.isWithinOrderingWindow && this.isOnlineOrderingEnabledForSelection;
+  }
+
+  openTableModal(): void {
+    this.tableInput = this.activeTableNumber || this.dineInService.currentTable;
+    this.showTableModal = true;
+  }
+
+  closeTableModal(): void {
+    this.showTableModal = false;
+  }
+
+  selectTablePreset(table: string): void {
+    this.tableInput = table;
+  }
+
+  saveTable(): void {
+    const val = this.tableInput.trim();
+    if (val) {
+      this.dineInService.setTableNumber(val);
+      this.activeTableNumber = val;
+      this.uiStore.success(`Table ${val} selected for Dine-In`);
+    } else {
+      this.dineInService.clearTableSession();
+      this.activeTableNumber = '';
+      this.uiStore.notify('Dine-In table cleared', 'info');
+    }
+    this.closeTableModal();
+  }
+
+  openDineInBill(): void {
+    this.dineInService.openBillModal();
   }
 
   get orderingClosedMessage(): string {
@@ -412,15 +481,17 @@ export class MenuComponent implements OnInit, OnDestroy {
   filterByCategory(categoryId: string | null) {
     this.selectedCategoryId = categoryId;
     this.showCategoryDrawer = false;
+    this.menuService.setCategoryDrawerOpen(false);
     this.applyFilters();
   }
 
   toggleCategoryDrawer() {
-    this.showCategoryDrawer = !this.showCategoryDrawer;
+    this.menuService.toggleCategoryDrawer();
   }
 
   closeCategoryDrawer() {
     this.showCategoryDrawer = false;
+    this.menuService.setCategoryDrawerOpen(false);
   }
 
   categoryHasSubCategories(category: MenuCategory): boolean {

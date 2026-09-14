@@ -7,10 +7,19 @@ import { AnalyticsTrackingService } from './services/analytics-tracking.service'
 import { ToastContainerComponent } from './shared/toast-container/toast-container.component';
 import { NetworkStatusService } from './services/network-status.service';
 import { OfflineQueueService } from './services/offline-queue.service';
+import { DineInBarComponent } from './components/dine-in-bar/dine-in-bar.component';
+import { DineInBillModalComponent } from './components/dine-in-bill-modal/dine-in-bill-modal.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, NavbarComponent, CommonModule, ToastContainerComponent],
+  imports: [
+    RouterOutlet,
+    NavbarComponent,
+    CommonModule,
+    ToastContainerComponent,
+    DineInBarComponent,
+    DineInBillModalComponent
+  ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })

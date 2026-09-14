@@ -1,0 +1,369 @@
+<div class="dine-in-modal-backdrop" *ngIf="isOpen" (click)="close()">
+  <div class="dine-in-modal-container" (click)="$event.stopPropagation()">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-left">
+        <span class="table-badge">🍽️ Table {{ tableNumber || bill?.tableNumber || '?' }}</span>
+        <div class="header-meta">
+          <h2>{{ bill?.outletName || 'Cafe Dine-In' }}</h2>
+          <span class="status-pill" [ngClass]="bill?.status || 'active'">
+            <span class="dot"></span>
+            <span *ngIf="bill?.status === 'active'">Active Tab (Ordering Open)</span>
+            <span *ngIf="bill?.status === 'bill_requested'">Final Bill Ready</span>
+            <span *ngIf="bill?.status === 'paid'">Settled & Paid</span>
+            <span *ngIf="!bill">No Active Tab</span>
+          </span>
+        </div>
+      </div>
+      <button class="btn-close" (click)="close()" aria-label="Close modal">✕</button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Loading State -->
+      <div *ngIf="loading" class="state-container">
+        <div class="spinner"></div>
+        <p>Loading table tab & items...</p>
+      </div>
+
+      <!-- No Active Tab State -->
+      <div *ngIf="!loading && (!bill || bill.rounds.length === 0)" class="state-container empty-state">
+        <div class="empty-icon">🍽️</div>
+        <h3>No items ordered yet</h3>
+        <p>Your table tab is ready. Browse our delicious menu and start your first round of ordering!</p>
+        <button class="btn-primary" (click)="orderMore()">+ Browse Menu & Order</button>
+      </div>
+
+      <!-- Active or Bill Requested Tab Content -->
+      <div *ngIf="!loading && bill && bill.rounds.length > 0" class="bill-content">
+        <!-- Active Running Tab Notice & Loyalty Preview (Before requesting bill) -->
+        <div class="tab-notice" *ngIf="bill.status === 'active'">
+          <span class="notice-icon">👨‍🍳</span>
+          <div class="notice-text">
+            <strong>Running Dining Tab</strong>
+            <p>Order food in rounds as you like. Items go directly to the kitchen chefs. Pay once when you are ready to wrap up!</p>
+          </div>
+        </div>
+
+        <!-- Loyalty Info Card (Active Tab Stage) -->
+        <div class="loyalty-strip-box" *ngIf="bill.status === 'active'">
+          <div class="loyalty-strip-left">
+            <span class="loyalty-icon">⭐</span>
+            <div class="loyalty-strip-text">
+              <strong *ngIf="loyaltyAccount">
+                Loyalty Member • {{ loyaltyAccount.currentPoints || 0 }} pts ({{ loyaltyAccount.tier || 'Bronze' }})
+              </strong>
+              <strong *ngIf="!loyaltyAccount && authService.isLoggedIn()">
+                Loyalty Member Account
+              </strong>
+              <strong *ngIf="!authService.isLoggedIn()">
+                Cafe Loyalty Rewards
+              </strong>
+              <span class="earn-pill">
+                Earn <strong>+{{ estimatedPointsToEarn }} points</strong> on this visit upon payment!
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-notice bill-ready-notice" *ngIf="bill.status === 'bill_requested'">
+          <span class="notice-icon">🧾</span>
+          <div class="notice-text">
+            <strong>Final Bill Requested • Table {{ bill.tableNumber }}</strong>
+            <p>Your table bill is consolidated below. Choose your preferred payment option to complete your visit.</p>
+          </div>
+        </div>
+
+        <!-- Loyalty Reward Highlight (Final Bill Stage - Customer cannot apply coupons now, only sees points to earn) -->
+        <div class="loyalty-final-reward-card" *ngIf="bill.status === 'bill_requested'">
+          <div class="reward-card-header">
+            <span class="reward-star-badge">🎁 Loyalty Reward</span>
+            <span class="reward-points">+{{ estimatedPointsToEarn }} Points</span>
+          </div>
+          <p class="reward-desc">
+            You will receive <strong>{{ estimatedPointsToEarn }} Loyalty Points</strong> credited directly to your account immediately after settling this bill!
+          </p>
+          <div class="reward-balance-preview" *ngIf="loyaltyAccount">
+            <span>Current Balance: {{ loyaltyAccount.currentPoints || 0 }} pts</span>
+            <span>→</span>
+            <strong>New Balance: {{ (loyaltyAccount.currentPoints || 0) + estimatedPointsToEarn }} pts</strong>
+          </div>
+        </div>
+
+        <div class="tab-notice paid-notice" *ngIf="bill.status === 'paid'">
+          <span class="notice-icon">🎉</span>
+          <div class="notice-text">
+            <strong>Bill Settled • Thank You!</strong>
+            <p>Your payment of ₹{{ bill.grandTotal | number:'1.2-2' }} has been successfully recorded. Digital invoice generated.</p>
+            <p class="pts-credited-msg">🎁 <strong>+{{ estimatedPointsToEarn }} Loyalty Points</strong> have been credited to your rewards account!</p>
+          </div>
+        </div>
+
+        <!-- Ordered Rounds Timeline -->
+        <section class="rounds-section">
+          <h3>Items Ordered Across Visits ({{ bill.totalItemsCount }} items)</h3>
+
+          <div class="round-card" *ngFor="let round of bill.rounds">
+            <div class="round-header">
+              <span class="round-number">Round #{{ round.roundNumber }}</span>
+              <span class="round-time">{{ round.createdAt | date:'shortTime' }}</span>
+              <span class="round-status" [ngClass]="round.status">
+                {{ round.status === 'delivered' ? 'Served' : (round.status === 'ready' ? 'Ready' : 'In Kitchen') }}
+              </span>
+            </div>
+
+            <div class="round-items-list">
+              <div class="item-row" *ngFor="let item of round.items">
+                <div class="item-details">
+                  <span class="item-name">{{ item.name }}</span>
+                  <span class="item-variant" *ngIf="item.selectedVariantName">({{ item.selectedVariantName }})</span>
+                  <span class="item-addons" *ngIf="item.selectedAddOnNames && item.selectedAddOnNames.length > 0">
+                    + {{ item.selectedAddOnNames.join(', ') }}
+                  </span>
+                  <span class="item-notes" *ngIf="item.preparationNotes">Note: {{ item.preparationNotes }}</span>
+                </div>
+                <div class="item-qty">x{{ item.quantity }}</div>
+                <div class="item-price">₹{{ item.totalPrice | number:'1.2-2' }}</div>
+              </div>
+            </div>
+
+            <div class="round-subtotal">
+              <span>Round Subtotal:</span>
+              <strong>₹{{ round.roundSubtotal | number:'1.2-2' }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <!-- Final Bill Breakdown -->
+        <section class="summary-section">
+          <h3>Bill Summary</h3>
+          <div class="summary-row">
+            <span>Items Subtotal</span>
+            <span>₹{{ bill.subtotal | number:'1.2-2' }}</span>
+          </div>
+
+          <div class="summary-row discount-row" *ngIf="bill.discountAmount > 0">
+            <span>Coupon Discount ({{ bill.couponCode }})</span>
+            <span>- ₹{{ bill.discountAmount | number:'1.2-2' }}</span>
+          </div>
+
+          <div class="summary-row discount-row" *ngIf="bill.loyaltyDiscountAmount > 0">
+            <span>Loyalty Points Discount</span>
+            <span>- ₹{{ bill.loyaltyDiscountAmount | number:'1.2-2' }}</span>
+          </div>
+
+          <div class="summary-row" *ngIf="bill.taxAmount > 0">
+            <span>GST & Restaurant Taxes</span>
+            <span>₹{{ bill.taxAmount | number:'1.2-2' }}</span>
+          </div>
+
+          <div class="summary-divider"></div>
+
+          <div class="summary-row grand-total-row">
+            <span>Total Payable</span>
+            <span class="grand-total-amount">₹{{ bill.grandTotal | number:'1.2-2' }}</span>
+          </div>
+        </section>
+
+        <!-- Coupon Section (Allowed ONLY Before Final Bill is Requested, i.e. status === 'active') -->
+        <section class="coupon-box" *ngIf="bill.status === 'active'">
+          <div class="coupon-box-header">
+            <h4>🏷️ Available Offers & Coupons</h4>
+            <span class="coupon-timing-badge">Apply before requesting final bill</span>
+          </div>
+
+          <!-- Applied Coupon Banner -->
+          <div class="applied-coupon-card" *ngIf="bill.couponCode">
+            <div class="applied-coupon-info">
+              <span class="coupon-check-icon">✅</span>
+              <div>
+                <strong>{{ bill.couponCode }}</strong> Applied!
+                <span class="discount-saved">You saved ₹{{ bill.discountAmount | number:'1.2-2' }}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn-remove-coupon"
+              (click)="onRemoveCoupon()"
+              [disabled]="removingCoupon"
+            >
+              {{ removingCoupon ? 'Removing...' : '✕ Remove' }}
+            </button>
+          </div>
+
+          <!-- Available Coupons Chips / Carousel -->
+          <div class="available-offers-strip" *ngIf="!bill.couponCode && availableOffers.length > 0">
+            <div
+              class="offer-mini-card"
+              *ngFor="let offer of availableOffers"
+              [class.disabled]="!isOfferEligible(offer)"
+              (click)="isOfferEligible(offer) && onSelectCoupon(offer.code)"
+            >
+              <div class="offer-card-top">
+                <span class="offer-code-chip">{{ offer.code }}</span>
+                <span class="offer-value-badge">
+                  {{ offer.discountType === 'percentage' ? offer.discountValue + '% OFF' : '₹' + offer.discountValue + ' OFF' }}
+                </span>
+              </div>
+              <p class="offer-title">{{ offer.title || offer.description }}</p>
+              <span class="offer-min-order">
+                Min spend ₹{{ offer.minOrderAmount || 0 }}
+                <em *ngIf="!isOfferEligible(offer)" class="spend-more-hint">
+                  (Add ₹{{ getSpendMoreAmount(offer) | number:'1.0-0' }} more)
+                </em>
+              </span>
+            </div>
+          </div>
+
+          <!-- Manual Coupon Input -->
+          <div class="coupon-input-group" *ngIf="!bill.couponCode">
+            <input
+              type="text"
+              [(ngModel)]="couponInput"
+              placeholder="Enter Promo / Coupon Code"
+              [disabled]="applyingCoupon"
+              (keyup.enter)="applyCoupon()"
+            />
+            <button
+              class="btn-apply-coupon"
+              (click)="applyCoupon()"
+              [disabled]="applyingCoupon || !couponInput.trim()"
+            >
+              {{ applyingCoupon ? 'Applying...' : 'Apply' }}
+            </button>
+          </div>
+          <p class="coupon-feedback" *ngIf="couponMessage">{{ couponMessage }}</p>
+        </section>
+
+        <!-- Final Bill Stage Note on Coupons (Coupons locked at this stage) -->
+        <div class="final-bill-coupon-locked" *ngIf="bill.status === 'bill_requested'">
+          <span class="lock-icon">🔒</span>
+          <span class="lock-text">
+            Final bill locked • Coupons cannot be applied or changed after requesting final bill.
+          </span>
+        </div>
+
+        <!-- Actions When Tab is Active -->
+        <div class="tab-actions" *ngIf="bill.status === 'active'">
+          <button class="btn-secondary" (click)="orderMore()">
+            <span>🍽️ + Add More Items</span>
+          </button>
+          <button class="btn-primary-action" (click)="onRequestFinalBill()" [disabled]="requestingBill">
+            <span>{{ requestingBill ? 'Generating Bill...' : '🧾 Request Final Bill & Pay' }}</span>
+          </button>
+        </div>
+        <p class="final-bill-tip" *ngIf="bill.status === 'active'">
+          💡 <em>Tip: Confirm any desired coupon code before requesting your final bill.</em>
+        </p>
+
+        <!-- Payment Settlement Section (When Bill is Requested) -->
+        <section class="payment-settlement-section" *ngIf="bill.status === 'bill_requested'">
+          <h3>Choose Payment Method</h3>
+
+          <div class="payment-methods-grid">
+            <button
+              class="pm-card"
+              [class.active]="selectedPaymentMethod === 'upi-qr'"
+              (click)="selectedPaymentMethod = 'upi-qr'"
+            >
+              <span class="pm-icon">📱</span>
+              <span class="pm-title">UPI QR Code</span>
+              <span class="pm-sub">GPay / PhonePe / Paytm</span>
+            </button>
+
+            <button
+              class="pm-card"
+              *ngIf="bill.razorpayEnabled"
+              [class.active]="selectedPaymentMethod === 'razorpay'"
+              (click)="selectedPaymentMethod = 'razorpay'"
+            >
+              <span class="pm-icon">💳</span>
+              <span class="pm-title">Pay Online</span>
+              <span class="pm-sub">Cards / Netbanking / Wallets</span>
+            </button>
+
+            <button
+              class="pm-card"
+              [class.active]="selectedPaymentMethod === 'cash_at_counter'"
+              (click)="selectedPaymentMethod = 'cash_at_counter'"
+            >
+              <span class="pm-icon">💵</span>
+              <span class="pm-title">Cash / Counter</span>
+              <span class="pm-sub">Pay waiter or cashier</span>
+            </button>
+          </div>
+
+          <!-- UPI QR Box -->
+          <div class="upi-box" *ngIf="selectedPaymentMethod === 'upi-qr'">
+            <div class="qr-wrapper" *ngIf="qrCodeUrl">
+              <img [src]="qrCodeUrl" alt="Scan to pay UPI" class="upi-qr-image" />
+              <p class="scan-label">Scan with any UPI App (GPay, PhonePe, Paytm, Cred)</p>
+            </div>
+
+            <div class="upi-id-pill" *ngIf="bill.upiId">
+              <span>UPI ID: <strong>{{ bill.upiId }}</strong></span>
+              <button class="btn-copy" (click)="copyUpiId()">Copy</button>
+            </div>
+
+            <div class="utr-input-group">
+              <label>UPI Transaction Ref / UTR (Optional)</label>
+              <input
+                type="text"
+                [(ngModel)]="upiTransactionRef"
+                placeholder="e.g. 324109827361"
+              />
+            </div>
+
+            <button
+              class="btn-pay-confirm"
+              (click)="onSettleBill()"
+              [disabled]="settlingBill"
+            >
+              {{ settlingBill ? 'Verifying Payment...' : '✅ I Have Paid ₹' + (bill.grandTotal | number:'1.2-2') }}
+            </button>
+          </div>
+
+          <!-- Razorpay Box -->
+          <div class="gateway-box" *ngIf="selectedPaymentMethod === 'razorpay'">
+            <p>Secure online payment processing via Razorpay gateway.</p>
+            <button
+              class="btn-pay-confirm"
+              (click)="onSettleBill()"
+              [disabled]="settlingBill"
+            >
+              {{ settlingBill ? 'Opening Gateway...' : '💳 Pay ₹' + (bill.grandTotal | number:'1.2-2') + ' Online' }}
+            </button>
+          </div>
+
+          <!-- Cash at Counter Box -->
+          <div class="cash-box" *ngIf="selectedPaymentMethod === 'cash_at_counter'">
+            <p>A steward or cashier will come to Table {{ bill.tableNumber }} to collect cash, or you can pay at the counter.</p>
+            <button
+              class="btn-pay-confirm btn-cash"
+              (click)="onSettleBill()"
+              [disabled]="settlingBill"
+            >
+              {{ settlingBill ? 'Notifying Staff...' : '💵 Confirm Cash at Table / Counter' }}
+            </button>
+          </div>
+        </section>
+
+        <!-- Digital Invoice When Paid -->
+        <section class="invoice-box" *ngIf="bill.status === 'paid'">
+          <div class="invoice-badge">PAID IN FULL</div>
+          <p class="invoice-number" *ngIf="bill.invoiceNumber">Invoice: <strong>{{ bill.invoiceNumber }}</strong></p>
+          <p class="invoice-date">Settled on: {{ bill.settledAt | date:'medium' }}</p>
+
+          <div class="invoice-actions">
+            <button class="btn-secondary" (click)="printReceipt()">
+              <span>🖨️ Print / Save Receipt</span>
+            </button>
+            <button class="btn-primary-action" (click)="finishDining()">
+              <span>👋 Finish & Clear Table</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>

@@ -18,7 +18,7 @@
     <div class="empty-icon">🛒</div>
     <h2>Your cart is empty</h2>
     <p>Looks like you haven't added anything yet. Explore our delicious menu!</p>
-    <button class="btn-action" (click)="continueShopping()">🍽️ Browse Menu</button>
+    <button class="btn-action" (click)="continueOrdering()">🍽️ Browse Menu</button>
   </div>
 
   <div class="recovery-banner" *ngIf="checkoutDraft">
@@ -102,8 +102,26 @@
             (ngModelChange)="onPreparationNotesChange($event)"></textarea>
           <small>{{ (cart.preparationNotes || '').length }}/500</small>
         </div>
+
+        <!-- Dine-In Table Tab Actions -->
+        <div class="dine-in-cart-box" *ngIf="dineInService.currentTable">
+          <div class="dine-header-line">
+            <span class="table-chip">🍽️ Dining at Table {{ dineInService.currentTable }}</span>
+            <button type="button" class="btn-link-bill" (click)="openRunningBill()">
+              View Running Tab (₹{{ ((dineInBill$ | async)?.grandTotal || 0) | number:'1.2-2' }})
+            </button>
+          </div>
+          <p class="dine-explainer">
+            No payment required now! Items go straight to the kitchen. You can order in multiple rounds and request the final bill once you finish dining.
+          </p>
+          <button class="btn-send-kitchen" (click)="sendToKitchen()" [disabled]="sendingToKitchen || cart.items.length === 0">
+            <span>👨‍🍳 {{ sendingToKitchen ? 'Sending to Chefs...' : 'Send to Kitchen (Pay Later)' }}</span>
+          </button>
+          <div class="dine-separator"><span>OR STANDARD CHECKOUT</span></div>
+        </div>
+
         <button class="btn-checkout" (click)="proceedToCheckout()">🛒 Proceed to Checkout</button>
-        <button class="btn-continue" (click)="continueShopping()">← Continue Shopping</button>
+        <button class="btn-continue" (click)="continueOrdering()">← Continue Ordering</button>
       </div>
     </div>
   </div>

@@ -1,0 +1,283 @@
+.dine-in-floating-bar {
+  position: fixed;
+  bottom: max(14px, env(safe-area-inset-bottom, 14px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: auto;
+  max-width: calc(100vw - 20px);
+  animation: slideUpBar 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+.dock-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(28, 28, 28, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.25),
+    0 0 20px rgba(226, 55, 68, 0.2);
+}
+
+.dock-btn {
+  border: none;
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  .btn-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+  }
+}
+
+// 1. Categories Button
+.dock-btn-categories {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f4f4f5;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  .btn-label {
+    font-size: 0.84rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+  }
+
+  &.active {
+    background: #ffffff;
+    color: #1C1C1C;
+    border-color: #ffffff;
+    box-shadow: 0 4px 14px rgba(255, 255, 255, 0.3);
+  }
+}
+
+// 2. Cart Button
+.dock-btn-cart {
+  background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
+  color: #ffffff;
+  padding: 8px 16px;
+  box-shadow: 0 4px 16px rgba(226, 55, 68, 0.4);
+
+  .cart-pill-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.2;
+
+    .cart-count {
+      font-size: 0.78rem;
+      font-weight: 700;
+      opacity: 0.95;
+    }
+
+    .cart-amount {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #ffffff;
+    }
+  }
+
+  .dock-arrow {
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin-left: 2px;
+    transition: transform 0.2s;
+  }
+
+  &:hover {
+    box-shadow: 0 6px 20px rgba(226, 55, 68, 0.55);
+
+    .dock-arrow {
+      transform: translateX(3px);
+    }
+  }
+}
+
+// 3. View Bill Button
+.dock-btn-bill {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(226, 55, 68, 0.22) 100%);
+  border: 1.5px solid rgba(245, 158, 11, 0.5);
+  color: #fef08a;
+  position: relative;
+
+  .bill-pill-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.2;
+
+    .table-name {
+      font-size: 0.84rem;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .bill-amount {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #fde047;
+    }
+
+    .bill-sub {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #fde047;
+    }
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+    animation: livePulse 1.8s infinite ease-in-out;
+    margin-left: 2px;
+  }
+
+  &:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.26) 0%, rgba(226, 55, 68, 0.35) 100%);
+    border-color: #f59e0b;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
+  }
+}
+
+@keyframes slideUpBar {
+  from {
+    transform: translate(-50%, 40px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes livePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.6;
+  }
+}
+
+// Desktop Rule: Categories button in floating dock is NEVER shown on desktop
+@media (min-width: 769px) {
+  .dock-btn-categories {
+    display: none !important;
+  }
+}
+
+// Mobile Responsive
+@media (max-width: 540px) {
+  .dine-in-floating-bar {
+    width: calc(100% - 16px);
+    max-width: 440px;
+  }
+
+  .dock-container {
+    width: 100%;
+    justify-content: center;
+    gap: 6px;
+    padding: 5px 6px;
+  }
+
+  .dock-btn {
+    padding: 7px 10px;
+    flex: 1 1 auto;
+    justify-content: center;
+
+    .btn-icon {
+      font-size: 1rem;
+    }
+  }
+
+  .dock-btn-categories .btn-label {
+    font-size: 0.78rem;
+  }
+
+  .dock-btn-cart {
+    padding: 7px 12px;
+
+    .cart-pill-content {
+      gap: 4px;
+
+      .cart-count {
+        font-size: 0.74rem;
+      }
+
+      .cart-amount {
+        font-size: 0.88rem;
+      }
+    }
+  }
+
+  .dock-btn-bill {
+    padding: 7px 10px;
+
+    .bill-pill-content {
+      gap: 4px;
+
+      .table-name {
+        font-size: 0.78rem;
+      }
+
+      .bill-amount {
+        font-size: 0.88rem;
+      }
+    }
+  }
+}
+
+@media (max-width: 380px) {
+  .dock-btn {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .dock-btn-categories .btn-label {
+    font-size: 0.74rem;
+  }
+
+  .dock-btn-cart .cart-pill-content .cart-count {
+    display: none;
+  }
+
+  .dock-btn-bill .bill-pill-content .table-name {
+    font-size: 0.74rem;
+  }
+}

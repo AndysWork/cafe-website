@@ -6,7 +6,10 @@ import { CartService, Cart, CartItem } from '../../services/cart.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { LoyaltyService } from '../../services/loyalty.service';
-import { Subscription } from 'rxjs';
+import { DineInService } from '../../services/dine-in.service';
+import { DineInBill } from '../../models/dine-in.model';
+import { UIStore } from '../../store/ui.store';
+import { Subscription, Observable } from 'rxjs';
 import { decodeHtmlEntities, resolveWebSalePrice } from '../../utils/text-utils';
 import { getIstIsoString } from '../../utils/date-utils';
 
@@ -39,6 +42,11 @@ export class CartComponent implements OnInit, OnDestroy {
   selectedVariantName = '';
   selectedAddOnNames: Set<string> = new Set();
   loadingCustomizationOptions = false;
+
+  public dineInService = inject(DineInService);
+  private uiStore = inject(UIStore);
+  public dineInBill$: Observable<DineInBill | null> = this.dineInService.activeBill$;
+  sendingToKitchen = false;
 
   constructor(
     private cartService: CartService,
@@ -209,8 +217,53 @@ export class CartComponent implements OnInit, OnDestroy {
     }
   }
 
-  continueShopping() {
+  continueOrdering() {
     this.router.navigate(['/menu']);
+  }
+
+  openRunningBill(): void {
+    this.dineInService.openBillModal();
+  }
+
+  sendToKitchen(): void {
+    if (!this.cart.items || this.cart.items.length === 0) {
+      this.uiStore.warning('Your cart is empty');
+      return;
+    }
+
+    const table = this.dineInService.currentTable;
+    if (!table) {
+      const promptTable = prompt('Please enter your Table Number for Dine-In:');
+      if (promptTable && promptTable.trim()) {
+        this.dineInService.setTableNumber(promptTable.trim());
+      } else {
+        return;
+      }
+    }
+
+    this.sendingToKitchen = true;
+    const items = this.cart.items.map(item => ({
+      menuItemId: item.menuItemId,
+      quantity: item.quantity,
+      selectedVariantName: item.selectedVariant?.variantName,
+      selectedAddOnNames: item.selectedAddOns?.map(a => a.name) || []
+    }));
+
+    this.dineInService.placeDineInOrder({
+      items,
+      preparationNotes: this.cart.preparationNotes
+    }).subscribe({
+      next: (res) => {
+        this.sendingToKitchen = false;
+        this.cartService.clearCart();
+        this.uiStore.success(res?.message || 'Order sent directly to kitchen! Chefs are preparing your items.');
+        this.dineInService.openBillModal();
+      },
+      error: (err) => {
+        this.sendingToKitchen = false;
+        this.uiStore.error(err?.error?.error || 'Failed to send order to kitchen');
+      }
+    });
   }
 
   proceedToCheckout() {

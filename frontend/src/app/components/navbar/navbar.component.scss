@@ -481,6 +481,20 @@
   display: inline-block;
 }
 
+.table-nav-link {
+  background: rgba(226, 55, 68, 0.1) !important;
+  color: #E23744 !important;
+  border: 1.5px solid rgba(226, 55, 68, 0.3) !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+
+  &:hover {
+    background: #E23744 !important;
+    color: white !important;
+    box-shadow: 0 4px 14px rgba(226, 55, 68, 0.35) !important;
+  }
+}
+
 // Cart Icon with Badge
 .cart-icon {
   position: relative;

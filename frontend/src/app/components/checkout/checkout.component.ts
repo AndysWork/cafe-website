@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -18,6 +18,7 @@ import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
 import QRCode from 'qrcode';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { Offer } from '../../services/offers.service';
+import { DineInService } from '../../services/dine-in.service';
 
 @Component({
   selector: 'app-checkout',
@@ -91,8 +92,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   loyaltyLoaded = false;
 
   // Order type
+  public dineInService = inject(DineInService);
   orderType: 'delivery' | 'pickup' | 'dine-in' = 'delivery';
   tableNumber = '';
+  dineInPayLater = true;
 
   // Scheduling
   scheduleOrder = false;
@@ -175,6 +178,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.loadAvailableOffers();
     this.ensureSupportedPaymentMethod();
     this.refreshOutletSuggestions();
+
+    if (this.dineInService.currentTable) {
+      this.orderType = 'dine-in';
+      this.tableNumber = this.dineInService.currentTable;
+    }
 
     this.cartSub = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
@@ -639,7 +647,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   private submitOrder(razorpayPaymentId?: string, razorpayOrderId?: string, razorpaySignature?: string) {
-    const paymentMethodForOrder: 'cod' | 'razorpay' | 'upi-qr' = this.paymentMethod;
+    const paymentMethodForOrder: 'cod' | 'razorpay' | 'upi-qr' | 'dine_in_tab' =
+      (this.orderType === 'dine-in' && this.dineInPayLater) ? 'dine_in_tab' : this.paymentMethod;
 
     const upiRefText = this.paymentMethod === 'upi-qr'
       ? `UPI QR payment marked complete${this.upiTransactionRef.trim() ? ` | UTR/Ref: ${this.upiTransactionRef.trim()}` : ''}`
@@ -700,6 +709,17 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         }
 
         this.cartService.clearCart();
+
+        if (this.orderType === 'dine-in') {
+          this.dineInService.setTableNumber(this.tableNumber.trim());
+          if (this.dineInPayLater) {
+            this.uiStore.success('Order sent directly to kitchen! Your table tab is active.');
+            this.dineInService.openBillModal();
+            this.router.navigate(['/menu'], { queryParams: { table: this.tableNumber.trim() } });
+            return;
+          }
+        }
+
         this.router.navigate(['/orders', order.id]);
       },
       error: (error) => {

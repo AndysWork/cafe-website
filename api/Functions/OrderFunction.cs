@@ -350,7 +350,7 @@ public class OrderFunction
 
             // Determine payment method and status
             var paymentMethod = orderRequest.PaymentMethod?.ToLower() ?? "cod";
-            var paymentStatus = "pending";
+            var paymentStatus = paymentMethod == "dine_in_tab" ? "unpaid" : "pending";
             string? razorpayOrderId = null;
             string? razorpayPaymentId = null;
             string? razorpaySignature = null;
@@ -410,7 +410,7 @@ public class OrderFunction
                 Tax = tax,
                 PlatformCharge = platformCharge,
                 Total = total,
-                Status = isScheduled ? "scheduled" : "pending",
+                Status = isScheduled ? "scheduled" : (paymentMethod == "dine_in_tab" ? "confirmed" : "pending"),
                 PaymentStatus = paymentStatus,
                 PaymentMethod = paymentMethod,
                 RazorpayOrderId = razorpayOrderId,
@@ -429,6 +429,8 @@ public class OrderFunction
                 OrderType = orderType,
                 Channel = channel,
                 TableNumber = orderType == "dine-in" ? orderRequest.TableNumber?.Trim() : null,
+                DineInSessionId = orderRequest.DineInSessionId,
+                RoundNumber = orderRequest.RoundNumber ?? 1,
                 WalletAmountUsed = 0,
                 ScheduledFor = scheduledFor,
                 IsScheduled = isScheduled,
@@ -1594,6 +1596,8 @@ public class OrderFunction
             DeliveryEtaMinutes = order.DeliveryEtaMinutes,
             DeliveryRouteUpdatedAt = order.DeliveryRouteUpdatedAt,
             TableNumber = order.TableNumber,
+            DineInSessionId = order.DineInSessionId,
+            RoundNumber = order.RoundNumber,
             LoyaltyPointsAwarded = order.LoyaltyPointsAwarded,
             LoyaltyPointsAwardedValue = order.LoyaltyPointsAwardedValue
         };

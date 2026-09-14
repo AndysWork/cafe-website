@@ -59,10 +59,17 @@
         </div>
 
         <!-- Dine-in Table Number -->
-        <div *ngIf="orderType === 'dine-in'" class="form-group">
+        <div *ngIf="orderType === 'dine-in'" class="form-group dine-in-checkout-notice">
           <label>Table Number</label>
-          <input type="text" [(ngModel)]="tableNumber" name="tableNumber" placeholder="Enter table number" maxlength="20" required (ngModelChange)="onInlineFieldChange()" />
+          <input type="text" [(ngModel)]="tableNumber" name="tableNumber" placeholder="e.g. 4 or T-12" maxlength="20" required (ngModelChange)="onInlineFieldChange()" />
           <small class="inline-error" *ngIf="tableNumberError">{{ tableNumberError }}</small>
+
+          <div class="dine-in-tab-option">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="dineInPayLater" name="dineInPayLater" />
+              <span><strong>Add to Running Table Tab (Pay Later)</strong> — Items go directly to chefs. Settle the consolidated bill at the end!</span>
+            </label>
+          </div>
         </div>
 
         <div *ngIf="orderType !== 'delivery'" class="form-group">

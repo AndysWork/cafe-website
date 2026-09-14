@@ -235,6 +235,35 @@ $danger: #dc2626;
   gap: 10px;
 }
 
+.dine-in-checkout-notice {
+  background: #FFF5F5;
+  border: 1.5px solid rgba(226, 55, 68, 0.25);
+  border-radius: 14px;
+  padding: 16px;
+
+  .dine-in-tab-option {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(226, 55, 68, 0.2);
+
+    .checkbox-label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.84rem;
+      color: #1C1C1C;
+      cursor: pointer;
+
+      input[type="checkbox"] {
+        accent-color: #E23744;
+        width: 18px;
+        height: 18px;
+        margin-top: 2px;
+      }
+    }
+  }
+}
+
 /* Saved Addresses */
 .saved-addresses {
   margin-bottom: 24px;

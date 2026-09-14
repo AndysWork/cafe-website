@@ -66,9 +66,29 @@ export class MenuService {
   // Observable bridge for backward compatibility (must be field initializer for injection context)
   menuItemsRefresh$ = toObservable(this.menuItemsUpdatedSignal);
 
+  // Category drawer toggle signal & observable
+  private categoryDrawerOpenSignal = signal(false);
+  categoryDrawerOpen$ = toObservable(this.categoryDrawerOpenSignal);
+
   // Trigger refresh notification
   notifyMenuItemsUpdated(): void {
     this.menuItemsUpdatedSignal.update(value => !value);
+  }
+
+  toggleCategoryDrawer(): void {
+    this.categoryDrawerOpenSignal.update(open => !open);
+  }
+
+  openCategoryDrawer(): void {
+    this.categoryDrawerOpenSignal.set(true);
+  }
+
+  setCategoryDrawerOpen(open: boolean): void {
+    this.categoryDrawerOpenSignal.set(open);
+  }
+
+  get isCategoryDrawerOpen(): boolean {
+    return this.categoryDrawerOpenSignal();
   }
 
   getCategories(): Observable<MenuCategory[]> {

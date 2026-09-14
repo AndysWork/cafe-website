@@ -378,8 +378,105 @@ $danger: #dc2626;
   }
 }
 
+.dine-in-cart-box {
+  background: #FFF5F5;
+  border: 1.5px solid rgba(226, 55, 68, 0.25);
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 18px;
+
+  .dine-header-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    .table-chip {
+      font-size: 0.84rem;
+      font-weight: 800;
+      color: #E23744;
+      background: #ffffff;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(226, 55, 68, 0.2);
+    }
+
+    .btn-link-bill {
+      background: none;
+      border: none;
+      color: #1C1C1C;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-decoration: underline;
+      cursor: pointer;
+
+      &:hover {
+        color: #E23744;
+      }
+    }
+  }
+
+  .dine-explainer {
+    font-size: 0.78rem;
+    color: #4F4F4F;
+    line-height: 1.4;
+    margin: 0 0 10px;
+  }
+
+  .btn-send-kitchen {
+    width: 100%;
+    background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
+    color: white;
+    border: none;
+    padding: 13px;
+    border-radius: 12px;
+    font-size: 0.96rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(226, 55, 68, 0.35);
+    transition: all 0.25s;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(226, 55, 68, 0.45);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .dine-separator {
+    text-align: center;
+    position: relative;
+    margin-top: 14px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: rgba(226, 55, 68, 0.2);
+    }
+
+    span {
+      position: relative;
+      background: #FFF5F5;
+      padding: 0 8px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: #828282;
+      letter-spacing: 0.5px;
+    }
+  }
+}
+
 .btn-checkout {
-  display: block; width: 100%; padding: 14px; border: none; border-radius: 12px; margin-top: 24px;
+  display: block; width: 100%; padding: 14px; border: none; border-radius: 12px; margin-top: 14px;
   background: linear-gradient(135deg, $primary, #ff8a5c); color: #fff;
   font-size: 1rem; font-weight: 700; cursor: pointer; transition: all .3s;
   &:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba($primary, .3); }

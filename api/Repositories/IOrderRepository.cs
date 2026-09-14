@@ -31,4 +31,12 @@ public interface IOrderRepository
     Task<OrderIssue> CreateOrderIssueAsync(OrderIssue issue);
     Task<List<OrderIssue>> GetOrderIssuesAsync(string orderId);
     Task<bool> UpdateOrderIssueStatusAsync(string orderId, string issueId, string status, string? resolutionNotes = null, bool refundProcessed = false);
+
+    // Dine-In Table Sessions
+    Task<DineInSession> CreateDineInSessionAsync(DineInSession session);
+    Task<DineInSession?> GetActiveDineInSessionByTableAsync(string outletId, string tableNumber);
+    Task<DineInSession?> GetDineInSessionByIdAsync(string sessionId);
+    Task<List<DineInSession>> GetActiveDineInSessionsAsync(string outletId);
+    Task<List<DineInSession>> GetUserDineInSessionsAsync(string userId);
+    Task<bool> UpdateDineInSessionAsync(DineInSession session);
 }

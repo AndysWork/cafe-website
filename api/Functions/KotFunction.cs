@@ -53,7 +53,14 @@ public class KotFunction
             sb.AppendLine($"Type: {order.OrderType?.ToUpper() ?? "DELIVERY"}");
 
             if (!string.IsNullOrWhiteSpace(order.TableNumber))
-                sb.AppendLine($"Table: {order.TableNumber}");
+            {
+                var roundText = order.RoundNumber > 0 ? $" (ROUND #{order.RoundNumber})" : "";
+                sb.AppendLine($"Table: {order.TableNumber}{roundText}");
+                if (order.PaymentMethod == "dine_in_tab")
+                {
+                    sb.AppendLine("Billing: DINE-IN RUNNING TAB");
+                }
+            }
 
             if (!string.IsNullOrWhiteSpace(order.Username))
                 sb.AppendLine($"Customer: {order.Username}");

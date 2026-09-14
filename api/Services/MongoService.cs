@@ -121,6 +121,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<KitchenVoiceStockRequest> _kitchenVoiceStockRequests;
     private readonly IMongoCollection<CustomerSegment> _customerSegments;
     private readonly IMongoCollection<HomeContentConfig> _homeContentConfigs;
+    private readonly IMongoCollection<DineInSession> _dineInSessions;
     private readonly object _tierRulesLock = new();
     private List<LoyaltyTierRule>? _tierRulesCache;
     private readonly object _referralConfigLock = new();
@@ -246,6 +247,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _kitchenVoiceStockRequests = db.GetCollection<KitchenVoiceStockRequest>("KitchenVoiceStockRequests");
         _customerSegments = db.GetCollection<CustomerSegment>("CustomerSegments");
         _homeContentConfigs = db.GetCollection<HomeContentConfig>("HomeContentConfigs");
+        _dineInSessions = db.GetCollection<DineInSession>("DineInSessions");
     }
 
     /// <summary>
@@ -4048,6 +4050,28 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "TableReservations indexes warning");
+        }
+
+        // ========== DineInSessions Collection ==========
+        try
+        {
+            await _dineInSessions.Indexes.CreateOneAsync(new CreateIndexModel<DineInSession>(
+                Builders<DineInSession>.IndexKeys.Ascending(x => x.OutletId).Ascending(x => x.TableNumber).Ascending(x => x.Status),
+                new CreateIndexOptions { Name = "outletId_1_tableNumber_1_status_1", Background = true }
+            ));
+            indexCount++;
+
+            await _dineInSessions.Indexes.CreateOneAsync(new CreateIndexModel<DineInSession>(
+                Builders<DineInSession>.IndexKeys.Ascending(x => x.UserId).Ascending(x => x.Status),
+                new CreateIndexOptions { Name = "userId_1_status_1", Background = true }
+            ));
+            indexCount++;
+
+            _logger.LogInformation("DineInSessions indexes created");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DineInSessions indexes warning");
         }
 
         // ========== WastageRecords Collection ==========

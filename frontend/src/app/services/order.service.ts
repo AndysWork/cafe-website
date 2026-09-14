@@ -82,7 +82,7 @@ export interface CreateOrderRequest {
   phoneNumber?: string;
   preparationNotes?: string;
   notes?: string;
-  paymentMethod?: 'cod' | 'razorpay' | 'upi-qr';
+  paymentMethod?: 'cod' | 'razorpay' | 'upi-qr' | 'dine_in_tab';
   razorpayPaymentId?: string;
   razorpayOrderId?: string;
   razorpaySignature?: string;
@@ -94,6 +94,8 @@ export interface CreateOrderRequest {
   scheduledFor?: string;
   deliveryFee?: number;
   tableNumber?: string;
+  dineInSessionId?: string;
+  roundNumber?: number;
   outletId?: string;
 }
 

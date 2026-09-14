@@ -6,6 +6,7 @@ import { CartService } from '../../services/cart.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { AuthStore, CartStore } from '../../store';
 import { NotificationCenterComponent } from '../notification-center/notification-center.component';
+import { DineInService } from '../../services/dine-in.service';
 
 @Component({
   selector: 'app-navbar',
@@ -15,6 +16,7 @@ import { NotificationCenterComponent } from '../notification-center/notification
   styleUrls: ['./navbar.component.scss']
 })
 export class NavbarComponent implements OnInit, OnDestroy {
+  public dineInService = inject(DineInService);
   isMobileMenuOpen = false;
   activeDropdown: string | null = null;
   private closeTimeout: any;
@@ -73,6 +75,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   get isManager(): boolean {
     return this.currentUser?.role === 'manager';
+  }
+
+  openDineInBill(): void {
+    this.dineInService.openBillModal();
   }
 
   get isNonAdminLoggedIn(): boolean {

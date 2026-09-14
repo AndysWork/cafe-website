@@ -1,0 +1,52 @@
+<aside class="dine-in-floating-bar" *ngIf="isVisible" role="toolbar" aria-label="Customer quick actions dock">
+  <div class="dock-container">
+
+    <!-- 1. Categories Button (appears when on Menu / Dine-in page) -->
+    <button
+      *ngIf="showCategories"
+      type="button"
+      class="dock-btn dock-btn-categories"
+      (click)="toggleCategories()"
+      [class.active]="menuService.isCategoryDrawerOpen"
+      aria-label="Toggle Menu Categories"
+    >
+      <span class="btn-icon">☰</span>
+      <span class="btn-label">Categories</span>
+    </button>
+
+    <!-- 2. Floating Cart Button (appears when cart has items) -->
+    <button
+      *ngIf="showCart"
+      type="button"
+      class="dock-btn dock-btn-cart"
+      (click)="goToCart()"
+      aria-label="View Shopping Cart"
+    >
+      <span class="btn-icon">🛒</span>
+      <div class="cart-pill-content">
+        <span class="cart-count">{{ cartItemCount }} item{{ cartItemCount !== 1 ? 's' : '' }}</span>
+        <span class="cart-amount">₹{{ cartTotal | number:'1.0-0' }}</span>
+      </div>
+      <span class="dock-arrow">→</span>
+    </button>
+
+    <!-- 3. View Bill Button (appears when active Dine-In table session) -->
+    <button
+      *ngIf="showViewBill"
+      type="button"
+      class="dock-btn dock-btn-bill"
+      (click)="viewBill()"
+      [class.has-bill]="bill && bill.grandTotal > 0"
+      aria-label="View Table Bill"
+    >
+      <span class="btn-icon">🧾</span>
+      <div class="bill-pill-content">
+        <span class="table-name">Table {{ tableNumber }}</span>
+        <span class="bill-amount" *ngIf="bill && bill.grandTotal > 0">₹{{ bill.grandTotal | number:'1.0-0' }}</span>
+        <span class="bill-sub" *ngIf="!bill || bill.grandTotal <= 0">View Bill</span>
+      </div>
+      <span class="live-dot" *ngIf="bill?.status === 'active' || bill?.status === 'bill_requested'"></span>
+    </button>
+
+  </div>
+</aside>
