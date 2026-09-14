@@ -66,9 +66,39 @@
           </div>
         </div>
         <h4 class="section-heading">Daily Items</h4>
+        <p class="section-subtext" *ngIf="loadingMenuItems">Loading menu options...</p>
         <div *ngFor="let item of planForm.includedItems; let i = index; trackBy: trackByIndex" class="form-row items-row">
-          <div class="form-group"><label>Menu Item ID</label><input type="text" [(ngModel)]="item.menuItemId" [name]="'itemId'+i"></div>
-          <div class="form-group"><label>Name</label><input type="text" [(ngModel)]="item.menuItemName" [name]="'itemName'+i"></div>
+          <div class="form-group">
+            <label>Menu Item *</label>
+            <div class="menu-typeahead-wrap">
+              <input
+                type="text"
+                [(ngModel)]="item.menuItemSearch"
+                [name]="'itemSearch'+i"
+                (focus)="openMenuSuggestions(i)"
+                (input)="onMenuSearchInput(i)"
+                (blur)="onMenuSearchBlur(i)"
+                placeholder="Search menu by name/category"
+                autocomplete="off"
+                required>
+              <button type="button" class="btn-clear-menu" *ngIf="item.menuItemSearch" (mousedown)="$event.preventDefault()" (click)="clearMenuItem(i)">✕</button>
+            </div>
+
+            <div class="menu-typeahead-list" *ngIf="activeSuggestionRow === i">
+              <button
+                type="button"
+                class="menu-suggestion-btn"
+                *ngFor="let m of getRowMenuSuggestions(i); trackBy: trackByMenuItemId"
+                (mousedown)="selectMenuItemForRow(i, m, $event)">
+                <span class="suggestion-name">{{ m.name }}</span>
+                <span class="suggestion-meta">{{ m.categoryName || m.category || 'General' }}</span>
+              </button>
+              <div class="menu-suggestion-empty" *ngIf="getRowMenuSuggestions(i).length === 0">
+                No matching menu items.
+              </div>
+            </div>
+          </div>
+          <div class="form-group"><label>Name</label><input type="text" [(ngModel)]="item.menuItemName" [name]="'itemName'+i" placeholder="Select from search results" readonly></div>
           <div class="form-group qty-group"><label>Qty</label><input type="number" [(ngModel)]="item.dailyQuantity" [name]="'qty'+i" min="1"></div>
           <button type="button" class="btn-remove-item" (click)="removeItem(i)" *ngIf="planForm.includedItems.length > 1">🗑️</button>
         </div>
