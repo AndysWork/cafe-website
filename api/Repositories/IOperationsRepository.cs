@@ -89,6 +89,8 @@ public interface IOperationsRepository
     Task<CustomerSubscription> CreateCustomerSubscriptionAsync(CustomerSubscription sub);
     Task<CustomerSubscription?> GetActiveSubscriptionAsync(string userId);
     Task<List<CustomerSubscription>> GetUserSubscriptionsAsync(string userId);
+    Task<CustomerSubscription?> GetCustomerSubscriptionByIdAsync(string id);
+    Task<bool> UpdateCustomerSubscriptionAsync(string id, CustomerSubscription sub);
 
     // Customer Segments
     Task<List<CustomerSegment>> GetCustomerSegmentsAsync(string? segment = null, int page = 1, int pageSize = 50);

@@ -857,22 +857,60 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<List<SubscriptionPlan>> GetSubscriptionPlansAsync(string outletId, bool activeOnly = false)
     {
-        var filter = Builders<SubscriptionPlan>.Filter.Eq(p => p.OutletId, outletId) & Builders<SubscriptionPlan>.Filter.Ne(p => p.IsDeleted, true);
+        var filterBuilder = Builders<SubscriptionPlan>.Filter;
+        var filter = filterBuilder.Ne(p => p.IsDeleted, true);
         if (activeOnly)
-            filter &= Builders<SubscriptionPlan>.Filter.Eq(p => p.IsActive, true);
+            filter &= filterBuilder.Eq(p => p.IsActive, true);
+
+        if (!string.IsNullOrWhiteSpace(outletId) && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase))
+        {
+            var cleanOutlet = outletId.Trim();
+            if (ObjectId.TryParse(cleanOutlet, out var oId))
+            {
+                filter &= filterBuilder.Or(
+                    filterBuilder.Eq(p => p.OutletId, cleanOutlet),
+                    filterBuilder.Eq("outletId", oId),
+                    filterBuilder.Eq(p => p.OutletId, "default"),
+                    filterBuilder.Eq(p => p.OutletId, "")
+                );
+            }
+            else
+            {
+                filter &= filterBuilder.Or(
+                    filterBuilder.Eq(p => p.OutletId, cleanOutlet),
+                    filterBuilder.Eq(p => p.OutletId, "default"),
+                    filterBuilder.Eq(p => p.OutletId, "")
+                );
+            }
+        }
 
         return await _subscriptionPlans.Find(filter).SortBy(p => p.Price).ToListAsync();
     }
 
     public async Task<SubscriptionPlan?> GetSubscriptionPlanByIdAsync(string id)
     {
-        return await _subscriptionPlans.Find(p => p.Id == id && p.IsDeleted != true).FirstOrDefaultAsync();
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        var cleanId = id.Trim();
+        var filter = Builders<SubscriptionPlan>.Filter.Eq("_id", cleanId);
+        if (ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<SubscriptionPlan>.Filter.Or(filter, Builders<SubscriptionPlan>.Filter.Eq("_id", objId));
+        }
+        filter &= Builders<SubscriptionPlan>.Filter.Ne(p => p.IsDeleted, true);
+        return await _subscriptionPlans.Find(filter).FirstOrDefaultAsync();
     }
 
     public async Task<bool> UpdateSubscriptionPlanAsync(string id, SubscriptionPlan plan)
     {
-        var result = await _subscriptionPlans.ReplaceOneAsync(
-            p => p.Id == id && p.IsDeleted != true, plan);
+        var cleanId = id.Trim();
+        var filter = Builders<SubscriptionPlan>.Filter.Eq("_id", cleanId);
+        if (ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<SubscriptionPlan>.Filter.Or(filter, Builders<SubscriptionPlan>.Filter.Eq("_id", objId));
+        }
+        filter &= Builders<SubscriptionPlan>.Filter.Ne(p => p.IsDeleted, true);
+
+        var result = await _subscriptionPlans.ReplaceOneAsync(filter, plan);
         return result.ModifiedCount > 0;
     }
 
@@ -883,11 +921,19 @@ public partial class MongoService : IOperationsRepository
         if (hasSubscribers)
             throw new InvalidOperationException("Cannot delete subscription plan: it has active subscribers. Deactivate it instead.");
 
+        var cleanId = id.Trim();
+        var filter = Builders<SubscriptionPlan>.Filter.Eq("_id", cleanId);
+        if (ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<SubscriptionPlan>.Filter.Or(filter, Builders<SubscriptionPlan>.Filter.Eq("_id", objId));
+        }
+        filter &= Builders<SubscriptionPlan>.Filter.Ne(p => p.IsDeleted, true);
+
         var update = Builders<SubscriptionPlan>.Update
             .Set(p => p.IsDeleted, true)
             .Set(p => p.DeletedAt, MongoService.GetIstNow())
             .Set(p => p.IsActive, false);
-        var result = await _subscriptionPlans.UpdateOneAsync(p => p.Id == id && p.IsDeleted != true, update);
+        var result = await _subscriptionPlans.UpdateOneAsync(filter, update);
         return result.ModifiedCount > 0;
     }
 
@@ -900,7 +946,8 @@ public partial class MongoService : IOperationsRepository
     public async Task<CustomerSubscription?> GetActiveSubscriptionAsync(string userId)
     {
         return await _customerSubscriptions.Find(s =>
-            s.UserId == userId && s.Status == "active" && s.EndDate >= GetIstNow())
+            s.UserId == userId && (s.Status == "active" || s.Status == "paused") && s.EndDate >= GetIstNow())
+            .SortByDescending(s => s.CreatedAt)
             .FirstOrDefaultAsync();
     }
 
@@ -909,6 +956,32 @@ public partial class MongoService : IOperationsRepository
         return await _customerSubscriptions.Find(s => s.UserId == userId)
             .SortByDescending(s => s.CreatedAt)
             .ToListAsync();
+    }
+
+    public async Task<CustomerSubscription?> GetCustomerSubscriptionByIdAsync(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        var cleanId = id.Trim();
+        var filter = Builders<CustomerSubscription>.Filter.Eq("_id", cleanId);
+        if (ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<CustomerSubscription>.Filter.Or(filter, Builders<CustomerSubscription>.Filter.Eq("_id", objId));
+        }
+        return await _customerSubscriptions.Find(filter).FirstOrDefaultAsync();
+    }
+
+    public async Task<bool> UpdateCustomerSubscriptionAsync(string id, CustomerSubscription sub)
+    {
+        if (string.IsNullOrWhiteSpace(id) || sub == null) return false;
+        sub.UpdatedAt = GetIstNow();
+        var cleanId = id.Trim();
+        var filter = Builders<CustomerSubscription>.Filter.Eq("_id", cleanId);
+        if (ObjectId.TryParse(cleanId, out var objId))
+        {
+            filter = Builders<CustomerSubscription>.Filter.Or(filter, Builders<CustomerSubscription>.Filter.Eq("_id", objId));
+        }
+        var result = await _customerSubscriptions.ReplaceOneAsync(filter, sub);
+        return result.ModifiedCount > 0;
     }
 
     #endregion

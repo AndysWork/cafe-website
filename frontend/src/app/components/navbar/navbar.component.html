@@ -172,6 +172,19 @@
           </a>
         </li>
 
+        <!-- Regular User: Subscriptions / Meal Plans -->
+        <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
+          <a
+            routerLink="/subscriptions"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">🔁</span>
+            Subscriptions
+          </a>
+        </li>
+
         <!-- Regular User: Loyalty Points -->
         <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
           <a

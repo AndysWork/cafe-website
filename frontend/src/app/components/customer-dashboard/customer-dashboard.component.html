@@ -102,11 +102,26 @@
     <h2>Quick Actions</h2>
     <div class="actions-grid">
       <a routerLink="/menu" class="action">🍽️ Order Food</a>
+      <a routerLink="/subscriptions" class="action">🔁 Meal Subscriptions</a>
       <a routerLink="/reservations" class="action">📅 Reserve Table</a>
+      <a routerLink="/orders" class="action">📦 My Orders</a>
       <a routerLink="/cart" class="action">🛒 Open Cart</a>
       <a routerLink="/loyalty" class="action">⭐ Rewards</a>
       <a routerLink="/profile" class="action">👤 Profile</a>
       <a routerLink="/offers" class="action">🏷️ Offers</a>
+    </div>
+  </section>
+
+  <!-- Subscription Feature Promotion Card -->
+  <section class="subscription-promo-card card" style="background: linear-gradient(135deg, #fff1f2, #ffe4e6); border: 2px solid #fecdd3; padding: 1.5rem; border-radius: 18px; margin-top: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+    <div style="max-width: 650px;">
+      <span style="background: #e11d48; color: white; font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; text-transform: uppercase;">New Feature</span>
+      <h3 style="margin: 0.4rem 0 0.3rem; font-size: 1.25rem; font-weight: 800; color: #881337;">Daily Meal Subscriptions & Custom Combos</h3>
+      <p style="margin: 0; font-size: 0.88rem; color: #9f1239; line-height: 1.4;">Subscribe to daily meal boxes or build your custom recurring combo with up to 20% discount and 100% Free Doorstep Delivery.</p>
+    </div>
+    <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+      <a routerLink="/subscriptions" style="background: #e11d48; color: white; padding: 0.7rem 1.2rem; border-radius: 10px; font-weight: 800; text-decoration: none; font-size: 0.88rem; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);">Explore Plans</a>
+      <a routerLink="/subscriptions" [queryParams]="{ tab: 'custom' }" style="background: white; color: #e11d48; border: 1.5px solid #e11d48; padding: 0.7rem 1.2rem; border-radius: 10px; font-weight: 800; text-decoration: none; font-size: 0.88rem;">+ Build Combo</a>
     </div>
   </section>
 </section>

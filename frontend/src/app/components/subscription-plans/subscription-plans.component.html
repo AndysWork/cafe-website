@@ -1,65 +1,768 @@
 <div class="subscriptions-page">
+  <!-- Hero Banner -->
   <div class="page-hero">
-    <h1>Meal Plans</h1>
-    <p>Save more with daily meal subscriptions</p>
-  </div>
-
-  <!-- Current Subscription -->
-  <div *ngIf="mySubscription" class="current-plan">
-    <div class="current-label">Your Active Plan</div>
-    <h3>{{ mySubscription.planName }}</h3>
-    <div class="current-details">
-      <span *ngIf="mySubscription.remainingDays">{{ mySubscription.remainingDays }} days remaining</span>
-      <span class="plan-status" [class]="mySubscription.status">{{ mySubscription.status }}</span>
-    </div>
-    <div *ngIf="mySubscription.items && mySubscription.items.length > 0" class="current-items">
-      <div *ngFor="let item of mySubscription.items" class="current-item">
-        {{ item.dailyQuantity }}x {{ item.menuItemName }}
-      </div>
+    <div class="hero-content">
+      <h1>Cafe Meal Subscriptions & Combos</h1>
+      <p>Subscribe to our chef-crafted daily meal boxes or build your own recurring meal combo with up to 20% discount and 100% Free Doorstep Delivery.</p>
     </div>
   </div>
 
-  <!-- Loading -->
-  <div *ngIf="loading" class="loading-state">
-    <div class="spinner"></div>
-    <p>Loading plans...</p>
-  </div>
+  <div class="page-container">
+    <!-- Navigation Tabs -->
+    <div class="tabs-nav">
+      <button
+        type="button"
+        class="nav-tab-btn"
+        [class.active]="activeTab === 'curated'"
+        (click)="setTab('curated')">
+        <span class="tab-icon">🌟</span>
+        <span class="tab-label">Curated Meal Plans</span>
+      </button>
 
-  <!-- Plans Grid -->
-  <div *ngIf="!loading" class="plans-grid">
-    <div *ngFor="let plan of plans" class="plan-card" [class.current]="isCurrentPlan(plan)">
-      <div *ngIf="isCurrentPlan(plan)" class="plan-badge">Current</div>
-      <h3 class="plan-name">{{ plan.name }}</h3>
-      <p *ngIf="plan.description" class="plan-desc">{{ plan.description }}</p>
-      <div class="plan-price">
-        <span class="amount">₹{{ plan.price | number:'1.0-0' }}</span>
-        <span class="duration">/ {{ plan.durationDays }} days</span>
+      <button
+        type="button"
+        class="nav-tab-btn"
+        [class.active]="activeTab === 'custom'"
+        (click)="setTab('custom')">
+        <span class="tab-icon">🍱</span>
+        <span class="tab-label">Build Your Own Combo</span>
+        <span class="tab-badge" *ngIf="selectedComboItemsList.length > 0">{{ selectedComboItemsList.length }} items</span>
+      </button>
+
+      <button
+        type="button"
+        class="nav-tab-btn"
+        [class.active]="activeTab === 'my-subscriptions'"
+        (click)="setTab('my-subscriptions')">
+        <span class="tab-icon">📋</span>
+        <span class="tab-label">My Subscriptions</span>
+        <span class="active-dot" *ngIf="activeSubscription"></span>
+      </button>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 1: CURATED MEAL PLANS                  -->
+    <!-- ========================================== -->
+    <div class="tab-content" *ngIf="activeTab === 'curated'">
+      <!-- Category Filter Chips -->
+      <div class="category-filter-chips">
+        <button
+          type="button"
+          class="cat-chip"
+          [class.active]="selectedPlanCategory === 'all'"
+          (click)="selectedPlanCategory = 'all'">
+          ✨ All Plans ({{ plans.length }})
+        </button>
+        <button
+          type="button"
+          class="cat-chip"
+          [class.active]="selectedPlanCategory === 'breakfast'"
+          (click)="selectedPlanCategory = 'breakfast'">
+          🌅 Breakfast
+        </button>
+        <button
+          type="button"
+          class="cat-chip"
+          [class.active]="selectedPlanCategory === 'lunch'"
+          (click)="selectedPlanCategory = 'lunch'">
+          🍱 Lunch
+        </button>
+        <button
+          type="button"
+          class="cat-chip"
+          [class.active]="selectedPlanCategory === 'snacks'"
+          (click)="selectedPlanCategory = 'snacks'">
+          ☕ High Tea & Snacks
+        </button>
+        <button
+          type="button"
+          class="cat-chip"
+          [class.active]="selectedPlanCategory === 'dinner'"
+          (click)="selectedPlanCategory = 'dinner'">
+          🍽️ Dinner
+        </button>
       </div>
-      <div class="plan-daily">Just {{ getDailyValue(plan) }}/day</div>
 
-      <!-- Benefits -->
-      <ul *ngIf="plan.benefits && plan.benefits.length > 0" class="plan-benefits">
-        <li *ngFor="let b of plan.benefits">{{ b }}</li>
-      </ul>
+      <!-- Loading State -->
+      <div *ngIf="loadingPlans" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading curated meal plans...</p>
+      </div>
 
-      <!-- Items -->
-      <div *ngIf="plan.includedItems && plan.includedItems.length > 0" class="plan-items">
-        <h4>Daily Items</h4>
-        <div *ngFor="let item of plan.includedItems" class="plan-item">
-          <span class="item-qty">{{ item.dailyQuantity }}x</span>
-          <span>{{ item.menuItemName }}</span>
+      <!-- Plans Grid -->
+      <div *ngIf="!loadingPlans && filteredPlans.length > 0" class="plans-grid">
+        <div *ngFor="let plan of filteredPlans" class="plan-card" [class.popular]="plan.badgeText">
+          <div *ngIf="plan.badgeText" class="plan-highlight-badge">{{ plan.badgeText }}</div>
+
+          <div class="plan-card-header">
+            <h3 class="plan-title">{{ plan.name }}</h3>
+            <p class="plan-desc">{{ plan.description }}</p>
+          </div>
+
+          <div class="plan-price-row">
+            <div class="price-main">
+              <span class="currency">₹</span>
+              <span class="amount">{{ plan.price | number:'1.0-0' }}</span>
+              <span class="period">/ {{ plan.durationDays }} Days</span>
+            </div>
+            <div class="daily-rate-pill">
+              Just {{ getDailyValue(plan) }}/day
+            </div>
+          </div>
+
+          <!-- Included Items -->
+          <div class="plan-items-box" *ngIf="plan.includedItems && plan.includedItems.length > 0">
+            <span class="box-heading">🍽️ Daily Meal Box Includes:</span>
+            <ul class="items-list">
+              <li *ngFor="let item of plan.includedItems">
+                <span class="item-qty-tag">{{ item.dailyQuantity }}x</span>
+                <span class="item-name">{{ item.menuItemName }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Plan Benefits -->
+          <div class="plan-benefits-box">
+            <ul class="benefits-list">
+              <li *ngFor="let b of plan.benefits">
+                <span class="check-icon">✓</span>
+                <span>{{ b }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="plan-action-area">
+            <button
+              type="button"
+              class="btn-plan-subscribe"
+              (click)="openPlanCheckout(plan)">
+              <span>Subscribe Plan</span>
+              <span class="arrow">→</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <button class="btn-subscribe"
-              [disabled]="subscribing || isCurrentPlan(plan)"
-              (click)="subscribe(plan)">
-        {{ isCurrentPlan(plan) ? 'Active' : (subscribing ? 'Processing...' : 'Subscribe') }}
-      </button>
+      <div *ngIf="!loadingPlans && filteredPlans.length === 0" class="empty-state">
+        <p>No meal plans found in this category.</p>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: BUILD YOUR OWN COMBO                -->
+    <!-- ========================================== -->
+    <div class="tab-content" *ngIf="activeTab === 'custom'">
+      <div class="combo-builder-intro" id="combo-builder-start">
+        <h2>🍱 Build Your Custom Daily Meal Combo</h2>
+        <p>Pick items directly from our cafe menu, choose your preferred delivery time slot, select recurring days, and get up to <strong>20% discount</strong> + <strong>100% Free Doorstep Delivery</strong>.</p>
+      </div>
+
+      <!-- Mobile Sub-Step Wizard Stepper (Only visible on screens <= 768px) -->
+      <div class="combo-mobile-stepper">
+        <button
+          type="button"
+          class="stepper-tab"
+          [class.active]="mobileComboStep === 'menu'"
+          (click)="setMobileComboStep('menu')">
+          <span class="step-circle">1</span>
+          <span class="step-label">Select Items</span>
+          <span class="step-count-badge" *ngIf="selectedComboItemsList.length > 0">{{ selectedComboItemsList.length }}</span>
+        </button>
+
+        <span class="stepper-divider">→</span>
+
+        <button
+          type="button"
+          class="stepper-tab"
+          [class.active]="mobileComboStep === 'review'"
+          (click)="setMobileComboStep('review')">
+          <span class="step-circle">2</span>
+          <span class="step-label">Schedule & Pay</span>
+        </button>
+      </div>
+
+      <div class="combo-builder-layout">
+        <!-- Left: Menu Selector -->
+        <div class="menu-selection-column" [class.mobile-hidden]="mobileComboStep !== 'menu'">
+          <div class="selection-card">
+            <div class="selection-header">
+              <h3>Step 1: Choose Items from Cafe Menu</h3>
+              <span class="selected-counter">{{ selectedComboItemsList.length }} items selected</span>
+            </div>
+
+            <!-- Search & Category Filters -->
+            <div class="menu-filter-bar">
+              <div class="search-box">
+                <input
+                  type="text"
+                  [(ngModel)]="menuSearchQuery"
+                  placeholder="Search cafe items (e.g. coffee, sandwich, wrap)..."
+                />
+                <span class="search-icon">🔍</span>
+              </div>
+
+              <div class="menu-cat-chips">
+                <button
+                  type="button"
+                  class="menu-chip"
+                  [class.active]="selectedMenuCategory === 'all'"
+                  (click)="setSelectedMenuCategory('all')">
+                  All Items <span class="chip-count">{{ getComboCategoryCount('all') }}</span>
+                </button>
+                <button
+                  type="button"
+                  *ngFor="let cat of availableCategories"
+                  class="menu-chip"
+                  [class.active]="selectedMenuCategory === cat"
+                  (click)="setSelectedMenuCategory(cat)">
+                  {{ cat }} <span class="chip-count">{{ getComboCategoryCount(cat) }}</span>
+                </button>
+              </div>
+
+              <button type="button" class="combo-mobile-category-trigger" (click)="openComboCategoryDrawer()">
+                <span class="trigger-icon">☰</span>
+                <span class="trigger-text">Browse Categories</span>
+                <span class="trigger-selected">{{ selectedMenuCategory === 'all' ? 'All Items' : selectedMenuCategory }}</span>
+              </button>
+            </div>
+
+            <div class="combo-mobile-category-backdrop" *ngIf="showComboCategoryDrawer" (click)="closeComboCategoryDrawer()"></div>
+
+            <aside class="combo-mobile-category-drawer" [class.open]="showComboCategoryDrawer" aria-label="Combo categories drawer">
+              <div class="drawer-head">
+                <h4>Menu Categories</h4>
+                <button type="button" (click)="closeComboCategoryDrawer()" aria-label="Close categories">✕</button>
+              </div>
+
+              <div class="drawer-list">
+                <button
+                  type="button"
+                  class="drawer-category-main"
+                  [class.active]="selectedMenuCategory === 'all'"
+                  (click)="setSelectedMenuCategory('all')">
+                  <span class="drawer-category-name">All Items</span>
+                  <span class="drawer-count">{{ getComboCategoryCount('all') }}</span>
+                </button>
+
+                <button
+                  type="button"
+                  *ngFor="let cat of availableCategories"
+                  class="drawer-category-main"
+                  [class.active]="selectedMenuCategory === cat"
+                  (click)="setSelectedMenuCategory(cat)">
+                  <span class="drawer-category-name">{{ cat }}</span>
+                  <span class="drawer-count">{{ getComboCategoryCount(cat) }}</span>
+                </button>
+              </div>
+            </aside>
+
+            <!-- Menu Grid -->
+            <div *ngIf="loadingMenuItems" class="loading-state">
+              <div class="spinner"></div>
+              <p>Loading fresh cafe menu...</p>
+            </div>
+
+            <div *ngIf="!loadingMenuItems" class="menu-items-grid">
+              <div
+                *ngFor="let item of filteredMenuItems"
+                class="menu-picker-card"
+                [class.picked]="getItemQuantity(item.id) > 0">
+                <div class="combo-card-image-wrapper">
+                  <img *ngIf="getComboMenuImageUrl(item)" [src]="getComboMenuImageUrl(item)" [alt]="item.name" class="combo-card-image" loading="lazy" />
+                  <div *ngIf="!getComboMenuImageUrl(item)" class="combo-card-image-placeholder">
+                    <span class="placeholder-icon">🍽️</span>
+                  </div>
+
+                  <span class="badge-in-combo" *ngIf="getItemQuantity(item.id) > 0">✓ {{ getItemQuantity(item.id) }} in combo</span>
+                  <span class="badge-dietary" [ngClass]="getComboDietaryType(item)">
+                    {{ getComboDietaryType(item) === 'veg' ? '🟢 Veg' : (getComboDietaryType(item) === 'non-veg' ? '🔴 Non Veg' : '🟡 Egg') }}
+                  </span>
+                </div>
+
+                <div class="combo-card-body">
+                  <div class="picker-top">
+                    <span class="picker-name">{{ item.name }}</span>
+                    <span class="picker-category" *ngIf="item.category || item.categoryName">{{ item.category || item.categoryName }}</span>
+                  </div>
+                  <p class="picker-desc" *ngIf="item.description">{{ item.description }}</p>
+
+                  <div class="picker-footer">
+                    <div class="picker-price">₹{{ getComboDisplayPrice(item) | number:'1.0-0' }}</div>
+
+                    <div class="picker-action">
+                      <div class="qty-control-box" *ngIf="getItemQuantity(item.id) > 0">
+                        <button type="button" class="btn-qty" (click)="removeItemFromCombo(item.id)" aria-label="Decrease quantity">−</button>
+                        <span class="qty-num">{{ getItemQuantity(item.id) }}</span>
+                        <button type="button" class="btn-qty" (click)="addItemToCombo(item)" aria-label="Increase quantity">+</button>
+                      </div>
+
+                      <button
+                        *ngIf="getItemQuantity(item.id) === 0"
+                        type="button"
+                        class="btn-add-picker"
+                        (click)="addItemToCombo(item)">
+                        + Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Combo Schedule & Pricing Summary -->
+        <div class="combo-summary-column" id="combo-config-section" [class.mobile-hidden]="mobileComboStep !== 'review'">
+          <!-- Mobile Back to Menu button -->
+          <button type="button" class="btn-mobile-back-to-menu" (click)="setMobileComboStep('menu')">
+            <span class="back-arrow">←</span>
+            <span>Back to Add / Edit Menu Items</span>
+            <span class="back-items-count">{{ selectedComboItemsList.length }} items selected</span>
+          </button>
+
+          <!-- Step 2: Schedule & Delivery Details -->
+          <div class="config-card">
+            <h3>Step 2: Combo Name & Delivery Schedule</h3>
+
+            <div class="form-group">
+              <label>Combo Name</label>
+              <input type="text" [(ngModel)]="comboName" placeholder="e.g. My Morning Fuel Combo" />
+            </div>
+
+            <div class="form-group">
+              <label>Delivery Time Slot Window</label>
+              <select [(ngModel)]="comboDeliverySlot">
+                <option *ngFor="let slot of timeSlots" [value]="slot">{{ slot }}</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Recurring Delivery Days</label>
+              <div class="schedule-pill-selector">
+                <button
+                  type="button"
+                  class="sched-btn"
+                  [class.active]="comboDeliverySchedule === 'everyday'"
+                  (click)="comboDeliverySchedule = 'everyday'">
+                  Everyday (7d/wk)
+                </button>
+                <button
+                  type="button"
+                  class="sched-btn"
+                  [class.active]="comboDeliverySchedule === 'weekdays'"
+                  (click)="comboDeliverySchedule = 'weekdays'">
+                  Mon - Fri (Weekdays)
+                </button>
+                <button
+                  type="button"
+                  class="sched-btn"
+                  [class.active]="comboDeliverySchedule === 'custom'"
+                  (click)="comboDeliverySchedule = 'custom'">
+                  Custom Days
+                </button>
+              </div>
+
+              <!-- Custom Days Chips -->
+              <div class="custom-days-group" *ngIf="comboDeliverySchedule === 'custom'">
+                <button
+                  type="button"
+                  *ngFor="let day of customDaysOfWeek"
+                  class="day-chip"
+                  [class.selected]="day.selected"
+                  (click)="toggleCustomDay(day)">
+                  {{ day.name }}
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Subscription Duration & Discount</label>
+              <div class="duration-pill-selector">
+                <button
+                  type="button"
+                  class="duration-btn"
+                  [class.active]="comboDurationDays === 7"
+                  (click)="comboDurationDays = 7">
+                  <span class="dur-title">7 Days</span>
+                  <span class="dur-disc">10% OFF</span>
+                </button>
+                <button
+                  type="button"
+                  class="duration-btn"
+                  [class.active]="comboDurationDays === 14"
+                  (click)="comboDurationDays = 14">
+                  <span class="dur-title">14 Days</span>
+                  <span class="dur-disc">15% OFF</span>
+                </button>
+                <button
+                  type="button"
+                  class="duration-btn best-deal"
+                  [class.active]="comboDurationDays === 30"
+                  (click)="comboDurationDays = 30">
+                  <span class="dur-title">30 Days</span>
+                  <span class="dur-disc">20% OFF 🌟</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Delivery Address</label>
+              <textarea [(ngModel)]="comboDeliveryAddress" rows="2" placeholder="Full delivery address with house/flat number and landmark"></textarea>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group">
+                <label>Contact Phone</label>
+                <input type="tel" [(ngModel)]="comboCustomerPhone" placeholder="10-digit mobile number" />
+              </div>
+              <div class="form-group">
+                <label>Customer Name</label>
+                <input type="text" [(ngModel)]="comboCustomerName" placeholder="Your Name" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Special Instructions (Optional)</label>
+              <input type="text" [(ngModel)]="comboSpecialNotes" placeholder="e.g. Less spicy, ring bell on delivery" />
+            </div>
+          </div>
+
+          <!-- Step 3: Selected Items Preview & Pricing Calculation -->
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3>Combo Order Summary</h3>
+              <button *ngIf="selectedComboItemsList.length > 0" class="btn-clear" (click)="clearCombo()">Clear All</button>
+            </div>
+
+            <div *ngIf="selectedComboItemsList.length === 0" class="no-items-hint">
+              <span>👉 Pick items from the cafe menu on the left to start building your combo!</span>
+            </div>
+
+            <ul class="picked-items-list" *ngIf="selectedComboItemsList.length > 0">
+              <li *ngFor="let item of selectedComboItemsList">
+                <div class="item-info">
+                  <strong>{{ item.quantity }}x</strong> {{ item.menuItem.name }}
+                </div>
+                <div class="item-cost">
+                  ₹{{ ((item.menuItem.onlinePrice || item.menuItem.webPrice || item.menuItem.shopSellingPrice || 0) * item.quantity) | number:'1.0-0' }}/day
+                </div>
+              </li>
+            </ul>
+
+            <div class="pricing-breakdown" *ngIf="selectedComboItemsList.length > 0">
+              <div class="calc-row">
+                <span>Daily Meal Subtotal</span>
+                <span>₹{{ comboDailySubtotal | number:'1.0-0' }}</span>
+              </div>
+              <div class="calc-row">
+                <span>Deliveries Scheduled</span>
+                <span>{{ comboTotalDrops }} Drops across {{ comboDurationDays }} Days</span>
+              </div>
+              <div class="calc-row">
+                <span>Gross Value</span>
+                <span>₹{{ comboPricingSummary.gross | number:'1.0-0' }}</span>
+              </div>
+              <div class="calc-row discount">
+                <span>Combo Subscription Savings ({{ comboDiscountPercentage }}%)</span>
+                <span>−₹{{ comboPricingSummary.discount | number:'1.0-0' }}</span>
+              </div>
+              <div class="calc-row free-delivery">
+                <span>Doorstep Delivery Charge</span>
+                <strong>FREE 🎉</strong>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="calc-row final-total">
+                <span>Total Amount Payable</span>
+                <span class="total-figure">₹{{ comboPricingSummary.finalPayable | number:'1.0-0' }}</span>
+              </div>
+
+              <button
+                type="button"
+                class="btn-activate-combo"
+                [disabled]="submittingCustomCombo || selectedComboItemsList.length === 0"
+                (click)="confirmCreateCustomCombo()">
+                <span>{{ submittingCustomCombo ? 'Activating Plan...' : '🚀 Activate Meal Combo Subscription' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Floating Combo Action Bar (Pops up when items are picked on mobile) -->
+      <aside class="combo-mobile-dock" *ngIf="selectedComboItemsList.length > 0 && mobileComboStep === 'menu'">
+        <div class="dock-left">
+          <div class="dock-badge">{{ selectedComboItemsList.length }} items selected</div>
+          <div class="dock-price">
+            ₹{{ comboPricingSummary.finalPayable | number:'1.0-0' }}
+            <span class="dock-period">/ {{ comboDurationDays }}d (Free Delivery)</span>
+          </div>
+        </div>
+        <button type="button" class="dock-action-btn" (click)="setMobileComboStep('review')">
+          <span>Schedule & Pay</span>
+          <span class="dock-arrow">→</span>
+        </button>
+      </aside>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: MY SUBSCRIPTIONS                    -->
+    <!-- ========================================== -->
+    <div class="tab-content" *ngIf="activeTab === 'my-subscriptions'">
+      <!-- Loading -->
+      <div *ngIf="loadingMySubscriptions" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading your active subscriptions...</p>
+      </div>
+
+      <div *ngIf="!loadingMySubscriptions">
+        <!-- Active Subscription Card -->
+        <div *ngIf="activeSubscription" class="active-subscription-hero">
+          <div class="active-header">
+            <div class="header-tag-group">
+              <span class="status-badge" [class]="activeSubscription.status">
+                {{ activeSubscription.status === 'active' ? '🟢 Active Plan' : '⏸️ Deliveries Paused' }}
+              </span>
+              <span class="type-pill">
+                {{ activeSubscription.subscriptionType === 'custom_combo' ? '🍱 Custom Meal Combo' : '🌟 Curated Meal Plan' }}
+              </span>
+            </div>
+            <h2 class="active-plan-title">{{ activeSubscription.planName }}</h2>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="timeline-bar-box">
+            <div class="timeline-labels">
+              <span>Day {{ (activeSubscription.durationDays || 30) - getDaysRemaining(activeSubscription) }} of {{ activeSubscription.durationDays || 30 }}</span>
+              <strong>{{ getDaysRemaining(activeSubscription) }} Days Remaining</strong>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" [style.width.%]="getProgressPercentage(activeSubscription)"></div>
+            </div>
+            <div class="timeline-dates">
+              <span>Started: {{ formatDate(activeSubscription.startDate) }}</span>
+              <span>Valid Until: {{ formatDate(activeSubscription.endDate) }}</span>
+            </div>
+          </div>
+
+          <!-- Key Details Grid -->
+          <div class="active-details-grid">
+            <div class="detail-tile">
+              <span class="tile-icon">🕒</span>
+              <div class="tile-content">
+                <span class="tile-label">Delivery Slot</span>
+                <strong>{{ activeSubscription.deliveryTimeSlot || '12:30 PM - 2:00 PM' }}</strong>
+              </div>
+            </div>
+
+            <div class="detail-tile">
+              <span class="tile-icon">📅</span>
+              <div class="tile-content">
+                <span class="tile-label">Scheduled Days</span>
+                <strong>{{ (activeSubscription.deliveryDays || ['Everyday']).join(', ') }}</strong>
+              </div>
+            </div>
+
+            <div class="detail-tile">
+              <span class="tile-icon">📍</span>
+              <div class="tile-content">
+                <span class="tile-label">Delivery Address</span>
+                <strong>{{ activeSubscription.deliveryAddress || 'On File' }}</strong>
+              </div>
+            </div>
+
+            <div class="detail-tile">
+              <span class="tile-icon">💰</span>
+              <div class="tile-content">
+                <span class="tile-label">Total Paid (Free Delivery)</span>
+                <strong>₹{{ activeSubscription.amountPaid | number:'1.0-0' }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Included Items -->
+          <div class="active-items-section" *ngIf="activeSubscription.items && activeSubscription.items.length > 0">
+            <h4>Daily Meal Basket:</h4>
+            <div class="active-items-chips">
+              <span *ngFor="let item of activeSubscription.items" class="meal-item-chip">
+                <strong>{{ item.dailyQuantity }}x</strong> {{ item.menuItemName }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Actions: Pause, Resume, Cancel -->
+          <div class="active-sub-actions">
+            <button
+              *ngIf="activeSubscription.status === 'active'"
+              type="button"
+              class="btn-sub-pause"
+              [disabled]="processingAction"
+              (click)="pauseActiveSubscription()">
+              ⏸️ Pause Deliveries
+            </button>
+
+            <button
+              *ngIf="activeSubscription.status === 'paused'"
+              type="button"
+              class="btn-sub-resume"
+              [disabled]="processingAction"
+              (click)="resumeActiveSubscription()">
+              ▶️ Resume Deliveries
+            </button>
+
+            <button
+              type="button"
+              class="btn-sub-cancel"
+              [disabled]="processingAction"
+              (click)="cancelActiveSubscription()">
+              ✕ Cancel Plan
+            </button>
+          </div>
+        </div>
+
+        <!-- No Active Subscription State -->
+        <div *ngIf="!activeSubscription" class="empty-subscription-card">
+          <div class="empty-icon">🍱</div>
+          <h3>No Active Subscriptions</h3>
+          <p>Enjoy regular, hot cafe meals with zero daily ordering hassle! Choose a curated box or build your own recurring combo.</p>
+          <div class="empty-actions">
+            <button class="btn-primary" (click)="setTab('curated')">Explore Curated Plans</button>
+            <button class="btn-secondary" (click)="setTab('custom')">+ Build Custom Combo</button>
+          </div>
+        </div>
+
+        <!-- Subscription History -->
+        <div class="history-section" *ngIf="subscriptionHistory.length > 0">
+          <h3>Subscription History</h3>
+          <div class="history-list">
+            <div *ngFor="let sub of subscriptionHistory" class="history-card">
+              <div class="history-main">
+                <div class="history-title-row">
+                  <span class="hist-name">{{ sub.planName }}</span>
+                  <span class="hist-badge" [class]="sub.status">{{ sub.status }}</span>
+                </div>
+                <div class="hist-meta">
+                  <span>{{ formatDate(sub.startDate) }} → {{ formatDate(sub.endDate) }}</span>
+                  <span>•</span>
+                  <span>₹{{ sub.amountPaid | number:'1.0-0' }}</span>
+                  <span>•</span>
+                  <span>{{ (sub.items || []).length }} Items</span>
+                </div>
+              </div>
+              <button class="btn-renew" (click)="setTab('curated')">Renew / Browse Plans</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div *ngIf="!loading && plans.length === 0" class="empty-state">
-    <p>No subscription plans available at the moment</p>
+  <!-- Curated Plan Checkout Modal -->
+  <div class="plan-modal-overlay" *ngIf="selectedPlanForCheckout" (click)="closePlanCheckout()">
+    <div class="plan-modal-box" (click)="$event.stopPropagation()">
+      <button type="button" class="modal-close-btn" (click)="closePlanCheckout()">✕</button>
+
+      <div class="modal-header">
+        <span class="modal-plan-badge">🌟 Curated Plan</span>
+        <h2>{{ selectedPlanForCheckout.name }}</h2>
+        <p>{{ selectedPlanForCheckout.description }}</p>
+      </div>
+
+      <div class="modal-body">
+        <!-- Duration Selector -->
+        <div class="form-group">
+          <label>Select Duration</label>
+          <div class="duration-pill-selector">
+            <button
+              type="button"
+              class="duration-btn"
+              [class.active]="checkoutDurationDays === 7"
+              (click)="checkoutDurationDays = 7">
+              <span class="dur-title">7 Days</span>
+              <span class="dur-disc">10% OFF</span>
+            </button>
+            <button
+              type="button"
+              class="duration-btn"
+              [class.active]="checkoutDurationDays === 14"
+              (click)="checkoutDurationDays = 14">
+              <span class="dur-title">14 Days</span>
+              <span class="dur-disc">15% OFF</span>
+            </button>
+            <button
+              type="button"
+              class="duration-btn best-deal"
+              [class.active]="checkoutDurationDays === 30"
+              (click)="checkoutDurationDays = 30">
+              <span class="dur-title">30 Days</span>
+              <span class="dur-disc">20% OFF 🌟</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Delivery Time Slot -->
+        <div class="form-group">
+          <label>Preferred Delivery Window</label>
+          <select [(ngModel)]="checkoutDeliverySlot">
+            <option *ngFor="let slot of timeSlots" [value]="slot">{{ slot }}</option>
+          </select>
+        </div>
+
+        <!-- Schedule Days -->
+        <div class="form-group">
+          <label>Delivery Schedule</label>
+          <select [(ngModel)]="checkoutDeliveryDays">
+            <option value="Everyday">Everyday (7 days a week)</option>
+            <option value="Weekdays">Monday to Friday (Weekdays only)</option>
+          </select>
+        </div>
+
+        <!-- Delivery Address -->
+        <div class="form-group">
+          <label>Delivery Address</label>
+          <textarea [(ngModel)]="checkoutAddress" rows="2" placeholder="Full address with apartment/office details & landmark"></textarea>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>Contact Phone</label>
+            <input type="tel" [(ngModel)]="checkoutPhone" placeholder="Mobile Number" />
+          </div>
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" [(ngModel)]="checkoutName" placeholder="Your Name" />
+          </div>
+        </div>
+
+        <!-- Price Breakdown -->
+        <div class="modal-pricing-box">
+          <div class="price-line">
+            <span>Base Value ({{ checkoutDurationDays }} days)</span>
+            <span>₹{{ getCuratedCalculatedPrice().base | number:'1.0-0' }}</span>
+          </div>
+          <div class="price-line discount">
+            <span>Subscription Discount ({{ getCuratedCalculatedPrice().discountPct }}%)</span>
+            <span>−₹{{ getCuratedCalculatedPrice().discount | number:'1.0-0' }}</span>
+          </div>
+          <div class="price-line free-delivery">
+            <span>Daily Delivery</span>
+            <strong>FREE (₹0)</strong>
+          </div>
+          <div class="price-line total">
+            <span>Total Payable</span>
+            <strong>₹{{ getCuratedCalculatedPrice().total | number:'1.0-0' }}</strong>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn-confirm-subscribe"
+          [disabled]="subscribingCurated"
+          (click)="confirmSubscribeCurated()">
+          <span>{{ subscribingCurated ? 'Activating Subscription...' : '✓ Confirm & Activate Subscription' }}</span>
+        </button>
+      </div>
+    </div>
   </div>
 </div>
