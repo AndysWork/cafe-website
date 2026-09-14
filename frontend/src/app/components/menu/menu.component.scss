@@ -1,24 +1,24 @@
 // ==========================================
-// MENU PAGE — Vibrant Modern Design
+// MENU PAGE — Vibrant Zomato Red Design
 // ==========================================
 
-$primary: #0EA5E9;
-$primary-dark: #0284C7;
-$primary-light: #E0F2FE;
-$accent: #84CC16;
-$accent-light: #65A30D;
-$green: #00c853;
-$green-dark: #009624;
-$red: #ff1744;
-$bg: #fafafa;
+$primary: var(--brand, #E23744);
+$primary-dark: var(--brand-dark, #CB202D);
+$primary-light: #FFF0F2;
+$accent: var(--accent, #E23744);
+$accent-light: #FFE5E8;
+$green: #16a34a;
+$green-dark: #15803d;
+$red: #dc2626;
+$bg: var(--bg, #FAFAFA);
 $card-bg: #ffffff;
-$text-primary: #1a1a2e;
-$text-secondary: #6b7280;
-$text-muted: #9ca3af;
-$shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
-$shadow-md: 0 4px 14px rgba(0,0,0,0.1);
-$shadow-lg: 0 10px 30px rgba(0,0,0,0.12);
-$shadow-glow: 0 0 20px rgba(255,107,53,0.3);
+$text-primary: var(--text, #1C1C1C);
+$text-secondary: var(--text-mid, #4F4F4F);
+$text-muted: var(--text-muted, #828282);
+$shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+$shadow-md: 0 4px 14px rgba(226,55,68,0.08);
+$shadow-lg: 0 10px 30px rgba(226,55,68,0.12);
+$shadow-glow: 0 0 20px rgba(226,55,68,0.25);
 $radius-sm: 10px;
 $radius-md: 16px;
 $radius-lg: 24px;
@@ -38,10 +38,10 @@ $radius-full: 9999px;
 .hero-banner {
   position: relative;
   background:
-    radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
-    radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
-    radial-gradient(circle at 55% 90%, rgba(#F43F5E, 0.3) 0%, transparent 45%),
-    linear-gradient(135deg, $primary 0%, $accent 100%);
+    radial-gradient(circle at 25% 50%, rgba(226, 55, 68, 0.95) 0%, transparent 55%),
+    radial-gradient(circle at 80% 30%, rgba(239, 79, 95, 0.9) 0%, transparent 50%),
+    radial-gradient(circle at 55% 90%, rgba(203, 32, 45, 0.5) 0%, transparent 45%),
+    linear-gradient(135deg, #E23744 0%, #CB202D 100%);
   padding: 3rem 1.5rem 3.5rem;
   text-align: center;
   overflow: hidden;
@@ -1362,7 +1362,7 @@ $radius-full: 9999px;
     align-items: center;
     justify-content: center;
     font-size: 4rem;
-    background: linear-gradient(135deg, $primary-light 0%, lighten($primary-light, 5%) 100%);
+    background: linear-gradient(135deg, #FFF0E6 0%, #FFF8F3 100%);
   }
 
   .detail-badge {

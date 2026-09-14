@@ -6,34 +6,36 @@
 
 .page-hero {
   text-align: center; margin-bottom: 24px;
-  h1 { font-size: 1.8rem; color: #1e293b; margin-bottom: 4px; }
-  p { color: #64748b; }
+  h1 { font-size: 1.8rem; color: #1C1C1C; margin-bottom: 4px; font-weight: 800; }
+  p { color: #4F4F4F; }
 }
 
 .tabs {
   display: flex; gap: 4px; margin-bottom: 24px;
-  background: #f1f5f9; border-radius: 10px; padding: 4px;
+  background: #FFF5F5; border-radius: 12px; padding: 4px;
+  border: 1px solid rgba(226, 55, 68, 0.1);
 }
 
 .tab {
   flex: 1; padding: 10px; border: none; border-radius: 8px;
-  background: transparent; font-weight: 600; color: #64748b; cursor: pointer;
-  &.active { background: white; color: #0EA5E9; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+  background: transparent; font-weight: 600; color: #828282; cursor: pointer;
+  &.active { background: white; color: #CB202D; font-weight: 700; box-shadow: 0 2px 8px rgba(226,55,68,0.12); }
 }
 
 .booking-form {
   background: white; border-radius: 14px; padding: 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 16px rgba(226,55,68,0.06);
+  border: 1px solid rgba(226,55,68,0.08);
 }
 
 .form-group {
   margin-bottom: 16px;
-  label { display: block; font-weight: 600; font-size: 0.9rem; color: #1e293b; margin-bottom: 6px; }
+  label { display: block; font-weight: 600; font-size: 0.9rem; color: #1C1C1C; margin-bottom: 6px; }
   input, select, textarea {
     width: 100%; padding: 10px 14px;
     border: 2px solid #e2e8f0; border-radius: 10px; font-size: 0.95rem;
     box-sizing: border-box;
-    &:focus { outline: none; border-color: #0EA5E9; }
+    &:focus { outline: none; border-color: #E23744; box-shadow: 0 0 0 3px rgba(226,55,68,0.1); }
   }
   textarea { resize: vertical; }
 }
@@ -53,17 +55,18 @@
   font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s;
-  &.selected { border-color: #0EA5E9; background: #e0f2fe; color: #0369a1; font-weight: 600; }
-  &:hover { border-color: #38BDF8; }
+  &.selected { border-color: #E23744; background: #FFF5F5; color: #CB202D; font-weight: 700; }
+  &:hover { border-color: #EF4F5F; }
 }
 
 .btn-submit {
   width: 100%; padding: 14px;
-  background: linear-gradient(135deg, #0EA5E9, #84CC16);
+  background: linear-gradient(135deg, #E23744, #CB202D);
   color: white; border: none; border-radius: 12px;
   font-size: 1rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(226,55,68,0.3);
   &:disabled { opacity: 0.6; cursor: not-allowed; }
-  &:hover:not(:disabled) { opacity: 0.9; }
+  &:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(226,55,68,0.4); }
 }
 
 .success-state {
@@ -79,20 +82,20 @@
   font-size: 2rem; color: #16a34a;
 }
 
-.success-state h2 { color: #1e293b; margin-bottom: 8px; }
-.success-state p { color: #64748b; margin-bottom: 20px; }
+.success-state h2 { color: #1C1C1C; margin-bottom: 8px; }
+.success-state p { color: #4F4F4F; margin-bottom: 20px; }
 
 .btn-primary {
-  padding: 10px 24px; background: #0EA5E9; color: white;
-  border: none; border-radius: 10px; font-weight: 600; cursor: pointer;
-  &:hover { background: #0284C7; }
+  padding: 10px 24px; background: linear-gradient(135deg, #E23744, #CB202D); color: white;
+  border: none; border-radius: 10px; font-weight: 700; cursor: pointer;
+  &:hover { opacity: 0.9; }
 }
 
 .loading-state {
   text-align: center; padding: 40px;
   .spinner {
     width: 40px; height: 40px; margin: 0 auto;
-    border: 4px solid #e2e8f0; border-top: 4px solid #0EA5E9;
+    border: 4px solid #FFE5E8; border-top: 4px solid #E23744;
     border-radius: 50%; animation: spin 1s linear infinite;
   }
 }

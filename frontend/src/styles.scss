@@ -1,4 +1,4 @@
-/* ═══ Cafe Design System — Sky Blue & Lime Theme ═══ */
+/* ═══ Cafe Design System — Default / Admin / Operations Theme (Sky Blue & Lime) ═══ */
 :root {
   --brand: #0EA5E9;
   --brand-dark: #0284C7;
@@ -19,6 +19,29 @@
   --radius: 16px;
   --radius-lg: 24px;
   --radius-full: 9999px;
+}
+
+/* ═══ Customer View Only — Vibrant Zomato Red Theme ═══ */
+body.customer-theme,
+.customer-theme {
+  --brand: #E23744; // Iconic Zomato Red
+  --brand-dark: #CB202D; // Deep Crimson Red
+  --brand-light: #EF4F5F; // Bright Coral Red
+  --accent: #E23744; // Primary Red Accent
+  --accent-dark: #B91C1C; // Ruby Dark
+  --accent-light: #F87171; // Soft Rose Red
+  --rose: #E11D48; // Ripe Berry Red
+  --gold: #F59E0B; // Warm Gold
+  --deep: #1C1C1C; // Midnight Charcoal
+  --success: #16A34A; // Garden Fresh Green
+  --danger: #DC2626;
+  --bg: #FAFAFA; // Clean Soft Background
+  --bg-warm: #FFF5F5; // Subtle Warm Red Tint
+  --text: #1C1C1C; // Deep Charcoal Black (Zomato typography)
+  --text-mid: #4F4F4F; // Neutral Mid Tone
+  --text-muted: #828282; // Muted Gray
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 /* Global Styles */

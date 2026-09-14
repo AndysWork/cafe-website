@@ -2,8 +2,10 @@
   max-width: 1200px;
   margin: 60px auto;
   padding: 40px 20px;
-  background: linear-gradient(135deg, #F0F9FF 0%, #BAE6FD 100%);
-  border-radius: 20px;
+  background: linear-gradient(135deg, #FFF5F5 0%, #FFF0F2 50%, #FFEBEF 100%);
+  border: 1.5px solid rgba(226, 55, 68, 0.12);
+  border-radius: 24px;
+  box-shadow: 0 10px 30px rgba(226, 55, 68, 0.06);
 
   .section-header {
     text-align: center;
@@ -11,14 +13,14 @@
 
     h2 {
       font-size: 2.5rem;
-      color: #0F172A;
+      color: #1C1C1C;
       margin-bottom: 10px;
-      font-weight: 700;
+      font-weight: 800;
     }
 
     .section-subtitle {
       font-size: 1.1rem;
-      color: #718096;
+      color: #828282;
     }
   }
 
@@ -27,14 +29,14 @@
   .no-reviews {
     text-align: center;
     padding: 40px;
-    color: #718096;
+    color: #828282;
 
     .spinner {
       width: 40px;
       height: 40px;
       margin: 0 auto 20px;
-      border: 4px solid #e2e8f0;
-      border-top-color: #667eea;
+      border: 4px solid #FFE5E8;
+      border-top-color: #E23744;
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
@@ -52,22 +54,23 @@
 
     .nav-btn {
       background: white;
-      border: 2px solid #e2e8f0;
+      border: 2px solid rgba(226, 55, 68, 0.2);
       border-radius: 50%;
       width: 50px;
       height: 50px;
       font-size: 1.5rem;
-      color: #667eea;
+      color: #E23744;
       cursor: pointer;
       transition: all 0.3s ease;
       flex-shrink: 0;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 12px rgba(226, 55, 68, 0.1);
 
       &:hover:not(:disabled) {
-        background: #667eea;
+        background: linear-gradient(135deg, #E23744, #CB202D);
         color: white;
+        border-color: #E23744;
         transform: scale(1.1);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 6px 16px rgba(226, 55, 68, 0.35);
       }
 
       &:disabled {
@@ -125,7 +128,7 @@
           width: 50px;
           height: 50px;
           border-radius: 50%;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
           color: white;
           display: flex;
           align-items: center;
@@ -133,19 +136,20 @@
           font-size: 1.5rem;
           font-weight: 700;
           flex-shrink: 0;
+          box-shadow: 0 4px 12px rgba(226, 55, 68, 0.25);
         }
 
         .customer-details {
           .customer-name {
             font-size: 1.1rem;
             font-weight: 600;
-            color: #0F172A;
+            color: #1C1C1C;
             margin: 0 0 4px 0;
           }
 
           .order-date {
             font-size: 0.85rem;
-            color: #a0aec0;
+            color: #8C7770;
             margin: 0;
           }
         }
@@ -221,12 +225,13 @@
 
     .indicator-text {
       font-size: 0.9rem;
-      color: #718096;
+      color: #57443E;
       background: white;
-      padding: 8px 16px;
+      padding: 8px 18px;
       border-radius: 20px;
       display: inline-block;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 2px 8px rgba(255, 84, 0, 0.08);
+      border: 1px solid rgba(255, 84, 0, 0.12);
     }
   }
 

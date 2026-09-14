@@ -1,8 +1,10 @@
-﻿$primary: #0EA5E9;
-$accent: #84CC16;
-$green: #00c853;
-$dark: #1A1A2E;
-$light-bg: #fafafa;
+﻿$primary: var(--brand, #E23744);
+$brand-dark: var(--brand-dark, #CB202D);
+$accent: var(--accent, #E23744);
+$accent-dark: var(--accent-dark, #B91C1C);
+$green: #16a34a;
+$dark: var(--text, #1C1C1C);
+$light-bg: var(--bg, #FAFAFA);
 $card-bg: #ffffff;
 $radius: 16px;
 
@@ -11,7 +13,7 @@ $radius: 16px;
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-@keyframes glow { 0%,100% { box-shadow: 0 0 30px rgba($accent, .3); } 50% { box-shadow: 0 0 60px rgba($accent, .5); } }
+@keyframes glow { 0%,100% { box-shadow: 0 0 30px rgba(226, 55, 68, .3); } 50% { box-shadow: 0 0 60px rgba(226, 55, 68, .5); } }
 
 .loyalty-page { background: $light-bg; min-height: 100vh; padding-bottom: 60px; }
 
@@ -19,10 +21,10 @@ $radius: 16px;
 .hero {
   position: relative;
   background:
-    radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
-    radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
-    radial-gradient(circle at 55% 90%, rgba(#F43F5E, 0.3) 0%, transparent 45%),
-    linear-gradient(135deg, $primary 0%, $accent 100%);
+    radial-gradient(circle at 25% 50%, rgba(226, 55, 68, 0.95) 0%, transparent 55%),
+    radial-gradient(circle at 80% 30%, rgba(239, 79, 95, 0.85) 0%, transparent 50%),
+    radial-gradient(circle at 55% 90%, rgba(203, 32, 45, 0.4) 0%, transparent 45%),
+    linear-gradient(135deg, #E23744 0%, #CB202D 100%);
   padding: 60px 20px 60px; text-align: center; overflow: hidden;
   border-radius: 0 0 32px 32px;
   .hero-pattern { position: absolute; inset: 0; background: radial-gradient(circle at 20% 80%, rgba(255,255,255,.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,.08) 0%, transparent 50%); }
@@ -58,10 +60,10 @@ $radius: 16px;
 }
 
 .btn-action {
-  display: inline-block; background: linear-gradient(135deg, $accent, #764ba2);
+  display: inline-block; background: linear-gradient(135deg, #E23744, #CB202D);
   color: #fff; border: none; padding: 12px 28px; border-radius: 50px;
   font-size: .95rem; font-weight: 600; cursor: pointer; transition: all .3s; text-decoration: none;
-  &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba($accent, .3); }
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(226, 55, 68, .35); }
 }
 
 /* Content */
@@ -69,13 +71,14 @@ $radius: 16px;
 
 /* Points Hero Card */
 .points-hero-card {
-  position: relative; background: linear-gradient(135deg, $primary, $accent, #A29BFE);
+  position: relative;
+  background: linear-gradient(135deg, #E23744 0%, #CB202D 40%, #9B111E 100%);
   border-radius: $radius; padding: 36px; margin-top: -40px; overflow: hidden;
-  color: #fff; text-align: center; box-shadow: 0 10px 40px rgba($accent, .3);
+  color: #fff; text-align: center; box-shadow: 0 12px 40px rgba(226, 55, 68, .35);
   animation: slideUp .6s ease-out, glow 3s ease-in-out infinite;
   .points-glow {
     position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,.1) 0%, transparent 60%);
+    background: radial-gradient(circle, rgba(255,255,255,.15) 0%, transparent 60%);
     animation: float 6s ease-in-out infinite;
   }
   .points-top { position: relative; z-index: 1; }
@@ -97,7 +100,7 @@ $radius: 16px;
   .progress-section { margin-top: 16px; }
   .progress-text { font-size: .85rem; opacity: .9; margin-bottom: 8px; }
   .progress-track { background: rgba(255,255,255,.2); border-radius: 10px; height: 10px; overflow: hidden; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, #ffd700, #ffec44); border-radius: 10px; transition: width .8s ease; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #FCA5A5, #EF4444); border-radius: 10px; transition: width .8s ease; }
   .max-tier { font-size: 1.1rem; font-weight: 600; margin-top: 8px; }
 }
 
@@ -131,7 +134,7 @@ $radius: 16px;
   .reward-desc { font-size: .85rem; color: #888; margin: 0 0 12px; line-height: 1.4; }
   .reward-cost {
     display: inline-block; padding: 4px 14px; border-radius: 50px; font-size: .85rem;
-    font-weight: 700; background: rgba($accent, .1); color: $accent;
+    font-weight: 700; background: rgba(255, 84, 0, .1); color: #D93800;
   }
 }
 
@@ -153,10 +156,10 @@ $radius: 16px;
 .section-desc { color: #888; font-size: .92rem; margin: -12px 0 20px; }
 
 .btn-claim-toggle {
-  background: linear-gradient(135deg, $accent, #5A4BD1); color: #fff; border: none;
+  background: linear-gradient(135deg, #E23744, #CB202D); color: #fff; border: none;
   padding: 10px 22px; border-radius: 50px; font-size: .9rem; font-weight: 600;
   cursor: pointer; transition: all .3s;
-  &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba($accent, .3); }
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(226, 55, 68, .35); }
 }
 
 .claim-alert {
@@ -179,7 +182,7 @@ $radius: 16px;
 
 .form-field {
   label { display: block; font-size: .9rem; font-weight: 600; color: $dark; margin-bottom: 8px; }
-  .form-hint { display: block; font-size: .82rem; color: $accent; margin-top: 6px; }
+  .form-hint { display: block; font-size: .82rem; color: #CB202D; margin-top: 6px; }
 }
 
 .platform-selector {
@@ -187,7 +190,7 @@ $radius: 16px;
   .platform-btn {
     flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 12px; background: #fff;
     font-size: .95rem; font-weight: 600; cursor: pointer; transition: all .3s; text-align: center;
-    &.active { border-color: $accent; background: rgba($accent, .06); color: $accent; }
+    &.active { border-color: #E23744; background: rgba(226, 55, 68, .08); color: #CB202D; }
     &:hover:not(.active) { border-color: #ccc; }
   }
 }
@@ -195,13 +198,13 @@ $radius: 16px;
 .claim-input {
   width: 100%; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 12px;
   font-size: 1rem; transition: border-color .3s; box-sizing: border-box;
-  &:focus { outline: none; border-color: $accent; }
+  &:focus { outline: none; border-color: #E23744; }
 }
 
 .file-upload-area {
   border: 2px dashed #d0d0d0; border-radius: 12px; padding: 32px; text-align: center;
-  cursor: pointer; transition: all .3s; background: rgba($accent, .02);
-  &:hover { border-color: $accent; background: rgba($accent, .05); }
+  cursor: pointer; transition: all .3s; background: rgba(226, 55, 68, .02);
+  &:hover { border-color: #E23744; background: rgba(226, 55, 68, .05); }
   .upload-icon { font-size: 2.5rem; margin-bottom: 8px; }
   p { color: $dark; font-size: .95rem; font-weight: 500; margin: 0 0 4px; }
   .upload-hint { font-size: .8rem; color: #aaa; }
@@ -294,8 +297,8 @@ $radius: 16px;
 }
 
 .btn-birthday-claim {
-  background: rgba(255, 255, 255, .9); color: $accent; border: none;
-  padding: 8px 18px; border-radius: 50px; font-size: .85rem; font-weight: 700;
+  background: rgba(255, 255, 255, .95); color: #D93800; border: none;
+  padding: 8px 18px; border-radius: 50px; font-size: .85rem; font-weight: 800;
   cursor: pointer; transition: all .3s; white-space: nowrap;
   &:hover:not(:disabled) { background: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
   &:disabled { opacity: .6; cursor: not-allowed; }
@@ -318,7 +321,7 @@ $radius: 16px;
 .tier-progress-hint {
   margin-top: 16px; padding-top: 14px; border-top: 1px solid #f0f0f0;
   font-size: .85rem; color: #888; text-align: center;
-  strong { color: $accent; }
+  strong { color: #D93800; }
 }
 
 /* Tab Navigation */
@@ -334,8 +337,8 @@ $radius: 16px;
   background: transparent; font-size: .85rem; font-weight: 600; color: #888;
   cursor: pointer; transition: all .3s; white-space: nowrap;
   &:hover { color: $dark; background: #f5f5f5; }
-  &.active { background: linear-gradient(135deg, $accent, #5A4BD1); color: #fff;
-    box-shadow: 0 4px 12px rgba($accent, .25);
+  &.active { background: linear-gradient(135deg, #E23744, #CB202D); color: #fff;
+    box-shadow: 0 4px 14px rgba(226, 55, 68, .3);
   }
 }
 
@@ -348,7 +351,7 @@ $radius: 16px;
   display: inline-block; width: 300px; max-width: 100%; padding: 28px 24px;
   border-radius: 20px; color: #fff; text-align: center;
   box-shadow: 0 10px 40px rgba(0,0,0,.15);
-  background: linear-gradient(135deg, $accent, #764ba2);
+  background: linear-gradient(135deg, #E23744, #CB202D);
   &.bronze { background: linear-gradient(135deg, #cd7f32, #a0522d); }
   &.silver { background: linear-gradient(135deg, #a8a8a8, #c0c0c0, #8a8a8a); }
   &.gold { background: linear-gradient(135deg, #daa520, #ffd700, #b8860b); }
@@ -397,14 +400,14 @@ $radius: 16px;
 .birthday-input {
   padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: .95rem;
   width: 100%; max-width: 250px; transition: border-color .3s; box-sizing: border-box;
-  &:focus { outline: none; border-color: $accent; }
+  &:focus { outline: none; border-color: #FF5400; }
 }
 
 .birthday-set {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px;
   font-size: .95rem; color: $dark;
   .birthday-icon { font-size: 1.3rem; }
-  .birthday-bonus-info { color: $accent; font-size: .88rem; }
+  .birthday-bonus-info { color: #D93800; font-size: .88rem; }
 }
 
 /* Referral Card */
@@ -424,28 +427,28 @@ $radius: 16px;
 
 .referral-code {
   font-family: 'Courier New', monospace; font-size: 1.3rem; font-weight: 800;
-  color: $accent; letter-spacing: 3px;
+  color: #CB202D; letter-spacing: 3px;
 }
 
 .btn-copy {
-  background: linear-gradient(135deg, $accent, #5A4BD1); color: #fff; border: none;
+  background: linear-gradient(135deg, #E23744, #CB202D); color: #fff; border: none;
   padding: 8px 16px; border-radius: 50px; font-size: .82rem; font-weight: 600;
   cursor: pointer; transition: all .3s;
-  &:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba($accent, .25); }
+  &:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(226, 55, 68, .3); }
   &.copied { background: $green; }
 }
 
 .btn-share {
-  display: inline-block; background: linear-gradient(135deg, $primary, #F43F5E);
+  display: inline-block; background: linear-gradient(135deg, #E23744, #B91C1C);
   color: #fff; border: none; padding: 10px 24px; border-radius: 50px;
   font-size: .9rem; font-weight: 600; cursor: pointer; transition: all .3s;
-  &:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba($primary, .3); }
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(226, 55, 68, .35); }
 }
 
 .referral-stats {
   margin-top: 20px; padding-top: 16px; border-top: 1px solid #f0f0f0;
   display: flex; flex-direction: column; align-items: center;
-  .stat-number { font-size: 1.8rem; font-weight: 800; color: $accent; }
+  .stat-number { font-size: 1.8rem; font-weight: 800; color: #CB202D; }
   .stat-label { font-size: .85rem; color: #888; }
 }
 
@@ -462,7 +465,7 @@ $radius: 16px;
   flex: 1; padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 12px;
   font-size: 1rem; font-family: 'Courier New', monospace; letter-spacing: 2px;
   text-transform: uppercase; transition: border-color .3s;
-  &:focus { outline: none; border-color: $accent; }
+  &:focus { outline: none; border-color: #E23744; }
 }
 
 .btn-apply {
@@ -483,14 +486,14 @@ $radius: 16px;
 .transfer-input {
   width: 100%; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 12px;
   font-size: 1rem; transition: border-color .3s; box-sizing: border-box;
-  &:focus { outline: none; border-color: $accent; }
+  &:focus { outline: none; border-color: #E23744; }
 }
 
 .btn-transfer {
   width: 100%; padding: 14px; border: none; border-radius: 50px;
-  background: linear-gradient(135deg, $accent, #764ba2); color: #fff;
+  background: linear-gradient(135deg, #E23744, #CB202D); color: #fff;
   font-size: 1rem; font-weight: 700; cursor: pointer; transition: all .3s;
-  &:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba($accent, .3); }
+  &:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(226, 55, 68, .35); }
   &:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
 }
 

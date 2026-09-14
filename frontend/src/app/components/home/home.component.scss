@@ -1,21 +1,21 @@
 // ─── Variables ──────────────────────────────────────────
-$brand: #0EA5E9;
-$brand-dark: #0284C7;
-$accent: #84CC16;
-$accent-dark: #65A30D;
-$rose: #F43F5E;
-$text: #0F172A;
-$text-light: #475569;
-$text-muted: #718096;
-$bg-light: #F8FAFC;
-$bg-pink: #F0F9FF;
-$bg-pink2: #FFEDE6;
+$brand: var(--brand, #E23744);
+$brand-dark: var(--brand-dark, #CB202D);
+$accent: var(--accent, #E23744);
+$accent-dark: var(--accent-dark, #B91C1C);
+$rose: var(--rose, #E11D48);
+$text: var(--text, #1C1C1C);
+$text-light: var(--text-mid, #4F4F4F);
+$text-muted: var(--text-muted, #828282);
+$bg-light: var(--bg, #FAFAFA);
+$bg-pink: var(--bg-warm, #FFF5F5);
+$bg-pink2: #FFE5E8;
 $radius: 16px;
 $radius-sm: 10px;
 $radius-pill: 50px;
 $shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
 $shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-$shadow-lg: 0 8px 30px rgba($brand, 0.15);
+$shadow-lg: 0 8px 30px rgba(226, 55, 68, 0.18);
 $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Reset ──────────────────────────────────────────────
@@ -28,10 +28,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 // ─── Hero ───────────────────────────────────────────────
 .hero {
   background:
-    radial-gradient(circle at 20% 40%, rgba($brand, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba($accent, 0.10) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba($rose, 0.06) 0%, transparent 60%),
-    linear-gradient(135deg, #E0F2FE 0%, #F0EEFF 25%, #FFE6D9 50%, #F0EEFF 75%, #E0F2FE 100%);
+    radial-gradient(circle at 20% 40%, rgba(226, 55, 68, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(239, 79, 95, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(225, 29, 72, 0.08) 0%, transparent 60%),
+    linear-gradient(135deg, #FFF5F5 0%, #FFF0F2 25%, #FFEBEF 50%, #FFF5F7 75%, #FFF0F2 100%);
   background-size: 100% 100%;
   display: flex;
   align-items: center;
@@ -46,9 +46,9 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(circle at 30% 40%, rgba($brand, 0.15) 0%, transparent 50%),
-      radial-gradient(circle at 70% 80%, rgba($brand-dark, 0.15) 0%, transparent 50%),
-      radial-gradient(circle at 50% 50%, rgba(255, 183, 197, 0.2) 0%, transparent 60%);
+      radial-gradient(circle at 30% 40%, rgba(226, 55, 68, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 70% 80%, rgba(203, 32, 45, 0.12) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(239, 79, 95, 0.12) 0%, transparent 60%);
     pointer-events: none;
     animation: floatBg 20s ease-in-out infinite;
   }

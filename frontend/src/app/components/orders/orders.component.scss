@@ -1,29 +1,29 @@
 ﻿// ==========================================
-// ORDERS PAGE - Modern Vibrant Design
+// ORDERS PAGE - Vibrant Zomato Red Design
 // ==========================================
 
-$primary: #0EA5E9;
-$primary-dark: #0284C7;
-$accent: #84CC16;
-$accent-light: #5A4BD1;
-$green: #00c853;
-$green-bg: #e8f5e9;
-$blue: #2979ff;
-$blue-bg: #e3f2fd;
-$yellow: #ffab00;
-$yellow-bg: #fff8e1;
-$red: #ff1744;
-$red-bg: #ffebee;
-$purple-bg: #ede7f6;
-$bg: #f8f9fb;
+$primary: var(--brand, #E23744);
+$primary-dark: var(--brand-dark, #CB202D);
+$accent: var(--accent, #E23744);
+$accent-light: var(--accent-light, #EF4F5F);
+$green: #16a34a;
+$green-bg: #ecfdf5;
+$blue: #E23744;
+$blue-bg: #FFF5F5;
+$yellow: #f59e0b;
+$yellow-bg: #fef3c7;
+$red: #dc2626;
+$red-bg: #fef2f2;
+$purple-bg: #fff1f2;
+$bg: var(--bg, #FAFAFA);
 $card-bg: #ffffff;
-$text-dark: #1a1a2e;
-$text-mid: #4a5568;
-$text-light: #9ca3af;
-$border: #e5e7eb;
-$shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-$shadow-md: 0 4px 16px rgba(0,0,0,0.08);
-$shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
+$text-dark: var(--text, #1C1C1C);
+$text-mid: var(--text-mid, #4F4F4F);
+$text-light: var(--text-muted, #828282);
+$border: rgba(226, 55, 68, 0.12);
+$shadow-sm: 0 2px 8px rgba(226, 55, 68, 0.05);
+$shadow-md: 0 4px 18px rgba(226, 55, 68, 0.1);
+$shadow-lg: 0 10px 30px rgba(226, 55, 68, 0.15);
 $radius-sm: 10px;
 $radius-md: 14px;
 $radius-lg: 20px;
@@ -41,10 +41,10 @@ $radius-full: 9999px;
 .orders-hero {
   position: relative;
   background:
-    radial-gradient(circle at 25% 50%, rgba($primary, 0.9) 0%, transparent 50%),
-    radial-gradient(circle at 80% 30%, rgba($accent, 0.75) 0%, transparent 45%),
-    radial-gradient(circle at 55% 90%, rgba(#FF2D55, 0.3) 0%, transparent 45%),
-    linear-gradient(135deg, $primary 0%, $accent 100%);
+    radial-gradient(circle at 25% 50%, rgba(226, 55, 68, 0.95) 0%, transparent 55%),
+    radial-gradient(circle at 80% 30%, rgba(239, 79, 95, 0.85) 0%, transparent 50%),
+    radial-gradient(circle at 55% 90%, rgba(203, 32, 45, 0.4) 0%, transparent 45%),
+    linear-gradient(135deg, #E23744 0%, #CB202D 100%);
   padding: 2.5rem 1.5rem 3rem;
   text-align: center;
   overflow: hidden;
@@ -240,15 +240,15 @@ $radius-full: 9999px;
     transition: all 0.25s ease;
 
     &:hover {
-      border-color: $accent;
-      color: $accent;
+      border-color: $primary;
+      color: $primary;
     }
 
     &.active {
-      background: $accent;
+      background: linear-gradient(135deg, #E23744, #CB202D);
       color: white;
-      border-color: $accent;
-      box-shadow: 0 4px 12px rgba(27, 20, 100, 0.3);
+      border-color: #E23744;
+      box-shadow: 0 4px 14px rgba(226, 55, 68, 0.35);
     }
 
     .tab-count {

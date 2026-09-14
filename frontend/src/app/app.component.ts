@@ -17,6 +17,7 @@ import { OfflineQueueService } from './services/offline-queue.service';
 export class AppComponent {
   title = 'Dashboard';
   showNavbar = true;
+  isCustomerView = true;
   private analyticsTracking = inject(AnalyticsTrackingService);
   networkStatus = inject(NetworkStatusService);
   offlineQueue = inject(OfflineQueueService);
@@ -29,6 +30,17 @@ export class AppComponent {
     ).subscribe((event: any) => {
       const currentUrl = (event.urlAfterRedirects || event.url || '').split('?')[0] || '/';
       this.showNavbar = !currentUrl.startsWith('/admin');
+
+      const isCustomer = !currentUrl.startsWith('/admin') &&
+                         !currentUrl.startsWith('/kitchen') &&
+                         !currentUrl.startsWith('/partner') &&
+                         !currentUrl.startsWith('/manager') &&
+                         !currentUrl.startsWith('/staff');
+      this.isCustomerView = isCustomer;
+
+      if (typeof document !== 'undefined') {
+        document.body.classList.toggle('customer-theme', isCustomer);
+      }
 
       if (currentUrl !== '/' && currentUrl !== '') {
         sessionStorage.setItem(this.lastRouteStorageKey, currentUrl);
