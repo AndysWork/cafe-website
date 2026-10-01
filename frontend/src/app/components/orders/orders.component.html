@@ -27,28 +27,6 @@
   </div>
 
   <div class="orders-content">
-    <div *ngIf="pendingPaymentRecovery" class="payment-recovery-banner">
-      <div>
-        <strong>Payment retry available</strong>
-        <p>
-          {{ pendingPaymentRecovery.reason }} (₹{{
-            pendingPaymentRecovery.amount
-          }})
-        </p>
-      </div>
-      <div class="banner-actions">
-        <button class="btn-retry-payment" (click)="retryPendingPayment()">
-          Retry
-        </button>
-        <button
-          class="btn-dismiss-payment"
-          (click)="dismissPendingPaymentRecovery()"
-        >
-          Dismiss
-        </button>
-      </div>
-    </div>
-
     <div
       *ngIf="!isAdmin && quickReorderPresets.length > 0"
       class="quick-reorder-section"
@@ -682,13 +660,6 @@
                 <option value="delivered">Delivered</option>
                 <option value="cancelled">Cancelled</option>
               </select>
-              <button
-                *ngIf="canRefundOrder(order)"
-                class="btn-refund"
-                (click)="refundOrder(order.id); $event.stopPropagation()"
-              >
-                ↩️ Refund Payment
-              </button>
             </div>
           </div>
         </div>

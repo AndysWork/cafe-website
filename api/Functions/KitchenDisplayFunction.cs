@@ -45,7 +45,7 @@ public class KitchenDisplayFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var orders = await _mongo.GetOrdersByStatusAsync(new[] { "pending", "confirmed", "preparing", "ready", "out-for-delivery" }, outletId);
+            var orders = await _mongo.GetOrdersByStatusAsync(new[] { "pending", "confirmed", "preparing", "ready", "served", "out-for-delivery" }, outletId);
 
             if (IsKitchenOpsRole(role))
             {
@@ -126,7 +126,7 @@ public class KitchenDisplayFunction
                 return badReq;
             }
 
-            var validStatuses = new[] { "confirmed", "preparing", "ready", "delivered" };
+            var validStatuses = new[] { "confirmed", "preparing", "ready", "served", "delivered" };
             var requestedStatus = request.Status.ToLowerInvariant();
             if (!validStatuses.Contains(requestedStatus))
             {
@@ -249,6 +249,23 @@ public class KitchenDisplayFunction
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = "Order can be delivered only after payment is marked paid" });
                 return badReq;
+            }
+
+            if (requestedStatus == "served")
+            {
+                if (!string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase))
+                {
+                    var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badReq.WriteAsJsonAsync(new { error = "Served status is only supported for dine-in orders" });
+                    return badReq;
+                }
+
+                if (!string.Equals(order.Status, "ready", StringComparison.OrdinalIgnoreCase))
+                {
+                    var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badReq.WriteAsJsonAsync(new { error = "Only prepared (ready) dine-in orders can be marked served" });
+                    return badReq;
+                }
             }
 
             order.Status = requestedStatus;

@@ -821,15 +821,22 @@ export class BonusCalculationComponent implements OnInit {
       this.uiStore.warning('Please allow popups for this website');
       return;
     }
+    printWindow.opener = null;
 
     const netPay = this.calculationResult.baseSalary + this.calculationResult.bonusAmount;
     const filteredBreakdown = this.filteredBonusBreakdown;
+    const escapeHtml = (value: unknown): string => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
 
     const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Payslip - ${this.calculationResult.employeeId}</title>
+      <title>Payslip - ${escapeHtml(this.calculationResult.employeeId)}</title>
       <style>
         body {
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -991,15 +998,15 @@ export class BonusCalculationComponent implements OnInit {
       <div class="staff-info">
         <div class="info-row">
           <span class="info-label">Employee Name:</span>
-          <span class="info-value">${this.calculationResult.staffName}</span>
+          <span class="info-value">${escapeHtml(this.calculationResult.staffName)}</span>
         </div>
         <div class="info-row">
           <span class="info-label">Employee ID:</span>
-          <span class="info-value">${this.calculationResult.employeeId}</span>
+          <span class="info-value">${escapeHtml(this.calculationResult.employeeId)}</span>
         </div>
         <div class="info-row">
           <span class="info-label">Position:</span>
-          <span class="info-value">${this.calculationResult.position}</span>
+          <span class="info-value">${escapeHtml(this.calculationResult.position)}</span>
         </div>
         <div class="info-row">
           <span class="info-label">Pay Period:</span>
@@ -1021,8 +1028,8 @@ export class BonusCalculationComponent implements OnInit {
         ${filteredBreakdown.map(item => `
         <div class="breakdown-row">
           <div>
-            <div class="breakdown-label">${item.ruleName}</div>
-            <div class="breakdown-calc">${item.calculation}</div>
+            <div class="breakdown-label">${escapeHtml(item.ruleName)}</div>
+            <div class="breakdown-calc">${escapeHtml(item.calculation)}</div>
           </div>
           <div class="breakdown-amount ${item.isBonus ? 'amount-positive' : 'amount-negative'}">
             ${item.isBonus ? '+' : '-'}₹${item.amount.toFixed(2)}

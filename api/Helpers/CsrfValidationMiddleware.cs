@@ -23,8 +23,7 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
         "/api/auth/password/forgot",
         "/api/auth/password/reset",
         "/api/offers/validate",
-        "/api/recipes/sync-prices",
-        "/api/payments/webhook/razorpay"
+        "/api/recipes/sync-prices"
     };
 
     // Dynamic endpoint patterns that should not require CSRF.
@@ -35,7 +34,6 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
         new("^/api/inventory/upload$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
         new("^/api/recipes(?:/.*)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
         new("^/api/priceforecasts(?:/.*)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
-        new("^/api/dine-in(?:/.*)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled),
         new("^/api/analytics/(track(?:/batch)?|session|heartbeat)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled)
     };
 

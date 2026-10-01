@@ -301,6 +301,124 @@
   }
 }
 
+.customer-profile {
+  .profile-badge {
+    background: #ffffff;
+    color: #1f2937;
+    border: 1px solid rgba(15, 118, 110, 0.25);
+    box-shadow: 0 8px 22px rgba(15, 118, 110, 0.16);
+    border-radius: 16px;
+    padding: 10px 14px;
+    gap: 10px;
+
+    .profile-icon {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+      color: #ffffff;
+      font-size: 0.95rem;
+      box-shadow: 0 4px 10px rgba(15, 118, 110, 0.28);
+    }
+
+    .username {
+      font-weight: 700;
+      font-size: 0.9rem;
+      max-width: 210px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .arrow {
+      color: #0f766e;
+      font-size: 0.7rem;
+    }
+
+    &:hover {
+      transform: translateY(-1px);
+      border-color: rgba(15, 118, 110, 0.38);
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.22);
+    }
+  }
+
+  .profile-menu {
+    min-width: 260px;
+
+    &::after {
+      background: #ffffff;
+      border: 1px solid rgba(15, 118, 110, 0.15);
+      box-shadow: 0 16px 34px rgba(15, 118, 110, 0.18);
+    }
+
+    .dropdown-item {
+      margin: 4px 8px;
+      padding: 12px 14px;
+      border-radius: 10px;
+
+      .dropdown-icon {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: #f0fdfa;
+        color: #0f766e;
+        font-size: 1rem;
+      }
+
+      .dropdown-title {
+        font-weight: 650;
+        font-size: 0.94rem;
+      }
+
+      &:hover {
+        background: #f0fdfa;
+        color: #0f766e;
+        transform: translateX(4px);
+        box-shadow: none;
+
+        .dropdown-icon {
+          background: #ccfbf1;
+          transform: none;
+          filter: none;
+        }
+      }
+    }
+
+    .primary-profile-item {
+      background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+      border: 1px solid transparent;
+
+      .dropdown-title {
+        color: #ffffff;
+        font-weight: 700;
+      }
+
+      .dropdown-icon {
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+      }
+
+      &:hover {
+        background: linear-gradient(135deg, #0e655e 0%, #0f9f99 100%);
+
+        .dropdown-icon {
+          background: rgba(255, 255, 255, 0.24);
+        }
+      }
+    }
+
+    .divider {
+      margin: 6px 14px;
+    }
+  }
+}
+
 .btn-login,
 .btn-logout {
   display: flex;

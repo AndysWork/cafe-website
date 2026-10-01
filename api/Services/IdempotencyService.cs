@@ -92,6 +92,22 @@ public class IdempotencyService
                 };
             }
 
+            if (existing.Status == "failed")
+            {
+                var reset = await _records.UpdateOneAsync(
+                    x => x.Id == existing.Id && x.Status == "failed",
+                    Builders<IdempotencyRecord>.Update
+                        .Set(x => x.Status, "in-progress")
+                        .Set(x => x.Error, null)
+                        .Set(x => x.UpdatedAt, now)
+                        .Set(x => x.ExpiresAt, now.AddMinutes(ttlMinutes)));
+                return new IdempotencyStartResult
+                {
+                    CanExecute = reset.ModifiedCount == 1,
+                    IsInProgress = reset.ModifiedCount == 0
+                };
+            }
+
             return new IdempotencyStartResult { CanExecute = false, IsInProgress = true };
         }
     }

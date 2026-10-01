@@ -147,6 +147,50 @@
 
   <div class="panel">
     <div class="panel-head">
+      <h2>Dine-In Payments Awaiting Confirmation</h2>
+      <button type="button" (click)="loadPendingDineInPayments()" [disabled]="!!confirmingDineInSessionId">Refresh</button>
+    </div>
+
+    <div class="table-wrap dine-in-payment-table" *ngIf="pendingDineInPayments.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Customer</th>
+            <th>Method</th>
+            <th>Total</th>
+            <th>Rounds</th>
+            <th>Requested</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let session of pendingDineInPayments; trackBy: trackByDineInSessionId">
+            <td>{{ session.tableNumber }}</td>
+            <td>{{ session.customerName || 'Guest' }}</td>
+            <td>{{ session.paymentStatus === 'pending_cash' ? 'Cash at counter' : 'UPI verification' }}</td>
+            <td>{{ formatCurrency(session.grandTotal) }}</td>
+            <td>{{ session.roundsCount }}</td>
+            <td>{{ formatDate(session.billRequestedAt || session.createdAt) }}</td>
+            <td>
+              <button
+                type="button"
+                class="confirm-dine-in-btn"
+                (click)="confirmDineInPayment(session)"
+                [disabled]="!!confirmingDineInSessionId">
+                {{ confirmingDineInSessionId === session.id ? 'Confirming...' : 'Confirm Received' }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="state" *ngIf="pendingDineInPayments.length === 0">No dine-in payments are waiting for confirmation.</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
       <h2>Web Order Management</h2>
       <div class="filters">
         <select [(ngModel)]="statusFilter">
@@ -295,12 +339,6 @@
                           <input type="checkbox" [(ngModel)]="issueRefundDraft[getIssueDraftKey(order.id, issue.id || '')]" />
                           Refund processed
                         </label>
-
-                        <button
-                          (click)="processIssueRefund(order, issue)"
-                          [disabled]="issueRefunding[getIssueDraftKey(order.id, issue.id || '')] || !canRefund(order)">
-                          {{ issueRefunding[getIssueDraftKey(order.id, issue.id || '')] ? 'Refunding...' : 'Refund' }}
-                        </button>
 
                         <button
                           (click)="updateIssue(order, issue)"

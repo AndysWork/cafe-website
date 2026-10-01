@@ -89,6 +89,7 @@ public interface IOperationsRepository
     Task<CustomerSubscription> CreateCustomerSubscriptionAsync(CustomerSubscription sub);
     Task<CustomerSubscription?> GetActiveSubscriptionAsync(string userId);
     Task<List<CustomerSubscription>> GetUserSubscriptionsAsync(string userId);
+    Task<List<CustomerSubscription>> GetCustomerSubscriptionsAsync(string? outletId = null, string? paymentStatus = null, int limit = 200);
     Task<CustomerSubscription?> GetCustomerSubscriptionByIdAsync(string id);
     Task<bool> UpdateCustomerSubscriptionAsync(string id, CustomerSubscription sub);
 

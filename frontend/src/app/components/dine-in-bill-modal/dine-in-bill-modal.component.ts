@@ -5,7 +5,6 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { DineInService } from '../../services/dine-in.service';
 import { DineInBill, SettleDineInBillRequest } from '../../models/dine-in.model';
-import { PaymentService } from '../../services/payment.service';
 import { OffersService, Offer } from '../../services/offers.service';
 import { LoyaltyService, LoyaltyAccount } from '../../services/loyalty.service';
 import { AuthService } from '../../services/auth.service';
@@ -21,7 +20,6 @@ import { UIStore } from '../../store/ui.store';
 export class DineInBillModalComponent implements OnInit, OnDestroy {
   public dineInService = inject(DineInService);
   private router = inject(Router);
-  private paymentService = inject(PaymentService);
   private offersService = inject(OffersService);
   private loyaltyService = inject(LoyaltyService);
   public authService = inject(AuthService);
@@ -43,7 +41,7 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
 
   couponInput = '';
   couponMessage = '';
-  selectedPaymentMethod: 'upi-qr' | 'razorpay' | 'cash_at_counter' = 'upi-qr';
+  selectedPaymentMethod: 'upi-qr' | 'cash_at_counter' = 'upi-qr';
   upiTransactionRef = '';
   qrCodeUrl = '';
 
@@ -260,80 +258,18 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
       upiReference: this.selectedPaymentMethod === 'upi-qr' ? this.upiTransactionRef.trim() : undefined
     };
 
-    if (this.selectedPaymentMethod === 'razorpay') {
-      this.handleRazorpayPayment();
-      return;
-    }
-
     this.dineInService.settleBill(this.bill.sessionId, req).subscribe({
       next: (res) => {
         this.settlingBill = false;
         if (this.selectedPaymentMethod === 'cash_at_counter') {
           this.uiStore.notify('Cash settlement requested! Staff have been notified to collect payment at your table or counter.', 'info');
         } else {
-          this.uiStore.success('Payment recorded successfully! Thank you for dining with us.');
-          // Clean up the active table from localStorage once bill is settled so it doesn't linger
-          this.dineInService.clearTableSession();
+          this.uiStore.notify('UPI payment submitted. Staff will verify it and close your bill.', 'info');
         }
       },
       error: (err) => {
         this.settlingBill = false;
         this.uiStore.error(err?.error?.error || 'Failed to settle bill');
-      }
-    });
-  }
-
-  private handleRazorpayPayment(): void {
-    if (!this.bill) return;
-
-    const amountInPaise = Math.round(this.bill.grandTotal * 100);
-    this.paymentService.createPaymentOrder(amountInPaise, `dinein_${this.bill.sessionId}`).subscribe({
-      next: (razorpayOrder) => {
-        const options = {
-          key: razorpayOrder.keyId,
-          amount: razorpayOrder.amount,
-          currency: 'INR',
-          name: 'Maa Tara Cafe',
-          description: `Table ${this.bill?.tableNumber} Dine-In Bill`,
-          order_id: razorpayOrder.orderId,
-          handler: (response: any) => {
-            const req: SettleDineInBillRequest = {
-              paymentMethod: 'razorpay',
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature
-            };
-            this.dineInService.settleBill(this.bill!.sessionId, req).subscribe({
-              next: () => {
-                this.settlingBill = false;
-                this.uiStore.success('Payment verified! Table bill settled.');
-              },
-              error: () => {
-                this.settlingBill = false;
-                this.uiStore.error('Payment verification failed');
-              }
-            });
-          },
-          prefill: {
-            name: this.bill?.customerName || '',
-            contact: this.bill?.customerPhone || ''
-          },
-          theme: {
-            color: '#E23744'
-          }
-        };
-
-        if (typeof (window as any).Razorpay !== 'undefined') {
-          const rzp = new (window as any).Razorpay(options);
-          rzp.open();
-        } else {
-          this.settlingBill = false;
-          this.uiStore.warning('Razorpay SDK not loaded. Please pay using UPI QR or Cash.');
-        }
-      },
-      error: (err) => {
-        this.settlingBill = false;
-        this.uiStore.error('Could not initiate online payment gateway');
       }
     });
   }

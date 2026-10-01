@@ -1,11 +1,25 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, tap, catchError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { DineInBill, StartDineInSessionRequest, SettleDineInBillRequest } from '../models/dine-in.model';
 import { OutletService } from './outlet.service';
 import { AuthService } from './auth.service';
 import { UIStore } from '../store/ui.store';
+
+export interface ActiveDineInTable {
+  id: string;
+  tableNumber: string;
+  customerName?: string;
+  status: string;
+  paymentStatus: string;
+  roundsCount: number;
+  subtotal: number;
+  grandTotal: number;
+  createdAt: string;
+  billRequestedAt?: string;
+  minutesActive: number;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -19,6 +33,7 @@ export class DineInService {
 
   private readonly TABLE_STORAGE_KEY = 'active_dinein_table';
   private readonly SESSION_STORAGE_KEY = 'active_dinein_session_id';
+  private readonly SESSION_TOKEN_STORAGE_KEY = 'active_dinein_session_token';
 
   private activeTableSubject = new BehaviorSubject<string>(this.loadStoredTable());
   public activeTable$ = this.activeTableSubject.asObservable();
@@ -76,6 +91,7 @@ export class DineInService {
   public clearTableSession(): void {
     localStorage.removeItem(this.TABLE_STORAGE_KEY);
     localStorage.removeItem(this.SESSION_STORAGE_KEY);
+    localStorage.removeItem(this.SESSION_TOKEN_STORAGE_KEY);
     this.activeTableSubject.next('');
     this.activeBillSubject.next(null);
     if (!this.isViewingSpecificSession) {
@@ -118,7 +134,7 @@ export class DineInService {
     this.isBillLoadingSubject.next(true);
     this.isBillModalOpenSubject.next(true);
 
-    this.http.get<DineInBill>(`${this.apiUrl}/dine-in/reservations/${reservationId}/bill`).subscribe({
+    this.http.get<DineInBill>(`${this.apiUrl}/dine-in/reservations/${reservationId}/bill`, this.sessionOptions()).subscribe({
       next: (bill) => {
         this.isBillLoadingSubject.next(false);
         this.viewingSessionId = bill?.sessionId || fallbackSessionId || null;
@@ -177,7 +193,7 @@ export class DineInService {
     const outletId = this.outletService.getSelectedOutletId() || '';
     const url = `${this.apiUrl}/dine-in/session/active?tableNumber=${encodeURIComponent(table)}${outletId ? `&outletId=${outletId}` : ''}`;
 
-    return this.http.get<{ session: DineInBill | null; isTableSettled?: boolean }>(url).pipe(
+    return this.http.get<{ session: DineInBill | null; isTableSettled?: boolean }>(url, this.sessionOptions()).pipe(
       tap((res) => {
         const bill = res?.session || null;
         this.activeBillSubject.next(bill);
@@ -199,9 +215,14 @@ export class DineInService {
   }
 
   public startSession(request: StartDineInSessionRequest): Observable<any> {
-    return this.http.post<{ message: string; session: DineInBill }>(`${this.apiUrl}/dine-in/session/start`, request).pipe(
+    return this.http.post<{ message: string; session: DineInBill; sessionAccessToken?: string }>(
+      `${this.apiUrl}/dine-in/session/start`, request, this.sessionOptions()
+    ).pipe(
       tap((res) => {
         if (res?.session) {
+          if (res.sessionAccessToken) {
+            localStorage.setItem(this.SESSION_TOKEN_STORAGE_KEY, res.sessionAccessToken);
+          }
           this.setTableNumber(res.session.tableNumber);
           this.activeBillSubject.next(res.session);
         }
@@ -236,9 +257,12 @@ export class DineInService {
       phoneNumber: payload.phoneNumber
     };
 
-    return this.http.post<any>(`${this.apiUrl}/dine-in/order`, requestBody).pipe(
+    return this.http.post<any>(`${this.apiUrl}/dine-in/order`, requestBody, this.sessionOptions()).pipe(
       tap((res) => {
         if (res?.session) {
+          if (res.sessionAccessToken) {
+            localStorage.setItem(this.SESSION_TOKEN_STORAGE_KEY, res.sessionAccessToken);
+          }
           this.activeBillSubject.next(res.session);
           if (table) {
             localStorage.setItem(this.TABLE_STORAGE_KEY, table);
@@ -250,7 +274,7 @@ export class DineInService {
   }
 
   public getSessionBill(sessionId: string): Observable<DineInBill> {
-    return this.http.get<DineInBill>(`${this.apiUrl}/dine-in/session/${sessionId}/bill`).pipe(
+    return this.http.get<DineInBill>(`${this.apiUrl}/dine-in/session/${sessionId}/bill`, this.sessionOptions()).pipe(
       tap((bill) => this.activeBillSubject.next(bill))
     );
   }
@@ -258,7 +282,8 @@ export class DineInService {
   public requestFinalBill(sessionId: string): Observable<any> {
     return this.http.post<{ message: string; session: DineInBill }>(
       `${this.apiUrl}/dine-in/session/${sessionId}/request-bill`,
-      {}
+      {},
+      this.sessionOptions()
     ).pipe(
       tap((res) => {
         if (res?.session) {
@@ -271,7 +296,8 @@ export class DineInService {
   public applyCoupon(sessionId: string, couponCode: string): Observable<any> {
     return this.http.post<{ message: string; session: DineInBill }>(
       `${this.apiUrl}/dine-in/session/${sessionId}/apply-coupon`,
-      { couponCode }
+      { couponCode },
+      this.sessionOptions()
     ).pipe(
       tap((res) => {
         if (res?.session) {
@@ -284,7 +310,8 @@ export class DineInService {
   public removeCoupon(sessionId: string): Observable<any> {
     return this.http.post<{ message: string; session: DineInBill }>(
       `${this.apiUrl}/dine-in/session/${sessionId}/remove-coupon`,
-      {}
+      {},
+      this.sessionOptions()
     ).pipe(
       tap((res) => {
         if (res?.session) {
@@ -297,7 +324,8 @@ export class DineInService {
   public settleBill(sessionId: string, settleReq: SettleDineInBillRequest): Observable<any> {
     return this.http.post<any>(
       `${this.apiUrl}/dine-in/session/${sessionId}/settle`,
-      settleReq
+      settleReq,
+      this.sessionOptions()
     ).pipe(
       tap((res) => {
         if (res?.session) {
@@ -313,5 +341,29 @@ export class DineInService {
       return this.sanitizeTableNumber(raw);
     }
     return '';
+  }
+
+  public getActiveTables(outletId: string): Observable<ActiveDineInTable[]> {
+    return this.http.get<ActiveDineInTable[]>(
+      `${this.apiUrl}/dine-in/tables/active?outletId=${encodeURIComponent(outletId)}`
+    );
+  }
+
+  public confirmPayment(sessionId: string): Observable<{ message: string; session: DineInBill }> {
+    return this.http.post<{ message: string; session: DineInBill }>(
+      `${this.apiUrl}/dine-in/session/${sessionId}/payment/confirm`,
+      {}
+    );
+  }
+
+  private sessionOptions(): { headers: HttpHeaders } {
+    const token = typeof localStorage !== 'undefined'
+      ? localStorage.getItem(this.SESSION_TOKEN_STORAGE_KEY)
+      : null;
+    return {
+      headers: token
+        ? new HttpHeaders({ 'X-Dine-In-Session-Token': token })
+        : new HttpHeaders()
+    };
   }
 }

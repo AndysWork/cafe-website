@@ -52,14 +52,16 @@ export interface CustomerSubscription {
   startDate: string;
   endDate: string;
   durationDays?: number;
-  status: 'active' | 'paused' | 'cancelled' | 'expired' | 'completed';
+  status: 'pending_payment' | 'active' | 'paused' | 'cancelled' | 'expired' | 'completed';
   amountPaid: number;
+  amountDue?: number;
   dailySubtotal?: number;
   discountPercent?: number;
   discountAmount?: number;
   freeDelivery?: boolean;
-  paymentMethod?: string;
-  paymentStatus?: string;
+  paymentMethod?: 'upi-qr' | 'cash_at_counter';
+  paymentStatus?: 'pending' | 'paid';
+  paymentReference?: string;
   pausedAt?: string;
   totalDaysPaused?: number;
   createdAt?: string;
@@ -74,7 +76,7 @@ export interface SubscribeRequest {
   customerName?: string;
   specialInstructions?: string;
   durationDays?: number;
-  paymentMethod?: string;
+  paymentMethod?: 'upi-qr' | 'cash_at_counter';
   outletId?: string;
 }
 
@@ -88,7 +90,7 @@ export interface CreateCustomComboRequest {
   customerPhone: string;
   customerName?: string;
   specialInstructions?: string;
-  paymentMethod?: string;
+  paymentMethod?: 'upi-qr' | 'cash_at_counter';
   outletId?: string;
 }
 
@@ -131,6 +133,20 @@ export class SubscriptionService {
     return this.http.delete<{ message: string }>(`${this.apiUrl}/manage/subscriptions/plans/${id}`).pipe(
       catchError(handleServiceError('SubscriptionService.deletePlan'))
     );
+  }
+
+  getPendingPayments(outletId?: string): Observable<CustomerSubscription[]> {
+    const url = `${this.apiUrl}/manage/subscriptions/payments/pending${outletId ? `?outletId=${encodeURIComponent(outletId)}` : ''}`;
+    return this.http.get<CustomerSubscription[]>(url).pipe(
+      catchError(handleServiceError('SubscriptionService.getPendingPayments'))
+    );
+  }
+
+  confirmPayment(id: string, paymentReference?: string): Observable<{ message: string; subscription: CustomerSubscription }> {
+    return this.http.post<{ message: string; subscription: CustomerSubscription }>(
+      `${this.apiUrl}/manage/subscriptions/${id}/payment/confirm`,
+      { paymentReference: paymentReference?.trim() || undefined }
+    ).pipe(catchError(handleServiceError('SubscriptionService.confirmPayment')));
   }
 
   subscribe(request: SubscribeRequest): Observable<{ message: string; subscription: CustomerSubscription }> {

@@ -103,6 +103,11 @@ export class TableReservationComponent implements OnInit {
   }
 
   submitReservation() {
+    if (!this.isDineInCurrentlyAvailable) {
+      this.uiStore.warning(this.dineInClosedReason);
+      return;
+    }
+
     if (!this.form.customerName || !this.form.customerPhone || !this.form.reservationDate || !this.form.timeSlot) {
       this.uiStore.error('Please fill in all required fields');
       return;
@@ -175,6 +180,11 @@ export class TableReservationComponent implements OnInit {
   }
 
   openCheckInModal(reservation: TableReservation): void {
+    if (!this.isDineInCurrentlyAvailable) {
+      this.uiStore.warning(this.dineInClosedReason);
+      return;
+    }
+
     if (!reservation.id) return;
 
     // If already seated, navigate directly to menu for that table
@@ -198,10 +208,20 @@ export class TableReservationComponent implements OnInit {
   }
 
   selectCheckInTable(table: string): void {
-    this.checkInTableInput = table;
+    this.checkInTableInput = this.checkInTableInput === table ? '' : table;
+  }
+
+  clearCheckInTableSelection(): void {
+    this.checkInTableInput = '';
+    this.checkInAttempted = false;
   }
 
   confirmCheckIn(): void {
+    if (!this.isDineInCurrentlyAvailable) {
+      this.uiStore.warning(this.dineInClosedReason);
+      return;
+    }
+
     this.checkInAttempted = true;
     if (!this.selectedReservationForCheckIn?.id) return;
 
@@ -247,6 +267,82 @@ export class TableReservationComponent implements OnInit {
 
   getMinDate(): string {
     return getIstInputDate(new Date());
+  }
+
+  get isDineInCurrentlyAvailable(): boolean {
+    const selectedOutlet = this.getSelectedOutletForReservation();
+    if (!selectedOutlet) return true;
+
+    if (selectedOutlet.isActive === false) {
+      return false;
+    }
+
+    if (selectedOutlet.settings?.acceptsDineIn === false) {
+      return false;
+    }
+
+    return this.isCurrentTimeWithinOutletHours(selectedOutlet.settings?.openingTime, selectedOutlet.settings?.closingTime);
+  }
+
+  get dineInClosedReason(): string {
+    const selectedOutlet = this.getSelectedOutletForReservation();
+    const outletName = selectedOutlet?.outletName || 'selected outlet';
+
+    if (!selectedOutlet || selectedOutlet.isActive === false) {
+      return `Shop is currently closed for ${outletName}.`;
+    }
+
+    if (selectedOutlet.settings?.acceptsDineIn === false) {
+      return 'Dine-in reservations are currently turned off by the outlet admin.';
+    }
+
+    const openingTime = selectedOutlet.settings?.openingTime || 'opening time';
+    const closingTime = selectedOutlet.settings?.closingTime || 'closing time';
+    return `Shop is closed right now. Dine-in is available from ${openingTime} to ${closingTime}.`;
+  }
+
+  private getSelectedOutletForReservation(): any | null {
+    const selectedOutletId = this.form.outletId || this.outletService.getSelectedOutletId();
+    if (!selectedOutletId) {
+      return this.outlets[0] || null;
+    }
+
+    return this.outlets.find(o => {
+      const id = o?.id || o?._id;
+      return id === selectedOutletId;
+    }) || null;
+  }
+
+  private isCurrentTimeWithinOutletHours(openingTime?: string, closingTime?: string): boolean {
+    const openingMinutes = this.parseTimeToMinutes(openingTime);
+    const closingMinutes = this.parseTimeToMinutes(closingTime);
+
+    if (openingMinutes === null || closingMinutes === null) {
+      return true;
+    }
+
+    const now = new Date();
+    const currentMinutes = (now.getHours() * 60) + now.getMinutes();
+
+    if (closingMinutes > openingMinutes) {
+      return currentMinutes >= openingMinutes && currentMinutes < closingMinutes;
+    }
+
+    // Supports overnight windows such as 18:00 to 02:00.
+    return currentMinutes >= openingMinutes || currentMinutes < closingMinutes;
+  }
+
+  private parseTimeToMinutes(value?: string): number | null {
+    if (!value) return null;
+
+    const [hourString, minuteString] = value.split(':');
+    const hour = Number(hourString);
+    const minute = Number(minuteString);
+
+    if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+    return (hour * 60) + minute;
   }
 
   getStatusClass(status: string): string {

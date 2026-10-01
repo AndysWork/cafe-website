@@ -16,7 +16,12 @@
     }
   },
   "globalHeaders": {
-    "cache-control": "no-cache, no-store, must-revalidate"
+    "cache-control": "no-cache, no-store, must-revalidate",
+    "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://unpkg.com https://translate.google.com https://translate.googleapis.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://translate.googleapis.com; font-src 'self' data: https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https://cafe-api-5560.azurewebsites.net https://translate.googleapis.com; frame-src https://translate.google.com; upgrade-insecure-requests",
+    "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY"
   },
   "mimeTypes": {
     ".json": "application/json",

@@ -257,7 +257,7 @@
         </p>
 
         <!-- Payment Settlement Section (When Bill is Requested) -->
-        <section class="payment-settlement-section" *ngIf="bill.status === 'bill_requested'">
+        <section class="payment-settlement-section" *ngIf="bill.status === 'bill_requested' && bill.paymentStatus === 'unpaid'">
           <h3>Choose Payment Method</h3>
 
           <div class="payment-methods-grid">
@@ -269,17 +269,6 @@
               <span class="pm-icon">📱</span>
               <span class="pm-title">UPI QR Code</span>
               <span class="pm-sub">GPay / PhonePe / Paytm</span>
-            </button>
-
-            <button
-              class="pm-card"
-              *ngIf="bill.razorpayEnabled"
-              [class.active]="selectedPaymentMethod === 'razorpay'"
-              (click)="selectedPaymentMethod = 'razorpay'"
-            >
-              <span class="pm-icon">💳</span>
-              <span class="pm-title">Pay Online</span>
-              <span class="pm-sub">Cards / Netbanking / Wallets</span>
             </button>
 
             <button
@@ -319,25 +308,13 @@
               (click)="onSettleBill()"
               [disabled]="settlingBill"
             >
-              {{ settlingBill ? 'Verifying Payment...' : '✅ I Have Paid ₹' + (bill.grandTotal | number:'1.2-2') }}
-            </button>
-          </div>
-
-          <!-- Razorpay Box -->
-          <div class="gateway-box" *ngIf="selectedPaymentMethod === 'razorpay'">
-            <p>Secure online payment processing via Razorpay gateway.</p>
-            <button
-              class="btn-pay-confirm"
-              (click)="onSettleBill()"
-              [disabled]="settlingBill"
-            >
-              {{ settlingBill ? 'Opening Gateway...' : '💳 Pay ₹' + (bill.grandTotal | number:'1.2-2') + ' Online' }}
+              {{ settlingBill ? 'Submitting Payment...' : '✅ I Have Paid ₹' + (bill.grandTotal | number:'1.2-2') }}
             </button>
           </div>
 
           <!-- Cash at Counter Box -->
           <div class="cash-box" *ngIf="selectedPaymentMethod === 'cash_at_counter'">
-            <p>A steward or cashier will come to Table {{ bill.tableNumber }} to collect cash, or you can pay at the counter.</p>
+            <p>A manager will confirm this payment and close Table {{ bill.tableNumber }}, or you can pay at the counter.</p>
             <button
               class="btn-pay-confirm btn-cash"
               (click)="onSettleBill()"
@@ -346,6 +323,13 @@
               {{ settlingBill ? 'Notifying Staff...' : '💵 Confirm Cash at Table / Counter' }}
             </button>
           </div>
+        </section>
+
+        <section class="payment-settlement-section" *ngIf="bill.status === 'bill_requested' && bill.paymentStatus !== 'unpaid'">
+          <h3>Payment Awaiting Confirmation</h3>
+          <p *ngIf="bill.paymentStatus === 'pending_verification'">Your UPI payment was submitted. Staff will verify the transaction and close the table.</p>
+          <p *ngIf="bill.paymentStatus === 'pending_cash'">Cash payment is awaiting confirmation from a manager.</p>
+          <p *ngIf="bill.paymentStatus === 'processing'">Your payment is currently being confirmed by management.</p>
         </section>
 
         <!-- Digital Invoice When Paid -->

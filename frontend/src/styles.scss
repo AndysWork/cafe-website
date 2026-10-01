@@ -1,47 +1,34 @@
-/* ═══ Cafe Design System — Default / Admin / Operations Theme (Sky Blue & Lime) ═══ */
+/* ═══ Cafe Design System — Zomato Red Theme ═══ */
 :root {
-  --brand: #0EA5E9;
-  --brand-dark: #0284C7;
-  --brand-light: #38BDF8;
-  --accent: #84CC16;
-  --accent-dark: #65A30D;
-  --accent-light: #A3E635;
+  --brand: #E23744;
+  --brand-dark: #CB202D;
+  --brand-light: #F15B67;
+  --accent: #FF6B6B;
+  --accent-dark: #E85D5D;
+  --accent-light: #FF8A8A;
   --rose: #F43F5E;
-  --gold: #FACC15;
-  --deep: #0C4A6E;
-  --success: #22C55E;
+  --gold: #FC8019;
+  --deep: #7A1B24;
+  --success: #FC8019;
   --danger: #EF4444;
   --bg: #F8FAFC;
-  --bg-warm: #F0F9FF;
+  --bg-warm: #FFF1F2;
   --text: #0F172A;
   --text-mid: #475569;
   --text-muted: #94A3B8;
+  --state-success-bg: #FFF3E6;
+  --state-success-text: #B45309;
+  --state-warning-bg: #FEF3C7;
+  --state-warning-text: #B45309;
+  --state-info-bg: #FFE4E6;
+  --state-info-text: #CB202D;
+  --state-danger-bg: #FEE2E2;
+  --state-danger-text: #B91C1C;
+  --state-neutral-bg: #F1F5F9;
+  --state-neutral-text: #64748B;
   --radius: 16px;
   --radius-lg: 24px;
   --radius-full: 9999px;
-}
-
-/* ═══ Customer View Only — Vibrant Zomato Red Theme ═══ */
-body.customer-theme,
-.customer-theme {
-  --brand: #E23744; // Iconic Zomato Red
-  --brand-dark: #CB202D; // Deep Crimson Red
-  --brand-light: #EF4F5F; // Bright Coral Red
-  --accent: #E23744; // Primary Red Accent
-  --accent-dark: #B91C1C; // Ruby Dark
-  --accent-light: #F87171; // Soft Rose Red
-  --rose: #E11D48; // Ripe Berry Red
-  --gold: #F59E0B; // Warm Gold
-  --deep: #1C1C1C; // Midnight Charcoal
-  --success: #16A34A; // Garden Fresh Green
-  --danger: #DC2626;
-  --bg: #FAFAFA; // Clean Soft Background
-  --bg-warm: #FFF5F5; // Subtle Warm Red Tint
-  --text: #1C1C1C; // Deep Charcoal Black (Zomato typography)
-  --text-mid: #4F4F4F; // Neutral Mid Tone
-  --text-muted: #828282; // Muted Gray
-  background-color: var(--bg);
-  color: var(--text);
 }
 
 /* Global Styles */
@@ -86,3 +73,5 @@ input[type="button"] {
     min-width: 44px;
   }
 }
+
+

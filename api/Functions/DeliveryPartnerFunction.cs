@@ -1589,7 +1589,7 @@ public class DeliveryPartnerFunction
             {
                 OrderId = order.Id!,
                 PartnerId = partnerId,
-                Amount = request.Amount,
+                Amount = order.Total,
                 Collected = true,
                 CollectionReference = string.IsNullOrWhiteSpace(request.CollectionReference) ? null : InputSanitizer.Sanitize(request.CollectionReference),
                 Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : InputSanitizer.Sanitize(request.Notes),
@@ -1712,7 +1712,7 @@ public class DeliveryPartnerFunction
             {
                 OrderId = order.Id!,
                 PartnerId = partner.Id,
-                Amount = request.Amount,
+                Amount = order.Total,
                 Collected = true,
                 CollectionReference = string.IsNullOrWhiteSpace(request.CollectionReference) ? null : InputSanitizer.Sanitize(request.CollectionReference),
                 Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : InputSanitizer.Sanitize(request.Notes),

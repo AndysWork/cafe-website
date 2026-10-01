@@ -41,7 +41,7 @@ public class Order : ISoftDeletable
     public decimal Total { get; set; }
 
     [BsonElement("status")]
-    public string Status { get; set; } = "pending"; // scheduled/pending, confirmed, preparing, ready, out-for-delivery, delivered, cancelled
+    public string Status { get; set; } = "pending"; // scheduled/pending, confirmed, preparing, ready, served, out-for-delivery, delivered, cancelled
 
     [BsonElement("inventoryDeducted")]
     public bool InventoryDeducted { get; set; } = false;
@@ -50,7 +50,7 @@ public class Order : ISoftDeletable
     public string PaymentStatus { get; set; } = "pending"; // pending, paid, refunded
 
     [BsonElement("paymentMethod")]
-    public string PaymentMethod { get; set; } = "cod"; // cod, razorpay, upi-qr
+    public string PaymentMethod { get; set; } = "cod"; // cod, upi-qr, dine_in_tab, cash_at_counter
 
     [BsonElement("razorpayOrderId")]
     public string? RazorpayOrderId { get; set; }
@@ -304,12 +304,8 @@ public class CreateOrderRequest
     [StringLength(500, ErrorMessage = "Delivery address cannot exceed 500 characters")]
     public string? DeliveryAddress { get; set; }
 
-    [AllowedValuesList("cod", "razorpay", "upi-qr", "dine_in_tab")]
+    [AllowedValuesList("cod", "upi-qr", "dine_in_tab")]
     public string PaymentMethod { get; set; } = "cod";
-
-    public string? RazorpayPaymentId { get; set; }
-    public string? RazorpayOrderId { get; set; }
-    public string? RazorpaySignature { get; set; }
 
     [StringLength(100, ErrorMessage = "UPI reference cannot exceed 100 characters")]
     public string? UpiReference { get; set; }

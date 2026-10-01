@@ -51,6 +51,14 @@ public class TableReservationFunction
                 return badRequest;
             }
 
+            var targetOutlet = await _mongo.GetOutletByIdAsync(outletId);
+            if (!IsOutletDineInAvailableNow(targetOutlet))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = BuildOutletClosedMessage(targetOutlet) });
+                return badRequest;
+            }
+
             // Try to get userId if logged in (optional for reservations)
             string? userId = null;
             var authHeader = req.Headers.TryGetValues("Authorization", out var headerValues) ? headerValues.FirstOrDefault() : null;
@@ -374,6 +382,14 @@ public class TableReservationFunction
                 return badReq;
             }
 
+            var targetOutlet = await _mongo.GetOutletByIdAsync(reservation.OutletId);
+            if (!IsOutletDineInAvailableNow(targetOutlet))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = BuildOutletClosedMessage(targetOutlet) });
+                return badReq;
+            }
+
             var (request, validationError) = await ValidationHelper.ValidateBody<CheckInReservationRequest>(req);
             if (validationError != null) return validationError;
 
@@ -442,5 +458,70 @@ public class TableReservationFunction
             await res.WriteAsJsonAsync(new { error = "An error occurred during check-in" });
             return res;
         }
+    }
+
+    private static bool IsOutletDineInAvailableNow(Outlet? outlet)
+    {
+        if (outlet == null) return false;
+        if (!outlet.IsActive) return false;
+        if (!outlet.Settings.AcceptsDineIn) return false;
+
+        var openingMinutes = ParseTimeToMinutes(outlet.Settings.OpeningTime);
+        var closingMinutes = ParseTimeToMinutes(outlet.Settings.ClosingTime);
+        if (openingMinutes == null || closingMinutes == null)
+        {
+            return true;
+        }
+
+        var now = MongoService.GetIstNow().TimeOfDay;
+        var currentMinutes = (int)now.TotalMinutes;
+
+        if (closingMinutes > openingMinutes)
+        {
+            return currentMinutes >= openingMinutes && currentMinutes < closingMinutes;
+        }
+
+        // Overnight window support, e.g. 18:00 to 02:00
+        return currentMinutes >= openingMinutes || currentMinutes < closingMinutes;
+    }
+
+    private static int? ParseTimeToMinutes(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        var parts = value.Split(':', StringSplitOptions.TrimEntries);
+        if (parts.Length != 2) return null;
+
+        if (!int.TryParse(parts[0], out var hour) || !int.TryParse(parts[1], out var minute))
+        {
+            return null;
+        }
+
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
+        {
+            return null;
+        }
+
+        return hour * 60 + minute;
+    }
+
+    private static string BuildOutletClosedMessage(Outlet? outlet)
+    {
+        if (outlet == null)
+        {
+            return "Selected outlet is unavailable for dine-in right now.";
+        }
+
+        if (!outlet.IsActive)
+        {
+            return $"{outlet.OutletName} is currently closed.";
+        }
+
+        if (!outlet.Settings.AcceptsDineIn)
+        {
+            return "Dine-in is currently turned off by the outlet admin.";
+        }
+
+        return $"Shop is closed right now. Dine-in is available from {outlet.Settings.OpeningTime} to {outlet.Settings.ClosingTime}.";
     }
 }

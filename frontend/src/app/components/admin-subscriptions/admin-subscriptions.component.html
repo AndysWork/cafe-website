@@ -4,6 +4,29 @@
     <button class="btn-create" (click)="openCreateModal()">➕ Create Plan</button>
   </div>
 
+  <section class="pending-payments" *ngIf="pendingPayments.length > 0">
+    <h2>Pending Payment Confirmation</h2>
+    <div class="payment-row" *ngFor="let subscription of pendingPayments; trackBy: trackById">
+      <div>
+        <strong>{{ subscription.customerName || 'Customer' }}</strong>
+        <span>{{ subscription.planName }} · {{ subscription.paymentMethod === 'cash_at_counter' ? 'Cash' : 'UPI' }}</span>
+      </div>
+      <strong>₹{{ subscription.amountDue | number:'1.2-2' }}</strong>
+      <input
+        type="text"
+        [(ngModel)]="paymentReferenceDraft[subscription.id!]"
+        placeholder="Payment reference (optional)"
+        [disabled]="confirmingPaymentId === subscription.id">
+      <button
+        type="button"
+        class="btn-save"
+        (click)="confirmSubscriptionPayment(subscription)"
+        [disabled]="confirmingPaymentId !== null">
+        {{ confirmingPaymentId === subscription.id ? 'Confirming...' : 'Confirm Payment' }}
+      </button>
+    </div>
+  </section>
+
   <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
 
   <div *ngIf="!loading && plans.length === 0" class="empty-state">

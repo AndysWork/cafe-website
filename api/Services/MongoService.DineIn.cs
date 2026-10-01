@@ -120,4 +120,30 @@ public partial class MongoService
         var result = await _dineInSessions.ReplaceOneAsync(filter, session);
         return result.ModifiedCount > 0;
     }
+
+    public async Task<bool> TransitionDineInPaymentStatusAsync(
+        string sessionId,
+        IReadOnlyCollection<string> expectedStatuses,
+        string newStatus)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || expectedStatuses.Count == 0) return false;
+
+        var cleanId = sessionId.Trim();
+        var idFilter = Builders<DineInSession>.Filter.Eq("_id", cleanId);
+        if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
+        {
+            idFilter = Builders<DineInSession>.Filter.Or(
+                idFilter,
+                Builders<DineInSession>.Filter.Eq("_id", objId));
+        }
+
+        var filter = Builders<DineInSession>.Filter.And(
+            idFilter,
+            Builders<DineInSession>.Filter.In(s => s.PaymentStatus, expectedStatuses));
+        var update = Builders<DineInSession>.Update
+            .Set(s => s.PaymentStatus, newStatus)
+            .Set(s => s.UpdatedAt, GetIstNow());
+        var result = await _dineInSessions.UpdateOneAsync(filter, update);
+        return result.ModifiedCount == 1;
+    }
 }

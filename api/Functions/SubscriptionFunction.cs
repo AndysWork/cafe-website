@@ -243,6 +243,14 @@ public class SubscriptionFunction
             var (request, validationError) = await ValidationHelper.ValidateBody<SubscribeRequest>(req);
             if (validationError != null) return validationError;
 
+            var existingSubscriptions = await _mongo.GetUserSubscriptionsAsync(userId!);
+            if (existingSubscriptions.Any(s => s.Status is "active" or "paused" or "pending_payment"))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "You already have an active or pending subscription" });
+                return conflict;
+            }
+
             var plan = await _mongo.GetSubscriptionPlanByIdAsync(request.PlanId);
             if (plan == null || !plan.IsActive)
             {
@@ -286,15 +294,15 @@ public class SubscriptionFunction
                 StartDate = now,
                 EndDate = now.AddDays(durationDays),
                 DurationDays = durationDays,
-                Status = "active",
+                Status = "pending_payment",
                 DailySubtotal = dailyRate,
                 DiscountPercent = discountPct,
                 DiscountAmount = discountAmt,
-                AmountPaid = finalAmount,
+                AmountPaid = 0,
+                AmountDue = finalAmount,
                 FreeDelivery = true,
                 PaymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? "upi-qr" : request.PaymentMethod,
-                PaymentStatus = "paid",
-                RazorpayPaymentId = request.RazorpayPaymentId,
+                PaymentStatus = "pending",
                 CreatedAt = now,
                 UpdatedAt = now
             };
@@ -304,7 +312,7 @@ public class SubscriptionFunction
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
-                message = $"Successfully subscribed to {plan.Name}! Valid for {durationDays} days until {subscription.EndDate:dd MMM yyyy}.",
+                message = $"Subscription request created for {plan.Name}. It will activate after staff confirms payment.",
                 subscription
             });
             return response;
@@ -333,6 +341,14 @@ public class SubscriptionFunction
             var (request, validationError) = await ValidationHelper.ValidateBody<CreateCustomComboSubscriptionRequest>(req);
             if (validationError != null) return validationError;
 
+            var existingSubscriptions = await _mongo.GetUserSubscriptionsAsync(userId!);
+            if (existingSubscriptions.Any(s => s.Status is "active" or "paused" or "pending_payment"))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "You already have an active or pending subscription" });
+                return conflict;
+            }
+
             if (request.Items == null || request.Items.Count == 0)
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -349,7 +365,7 @@ public class SubscriptionFunction
             foreach (var reqItem in request.Items)
             {
                 var mItem = menuItems.FirstOrDefault(m => m.Id == reqItem.MenuItemId);
-                if (mItem == null) continue;
+                if (mItem == null || !mItem.IsAvailable) continue;
 
                 var unitPrice = mItem.OnlinePrice > 0 ? mItem.OnlinePrice : (mItem.WebPrice > 0 ? mItem.WebPrice : mItem.ShopSellingPrice);
                 var qty = Math.Clamp(reqItem.Quantity, 1, 10);
@@ -416,14 +432,15 @@ public class SubscriptionFunction
                 StartDate = now,
                 EndDate = now.AddDays(durationDays),
                 DurationDays = durationDays,
-                Status = "active",
+                Status = "pending_payment",
                 DailySubtotal = dailySubtotal,
                 DiscountPercent = discountPercent,
                 DiscountAmount = discountAmount,
-                AmountPaid = finalPayable,
+                AmountPaid = 0,
+                AmountDue = finalPayable,
                 FreeDelivery = true,
                 PaymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? "upi-qr" : request.PaymentMethod,
-                PaymentStatus = "paid",
+                PaymentStatus = "pending",
                 CreatedAt = now,
                 UpdatedAt = now
             };
@@ -433,7 +450,7 @@ public class SubscriptionFunction
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(new
             {
-                message = $"Your custom recurring combo '{comboSub.PlanName}' is now active for {durationDays} days!",
+                message = $"Your custom recurring combo '{comboSub.PlanName}' is awaiting payment confirmation.",
                 subscription = created
             });
             return response;
@@ -444,6 +461,81 @@ public class SubscriptionFunction
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred while creating your custom combo subscription." });
             return res;
+        }
+    }
+
+    [Function("GetPendingSubscriptionPayments")]
+    public async Task<HttpResponseData> GetPendingSubscriptionPayments(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/subscriptions/payments/pending")] HttpRequestData req)
+    {
+        var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+        if (!isAuthorized) return errorResponse!;
+
+        var outletId = req.Query["outletId"]?.Trim();
+        var subscriptions = await _mongo.GetCustomerSubscriptionsAsync(outletId, "pending");
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(subscriptions);
+        return response;
+    }
+
+    [Function("ConfirmSubscriptionPayment")]
+    public async Task<HttpResponseData> ConfirmSubscriptionPayment(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/subscriptions/{id}/payment/confirm")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<ConfirmSubscriptionPaymentRequest>(req);
+            if (validationError != null) return validationError;
+
+            var subscription = await _mongo.GetCustomerSubscriptionByIdAsync(id);
+            if (subscription == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Subscription not found" });
+                return notFound;
+            }
+
+            if (subscription.PaymentStatus == "paid")
+            {
+                var ok = req.CreateResponse(HttpStatusCode.OK);
+                await ok.WriteAsJsonAsync(new { message = "Payment already confirmed", subscription });
+                return ok;
+            }
+
+            if (subscription.Status != "pending_payment" || subscription.PaymentStatus != "pending")
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Subscription is not awaiting payment confirmation" });
+                return conflict;
+            }
+
+            var now = MongoService.GetIstNow();
+            subscription.PaymentStatus = "paid";
+            subscription.PaymentReference = request.PaymentReference?.Trim();
+            subscription.PaymentConfirmedBy = userId;
+            subscription.PaymentConfirmedAt = now;
+            subscription.AmountPaid = subscription.AmountDue;
+            subscription.Status = "active";
+            subscription.StartDate = now;
+            subscription.EndDate = now.AddDays(subscription.DurationDays);
+            subscription.UpdatedAt = now;
+
+            await _mongo.UpdateCustomerSubscriptionAsync(id, subscription);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { message = "Subscription payment confirmed and plan activated", subscription });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error confirming subscription payment {SubscriptionId}", id);
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteAsJsonAsync(new { error = "Failed to confirm subscription payment" });
+            return response;
         }
     }
 

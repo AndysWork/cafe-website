@@ -8,9 +8,9 @@ import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { Order, OrderIssue, OrderService, UpiReconciliationReport } from '../../services/order.service';
 import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery-partner.service';
-import { PaymentService } from '../../services/payment.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
+import { ActiveDineInTable, DineInService } from '../../services/dine-in.service';
 import { getIstDateString, getIstFileStamp, getIstInputDate, formatIstDateTime } from '../../utils/date-utils';
 
 interface OnlineSaleSummaryItem {
@@ -96,17 +96,18 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   issueStatusDraft: Record<string, string> = {};
   issueResolutionDraft: Record<string, string> = {};
   issueRefundDraft: Record<string, boolean> = {};
-  issueRefunding: Record<string, boolean> = {};
   paymentRefDraft: Record<string, string> = {};
   upiReconLoading = false;
   upiReconciliationReport: UpiReconciliationReport | null = null;
+  pendingDineInPayments: ActiveDineInTable[] = [];
+  confirmingDineInSessionId: string | null = null;
 
   readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled'];
 
   constructor(
     private orderService: OrderService,
     private deliveryPartnerService: DeliveryPartnerService,
-    private paymentService: PaymentService,
+    private dineInService: DineInService,
     private http: HttpClient
   ) {}
 
@@ -129,6 +130,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     try {
       await this.loadDashboardData();
       await this.loadUpiReconciliationReport();
+      await this.loadPendingDineInPayments();
       this.initializeDrafts();
     } finally {
       this.loading = false;
@@ -185,6 +187,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   async onDateRangeChange(): Promise<void> {
     await this.loadDashboardData();
     await this.loadUpiReconciliationReport();
+    await this.loadPendingDineInPayments();
     this.initializeDrafts();
   }
 
@@ -205,6 +208,49 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
           resolve();
         }
       });
+    });
+  }
+
+  async loadPendingDineInPayments(): Promise<void> {
+    return new Promise((resolve) => {
+      const outletId = this.outletService.getSelectedOutletId();
+      if (!outletId) {
+        this.pendingDineInPayments = [];
+        resolve();
+        return;
+      }
+
+      this.dineInService.getActiveTables(outletId).subscribe({
+        next: sessions => {
+          this.pendingDineInPayments = (sessions || []).filter(session =>
+            session.paymentStatus === 'pending_verification' || session.paymentStatus === 'pending_cash'
+          );
+          resolve();
+        },
+        error: error => {
+          console.error('Error loading pending dine-in payments:', error);
+          this.pendingDineInPayments = [];
+          this.uiStore.warning('Pending dine-in payments are temporarily unavailable.');
+          resolve();
+        }
+      });
+    });
+  }
+
+  confirmDineInPayment(session: ActiveDineInTable): void {
+    if (this.confirmingDineInSessionId) return;
+    this.confirmingDineInSessionId = session.id;
+    this.dineInService.confirmPayment(session.id).subscribe({
+      next: response => {
+        this.uiStore.success(response.message || `Payment confirmed for table ${session.tableNumber}`);
+        this.confirmingDineInSessionId = null;
+        this.loadPendingDineInPayments();
+      },
+      error: error => {
+        console.error('Error confirming dine-in payment:', error);
+        this.uiStore.error(error.error?.error || 'Failed to confirm dine-in payment');
+        this.confirmingDineInSessionId = null;
+      }
     });
   }
 
@@ -410,7 +456,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   canBypassConfirmPayment(order: Order): boolean {
     const method = (order.paymentMethod || '').toLowerCase();
-    return (method === 'razorpay' || method === 'upi-qr') && order.paymentStatus === 'pending';
+    return method === 'upi-qr' && order.paymentStatus === 'pending';
   }
 
   confirmPayment(order: Order): void {
@@ -546,43 +592,6 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     });
   }
 
-  canRefund(order: Order): boolean {
-    return order.paymentMethod === 'razorpay' && order.paymentStatus === 'paid';
-  }
-
-  processIssueRefund(order: Order, issue: OrderIssue): void {
-    if (!issue.id) {
-      this.uiStore.error('Invalid issue id');
-      return;
-    }
-
-    if (!this.canRefund(order)) {
-      this.uiStore.warning('Refund is available only for paid Razorpay orders');
-      return;
-    }
-
-    const key = this.getIssueDraftKey(order.id, issue.id);
-    const reason = (this.issueResolutionDraft[key] || issue.description || '').trim();
-
-    this.issueRefunding[key] = true;
-    this.paymentService.refundPayment({
-      orderId: order.id,
-      reason: reason || `Issue refund for order ${order.id}`
-    }).subscribe({
-      next: () => {
-        this.issueRefundDraft[key] = true;
-        this.issueResolutionDraft[key] = reason || this.issueResolutionDraft[key];
-        this.uiStore.success(`Refund processed for order ${order.id.slice(-6)}`);
-        this.issueRefunding[key] = false;
-      },
-      error: (error) => {
-        console.error('Error processing refund:', error);
-        this.uiStore.error(error.error?.error || 'Failed to process refund');
-        this.issueRefunding[key] = false;
-      }
-    });
-  }
-
   getLoyaltyStatus(order: Order): string {
     if (order.loyaltyPointsAwarded) {
       return `Awarded (${order.loyaltyPointsAwardedValue || 0} pts)`;
@@ -659,5 +668,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   trackByPartnerId(_: number, item: DeliveryPartner): string {
     return item.id || item.phone;
+  }
+
+  trackByDineInSessionId(_: number, item: ActiveDineInTable): string {
+    return item.id;
   }
 }

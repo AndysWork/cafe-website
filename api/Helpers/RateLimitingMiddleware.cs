@@ -174,8 +174,8 @@ public class RateLimitingMiddleware : IFunctionsWorkerMiddleware
                 return ip;
         }
 
-        // Try Azure-specific client IP header
-        if (request.Headers.TryGetValues("X-Client-IP", out var clientIp))
+        // X-Client-IP is also client-controlled unless a trusted proxy is configured.
+        if (trustForwardedHeaders && request.Headers.TryGetValues("X-Client-IP", out var clientIp))
         {
             var ip = clientIp.First();
             if (!string.IsNullOrEmpty(ip))

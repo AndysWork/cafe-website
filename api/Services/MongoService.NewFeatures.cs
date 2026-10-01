@@ -958,6 +958,20 @@ public partial class MongoService : IOperationsRepository
             .ToListAsync();
     }
 
+    public async Task<List<CustomerSubscription>> GetCustomerSubscriptionsAsync(string? outletId = null, string? paymentStatus = null, int limit = 200)
+    {
+        var filter = Builders<CustomerSubscription>.Filter.Empty;
+        if (!string.IsNullOrWhiteSpace(outletId))
+            filter &= Builders<CustomerSubscription>.Filter.Eq(s => s.OutletId, outletId);
+        if (!string.IsNullOrWhiteSpace(paymentStatus))
+            filter &= Builders<CustomerSubscription>.Filter.Eq(s => s.PaymentStatus, paymentStatus);
+
+        return await _customerSubscriptions.Find(filter)
+            .SortByDescending(s => s.CreatedAt)
+            .Limit(Math.Clamp(limit, 1, 500))
+            .ToListAsync();
+    }
+
     public async Task<CustomerSubscription?> GetCustomerSubscriptionByIdAsync(string id)
     {
         if (string.IsNullOrWhiteSpace(id)) return null;

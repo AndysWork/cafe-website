@@ -2170,6 +2170,29 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
+    public async Task<bool> TryUpdateOrderStatusAsync(
+        string orderId,
+        IReadOnlyCollection<string> expectedStatuses,
+        string status)
+    {
+        if (expectedStatuses.Count == 0) return false;
+
+        var update = Builders<Order>.Update
+            .Set(x => x.Status, status)
+            .Set(x => x.UpdatedAt, GetIstNow());
+        if (status == "delivered")
+        {
+            update = update.Set(x => x.CompletedAt, GetIstNow());
+        }
+
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(x => x.Id, orderId),
+            Builders<Order>.Filter.In(x => x.Status, expectedStatuses),
+            Builders<Order>.Filter.Ne(x => x.IsDeleted, true));
+        var result = await _orders.UpdateOneAsync(filter, update);
+        return result.ModifiedCount == 1;
+    }
+
     // Replace full order document
     public async Task<bool> UpdateOrderAsync(Order order)
     {
@@ -2177,29 +2200,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
-    // Update payment status after Razorpay verification
-    public async Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null, string? razorpayOrderId = null)
+    // Update payment status after UPI or cash confirmation.
+    public async Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus)
     {
         var update = Builders<Order>.Update
             .Set(x => x.PaymentStatus, paymentStatus)
-            .Set(x => x.UpdatedAt, GetIstNow());
-
-        if (razorpayPaymentId != null)
-            update = update.Set(x => x.RazorpayPaymentId, razorpayPaymentId);
-        if (razorpaySignature != null)
-            update = update.Set(x => x.RazorpaySignature, razorpaySignature);
-        if (razorpayOrderId != null)
-            update = update.Set(x => x.RazorpayOrderId, razorpayOrderId);
-
-        var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
-        return result.ModifiedCount > 0;
-    }
-
-    // Store Razorpay refund ID on order
-    public async Task<bool> UpdateRefundIdAsync(string orderId, string refundId)
-    {
-        var update = Builders<Order>.Update
-            .Set(x => x.RazorpayRefundId, refundId)
             .Set(x => x.UpdatedAt, GetIstNow());
 
         var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
@@ -2427,16 +2432,20 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     }
 
     // Deduct loyalty points for checkout
-    public async Task<bool> DeductLoyaltyPointsAsync(string userId, int points, string description)
+    public async Task<bool> DeductLoyaltyPointsAsync(string userId, int points, string description, string? orderId = null)
     {
-        var account = await _loyaltyAccounts.Find(x => x.UserId == userId).FirstOrDefaultAsync();
-        if (account == null || account.CurrentPoints < points) return false;
+        if (points <= 0) return false;
 
-        account.CurrentPoints -= points;
-        account.TotalPointsRedeemed += points;
-        account.UpdatedAt = GetIstNow();
+        var filter = Builders<LoyaltyAccount>.Filter.And(
+            Builders<LoyaltyAccount>.Filter.Eq(x => x.UserId, userId),
+            Builders<LoyaltyAccount>.Filter.Gte(x => x.CurrentPoints, points));
+        var update = Builders<LoyaltyAccount>.Update
+            .Inc(x => x.CurrentPoints, -points)
+            .Inc(x => x.TotalPointsRedeemed, points)
+            .Set(x => x.UpdatedAt, GetIstNow());
 
-        await _loyaltyAccounts.ReplaceOneAsync(x => x.Id == account.Id, account);
+        var result = await _loyaltyAccounts.UpdateOneAsync(filter, update);
+        if (result.ModifiedCount == 0) return false;
 
         var transaction = new PointsTransaction
         {
@@ -2444,10 +2453,34 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             Points = -points,
             Type = "redeemed",
             Description = description,
+            OrderId = orderId,
             CreatedAt = GetIstNow()
         };
         await _transactions.InsertOneAsync(transaction);
 
+        return true;
+    }
+
+    public async Task<bool> RestoreLoyaltyPointsAsync(string userId, int points, string description, string? orderId = null)
+    {
+        if (points <= 0) return false;
+
+        var update = Builders<LoyaltyAccount>.Update
+            .Inc(x => x.CurrentPoints, points)
+            .Inc(x => x.TotalPointsRedeemed, -points)
+            .Set(x => x.UpdatedAt, GetIstNow());
+        var result = await _loyaltyAccounts.UpdateOneAsync(x => x.UserId == userId, update);
+        if (result.ModifiedCount == 0) return false;
+
+        await _transactions.InsertOneAsync(new PointsTransaction
+        {
+            UserId = userId,
+            Points = points,
+            Type = "refund",
+            Description = description,
+            OrderId = orderId,
+            CreatedAt = GetIstNow()
+        });
         return true;
     }
 
@@ -4308,8 +4341,26 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     // Increment offer usage count
     public async Task<bool> IncrementOfferUsageAsync(string id)
     {
+        var filter = Builders<Offer>.Filter.And(
+            Builders<Offer>.Filter.Eq(o => o.Id, id),
+            Builders<Offer>.Filter.Eq(o => o.IsActive, true),
+            Builders<Offer>.Filter.Ne(o => o.IsDeleted, true),
+            Builders<Offer>.Filter.Or(
+                Builders<Offer>.Filter.Eq(o => o.UsageLimit, null),
+                new BsonDocumentFilterDefinition<Offer>(
+                    new BsonDocument("$expr", new BsonDocument("$lt", new BsonArray { "$usageCount", "$usageLimit" })))));
         var update = Builders<Offer>.Update.Inc(o => o.UsageCount, 1);
-        var result = await _offers.UpdateOneAsync(o => o.Id == id, update);
+        var result = await _offers.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> DecrementOfferUsageAsync(string id)
+    {
+        var filter = Builders<Offer>.Filter.And(
+            Builders<Offer>.Filter.Eq(o => o.Id, id),
+            Builders<Offer>.Filter.Gt(o => o.UsageCount, 0));
+        var update = Builders<Offer>.Update.Inc(o => o.UsageCount, -1);
+        var result = await _offers.UpdateOneAsync(filter, update);
         return result.ModifiedCount > 0;
     }
 

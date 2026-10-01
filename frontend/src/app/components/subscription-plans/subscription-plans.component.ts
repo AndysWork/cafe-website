@@ -48,7 +48,7 @@ export class SubscriptionPlansComponent implements OnInit {
   checkoutPhone: string = '';
   checkoutName: string = '';
   checkoutNotes: string = '';
-  checkoutPaymentMethod: string = 'upi-qr';
+  checkoutPaymentMethod: 'upi-qr' | 'cash_at_counter' = 'upi-qr';
   subscribingCurated = false;
 
   // Custom Combo Builder
@@ -76,7 +76,7 @@ export class SubscriptionPlansComponent implements OnInit {
   comboCustomerPhone: string = '';
   comboCustomerName: string = '';
   comboSpecialNotes: string = '';
-  comboPaymentMethod: string = 'upi-qr';
+  comboPaymentMethod: 'upi-qr' | 'cash_at_counter' = 'upi-qr';
   submittingCustomCombo = false;
   mobileComboStep: 'menu' | 'review' = 'menu';
 

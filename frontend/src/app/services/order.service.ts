@@ -1,6 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
@@ -83,10 +82,7 @@ export interface CreateOrderRequest {
   phoneNumber?: string;
   preparationNotes?: string;
   notes?: string;
-  paymentMethod?: 'cod' | 'razorpay' | 'upi-qr' | 'dine_in_tab';
-  razorpayPaymentId?: string;
-  razorpayOrderId?: string;
-  razorpaySignature?: string;
+  paymentMethod?: 'cod' | 'upi-qr' | 'dine_in_tab';
   upiReference?: string;
   couponCode?: string;
   loyaltyPointsUsed?: number;
@@ -232,7 +228,8 @@ export class OrderService {
 
   // Create new order
   createOrder(orderRequest: CreateOrderRequest): Observable<Order> {
-    return this.http.post<Order>(`${this.apiUrl}/orders`, orderRequest).pipe(
+    const headers = new HttpHeaders({ 'X-Idempotency-Key': crypto.randomUUID() });
+    return this.http.post<Order>(`${this.apiUrl}/orders`, orderRequest, { headers }).pipe(
       catchError(handleServiceError('OrderService.createOrder'))
     );
   }
@@ -328,6 +325,7 @@ export class OrderService {
       'confirmed': 'Confirmed',
       'preparing': 'Preparing',
       'ready': 'Ready for Pickup',
+      'served': 'Served',
       'out-for-delivery': 'Out for Delivery',
       'delivered': 'Delivered',
       'cancelled': 'Cancelled'
@@ -343,6 +341,7 @@ export class OrderService {
       'confirmed': 'text-info',
       'preparing': 'text-primary',
       'ready': 'text-success',
+      'served': 'text-success',
       'out-for-delivery': 'text-primary',
       'delivered': 'text-success',
       'cancelled': 'text-danger'

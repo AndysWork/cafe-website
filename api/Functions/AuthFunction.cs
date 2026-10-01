@@ -769,7 +769,7 @@ public class AuthFunction
             var token = await _mongo.GetPasswordResetTokenAsync(resetPasswordRequest.ResetToken);
             if (token == null)
             {
-                auditLogger.LogSecurityEvent("Invalid Reset Token", "unknown", ipAddress, $"Token: {resetPasswordRequest.ResetToken}", SecuritySeverity.Medium);
+                auditLogger.LogSecurityEvent("Invalid Reset Token", "unknown", ipAddress, "A submitted reset token was invalid or expired", SecuritySeverity.Medium);
                 
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid or expired reset token" });

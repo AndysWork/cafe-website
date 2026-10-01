@@ -2,7 +2,6 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { OrderService, Order } from '../../services/order.service';
-import { PaymentService } from '../../services/payment.service';
 import { AuthService } from '../../services/auth.service';
 import { CartService } from '../../services/cart.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
@@ -27,7 +26,6 @@ interface QuickReorderPreset {
   styleUrls: ['./orders.component.scss']
 })
 export class OrdersComponent implements OnInit, OnDestroy {
-  private readonly pendingPaymentStorageKey = 'pending_payment_recovery';
   private uiStore = inject(UIStore);
   private dineInService = inject(DineInService);
   private reservationService = inject(TableReservationService);
@@ -42,7 +40,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
   activeFilter: string = 'all';
   activeOrderTypeFilter: 'all' | 'delivery' | 'dine-in' | 'pickup' | 'reservation' = 'all';
   quickReorderPresets: QuickReorderPreset[] = [];
-  pendingPaymentRecovery: { amount: number; reason: string; timestamp: string } | null = null;
   private routeSub?: Subscription;
   private successTimeout?: ReturnType<typeof setTimeout>;
   private menuItemMap = new Map<string, MenuItem>();
@@ -59,7 +56,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
   constructor(
     private orderService: OrderService,
     private authService: AuthService,
-    private paymentService: PaymentService,
     private cartService: CartService,
     private menuService: MenuService,
     private router: Router,
@@ -79,21 +75,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
     this.loadOrders();
     this.loadReservations();
     this.prefetchMenuItems();
-    this.loadPendingPaymentRecovery();
+    localStorage.removeItem('pending_payment_recovery');
   }
 
   ngOnDestroy() {
     this.routeSub?.unsubscribe();
     if (this.successTimeout) clearTimeout(this.successTimeout);
-  }
-
-  retryPendingPayment(): void {
-    this.router.navigate(['/checkout']);
-  }
-
-  dismissPendingPaymentRecovery(): void {
-    this.pendingPaymentRecovery = null;
-    localStorage.removeItem(this.pendingPaymentStorageKey);
   }
 
   loadOrders() {
@@ -295,34 +282,13 @@ export class OrdersComponent implements OnInit, OnDestroy {
   getStatusIcon(status: string): string {
     const icons: Record<string, string> = {
       scheduled: '⏰', pending: '⏳', confirmed: '✅', preparing: '👨‍🍳',
-      ready: '🔔', 'out-for-delivery': '🛵', delivered: '🎉', cancelled: '❌'
+      ready: '🔔', served: '🍽️', 'out-for-delivery': '🛵', delivered: '🎉', cancelled: '❌'
     };
     return icons[status] || '📦';
   }
 
   getOrderTotal(order: Order): number {
     return order.total;
-  }
-
-  canRefundOrder(order: Order): boolean {
-    return this.isAdmin && order.paymentMethod === 'razorpay' && order.paymentStatus === 'paid';
-  }
-
-  refundOrder(orderId: string) {
-    const reason = prompt('Refund reason (optional):');
-    if (reason === null) return; // User cancelled prompt
-
-    this.paymentService.refundPayment({ orderId, reason: reason || undefined }).subscribe({
-      next: (result) => {
-        this.successMessage = `Refund of ₹${result.amount} processed successfully (ID: ${result.refundId})`;
-        setTimeout(() => this.successMessage = '', 5000);
-        this.loadOrders();
-      },
-      error: (error) => {
-        console.error('Error processing refund:', error);
-        this.uiStore.error(error.error?.error || 'Failed to process refund');
-      }
-    });
   }
 
   getPaymentStatusIcon(status: string): string {
@@ -523,18 +489,4 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   trackByName(index: number, item: any): string { return item.name; }
 
-  private loadPendingPaymentRecovery(): void {
-    const raw = localStorage.getItem(this.pendingPaymentStorageKey);
-    if (!raw) {
-      this.pendingPaymentRecovery = null;
-      return;
-    }
-
-    try {
-      this.pendingPaymentRecovery = JSON.parse(raw);
-    } catch {
-      this.pendingPaymentRecovery = null;
-      localStorage.removeItem(this.pendingPaymentStorageKey);
-    }
-  }
 }

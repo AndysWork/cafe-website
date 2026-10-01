@@ -85,6 +85,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.isLoggedIn && !this.isAdmin;
   }
 
+  get isCustomerLoggedIn(): boolean {
+    return this.isLoggedIn && this.isCustomer;
+  }
+
+  get isNonCustomerNonAdminLoggedIn(): boolean {
+    return this.isLoggedIn && !this.isAdmin && !this.isCustomer;
+  }
+
   get isLoggedIn(): boolean {
     return this.currentUser !== null;
   }

@@ -14,7 +14,8 @@ public interface ILoyaltyRepository
     Task<(bool Success, string Message, LoyaltyAccount? Account)> RedeemRewardAsync(string userId, string rewardId);
     Task<List<PointsTransaction>> GetUserTransactionsAsync(string userId);
     Task<LoyaltyAccount?> GetLoyaltyAccountAsync(string userId);
-    Task<bool> DeductLoyaltyPointsAsync(string userId, int points, string description);
+    Task<bool> DeductLoyaltyPointsAsync(string userId, int points, string description, string? orderId = null);
+    Task<bool> RestoreLoyaltyPointsAsync(string userId, int points, string description, string? orderId = null);
     Task<List<PointsTransaction>> GetAllTransactionsAsync();
 
     // Rewards

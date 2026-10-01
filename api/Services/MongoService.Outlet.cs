@@ -148,7 +148,7 @@ public partial class MongoService
 
         await Task.WhenAll(hasSalesTask, hasExpensesTask, hasOrdersTask, hasInventoryTask);
 
-        if (hasSalesTask.Result || hasExpensesTask.Result || hasOrdersTask.Result || hasInventoryTask.Result)
+        if (await hasSalesTask || await hasExpensesTask || await hasOrdersTask || await hasInventoryTask)
         {
             throw new InvalidOperationException("Cannot delete outlet with associated data. Deactivate it instead.");
         }

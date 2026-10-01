@@ -23,19 +23,6 @@
 
       <form (ngSubmit)="onCheckoutSubmit()" #checkoutForm="ngForm" aria-label="Checkout form">
 
-        <div *ngIf="pendingPaymentRecovery" class="recovery-banner" role="status">
-          <div>
-            <strong>Previous payment needs attention</strong>
-            <p>
-              {{ pendingPaymentRecovery.reason }}
-              <span *ngIf="pendingPaymentRecovery.amount">(Amount: ₹{{ pendingPaymentRecovery.amount }})</span>
-            </p>
-          </div>
-          <button type="button" class="btn-retry-payment" (click)="retryPendingPayment()" [disabled]="isSubmitting">
-            Retry Payment
-          </button>
-        </div>
-
         <!-- Order Type Selection -->
         <div class="order-type-section">
           <label class="section-label">🍽️ Order Type</label>
@@ -359,17 +346,6 @@
         <div class="payment-section">
           <label class="section-label" id="payment-method-label">💳 Payment Method</label>
           <div class="payment-options" role="radiogroup" aria-labelledby="payment-method-label">
-            <label class="payment-option" [class.active]="paymentMethod === 'razorpay'" [class.disabled]="!isRazorpayEnabled" (click)="isRazorpayEnabled && onPaymentMethodChange('razorpay')">
-              <input type="radio" name="paymentMethod" value="razorpay" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !isRazorpayEnabled" />
-              <div class="option-content">
-                <span class="option-icon">🔒</span>
-                <div>
-                  <strong>Pay Online</strong>
-                  <p>{{ isRazorpayEnabled ? 'UPI, Cards, Net Banking' : 'Currently disabled' }}</p>
-                </div>
-              </div>
-              <span class="recommended-badge" *ngIf="isRazorpayEnabled && paymentMethod === 'razorpay'">✓</span>
-            </label>
             <label class="payment-option" [class.active]="paymentMethod === 'upi-qr'" [class.disabled]="!isUpiQrEnabled" (click)="isUpiQrEnabled && onPaymentMethodChange('upi-qr')">
               <input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !isUpiQrEnabled" />
               <div class="option-content">
@@ -446,7 +422,7 @@
           <div *ngIf="orderType === 'delivery'"><strong>Delivery address:</strong> {{ deliveryAddress }}</div>
           <div *ngIf="orderType === 'dine-in'"><strong>Table:</strong> {{ tableNumber }}</div>
           <div><strong>Phone:</strong> {{ phoneNumber || 'Not provided' }}</div>
-          <div><strong>Payment:</strong> {{ paymentMethod === 'cod' ? 'Cash on delivery' : paymentMethod === 'upi-qr' ? 'UPI QR' : 'Online payment' }}</div>
+          <div><strong>Payment:</strong> {{ paymentMethod === 'cod' ? 'Cash on delivery' : 'UPI QR' }}</div>
           <div><strong>Total payable:</strong> ₹{{ grandTotal }}</div>
           <div *ngIf="scheduleOrder && scheduledDate && scheduledTime"><strong>Scheduled for:</strong> {{ scheduledDate | date:'mediumDate' }} at {{ scheduledTime }}</div>
         </div>
@@ -454,7 +430,7 @@
         <div class="review-actions">
           <button type="button" class="btn-back" (click)="cancelReviewStep()" [disabled]="isSubmitting">Edit Details</button>
           <button type="button" class="btn-place" (click)="confirmAndPlaceOrder()" [disabled]="isSubmitting">
-            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay ₹' + grandTotal : paymentMethod === 'upi-qr' ? '✅ Confirm & Place Order' : '🎉 Place Order') }}
+            {{ isSubmitting ? '⏳ Processing...' : (paymentMethod === 'upi-qr' ? '✅ Confirm & Place Order' : '🎉 Place Order') }}
           </button>
         </div>
       </div>

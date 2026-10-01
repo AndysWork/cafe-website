@@ -11,9 +11,9 @@ public interface IOrderRepository
     Task<long> GetAllOrdersCountAsync(string? outletId = null);
     Task<Order?> GetOrderByIdAsync(string orderId);
     Task<bool> UpdateOrderStatusAsync(string orderId, string status);
+    Task<bool> TryUpdateOrderStatusAsync(string orderId, IReadOnlyCollection<string> expectedStatuses, string status);
     Task<bool> UpdateOrderAsync(Order order);
-    Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus, string? razorpayPaymentId = null, string? razorpaySignature = null, string? razorpayOrderId = null);
-    Task<bool> UpdateRefundIdAsync(string orderId, string refundId);
+    Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus);
     Task<bool> UpdateReceiptImageUrlAsync(string orderId, string? receiptImageUrl);
     Task<bool> DeleteOrderAsync(string orderId);
 
@@ -40,4 +40,5 @@ public interface IOrderRepository
     Task<List<DineInSession>> GetActiveDineInSessionsAsync(string outletId);
     Task<List<DineInSession>> GetUserDineInSessionsAsync(string userId);
     Task<bool> UpdateDineInSessionAsync(DineInSession session);
+    Task<bool> TransitionDineInPaymentStatusAsync(string sessionId, IReadOnlyCollection<string> expectedStatuses, string newStatus);
 }

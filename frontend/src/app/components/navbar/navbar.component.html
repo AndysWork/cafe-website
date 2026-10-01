@@ -5,7 +5,12 @@
   (click)="closeMobileMenu()"
 ></div>
 
-<nav class="navbar" [class.mobile-open]="isMobileMenuOpen" role="navigation" aria-label="Main navigation">
+<nav
+  class="navbar"
+  [class.mobile-open]="isMobileMenuOpen"
+  role="navigation"
+  aria-label="Main navigation"
+>
   <div class="navbar-container">
     <!-- Logo -->
     <a routerLink="/" class="navbar-brand" (click)="closeMobileMenu()">
@@ -80,7 +85,10 @@
           </a>
         </li>
 
-        <li class="nav-item" *ngIf="(isManager || isKitchenUser) && !isHomeScreen">
+        <li
+          class="nav-item"
+          *ngIf="(isManager || isKitchenUser) && !isHomeScreen"
+        >
           <a
             routerLink="/kitchen/display"
             routerLinkActive="active"
@@ -146,60 +154,11 @@
             Cart
           </a>
         </li>
-        <!-- Regular User: Orders -->
-        <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
-          <a
-            routerLink="/orders"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">🛒</span>
-            Orders
-          </a>
-        </li>
-
-        <!-- Regular User: Reservations -->
-        <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
-          <a
-            routerLink="/reservations"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">📅</span>
-            Reservations
-          </a>
-        </li>
-
-        <!-- Regular User: Subscriptions / Meal Plans -->
-        <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
-          <a
-            routerLink="/subscriptions"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">🔁</span>
-            Subscriptions
-          </a>
-        </li>
-
-        <!-- Regular User: Loyalty Points -->
-        <li class="nav-item" *ngIf="isCustomer && !isHomeScreen">
-          <a
-            routerLink="/loyalty"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">⭐</span>
-            Loyalty Points
-          </a>
-        </li>
-
         <!-- Profile (All non-admin authenticated roles) -->
-        <li class="nav-item" *ngIf="(isPartnerUser || isKitchenUser || isCustomer || isManager) && !isHomeScreen">
+        <li
+          class="nav-item"
+          *ngIf="(isPartnerUser || isKitchenUser || isManager) && !isHomeScreen"
+        >
           <a
             routerLink="/profile"
             routerLinkActive="active"
@@ -230,7 +189,12 @@
           (mouseenter)="openDropdown('profile')"
           (mouseleave)="scheduleCloseDropdown()"
         >
-          <button class="profile-badge" (click)="toggleDropdown('profile')" aria-haspopup="true" [attr.aria-expanded]="activeDropdown === 'profile'">
+          <button
+            class="profile-badge"
+            (click)="toggleDropdown('profile')"
+            aria-haspopup="true"
+            [attr.aria-expanded]="activeDropdown === 'profile'"
+          >
             <span class="profile-icon">👤</span>
             <span class="username">{{ displayName }}</span>
             <span class="arrow" [class.open]="activeDropdown === 'profile'"
@@ -283,8 +247,116 @@
           </ul>
         </div>
 
+        <!-- Customer Profile Dropdown -->
+        <div
+          *ngIf="isCustomerLoggedIn"
+          class="profile-dropdown customer-profile"
+          [class.active]="activeDropdown === 'customer-profile'"
+          (mouseenter)="openDropdown('customer-profile')"
+          (mouseleave)="scheduleCloseDropdown()"
+        >
+          <button
+            class="profile-badge"
+            (click)="toggleDropdown('customer-profile')"
+            aria-haspopup="true"
+            [attr.aria-expanded]="activeDropdown === 'customer-profile'"
+          >
+            <span class="profile-icon">👤</span>
+            <span class="username">Welcome {{ displayName }}</span>
+            <span
+              class="arrow"
+              [class.open]="activeDropdown === 'customer-profile'"
+              >▼</span
+            >
+          </button>
+
+          <ul
+            class="dropdown-menu profile-menu"
+            [class.show]="activeDropdown === 'customer-profile'"
+            (mouseenter)="cancelCloseDropdown()"
+            (mouseleave)="scheduleCloseDropdown()"
+            role="menu"
+          >
+            <li>
+              <a
+                routerLink="/profile"
+                routerLinkActive="active"
+                class="dropdown-item primary-profile-item"
+                (click)="closeMobileMenu()"
+              >
+                <span class="dropdown-icon">👤</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">My Profile</span>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a
+                routerLink="/orders"
+                routerLinkActive="active"
+                class="dropdown-item"
+                (click)="closeMobileMenu()"
+              >
+                <span class="dropdown-icon">🛒</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">My Orders</span>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a
+                routerLink="/reservations"
+                routerLinkActive="active"
+                class="dropdown-item"
+                (click)="closeMobileMenu()"
+              >
+                <span class="dropdown-icon">📅</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Reservations</span>
+                </div>
+              </a>
+            </li>
+
+            <li>
+              <a
+                routerLink="/subscriptions"
+                routerLinkActive="active"
+                class="dropdown-item"
+                (click)="closeMobileMenu()"
+              >
+                <span class="dropdown-icon">🔁</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Subscriptions</span>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a
+                routerLink="/loyalty"
+                routerLinkActive="active"
+                class="dropdown-item"
+                (click)="closeMobileMenu()"
+              >
+                <span class="dropdown-icon">⭐</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Loyalty Points</span>
+                </div>
+              </a>
+            </li>
+            <li class="divider"></li>
+            <li>
+              <button class="dropdown-item logout-item" (click)="onLogout()">
+                <span class="dropdown-icon">🚪</span>
+                <div class="dropdown-content">
+                  <span class="dropdown-title">Logout</span>
+                </div>
+              </button>
+            </li>
+          </ul>
+        </div>
+
         <!-- Non-admin User Display -->
-        <div *ngIf="isNonAdminLoggedIn" class="user-section">
+        <div *ngIf="isNonCustomerNonAdminLoggedIn" class="user-section">
           <span class="username">{{ displayName }}</span>
           <button class="btn-logout" (click)="onLogout()">
             <span class="logout-icon">🚪</span>

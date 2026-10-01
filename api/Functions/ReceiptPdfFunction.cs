@@ -206,7 +206,13 @@ public class ReceiptPdfFunction
 
                     col.Item().PaddingTop(6).Column(info =>
                     {
-                        var paymentDisplay = order.PaymentMethod == "razorpay" ? "Online (Razorpay)" : "Cash on Delivery";
+                        var paymentDisplay = order.PaymentMethod switch
+                        {
+                            "upi-qr" => "UPI QR",
+                            "cash_at_counter" => "Cash at Counter",
+                            "dine_in_tab" => "Dine-In Tab",
+                            _ => "Cash on Delivery"
+                        };
                         AddInfoRow(info, "Payment", $"{paymentDisplay} — {order.PaymentStatus}");
                         AddInfoRow(info, "Customer", order.Username);
 

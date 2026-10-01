@@ -143,6 +143,26 @@
     }
   }
 
+  .dine-in-payment-table table {
+    min-width: 760px;
+  }
+
+  .confirm-dine-in-btn {
+    border: 1px solid #15803d;
+    border-radius: 6px;
+    background: #f0fdf4;
+    color: #166534;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+  }
+
   .table-wrap {
     overflow-x: auto;
 

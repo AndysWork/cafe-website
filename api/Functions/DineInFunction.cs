@@ -10,6 +10,8 @@ using System.Net;
 using System.Security.Claims;
 using System.Globalization;
 using MongoDB.Bson;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Cafe.Api.Functions;
 
@@ -22,7 +24,6 @@ public class DineInFunction
     private readonly IOfferRepository _offerRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
     private readonly IOperationsRepository _operationsRepo;
-    private readonly IRazorpayService _razorpay;
     private readonly AuthService _auth;
     private readonly OutboxService _outbox;
     private readonly IConfiguration _config;
@@ -36,7 +37,6 @@ public class DineInFunction
         IOfferRepository offerRepo,
         ILoyaltyRepository loyaltyRepo,
         IOperationsRepository operationsRepo,
-        IRazorpayService razorpay,
         AuthService auth,
         OutboxService outbox,
         IConfiguration config,
@@ -49,7 +49,6 @@ public class DineInFunction
         _offerRepo = offerRepo;
         _loyaltyRepo = loyaltyRepo;
         _operationsRepo = operationsRepo;
-        _razorpay = razorpay;
         _auth = auth;
         _outbox = outbox;
         _config = config;
@@ -88,7 +87,9 @@ public class DineInFunction
             {
                 var latest = await _orderRepo.GetLatestDineInSessionByTableAsync(outletId, tableNumber);
                 var isSettled = latest != null && latest.Status == "paid";
-                var latestBill = isSettled ? await BuildBillResponseAsync(latest!) : null;
+                var latestBill = isSettled && HasSessionAccess(req, latest!)
+                    ? await BuildBillResponseAsync(latest!)
+                    : null;
 
                 var okEmpty = req.CreateResponse(HttpStatusCode.OK);
                 await okEmpty.WriteAsJsonAsync(new
@@ -98,6 +99,13 @@ public class DineInFunction
                     latestPaidSession = latestBill
                 });
                 return okEmpty;
+            }
+
+            if (!HasSessionAccess(req, session))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
+                return forbidden;
             }
 
             var bill = await BuildBillResponseAsync(session);
@@ -153,7 +161,6 @@ public class DineInFunction
                 if (paidSession != null)
                 {
                     session = paidSession;
-                    _ = _operationsRepo.UpdateReservationStatusAsync(reservation.Id!, "completed", reservation.TableNumber, paidSession.Id);
                 }
             }
 
@@ -176,7 +183,6 @@ public class DineInFunction
 
                 if (session != null)
                 {
-                    _ = _operationsRepo.UpdateReservationStatusAsync(reservation.Id!, reservation.Status, reservation.TableNumber, session.Id);
                 }
             }
 
@@ -191,7 +197,6 @@ public class DineInFunction
 
                 if (session != null)
                 {
-                    _ = _operationsRepo.UpdateReservationStatusAsync(reservation.Id!, reservation.Status, reservation.TableNumber, session.Id);
                 }
             }
 
@@ -200,6 +205,13 @@ public class DineInFunction
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(new { error = "No dining bill recorded for this reservation yet." });
                 return notFound;
+            }
+
+            if (!HasSessionAccess(req, session))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Access denied for this reservation bill" });
+                return forbidden;
             }
 
             var bill = await BuildBillResponseAsync(session);
@@ -242,6 +254,12 @@ public class DineInFunction
             var existingSession = await _orderRepo.GetActiveDineInSessionByTableAsync(outletId, tableNumber);
             if (existingSession != null)
             {
+                if (!HasSessionAccess(req, existingSession))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "This table already has an active session. Ask staff to help you join it." });
+                    return conflict;
+                }
                 var bill = await BuildBillResponseAsync(existingSession);
                 var resExisting = req.CreateResponse(HttpStatusCode.OK);
                 await resExisting.WriteAsJsonAsync(new { message = "Joined active table session", session = bill });
@@ -254,6 +272,7 @@ public class DineInFunction
             var customerPhone = !string.IsNullOrWhiteSpace(request.CustomerPhone) ? request.CustomerPhone.Trim() : userPhone;
 
             var outlet = await _outletRepo.GetOutletByIdAsync(outletId);
+            var (sessionAccessToken, sessionAccessTokenHash) = CreateSessionAccessToken();
 
             var session = new DineInSession
             {
@@ -263,6 +282,7 @@ public class DineInFunction
                 UserId = userId,
                 CustomerName = customerName,
                 CustomerPhone = customerPhone,
+                AccessTokenHash = sessionAccessTokenHash,
                 Status = "active",
                 PaymentStatus = "unpaid",
                 CreatedAt = MongoService.GetIstNow(),
@@ -273,7 +293,12 @@ public class DineInFunction
             var billCreated = await BuildBillResponseAsync(created);
 
             var response = req.CreateResponse(HttpStatusCode.Created);
-            await response.WriteAsJsonAsync(new { message = "Table session started", session = billCreated });
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Table session started",
+                session = billCreated,
+                sessionAccessToken
+            });
             return response;
         }
         catch (Exception ex)
@@ -323,12 +348,15 @@ public class DineInFunction
 
             var (userId, username, userPhone) = GetOptionalUserInfo(req);
             var customerPhone = string.IsNullOrWhiteSpace(orderRequest.PhoneNumber) ? userPhone : orderRequest.PhoneNumber.Trim();
+            string? sessionAccessToken = null;
 
             // Find or automatically start active session for this table
             var session = await _orderRepo.GetActiveDineInSessionByTableAsync(outletId, tableNumber);
             if (session == null)
             {
                 var outlet = await _outletRepo.GetOutletByIdAsync(outletId);
+                var generatedAccess = CreateSessionAccessToken();
+                sessionAccessToken = generatedAccess.token;
                 session = new DineInSession
                 {
                     OutletId = outletId,
@@ -337,6 +365,7 @@ public class DineInFunction
                     UserId = userId,
                     CustomerName = username,
                     CustomerPhone = customerPhone,
+                    AccessTokenHash = generatedAccess.hash,
                     Status = "active",
                     PaymentStatus = "unpaid",
                     CreatedAt = MongoService.GetIstNow(),
@@ -344,11 +373,20 @@ public class DineInFunction
                 };
                 session = await _orderRepo.CreateDineInSessionAsync(session);
             }
-            else if (session.Status == "bill_requested")
+            else
             {
-                // If bill was requested but customer wants to add more food, reopen active status
-                session.Status = "active";
-                session.BillRequestedAt = null;
+                if (!HasSessionAccess(req, session))
+                {
+                    var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                    await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
+                    return forbidden;
+                }
+
+                if (session.Status == "bill_requested")
+                {
+                    session.Status = "active";
+                    session.BillRequestedAt = null;
+                }
             }
 
             // Batch validate items from menu
@@ -453,7 +491,8 @@ public class DineInFunction
                 PlatformCharge = 0,
                 DeliveryFee = 0,
                 Total = roundTotal,
-                Status = "confirmed", // Confirmed immediately for kitchen preparation
+                // Start at "pending" so kitchen flow shows: Order Received -> Confirmed -> Preparing -> Prepared -> Served.
+                Status = "pending",
                 PaymentStatus = "unpaid",
                 PaymentMethod = "dine_in_tab",
                 OrderType = "dine-in",
@@ -494,7 +533,8 @@ public class DineInFunction
                 message = $"Round #{nextRoundNum} sent to Kitchen!",
                 orderId = order.Id,
                 roundNumber = nextRoundNum,
-                session = updatedBill
+                session = updatedBill,
+                sessionAccessToken
             });
             return response;
         }
@@ -524,6 +564,13 @@ public class DineInFunction
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
                 return notFound;
+            }
+
+            if (!HasSessionAccess(req, session))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
+                return forbidden;
             }
 
             var bill = await BuildBillResponseAsync(session);
@@ -556,6 +603,13 @@ public class DineInFunction
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
                 return notFound;
+            }
+
+            if (!HasSessionAccess(req, session))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
+                return forbidden;
             }
 
             if (session.Status == "paid")
@@ -609,6 +663,13 @@ public class DineInFunction
                 return notFound;
             }
 
+            if (!HasSessionAccess(req, session))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
+                return forbidden;
+            }
+
             if (session.Status != "active")
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -622,7 +683,9 @@ public class DineInFunction
             var couponCode = request.CouponCode.Trim().ToUpperInvariant();
             var offer = await _offerRepo.GetOfferByCodeAsync(couponCode);
 
-            if (offer == null || !offer.IsActive)
+            var now = MongoService.GetIstNow();
+            if (offer == null || !offer.IsActive || offer.ValidFrom > now || offer.ValidTill < now
+                || (offer.UsageLimit.HasValue && offer.UsageCount >= offer.UsageLimit.Value))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = "Invalid or expired coupon code" });
@@ -688,6 +751,13 @@ public class DineInFunction
                 return notFound;
             }
 
+            if (!HasSessionAccess(req, session))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
+                return forbidden;
+            }
+
             if (session.Status != "active")
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -733,10 +803,43 @@ public class DineInFunction
                 return notFound;
             }
 
+            if (!HasSessionAccess(req, session))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
+                return forbidden;
+            }
+
             if (session.Status == "paid")
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = "This bill has already been settled" });
+                return badReq;
+            }
+
+            if (session.PaymentStatus == "pending_verification" || session.PaymentStatus == "pending_cash")
+            {
+                var pending = req.CreateResponse(HttpStatusCode.OK);
+                await pending.WriteAsJsonAsync(new
+                {
+                    message = "Payment is already awaiting staff confirmation.",
+                    isSettled = false,
+                    session = await BuildBillResponseAsync(session)
+                });
+                return pending;
+            }
+
+            if (session.PaymentStatus == "processing")
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Payment confirmation is currently in progress" });
+                return conflict;
+            }
+
+            if (session.Status != "bill_requested" || session.PaymentStatus != "unpaid")
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Request the final bill before submitting payment" });
                 return badReq;
             }
 
@@ -745,63 +848,18 @@ public class DineInFunction
 
             var paymentMethod = request.PaymentMethod.ToLowerInvariant();
 
-            if (paymentMethod == "razorpay")
-            {
-                if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId))
-                {
-                    var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badReq.WriteAsJsonAsync(new { error = "Razorpay payment details required" });
-                    return badReq;
-                }
-                session.RazorpayPaymentId = request.RazorpayPaymentId;
-                session.RazorpayOrderId = request.RazorpayOrderId;
-                session.RazorpaySignature = request.RazorpaySignature;
-            }
-            else if (paymentMethod == "upi-qr")
+            if (paymentMethod == "upi-qr")
             {
                 session.UpiReference = request.UpiReference?.Trim();
             }
 
             session.PaymentMethod = paymentMethod;
-            session.PaymentStatus = paymentMethod == "cash_at_counter" ? "pending_cash" : "paid";
-            session.Status = paymentMethod == "cash_at_counter" ? "bill_requested" : "paid";
-            session.SettledAt = paymentMethod == "cash_at_counter" ? null : MongoService.GetIstNow();
+            session.PaymentStatus = paymentMethod == "cash_at_counter" ? "pending_cash" : "pending_verification";
+            session.Status = "bill_requested";
+            session.SettledAt = null;
             session.Notes = request.Notes;
 
             await _orderRepo.UpdateDineInSessionAsync(session);
-
-            // Update all underlying orders
-            if (paymentMethod != "cash_at_counter")
-            {
-                foreach (var orderId in session.OrderIds)
-                {
-                    await _orderRepo.UpdatePaymentStatusAsync(orderId, "paid", session.RazorpayPaymentId, session.RazorpaySignature, session.RazorpayOrderId);
-                    await _orderRepo.UpdateOrderStatusAsync(orderId, "delivered");
-                }
-
-                // If this DineInSession was spawned from a table reservation, mark reservation as 'completed'
-                try
-                {
-                    await _operationsRepo.CompleteReservationForDineInSessionAsync(session);
-                }
-                catch (Exception ex)
-                {
-                    _log.LogWarning(ex, "Could not update table reservation to completed for session {SessionId}", session.Id);
-                }
-
-                if (!string.IsNullOrWhiteSpace(session.UserId) && session.UserId != "guest_dinein")
-                {
-                    var pointsToAward = (int)Math.Floor(session.GrandTotal * 0.10m);
-                    if (pointsToAward > 0)
-                    {
-                        await _outbox.EnqueueAsync("LoyaltyPointsAwardExact", "DineInSession", session.Id!,
-                            new { UserId = session.UserId, Points = pointsToAward, Reason = $"Dine-In Table {session.TableNumber} bill settlement", OrderId = session.Id });
-
-                        await _outbox.EnqueueAsync("LoyaltyNotification", "DineInSession", session.Id!,
-                            new { UserId = session.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Dine-In Table {session.TableNumber}" });
-                    }
-                }
-            }
 
             var bill = await BuildBillResponseAsync(session);
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -809,8 +867,8 @@ public class DineInFunction
             {
                 message = paymentMethod == "cash_at_counter"
                     ? "Cash settlement requested. Please pay at counter."
-                    : "Payment received! Thank you for dining with us.",
-                isSettled = session.Status == "paid",
+                    : "UPI payment submitted for staff verification.",
+                isSettled = false,
                 session = bill
             });
             return response;
@@ -824,8 +882,85 @@ public class DineInFunction
         }
     }
 
+    [Function("ConfirmDineInPayment")]
+    public async Task<HttpResponseData> ConfirmDineInPayment(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "dine-in/session/{sessionId}/payment/confirm")] HttpRequestData req,
+        string sessionId)
+    {
+        string? claimedPaymentStatus = null;
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var session = await _orderRepo.GetDineInSessionByIdAsync(sessionId);
+            if (session == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
+                return notFound;
+            }
+
+            if (session.Status == "paid")
+            {
+                var ok = req.CreateResponse(HttpStatusCode.OK);
+                await ok.WriteAsJsonAsync(new { message = "Payment already confirmed", session = await BuildBillResponseAsync(session) });
+                return ok;
+            }
+
+            if (session.PaymentStatus != "pending_verification" && session.PaymentStatus != "pending_cash")
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "This session has no payment awaiting confirmation" });
+                return badRequest;
+            }
+
+            claimedPaymentStatus = session.PaymentStatus;
+            if (!await _orderRepo.TransitionDineInPaymentStatusAsync(
+                    sessionId,
+                    new[] { "pending_verification", "pending_cash" },
+                    "processing"))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "This payment is already being confirmed by another staff member" });
+                return conflict;
+            }
+            session.PaymentStatus = "processing";
+
+            session.Notes = string.IsNullOrWhiteSpace(session.Notes)
+                ? $"Payment confirmed by {userId}"
+                : $"{session.Notes} | Payment confirmed by {userId}";
+            if (!await FinalizeSessionPaymentAsync(session))
+            {
+                await _orderRepo.TransitionDineInPaymentStatusAsync(sessionId, new[] { "processing" }, claimedPaymentStatus);
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "The applied coupon is no longer available. Remove it and recalculate the bill." });
+                return conflict;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Dine-in payment confirmed and table closed",
+                session = await BuildBillResponseAsync(session)
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            if (claimedPaymentStatus != null)
+            {
+                await _orderRepo.TransitionDineInPaymentStatusAsync(sessionId, new[] { "processing" }, claimedPaymentStatus);
+            }
+            _log.LogError(ex, "Error confirming payment for dine-in session {SessionId}", sessionId);
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteAsJsonAsync(new { error = "Failed to confirm dine-in payment" });
+            return response;
+        }
+    }
+
     /// <summary>
-    /// Lists all active table sessions for staff / cashier / admin.
+    /// Lists all active table sessions for admin and manager roles.
     /// </summary>
     [Function("GetActiveDineInTables")]
     public async Task<HttpResponseData> GetActiveTables(
@@ -833,6 +968,9 @@ public class DineInFunction
     {
         try
         {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
             var outletId = req.Query["outletId"]?.Trim();
             outletId = await ResolveOutletIdAsync(req, outletId);
 
@@ -878,6 +1016,69 @@ public class DineInFunction
     }
 
     #region Helpers
+
+    private async Task<bool> FinalizeSessionPaymentAsync(DineInSession session)
+    {
+        Offer? appliedOffer = null;
+        if (!string.IsNullOrWhiteSpace(session.CouponCode))
+        {
+            appliedOffer = await _offerRepo.GetOfferByCodeAsync(session.CouponCode);
+            if (appliedOffer?.Id == null || !await _offerRepo.IncrementOfferUsageAsync(appliedOffer.Id))
+                return false;
+        }
+
+        try
+        {
+        session.PaymentStatus = "paid";
+        session.Status = "paid";
+        session.SettledAt = MongoService.GetIstNow();
+        session.UpdatedAt = MongoService.GetIstNow();
+        await _orderRepo.UpdateDineInSessionAsync(session);
+
+        foreach (var orderId in session.OrderIds)
+        {
+            await _orderRepo.UpdatePaymentStatusAsync(orderId, "paid");
+
+            var order = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (order == null) continue;
+
+            // Closing a paid dine-in bill should clear KDS by moving all non-cancelled rounds to delivered.
+            if (!string.Equals(order.Status, "cancelled", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(order.Status, "delivered", StringComparison.OrdinalIgnoreCase))
+            {
+                await _orderRepo.UpdateOrderStatusAsync(orderId, "delivered");
+            }
+        }
+
+        try
+        {
+            await _operationsRepo.CompleteReservationForDineInSessionAsync(session);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not complete reservation for dine-in session {SessionId}", session.Id);
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.UserId) && session.UserId != "guest_dinein")
+        {
+            var pointsToAward = (int)Math.Floor(session.GrandTotal * 0.10m);
+            if (pointsToAward > 0)
+            {
+                await _outbox.EnqueueAsync("LoyaltyPointsAwardExact", "DineInSession", session.Id!,
+                    new { UserId = session.UserId, Points = pointsToAward, Reason = $"Dine-In Table {session.TableNumber} bill settlement", OrderId = session.Id });
+                await _outbox.EnqueueAsync("LoyaltyNotification", "DineInSession", session.Id!,
+                    new { UserId = session.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Dine-In Table {session.TableNumber}" });
+            }
+        }
+        return true;
+        }
+        catch
+        {
+            if (appliedOffer?.Id != null)
+                await _offerRepo.DecrementOfferUsageAsync(appliedOffer.Id);
+            throw;
+        }
+    }
 
     private async Task RecalculateSessionTotalsAsync(DineInSession session)
     {
@@ -940,7 +1141,6 @@ public class DineInFunction
 
         var upiId = (_config["Upi:Id"] ?? _config["Upi__Id"] ?? Environment.GetEnvironmentVariable("Upi__Id") ?? string.Empty).Trim();
         var payeeName = (_config["Upi:PayeeName"] ?? _config["Upi__PayeeName"] ?? Environment.GetEnvironmentVariable("Upi__PayeeName") ?? "Maa Tara Cafe").Trim();
-        var razorpayEnabled = string.Equals(_config["Payment:EnableRazorpay"] ?? Environment.GetEnvironmentVariable("Payment__EnableRazorpay"), "true", StringComparison.OrdinalIgnoreCase);
 
         string? upiQrString = null;
         if (!string.IsNullOrWhiteSpace(upiId) && session.GrandTotal > 0)
@@ -983,7 +1183,6 @@ public class DineInFunction
             UpiQrString = upiQrString,
             UpiId = upiId,
             PayeeName = payeeName,
-            RazorpayEnabled = razorpayEnabled,
             InvoiceNumber = invoiceNum,
             EstimatedPointsToEarn = pointsToEarn,
             CanApplyCoupon = session.Status == "active"
@@ -1016,6 +1215,52 @@ public class DineInFunction
             }
         }
         return (null, null, null);
+    }
+
+    private bool HasSessionAccess(HttpRequestData req, DineInSession session)
+    {
+        var authHeader = req.Headers.TryGetValues("Authorization", out var authValues)
+            ? authValues.FirstOrDefault()
+            : null;
+        if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var principal = _auth.ValidateToken(authHeader["Bearer ".Length..].Trim());
+            if (principal != null)
+            {
+                var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var role = principal.FindFirst(ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+                if (role is "admin" or "manager" or "assistant-manager" or "cashier" or "staff" or "cook" or "chef" or "sous-chef" or "kitchen" or "kitchen-staff")
+                    return true;
+                if (!string.IsNullOrWhiteSpace(userId) && string.Equals(session.UserId, userId, StringComparison.Ordinal))
+                    return true;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(session.AccessTokenHash)) return false;
+        var suppliedToken = req.Headers.TryGetValues("X-Dine-In-Session-Token", out var tokenValues)
+            ? tokenValues.FirstOrDefault()?.Trim()
+            : null;
+        if (string.IsNullOrWhiteSpace(suppliedToken)) return false;
+
+        try
+        {
+            var suppliedHash = SHA256.HashData(Encoding.UTF8.GetBytes(suppliedToken));
+            var expectedHash = Convert.FromHexString(session.AccessTokenHash);
+            return suppliedHash.Length == expectedHash.Length
+                && CryptographicOperations.FixedTimeEquals(suppliedHash, expectedHash);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static (string token, string hash) CreateSessionAccessToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        var token = Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+        return (token, hash);
     }
 
     #endregion

@@ -51,7 +51,7 @@
 
     <div class="quick-reorder-banner">
       <div>
-        <strong>🔁 Reorder Last Order</strong>
+        <strong>Reorder Last Order</strong>
         <p *ngIf="loadingLastOrder">Checking your latest delivered order...</p>
         <p *ngIf="!loadingLastOrder && !lastDeliveredOrder">No delivered order found yet.</p>
         <p *ngIf="!loadingLastOrder && lastDeliveredOrder">{{ lastDeliveredOrder.items.length }} item(s) from {{ lastDeliveredOrder.createdAt | date:'mediumDate' }}</p>
@@ -63,11 +63,11 @@
 
     <!-- Tabs -->
     <div class="tabs">
-      <button class="tab" [class.active]="activeTab === 'profile'" (click)="switchTab('profile')">👤 Profile Info</button>
-      <button class="tab" [class.active]="activeTab === 'password'" (click)="switchTab('password')">🔒 Password</button>
-      <button class="tab" [class.active]="activeTab === 'addresses'" (click)="switchTab('addresses')">📍 Addresses</button>
-      <button class="tab" [class.active]="activeTab === 'favorites'" (click)="switchTab('favorites')">❤️ Loved Food</button>
-      <button class="tab" [class.active]="activeTab === 'notifications'" (click)="switchTab('notifications')">🔔 Notifications</button>
+      <button class="tab" [class.active]="activeTab === 'profile'" (click)="switchTab('profile')">Profile Info</button>
+      <button class="tab" [class.active]="activeTab === 'password'" (click)="switchTab('password')">Password</button>
+      <button class="tab" [class.active]="activeTab === 'addresses'" (click)="switchTab('addresses')">Addresses</button>
+      <button class="tab" [class.active]="activeTab === 'favorites'" (click)="switchTab('favorites')">Loved Food</button>
+      <button class="tab" [class.active]="activeTab === 'notifications'" (click)="switchTab('notifications')">Notifications</button>
     </div>
 
     <!-- Profile Tab -->
@@ -354,7 +354,7 @@
     <!-- Favorites Tab -->
     <div class="tab-body" *ngIf="activeTab === 'favorites'">
       <div class="form-card">
-        <h3 class="prefs-section-title">❤️ My Loved Food</h3>
+        <h3 class="prefs-section-title">My Loved Food</h3>
 
         <div *ngIf="isLoadingFavorites" class="loading-state">Loading favorites...</div>
 

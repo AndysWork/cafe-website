@@ -33,6 +33,7 @@ public class OrderFunction
     private readonly ILogger _log;
     private readonly EventLogService _eventLog;
     private readonly OutboxService _outbox;
+    private readonly IdempotencyService _idempotency;
 
     public OrderFunction(
         IOrderRepository orderRepo,
@@ -46,6 +47,7 @@ public class OrderFunction
         NotificationService notificationService,
         EventLogService eventLog,
         OutboxService outbox,
+        IdempotencyService idempotency,
         ILoggerFactory loggerFactory)
     {
         _orderRepo = orderRepo;
@@ -59,6 +61,7 @@ public class OrderFunction
         _notificationService = notificationService;
         _eventLog = eventLog;
         _outbox = outbox;
+        _idempotency = idempotency;
         _log = loggerFactory.CreateLogger<OrderFunction>();
     }
 
@@ -80,7 +83,8 @@ public class OrderFunction
     public async Task<HttpResponseData> CreateOrder(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders")] HttpRequestData req)
     {
-        bool orderPersisted = false;
+        string? idempotencyKey = null;
+        string? idempotencyUserId = null;
 
         try
         {
@@ -293,6 +297,7 @@ public class OrderFunction
             // Apply coupon discount
             decimal discountAmount = 0;
             string? couponCode = null;
+            Offer? appliedOffer = null;
             if (!string.IsNullOrWhiteSpace(orderRequest.CouponCode))
             {
                 couponCode = orderRequest.CouponCode.Trim().ToUpper();
@@ -309,6 +314,7 @@ public class OrderFunction
                     }
                     else
                     {
+                        appliedOffer = offer;
                         if (offer.DiscountType == "percentage")
                             discountAmount = Math.Round(subtotal * (offer.DiscountValue / 100m), 2);
                         else if (offer.DiscountType == "flat")
@@ -316,9 +322,6 @@ public class OrderFunction
 
                         if (offer.MaxDiscount.HasValue && discountAmount > offer.MaxDiscount.Value)
                             discountAmount = offer.MaxDiscount.Value;
-
-                        // Increment usage count
-                        await _offerRepo.IncrementOfferUsageAsync(offer.Id!);
                     }
                 }
             }
@@ -334,12 +337,12 @@ public class OrderFunction
                     loyaltyPointsUsed = orderRequest.LoyaltyPointsUsed;
                     // 1 point = ₹0.25
                     loyaltyDiscountAmount = Math.Round(loyaltyPointsUsed * 0.25m, 2);
-                    // Deduct loyalty points
-                    await _loyaltyRepo.DeductLoyaltyPointsAsync(userId, loyaltyPointsUsed, $"Used for order");
                 }
             }
 
-            var deliveryFee = orderType == "delivery" ? Math.Max(0, orderRequest.DeliveryFee) : 0;
+            var deliveryFee = orderType == "delivery"
+                ? await _operationsRepo.CalculateDeliveryFeeAsync(outletId, subtotal)
+                : 0m;
             var payableBeforeWallet = Math.Max(0, subtotal + tax + platformCharge + deliveryFee - discountAmount - loyaltyDiscountAmount);
             var total = payableBeforeWallet;
 
@@ -351,30 +354,9 @@ public class OrderFunction
             // Determine payment method and status
             var paymentMethod = orderRequest.PaymentMethod?.ToLower() ?? "cod";
             var paymentStatus = paymentMethod == "dine_in_tab" ? "unpaid" : "pending";
-            string? razorpayOrderId = null;
-            string? razorpayPaymentId = null;
-            string? razorpaySignature = null;
             var upiReference = string.IsNullOrWhiteSpace(orderRequest.UpiReference)
                 ? null
                 : orderRequest.UpiReference.Trim();
-
-            if (paymentMethod == "razorpay")
-            {
-                // Validate Razorpay payment details
-                if (string.IsNullOrEmpty(orderRequest.RazorpayPaymentId) ||
-                    string.IsNullOrEmpty(orderRequest.RazorpayOrderId) ||
-                    string.IsNullOrEmpty(orderRequest.RazorpaySignature))
-                {
-                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                    await badRequest.WriteAsJsonAsync(new { error = "Razorpay payment details are required for online payment" });
-                    return badRequest;
-                }
-
-                razorpayOrderId = orderRequest.RazorpayOrderId;
-                razorpayPaymentId = orderRequest.RazorpayPaymentId;
-                razorpaySignature = orderRequest.RazorpaySignature;
-                paymentStatus = "paid";
-            }
 
             // Parse and validate scheduled order
             DateTime? scheduledFor = null;
@@ -413,9 +395,6 @@ public class OrderFunction
                 Status = isScheduled ? "scheduled" : (paymentMethod == "dine_in_tab" ? "confirmed" : "pending"),
                 PaymentStatus = paymentStatus,
                 PaymentMethod = paymentMethod,
-                RazorpayOrderId = razorpayOrderId,
-                RazorpayPaymentId = razorpayPaymentId,
-                RazorpaySignature = razorpaySignature,
                 UpiReference = paymentMethod == "upi-qr" ? upiReference : null,
                 DeliveryAddress = orderType == "delivery" ? orderRequest.DeliveryAddress?.Trim() : null,
                 PhoneNumber = string.IsNullOrWhiteSpace(normalizedPhone) ? null : normalizedPhone,
@@ -438,9 +417,69 @@ public class OrderFunction
                 UpdatedAt = MongoService.GetIstNow()
             };
 
-            var createdOrder = await _orderRepo.CreateOrderAsync(order);
-            orderPersisted = true;
+            idempotencyKey = GetIdempotencyKey(req);
+            idempotencyUserId = userId;
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                var requestHash = IdempotencyService.ComputeRequestHash(
+                    JsonSerializer.Serialize(orderRequest, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                var start = await _idempotency.TryBeginAsync(idempotencyKey, "orders.create", userId, requestHash);
+                if (start.IsConflict)
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Idempotency key reused with different order data" });
+                    return conflict;
+                }
 
+                if (start.IsInProgress)
+                {
+                    var accepted = req.CreateResponse(HttpStatusCode.Accepted);
+                    await accepted.WriteAsJsonAsync(new { message = "Order creation is already in progress" });
+                    return accepted;
+                }
+
+                if (start.ReplayStatusCode.HasValue)
+                {
+                    return await BuildReplayResponseAsync(req, start.ReplayStatusCode.Value, start.ReplayBody);
+                }
+            }
+
+            var couponReserved = false;
+            var loyaltyDeducted = false;
+            try
+            {
+                if (appliedOffer?.Id != null)
+                {
+                    couponReserved = await _offerRepo.IncrementOfferUsageAsync(appliedOffer.Id);
+                    if (!couponReserved)
+                    {
+                        if (!string.IsNullOrWhiteSpace(idempotencyKey))
+                            await _idempotency.MarkFailedAsync(idempotencyKey, "orders.create", userId, "Coupon usage limit reached");
+                        var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                        await conflict.WriteAsJsonAsync(new { error = "This coupon has just reached its usage limit" });
+                        return conflict;
+                    }
+                }
+
+                if (loyaltyPointsUsed > 0)
+                {
+                    loyaltyDeducted = await _loyaltyRepo.DeductLoyaltyPointsAsync(
+                        userId, loyaltyPointsUsed, $"Used for order #{plannedOrderId[^6..]}", plannedOrderId);
+                    if (!loyaltyDeducted)
+                    {
+                        if (couponReserved && appliedOffer?.Id != null)
+                            await _offerRepo.DecrementOfferUsageAsync(appliedOffer.Id);
+
+                        if (!string.IsNullOrWhiteSpace(idempotencyKey))
+                            await _idempotency.MarkFailedAsync(idempotencyKey, "orders.create", userId, "Loyalty point balance changed");
+
+                        var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                        await conflict.WriteAsJsonAsync(new { error = "Loyalty point balance changed. Please review your total and try again." });
+                        return conflict;
+                    }
+                }
+
+                var createdOrder = await _orderRepo.CreateOrderAsync(order);
             _log.LogInformation("Order {OrderId} created by user {Username}", createdOrder.Id, username);
 
             // Event sourcing: record order creation (FLAW 15)
@@ -488,11 +527,37 @@ public class OrderFunction
             }
 
             var response = req.CreateResponse(HttpStatusCode.Created);
-            await response.WriteAsJsonAsync(MapToOrderResponse(createdOrder));
+            var responsePayload = MapToOrderResponse(createdOrder);
+            await response.WriteAsJsonAsync(responsePayload);
+
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                await _idempotency.MarkCompletedAsync(
+                    idempotencyKey, "orders.create", userId, (int)HttpStatusCode.Created,
+                    JsonSerializer.Serialize(responsePayload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            }
             return response;
+            }
+            catch
+            {
+                if (loyaltyDeducted)
+                {
+                    await _loyaltyRepo.RestoreLoyaltyPointsAsync(
+                        userId, loyaltyPointsUsed, $"Order #{plannedOrderId[^6..]} creation failed", plannedOrderId);
+                }
+                if (couponReserved && appliedOffer?.Id != null)
+                {
+                    await _offerRepo.DecrementOfferUsageAsync(appliedOffer.Id);
+                }
+                throw;
+            }
         }
         catch (Exception ex)
         {
+            if (!string.IsNullOrWhiteSpace(idempotencyKey) && !string.IsNullOrWhiteSpace(idempotencyUserId))
+            {
+                await _idempotency.MarkFailedAsync(idempotencyKey, "orders.create", idempotencyUserId, "Order creation failed");
+            }
             _log.LogError(ex, "Error creating order");
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred while creating the order" });
@@ -1082,9 +1147,25 @@ public class OrderFunction
                 return badRequest;
             }
 
+            if (!string.IsNullOrWhiteSpace(order.CouponCode) || order.LoyaltyPointsUsed > 0)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new
+                {
+                    error = "Individual items cannot be cancelled after applying a coupon or loyalty points. Cancel the full order so the discount is refunded correctly."
+                });
+                return badRequest;
+            }
+
             var qtyToCancel = Math.Min(item.Quantity, Math.Max(1, cancelRequest.Quantity));
             if (qtyToCancel >= item.Quantity)
             {
+                if (order.Items.Count == 1)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = "Use cancel order to remove the final item so coupon and loyalty refunds are processed correctly" });
+                    return badRequest;
+                }
                 order.Items.Remove(item);
             }
             else
@@ -1328,12 +1409,7 @@ public class OrderFunction
                 adminAuditNote += $" | Note: {confirmRequest.AdminNote.Trim()}";
             }
 
-            var updated = await _orderRepo.UpdatePaymentStatusAsync(
-                id,
-                "paid",
-                razorpayPaymentId: string.IsNullOrWhiteSpace(confirmRequest.PaymentReference) ? null : confirmRequest.PaymentReference.Trim(),
-                razorpaySignature: "admin-bypass-confirmed",
-                razorpayOrderId: order.RazorpayOrderId);
+            var updated = await _orderRepo.UpdatePaymentStatusAsync(id, "paid");
 
             if (!updated)
             {
@@ -1441,13 +1517,29 @@ public class OrderFunction
                 return badRequest;
             }
 
-            var success = await _orderRepo.UpdateOrderStatusAsync(id, "cancelled");
+            var success = await _orderRepo.TryUpdateOrderStatusAsync(
+                id,
+                new[] { "pending", "confirmed", "scheduled" },
+                "cancelled");
 
             if (!success)
             {
-                var error = req.CreateResponse(HttpStatusCode.InternalServerError);
-                await error.WriteAsJsonAsync(new { error = "Failed to cancel order" });
+                var error = req.CreateResponse(HttpStatusCode.Conflict);
+                await error.WriteAsJsonAsync(new { error = "Order status changed before cancellation could complete. Refresh and try again." });
                 return error;
+            }
+
+            if (order.LoyaltyPointsUsed > 0)
+            {
+                await _loyaltyRepo.RestoreLoyaltyPointsAsync(
+                    order.UserId, order.LoyaltyPointsUsed, $"Refund for cancelled order #{id[^6..]}", id);
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.CouponCode))
+            {
+                var appliedOffer = await _offerRepo.GetOfferByCodeAsync(order.CouponCode);
+                if (appliedOffer?.Id != null)
+                    await _offerRepo.DecrementOfferUsageAsync(appliedOffer.Id);
             }
 
             // Event sourcing: record cancellation (FLAW 15)
@@ -1913,6 +2005,21 @@ public class OrderFunction
         return string.Equals((orderChannel ?? "web").Trim(), targetChannel, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string? GetIdempotencyKey(HttpRequestData req)
+    {
+        if (!req.Headers.TryGetValues("X-Idempotency-Key", out var values)) return null;
+        var key = values.FirstOrDefault()?.Trim();
+        return string.IsNullOrWhiteSpace(key) || key.Length > 128 ? null : key;
+    }
+
+    private static async Task<HttpResponseData> BuildReplayResponseAsync(HttpRequestData req, int statusCode, string? body)
+    {
+        var response = req.CreateResponse((HttpStatusCode)statusCode);
+        response.Headers.Add("Content-Type", "application/json; charset=utf-8");
+        await response.WriteStringAsync(string.IsNullOrWhiteSpace(body) ? "{}" : body);
+        return response;
+    }
+
     private static bool RequiresPaymentConfirmationBeforeProgress(Order order, string nextStatus)
     {
         if (nextStatus == "pending" || nextStatus == "cancelled")
@@ -1936,8 +2043,7 @@ public class OrderFunction
             return isUpiPayment && paymentPending;
         }
 
-        var needsOnlinePayment = paymentMethod == "razorpay" || paymentMethod == "upi-qr";
-        return needsOnlinePayment && paymentPending;
+        return paymentMethod == "upi-qr" && paymentPending;
     }
 
     private static DateTime? ParseDateQuery(HttpRequestData req, string key)

@@ -478,12 +478,20 @@
                 <span class="total-figure">₹{{ comboPricingSummary.finalPayable | number:'1.0-0' }}</span>
               </div>
 
+              <div class="form-group">
+                <label>Payment Method</label>
+                <select [(ngModel)]="comboPaymentMethod">
+                  <option value="upi-qr">UPI QR</option>
+                  <option value="cash_at_counter">Cash at Counter</option>
+                </select>
+              </div>
+
               <button
                 type="button"
                 class="btn-activate-combo"
                 [disabled]="submittingCustomCombo || selectedComboItemsList.length === 0"
                 (click)="confirmCreateCustomCombo()">
-                <span>{{ submittingCustomCombo ? 'Activating Plan...' : '🚀 Activate Meal Combo Subscription' }}</span>
+                <span>{{ submittingCustomCombo ? 'Submitting Request...' : 'Submit Meal Combo Request' }}</span>
               </button>
             </div>
           </div>
@@ -645,7 +653,8 @@
                 <div class="hist-meta">
                   <span>{{ formatDate(sub.startDate) }} → {{ formatDate(sub.endDate) }}</span>
                   <span>•</span>
-                  <span>₹{{ sub.amountPaid | number:'1.0-0' }}</span>
+                  <span *ngIf="sub.paymentStatus === 'paid'">₹{{ sub.amountPaid | number:'1.0-0' }} paid</span>
+                  <span *ngIf="sub.paymentStatus !== 'paid'">₹{{ (sub.amountDue || 0) | number:'1.0-0' }} awaiting confirmation</span>
                   <span>•</span>
                   <span>{{ (sub.items || []).length }} Items</span>
                 </div>
@@ -735,6 +744,14 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label>Payment Method</label>
+          <select [(ngModel)]="checkoutPaymentMethod">
+            <option value="upi-qr">UPI QR</option>
+            <option value="cash_at_counter">Cash at Counter</option>
+          </select>
+        </div>
+
         <!-- Price Breakdown -->
         <div class="modal-pricing-box">
           <div class="price-line">
@@ -760,7 +777,7 @@
           class="btn-confirm-subscribe"
           [disabled]="subscribingCurated"
           (click)="confirmSubscribeCurated()">
-          <span>{{ subscribingCurated ? 'Activating Subscription...' : '✓ Confirm & Activate Subscription' }}</span>
+          <span>{{ subscribingCurated ? 'Submitting Request...' : 'Submit Subscription Request' }}</span>
         </button>
       </div>
     </div>

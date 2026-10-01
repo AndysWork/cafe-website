@@ -45,6 +45,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
   private audioContext: AudioContext | null = null;
   private audioUnlocked = false;
   private readonly unlockAudioHandler = () => this.unlockAudio();
+  readonly boardStatuses: string[] = ['pending', 'confirmed', 'preparing', 'ready', 'served', 'out-for-delivery'];
 
   constructor(private kitchenService: KitchenDisplayService) {}
 
@@ -348,8 +349,14 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
   printKotWindow() {
     const win = window.open('', '_blank', 'width=300,height=500');
     if (win) {
-      win.document.write(`<pre style="font-family: monospace; font-size: 12px; width: 80mm;">${this.kotText}</pre>`);
-      win.document.close();
+      win.opener = null;
+      win.document.title = 'Kitchen Order Ticket';
+      const pre = win.document.createElement('pre');
+      pre.style.fontFamily = 'monospace';
+      pre.style.fontSize = '12px';
+      pre.style.width = '80mm';
+      pre.textContent = this.kotText;
+      win.document.body.appendChild(pre);
       win.print();
     }
   }
@@ -371,10 +378,25 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
       confirmed: '#3b82f6',
       preparing: '#8b5cf6',
       ready: '#10b981',
+      served: '#14b8a6',
       'out-for-delivery': '#0ea5e9',
       delivered: '#059669'
     };
     return colors[status] || '#6b7280';
+  }
+
+  getStatusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      pending: 'Order Received',
+      confirmed: 'Order Confirmed',
+      preparing: 'Preparing',
+      ready: 'Prepared',
+      served: 'Served',
+      'out-for-delivery': 'Out for Delivery',
+      delivered: 'Delivered'
+    };
+
+    return labels[status] || status;
   }
 
   canSpeakOrder(order: KitchenOrder): boolean {

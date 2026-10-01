@@ -68,10 +68,7 @@ public class HealthFunction
         // 3. Email service — non-critical (config check)
         checks["email"] = CheckServiceConfig("Email__SmtpHost", "Email service");
 
-        // 4. Razorpay — non-critical (config check)
-        checks["razorpay"] = CheckServiceConfig("Razorpay__KeyId", "Razorpay payment gateway");
-
-        // 5. WhatsApp / Twilio — non-critical (config check)
+        // 4. WhatsApp / Twilio — non-critical (config check)
         checks["whatsapp"] = CheckServiceConfig("Twilio__AccountSid", "Twilio WhatsApp service");
 
         // Determine overall status

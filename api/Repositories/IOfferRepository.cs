@@ -12,5 +12,6 @@ public interface IOfferRepository
     Task<bool> UpdateOfferAsync(string id, Offer offer);
     Task<bool> DeleteOfferAsync(string id);
     Task<bool> IncrementOfferUsageAsync(string id);
+    Task<bool> DecrementOfferUsageAsync(string id);
     Task<OfferValidationResponse> ValidateOfferAsync(OfferValidationRequest request);
 }

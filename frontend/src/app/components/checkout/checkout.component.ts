@@ -29,8 +29,6 @@ import { DineInService } from '../../services/dine-in.service';
 })
 export class CheckoutComponent implements OnInit, OnDestroy {
   private readonly checkoutDraftStorageKey = 'checkout_draft';
-  private readonly pendingPaymentStorageKey = 'pending_payment_recovery';
-  isRazorpayEnabled = false;
   isUpiQrEnabled = false;
   readonly fixedPlatformCharge = 2;
 
@@ -46,7 +44,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   deliveryAddress = '';
   phoneNumber = '';
   notes = '';
-  paymentMethod: 'cod' | 'razorpay' | 'upi-qr' = 'cod';
+  paymentMethod: 'cod' | 'upi-qr' = 'cod';
   upiQrCodeDataUrl = '';
   upiPaymentLink = '';
   safeUpiPaymentLink: SafeUrl | null = null;
@@ -118,13 +116,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   routeQuoteLoading = false;
   routeQuote: DeliveryRouteQuote | null = null;
 
-  // Pending payment recovery
-  pendingPaymentRecovery: {
-    amount: number;
-    reason: string;
-    timestamp: string;
-  } | null = null;
-
   // Computed totals
   get taxAmount(): number {
     return 0;
@@ -173,7 +164,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.loadUpiRuntimeConfig();
-    this.loadPendingPaymentRecovery();
+    localStorage.removeItem('pending_payment_recovery');
     this.loadCheckoutDraft();
     this.loadAvailableOffers();
     this.ensureSupportedPaymentMethod();
@@ -424,7 +415,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
     if (this.paymentMethod === 'upi-qr') {
       if (this.upiConfigMissing) {
-        this.errorMessage = 'UPI QR is not configured yet. Please use Pay Online or Cash on Delivery.';
+        this.errorMessage = 'UPI QR is not configured yet. Please use Cash on Delivery.';
         this.isSubmitting = false;
         return;
       }
@@ -436,11 +427,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       }
     }
 
-    if (this.paymentMethod === 'razorpay') {
-      this.processRazorpayPayment();
-    } else {
-      this.submitOrder();
-    }
+    this.submitOrder();
   }
 
   private getValidationError(): string {
@@ -591,63 +578,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  private processRazorpayPayment() {
-    // Step 1: Create Razorpay order on backend
-    this.paymentService.createPaymentOrder(this.grandTotal).subscribe({
-      next: (paymentOrder) => {
-        // Step 2: Open Razorpay checkout modal
-        this.paymentService.openRazorpayCheckout({
-          orderId: paymentOrder.orderId,
-          amount: paymentOrder.amount,
-          currency: paymentOrder.currency,
-          keyId: paymentOrder.keyId,
-          customerName: this.deliveryAddress.split('\n')[0] || 'Customer',
-          customerPhone: this.phoneNumber,
-          description: `Order - ${this.cart.itemCount} item(s)`
-        }).then((result) => {
-          // Step 3: Verify payment signature on server
-          this.paymentService.verifyPayment({
-            razorpayOrderId: result.razorpay_order_id,
-            razorpayPaymentId: result.razorpay_payment_id,
-            razorpaySignature: result.razorpay_signature
-          }).subscribe({
-            next: (verification) => {
-              if (verification.success) {
-                // Step 4: Payment verified — create order with Razorpay details
-                this.submitOrder(
-                  result.razorpay_payment_id,
-                  result.razorpay_order_id,
-                  result.razorpay_signature
-                );
-              } else {
-                this.errorMessage = 'Payment verification failed. Please contact support.';
-                this.isSubmitting = false;
-              }
-            },
-            error: (error) => {
-              console.error('Payment verification failed:', error);
-              this.savePendingPaymentRecovery('Payment verification failed. Please retry payment.');
-              this.errorMessage = 'Payment verification failed. Your payment will be refunded if charged.';
-              this.isSubmitting = false;
-            }
-          });
-        }).catch((error) => {
-          this.savePendingPaymentRecovery(error?.message || 'Payment was cancelled or failed.');
-          this.errorMessage = error.message || 'Payment was cancelled or failed';
-          this.isSubmitting = false;
-        });
-      },
-      error: (error) => {
-        console.error('Error creating payment order:', error);
-        this.savePendingPaymentRecovery('Could not initiate online payment. Please retry.');
-        this.errorMessage = 'Failed to initiate payment. Please try again.';
-        this.isSubmitting = false;
-      }
-    });
-  }
-
-  private submitOrder(razorpayPaymentId?: string, razorpayOrderId?: string, razorpaySignature?: string) {
-    const paymentMethodForOrder: 'cod' | 'razorpay' | 'upi-qr' | 'dine_in_tab' =
+  private submitOrder() {
+    const paymentMethodForOrder: 'cod' | 'upi-qr' | 'dine_in_tab' =
       (this.orderType === 'dine-in' && this.dineInPayLater) ? 'dine_in_tab' : this.paymentMethod;
 
     const upiRefText = this.paymentMethod === 'upi-qr'
@@ -666,9 +598,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       preparationNotes: this.cart.preparationNotes?.trim() || undefined,
       notes: [this.notes.trim(), upiRefText].filter(Boolean).join(' | ') || undefined,
       paymentMethod: paymentMethodForOrder,
-      razorpayPaymentId,
-      razorpayOrderId,
-      razorpaySignature,
       couponCode: this.couponValid ? this.couponCode.trim() : undefined,
       loyaltyPointsUsed: this.useLoyaltyPoints ? this.loyaltyPointsToUse : undefined,
       orderType: this.orderType,
@@ -685,7 +614,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     // Submit order
     this.orderService.createOrder(orderRequest).subscribe({
       next: (order) => {
-        this.clearPendingPaymentRecovery();
         this.clearCheckoutDraft();
 
         // Save new address if requested (including first-time users with no saved addresses yet)
@@ -817,14 +745,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     });
   }
 
-  onPaymentMethodChange(method: 'cod' | 'razorpay' | 'upi-qr') {
-    if (method === 'razorpay' && !this.isRazorpayEnabled) {
-      this.paymentMethod = 'cod';
-      this.uiStore.notify('Pay Online is currently disabled. Use Pay via QR or Cash on Delivery.');
-      this.saveCheckoutDraft();
-      return;
-    }
-
+  onPaymentMethodChange(method: 'cod' | 'upi-qr') {
     if (method === 'upi-qr' && !this.isUpiQrEnabled) {
       this.paymentMethod = 'cod';
       this.uiStore.notify('Pay via QR is currently unavailable. Please use Cash on Delivery.');
@@ -841,22 +762,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     }
 
     this.saveCheckoutDraft();
-  }
-
-  retryPendingPayment(): void {
-    this.errorMessage = '';
-    this.showReviewStep = false;
-    this.attemptedSubmit = true;
-
-    const validationError = this.getValidationError();
-    if (validationError) {
-      this.errorMessage = validationError;
-      return;
-    }
-
-    this.paymentMethod = 'razorpay';
-    this.isSubmitting = true;
-    this.processRazorpayPayment();
   }
 
   private recomputeCheckoutAdjustments(): void {
@@ -995,32 +900,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     });
   }
 
-  private savePendingPaymentRecovery(reason: string): void {
-    const snapshot = {
-      amount: this.grandTotal,
-      reason,
-        timestamp: getIstIsoString()
-    };
-    this.pendingPaymentRecovery = snapshot;
-    localStorage.setItem(this.pendingPaymentStorageKey, JSON.stringify(snapshot));
-  }
-
-  private loadPendingPaymentRecovery(): void {
-    const raw = localStorage.getItem(this.pendingPaymentStorageKey);
-    if (!raw) return;
-    try {
-      this.pendingPaymentRecovery = JSON.parse(raw);
-    } catch {
-      this.pendingPaymentRecovery = null;
-      localStorage.removeItem(this.pendingPaymentStorageKey);
-    }
-  }
-
-  private clearPendingPaymentRecovery(): void {
-    this.pendingPaymentRecovery = null;
-    localStorage.removeItem(this.pendingPaymentStorageKey);
-  }
-
   private saveCheckoutDraft(): void {
     if (!this.cart.items.length) {
       this.clearCheckoutDraft();
@@ -1083,11 +962,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   private ensureSupportedPaymentMethod(): void {
-    if (this.paymentMethod === 'razorpay' && !this.isRazorpayEnabled) {
-      this.paymentMethod = 'cod';
-      return;
-    }
-
     if (this.paymentMethod === 'upi-qr' && !this.isUpiQrEnabled) {
       this.paymentMethod = 'cod';
     }
@@ -1156,7 +1030,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
         this.upiId = normalizedUpiId;
         this.upiPayeeName = (config.payeeName || 'Cafe').trim() || 'Cafe';
-        this.isRazorpayEnabled = !!config.razorpayEnabled;
         this.isUpiQrEnabled = !!config.upiQrEnabled;
         this.upiConfigMissing = this.isUpiQrEnabled ? !(!!config.configured || hasValidUpiId) : true;
         this.ensureSupportedPaymentMethod();
@@ -1168,7 +1041,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       error: () => {
         this.upiId = '';
         this.upiPayeeName = 'Cafe';
-        this.isRazorpayEnabled = false;
         this.isUpiQrEnabled = false;
         this.upiConfigMissing = true;
         this.ensureSupportedPaymentMethod();

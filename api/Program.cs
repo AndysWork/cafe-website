@@ -56,7 +56,6 @@ var host = new HostBuilder()
         s.AddSingleton<IEmailService, EmailService>();
         s.AddSingleton<IWhatsAppService, WhatsAppService>();
         s.AddSingleton<MarketPriceService>();
-        s.AddSingleton<IRazorpayService, RazorpayService>();
         s.AddSingleton<NotificationService>();
         s.AddSingleton<DeliveryRoutingService>();
         s.AddSingleton<IdempotencyService>();
@@ -97,10 +96,6 @@ var host = new HostBuilder()
         
         // Named HTTP clients with Polly policies
         s.AddHttpClient("WhatsApp")
-            .AddPolicyHandler(retryPolicy)
-            .AddPolicyHandler(circuitBreakerPolicy);
-        
-        s.AddHttpClient("Razorpay")
             .AddPolicyHandler(retryPolicy)
             .AddPolicyHandler(circuitBreakerPolicy);
         

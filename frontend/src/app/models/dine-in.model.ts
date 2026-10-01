@@ -26,7 +26,7 @@ export interface DineInBill {
   customerName?: string;
   customerPhone?: string;
   status: 'active' | 'bill_requested' | 'paid' | 'cancelled';
-  paymentStatus: 'unpaid' | 'pending' | 'paid';
+  paymentStatus: 'unpaid' | 'pending_verification' | 'pending_cash' | 'processing' | 'paid';
   paymentMethod?: string;
   rounds: DineInRound[];
   totalItemsCount: number;
@@ -45,7 +45,6 @@ export interface DineInBill {
   upiQrString?: string;
   upiId?: string;
   payeeName?: string;
-  razorpayEnabled: boolean;
   invoiceNumber?: string;
   estimatedPointsToEarn?: number;
   canApplyCoupon?: boolean;
@@ -59,10 +58,7 @@ export interface StartDineInSessionRequest {
 }
 
 export interface SettleDineInBillRequest {
-  paymentMethod: 'upi-qr' | 'razorpay' | 'cash_at_counter';
+  paymentMethod: 'upi-qr' | 'cash_at_counter';
   upiReference?: string;
-  razorpayOrderId?: string;
-  razorpayPaymentId?: string;
-  razorpaySignature?: string;
   notes?: string;
 }

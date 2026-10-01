@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SubscriptionService, SubscriptionPlan } from '../../services/subscription.service';
+import { CustomerSubscription, SubscriptionService, SubscriptionPlan } from '../../services/subscription.service';
 import { MenuItem, MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
@@ -22,6 +22,9 @@ export class AdminSubscriptionsComponent implements OnInit, OnDestroy {
   private outletSub?: Subscription;
 
   plans: SubscriptionPlan[] = [];
+  pendingPayments: CustomerSubscription[] = [];
+  paymentReferenceDraft: Record<string, string> = {};
+  confirmingPaymentId: string | null = null;
   menuItems: MenuItem[] = [];
   loadingMenuItems = false;
   activeSuggestionRow: number | null = null;
@@ -52,8 +55,32 @@ export class AdminSubscriptionsComponent implements OnInit, OnDestroy {
   loadPlans() {
     this.loading = true;
     this.subscriptionService.getAllPlans().subscribe({
-      next: p => { this.plans = p; this.loading = false; },
+      next: p => { this.plans = p; this.loading = false; this.loadPendingPayments(); },
       error: () => { this.uiStore.error('Failed to load plans'); this.loading = false; }
+    });
+  }
+
+  loadPendingPayments() {
+    const outletId = this.outletService.getSelectedOutletId() || undefined;
+    this.subscriptionService.getPendingPayments(outletId).subscribe({
+      next: subscriptions => { this.pendingPayments = subscriptions || []; },
+      error: () => this.uiStore.error('Failed to load pending subscription payments')
+    });
+  }
+
+  confirmSubscriptionPayment(subscription: CustomerSubscription) {
+    if (!subscription.id || this.confirmingPaymentId) return;
+    this.confirmingPaymentId = subscription.id;
+    this.subscriptionService.confirmPayment(subscription.id, this.paymentReferenceDraft[subscription.id]).subscribe({
+      next: res => {
+        this.uiStore.success(res.message || 'Subscription payment confirmed');
+        this.confirmingPaymentId = null;
+        this.loadPendingPayments();
+      },
+      error: () => {
+        this.confirmingPaymentId = null;
+        this.uiStore.error('Failed to confirm subscription payment');
+      }
     });
   }
 
@@ -252,7 +279,8 @@ export class AdminSubscriptionsComponent implements OnInit, OnDestroy {
     });
   }
 
-  trackById(_: number, item: SubscriptionPlan) { return item.id; }
+  trackById(_: number, item: { id?: string | null }) { return item.id ?? ''; }
+  trackBySubscriptionId(_: number, item: CustomerSubscription) { return item.id ?? ''; }
   trackByIndex(i: number) { return i; }
   trackByMenuItemId(_: number, item: MenuItem) { return item.id; }
 }

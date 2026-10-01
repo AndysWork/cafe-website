@@ -36,9 +36,9 @@
   <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading orders...</p></div>
 
   <div *ngIf="!loading" class="kitchen-board">
-    <div class="kitchen-column" *ngFor="let status of ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery']">
+    <div class="kitchen-column" *ngFor="let status of boardStatuses">
       <div class="column-header" [style.border-bottom-color]="getStatusColor(status)">
-        <h2>{{ status | titlecase }}</h2>
+        <h2>{{ getStatusLabel(status) }}</h2>
         <span class="count">{{ getOrdersByStatus(status).length }}</span>
       </div>
       <div class="order-card" *ngFor="let order of getOrdersByStatus(status)"
@@ -48,7 +48,7 @@
           <span class="order-time">{{ getTimeSince(order.createdAt) }}</span>
         </div>
         <div class="order-customer">
-          <span>{{ order.username }}</span>
+          <span>{{ order.username || order.customerName || 'Guest' }}</span>
           <span *ngIf="order.orderType" class="order-type">{{ order.orderType }}</span>
           <span *ngIf="order.tableNumber" class="order-type">Table {{ order.tableNumber }}</span>
         </div>
@@ -74,6 +74,7 @@
           <button *ngIf="order.status === 'pending'" (click)="updateStatus(order.id, 'confirmed')" class="btn-kitchen confirm">Confirm</button>
           <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Approve & Start</button>
           <button *ngIf="order.status === 'preparing'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>
+          <button *ngIf="order.status === 'ready' && order.orderType === 'dine-in'" (click)="updateStatus(order.id, 'served')" class="btn-kitchen ready">Served</button>
           <button *ngIf="order.status === 'out-for-delivery'" (click)="updateStatus(order.id, 'delivered')" class="btn-kitchen ready">Delivered</button>
           <button (click)="printKot(order.id)" class="btn-kitchen kot">🖨️ KOT</button>
         </div>

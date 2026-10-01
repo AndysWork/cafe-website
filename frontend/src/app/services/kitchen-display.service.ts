@@ -8,10 +8,11 @@ import { handleServiceError } from '../utils/error-handler';
 export interface KitchenOrder {
   id: string;
   username: string;
+  customerName?: string;
   items: { name: string; quantity: number; price: number; total: number; categoryName?: string }[];
   status: string;
   orderType?: string;
-  tableNumber?: number;
+  tableNumber?: number | string;
   preparationNotes?: string;
   notes?: string;
   createdAt: string;

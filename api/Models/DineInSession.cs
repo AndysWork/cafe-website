@@ -1,6 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Cafe.Api.Helpers;
 
 namespace Cafe.Api.Models;
@@ -32,6 +33,11 @@ public class DineInSession
     [BsonElement("customerPhone")]
     public string? CustomerPhone { get; set; }
 
+    [BsonElement("accessTokenHash")]
+    [BsonIgnoreIfNull]
+    [JsonIgnore]
+    public string? AccessTokenHash { get; set; }
+
     [BsonElement("status")]
     public string Status { get; set; } = "active"; // "active", "bill_requested", "paid", "cancelled"
 
@@ -60,10 +66,10 @@ public class DineInSession
     public decimal GrandTotal { get; set; }
 
     [BsonElement("paymentStatus")]
-    public string PaymentStatus { get; set; } = "unpaid"; // "unpaid", "pending", "paid"
+    public string PaymentStatus { get; set; } = "unpaid"; // unpaid, pending_verification, pending_cash, paid
 
     [BsonElement("paymentMethod")]
-    public string? PaymentMethod { get; set; } // "upi-qr", "razorpay", "cash_at_counter"
+    public string? PaymentMethod { get; set; } // "upi-qr", "cash_at_counter"
 
     [BsonElement("upiReference")]
     public string? UpiReference { get; set; }
@@ -109,7 +115,7 @@ public class DineInRoundDto
 {
     public int RoundNumber { get; set; }
     public string OrderId { get; set; } = string.Empty;
-    public string Status { get; set; } = "confirmed"; // confirmed, preparing, ready, delivered
+    public string Status { get; set; } = "confirmed"; // pending, confirmed, preparing, ready, served, delivered
     public DateTime CreatedAt { get; set; }
     public decimal RoundSubtotal { get; set; }
     public List<DineInRoundItemDto> Items { get; set; } = new();
@@ -143,7 +149,6 @@ public class DineInBillResponse
     public string? UpiQrString { get; set; }
     public string? UpiId { get; set; }
     public string? PayeeName { get; set; }
-    public bool RazorpayEnabled { get; set; }
     public string? InvoiceNumber { get; set; }
     public int EstimatedPointsToEarn { get; set; }
     public bool CanApplyCoupon { get; set; }
@@ -161,13 +166,10 @@ public class StartDineInSessionRequest
 public class SettleDineInBillRequest
 {
     [Required]
-    [AllowedValuesList("upi-qr", "razorpay", "cash_at_counter")]
+    [AllowedValuesList("upi-qr", "cash_at_counter")]
     public string PaymentMethod { get; set; } = "upi-qr";
 
     public string? UpiReference { get; set; }
-    public string? RazorpayOrderId { get; set; }
-    public string? RazorpayPaymentId { get; set; }
-    public string? RazorpaySignature { get; set; }
     public string? Notes { get; set; }
 }
 

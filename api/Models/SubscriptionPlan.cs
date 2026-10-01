@@ -149,7 +149,7 @@ public class CustomerSubscription
     public int DurationDays { get; set; } = 30;
 
     [BsonElement("status")]
-    public string Status { get; set; } = "active"; // active, paused, cancelled, expired, completed
+    public string Status { get; set; } = "pending_payment"; // pending_payment, active, paused, cancelled, expired, completed
 
     [BsonElement("pausedAt")]
     public DateTime? PausedAt { get; set; }
@@ -159,6 +159,9 @@ public class CustomerSubscription
 
     [BsonElement("amountPaid")]
     public decimal AmountPaid { get; set; }
+
+    [BsonElement("amountDue")]
+    public decimal AmountDue { get; set; }
 
     [BsonElement("dailySubtotal")]
     public decimal DailySubtotal { get; set; }
@@ -176,7 +179,16 @@ public class CustomerSubscription
     public string? PaymentMethod { get; set; } = "upi-qr";
 
     [BsonElement("paymentStatus")]
-    public string PaymentStatus { get; set; } = "paid";
+    public string PaymentStatus { get; set; } = "pending";
+
+    [BsonElement("paymentReference")]
+    public string? PaymentReference { get; set; }
+
+    [BsonElement("paymentConfirmedBy")]
+    public string? PaymentConfirmedBy { get; set; }
+
+    [BsonElement("paymentConfirmedAt")]
+    public DateTime? PaymentConfirmedAt { get; set; }
 
     [BsonElement("razorpayPaymentId")]
     public string? RazorpayPaymentId { get; set; }
@@ -228,12 +240,10 @@ public class SubscribeRequest
     public string? CustomerName { get; set; }
     public string? SpecialInstructions { get; set; }
     public int? DurationDays { get; set; }
+    [AllowedValuesList("upi-qr", "cash_at_counter")]
     public string? PaymentMethod { get; set; } = "upi-qr";
     public string? OutletId { get; set; }
 
-    public string? RazorpayPaymentId { get; set; }
-    public string? RazorpayOrderId { get; set; }
-    public string? RazorpaySignature { get; set; }
 }
 
 public class CreateCustomComboSubscriptionRequest
@@ -261,6 +271,7 @@ public class CreateCustomComboSubscriptionRequest
 
     public string? CustomerName { get; set; }
     public string? SpecialInstructions { get; set; }
+    [AllowedValuesList("upi-qr", "cash_at_counter")]
     public string? PaymentMethod { get; set; } = "upi-qr";
     public string? OutletId { get; set; }
 }
@@ -272,4 +283,10 @@ public class CustomComboItemRequest
 
     [Range(1, 20)]
     public int Quantity { get; set; } = 1;
+}
+
+public class ConfirmSubscriptionPaymentRequest
+{
+    [StringLength(100)]
+    public string? PaymentReference { get; set; }
 }

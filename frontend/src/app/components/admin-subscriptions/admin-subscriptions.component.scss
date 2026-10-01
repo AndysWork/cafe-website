@@ -253,3 +253,28 @@
   transition: all 0.25s ease;
   &:hover { transform: translateY(-1px); }
 }
+.pending-payments {
+  margin-bottom: 24px;
+  padding: 20px 0;
+  border-top: 1px solid #d7dce2;
+  border-bottom: 1px solid #d7dce2;
+
+  h2 { margin: 0 0 14px; font-size: 18px; }
+}
+
+.payment-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 260px) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid #eceff2;
+
+  div { display: grid; gap: 4px; }
+  span { color: #5f6873; font-size: 13px; }
+  input { min-width: 0; }
+}
+
+@media (max-width: 760px) {
+  .payment-row { grid-template-columns: 1fr; align-items: stretch; }
+}
