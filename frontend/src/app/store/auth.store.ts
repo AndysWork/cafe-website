@@ -85,6 +85,9 @@ export class AuthStore {
     localStorage.removeItem('csrfToken');
     localStorage.removeItem('selectedOutletId');
     localStorage.removeItem('selectedOutlet');
+    localStorage.removeItem('active_dinein_table');
+    localStorage.removeItem('active_dinein_session_id');
+    localStorage.removeItem('active_dinein_session_token');
   }
 
   /**

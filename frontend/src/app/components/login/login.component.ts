@@ -66,7 +66,7 @@ export class LoginComponent {
     });
   }
 
-  private navigateAfterLogin(role?: 'admin' | 'manager' | 'assistant-manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'sous-chef' | 'kitchen' | 'kitchen-staff' | 'kitchen-helper' | 'user'): void {
+  private navigateAfterLogin(role?: 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'sous-chef' | 'kitchen' | 'kitchen-staff' | 'kitchen-helper' | 'user'): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
     if (returnUrl && returnUrl.startsWith('/')) {
       this.router.navigateByUrl(returnUrl);

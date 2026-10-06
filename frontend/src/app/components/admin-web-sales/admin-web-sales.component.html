@@ -191,6 +191,82 @@
 
   <div class="panel">
     <div class="panel-head">
+      <h2>Dine-In Operational Safety</h2>
+      <button type="button" (click)="loadDineInOperationalSignals()">Refresh</button>
+    </div>
+
+    <div class="recon-summary-grid">
+      <div class="kpi-card compact">
+        <span class="label">Kitchen SLA Alerts</span>
+        <strong>{{ dineInSlaAlerts.length }}</strong>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Open Tables (Day-End)</span>
+        <strong>{{ dayEndOpenTables.length }}</strong>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Outstanding Dine-In Due</span>
+        <strong>{{ formatCurrency(dayEndOutstandingAmount) }}</strong>
+      </div>
+    </div>
+
+    <div class="table-wrap" *ngIf="dineInSlaAlerts.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Order</th>
+            <th>Status</th>
+            <th>Waited</th>
+            <th>Threshold</th>
+            <th>Severity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let alert of dineInSlaAlerts">
+            <td>{{ alert.tableNumber }}</td>
+            <td>#{{ (alert.orderId || '').slice(-6) }}</td>
+            <td>{{ formatStatusLabel(alert.status) }}</td>
+            <td>{{ alert.waitedMinutes }} min</td>
+            <td>{{ alert.thresholdMinutes }} min</td>
+            <td>{{ alert.severity }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-wrap" *ngIf="dayEndOpenTables.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Customer</th>
+            <th>Status</th>
+            <th>Payment</th>
+            <th>Due</th>
+            <th>Open For</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let session of dayEndOpenTables">
+            <td>{{ session.tableNumber }}</td>
+            <td>{{ session.customerName || 'Guest' }}</td>
+            <td>{{ session.status }}</td>
+            <td>{{ session.paymentStatus }}</td>
+            <td>{{ formatCurrency(session.amountDue || 0) }}</td>
+            <td>{{ session.minutesOpen }} min</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="state" *ngIf="dineInSlaAlerts.length === 0 && dayEndOpenTables.length === 0">
+      No dine-in operational alerts.
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
       <h2>Web Order Management</h2>
       <div class="filters">
         <select [(ngModel)]="statusFilter">

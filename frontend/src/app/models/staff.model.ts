@@ -137,7 +137,6 @@ export const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 export const COMMON_POSITIONS = [
   'Manager',
-  'Assistant Manager',
   'Barista',
   'Senior Barista',
   'Chef',

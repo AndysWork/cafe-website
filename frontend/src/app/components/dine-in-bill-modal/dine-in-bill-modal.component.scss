@@ -485,6 +485,20 @@
         color: #E23744;
       }
     }
+
+    &.timeline-row {
+      align-items: flex-start;
+      gap: 8px;
+
+      span {
+        overflow-wrap: anywhere;
+      }
+
+      span:last-child {
+        text-align: right;
+        white-space: nowrap;
+      }
+    }
   }
 
   .summary-divider {
@@ -1011,5 +1025,13 @@
   }
   .payment-methods-grid {
     grid-template-columns: 1fr !important;
+  }
+  .summary-section .summary-row.timeline-row {
+    flex-wrap: wrap;
+
+    span:last-child {
+      width: 100%;
+      text-align: left;
+    }
   }
 }

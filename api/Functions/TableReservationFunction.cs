@@ -243,7 +243,7 @@ public class TableReservationFunction
                 return notFound;
             }
 
-            var isAdminOrStaff = role == "admin" || role == "manager" || role == "assistant-manager";
+            var isAdminOrStaff = role == "admin" || role == "manager";
 
             // If user is a customer, they are permitted to cancel their own reservation
             if (!isAdminOrStaff)

@@ -101,6 +101,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   upiReconciliationReport: UpiReconciliationReport | null = null;
   pendingDineInPayments: ActiveDineInTable[] = [];
   confirmingDineInSessionId: string | null = null;
+  dineInSlaAlerts: any[] = [];
+  dayEndOpenTables: any[] = [];
+  dayEndOutstandingAmount = 0;
 
   readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled'];
 
@@ -131,6 +134,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       await this.loadDashboardData();
       await this.loadUpiReconciliationReport();
       await this.loadPendingDineInPayments();
+      await this.loadDineInOperationalSignals();
       this.initializeDrafts();
     } finally {
       this.loading = false;
@@ -188,7 +192,51 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     await this.loadDashboardData();
     await this.loadUpiReconciliationReport();
     await this.loadPendingDineInPayments();
+    await this.loadDineInOperationalSignals();
     this.initializeDrafts();
+  }
+
+  async loadDineInOperationalSignals(): Promise<void> {
+    return new Promise((resolve) => {
+      const outletId = this.outletService.getSelectedOutletId();
+      if (!outletId) {
+        this.dineInSlaAlerts = [];
+        this.dayEndOpenTables = [];
+        this.dayEndOutstandingAmount = 0;
+        resolve();
+        return;
+      }
+
+      let pending = 2;
+      const done = () => {
+        pending -= 1;
+        if (pending <= 0) resolve();
+      };
+
+      this.dineInService.getSlaAlerts(outletId).subscribe({
+        next: (res) => {
+          this.dineInSlaAlerts = res?.alerts || [];
+          done();
+        },
+        error: () => {
+          this.dineInSlaAlerts = [];
+          done();
+        }
+      });
+
+      this.dineInService.getDayEndOpenTables(outletId).subscribe({
+        next: (res) => {
+          this.dayEndOpenTables = res?.sessions || [];
+          this.dayEndOutstandingAmount = res?.totalOutstandingAmount || 0;
+          done();
+        },
+        error: () => {
+          this.dayEndOpenTables = [];
+          this.dayEndOutstandingAmount = 0;
+          done();
+        }
+      });
+    });
   }
 
   async loadUpiReconciliationReport(): Promise<void> {

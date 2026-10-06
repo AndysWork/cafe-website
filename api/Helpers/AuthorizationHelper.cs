@@ -130,8 +130,7 @@ public static class AuthorizationHelper
         var normalizedRole = NormalizeRole(role);
         var managerLikeRoles = new HashSet<string>
         {
-            "manager",
-            "assistant-manager"
+            "manager"
         };
 
         if (!IsAdminLikeRole(role) && !managerLikeRoles.Contains(normalizedRole))
@@ -175,7 +174,6 @@ public static class AuthorizationHelper
         {
             "admin",
             "manager",
-            "assistant-manager",
             "cook",
             "chef",
             "sous-chef",

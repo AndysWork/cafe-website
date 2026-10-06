@@ -285,9 +285,16 @@ public class DineInFunction
                 AccessTokenHash = sessionAccessTokenHash,
                 Status = "active",
                 PaymentStatus = "unpaid",
+                AmountPaid = 0,
                 CreatedAt = MongoService.GetIstNow(),
                 UpdatedAt = MongoService.GetIstNow()
             };
+
+            AddSessionEvent(
+                session,
+                "session_started",
+                $"Dine-in session started at Table {tableNumber}",
+                userId ?? customerName ?? "guest");
 
             var created = await _orderRepo.CreateDineInSessionAsync(session);
             var billCreated = await BuildBillResponseAsync(created);
@@ -368,9 +375,16 @@ public class DineInFunction
                     AccessTokenHash = generatedAccess.hash,
                     Status = "active",
                     PaymentStatus = "unpaid",
+                    AmountPaid = 0,
                     CreatedAt = MongoService.GetIstNow(),
                     UpdatedAt = MongoService.GetIstNow()
                 };
+
+                AddSessionEvent(
+                    session,
+                    "session_started",
+                    $"Dine-in session auto-started at Table {tableNumber}",
+                    userId ?? username ?? "guest");
                 session = await _orderRepo.CreateDineInSessionAsync(session);
             }
             else
@@ -384,8 +398,12 @@ public class DineInFunction
 
                 if (session.Status == "bill_requested")
                 {
-                    session.Status = "active";
-                    session.BillRequestedAt = null;
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new
+                    {
+                        error = "Final bill already requested. Ask manager to reopen ordering before adding new items."
+                    });
+                    return conflict;
                 }
             }
 
@@ -518,6 +536,17 @@ public class DineInFunction
                 session.CustomerPhone = customerPhone;
 
             await RecalculateSessionTotalsAsync(session);
+            AddSessionEvent(
+                session,
+                "round_added",
+                $"Round #{nextRoundNum} sent to kitchen",
+                userId ?? username ?? session.CustomerName ?? "guest",
+                new Dictionary<string, string>
+                {
+                    ["orderId"] = newOrderId,
+                    ["roundNumber"] = nextRoundNum.ToString(CultureInfo.InvariantCulture),
+                    ["roundTotal"] = order.Total.ToString("0.00", CultureInfo.InvariantCulture)
+                });
             await _orderRepo.UpdateDineInSessionAsync(session);
 
             // Notify kitchen of new round
@@ -622,6 +651,12 @@ public class DineInFunction
             await RecalculateSessionTotalsAsync(session);
             session.Status = "bill_requested";
             session.BillRequestedAt = MongoService.GetIstNow();
+            session.LastPaymentRequestedAt = MongoService.GetIstNow();
+            AddSessionEvent(
+                session,
+                "bill_requested",
+                $"Final bill requested for Table {session.TableNumber}",
+                session.UserId ?? session.CustomerName ?? "guest");
             await _orderRepo.UpdateDineInSessionAsync(session);
 
             // Notify cashier & manager
@@ -817,18 +852,6 @@ public class DineInFunction
                 return badReq;
             }
 
-            if (session.PaymentStatus == "pending_verification" || session.PaymentStatus == "pending_cash")
-            {
-                var pending = req.CreateResponse(HttpStatusCode.OK);
-                await pending.WriteAsJsonAsync(new
-                {
-                    message = "Payment is already awaiting staff confirmation.",
-                    isSettled = false,
-                    session = await BuildBillResponseAsync(session)
-                });
-                return pending;
-            }
-
             if (session.PaymentStatus == "processing")
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
@@ -836,7 +859,21 @@ public class DineInFunction
                 return conflict;
             }
 
-            if (session.Status != "bill_requested" || session.PaymentStatus != "unpaid")
+            var remainingBeforeSubmit = GetSessionAmountDue(session);
+            if (remainingBeforeSubmit <= 0)
+            {
+                var alreadyPaid = req.CreateResponse(HttpStatusCode.OK);
+                await alreadyPaid.WriteAsJsonAsync(new
+                {
+                    message = "Bill is already fully paid.",
+                    isSettled = true,
+                    session = await BuildBillResponseAsync(session)
+                });
+                return alreadyPaid;
+            }
+
+            if (session.Status != "bill_requested"
+                || !IsPaymentSubmissionAllowed(session.PaymentStatus))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = "Request the final bill before submitting payment" });
@@ -847,17 +884,62 @@ public class DineInFunction
             if (valError != null) return valError;
 
             var paymentMethod = request.PaymentMethod.ToLowerInvariant();
+            var submittedAmount = request.Amount ?? remainingBeforeSubmit;
+            submittedAmount = Math.Round(submittedAmount, 2);
+
+            if (submittedAmount <= 0)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Payment amount must be greater than zero" });
+                return badReq;
+            }
+
+            if (submittedAmount > remainingBeforeSubmit)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new
+                {
+                    error = $"Submitted amount exceeds pending dues. Pending due is ₹{remainingBeforeSubmit:0.00}"
+                });
+                return badReq;
+            }
 
             if (paymentMethod == "upi-qr")
             {
                 session.UpiReference = request.UpiReference?.Trim();
             }
 
+            session.PaymentEntries ??= new List<DineInPaymentEntry>();
+            var paymentEntry = new DineInPaymentEntry
+            {
+                Amount = submittedAmount,
+                PaymentMethod = paymentMethod,
+                UpiReference = request.UpiReference?.Trim(),
+                Status = "pending",
+                Notes = request.Notes,
+                RequestedAt = MongoService.GetIstNow()
+            };
+            session.PaymentEntries.Add(paymentEntry);
             session.PaymentMethod = paymentMethod;
-            session.PaymentStatus = paymentMethod == "cash_at_counter" ? "pending_cash" : "pending_verification";
+            session.PaymentStatus = GetPaymentStatusForPendingEntries(session);
             session.Status = "bill_requested";
             session.SettledAt = null;
-            session.Notes = request.Notes;
+            session.LastPaymentRequestedAt = MongoService.GetIstNow();
+            session.Notes = string.IsNullOrWhiteSpace(session.Notes)
+                ? request.Notes
+                : $"{session.Notes} | {request.Notes}";
+
+            AddSessionEvent(
+                session,
+                "payment_submitted",
+                $"Payment submitted: ₹{submittedAmount:0.00} via {paymentMethod}",
+                session.UserId ?? session.CustomerName ?? "guest",
+                new Dictionary<string, string>
+                {
+                    ["paymentEntryId"] = paymentEntry.Id,
+                    ["amount"] = submittedAmount.ToString("0.00", CultureInfo.InvariantCulture),
+                    ["paymentMethod"] = paymentMethod
+                });
 
             await _orderRepo.UpdateDineInSessionAsync(session);
 
@@ -869,6 +951,7 @@ public class DineInFunction
                     ? "Cash settlement requested. Please pay at counter."
                     : "UPI payment submitted for staff verification.",
                 isSettled = false,
+                amountDue = GetSessionAmountDue(session),
                 session = bill
             });
             return response;
@@ -908,17 +991,69 @@ public class DineInFunction
                 return ok;
             }
 
-            if (session.PaymentStatus != "pending_verification" && session.PaymentStatus != "pending_cash")
+            session.PaymentEntries ??= new List<DineInPaymentEntry>();
+            var hasPendingPayments = session.PaymentEntries.Any(p => string.Equals(p.Status, "pending", StringComparison.OrdinalIgnoreCase));
+
+            if (!hasPendingPayments)
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "This session has no payment awaiting confirmation" });
                 return badRequest;
             }
 
+            var (confirmReq, valErr) = await ValidationHelper.ValidateBody<ConfirmDineInPaymentRequest>(req);
+            if (valErr != null) return valErr;
+            confirmReq ??= new ConfirmDineInPaymentRequest();
+
+            var pendingPayment = session.PaymentEntries
+                .Where(p => string.Equals(p.Status, "pending", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(p => p.RequestedAt)
+                .FirstOrDefault();
+
+            if (pendingPayment == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "No pending payment entry found for confirmation" });
+                return badRequest;
+            }
+
+            var remainingBeforeConfirm = GetSessionAmountDue(session);
+            if (remainingBeforeConfirm <= 0)
+            {
+                if (!await FinalizeSessionPaymentAsync(session))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Unable to finalize session settlement" });
+                    return conflict;
+                }
+
+                var ok = req.CreateResponse(HttpStatusCode.OK);
+                await ok.WriteAsJsonAsync(new { message = "Payment already confirmed", session = await BuildBillResponseAsync(session) });
+                return ok;
+            }
+
+            var confirmedAmount = Math.Round(confirmReq.ConfirmedAmount ?? pendingPayment.Amount, 2);
+            if (confirmedAmount <= 0)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Confirmed amount must be greater than zero" });
+                return badRequest;
+            }
+
+            if (confirmedAmount > remainingBeforeConfirm)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new
+                {
+                    error = $"Confirmed amount exceeds pending dues. Pending due is ₹{remainingBeforeConfirm:0.00}"
+                });
+                return badRequest;
+            }
+
             claimedPaymentStatus = session.PaymentStatus;
             if (!await _orderRepo.TransitionDineInPaymentStatusAsync(
                     sessionId,
-                    new[] { "pending_verification", "pending_cash" },
+                    new[] { "pending_verification", "pending_cash", "partially_paid" },
                     "processing"))
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
@@ -927,9 +1062,51 @@ public class DineInFunction
             }
             session.PaymentStatus = "processing";
 
+            pendingPayment.Amount = confirmedAmount;
+            pendingPayment.Status = "confirmed";
+            pendingPayment.ConfirmedAt = MongoService.GetIstNow();
+            pendingPayment.ConfirmedBy = userId;
+            if (!string.IsNullOrWhiteSpace(confirmReq.Notes))
+            {
+                pendingPayment.Notes = string.IsNullOrWhiteSpace(pendingPayment.Notes)
+                    ? confirmReq.Notes
+                    : $"{pendingPayment.Notes} | {confirmReq.Notes}";
+            }
+
+            session.AmountPaid = Math.Round(session.AmountPaid + confirmedAmount, 2);
             session.Notes = string.IsNullOrWhiteSpace(session.Notes)
                 ? $"Payment confirmed by {userId}"
                 : $"{session.Notes} | Payment confirmed by {userId}";
+
+            AddSessionEvent(
+                session,
+                "payment_confirmed",
+                $"Payment confirmed: ₹{confirmedAmount:0.00}",
+                userId,
+                new Dictionary<string, string>
+                {
+                    ["paymentEntryId"] = pendingPayment.Id,
+                    ["amount"] = confirmedAmount.ToString("0.00", CultureInfo.InvariantCulture),
+                    ["remainingDue"] = Math.Max(0, GetSessionAmountDue(session)).ToString("0.00", CultureInfo.InvariantCulture)
+                });
+
+            var remainingAfterConfirm = GetSessionAmountDue(session);
+            if (remainingAfterConfirm > 0)
+            {
+                session.PaymentStatus = GetPaymentStatusForPendingEntries(session);
+                session.Status = "bill_requested";
+                session.SettledAt = null;
+                await _orderRepo.UpdateDineInSessionAsync(session);
+
+                var partialResp = req.CreateResponse(HttpStatusCode.OK);
+                await partialResp.WriteAsJsonAsync(new
+                {
+                    message = $"Partial payment confirmed. ₹{remainingAfterConfirm:0.00} still due.",
+                    session = await BuildBillResponseAsync(session)
+                });
+                return partialResp;
+            }
+
             if (!await FinalizeSessionPaymentAsync(session))
             {
                 await _orderRepo.TransitionDineInPaymentStatusAsync(sessionId, new[] { "processing" }, claimedPaymentStatus);
@@ -956,6 +1133,51 @@ public class DineInFunction
             var response = req.CreateResponse(HttpStatusCode.InternalServerError);
             await response.WriteAsJsonAsync(new { error = "Failed to confirm dine-in payment" });
             return response;
+        }
+    }
+
+    [Function("GetDineInPaymentReconciliation")]
+    public async Task<HttpResponseData> GetPaymentReconciliation(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dine-in/session/{sessionId}/payment/reconcile")] HttpRequestData req,
+        string sessionId)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var session = await _orderRepo.GetDineInSessionByIdAsync(sessionId);
+            if (session == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
+                return notFound;
+            }
+
+            await RecalculateSessionTotalsAsync(session);
+            var due = GetSessionAmountDue(session);
+            var payload = new DineInPaymentReconciliationResponse
+            {
+                SessionId = session.Id ?? sessionId,
+                GrandTotal = Math.Round(session.GrandTotal, 2),
+                AmountPaid = Math.Round(session.AmountPaid, 2),
+                AmountDue = due,
+                IsFullySettled = due <= 0,
+                PaymentEntries = session.PaymentEntries
+                    .OrderByDescending(p => p.RequestedAt)
+                    .ToList()
+            };
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(payload);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting payment reconciliation for session {SessionId}", sessionId);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to load payment reconciliation" });
+            return error;
         }
     }
 
@@ -986,6 +1208,7 @@ public class DineInFunction
 
             foreach (var s in sessions)
             {
+                var amountDue = Math.Max(0, Math.Round(s.GrandTotal - s.AmountPaid, 2));
                 summaries.Add(new
                 {
                     s.Id,
@@ -996,6 +1219,8 @@ public class DineInFunction
                     RoundsCount = s.OrderIds.Count,
                     s.Subtotal,
                     s.GrandTotal,
+                    s.AmountPaid,
+                    AmountDue = amountDue,
                     s.CreatedAt,
                     s.BillRequestedAt,
                     MinutesActive = (int)(MongoService.GetIstNow() - s.CreatedAt).TotalMinutes
@@ -1015,10 +1240,591 @@ public class DineInFunction
         }
     }
 
+    [Function("ReopenDineInOrdering")]
+    public async Task<HttpResponseData> ReopenOrdering(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "dine-in/session/{sessionId}/reopen-ordering")] HttpRequestData req,
+        string sessionId)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var session = await _orderRepo.GetDineInSessionByIdAsync(sessionId);
+            if (session == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
+                return notFound;
+            }
+
+            if (session.Status == "paid")
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Cannot reopen ordering for a paid/closed session" });
+                return badReq;
+            }
+
+            var (request, valError) = await ValidationHelper.ValidateBody<DineInReopenOrderingRequest>(req);
+            if (valError != null) return valError;
+
+            session.Status = "active";
+            session.BillRequestedAt = null;
+            session.ReopenedByUserId = userId;
+            session.ReopenedReason = request.Reason.Trim();
+            session.PaymentStatus = session.AmountPaid > 0 ? "partially_paid" : "unpaid";
+
+            AddSessionEvent(
+                session,
+                "ordering_reopened",
+                $"Ordering reopened by manager: {request.Reason.Trim()}",
+                userId);
+
+            await _orderRepo.UpdateDineInSessionAsync(session);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Ordering reopened for this table session",
+                session = await BuildBillResponseAsync(session)
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error reopening ordering for session {SessionId}", sessionId);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to reopen ordering" });
+            return error;
+        }
+    }
+
+    [Function("RequestDineInItemVoid")]
+    public async Task<HttpResponseData> RequestItemVoid(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "dine-in/session/{sessionId}/void/request")] HttpRequestData req,
+        string sessionId)
+    {
+        try
+        {
+            var session = await _orderRepo.GetDineInSessionByIdAsync(sessionId);
+            if (session == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
+                return notFound;
+            }
+
+            if (!HasSessionAccess(req, session))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
+                return forbidden;
+            }
+
+            if (session.Status == "paid")
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Cannot request item void after bill is closed" });
+                return badReq;
+            }
+
+            var (request, valError) = await ValidationHelper.ValidateBody<DineInVoidItemRequest>(req);
+            if (valError != null) return valError;
+
+            var order = await _orderRepo.GetOrderByIdAsync(request.OrderId.Trim());
+            if (order == null || order.DineInSessionId != session.Id)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Round order not found in this session" });
+                return badReq;
+            }
+
+            var item = order.Items.FirstOrDefault(i => i.MenuItemId == request.MenuItemId.Trim());
+            if (item == null)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Requested item not found in order" });
+                return badReq;
+            }
+
+            if (request.Quantity > item.Quantity)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = $"Cannot void more than ordered quantity ({item.Quantity})" });
+                return badReq;
+            }
+
+            var actor = ResolveActorLabel(req, session);
+            var voidRequest = new DineInVoidRequest
+            {
+                OrderId = order.Id ?? string.Empty,
+                MenuItemId = item.MenuItemId,
+                ItemName = item.Name,
+                Quantity = request.Quantity,
+                Reason = request.Reason.Trim(),
+                Status = "pending",
+                RequestedBy = actor,
+                RequestedAt = MongoService.GetIstNow()
+            };
+
+            session.VoidRequests ??= new List<DineInVoidRequest>();
+            session.VoidRequests.Add(voidRequest);
+            AddSessionEvent(
+                session,
+                "void_requested",
+                $"Void requested: {voidRequest.ItemName} x{voidRequest.Quantity}",
+                actor,
+                new Dictionary<string, string>
+                {
+                    ["voidRequestId"] = voidRequest.Id,
+                    ["orderId"] = voidRequest.OrderId,
+                    ["reason"] = voidRequest.Reason
+                });
+
+            await _orderRepo.UpdateDineInSessionAsync(session);
+
+            var response = req.CreateResponse(HttpStatusCode.Accepted);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Void request submitted for manager approval",
+                voidRequestId = voidRequest.Id,
+                session = await BuildBillResponseAsync(session)
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error requesting dine-in item void for session {SessionId}", sessionId);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to submit void request" });
+            return error;
+        }
+    }
+
+    [Function("ReviewDineInVoidRequest")]
+    public async Task<HttpResponseData> ReviewVoidRequest(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "dine-in/session/{sessionId}/void/{voidRequestId}/review")] HttpRequestData req,
+        string sessionId,
+        string voidRequestId)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var session = await _orderRepo.GetDineInSessionByIdAsync(sessionId);
+            if (session == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
+                return notFound;
+            }
+
+            var (request, valError) = await ValidationHelper.ValidateBody<DineInReviewVoidRequest>(req);
+            if (valError != null) return valError;
+
+            var voidRequest = (session.VoidRequests ?? new List<DineInVoidRequest>())
+                .FirstOrDefault(v => string.Equals(v.Id, voidRequestId, StringComparison.Ordinal));
+            if (voidRequest == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Void request not found" });
+                return notFound;
+            }
+
+            if (!string.Equals(voidRequest.Status, "pending", StringComparison.OrdinalIgnoreCase))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Void request already reviewed" });
+                return conflict;
+            }
+
+            var decision = request.Decision.ToLowerInvariant();
+            voidRequest.ReviewedBy = userId;
+            voidRequest.ReviewedAt = MongoService.GetIstNow();
+            voidRequest.ReviewNotes = request.Notes?.Trim();
+
+            if (decision == "rejected")
+            {
+                voidRequest.Status = "rejected";
+                AddSessionEvent(session, "void_rejected", $"Void request rejected for {voidRequest.ItemName}", userId);
+                await _orderRepo.UpdateDineInSessionAsync(session);
+
+                var rejected = req.CreateResponse(HttpStatusCode.OK);
+                await rejected.WriteAsJsonAsync(new { message = "Void request rejected", session = await BuildBillResponseAsync(session) });
+                return rejected;
+            }
+
+            var order = await _orderRepo.GetOrderByIdAsync(voidRequest.OrderId);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Associated order no longer exists" });
+                return notFound;
+            }
+
+            var item = order.Items.FirstOrDefault(i => i.MenuItemId == voidRequest.MenuItemId);
+            if (item == null)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Associated item no longer exists in the order" });
+                return badReq;
+            }
+
+            if (voidRequest.Quantity > item.Quantity)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Void quantity exceeds current item quantity" });
+                return badReq;
+            }
+
+            item.Quantity -= voidRequest.Quantity;
+            item.Total = Math.Round(item.Price * item.Quantity, 2);
+            if (item.Quantity == 0)
+            {
+                order.Items.Remove(item);
+            }
+
+            order.Subtotal = Math.Round(order.Items.Sum(i => i.Total), 2);
+            order.Total = Math.Round(order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee, 2);
+            order.UpdatedAt = MongoService.GetIstNow();
+            if (!order.Items.Any())
+            {
+                order.Status = "cancelled";
+            }
+
+            await _orderRepo.UpdateOrderAsync(order);
+
+            voidRequest.Status = "approved";
+            await RecalculateSessionTotalsAsync(session);
+            AddSessionEvent(
+                session,
+                "void_approved",
+                $"Void approved: {voidRequest.ItemName} x{voidRequest.Quantity}",
+                userId,
+                new Dictionary<string, string>
+                {
+                    ["voidRequestId"] = voidRequest.Id,
+                    ["orderId"] = order.Id ?? string.Empty
+                });
+            await _orderRepo.UpdateDineInSessionAsync(session);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Void approved and bill updated",
+                session = await BuildBillResponseAsync(session)
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error reviewing void request {VoidRequestId} for session {SessionId}", voidRequestId, sessionId);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to review void request" });
+            return error;
+        }
+    }
+
+    [Function("ReseatDineInSession")]
+    public async Task<HttpResponseData> ReseatSession(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "dine-in/session/{sessionId}/reseat")] HttpRequestData req,
+        string sessionId)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (request, valError) = await ValidationHelper.ValidateBody<DineInReseatRequest>(req);
+            if (valError != null) return valError;
+
+            var session = await _orderRepo.GetDineInSessionByIdAsync(sessionId);
+            if (session == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
+                return notFound;
+            }
+
+            var targetTable = request.NewTableNumber.Trim();
+            if (string.Equals(targetTable, session.TableNumber, StringComparison.OrdinalIgnoreCase))
+            {
+                var ok = req.CreateResponse(HttpStatusCode.OK);
+                await ok.WriteAsJsonAsync(new { message = "Session already assigned to this table", session = await BuildBillResponseAsync(session) });
+                return ok;
+            }
+
+            var occupied = await _orderRepo.GetActiveDineInSessionByTableAsync(session.OutletId, targetTable);
+            if (occupied != null && occupied.Id != session.Id)
+            {
+                if (!request.MergeIfOccupied)
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Target table has an active session. Enable merge to combine sessions." });
+                    return conflict;
+                }
+
+                foreach (var orderId in session.OrderIds)
+                {
+                    if (!occupied.OrderIds.Contains(orderId))
+                    {
+                        occupied.OrderIds.Add(orderId);
+                    }
+
+                    var order = await _orderRepo.GetOrderByIdAsync(orderId);
+                    if (order != null)
+                    {
+                        order.DineInSessionId = occupied.Id;
+                        order.TableNumber = targetTable;
+                        order.UpdatedAt = MongoService.GetIstNow();
+                        await _orderRepo.UpdateOrderAsync(order);
+                    }
+                }
+
+                occupied.AmountPaid = Math.Round(occupied.AmountPaid + session.AmountPaid, 2);
+                occupied.PaymentEntries ??= new List<DineInPaymentEntry>();
+                occupied.PaymentEntries.AddRange(session.PaymentEntries ?? new List<DineInPaymentEntry>());
+                occupied.VoidRequests ??= new List<DineInVoidRequest>();
+                occupied.VoidRequests.AddRange(session.VoidRequests ?? new List<DineInVoidRequest>());
+                occupied.Timeline ??= new List<DineInSessionEvent>();
+                occupied.Timeline.AddRange(session.Timeline ?? new List<DineInSessionEvent>());
+                occupied.TableNumber = targetTable;
+
+                await RecalculateSessionTotalsAsync(occupied);
+                AddSessionEvent(occupied, "session_merged_in", $"Merged session {session.Id} into this table", userId);
+                await _orderRepo.UpdateDineInSessionAsync(occupied);
+
+                session.Status = "cancelled";
+                session.MergedIntoSessionId = occupied.Id;
+                session.MergeNote = request.Reason?.Trim();
+                AddSessionEvent(session, "session_merged_out", $"Merged into session {occupied.Id}", userId);
+                await _orderRepo.UpdateDineInSessionAsync(session);
+
+                var merged = req.CreateResponse(HttpStatusCode.OK);
+                await merged.WriteAsJsonAsync(new
+                {
+                    message = $"Sessions merged at Table {targetTable}",
+                    session = await BuildBillResponseAsync(occupied)
+                });
+                return merged;
+            }
+
+            var previousTable = session.TableNumber;
+            session.TableNumber = targetTable;
+            AddSessionEvent(
+                session,
+                "reseated",
+                $"Reseated from Table {previousTable} to Table {targetTable}",
+                userId,
+                string.IsNullOrWhiteSpace(request.Reason)
+                    ? null
+                    : new Dictionary<string, string> { ["reason"] = request.Reason.Trim() });
+
+            await _orderRepo.UpdateDineInSessionAsync(session);
+
+            foreach (var orderId in session.OrderIds)
+            {
+                var order = await _orderRepo.GetOrderByIdAsync(orderId);
+                if (order == null) continue;
+                order.TableNumber = targetTable;
+                order.UpdatedAt = MongoService.GetIstNow();
+                await _orderRepo.UpdateOrderAsync(order);
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = $"Table reassigned from {previousTable} to {targetTable}",
+                session = await BuildBillResponseAsync(session)
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error reseating session {SessionId}", sessionId);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to reseat table session" });
+            return error;
+        }
+    }
+
+    [Function("GetDineInSlaAlerts")]
+    public async Task<HttpResponseData> GetSlaAlerts(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dine-in/alerts/sla")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var outletId = req.Query["outletId"]?.Trim();
+            outletId = await ResolveOutletIdAsync(req, outletId);
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Outlet ID required" });
+                return badReq;
+            }
+
+            var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
+            var now = MongoService.GetIstNow();
+            var alerts = new List<object>();
+
+            foreach (var session in sessions)
+            {
+                foreach (var orderId in session.OrderIds)
+                {
+                    var order = await _orderRepo.GetOrderByIdAsync(orderId);
+                    if (order == null) continue;
+                    if (string.Equals(order.Status, "delivered", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(order.Status, "cancelled", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var waitedMinutes = (int)Math.Max(0, (now - order.CreatedAt).TotalMinutes);
+                    var threshold = order.Status switch
+                    {
+                        "pending" => 6,
+                        "confirmed" => 8,
+                        "preparing" => 20,
+                        "ready" => 12,
+                        "served" => 20,
+                        _ => 25
+                    };
+
+                    if (waitedMinutes < threshold) continue;
+
+                    alerts.Add(new
+                    {
+                        sessionId = session.Id,
+                        orderId = order.Id,
+                        tableNumber = session.TableNumber,
+                        status = order.Status,
+                        waitedMinutes,
+                        thresholdMinutes = threshold,
+                        severity = waitedMinutes >= threshold * 2 ? "critical" : "warning",
+                        createdAt = order.CreatedAt
+                    });
+                }
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                outletId,
+                generatedAt = now,
+                totalAlerts = alerts.Count,
+                alerts
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error getting dine-in SLA alerts");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to load dine-in SLA alerts" });
+            return error;
+        }
+    }
+
+    [Function("GetDineInDayEndOpenTables")]
+    public async Task<HttpResponseData> GetDayEndOpenTables(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dine-in/day-end/open-tables")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var outletId = req.Query["outletId"]?.Trim();
+            outletId = await ResolveOutletIdAsync(req, outletId);
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "Outlet ID required" });
+                return badReq;
+            }
+
+            var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
+            var now = MongoService.GetIstNow();
+            var openSessions = sessions
+                .Where(s => s.Status != "paid")
+                .Select(s => new
+                {
+                    s.Id,
+                    s.TableNumber,
+                    s.CustomerName,
+                    s.Status,
+                    s.PaymentStatus,
+                    s.Subtotal,
+                    s.GrandTotal,
+                    s.AmountPaid,
+                    AmountDue = Math.Max(0, Math.Round(s.GrandTotal - s.AmountPaid, 2)),
+                    s.CreatedAt,
+                    s.BillRequestedAt,
+                    MinutesOpen = (int)Math.Max(0, (now - s.CreatedAt).TotalMinutes)
+                })
+                .OrderByDescending(s => s.AmountDue)
+                .ThenByDescending(s => s.MinutesOpen)
+                .ToList();
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                outletId,
+                generatedAt = now,
+                openTablesCount = openSessions.Count,
+                totalOutstandingAmount = Math.Round(openSessions.Sum(s => s.AmountDue), 2),
+                requiresAttention = openSessions.Any(s => s.AmountDue > 0),
+                sessions = openSessions
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error running day-end open table safety check");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to run day-end safety check" });
+            return error;
+        }
+    }
+
     #region Helpers
+
+    private static bool IsPaymentSubmissionAllowed(string? paymentStatus)
+    {
+        return paymentStatus == "unpaid"
+            || paymentStatus == "partially_paid"
+            || paymentStatus == "pending_verification"
+            || paymentStatus == "pending_cash";
+    }
+
+    private static string GetPaymentStatusForPendingEntries(DineInSession session)
+    {
+        session.PaymentEntries ??= new List<DineInPaymentEntry>();
+
+        var latestPending = session.PaymentEntries
+            .Where(p => string.Equals(p.Status, "pending", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(p => p.RequestedAt)
+            .FirstOrDefault();
+
+        if (latestPending == null)
+        {
+            return "partially_paid";
+        }
+
+        return string.Equals(latestPending.PaymentMethod, "cash_at_counter", StringComparison.OrdinalIgnoreCase)
+            ? "pending_cash"
+            : "pending_verification";
+    }
 
     private async Task<bool> FinalizeSessionPaymentAsync(DineInSession session)
     {
+        await RecalculateSessionTotalsAsync(session);
+        if (GetSessionAmountDue(session) > 0)
+        {
+            return false;
+        }
+
         Offer? appliedOffer = null;
         if (!string.IsNullOrWhiteSpace(session.CouponCode))
         {
@@ -1029,10 +1835,22 @@ public class DineInFunction
 
         try
         {
+        session.AmountPaid = Math.Round(session.GrandTotal, 2);
         session.PaymentStatus = "paid";
         session.Status = "paid";
         session.SettledAt = MongoService.GetIstNow();
         session.UpdatedAt = MongoService.GetIstNow();
+        session.PaymentEntries ??= new List<DineInPaymentEntry>();
+        foreach (var entry in session.PaymentEntries.Where(e => string.Equals(e.Status, "pending", StringComparison.OrdinalIgnoreCase)))
+        {
+            entry.Status = "confirmed";
+            entry.ConfirmedAt ??= session.SettledAt;
+        }
+        AddSessionEvent(
+            session,
+            "session_paid",
+            $"Session closed as paid. Total settled: ₹{session.GrandTotal:0.00}",
+            "system");
         await _orderRepo.UpdateDineInSessionAsync(session);
 
         foreach (var orderId in session.OrderIds)
@@ -1154,6 +1972,7 @@ public class DineInFunction
             : null;
 
         var pointsToEarn = (int)Math.Floor(session.GrandTotal * 0.10m);
+        var amountDue = GetSessionAmountDue(session);
 
         return new DineInBillResponse
         {
@@ -1166,6 +1985,17 @@ public class DineInFunction
             Status = session.Status,
             PaymentStatus = session.PaymentStatus,
             PaymentMethod = session.PaymentMethod,
+            AmountPaid = Math.Round(session.AmountPaid, 2),
+            AmountDue = amountDue,
+            PaymentEntries = (session.PaymentEntries ?? new List<DineInPaymentEntry>())
+                .OrderByDescending(p => p.RequestedAt)
+                .ToList(),
+            VoidRequests = (session.VoidRequests ?? new List<DineInVoidRequest>())
+                .OrderByDescending(v => v.RequestedAt)
+                .ToList(),
+            Timeline = (session.Timeline ?? new List<DineInSessionEvent>())
+                .OrderByDescending(t => t.CreatedAt)
+                .ToList(),
             Rounds = rounds,
             TotalItemsCount = totalItems,
             Subtotal = session.Subtotal,
@@ -1187,6 +2017,52 @@ public class DineInFunction
             EstimatedPointsToEarn = pointsToEarn,
             CanApplyCoupon = session.Status == "active"
         };
+    }
+
+    private decimal GetSessionAmountDue(DineInSession session)
+    {
+        var due = Math.Round(session.GrandTotal - session.AmountPaid, 2);
+        return due < 0 ? 0 : due;
+    }
+
+    private static void AddSessionEvent(
+        DineInSession session,
+        string eventType,
+        string message,
+        string? actor,
+        Dictionary<string, string>? metadata = null)
+    {
+        session.Timeline ??= new List<DineInSessionEvent>();
+        session.Timeline.Add(new DineInSessionEvent
+        {
+            EventType = eventType,
+            Message = message,
+            Actor = actor,
+            CreatedAt = MongoService.GetIstNow(),
+            Metadata = metadata
+        });
+    }
+
+    private string ResolveActorLabel(HttpRequestData req, DineInSession session)
+    {
+        var authHeader = req.Headers.TryGetValues("Authorization", out var authValues)
+            ? authValues.FirstOrDefault()
+            : null;
+        if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var principal = _auth.ValidateToken(authHeader["Bearer ".Length..].Trim());
+            if (principal != null)
+            {
+                var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+                var user = principal.FindFirst(ClaimTypes.Name)?.Value ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrWhiteSpace(user))
+                {
+                    return string.IsNullOrWhiteSpace(role) ? user : $"{user} ({role})";
+                }
+            }
+        }
+
+        return session.CustomerName ?? "guest";
     }
 
     private async Task<string?> ResolveOutletIdAsync(HttpRequestData req, string? requestedId)
@@ -1229,7 +2105,7 @@ public class DineInFunction
             {
                 var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 var role = principal.FindFirst(ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
-                if (role is "admin" or "manager" or "assistant-manager" or "cashier" or "staff" or "cook" or "chef" or "sous-chef" or "kitchen" or "kitchen-staff")
+                if (role is "admin" or "manager" or "cashier" or "staff" or "cook" or "chef" or "sous-chef" or "kitchen" or "kitchen-staff")
                     return true;
                 if (!string.IsNullOrWhiteSpace(userId) && string.Equals(session.UserId, userId, StringComparison.Ordinal))
                     return true;

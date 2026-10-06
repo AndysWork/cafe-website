@@ -185,7 +185,7 @@
     </div>
   </div>
 
-  <!-- Check-In Table Selection Modal (Strict 1-10 Validation) -->
+  <!-- Check-In Table Selection Modal -->
   <div class="checkin-modal-overlay" *ngIf="showCheckInModal" (click)="closeCheckInModal()">
     <div class="checkin-modal-box" (click)="$event.stopPropagation()">
       <button type="button" class="modal-close-btn" (click)="closeCheckInModal()" aria-label="Close">✕</button>
@@ -198,10 +198,10 @@
         </p>
       </div>
 
-      <!-- Quick Chips 1-10 -->
+      <!-- Quick Chips -->
       <div class="table-presets">
         <div class="preset-head">
-          <span class="preset-label">Select Table (1 to 10):</span>
+          <span class="preset-label">Quick Select Tables:</span>
           <button
             type="button"
             class="btn-clear-selection"
@@ -224,18 +224,17 @@
         </div>
       </div>
 
-      <!-- Numeric Input (Min 1, Max 10) -->
+      <!-- Numeric Input -->
       <div class="table-input-field">
-        <label for="checkInTableNum">Or Type Table Number (1 - 10)</label>
+        <label for="checkInTableNum">Or Type Table Number</label>
         <div class="input-wrapper">
           <input
             id="checkInTableNum"
             type="number"
             min="1"
-            max="10"
             step="1"
             [(ngModel)]="checkInTableInput"
-            placeholder="1 - 10"
+            placeholder="e.g. 12"
             (keyup.enter)="isTableValid(checkInTableInput) && confirmCheckIn()"
             [class.invalid]="checkInTableValidationError"
           />
@@ -245,7 +244,7 @@
           ⚠️ {{ checkInTableValidationError }}
         </small>
         <small class="table-info-hint" *ngIf="!checkInTableValidationError">
-          Only tables 1 to 10 are valid for Dine-In seating.
+          Enter any positive whole-number table identifier.
         </small>
       </div>
 

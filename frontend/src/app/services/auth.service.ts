@@ -7,7 +7,6 @@ import { AuthStore } from '../store/auth.store';
 export type UserRole =
   | 'admin'
   | 'manager'
-  | 'assistant-manager'
   | 'partner'
   | 'delivery-partner'
   | 'cook'

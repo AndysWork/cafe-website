@@ -57,6 +57,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     { key: 'confirmed', label: 'Confirmed', icon: '✅' },
     { key: 'preparing', label: 'Preparing', icon: '👨‍🍳' },
     { key: 'ready', label: 'Ready', icon: '🔔' },
+    { key: 'served', label: 'Served', icon: '🍽️' },
     { key: 'out-for-delivery', label: 'Out for Delivery', icon: '🛵' },
     { key: 'delivered', label: 'Delivered', icon: '🎉' }
   ];
@@ -353,13 +354,11 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     return this.order.items.every((item, index) => this.getItemRating(item, index) > 0);
   }
 
-  trackByReviewItem(index: number, item: any): string {
-    return this.getItemReviewKey(item, index);
-  }
+  trackByReviewItem = (index: number, item: any): string => this.getItemReviewKey(item, index);
 
-  trackByName(index: number, item: any): string { return item.name; }
-  trackByKey(index: number, item: any): string { return item.key; }
-  trackByIssueId(index: number, item: OrderIssue): string { return item.id || `${item.category}-${index}`; }
+  trackByName = (_index: number, item: any): string => item.name;
+  trackByKey = (_index: number, item: any): string => item.key;
+  trackByIssueId = (index: number, item: OrderIssue): string => item.id || `${item.category}-${index}`;
 
   downloadReceipt() {
     if (!this.order || this.downloadingPdf) return;

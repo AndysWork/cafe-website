@@ -71,7 +71,15 @@
           <div class="notice-text">
             <strong>Final Bill Requested • Table {{ bill.tableNumber }}</strong>
             <p>Your table bill is consolidated below. Choose your preferred payment option to complete your visit.</p>
+            <p *ngIf="bill.amountDue > 0"><strong>Pending Due:</strong> ₹{{ bill.amountDue | number:'1.2-2' }}</p>
+            <p *ngIf="bill.amountPaid > 0"><strong>Already Paid:</strong> ₹{{ bill.amountPaid | number:'1.2-2' }}</p>
           </div>
+        </div>
+
+        <div class="tab-actions" *ngIf="canReopenOrdering">
+          <button class="btn-secondary" (click)="reopenOrdering()" [disabled]="reopeningOrdering">
+            <span>{{ reopeningOrdering ? 'Reopening...' : '🔓 Manager Override: Reopen Ordering' }}</span>
+          </button>
         </div>
 
         <!-- Loyalty Reward Highlight (Final Bill Stage - Customer cannot apply coupons now, only sees points to earn) -->
@@ -108,7 +116,7 @@
               <span class="round-number">Round #{{ round.roundNumber }}</span>
               <span class="round-time">{{ round.createdAt | date:'shortTime' }}</span>
               <span class="round-status" [ngClass]="round.status">
-                {{ round.status === 'delivered' ? 'Served' : (round.status === 'ready' ? 'Ready' : 'In Kitchen') }}
+                {{ getRoundStatusLabel(round.status) }}
               </span>
             </div>
 
@@ -158,6 +166,16 @@
           </div>
 
           <div class="summary-divider"></div>
+
+          <div class="summary-row" *ngIf="bill.amountPaid > 0">
+            <span>Already Paid</span>
+            <span>- ₹{{ bill.amountPaid | number:'1.2-2' }}</span>
+          </div>
+
+          <div class="summary-row" *ngIf="bill.amountDue > 0">
+            <span>Amount Due</span>
+            <span>₹{{ bill.amountDue | number:'1.2-2' }}</span>
+          </div>
 
           <div class="summary-row grand-total-row">
             <span>Total Payable</span>
@@ -257,8 +275,24 @@
         </p>
 
         <!-- Payment Settlement Section (When Bill is Requested) -->
-        <section class="payment-settlement-section" *ngIf="bill.status === 'bill_requested' && bill.paymentStatus === 'unpaid'">
+        <section class="payment-settlement-section" *ngIf="bill.status === 'bill_requested' && bill.paymentStatus !== 'paid'">
           <h3>Choose Payment Method</h3>
+          <p *ngIf="bill.paymentStatus === 'partially_paid'">Partial payment confirmed. Remaining due: ₹{{ bill.amountDue | number:'1.2-2' }}.</p>
+          <p *ngIf="bill.paymentStatus === 'pending_verification' || bill.paymentStatus === 'pending_cash'">
+            A previous payment request is awaiting manager/admin confirmation. You can still submit another split payment now.
+          </p>
+          <p *ngIf="bill.paymentStatus === 'processing'">
+            A manager/admin is currently confirming a payment. Please wait a moment before submitting another request.
+          </p>
+
+          <div class="utr-input-group">
+            <label>Amount to pay now (supports split bill)</label>
+            <div class="coupon-input-group">
+              <input type="number" min="0.01" step="0.01" [(ngModel)]="paymentAmountInput" placeholder="Enter amount" />
+              <button class="btn-apply-coupon" type="button" (click)="setAmountToFullDue()">Use Full Due</button>
+            </div>
+            <small *ngIf="bill.amountDue > 0">Pending due: ₹{{ bill.amountDue | number:'1.2-2' }}</small>
+          </div>
 
           <div class="payment-methods-grid">
             <button
@@ -306,30 +340,31 @@
             <button
               class="btn-pay-confirm"
               (click)="onSettleBill()"
-              [disabled]="settlingBill"
+              [disabled]="settlingBill || !canSubmitPayment"
             >
-              {{ settlingBill ? 'Submitting Payment...' : '✅ I Have Paid ₹' + (bill.grandTotal | number:'1.2-2') }}
+              {{ settlingBill ? 'Submitting Payment...' : '✅ Submit ₹' + ((paymentAmountInput || 0) | number:'1.2-2') }}
             </button>
           </div>
 
           <!-- Cash at Counter Box -->
           <div class="cash-box" *ngIf="selectedPaymentMethod === 'cash_at_counter'">
-            <p>A manager will confirm this payment and close Table {{ bill.tableNumber }}, or you can pay at the counter.</p>
+            <p>A manager/admin will confirm this payment and close Table {{ bill.tableNumber }}, or you can pay at the counter.</p>
             <button
               class="btn-pay-confirm btn-cash"
               (click)="onSettleBill()"
-              [disabled]="settlingBill"
+              [disabled]="settlingBill || !canSubmitPayment"
             >
-              {{ settlingBill ? 'Notifying Staff...' : '💵 Confirm Cash at Table / Counter' }}
+              {{ settlingBill ? 'Notifying Staff...' : '💵 Submit Cash Payment Request' }}
             </button>
           </div>
         </section>
 
-        <section class="payment-settlement-section" *ngIf="bill.status === 'bill_requested' && bill.paymentStatus !== 'unpaid'">
-          <h3>Payment Awaiting Confirmation</h3>
-          <p *ngIf="bill.paymentStatus === 'pending_verification'">Your UPI payment was submitted. Staff will verify the transaction and close the table.</p>
-          <p *ngIf="bill.paymentStatus === 'pending_cash'">Cash payment is awaiting confirmation from a manager.</p>
-          <p *ngIf="bill.paymentStatus === 'processing'">Your payment is currently being confirmed by management.</p>
+        <section class="summary-section" *ngIf="bill.timeline.length">
+          <h3>Table Timeline</h3>
+          <div class="summary-row timeline-row" *ngFor="let event of bill.timeline.slice(0, 8)">
+            <span>{{ event.createdAt | date:'short' }} • {{ event.message }}</span>
+            <span>{{ event.actor || 'system' }}</span>
+          </div>
         </section>
 
         <!-- Digital Invoice When Paid -->

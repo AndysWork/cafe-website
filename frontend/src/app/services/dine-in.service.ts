@@ -16,6 +16,8 @@ export interface ActiveDineInTable {
   roundsCount: number;
   subtotal: number;
   grandTotal: number;
+  amountPaid?: number;
+  amountDue?: number;
   createdAt: string;
   billRequestedAt?: string;
   minutesActive: number;
@@ -354,6 +356,40 @@ export class DineInService {
       `${this.apiUrl}/dine-in/session/${sessionId}/payment/confirm`,
       {}
     );
+  }
+
+  public reopenOrdering(sessionId: string, reason: string): Observable<{ message: string; session: DineInBill }> {
+    return this.http.post<{ message: string; session: DineInBill }>(
+      `${this.apiUrl}/dine-in/session/${sessionId}/reopen-ordering`,
+      { reason }
+    );
+  }
+
+  public requestItemVoid(sessionId: string, payload: { orderId: string; menuItemId: string; quantity: number; reason: string }): Observable<any> {
+    return this.http.post<any>(
+      `${this.apiUrl}/dine-in/session/${sessionId}/void/request`,
+      payload,
+      this.sessionOptions()
+    );
+  }
+
+  public reviewVoidRequest(sessionId: string, voidRequestId: string, decision: 'approved' | 'rejected', notes?: string): Observable<any> {
+    return this.http.post<any>(
+      `${this.apiUrl}/dine-in/session/${sessionId}/void/${voidRequestId}/review`,
+      { decision, notes }
+    );
+  }
+
+  public getPaymentReconciliation(sessionId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/dine-in/session/${sessionId}/payment/reconcile`);
+  }
+
+  public getSlaAlerts(outletId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/dine-in/alerts/sla?outletId=${encodeURIComponent(outletId)}`);
+  }
+
+  public getDayEndOpenTables(outletId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/dine-in/day-end/open-tables?outletId=${encodeURIComponent(outletId)}`);
   }
 
   private sessionOptions(): { headers: HttpHeaders } {

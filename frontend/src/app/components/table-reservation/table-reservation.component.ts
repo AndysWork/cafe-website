@@ -166,15 +166,15 @@ export class TableReservationComponent implements OnInit {
   isTableValid(val?: string | null): boolean {
     if (!val) return false;
     const num = Number(val.trim());
-    return Number.isInteger(num) && num >= 1 && num <= 10;
+    return Number.isInteger(num) && num >= 1;
   }
 
   get checkInTableValidationError(): string {
     if (!this.checkInTableInput && !this.checkInAttempted) return '';
     if (!this.checkInTableInput) return 'Please select or enter a table number.';
     const num = Number(this.checkInTableInput.trim());
-    if (isNaN(num) || !Number.isInteger(num) || num < 1 || num > 10) {
-      return 'Invalid table number. Only tables from 1 to 10 are valid.';
+    if (isNaN(num) || !Number.isInteger(num) || num < 1) {
+      return 'Invalid table number. Please enter a positive whole number.';
     }
     return '';
   }
@@ -226,7 +226,7 @@ export class TableReservationComponent implements OnInit {
     if (!this.selectedReservationForCheckIn?.id) return;
 
     if (!this.isTableValid(this.checkInTableInput)) {
-      this.uiStore.error('Please enter a valid table number between 1 and 10');
+      this.uiStore.error('Please enter a valid table number greater than 0');
       return;
     }
 

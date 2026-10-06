@@ -43,6 +43,8 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
   couponMessage = '';
   selectedPaymentMethod: 'upi-qr' | 'cash_at_counter' = 'upi-qr';
   upiTransactionRef = '';
+  paymentAmountInput: number | null = null;
+  reopeningOrdering = false;
   qrCodeUrl = '';
 
   private subs: Subscription[] = [];
@@ -78,6 +80,9 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
         if (bill?.upiQrString) {
           this.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(bill.upiQrString)}`;
         }
+        if (bill?.amountDue !== undefined && bill.amountDue > 0) {
+          this.paymentAmountInput = Number(bill.amountDue.toFixed(2));
+        }
       }),
       this.dineInService.activeTable$.subscribe(table => {
         if (!this.dineInService.isViewingSpecificSession && !this.tableNumber) {
@@ -99,6 +104,26 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
 
   get canApplyCoupon(): boolean {
     return this.bill?.status === 'active';
+  }
+
+  get isManagerRole(): boolean {
+    const role = (this.authService.getUserRole() || '').toString().toLowerCase();
+    return role === 'admin' || role === 'manager';
+  }
+
+  get canReopenOrdering(): boolean {
+    return !!this.bill && this.bill.status === 'bill_requested' && this.isManagerRole;
+  }
+
+  get canSubmitPayment(): boolean {
+    if (!this.bill || this.bill.status !== 'bill_requested') {
+      return false;
+    }
+    if (this.bill.paymentStatus === 'processing') {
+      return false;
+    }
+    const amount = this.paymentAmountInput ?? 0;
+    return amount > 0 && amount <= (this.bill.amountDue || this.bill.grandTotal);
   }
 
   isOfferEligible(offer: Offer): boolean {
@@ -252,9 +277,21 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
   onSettleBill(): void {
     if (!this.bill?.sessionId) return;
 
+    const requestedAmount = this.paymentAmountInput ?? this.bill.amountDue ?? this.bill.grandTotal;
+    if (requestedAmount <= 0) {
+      this.uiStore.warning('Enter a valid amount to pay.');
+      return;
+    }
+
+    if (requestedAmount > (this.bill.amountDue || this.bill.grandTotal)) {
+      this.uiStore.warning('Entered amount cannot exceed the pending due amount.');
+      return;
+    }
+
     this.settlingBill = true;
     const req: SettleDineInBillRequest = {
       paymentMethod: this.selectedPaymentMethod,
+      amount: requestedAmount,
       upiReference: this.selectedPaymentMethod === 'upi-qr' ? this.upiTransactionRef.trim() : undefined
     };
 
@@ -262,9 +299,9 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.settlingBill = false;
         if (this.selectedPaymentMethod === 'cash_at_counter') {
-          this.uiStore.notify('Cash settlement requested! Staff have been notified to collect payment at your table or counter.', 'info');
+          this.uiStore.notify('Cash settlement request submitted. Staff will confirm and update remaining due if any.', 'info');
         } else {
-          this.uiStore.notify('UPI payment submitted. Staff will verify it and close your bill.', 'info');
+          this.uiStore.notify('UPI payment submitted. Staff will verify and update your pending due.', 'info');
         }
       },
       error: (err) => {
@@ -272,6 +309,44 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
         this.uiStore.error(err?.error?.error || 'Failed to settle bill');
       }
     });
+  }
+
+  setAmountToFullDue(): void {
+    if (!this.bill) return;
+    const due = this.bill.amountDue ?? this.bill.grandTotal;
+    this.paymentAmountInput = Number(Math.max(0, due).toFixed(2));
+  }
+
+  reopenOrdering(): void {
+    if (!this.bill?.sessionId || !this.canReopenOrdering) return;
+    const reason = prompt('Reason for reopening ordering (required):')?.trim();
+    if (!reason) {
+      this.uiStore.warning('Reopen reason is required.');
+      return;
+    }
+
+    this.reopeningOrdering = true;
+    this.dineInService.reopenOrdering(this.bill.sessionId, reason).subscribe({
+      next: (res) => {
+        this.reopeningOrdering = false;
+        this.uiStore.success(res?.message || 'Ordering reopened successfully.');
+      },
+      error: (err) => {
+        this.reopeningOrdering = false;
+        this.uiStore.error(err?.error?.error || 'Failed to reopen ordering');
+      }
+    });
+  }
+
+  getRoundStatusLabel(status: string): string {
+    const s = (status || '').toLowerCase();
+    if (s === 'pending') return 'Order Received';
+    if (s === 'confirmed') return 'Order Confirmed';
+    if (s === 'preparing') return 'Preparing';
+    if (s === 'ready') return 'Prepared';
+    if (s === 'served') return 'Served';
+    if (s === 'delivered') return 'Closed';
+    return status;
   }
 
   printReceipt(): void {

@@ -99,6 +99,7 @@ export class CustomerDashboardComponent implements OnInit, OnDestroy {
       confirmed: '✅',
       preparing: '👨‍🍳',
       ready: '🔔',
+      served: '🍽️',
       'out-for-delivery': '🛵',
       delivered: '🎉',
       cancelled: '❌'
