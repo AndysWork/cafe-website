@@ -1,8 +1,10 @@
 # Product Audit Report — Maa Tara Cafe Management Website
 
-**Audit Date:** March 30, 2026  
+**Audit Date:** October 23, 2026<br>
 **Auditor Role:** Product Owner  
 **Tech Stack:** Angular 19 + .NET 9 Azure Functions + MongoDB Atlas + Azure Blob Storage + Razorpay + Twilio
+
+> **Current review note:** Some completion percentages, architecture counts, and sprint statements below are March 2026 estimates, not revalidated metrics. The current source review confirmed zero tax on in-house online, dine-in, and counter orders; market-price providers remain placeholders; recommendations have no customer-facing component; and automated test coverage is minimal. Current gaps below supersede conflicting historical claims.
 
 ---
 
@@ -82,7 +84,7 @@
 | # | Gap | Location | Impact |
 |---|-----|----------|--------|
 | **M1** | ~~**No coupon/promo code at checkout**~~ | ✅ **DONE (Sprint 1)** — Coupon input at checkout validates against offers API. Supports percentage/flat/BOGO discounts with max discount cap, usage limits, date range, and min order validation. Discount shown in order summary and order history. | ~~Offers are useless decoration.~~ Fixed. |
-| **M2** | ~~**No tax display at checkout**~~ | ✅ **DONE (Sprint 1)** — Tax (2.5%) and Platform Charge (2.5%) displayed in checkout summary before placing order. Also shown in order history. Backend calculates and stores both. | ~~Customers don't know their exact total.~~ Fixed. |
+| **M2** | **Tax/GST calculation and display** | ⚠️ **PARTIAL / TAX DISABLED** — Online, dine-in, and counter-sale backend flows currently store zero tax. Online orders use a flat ₹2 platform charge, not a 2.5% platform charge. GST reports aggregate stored/imported values, so correct tax calculation and filing readiness remain unverified. |
 | **M3** | ~~**No order detail page**~~ | ✅ **DONE (Sprint 2)** — Dedicated `/orders/:id` route with full breakdown, timeline, progress stepper, review/rating, PDF receipt download. OrderDetail component with lazy loading. | ~~Poor post-purchase UX.~~ Fixed. |
 | **M4** | ~~**No reorder capability**~~ | ✅ **DONE (Sprint 1)** — "🔄 Reorder" button on past orders adds all items to cart and navigates to /cart. | ~~Friction for repeat customers.~~ Fixed. |
 | **M5** | ~~**No customer review/rating submission**~~ | ✅ **DONE (Sprint 2)** — ReviewFunction (rating 1-5 + text, validates order exists). CustomerReviews component + customer-review.service.ts. Public `/reviews` route. Post-order rating prompt on order detail page. | ~~Zero feedback loop.~~ Fixed. |
@@ -113,12 +115,12 @@
 | **M20** | No dark mode toggle | Modern UX expectation, especially for evening/night browsing. Kitchen Display has dark theme but not customer-facing. |
 | **M21** | No multi-language support (at minimum Hindi) | Limits reach across India. |
 | **M22** | ~~No customer testimonial submission form on landing page~~ | ✅ **DONE (Sprint 2)** — CustomerReviews component with review submission, public `/reviews` route. |
-| **M23** | ~~No "Frequently Bought Together" / recommendations engine~~ | ✅ **DONE (Sprint 5)** — RecommendationFunction (order history + time-of-day + seasonal), recommendation.service.ts. No frontend component yet. |
+| **M23** | Customer-facing recommendations | ⚠️ **PARTIAL** — Backend recommendations and `recommendation.service.ts` exist, but no customer-facing component consumes the service. |
 | **M24** | ~~No order invoice/receipt PDF generation~~ | ✅ **DONE (Sprint 2)** — ReceiptPdfFunction via QuestPDF (`GET /orders/{id}/receipt-pdf`). |
 | **M25** | No stock-out auto-disable on menu | Out-of-stock items still show (with badge) but confuse users. Should be hideable. |
 | **M26** | No tip/gratuity option at checkout | Small but meaningful for staff morale and retention. |
-| **M27** | No unit tests (backend or frontend) | HIGH risk — zero test coverage, risky deployments with no safety net. |
-| **M28** | Scheduled price updater is commented out (`PriceUpdateScheduler.cs`) | MarketPriceService has placeholder implementations. Requires real market data API. |
+| **M27** | Automated test coverage | HIGH risk — no backend test project; four Angular spec files provide very limited coverage. `AppComponent` specs contain stale title/template assertions. The attempted Angular test run did not complete because Karma did not capture a browser. |
+| **M28** | Market-price update workflow | **INCOMPLETE** — AGMARKNET and web-scraping providers return failure placeholders, and the scheduled trigger is commented out. |
 
 ---
 
@@ -167,8 +169,8 @@
 
 | Area | Completion | What Works | What's Missing |
 |------|-----------|------------|----------------|
-| **Menu Browsing** | 95% | Search, category filter, favorites, add-to-cart, availability badge, veg/non-veg/egg/vegan dietary badges, sort by price/name, item detail modal with variants, AI recommendations (backend) | No nutritional info, no spicy indicator |
-| **Cart & Checkout** | 98% | Address selection, Razorpay/COD, special notes, packaging charges, coupon/promo codes, loyalty point redemption, tax (2.5%) + platform charge (2.5%) display, delivery fee (zone-based), order scheduling (date+time), order type (delivery/pickup/dine-in), table number for dine-in | No tips |
+| **Menu Browsing** | Historical estimate | Search, category filter, favorites, add-to-cart, availability badge, dietary badges, sorting, and item details. Recommendation API exists but is not surfaced in customer UI. | No nutritional info, no spicy indicator, no customer-facing recommendations |
+| **Cart & Checkout** | Historical estimate | Address selection, Razorpay/COD, special notes, packaging charges, coupon/promo codes, loyalty point redemption, delivery fee, scheduling, and order type | Tax currently calculates as zero in backend; platform charge is a flat ₹2 for online orders; no tips |
 | **Order Tracking** | 95% | Status badges, cancel, receipt upload, admin status update, reorder button, real-time 15s polling, order detail page (`/orders/:id`), progress stepper, review/rating, PDF receipt download (QuestPDF), outbox-based notifications | No ETA prediction |
 | **Customer Reviews** | 85% | ReviewFunction (1-5 stars + text, order-verified), CustomerReviews component, public `/reviews` route, customer-review.service.ts + reviews.service.ts | No photo reviews, no moderation workflow |
 | **User Profile** | 75% | Edit info, change password, profile pic (Blob Storage), addresses (AddressFunction), favorites (FavoriteFunction), notification prefs | No 2FA, no account deletion |
@@ -176,7 +178,7 @@
 | **Wallet** | **0% (Removed)** | Wallet module removed from product (July 2026) | Feature discontinued |
 | **Reservations** | **100%** | Book tables with time slots, party size, special requests, view/cancel my reservations | — |
 | **Subscriptions** | **100%** | Browse subscription plans, view pricing/benefits/daily items, subscribe to plans | — |
-| **PWA** | **100%** | Installable PWA with manifest, service worker (registerWhenStable:30000), offline app shell, data groups (reference data cache-first 6h, API freshness 10s timeout) | No push notifications |
+| **PWA** | Historical estimate | Installable PWA, manifest, service worker, offline app shell, data caching, and Web Push subscription/sending code | Verify VAPID configuration and browser/service-worker delivery in deployment |
 
 ### Admin Panel Deep Dive
 
@@ -204,7 +206,7 @@
 *Maximum impact, minimum effort*
 
 - [x] **M1** — Coupon/promo code at checkout (validates against offers API, percentage/flat/BOGO, usage limits, min order)
-- [x] **M2** — Tax (2.5%) + Platform Charge (2.5%) display at checkout and order history
+- [ ] **M2** — Tax/GST is disabled in online, dine-in, and counter-sale calculations; online platform charge is currently a flat ₹2. Reconfirm tax and GSTIN requirements before marking complete.
 - [x] **M4** — Reorder button (adds all items from past order to cart, navigates to /cart)
 - [x] **M6** — Loyalty points at checkout (toggle to use points, 1 pt = ₹0.25, backend deduction + transaction logged)
 - [x] **M7** — Real QR code (replaced canvas placeholder with `qrcode` npm package, `QRCode.toCanvas()`)
@@ -315,22 +317,18 @@
 - ✅ New functions: AddressFunction, FavoriteFunction, ExternalOrderClaimFunction, OrphanCleanupFunction, OutboxProcessorFunction, ReceiptPdfFunction, ReviewFunction, NotificationFunction
 - ✅ Soft-delete (ISoftDeletable) + OrphanCleanupFunction for record lifecycle
 
-**Remaining gaps:**
-1. **M27 — Unit & integration tests** (zero coverage, deferred to post-launch)
-2. **M14 — Supplier management CRUD** (PurchaseOrder model exists, auto-reorder generates POs, but no supplier directory)
-3. **N4 — Smart feedback system** (deferred — existing review/rating covers core use case)
-4. **N16, N18, N20** — Multi-outlet menu variations, social media integration, voice ordering (future roadmap)
+**Current confirmed gaps (October 23, 2026):**
+- Automated tests: no backend test project and only four Angular specs; the AppComponent spec is stale and the attempted run could not connect a browser.
+- Ingredient market-price updates: provider implementations are placeholders; scheduler trigger is disabled.
+- Tax/GST: in-house online, dine-in, and counter-sale flows store zero tax pending the business/GSTIN decision.
+- Customer recommendations: backend and service exist, but no customer-facing component consumes them.
+- Supplier management: no supplier directory or complete procurement workflow; purchase orders use free-text supplier names.
+- External delivery marketplace sync: invoice-claim and internal delivery-partner flows exist, but direct Swiggy/Zomato order or payout sync is not implemented.
+- Two-factor authentication is not implemented.
+- Live database, payment-provider, web-push, and physical-printer behavior requires deployment validation.
 
-**Frontend gaps (backend API exists, no UI):**
-- GST Report, Frozen Items, Cash Reconciliation, Overhead Cost, Platform Charge, Online/Offline Expense Types, KOT Thermal Print, Recommendations — 9 backend APIs with services but no dedicated component/route
-
-**Total inventory:**
-- **28 missing implementations** identified — **22 completed (Sprint 1-6)**, 6 remaining (M14, M17, M18, M19, M20, M25, M26, M27)
-- **20 new feature recommendations** — **17 completed**, 3 remaining (N4, N16, N18, N20)
-- **6 sprints** of prioritized work + architecture hardening — **All COMPLETE**
-- **~522 hours** of development completed, **~160 hours** remaining
-- **Both frontend and backend build with 0 errors** (83 nullable warnings — baseline)
+The earlier sprint completion counts, effort estimates, and area percentages in this document are historical planning figures and should not be interpreted as current verified completion metrics.
 
 ---
 
-*Generated by Product Audit — March 30, 2026*
+*Updated by source review — October 23, 2026*

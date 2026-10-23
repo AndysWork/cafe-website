@@ -1,8 +1,23 @@
 # Missing Implementations & Incomplete Features
 
 **Document Created:** January 7, 2026  
-**Last Updated:** March 30, 2026  
-**Status:** Sprint 6 Complete — Architecture Hardening Done
+**Last Updated:** October 23, 2026<br>
+**Status:** Current source-review findings added; older sprint summaries below are historical snapshots.
+
+## Current Scan Snapshot — October 23, 2026
+
+The following gaps were confirmed in the current source review. These findings supersede conflicting status claims and estimates elsewhere in this March 2026 historical report.
+
+| Area | Current status |
+|---|---|
+| Ingredient market-price updates | AGMARKNET and web-scraping implementations are placeholders that return failure. Manual refresh controls exist, but the scheduled price updater trigger is commented out. |
+| Tax and GST values | Online orders, dine-in rounds, and counter sales currently store zero tax. GST reports aggregate stored/imported tax values; they do not establish that tax calculation or filing is correct. |
+| Customer recommendations | Backend endpoints and a frontend service exist, but no customer-facing component consumes the service. |
+| Supplier management | Auto-reorder generates purchase orders, but supplier names are free text. There is no supplier directory or complete procurement workflow. |
+| Automated tests | The solution has no backend test project and only four Angular spec files. The AppComponent spec contains stale title/template expectations. The attempted Angular test run did not complete because Karma did not capture a browser. |
+| Marketplace and authentication extensions | Direct Swiggy/Zomato order or payout synchronization and two-factor authentication are not implemented. |
+
+The dine-in ordering, KOT, kitchen item tracking, cashier settlement, sales reporting, and audit flows are implemented in code. Live database, payment, and thermal-printer behavior still needs deployment validation.
 
 ---
 
@@ -404,7 +419,7 @@
 
 **What's Not Included:**
 - ❌ No native mobile app (React Native / Flutter)
-- ❌ No push notifications (requires VAPID keys + backend push service)
+- ⚠️ Web Push subscription and sending code exist; verify VAPID configuration and end-to-end browser delivery in deployment
 - ❌ No full offline mode for order creation (read-only cache only)
 
 **Impact:** NONE - PWA provides installable, fast, offline-capable web experience
@@ -960,17 +975,15 @@
 11. Supplier management CRUD with purchase order workflow
 12. Two-factor authentication
 
-### Frontend Gaps (Backend exists, no UI)
-These backend APIs exist but have no frontend component or route:
-- **GST Report** — `GstReportFunction` + `gst-report.service.ts` (no component/route)
-- **Frozen Item Management** — `FrozenItemFunction` + `frozen-item.service.ts` (no component/route)
-- **Cash Reconciliation** — `CashReconciliationFunction` (no frontend service or component)
-- **Overhead Cost** — `OverheadCostFunction` + `overhead-cost.service.ts` (no component/route)
-- **Platform Charge** — `PlatformChargeFunction` + `platform-charge.service.ts` (no component/route)
-- **Online Expense Type** — `OnlineExpenseTypeFunction` + service (no component/route)
-- **Offline Expense Type** — `OfflineExpenseTypeFunction` + service (no component/route)
-- **KOT Thermal Printing** — `KotFunction` backend only (no frontend at all)
-- **Recommendation** — `RecommendationFunction` + `recommendation.service.ts` (no component/route)
+### Frontend Integration Status (verified October 23, 2026)
+The former “nine backend APIs with no frontend” list was stale. Source references show:
+- GST reports are surfaced by the admin report-export page.
+- Frozen-item operations are integrated into the price-calculator page.
+- Cash reconciliation is integrated into the cashier page.
+- Overhead costs and online/offline expense types are used by the admin-expenses or price-calculator pages.
+- Platform-charge reporting is used by analytics and the online-sales tracker.
+- KOT printing is available from the kitchen and dine-in workflows.
+- Recommendations remain a gap: the frontend service exists but has no component consumer.
 
 ### Progress Since January 2026
 ✅ **Q1 2026 Achievements:**
@@ -1016,25 +1029,27 @@ These backend APIs exist but have no frontend component or route:
 - **Polly resilience** on named HttpClients (WhatsApp, Razorpay) with retry + circuit breaker
 
 **Remaining Items:**
-- Unit & integration tests — 80 hours estimated (zero coverage)
-- Direct Swiggy/Zomato API integration — 40 hours estimated (ExternalOrderClaim exists as workaround)
-- 9 frontend components missing for existing backend APIs (see Frontend Gaps above)
-- Two-factor authentication — 16 hours estimated
-- Supplier management CRUD — 24 hours estimated
+- Add meaningful automated coverage for backend and frontend workflows; current tests are sparse and the Angular AppComponent spec is stale.
+- Replace the market-price provider placeholders and decide whether to enable or remove the disabled scheduler.
+- Confirm whether GST must be charged on in-house orders; tax is currently zero in online, dine-in, and counter-sale code paths.
+- Add a customer-facing recommendation surface if personalized/trending recommendations remain in scope.
+- Add supplier records and procurement workflow if purchasing operations require them.
+- Implement direct Swiggy/Zomato integrations if automatic marketplace synchronization is required.
+- Add two-factor authentication if required by the security roadmap.
 
 ---
 
 ## NOTES
 
 - This document was created on January 7, 2026
-- **Last comprehensive update: March 30, 2026** (Architecture Hardening review)
-- Document reflects Q1 2026 development progress through Sprint 6 + Architecture Hardening
+- **Current source review: October 23, 2026**
+- Sprint summaries and codebase counts below reflect March 2026 and are historical, not current inventory.
 - Features marked ✅ are fully implemented and working
 - Features marked ⚠️ are partially implemented
 - Features marked ❌ are not implemented
 - Multi-tenant architecture is planned but not implemented (separate document exists)
 
-### Codebase Statistics (March 30, 2026)
+### Historical Codebase Statistics (March 30, 2026; not re-counted)
 | Metric | Count |
 |--------|-------|
 | Backend Functions | **74** |
@@ -1053,7 +1068,7 @@ These backend APIs exist but have no frontend component or route:
 | MongoDB Collections | **54** |
 | Compound Indexes | **35+** |
 
-### Q1 2026 Development Summary
+### Historical Q1 2026 Development Summary
 - **~522 hours** of features completed across 6 sprints + architecture hardening
 - **~160 hours** remaining for medium/high priority features
 - All 6 sprints COMPLETE + architecture hardening COMPLETE

@@ -4,12 +4,13 @@
 > **Stack:** Angular 19.2 + .NET 9 Azure Functions (Isolated Worker) + MongoDB Atlas  
 > **Domain:** Multi-outlet cafe management + online ordering platform
 
-> **Recent Changes (July 2026):**
+> **Recent Changes (July–October 2026):**
 > - Wallet module removed from frontend/backend flows
 > - Kitchen voice stock-out request workflow (speech-to-text submit + admin approval queue)
 > - Kitchen order-level text-to-speech playback in Kitchen Display
 > - Kitchen-only Google translation controls (custom selector-based integration)
 > - Role-aware navbar visibility hardening on home and role dashboards
+> - Dine-in QR/waiter order rounds, KOT workflow, item-level kitchen tracking, cashier settlement, reporting, and audit timeline
 
 ---
 
@@ -21,6 +22,7 @@
 4. [System Architecture](#4-system-architecture)
 5. [ER Diagram](#5-er-diagram)
 6. [Architectural Flaws & Recommendations](#6-architectural-flaws--recommendations)
+7. [Current Status & Known Gaps](#7-current-status--known-gaps)
 
 ---
 
@@ -65,7 +67,7 @@
 | 17 | **Combo Meals** | View and order combo meal deals with savings display |
 | 18 | **Happy Hour Deals** | Automatic discounts during happy hour time windows |
 | 19 | **Delivery Fee Calculation** | Dynamic delivery fee based on delivery zone distance configuration |
-| 20 | **Recommendations** | Personalized menu recommendations and trending items |
+| 20 | **Recommendations** | Recommendation endpoints exist; customer-facing recommendation UI is not currently wired |
 | 21 | **Subscriptions** | Subscribe to meal plans, track active subscription, view included benefits |
 
 ### 1.3 Admin (Role: `admin`)
@@ -116,10 +118,10 @@
 | 29 | **Ingredient Management** | CRUD for ingredients with market price tracking, categories, unit management |
 | 30 | **Recipe Management** | Define ingredient recipes per menu item with quantity, unit, wastage factor — auto-calculates making cost |
 | 31 | **Price History** | Track ingredient price changes over time with source attribution |
-| 32 | **Auto Price Update** | Configurable automatic market price fetching for ingredients |
+| 32 | **Auto Price Update** | Settings and refresh controls exist, but market-price providers are placeholders and the scheduled trigger is disabled |
 | 33 | **Frozen Items** | Track frozen inventory (packets, weights, per-piece pricing), Excel upload, sync to main inventory |
-| 34 | **Auto Reorder** | Generate purchase orders automatically when stock falls below reorder threshold |
-| 35 | **Purchase Orders** | Create, approve, and track purchase orders with supplier details |
+| 34 | **Auto Reorder** | Generate purchase orders automatically when stock falls below the reorder threshold |
+| 35 | **Purchase Orders** | Review generated orders and update their status; supplier names are free text, with no supplier directory or full procurement workflow |
 
 #### Staff & HR Management
 | # | Feature | Description |
@@ -1128,5 +1130,22 @@ User                Angular App              Azure Functions           MongoDB
 
 ---
 
-> **Document updated — Version 3.1 — July 12, 2026**  
-> **Covers:** 52 model files, 79 function files, ~65 MongoService collection bindings, 76 frontend components, 57 frontend services, 5 signal stores, 13 repository interfaces, 19 helper files, 29 backend service files
+> **Document updated — Version 3.1 — October 23, 2026**<br>
+> Inventory counts elsewhere in this document are a July 2026 snapshot and have not been re-counted.
+
+## 7. Current Status & Known Gaps
+
+This section records implementation gaps confirmed during a source review on October 23, 2026. A listed feature may have configuration or external-service prerequisites that are not verifiable from source alone.
+
+| Area | Current implementation status |
+|---|---|
+| **Dine-in MVP** | QR and waiter ordering, multiple order rounds, KOT workflow, kitchen item readiness, cashier request confirmation and direct cash/UPI entry, session closure, reporting, and audit events are implemented. Live database, payment, and physical-printer behavior still requires deployment testing. |
+| **Ingredient market-price updates** | Manual refresh controls exist, but AGMARKNET and web-scraping providers return “pending/not implemented.” The scheduled price-update timer is commented out; automated market-price updates do not currently work. |
+| **Customer recommendations** | Backend endpoints and a frontend service exist, but no customer-facing component currently consumes the service. |
+| **Supplier/procurement management** | Auto-reorder can generate purchase orders and status updates are available. Supplier names are free text; supplier records and a complete supplier/procurement workflow are not implemented. |
+| **Tax and GST amounts** | Online orders, dine-in orders, and counter sales currently store zero tax. GST reports can aggregate stored/imported values, but they should not be treated as proof of correct tax calculation or filing readiness. Tax is intentionally disabled in code pending business/GSTIN requirements. |
+| **Automated tests** | The solution has no backend test project. Four Angular spec files exist and provide very limited coverage. The `AppComponent` spec still asserts the old “frontend” title and greeting. In this environment, Karma did not capture a browser, so the test suite did not complete. |
+| **Third-party marketplace integration** | Swiggy/Zomato invoice claims and internal delivery-partner management exist; direct marketplace order/payout synchronization is not implemented. |
+| **Two-factor authentication** | No 2FA flow was found in the current authentication implementation. |
+
+The March 2026 audit documents are historical snapshots. See their October 2026 updates for current findings and corrected frontend integration notes.

@@ -1,12 +1,22 @@
 # Backend API Audit Report
 
-**Generated**: 2025-07-15 | **Last Updated**: 2026-03-30  
+**Original Audit**: 2025-07-15 | **Last Updated**: 2026-10-23<br>
 **Scope**: `api/` — Functions, Services, Models, Helpers, Repositories, Program.cs, api.csproj  
 **Runtime**: Azure Functions V4, .NET 9.0, MongoDB 3.5.0
 
 ---
 
-## Executive Summary
+## Current Source Review — October 23, 2026
+
+This update records a focused source scan; the function/service counts and resolved-issue statements in the March 2026 audit below are historical and have not been re-counted. Current confirmed backend gaps:
+
+- `MarketPriceService` still returns failure from placeholder AGMARKNET and web-scraping providers; `PriceUpdateScheduler` has its timer trigger commented out.
+- Tax is explicitly set to zero in online order, dine-in, and counter-sale paths. GST reports aggregate stored/imported tax values.
+- There is no backend test project in the solution.
+- Purchase orders support auto-generation and status updates, but there is no supplier directory or complete procurement workflow.
+- Runtime behavior against live MongoDB, payment providers, and thermal printers has not been verified by this source review.
+
+## Historical Executive Summary — March 30, 2026 Snapshot
 
 All 69 Function files, 24 Service files, 18 Helper files, 14 Repository interfaces, and key Model files were reviewed. The codebase has undergone significant architectural improvements since the initial audit — **15 of the original 17 issues have been resolved**. Two issues remain (dead code / placeholder implementations). No `TODO`, `FIXME`, `HACK`, or `throw new NotImplementedException` statements were found. The `ReceiptImageUrl` field **IS** properly mapped in `OrderFunction.cs` line 759.
 
@@ -249,16 +259,16 @@ All 18 NuGet packages in `api.csproj` map to code usage:
 | 16 | SwaggerFunction.cs | Empty dead file | LOW | ✅ FIXED |
 | 17 | WarmupFunction.cs | Direct `IMongoDatabase`; incomplete warmup | LOW | ✅ FIXED |
 
-**Resolution**: 15 fixed, 2 open (dead code / placeholder implementations)
-
----
+**Historical resolution status (March 2026)**: 15 fixed, 2 open (dead code / placeholder implementations). This count predates the October 2026 source review.
 
 ## Remaining Action Items (Priority Order)
 
-1. **Decide on PriceUpdateScheduler** — Reactivate the timer trigger or remove the dead code
-2. **Complete or remove MarketPriceService placeholders** — `FetchFromAgriMarketAsync` and `FetchFromWebScrapingAsync`
+1. **Market-price updates** — Implement a real provider or remove the refresh feature; enable the scheduler only after provider and failure behavior are tested.
+2. **Tax/GST calculation** — Confirm tax rules and GSTIN setup, then implement and test tax calculation for online, dine-in, and counter-sale flows before relying on GST reports.
+3. **Backend tests** — Add a dedicated test project for payment, pricing, inventory, and order workflows.
+4. **Supplier/procurement** — Add supplier records and a purchase-order workflow if purchasing operations require them.
 
 ---
 
 > **Initial audit**: 2025-07-15 — 50 Function files, 21 Service files, 15 Helper files  
-> **Updated**: 2026-03-30 — 69 Function files, 24 Service files, 18 Helper files, 14 Repository interfaces, 46 Model files
+> **Historical inventory**: 2026-03-30 — 69 Function files, 24 Service files, 18 Helper files, 14 Repository interfaces, 46 Model files

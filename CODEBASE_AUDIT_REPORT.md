@@ -1,12 +1,27 @@
 # Comprehensive Codebase Audit Report
 
-**Date:** January 2025 | **Last Updated:** March 30, 2026  
+**Original Audit:** July 15, 2025 | **Last Updated:** October 23, 2026<br>
 **Scope:** Full-stack analysis — .NET 9 Azure Functions API + Angular Frontend + MongoDB  
 **Focus:** Enterprise readiness, performance optimization, security, and code quality
 
 ---
 
-## Executive Summary
+## Current Source Review — October 23, 2026
+
+This is a focused source review, not a fresh count of every endpoint or a runtime/security certification. The numerical totals and resolved-issue claims in the historical March 2026 audit below have not been revalidated.
+
+| Area | Current finding |
+|---|---|
+| Automated tests | No backend test project; four Angular spec files provide limited coverage. The AppComponent spec has stale assertions, and the attempted test run did not capture a browser. |
+| Tax/GST | Online, dine-in, and counter-sale code paths currently store zero tax. GST reports aggregate stored/imported values. |
+| Ingredient pricing | AGMARKNET and scraping implementations are placeholders; the scheduled price updater trigger is commented out. |
+| Recommendations | Backend and frontend service exist, but no customer-facing component consumes the service. |
+| Procurement | Auto-reorder can create purchase orders, but supplier names are free text; no supplier directory or complete procurement workflow was found. |
+| External integrations | Direct Swiggy/Zomato order or payout synchronization and 2FA are not implemented. |
+
+The dine-in MVP flows are present in source, but live MongoDB, payment-provider, web-push, and physical-printer behavior still requires deployment testing.
+
+## Historical Executive Summary — March 30, 2026 Snapshot
 
 | Category | Critical | High | Medium | Total | Resolved |
 |----------|----------|------|--------|-------|----------|
