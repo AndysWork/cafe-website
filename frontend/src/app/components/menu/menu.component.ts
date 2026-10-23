@@ -39,8 +39,8 @@ interface MenuCategoryAccordionGroup {
 })
 export class MenuComponent implements OnInit, OnDestroy {
   private readonly checkoutDraftStorageKey = 'checkout_draft';
-  private readonly orderStartHour = 9;
-  private readonly orderCutoffHour = 22;
+  private readonly orderStartHour = 0;
+  private readonly orderCutoffHour = 24;
 
   categories: MenuCategory[] = [];
   visibleCategories: MenuCategory[] = [];

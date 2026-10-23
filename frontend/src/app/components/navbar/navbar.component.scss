@@ -70,9 +70,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 80px;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  height: 80px;
   position: relative;
   z-index: 1;
 }
@@ -162,13 +160,47 @@
 
 .navbar-nav {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   list-style: none;
   margin: 0;
   padding: 0;
   gap: 10px;
   flex: 1;
+  min-width: 0;
+}
+
+.navigation-group {
+  &.group-active > .group-toggle {
+    color: #CB202D;
+    background: rgba(226, 55, 68, 0.08);
+  }
+}
+
+.navigation-group-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  min-width: 240px;
+  max-height: min(65vh, 480px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+
+  &[hidden] {
+    display: none;
+  }
+
+  .nav-link {
+    font-size: 0.9rem;
+    padding: 12px;
+  }
 }
 
 // Auth Section
@@ -513,12 +545,14 @@
 
 .nav-item {
   position: relative;
+  flex-shrink: 0;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
   padding: 12px 20px;
   color: #4a5568;
   text-decoration: none;
@@ -918,9 +952,19 @@
 }
 
 // Responsive Design
-@media (max-width: 768px) {
+@media (min-width: 1025px) and (max-width: 1400px) {
+  .navbar-nav {
+    gap: 4px;
+  }
+
+  .nav-link {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 1024px) {
   .navbar-container {
-    min-height: 60px;
     height: 60px;
     padding: 0 12px;
   }
@@ -986,6 +1030,23 @@
     gap: 0;
     width: 100%;
     flex: none;
+    overflow: visible;
+  }
+
+  .navigation-group-menu {
+    position: static;
+    min-width: 0;
+    max-height: none;
+    box-shadow: none;
+    background: #f7fafc;
+
+    .nav-link {
+      white-space: normal;
+    }
+  }
+
+  .group-toggle {
+    justify-content: space-between;
   }
 
   .nav-item {

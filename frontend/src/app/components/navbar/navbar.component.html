@@ -33,8 +33,8 @@
     <!-- Desktop Menu -->
     <div class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
-        <!-- Home (All users) -->
-        <li class="nav-item" *ngIf="!isHomeScreen">
+        <!-- Home (All users; always rendered so role links keep a stable position) -->
+        <li class="nav-item">
           <a
             routerLink="/"
             routerLinkActive="active"
@@ -47,37 +47,39 @@
           </a>
         </li>
 
-        <li class="nav-item" *ngFor="let item of navigationItems()" [class.cart-item]="item.route === '/cart'">
-          <a
-            [routerLink]="item.route"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{ exact: true }"
-            class="nav-link"
-            (click)="closeMobileMenu()"
+        <li class="nav-item navigation-group" *ngFor="let group of navigationGroups(); let index = index"
+          routerLinkActive="group-active"
+          [class.expanded]="activeDropdown === group.label">
+          <button
+            type="button"
+            class="nav-link group-toggle"
+            [attr.aria-expanded]="activeDropdown === group.label"
+            [attr.aria-controls]="'nav-group-' + index"
+            (click)="toggleDropdown(group.label)"
           >
-            <span class="nav-icon" [class.cart-icon]="item.route === '/cart'">
-              {{ item.icon }}
-              <span class="cart-badge" *ngIf="item.route === '/cart' && cartItemCount > 0">{{
-                cartItemCount
-              }}</span>
-            </span>
-            {{ item.label }}
-          </a>
-        </li>
-        <!-- Profile (All non-admin authenticated roles) -->
-        <li
-          class="nav-item"
-          *ngIf="isNonCustomerNonAdminLoggedIn"
-        >
-          <a
-            routerLink="/profile"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">👤</span>
-            Profile
-          </a>
+            {{ group.label }}
+            <span class="group-arrow" aria-hidden="true">{{ activeDropdown === group.label ? '▴' : '▾' }}</span>
+          </button>
+          <ul class="navigation-group-menu" [id]="'nav-group-' + index"
+            [hidden]="activeDropdown !== group.label">
+            <li *ngFor="let item of group.items" [class.cart-item]="item.route === '/cart'">
+              <a
+                [routerLink]="item.route"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: true }"
+                class="nav-link"
+                (click)="closeMobileMenu()"
+              >
+                <span class="nav-icon" [class.cart-icon]="item.route === '/cart'">
+                  {{ item.icon }}
+                  <span class="cart-badge" *ngIf="item.route === '/cart' && cartItemCount > 0">{{
+                    cartItemCount
+                  }}</span>
+                </span>
+                {{ item.label }}
+              </a>
+            </li>
+          </ul>
         </li>
       </ul>
 
@@ -145,21 +147,6 @@
                 </div>
               </a>
             </li>
-            <ng-container *ngIf="isCustomer">
-              <li *ngFor="let item of customerAccountItems">
-                <a
-                  [routerLink]="item.route"
-                  routerLinkActive="active"
-                  class="dropdown-item"
-                  (click)="closeMobileMenu()"
-                >
-                  <span class="dropdown-icon">{{ item.icon }}</span>
-                  <div class="dropdown-content">
-                    <span class="dropdown-title">{{ item.label }}</span>
-                  </div>
-                </a>
-              </li>
-            </ng-container>
             <li class="divider"></li>
             <li>
               <button class="dropdown-item logout-item" (click)="onLogout()">
@@ -212,19 +199,6 @@
                 <span class="dropdown-icon">👤</span>
                 <div class="dropdown-content">
                   <span class="dropdown-title">My Profile</span>
-                </div>
-              </a>
-            </li>
-            <li *ngFor="let item of customerAccountItems">
-              <a
-                [routerLink]="item.route"
-                routerLinkActive="active"
-                class="dropdown-item"
-                (click)="closeMobileMenu()"
-              >
-                <span class="dropdown-icon">{{ item.icon }}</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">{{ item.label }}</span>
                 </div>
               </a>
             </li>

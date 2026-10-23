@@ -10,6 +10,7 @@
 > - Kitchen order-level text-to-speech playback in Kitchen Display
 > - Kitchen-only Google translation controls (custom selector-based integration)
 > - Role-aware navbar visibility hardening on home and role dashboards
+> - Grouped multi-role navbar: Home stays visible; permitted links appear once under Dashboards, Operations, Staff, and My Account. Empty groups are hidden. At widths up to 1024px, groups expand inside the mobile drawer instead of scrolling horizontally.
 > - Dine-in QR/waiter order rounds, KOT workflow, item-level kitchen tracking, cashier settlement, reporting, and audit timeline
 
 ---

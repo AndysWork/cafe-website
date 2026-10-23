@@ -59,7 +59,14 @@ describe('NavbarComponent multi-role navigation', () => {
     for (const route of ['/manager/dashboard', '/kitchen/dashboard', '/partner/delivery', '/partner/payout', '/manager/counter-sale']) {
       expect(links()).toContain(route);
     }
-    expect(new Set(links()).size).toBe(links().length);
+    const menuLinks = Array.from(fixture.nativeElement.querySelectorAll('.navbar-nav .nav-link[href]') as NodeListOf<HTMLAnchorElement>)
+      .map(link => link.getAttribute('href'));
+    expect(new Set(menuLinks).size).toBe(menuLinks.length);
+  });
+
+  it('always renders the Home link so menu width does not change between pages', () => {
+    setRoles('waiter', ['waiter']);
+    expect(fixture.nativeElement.querySelector('.navbar-nav .nav-link[href="/"]')).not.toBeNull();
   });
 
   it('keeps customer menus and cart badge alongside secondary staff roles', () => {
@@ -88,6 +95,52 @@ describe('NavbarComponent multi-role navigation', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(fixture.nativeElement.querySelector('.navbar-menu').classList.contains('active')).toBeTrue();
     expect(links()).toEqual(before);
+  });
+
+  it('opens one group at a time and closes on outside click and Escape', () => {
+    setRoles('waiter', ['waiter', 'cashier']);
+    const buttons: NodeListOf<HTMLButtonElement> = fixture.nativeElement.querySelectorAll('.group-toggle');
+    const menus: NodeListOf<HTMLUListElement> = fixture.nativeElement.querySelectorAll('.navigation-group-menu');
+    expect(menus[0].hidden).toBeTrue();
+    buttons[0].click();
+    fixture.detectChanges();
+    expect(buttons[0].getAttribute('aria-expanded')).toBe('true');
+    expect(menus[0].hidden).toBeFalse();
+    buttons[1].click();
+    fixture.detectChanges();
+    expect(menus[0].hidden).toBeTrue();
+    expect(menus[1].hidden).toBeFalse();
+    document.body.click();
+    fixture.detectChanges();
+    expect(menus[1].hidden).toBeTrue();
+    fixture.componentInstance.toggleMobileMenu();
+    buttons[0].click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(menus[0].hidden).toBeTrue();
+    expect(fixture.componentInstance.isMobileMenuOpen).toBeFalse();
+  });
+
+  it('closes the drawer and group after selecting a destination', () => {
+    setRoles('waiter');
+    fixture.componentInstance.toggleMobileMenu();
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector('.group-toggle');
+    button.click();
+    fixture.detectChanges();
+    const link: HTMLAnchorElement = fixture.nativeElement.querySelector('a[href="/staff/dine-in"]');
+    link.addEventListener('click', event => event.preventDefault());
+    link.click();
+    fixture.detectChanges();
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(fixture.componentInstance.isMobileMenuOpen).toBeFalse();
+  });
+
+  it('keeps customer links in My Account without duplicating them in profile menus', () => {
+    setRoles('admin', ['admin', 'user']);
+    const groups = fixture.componentInstance.navigationGroups();
+    expect(groups.find(group => group.label === 'My Account')?.items.map(item => item.route))
+      .toEqual(['/cart', '/orders', '/reservations', '/subscriptions', '/loyalty']);
+    expect(links().filter(route => route === '/orders').length).toBe(1);
   });
 
   it('updates menus when roles change and clears them on logout', () => {

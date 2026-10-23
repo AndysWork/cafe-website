@@ -1,7 +1,26 @@
-import { getRoleNavigationItems } from './role-navigation';
+import { getRoleNavigationItems, groupRoleNavigationItems } from './role-navigation';
 
 describe('Role navigation', () => {
   const routesFor = (...roles: string[]) => getRoleNavigationItems(roles).map(item => item.route);
+
+  it('groups all permitted routes exactly once in a stable functional order', () => {
+    const items = getRoleNavigationItems(['admin', 'manager', 'waiter', 'cashier', 'chef', 'delivery-partner', 'user']);
+    const groups = groupRoleNavigationItems(items);
+    expect(groups.map(group => group.label)).toEqual(['Dashboards', 'Operations', 'Staff', 'My Account']);
+    const groupedRoutes = groups.flatMap(group => group.items.map(item => item.route));
+    expect(groupedRoutes.slice().sort()).toEqual(items.map(item => item.route).sort());
+    expect(new Set(groupedRoutes).size).toBe(groupedRoutes.length);
+    expect(groups[0].items.every(item => item.label.includes('Dashboard'))).toBeTrue();
+    expect(groups[1].items.some(item => item.route === '/staff/cashier')).toBeTrue();
+    expect(groups[2].items.map(item => item.route)).toEqual(['/staff/attendance', '/staff/payslip']);
+    expect(groups[3].items.some(item => item.route === '/orders')).toBeTrue();
+  });
+
+  it('hides empty groups without adding permissions', () => {
+    expect(groupRoleNavigationItems([])).toEqual([]);
+    expect(groupRoleNavigationItems(getRoleNavigationItems(['waiter'])).map(group => group.label))
+      .toEqual(['Operations', 'Staff']);
+  });
 
   it('combines waiter, kitchen, and cashier destinations without duplicate shared links', () => {
     const routes = routesFor('waiter', 'cook', 'cashier');

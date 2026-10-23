@@ -7,7 +7,7 @@ import { AnalyticsTrackingService } from '../../services/analytics-tracking.serv
 import { AuthStore, CartStore } from '../../store';
 import { NotificationCenterComponent } from '../notification-center/notification-center.component';
 import { DineInService } from '../../services/dine-in.service';
-import { CUSTOMER_ACCOUNT_NAVIGATION, getRoleNavigationItems } from '../../utils/role-navigation';
+import { getRoleNavigationItems, groupRoleNavigationItems } from '../../utils/role-navigation';
 
 @Component({
   selector: 'app-navbar',
@@ -20,12 +20,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public dineInService = inject(DineInService);
   isMobileMenuOpen = false;
   activeDropdown: string | null = null;
-  private closeTimeout: any;
+  private closeTimeout?: ReturnType<typeof setTimeout>;
   private analyticsTracking = inject(AnalyticsTrackingService);
   private authStore = inject(AuthStore);
   private cartStore = inject(CartStore);
-  readonly navigationItems = computed(() => getRoleNavigationItems(this.authStore.roles()).filter(item => !item.account));
-  readonly customerAccountItems = CUSTOMER_ACCOUNT_NAVIGATION;
+  readonly navigationGroups = computed(() => {
+    const items = getRoleNavigationItems(this.authStore.roles());
+    if (this.isNonCustomerNonAdminLoggedIn) {
+      items.push({ label: 'Profile', route: '/profile', icon: '👤', group: 'My Account' });
+    }
+    return groupRoleNavigationItems(items);
+  });
 
   // Signal-based state reads — no subscriptions needed, auto-updates via change detection
   get currentUser(): User | null { return this.authStore.user(); }
@@ -42,7 +47,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    // No subscriptions to clean up
+    this.cancelCloseDropdown();
   }
 
   get isAdmin(): boolean {
@@ -73,11 +78,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.currentUser !== null;
   }
 
-  get isHomeScreen(): boolean {
-    const path = this.router.url.split('?')[0].split('#')[0];
-    return path === '/' || path === '/home';
-  }
-
   get displayName(): string {
     if (this.currentUser?.firstName) {
       return this.currentUser.firstName;
@@ -90,6 +90,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   toggleDropdown(dropdown: string) {
+    this.cancelCloseDropdown();
     this.activeDropdown = this.activeDropdown === dropdown ? null : dropdown;
   }
 
@@ -113,10 +114,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   closeDropdowns() {
+    this.cancelCloseDropdown();
     this.activeDropdown = null;
   }
 
   closeMobileMenu() {
+    this.cancelCloseDropdown();
     this.isMobileMenuOpen = false;
     this.activeDropdown = null;
   }
@@ -136,10 +139,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const clickedInside = target.closest('.profile-dropdown');
+    const clickedInside = target.closest('.profile-dropdown, .navigation-group');
 
     if (!clickedInside && this.activeDropdown) {
-      this.activeDropdown = null;
+      this.closeDropdowns();
     }
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    this.closeMobileMenu();
   }
 }
