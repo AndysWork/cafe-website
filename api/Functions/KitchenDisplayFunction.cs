@@ -413,7 +413,10 @@ public class KitchenDisplayFunction
             if (itemIndex >= order.Items.Count)
                 return await Error(req, HttpStatusCode.NotFound, "Order item not found");
 
-            if (IsKitchenOpsRole(role))
+            var hasWaiterServingAccess = requestedStatus == "served"
+                && RoleHelper.HasAnyRole(
+                    AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth), RoleHelper.WaiterRoles);
+            if (IsKitchenOpsRole(role) && !hasWaiterServingAccess)
             {
                 var (staff, _, staffError) = await ResolveStaffForCurrentUser(req, userId);
                 if (staff?.Id == null)

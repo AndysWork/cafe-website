@@ -481,8 +481,10 @@ export class DineInService {
   }
 
   public markDineInItemServed(orderId: string, itemIndex: number): Observable<{ message: string; itemStatus: string; orderStatus: string }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
     return this.http.put<{ message: string; itemStatus: string; orderStatus: string }>(
-      `${this.apiUrl}/kitchen/orders/${encodeURIComponent(orderId)}/items/${itemIndex}/status`,
+      `${this.apiUrl}/kitchen/orders/${encodeURIComponent(orderId)}/items/${itemIndex}/status${query}`,
       { status: 'served' }
     );
   }

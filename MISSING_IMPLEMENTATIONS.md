@@ -1,7 +1,7 @@
 # Missing Implementations & Incomplete Features
 
 **Document Created:** January 7, 2026  
-**Last Updated:** October 23, 2026<br>
+**Last Updated:** October 24, 2026<br>
 **Status:** Current source-review findings added; older sprint summaries below are historical snapshots.
 
 ## Current Scan Snapshot — October 23, 2026
@@ -14,7 +14,7 @@ The following gaps were confirmed in the current source review. These findings s
 | Tax and GST values | Online orders, dine-in rounds, and counter sales currently store zero tax. GST reports aggregate stored/imported tax values; they do not establish that tax calculation or filing is correct. |
 | Customer recommendations | Backend endpoints and a frontend service exist, but no customer-facing component consumes the service. |
 | Supplier management | Auto-reorder generates purchase orders, but supplier names are free text. There is no supplier directory or complete procurement workflow. |
-| Automated tests | The solution has no backend test project and only four Angular spec files. The AppComponent spec contains stale title/template expectations. The attempted Angular test run did not complete because Karma did not capture a browser. |
+| Automated tests | Focused backend outlet-access regressions now run in `api.Tests`; Angular regression specs cover outlet ordering controls, multi-role navigation, and waiter serving HTTP requests with ChromeHeadless. Broad integration/end-to-end coverage is still missing, and the older AppComponent spec contains stale title/template expectations. |
 | Marketplace and authentication extensions | Direct Swiggy/Zomato order or payout synchronization and two-factor authentication are not implemented. |
 
 The dine-in ordering, KOT, kitchen item tracking, cashier settlement, sales reporting, and audit flows are implemented in code. Live database, payment, and thermal-printer behavior still needs deployment validation.

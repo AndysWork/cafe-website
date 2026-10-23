@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Security.Claims;
 using Cafe.Api.Services;
+using Cafe.Api.Repositories;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.AspNetCore.Http;
 
@@ -28,14 +29,6 @@ public static class OutletHelper
         };
 
         return enabled ? null : $"{label} ordering is temporarily paused for this outlet.";
-    }
-
-    private static bool IsAdminLikeRole(string? role)
-    {
-        if (string.IsNullOrWhiteSpace(role)) return false;
-
-        var normalized = role.Trim().ToLowerInvariant();
-        return normalized == "admin";
     }
 
     /// <summary>
@@ -84,8 +77,18 @@ public static class OutletHelper
     /// <summary>
     /// Gets outlet ID from request and validates user has access to it
     /// </summary>
-    public static async Task<(bool hasAccess, string? outletId, string? errorMessage)> 
-        ValidateOutletAccess(HttpRequestData req, AuthService authService, MongoService mongoService, string? requestedOutletId = null)
+    public static Task<(bool hasAccess, string? outletId, string? errorMessage)>
+        ValidateOutletAccess(HttpRequestData req, AuthService authService, MongoService mongoService, string? requestedOutletId = null) =>
+        ValidateOutletAccess(req, authService, mongoService, mongoService, mongoService, requestedOutletId);
+
+    public static async Task<(bool hasAccess, string? outletId, string? errorMessage)>
+        ValidateOutletAccess(
+            HttpRequestData req,
+            AuthService authService,
+            IUserRepository userRepository,
+            IStaffRepository staffRepository,
+            IOutletRepository outletRepository,
+            string? requestedOutletId = null)
     {
         if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
         {
@@ -107,10 +110,8 @@ public static class OutletHelper
         }
 
         var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var role = principal.FindFirst(ClaimTypes.Role)?.Value;
-
         // Admin can access all outlets
-        if (IsAdminLikeRole(role))
+        if (RoleHelper.HasAnyRole(principal, new[] { RoleHelper.Admin }))
         {
             var outletId = requestedOutletId ?? GetOutletIdFromRequest(req, authService);
             
@@ -121,7 +122,7 @@ public static class OutletHelper
             }
 
             // Verify outlet exists
-            var outlet = await mongoService.GetOutletByIdAsync(outletId);
+            var outlet = await outletRepository.GetOutletByIdAsync(outletId);
             if (outlet == null)
             {
                 return (false, null, $"Outlet {outletId} not found");
@@ -136,7 +137,7 @@ public static class OutletHelper
             return (false, null, "User ID not found in token");
         }
 
-        var user = await mongoService.GetUserByIdAsync(userId);
+        var user = await userRepository.GetUserByIdAsync(userId);
         if (user == null)
         {
             return (false, null, "User not found");
@@ -149,14 +150,29 @@ public static class OutletHelper
             return (false, null, "No outlet specified and user has no default outlet");
         }
 
-        // Check if user has access to this outlet
-        if (user.AssignedOutlets == null || !user.AssignedOutlets.Contains(outletIdToCheck))
+        var hasAssignment = user.AssignedOutlets?.Contains(outletIdToCheck) == true;
+        if (!hasAssignment && RoleHelper.HasAnyRole(principal, RoleHelper.StaffRoles))
+        {
+            var staff = await staffRepository.GetStaffByUserIdAsync(userId);
+            if (staff == null && !string.IsNullOrWhiteSpace(user.Email))
+                staff = await staffRepository.GetStaffByEmailAsync(user.Email);
+
+            // Legacy staff profiles can be mapped by email, but never use another account's linked profile.
+            hasAssignment = staff is { IsActive: true }
+                && (staff.UserId == userId
+                    || (string.IsNullOrWhiteSpace(staff.UserId)
+                        && !string.IsNullOrWhiteSpace(user.Email)
+                        && string.Equals(staff.Email, user.Email, StringComparison.OrdinalIgnoreCase)))
+                && staff.OutletIds?.Contains(outletIdToCheck) == true;
+        }
+
+        if (!hasAssignment)
         {
             return (false, null, $"User does not have access to outlet {outletIdToCheck}");
         }
 
         // Verify outlet exists and is active
-        var outletCheck = await mongoService.GetOutletByIdAsync(outletIdToCheck);
+        var outletCheck = await outletRepository.GetOutletByIdAsync(outletIdToCheck);
         if (outletCheck == null)
         {
             return (false, null, $"Outlet {outletIdToCheck} not found");
