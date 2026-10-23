@@ -78,10 +78,31 @@ th {
 .badge {
   display: inline-block;
   padding: 4px 8px;
+  margin: 0 4px 4px 0;
   border-radius: 999px;
   font-size: 12px;
   background: #eef2ff;
   color: #2f3a8f;
+}
+
+.role-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  gap: 4px 12px;
+}
+
+.role-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+
+  input {
+    width: auto;
+    padding: 0;
+  }
 }
 
 .active {

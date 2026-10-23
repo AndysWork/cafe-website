@@ -53,8 +53,25 @@
           <span *ngIf="order.tableNumber" class="order-type">Table {{ order.tableNumber }}</span>
         </div>
         <div class="order-items">
-          <div *ngFor="let item of order.items" class="order-item">
-            <span class="qty">{{ item.quantity }}×</span> {{ item.name }}
+          <div *ngFor="let item of order.items; let itemIndex = index" class="order-item">
+            <span class="item-description">
+              <span><span class="qty">{{ item.quantity }}×</span> {{ item.name }}</span>
+              <small class="item-status" [class.ready]="item.kitchenStatus === 'ready'" [class.served]="item.kitchenStatus === 'served'">
+                {{ (item.kitchenStatus || order.status) | titlecase }}
+              </small>
+            </span>
+            <button
+              *ngIf="order.orderType === 'dine-in' && order.status === 'preparing' && item.kitchenStatus === 'preparing'"
+              type="button"
+              class="item-action"
+              (click)="markDineInItemReady(order, itemIndex)"
+            >Ready</button>
+            <button
+              *ngIf="order.orderType === 'dine-in' && order.status === 'ready' && item.kitchenStatus === 'ready'"
+              type="button"
+              class="item-action served-action"
+              (click)="markDineInItemServed(order, itemIndex)"
+            >Served</button>
           </div>
         </div>
         <div *ngIf="order.preparationNotes || order.notes" class="order-notes">📝 {{ order.preparationNotes || order.notes }}</div>
@@ -73,8 +90,7 @@
           </button>
           <button *ngIf="order.status === 'pending'" (click)="updateStatus(order.id, 'confirmed')" class="btn-kitchen confirm">Confirm</button>
           <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Approve & Start</button>
-          <button *ngIf="order.status === 'preparing'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>
-          <button *ngIf="order.status === 'ready' && order.orderType === 'dine-in'" (click)="updateStatus(order.id, 'served')" class="btn-kitchen ready">Served</button>
+          <button *ngIf="order.status === 'preparing' && order.orderType !== 'dine-in'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>
           <button *ngIf="order.status === 'out-for-delivery'" (click)="updateStatus(order.id, 'delivered')" class="btn-kitchen ready">Delivered</button>
           <button (click)="printKot(order.id)" class="btn-kitchen kot">🖨️ KOT</button>
         </div>

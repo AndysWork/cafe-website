@@ -2,7 +2,7 @@
   <div class="header">
     <div>
       <h1>User Role Management</h1>
-      <p>Promote users to delivery-partner, chef, sous-chef, cook, manager and more.</p>
+      <p>Assign one or more roles per staff member (e.g. waiter + cashier).</p>
     </div>
     <button type="button" class="btn" (click)="loadUsers()" [disabled]="loading">Refresh</button>
   </div>
@@ -33,8 +33,8 @@
         <tr>
           <th>User</th>
           <th>Contact</th>
-          <th>Current Role</th>
-          <th>Set Role</th>
+          <th>Current Roles</th>
+          <th>Set Roles</th>
           <th>Status</th>
           <th>Action</th>
         </tr>
@@ -50,16 +50,20 @@
             <div class="sub" *ngIf="user.phoneNumber">{{ user.phoneNumber }}</div>
           </td>
           <td>
-            <span class="badge">{{ user.role }}</span>
+            <span class="badge" *ngFor="let r of getUserRoles(user)">{{ r }}</span>
           </td>
           <td>
-            <select
-              [(ngModel)]="roleDrafts[user.id]"
-              [disabled]="savingUserId === user.id"
-              aria-label="Select user role"
-            >
-              <option *ngFor="let role of roles" [value]="role">{{ role }}</option>
-            </select>
+            <div class="role-checks" role="group" aria-label="Select user roles">
+              <label *ngFor="let role of roles" class="role-check">
+                <input
+                  type="checkbox"
+                  [checked]="isRoleSelected(user, role)"
+                  [disabled]="savingUserId === user.id"
+                  (change)="toggleDraftRole(user, role, $any($event.target).checked)"
+                />
+                {{ role }}
+              </label>
+            </div>
           </td>
           <td>
             <span [class.active]="user.isActive" [class.inactive]="!user.isActive">
@@ -73,7 +77,7 @@
               (click)="updateRole(user)"
               [disabled]="savingUserId === user.id || !canUpdateRole(user)"
             >
-              Update Role
+              Update Roles
             </button>
             <button
               type="button"

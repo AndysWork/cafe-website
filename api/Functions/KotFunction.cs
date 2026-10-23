@@ -1,11 +1,11 @@
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
+using Cafe.Api.Models;
 using Cafe.Api.Services;
 using Cafe.Api.Repositories;
 using Cafe.Api.Helpers;
 using System.Net;
-using System.Text;
 
 namespace Cafe.Api.Functions;
 
@@ -14,14 +14,97 @@ public class KotFunction
     private readonly IOrderRepository _mongo;
     private readonly IInventoryRepository _inventoryRepo;
     private readonly AuthService _auth;
+    private readonly KotRenderService _kotRender;
+    private readonly ThermalPrinterService _thermalPrinter;
     private readonly ILogger _log;
 
-    public KotFunction(IOrderRepository mongo, IInventoryRepository inventoryRepo, AuthService auth, ILoggerFactory loggerFactory)
+    public KotFunction(
+        IOrderRepository mongo,
+        IInventoryRepository inventoryRepo,
+        AuthService auth,
+        KotRenderService kotRender,
+        ThermalPrinterService thermalPrinter,
+        ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _inventoryRepo = inventoryRepo;
         _auth = auth;
+        _kotRender = kotRender;
+        _thermalPrinter = thermalPrinter;
         _log = loggerFactory.CreateLogger<KotFunction>();
+    }
+
+    [Function("PrintSampleKot")]
+    public async Task<HttpResponseData> PrintSampleKot(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "kitchen/kot/test-print")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            if (!_thermalPrinter.IsConfigured)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new
+                {
+                    error = "Thermal printer is not configured",
+                    required = "Set ThermalPrinter__KotEndpoint (and optional ThermalPrinter__ApiKey, ThermalPrinter__PrinterName, ThermalPrinter__KotCopies)"
+                });
+                return badReq;
+            }
+
+            var sampleOrder = new Order
+            {
+                Id = $"TEST-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                OutletId = "test-outlet",
+                Username = "Printer Setup",
+                OrderType = "dine-in",
+                TableNumber = "TEST-01",
+                PaymentMethod = "dine_in_tab",
+                RoundNumber = 1,
+                CreatedAt = MongoService.GetIstNow(),
+                Items = new List<OrderItem>
+                {
+                    new() { Name = "Masala Chai", Quantity = 2 },
+                    new() { Name = "Veg Sandwich", Quantity = 1 },
+                    new() { Name = "French Fries", Quantity = 1 }
+                },
+                PreparationNotes = "Sample KOT print verification",
+                Notes = $"Triggered by {userId ?? "admin"}"
+            };
+
+            var kotText = _kotRender.Render(sampleOrder, 48);
+            var printed = await _thermalPrinter.TryPrintKotAsync(sampleOrder, kotText, "AdminTestEndpoint");
+
+            if (!printed)
+            {
+                var badGateway = req.CreateResponse(HttpStatusCode.BadGateway);
+                await badGateway.WriteAsJsonAsync(new
+                {
+                    error = "Thermal print dispatch failed",
+                    message = "Printer bridge is reachable but rejected or failed to process the request"
+                });
+                return badGateway;
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Sample KOT print dispatched",
+                orderId = sampleOrder.Id,
+                triggeredBy = userId,
+                generatedAt = MongoService.GetIstNow()
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error dispatching sample KOT print");
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "An error occurred while dispatching sample print" });
+            return res;
+        }
     }
 
     [Function("GenerateKot")]
@@ -41,62 +124,7 @@ public class KotFunction
                 return notFound;
             }
 
-            // Generate 80mm thermal printer format (48 chars per line)
-            var sb = new StringBuilder();
-            var line = new string('-', 48);
-
-            sb.AppendLine(CenterText("MAA TARA CAFE", 48));
-            sb.AppendLine(CenterText("KITCHEN ORDER TICKET", 48));
-            sb.AppendLine(line);
-            sb.AppendLine($"Order #: {order.Id}");
-            sb.AppendLine($"Date: {order.CreatedAt:dd/MM/yyyy HH:mm}");
-            sb.AppendLine($"Type: {order.OrderType?.ToUpper() ?? "DELIVERY"}");
-
-            if (!string.IsNullOrWhiteSpace(order.TableNumber))
-            {
-                var roundText = order.RoundNumber > 0 ? $" (ROUND #{order.RoundNumber})" : "";
-                sb.AppendLine($"Table: {order.TableNumber}{roundText}");
-                if (order.PaymentMethod == "dine_in_tab")
-                {
-                    sb.AppendLine("Billing: DINE-IN RUNNING TAB");
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(order.Username))
-                sb.AppendLine($"Customer: {order.Username}");
-
-            sb.AppendLine(line);
-            sb.AppendLine(FormatKotRow("ITEM", "QTY", 48));
-            sb.AppendLine(line);
-
-            foreach (var item in order.Items)
-            {
-                sb.AppendLine(FormatKotRow(item.Name, item.Quantity.ToString(), 48));
-            }
-
-            sb.AppendLine(line);
-
-            var specialInstructions = string.IsNullOrWhiteSpace(order.PreparationNotes)
-                ? order.Notes
-                : order.PreparationNotes;
-
-            if (!string.IsNullOrWhiteSpace(specialInstructions))
-            {
-                sb.AppendLine("SPECIAL INSTRUCTIONS:");
-                sb.AppendLine(specialInstructions);
-                sb.AppendLine(line);
-            }
-
-            if (order.IsScheduled && order.ScheduledFor.HasValue)
-            {
-                sb.AppendLine($"*** SCHEDULED: {order.ScheduledFor.Value:dd/MM HH:mm} ***");
-                sb.AppendLine(line);
-            }
-
-            sb.AppendLine(CenterText($"Total Items: {order.Items.Sum(i => i.Quantity)}", 48));
-            sb.AppendLine("");
-
-            var kotText = sb.ToString();
+            var kotText = _kotRender.Render(order, 48);
 
             // Recipe-Inventory Sync: When KOT is generated/dispatched, auto-deduct recipe inventory if not yet deducted
             if (!order.InventoryDeducted)
@@ -132,19 +160,5 @@ public class KotFunction
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;
         }
-    }
-
-    private static string CenterText(string text, int width)
-    {
-        if (text.Length >= width) return text;
-        int padding = (width - text.Length) / 2;
-        return text.PadLeft(padding + text.Length).PadRight(width);
-    }
-
-    private static string FormatKotRow(string left, string right, int width)
-    {
-        int available = width - right.Length - 2;
-        if (left.Length > available) left = left[..available];
-        return left.PadRight(available) + "  " + right;
     }
 }

@@ -1,0 +1,75 @@
+<main class="report-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">MAA TARA CAFE · REPORTING</p>
+      <h1>Dine-In Sales & Audit</h1>
+      <p>Review billed and collected amounts, table sessions, and recorded order/payment events.</p>
+    </div>
+    <form class="date-filter" (ngSubmit)="loadReport()">
+      <label>From <input type="date" name="startDate" [(ngModel)]="startDate" required /></label>
+      <label>To <input type="date" name="endDate" [(ngModel)]="endDate" required /></label>
+      <button type="submit" [disabled]="loading">{{ loading ? 'Loading…' : 'Run report' }}</button>
+    </form>
+  </header>
+
+  <p class="feedback error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+  <p class="empty" *ngIf="loading && !report">Loading report…</p>
+
+  <ng-container *ngIf="report as data">
+    <section class="summary-grid">
+      <article><span>Sessions</span><strong>{{ data.summary.sessionCount }}</strong></article>
+      <article><span>Settled</span><strong>{{ data.summary.settledSessions }}</strong></article>
+      <article><span>Total billed</span><strong>₹{{ data.summary.totalBilled | number:'1.2-2' }}</strong></article>
+      <article><span>Collected</span><strong>₹{{ data.summary.salesCollected | number:'1.2-2' }}</strong></article>
+      <article><span>Outstanding</span><strong>₹{{ data.summary.outstandingBalance | number:'1.2-2' }}</strong></article>
+    </section>
+
+    <section class="report-panel">
+      <h2>Confirmed payments by method</h2>
+      <p class="empty" *ngIf="!data.summary.paymentTotals || !((data.summary.paymentTotals | keyvalue).length)">No confirmed payments in this date range.</p>
+      <div class="method-list" *ngIf="(data.summary.paymentTotals | keyvalue).length">
+        <div *ngFor="let payment of data.summary.paymentTotals | keyvalue">
+          <span>{{ payment.key | titlecase }}</span>
+          <strong>₹{{ payment.value | number:'1.2-2' }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="report-panel">
+      <h2>Table sessions</h2>
+      <p class="empty" *ngIf="!data.sessions.length">No dine-in sessions were opened during this period.</p>
+      <details class="session-row" *ngFor="let session of data.sessions">
+        <summary>
+          <span><strong>Table {{ session.tableNumber }}</strong> · {{ session.customerName || 'Guest' }}</span>
+          <span>{{ session.status | titlecase }} · ₹{{ session.amountPaid | number:'1.2-2' }} paid of ₹{{ session.grandTotal | number:'1.2-2' }}</span>
+        </summary>
+        <div class="session-detail">
+          <p>Opened {{ session.createdAt | date:'medium' }}<span *ngIf="session.settledAt"> · Closed {{ session.settledAt | date:'medium' }}</span></p>
+          <p>Payment status: {{ session.paymentStatus | titlecase }} · Balance due: ₹{{ session.amountDue | number:'1.2-2' }}</p>
+          <h3>Session timeline</h3>
+          <ul>
+            <li *ngFor="let event of session.timeline">
+              <time>{{ event.createdAt | date:'short' }}</time>
+              <span>{{ event.message }}</span>
+              <small>{{ event.actor || 'System' }}</small>
+            </li>
+          </ul>
+        </div>
+      </details>
+    </section>
+
+    <section class="report-panel">
+      <h2>Recorded order audit events <span>{{ data.auditEvents.length }}</span></h2>
+      <p class="audit-limit" *ngIf="data.auditEvents.length === 500">Showing the latest 500 events for this date range.</p>
+      <p class="empty" *ngIf="!data.auditEvents.length">No order audit events were recorded in this period.</p>
+      <div class="audit-row" *ngFor="let event of data.auditEvents">
+        <time>{{ event.timestamp | date:'short' }}</time>
+        <strong>{{ event.eventType | titlecase }}</strong>
+        <span>{{ event.entityType }} · {{ event.entityId }}</span>
+        <small>{{ event.actorId || 'System' }}<span *ngIf="event.actorRole"> ({{ event.actorRole }})</span></small>
+        <small *ngIf="event.metadata?.['itemName']">{{ event.metadata?.['itemName'] }}</small>
+        <small *ngIf="event.newState">{{ event.newState }}</small>
+      </div>
+    </section>
+  </ng-container>
+</main>

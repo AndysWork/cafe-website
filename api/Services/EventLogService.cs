@@ -47,7 +47,12 @@ public class EventLogService
                     Builders<EventLog>.IndexKeys.Combine(
                         Builders<EventLog>.IndexKeys.Ascending(e => e.ActorId),
                         Builders<EventLog>.IndexKeys.Descending(e => e.Timestamp)),
-                    new CreateIndexOptions { Name = "ix_actor_timeline" })
+                    new CreateIndexOptions { Name = "ix_actor_timeline" }),
+                new CreateIndexModel<EventLog>(
+                    Builders<EventLog>.IndexKeys.Combine(
+                        Builders<EventLog>.IndexKeys.Ascending(e => e.OutletId),
+                        Builders<EventLog>.IndexKeys.Descending(e => e.Timestamp)),
+                    new CreateIndexOptions { Name = "ix_outlet_timeline" })
             };
             _eventLogs.Indexes.CreateMany(indexes);
         }
@@ -118,6 +123,19 @@ public class EventLogService
             .Find(e => e.EntityType == entityType)
             .SortByDescending(e => e.Timestamp)
             .Limit(limit)
+            .ToListAsync();
+    }
+
+    public async Task<List<EventLog>> GetOutletEventsAsync(
+        string outletId, DateTime startInclusive, DateTime endExclusive, int limit = 500)
+    {
+        var filter = Builders<EventLog>.Filter.And(
+            Builders<EventLog>.Filter.Eq(e => e.OutletId, outletId),
+            Builders<EventLog>.Filter.Gte(e => e.Timestamp, startInclusive),
+            Builders<EventLog>.Filter.Lt(e => e.Timestamp, endExclusive));
+        return await _eventLogs.Find(filter)
+            .SortByDescending(e => e.Timestamp)
+            .Limit(Math.Clamp(limit, 1, 1000))
             .ToListAsync();
     }
 }

@@ -9,7 +9,7 @@ export interface KitchenOrder {
   id: string;
   username: string;
   customerName?: string;
-  items: { name: string; quantity: number; price: number; total: number; categoryName?: string }[];
+  items: { name: string; quantity: number; price: number; total: number; categoryName?: string; kitchenStatus?: string }[];
   status: string;
   orderType?: string;
   tableNumber?: number | string;
@@ -86,6 +86,18 @@ export class KitchenDisplayService {
     return this.http.put<{ message: string; deliveryNotificationQueued?: boolean }>(`${this.apiUrl}/kitchen/orders/${orderId}/status`, { status, checklistItems }).pipe(
       catchError(handleServiceError('KitchenDisplayService.updateOrderStatus'))
     );
+  }
+
+  updateDineInItemStatus(
+    orderId: string,
+    itemIndex: number,
+    status: 'ready' | 'served',
+    checklistItems?: KitchenChecklistItem[]
+  ): Observable<{ message: string; itemStatus: string; orderStatus: string }> {
+    return this.http.put<{ message: string; itemStatus: string; orderStatus: string }>(
+      `${this.apiUrl}/kitchen/orders/${encodeURIComponent(orderId)}/items/${itemIndex}/status`,
+      { status, checklistItems }
+    ).pipe(catchError(handleServiceError('KitchenDisplayService.updateDineInItemStatus')));
   }
 
   getKitchenStats(): Observable<KitchenStats> {

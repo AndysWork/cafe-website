@@ -4,11 +4,11 @@ import { FormsModule } from '@angular/forms';
 import {
   AdminUserRoleService,
   AdminUserSummary,
-  MANAGEABLE_USER_ROLES,
-  ManageableUserRole
+  MANAGEABLE_USER_ROLES
 } from '../../services/admin-user-role.service';
 import { UIStore } from '../../store/ui.store';
 import { AuthStore } from '../../store/auth.store';
+import { normalizeRoles } from '../../utils/roles';
 
 @Component({
   selector: 'app-admin-user-roles',
@@ -30,7 +30,7 @@ export class AdminUserRolesComponent implements OnInit {
   roleFilter = 'all';
 
   users = signal<AdminUserSummary[]>([]);
-  roleDrafts: Record<string, ManageableUserRole | string> = {};
+  roleDrafts: Record<string, string[]> = {};
 
   filteredUsers = computed(() => {
     const term = this.search.trim().toLowerCase();
@@ -38,7 +38,7 @@ export class AdminUserRolesComponent implements OnInit {
 
     return this.users()
       .filter(user => {
-        if (roleFilter !== 'all' && user.role !== roleFilter) {
+        if (roleFilter !== 'all' && !this.getUserRoles(user).includes(roleFilter)) {
           return false;
         }
 
@@ -69,7 +69,7 @@ export class AdminUserRolesComponent implements OnInit {
         this.roleDrafts = {};
         for (const user of users) {
           if (user.id) {
-            this.roleDrafts[user.id] = user.role;
+            this.roleDrafts[user.id] = [...this.getUserRoles(user)];
           }
         }
         this.loading = false;
@@ -86,24 +86,45 @@ export class AdminUserRolesComponent implements OnInit {
     return fullName || user.username;
   }
 
-  getDraftRole(user: AdminUserSummary): string {
-    return this.roleDrafts[user.id] || user.role;
+  getUserRoles(user: AdminUserSummary): string[] {
+    return normalizeRoles(user.roles?.length ? user.roles : [user.role]);
+  }
+
+  getDraftRoles(user: AdminUserSummary): string[] {
+    return this.roleDrafts[user.id] ?? this.getUserRoles(user);
+  }
+
+  isRoleSelected(user: AdminUserSummary, role: string): boolean {
+    return this.getDraftRoles(user).includes(role);
+  }
+
+  toggleDraftRole(user: AdminUserSummary, role: string, checked: boolean): void {
+    let next = this.getDraftRoles(user).filter(r => r !== role);
+    if (checked) {
+      next.push(role);
+      // 'user' is the customer role; it is dropped when a staff role is selected.
+      if (role !== 'user') next = next.filter(r => r !== 'user');
+      else next = ['user'];
+    }
+    this.roleDrafts[user.id] = normalizeRoles(next);
   }
 
   hasRoleChanged(user: AdminUserSummary): boolean {
-    return this.getDraftRole(user) !== user.role;
+    const draft = normalizeRoles(this.getDraftRoles(user));
+    const current = this.getUserRoles(user);
+    return draft.length !== current.length || draft.some((r, i) => r !== current[i]);
   }
 
   canUpdateRole(user: AdminUserSummary): boolean {
     const current = this.authStore.user();
-    const draft = this.getDraftRole(user);
+    const draft = this.getDraftRoles(user);
 
-    if (!this.hasRoleChanged(user)) {
+    if (!this.hasRoleChanged(user) || draft.length === 0) {
       return false;
     }
 
-    // Prevent changing own role away from admin in UI as an extra guard.
-    if (current?.username === user.username && draft !== 'admin') {
+    // Prevent removing own admin role in UI as an extra guard.
+    if (current?.username === user.username && !draft.includes('admin')) {
       return false;
     }
 
@@ -115,18 +136,18 @@ export class AdminUserRolesComponent implements OnInit {
       return;
     }
 
-    const nextRole = this.getDraftRole(user) as ManageableUserRole;
+    const nextRoles = normalizeRoles(this.getDraftRoles(user));
     this.savingUserId = user.id;
 
-    this.roleService.updateUserRole(user.id, nextRole).subscribe({
+    this.roleService.updateUserRoles(user.id, nextRoles).subscribe({
       next: response => {
-        this.uiStore.success(response?.message || `Role updated to ${nextRole}`);
+        this.uiStore.success(response?.message || `Roles updated to ${nextRoles.join(', ')}`);
         this.loadUsers();
         this.savingUserId = null;
       },
       error: () => {
         this.savingUserId = null;
-        this.uiStore.error('Failed to update role');
+        this.uiStore.error('Failed to update roles');
       }
     });
   }

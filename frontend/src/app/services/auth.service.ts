@@ -15,6 +15,8 @@ export type UserRole =
   | 'kitchen'
   | 'kitchen-staff'
   | 'kitchen-helper'
+  | 'waiter'
+  | 'cashier'
   | 'user';
 
 export interface User {
@@ -22,6 +24,8 @@ export interface User {
   username: string;
   email: string;
   role: UserRole;
+  /** All roles (includes the primary role). Missing for sessions stored before multi-role support. */
+  roles?: string[];
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
@@ -54,6 +58,7 @@ export interface LoginResponse {
   username: string;
   email: string;
   role: string;
+  roles?: string[];
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
@@ -98,6 +103,7 @@ export class AuthService {
               username: response.username,
               email: response.email,
               role: response.role as UserRole,
+              roles: response.roles?.length ? response.roles : [response.role],
               firstName: response.firstName,
               lastName: response.lastName,
               phoneNumber: response.phoneNumber,
@@ -145,6 +151,10 @@ export class AuthService {
 
   getUserRole(): UserRole | 'guest' {
     return this.authStore.userRole();
+  }
+
+  hasAnyRole(roles: string[]): boolean {
+    return this.authStore.hasAnyRole(roles);
   }
 
   validateToken(): Observable<boolean> {

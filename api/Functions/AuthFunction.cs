@@ -137,8 +137,10 @@ public class AuthFunction
             // Update last login
             await _mongo.UpdateUserLastLoginAsync(user.Id!);
 
-            // Generate JWT token with outlet information
-            var token = _auth.GenerateJwtToken(user.Id!, user.Username, user.Role, user.DefaultOutletId, user.AssignedOutlets);
+            // Generate JWT token with outlet information and all assigned roles
+            var effectiveRoles = RoleHelper.GetEffectiveRoles(user);
+            var primaryRole = effectiveRoles[0];
+            var token = _auth.GenerateJwtToken(user.Id!, user.Username, primaryRole, user.DefaultOutletId, user.AssignedOutlets, effectiveRoles);
 
             // Generate CSRF token
             var csrfToken = CsrfTokenManager.GenerateToken(user.Id!);
@@ -155,7 +157,8 @@ public class AuthFunction
                     Token = token,
                     Username = user.Username,
                     Email = user.Email,
-                    Role = user.Role,
+                    Role = primaryRole,
+                    Roles = effectiveRoles,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
                     PhoneNumber = user.PhoneNumber,
@@ -360,6 +363,7 @@ public class AuthFunction
             var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             var username = principal.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
             var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var roles = RoleHelper.GetRoles(principal);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
@@ -367,7 +371,8 @@ public class AuthFunction
                 valid = true,
                 userId,
                 username,
-                role
+                role,
+                roles
             });
 
             return response;

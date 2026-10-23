@@ -1,0 +1,113 @@
+<main class="cashier-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">MAA TARA CAFE · FINANCE</p>
+      <h1>Dine-In Payments</h1>
+      <p>Confirm customer requests or record a payment directly for an active table.</p>
+    </div>
+    <button type="button" class="refresh-button" [disabled]="loading" (click)="loadPayments()">
+      {{ loading ? 'Refreshing…' : 'Refresh' }}
+    </button>
+  </header>
+
+  <p class="feedback success" role="status" *ngIf="successMessage">{{ successMessage }}</p>
+  <p class="feedback error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <section class="payments-panel">
+    <h2 class="section-title">Customer payment requests</h2>
+    <p class="empty" *ngIf="loading && !payments.length">Loading pending payments…</p>
+    <p class="empty" *ngIf="!loading && !payments.length">No table payments are waiting for confirmation.</p>
+
+    <article class="payment-card" *ngFor="let payment of payments">
+      <div class="payment-header">
+        <div>
+          <span class="table-label">TABLE {{ payment.tableNumber }}</span>
+          <h2>{{ payment.customerName || 'Guest' }}</h2>
+          <small *ngIf="payment.customerPhone">{{ payment.customerPhone }}</small>
+        </div>
+        <span class="payment-method">{{ payment.pendingPayment.paymentMethod | titlecase }}</span>
+      </div>
+
+      <dl class="amounts">
+        <div><dt>Requested payment</dt><dd>₹{{ payment.pendingPayment.amount | number:'1.2-2' }}</dd></div>
+        <div><dt>Bill total</dt><dd>₹{{ payment.grandTotal | number:'1.2-2' }}</dd></div>
+        <div><dt>Already paid</dt><dd>₹{{ payment.amountPaid | number:'1.2-2' }}</dd></div>
+        <div><dt>Balance due</dt><dd>₹{{ payment.amountDue | number:'1.2-2' }}</dd></div>
+      </dl>
+
+      <p class="reference" *ngIf="payment.pendingPayment.upiReference">
+        UPI reference: <strong>{{ payment.pendingPayment.upiReference }}</strong>
+      </p>
+      <p class="reference" *ngIf="payment.pendingPayment.notes">{{ payment.pendingPayment.notes }}</p>
+      <p class="requested-at">Requested {{ payment.pendingPayment.requestedAt | date:'medium' }}</p>
+
+      <button
+        type="button"
+        class="confirm-button"
+        [disabled]="!!confirmingSessionId"
+        (click)="confirmPayment(payment)"
+      >
+        {{ confirmingSessionId === payment.sessionId ? 'Confirming…' : 'Confirm payment' }}
+      </button>
+    </article>
+  </section>
+
+  <section class="payments-panel direct-payments">
+    <h2 class="section-title">Active table balances</h2>
+    <p class="empty" *ngIf="loading && !sessions.length">Loading active tables…</p>
+    <p class="empty" *ngIf="!loading && !sessions.length">No active table balances.</p>
+
+    <article class="payment-card" *ngFor="let session of sessions">
+      <div class="payment-header">
+        <div>
+          <span class="table-label">TABLE {{ session.tableNumber }}</span>
+          <h2>{{ session.customerName || 'Guest' }}</h2>
+          <small>{{ session.sessionStatus | titlecase }} · {{ session.paymentStatus | titlecase }}</small>
+        </div>
+        <span class="payment-method">Direct payment</span>
+      </div>
+
+      <dl class="amounts">
+        <div><dt>Bill total</dt><dd>₹{{ session.grandTotal | number:'1.2-2' }}</dd></div>
+        <div><dt>Already paid</dt><dd>₹{{ session.amountPaid | number:'1.2-2' }}</dd></div>
+        <div><dt>Balance due</dt><dd>₹{{ session.amountDue | number:'1.2-2' }}</dd></div>
+      </dl>
+
+      <p class="reference warning" *ngIf="session.hasPendingPayment">
+        A customer payment request is pending. Confirm it above before recording another payment.
+      </p>
+
+      <div class="direct-payment-controls" *ngIf="!session.hasPendingPayment">
+        <label>
+          Amount
+          <input
+            type="number"
+            min="0.01"
+            [max]="session.amountDue"
+            step="0.01"
+            [(ngModel)]="paymentAmounts[session.sessionId]"
+            [name]="'amount-' + session.sessionId"
+          />
+        </label>
+        <label>
+          Payment method
+          <select
+            [(ngModel)]="paymentMethods[session.sessionId]"
+            [name]="'method-' + session.sessionId"
+          >
+            <option value="cash_at_counter">Cash</option>
+            <option value="upi-qr">UPI</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          class="confirm-button"
+          [disabled]="!!confirmingSessionId || session.amountDue <= 0"
+          (click)="recordPayment(session)"
+        >
+          {{ confirmingSessionId === session.sessionId ? 'Recording…' : 'Record payment' }}
+        </button>
+      </div>
+    </article>
+  </section>
+</main>

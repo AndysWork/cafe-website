@@ -102,6 +102,81 @@ public partial class MongoService
         return await _dineInSessions.Find(filter).SortByDescending(s => s.CreatedAt).ToListAsync();
     }
 
+    public async Task<List<DineInSession>> GetDineInSessionsByDateRangeAsync(
+        string outletId, DateTime start, DateTime endExclusive)
+    {
+        var filter = Builders<DineInSession>.Filter.And(
+            Builders<DineInSession>.Filter.Eq(s => s.OutletId, outletId),
+            Builders<DineInSession>.Filter.Gte(s => s.CreatedAt, start),
+            Builders<DineInSession>.Filter.Lt(s => s.CreatedAt, endExclusive));
+        return await _dineInSessions.Find(filter).SortByDescending(s => s.CreatedAt).ToListAsync();
+    }
+
+    public async Task<bool> TryUpdateDineInOrderItemStatusAsync(
+        string orderId,
+        int itemIndex,
+        string expectedOrderStatus,
+        string expectedItemStatus,
+        string newItemStatus,
+        string userId)
+    {
+        if (itemIndex < 0) return false;
+        var itemPath = $"items.{itemIndex}";
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(order => order.Id, orderId),
+            Builders<Order>.Filter.Eq(order => order.OrderType, "dine-in"),
+            Builders<Order>.Filter.Eq(order => order.Status, expectedOrderStatus),
+            expectedItemStatus == "pending"
+                ? Builders<Order>.Filter.Or(
+                    Builders<Order>.Filter.Eq($"{itemPath}.kitchenStatus", expectedItemStatus),
+                    Builders<Order>.Filter.Exists($"{itemPath}.kitchenStatus", false),
+                    Builders<Order>.Filter.Eq($"{itemPath}.kitchenStatus", (string?)null))
+                : Builders<Order>.Filter.Eq($"{itemPath}.kitchenStatus", expectedItemStatus),
+            Builders<Order>.Filter.Ne(order => order.IsDeleted, true));
+        var now = GetIstNow();
+        var update = Builders<Order>.Update
+            .Set($"{itemPath}.kitchenStatus", newItemStatus)
+            .Set(x => x.UpdatedAt, now);
+        if (newItemStatus == "ready")
+        {
+            update = update
+                .Set($"{itemPath}.kitchenReadyAt", now)
+                .Set($"{itemPath}.kitchenReadyByUserId", userId);
+        }
+        else if (newItemStatus == "served")
+        {
+            update = update
+                .Set($"{itemPath}.servedAt", now)
+                .Set($"{itemPath}.servedByUserId", userId);
+        }
+
+        var result = await _orders.UpdateOneAsync(filter, update);
+        return result.ModifiedCount == 1;
+    }
+
+    public async Task<bool> TryCompleteDineInOrderPreparationAsync(
+        string orderId,
+        List<KitchenChecklistItem> checklist,
+        DateTime readyAt,
+        DateTime prepStartedAt,
+        decimal kptMinutes)
+    {
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(order => order.Id, orderId),
+            Builders<Order>.Filter.Eq(order => order.OrderType, "dine-in"),
+            Builders<Order>.Filter.Eq(order => order.Status, "preparing"),
+            Builders<Order>.Filter.Ne(order => order.IsDeleted, true));
+        var update = Builders<Order>.Update
+            .Set(order => order.Status, "ready")
+            .Set(order => order.KitchenChecklist, checklist)
+            .Set(order => order.KitchenReadyAt, readyAt)
+            .Set(order => order.KitchenPrepStartedAt, prepStartedAt)
+            .Set(order => order.KptMinutes, kptMinutes)
+            .Set(order => order.UpdatedAt, readyAt);
+        var result = await _orders.UpdateOneAsync(filter, update);
+        return result.ModifiedCount == 1;
+    }
+
     public async Task<List<DineInSession>> GetUserDineInSessionsAsync(string userId)
     {
         return await _dineInSessions.Find(s => s.UserId == userId).SortByDescending(s => s.CreatedAt).Limit(50).ToListAsync();

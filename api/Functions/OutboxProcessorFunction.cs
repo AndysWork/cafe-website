@@ -27,6 +27,9 @@ public class OutboxProcessorFunction
     private readonly IOrderRepository _orderRepo;
     private readonly IOperationsRepository _operationsRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
+    private readonly KotRenderService _kotRender;
+    private readonly InvoiceRenderService _invoiceRender;
+    private readonly ThermalPrinterService _thermalPrinter;
     private readonly ILogger<OutboxProcessorFunction> _logger;
 
     public OutboxProcessorFunction(
@@ -39,6 +42,9 @@ public class OutboxProcessorFunction
         IOrderRepository orderRepo,
         IOperationsRepository operationsRepo,
         ILoyaltyRepository loyaltyRepo,
+        KotRenderService kotRender,
+        InvoiceRenderService invoiceRender,
+        ThermalPrinterService thermalPrinter,
         ILogger<OutboxProcessorFunction> logger)
     {
         _outbox = outbox;
@@ -50,6 +56,9 @@ public class OutboxProcessorFunction
         _orderRepo = orderRepo;
         _operationsRepo = operationsRepo;
         _loyaltyRepo = loyaltyRepo;
+        _kotRender = kotRender;
+        _invoiceRender = invoiceRender;
+        _thermalPrinter = thermalPrinter;
         _logger = logger;
     }
 
@@ -161,6 +170,84 @@ public class OutboxProcessorFunction
                     var order = await _orderRepo.GetOrderByIdAsync(kitchenNotif.OrderId);
                     if (order != null)
                         await _notification.SendNewOrderNotificationToKitchenRolesAsync(order, kitchenNotif.Total);
+                }
+                break;
+
+            case "ThermalKotPrint":
+                var thermalKot = JsonSerializer.Deserialize<ThermalKotPrintPayload>(message.Payload);
+                if (thermalKot != null)
+                {
+                    if (!_thermalPrinter.IsConfigured)
+                    {
+                        throw new InvalidOperationException("Thermal printer is not configured (ThermalPrinter__KotEndpoint missing)");
+                    }
+
+                    var printOrder = await _orderRepo.GetOrderByIdAsync(thermalKot.OrderId);
+                    if (printOrder == null)
+                    {
+                        throw new InvalidOperationException($"Order {thermalKot.OrderId} not found for thermal KOT print");
+                    }
+
+                    if (printOrder.Status == "cancelled") break;
+
+                    var kotText = _kotRender.Render(printOrder, 48, thermalKot.IsDuplicate);
+                    var printed = await _thermalPrinter.TryPrintKotAsync(
+                        printOrder,
+                        kotText,
+                        string.IsNullOrWhiteSpace(thermalKot.Trigger) ? "Outbox" : thermalKot.Trigger);
+
+                    if (!printed)
+                    {
+                        throw new InvalidOperationException($"Thermal KOT dispatch failed for order {printOrder.Id}");
+                    }
+                }
+                break;
+
+            case "ThermalKotCancellationPrint":
+                var cancellationKot = JsonSerializer.Deserialize<ThermalKotCancellationPayload>(message.Payload);
+                if (cancellationKot != null)
+                {
+                    if (!_thermalPrinter.IsConfigured)
+                        throw new InvalidOperationException("Thermal printer is not configured (ThermalPrinter__KotEndpoint missing)");
+
+                    var cancelledOrder = await _orderRepo.GetOrderByIdAsync(cancellationKot.OrderId);
+                    if (cancelledOrder == null)
+                        throw new InvalidOperationException($"Order {cancellationKot.OrderId} not found for KOT cancellation slip");
+
+                    var cancellationText = _kotRender.RenderCancellation(
+                        cancelledOrder, cancellationKot.Reason, 48);
+                    var printed = await _thermalPrinter.TryPrintKotAsync(
+                        cancelledOrder, cancellationText, "KotCancellationSlip");
+                    if (!printed)
+                        throw new InvalidOperationException($"KOT cancellation slip dispatch failed for order {cancelledOrder.Id}");
+                }
+                break;
+
+            case "ThermalInvoicePrint":
+                var thermalInvoice = JsonSerializer.Deserialize<ThermalInvoicePrintPayload>(message.Payload);
+                if (thermalInvoice != null)
+                {
+                    if (!_thermalPrinter.IsInvoiceConfigured)
+                    {
+                        throw new InvalidOperationException("Thermal invoice printer is not configured (ThermalPrinter__InvoiceEndpoint or ThermalPrinter__KotEndpoint missing)");
+                    }
+
+                    var printOrder = await _orderRepo.GetOrderByIdAsync(thermalInvoice.OrderId);
+                    if (printOrder == null)
+                    {
+                        throw new InvalidOperationException($"Order {thermalInvoice.OrderId} not found for thermal invoice print");
+                    }
+
+                    var invoiceText = _invoiceRender.Render(printOrder, 48);
+                    var printed = await _thermalPrinter.TryPrintInvoiceAsync(
+                        printOrder,
+                        invoiceText,
+                        string.IsNullOrWhiteSpace(thermalInvoice.Trigger) ? "Outbox" : thermalInvoice.Trigger);
+
+                    if (!printed)
+                    {
+                        throw new InvalidOperationException($"Thermal invoice dispatch failed for order {printOrder.Id}");
+                    }
                 }
                 break;
 
@@ -409,5 +496,8 @@ public class OutboxProcessorFunction
     public record StatusUpdateNotificationPayload(string OrderId, string Status);
     public record DeliveryPartnerBroadcastPayload(string OrderId, string OutletId, string Trigger);
     public record DeliveryPartnerStatusAlertPayload(string OrderId, string OutletId, string Status, string? DeliveryPartnerId);
+    public record ThermalKotPrintPayload(string OrderId, string? Trigger, bool IsDuplicate = false);
+    public record ThermalKotCancellationPayload(string OrderId, string Reason);
+    public record ThermalInvoicePrintPayload(string OrderId, string? Trigger);
     public record KitchenVoiceStockRequestAdminNotificationPayload(string RequestId, string OutletId, string RequestedByName, List<string> RequestedItems, string TranscriptText);
 }

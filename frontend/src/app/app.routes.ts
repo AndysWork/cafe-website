@@ -3,7 +3,7 @@ import { HomeComponent } from './components/home/home.component';
 import { LoginComponent } from './components/login/login.component';
 import { RegisterComponent } from './components/register/register.component';
 import { MenuComponent } from './components/menu/menu.component';
-import { authGuard, adminGuard, kitchenGuard, partnerGuard, managerGuard } from './guards/auth.guard';
+import { authGuard, adminGuard, kitchenGuard, partnerGuard, managerGuard, waiterGuard, cashierGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -15,7 +15,7 @@ export const routes: Routes = [
   { path: 'dashboard', loadComponent: () => import('./components/customer-dashboard/customer-dashboard.component').then(m => m.CustomerDashboardComponent), canActivate: [authGuard] },
   { path: 'profile', loadComponent: () => import('./components/profile/profile.component').then(m => m.ProfileComponent), canActivate: [authGuard] },
   { path: 'menu', component: MenuComponent, canActivate: [authGuard] },
-  { path: 'dine-in', component: MenuComponent, canActivate: [authGuard] },
+  { path: 'dine-in', component: MenuComponent },
   { path: 'cart', loadComponent: () => import('./components/cart/cart.component').then(m => m.CartComponent) },
   { path: 'checkout', loadComponent: () => import('./components/checkout/checkout.component').then(m => m.CheckoutComponent), canActivate: [authGuard] },
   { path: 'orders', loadComponent: () => import('./components/orders/orders.component').then(m => m.OrdersComponent), canActivate: [authGuard] },
@@ -30,8 +30,12 @@ export const routes: Routes = [
   { path: 'partner/delivery/mobile', loadComponent: () => import('./components/partner-delivery-mobile/partner-delivery-mobile.component').then(m => m.PartnerDeliveryMobileComponent), canActivate: [partnerGuard] },
   { path: 'manager/dashboard', loadComponent: () => import('./components/manager-dashboard/manager-dashboard.component').then(m => m.ManagerDashboardComponent), canActivate: [managerGuard] },
   { path: 'manager/operations', loadComponent: () => import('./components/manager-operations-board/manager-operations-board.component').then(m => m.ManagerOperationsBoardComponent), canActivate: [managerGuard] },
+  { path: 'manager/dine-in-report', loadComponent: () => import('./components/dine-in-report/dine-in-report.component').then(m => m.DineInReportComponent), canActivate: [managerGuard] },
+  { path: 'manager/counter-sale', loadComponent: () => import('./components/counter-sale/counter-sale.component').then(m => m.CounterSaleComponent), canActivate: [managerGuard] },
   { path: 'kitchen/dashboard', loadComponent: () => import('./components/kitchen-staff-dashboard/kitchen-staff-dashboard.component').then(m => m.KitchenStaffDashboardComponent), canActivate: [kitchenGuard] },
   { path: 'kitchen/display', loadComponent: () => import('./components/kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent), canActivate: [kitchenGuard] },
+  { path: 'staff/dine-in', loadComponent: () => import('./components/waiter-dine-in/waiter-dine-in.component').then(m => m.WaiterDineInComponent), canActivate: [waiterGuard] },
+  { path: 'staff/cashier', loadComponent: () => import('./components/cashier-dine-in/cashier-dine-in.component').then(m => m.CashierDineInComponent), canActivate: [cashierGuard] },
   { path: 'staff/attendance', loadComponent: () => import('./components/staff-attendance/staff-attendance.component').then(m => m.StaffAttendanceComponent), canActivate: [authGuard] },
   { path: 'staff/payslip', loadComponent: () => import('./components/staff-payslip/staff-payslip.component').then(m => m.StaffPayslipComponent), canActivate: [authGuard] },
   {
@@ -53,6 +57,7 @@ export const routes: Routes = [
       { path: 'operational-expenses', loadComponent: () => import('./components/operational-expenses/operational-expenses.component').then(m => m.OperationalExpensesComponent) },
       { path: 'analytics', loadComponent: () => import('./components/admin-analytics/admin-analytics.component').then(m => m.AdminAnalyticsComponent) },
       { path: 'cashier', loadComponent: () => import('./components/cashier/cashier.component').then(m => m.CashierComponent) },
+      { path: 'counter-sale', loadComponent: () => import('./components/counter-sale/counter-sale.component').then(m => m.CounterSaleComponent) },
       { path: 'online-sale-tracker', loadComponent: () => import('./components/online-sale-tracker/online-sale-tracker.component').then(m => m.OnlineSaleTrackerComponent) },
       { path: 'online-profit-tracker', loadComponent: () => import('./components/online-profit-tracker/online-profit-tracker.component').then(m => m.OnlineProfitTrackerComponent) },
       { path: 'kpt-analysis', loadComponent: () => import('./components/kpt-analysis/kpt-analysis.component').then(m => m.KptAnalysisComponent) },
@@ -70,7 +75,9 @@ export const routes: Routes = [
       { path: 'user-analytics', loadComponent: () => import('./components/user-analytics/user-analytics.component').then(m => m.UserAnalyticsComponent) },
       { path: 'delivery-zones', loadComponent: () => import('./components/admin-delivery-zones/admin-delivery-zones.component').then(m => m.AdminDeliveryZonesComponent) },
       { path: 'reports', loadComponent: () => import('./components/admin-report-export/admin-report-export.component').then(m => m.AdminReportExportComponent) },
+      { path: 'dine-in-report', loadComponent: () => import('./components/dine-in-report/dine-in-report.component').then(m => m.DineInReportComponent) },
       { path: 'reservations', loadComponent: () => import('./components/admin-reservations/admin-reservations.component').then(m => m.AdminReservationsComponent) },
+      { path: 'tables', loadComponent: () => import('./components/admin-tables/admin-tables.component').then(m => m.AdminTablesComponent) },
       { path: 'wastage', loadComponent: () => import('./components/admin-wastage/admin-wastage.component').then(m => m.AdminWastageComponent) },
       { path: 'attendance', loadComponent: () => import('./components/admin-attendance/admin-attendance.component').then(m => m.AdminAttendanceComponent) },
       { path: 'combos', loadComponent: () => import('./components/admin-combos/admin-combos.component').then(m => m.AdminCombosComponent) },

@@ -20,12 +20,15 @@ public class DineInFunction
     private readonly IOrderRepository _orderRepo;
     private readonly IMenuRepository _menuRepo;
     private readonly IOutletRepository _outletRepo;
+    private readonly CafeTableRepository _tableRepo;
     private readonly IUserRepository _userRepo;
     private readonly IOfferRepository _offerRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
     private readonly IOperationsRepository _operationsRepo;
+    private readonly MongoService _mongo;
     private readonly AuthService _auth;
     private readonly OutboxService _outbox;
+    private readonly EventLogService _eventLog;
     private readonly IConfiguration _config;
     private readonly ILogger _log;
 
@@ -33,24 +36,30 @@ public class DineInFunction
         IOrderRepository orderRepo,
         IMenuRepository menuRepo,
         IOutletRepository outletRepo,
+        CafeTableRepository tableRepo,
         IUserRepository userRepo,
         IOfferRepository offerRepo,
         ILoyaltyRepository loyaltyRepo,
         IOperationsRepository operationsRepo,
+        MongoService mongo,
         AuthService auth,
         OutboxService outbox,
+        EventLogService eventLog,
         IConfiguration config,
         ILoggerFactory loggerFactory)
     {
         _orderRepo = orderRepo;
         _menuRepo = menuRepo;
         _outletRepo = outletRepo;
+        _tableRepo = tableRepo;
         _userRepo = userRepo;
         _offerRepo = offerRepo;
         _loyaltyRepo = loyaltyRepo;
         _operationsRepo = operationsRepo;
+        _mongo = mongo;
         _auth = auth;
         _outbox = outbox;
+        _eventLog = eventLog;
         _config = config;
         _log = loggerFactory.CreateLogger<DineInFunction>();
     }
@@ -250,6 +259,20 @@ public class DineInFunction
                 return badReq;
             }
 
+            var table = await _tableRepo.GetByNumberAsync(outletId, tableNumber);
+            if (table?.QrTokenHash is not null && !HasTableQrAccess(req, table.QrTokenHash))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Scan this table's QR code to start a dine-in session" });
+                return forbidden;
+            }
+            if (table != null && (!table.IsActive || table.HousekeepingStatus != CafeTableStatus.Available))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "This table is not available for dine-in ordering" });
+                return conflict;
+            }
+
             // Check if active session already exists for this table
             var existingSession = await _orderRepo.GetActiveDineInSessionByTableAsync(outletId, tableNumber);
             if (existingSession != null)
@@ -283,6 +306,7 @@ public class DineInFunction
                 CustomerName = customerName,
                 CustomerPhone = customerPhone,
                 AccessTokenHash = sessionAccessTokenHash,
+                QrAccessTokenHash = table?.QrTokenHash,
                 Status = "active",
                 PaymentStatus = "unpaid",
                 AmountPaid = 0,
@@ -354,6 +378,43 @@ public class DineInFunction
             }
 
             var (userId, username, userPhone) = GetOptionalUserInfo(req);
+            var isWaiterOrder = RoleHelper.HasAnyRole(
+                AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth),
+                RoleHelper.WaiterRoles);
+            var table = await _tableRepo.GetByNumberAsync(outletId, tableNumber);
+            if (isWaiterOrder)
+            {
+                if (table == null)
+                {
+                    var activeLegacySession = await _orderRepo.GetActiveDineInSessionByTableAsync(outletId, tableNumber);
+                    if (activeLegacySession == null)
+                    {
+                        var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                        await notFound.WriteAsJsonAsync(new { error = "Select a table configured for this outlet" });
+                        return notFound;
+                    }
+                }
+                else if (!table.IsActive || table.HousekeepingStatus != CafeTableStatus.Available)
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "This table is not available for ordering" });
+                    return conflict;
+                }
+
+                if (table != null) tableNumber = table.TableNumber;
+            }
+            else if (table?.QrTokenHash is not null && !HasTableQrAccess(req, table.QrTokenHash))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Scan this table's QR code to place an order" });
+                return forbidden;
+            }
+            else if (table != null && (!table.IsActive || table.HousekeepingStatus != CafeTableStatus.Available))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "This table is not available for ordering" });
+                return conflict;
+            }
             var customerPhone = string.IsNullOrWhiteSpace(orderRequest.PhoneNumber) ? userPhone : orderRequest.PhoneNumber.Trim();
             string? sessionAccessToken = null;
 
@@ -373,6 +434,7 @@ public class DineInFunction
                     CustomerName = username,
                     CustomerPhone = customerPhone,
                     AccessTokenHash = generatedAccess.hash,
+                    QrAccessTokenHash = table?.QrTokenHash,
                     Status = "active",
                     PaymentStatus = "unpaid",
                     AmountPaid = 0,
@@ -389,7 +451,7 @@ public class DineInFunction
             }
             else
             {
-                if (!HasSessionAccess(req, session))
+                if (!isWaiterOrder && !HasSessionAccess(req, session))
                 {
                     var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                     await forbidden.WriteAsJsonAsync(new { error = "A valid dine-in session token is required" });
@@ -497,6 +559,9 @@ public class DineInFunction
             var roundTotal = roundSubtotal + roundTax;
 
             var newOrderId = ObjectId.GenerateNewId().ToString();
+            var kotNumber = isWaiterOrder
+                ? await _orderRepo.GetNextDineInKotNumberAsync(outletId)
+                : null;
             var order = new Order
             {
                 Id = newOrderId,
@@ -509,8 +574,6 @@ public class DineInFunction
                 PlatformCharge = 0,
                 DeliveryFee = 0,
                 Total = roundTotal,
-                // Start at "pending" so kitchen flow shows: Order Received -> Confirmed -> Preparing -> Prepared -> Served.
-                Status = "pending",
                 PaymentStatus = "unpaid",
                 PaymentMethod = "dine_in_tab",
                 OrderType = "dine-in",
@@ -518,9 +581,15 @@ public class DineInFunction
                 TableNumber = tableNumber,
                 DineInSessionId = session.Id,
                 RoundNumber = nextRoundNum,
+                DineInOrderSource = isWaiterOrder ? "waiter" : "qr",
+                KotNumber = kotNumber,
+                ApprovalStatus = isWaiterOrder ? "approved" : "pending",
+                ApprovedByUserId = isWaiterOrder ? userId : null,
+                ApprovedAt = isWaiterOrder ? MongoService.GetIstNow() : null,
                 PhoneNumber = customerPhone,
                 PreparationNotes = orderRequest.PreparationNotes?.Trim(),
                 Notes = orderRequest.Notes?.Trim(),
+                Status = isWaiterOrder ? "pending" : "awaiting_waiter_approval",
                 CreatedAt = MongoService.GetIstNow(),
                 UpdatedAt = MongoService.GetIstNow()
             };
@@ -539,29 +608,43 @@ public class DineInFunction
             AddSessionEvent(
                 session,
                 "round_added",
-                $"Round #{nextRoundNum} sent to kitchen",
+                isWaiterOrder
+                    ? $"Round #{nextRoundNum} sent to kitchen by waiter"
+                    : $"QR order for round #{nextRoundNum} is awaiting waiter approval",
                 userId ?? username ?? session.CustomerName ?? "guest",
                 new Dictionary<string, string>
                 {
                     ["orderId"] = newOrderId,
                     ["roundNumber"] = nextRoundNum.ToString(CultureInfo.InvariantCulture),
-                    ["roundTotal"] = order.Total.ToString("0.00", CultureInfo.InvariantCulture)
+                    ["roundTotal"] = order.Total.ToString("0.00", CultureInfo.InvariantCulture),
+                    ["source"] = order.DineInOrderSource
                 });
             await _orderRepo.UpdateDineInSessionAsync(session);
 
-            // Notify kitchen of new round
-            await _outbox.EnqueueAsync("OrderNotificationKitchen", "Order", order.Id!,
-                new { OrderId = order.Id!, Total = order.Total, TableNumber = tableNumber, RoundNumber = nextRoundNum });
+            if (isWaiterOrder)
+            {
+                await _outbox.EnqueueAsync("OrderNotificationKitchen", "Order", order.Id!,
+                    new { OrderId = order.Id!, Total = order.Total, TableNumber = tableNumber, RoundNumber = nextRoundNum });
 
-            _log.LogInformation("Dine-In Round #{Round} for Table {Table} placed. Order {OrderId}", nextRoundNum, tableNumber, order.Id);
+                // Keep printer retries independent from kitchen notifications.
+                await _outbox.EnqueueAsync("ThermalKotPrint", "Order", order.Id!,
+                    new { OrderId = order.Id!, Trigger = "WaiterSendToKitchen" });
+            }
+
+            _log.LogInformation(
+                "Dine-In Round #{Round} for Table {Table} placed via {Source}. Order {OrderId}",
+                nextRoundNum, tableNumber, order.DineInOrderSource, order.Id);
 
             var updatedBill = await BuildBillResponseAsync(session);
             var response = req.CreateResponse(HttpStatusCode.Created);
             await response.WriteAsJsonAsync(new
             {
-                message = $"Round #{nextRoundNum} sent to Kitchen!",
+                message = isWaiterOrder
+                    ? $"Round #{nextRoundNum} sent to Kitchen!"
+                    : $"Round #{nextRoundNum} submitted and is awaiting waiter approval.",
                 orderId = order.Id,
                 roundNumber = nextRoundNum,
+                approvalStatus = order.ApprovalStatus,
                 session = updatedBill,
                 sessionAccessToken
             });
@@ -965,6 +1048,318 @@ public class DineInFunction
         }
     }
 
+    [Function("GetDineInSalesReport")]
+    public async Task<HttpResponseData> GetDineInSalesReport(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dine-in/reports")] HttpRequestData req)
+    {
+        var (authorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+        if (!authorized) return errorResponse!;
+
+        try
+        {
+            var (hasOutletAccess, outletId, outletError) = await OutletHelper.ValidateOutletAccess(
+                req, _auth, _mongo, req.Query["outletId"]);
+            if (!hasOutletAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = outletError ?? "Outlet access denied" });
+                return forbidden;
+            }
+            if (string.IsNullOrWhiteSpace(outletId))
+                return await WriteErrorAsync(req, HttpStatusCode.BadRequest, "Select an outlet to view the dine-in report");
+
+            var startValue = req.Query["startDate"];
+            var endValue = req.Query["endDate"];
+            if (!DateTime.TryParseExact(startValue, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var startDate)
+                || !DateTime.TryParseExact(endValue, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var endDate))
+                return await WriteErrorAsync(req, HttpStatusCode.BadRequest, "startDate and endDate must use yyyy-MM-dd");
+
+            if (endDate < startDate || (endDate - startDate).TotalDays > 30)
+                return await WriteErrorAsync(req, HttpStatusCode.BadRequest, "Choose a valid date range of no more than 31 days");
+
+            var start = DateTime.SpecifyKind(startDate.Date, DateTimeKind.Unspecified);
+            var endExclusive = DateTime.SpecifyKind(endDate.Date.AddDays(1), DateTimeKind.Unspecified);
+            var sessions = await _orderRepo.GetDineInSessionsByDateRangeAsync(outletId, start, endExclusive);
+            var confirmedPayments = sessions
+                .SelectMany(session => session.PaymentEntries ?? new List<DineInPaymentEntry>())
+                .Where(entry => string.Equals(entry.Status, "confirmed", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var paymentTotals = confirmedPayments
+                .GroupBy(entry => string.IsNullOrWhiteSpace(entry.PaymentMethod) ? "unspecified" : entry.PaymentMethod)
+                .ToDictionary(group => group.Key, group => group.Sum(entry => entry.Amount), StringComparer.OrdinalIgnoreCase);
+
+            var istZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+            var auditEvents = await _eventLog.GetOutletEventsAsync(
+                outletId,
+                TimeZoneInfo.ConvertTimeToUtc(start, istZone),
+                TimeZoneInfo.ConvertTimeToUtc(endExclusive, istZone),
+                500);
+            var sessionRows = sessions.Select(session => new
+            {
+                sessionId = session.Id,
+                tableNumber = session.TableNumber,
+                customerName = session.CustomerName,
+                status = session.Status,
+                paymentStatus = session.PaymentStatus,
+                createdAt = session.CreatedAt,
+                settledAt = session.SettledAt,
+                grandTotal = session.GrandTotal,
+                amountPaid = session.AmountPaid,
+                amountDue = GetSessionAmountDue(session),
+                timeline = (session.Timeline ?? new List<DineInSessionEvent>())
+                    .OrderByDescending(entry => entry.CreatedAt)
+                    .Take(50)
+            });
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                startDate = start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                endDate = endDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                summary = new
+                {
+                    sessionCount = sessions.Count,
+                    settledSessions = sessions.Count(session => session.Status == "paid"),
+                    totalBilled = sessions.Sum(session => session.GrandTotal),
+                    salesCollected = sessions.Sum(session => session.AmountPaid),
+                    outstandingBalance = sessions.Sum(GetSessionAmountDue),
+                    paymentTotals
+                },
+                sessions = sessionRows,
+                auditEvents
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed to generate dine-in sales report");
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteAsJsonAsync(new { error = "Failed to generate dine-in report" });
+            return response;
+        }
+    }
+
+    [Function("GetCashierPendingDineInPayments")]
+    public async Task<HttpResponseData> GetCashierPendingDineInPayments(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dine-in/cashier/pending-payments")] HttpRequestData req)
+    {
+        var (authorized, _, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
+        if (!authorized) return errorResponse!;
+
+        try
+        {
+            var (hasOutletAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(
+                req, _auth, _mongo, req.Query["outletId"]);
+            if (!hasOutletAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError ?? "Outlet access denied" });
+                return forbidden;
+            }
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Select an outlet to view pending table payments" });
+                return badRequest;
+            }
+
+            var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
+            var activeSessions = sessions
+                .Select(session => new
+                {
+                    sessionId = session.Id,
+                    tableNumber = session.TableNumber,
+                    customerName = session.CustomerName,
+                    sessionStatus = session.Status,
+                    paymentStatus = session.PaymentStatus,
+                    grandTotal = session.GrandTotal,
+                    amountPaid = session.AmountPaid,
+                    amountDue = GetSessionAmountDue(session),
+                    hasPendingPayment = (session.PaymentEntries ?? new List<DineInPaymentEntry>())
+                        .Any(entry => string.Equals(entry.Status, "pending", StringComparison.OrdinalIgnoreCase))
+                })
+                .OrderBy(session => session.tableNumber)
+                .ToList();
+            var pendingPayments = sessions
+                .Select(session => new
+                {
+                    sessionId = session.Id,
+                    tableNumber = session.TableNumber,
+                    customerName = session.CustomerName,
+                    customerPhone = session.CustomerPhone,
+                    sessionStatus = session.Status,
+                    paymentStatus = session.PaymentStatus,
+                    grandTotal = session.GrandTotal,
+                    amountPaid = session.AmountPaid,
+                    amountDue = GetSessionAmountDue(session),
+                    pendingPayment = (session.PaymentEntries ?? new List<DineInPaymentEntry>())
+                        .Where(entry => string.Equals(entry.Status, "pending", StringComparison.OrdinalIgnoreCase))
+                        .OrderByDescending(entry => entry.RequestedAt)
+                        .Select(entry => new
+                        {
+                            entry.Id,
+                            entry.Amount,
+                            entry.PaymentMethod,
+                            entry.UpiReference,
+                            entry.Notes,
+                            entry.RequestedAt
+                        })
+                        .FirstOrDefault()
+                })
+                .Where(session => session.pendingPayment != null)
+                .OrderBy(session => session.pendingPayment!.RequestedAt)
+                .ToList();
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { payments = pendingPayments, sessions = activeSessions });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed to load pending dine-in payments for cashier");
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteAsJsonAsync(new { error = "Failed to load pending dine-in payments" });
+            return response;
+        }
+    }
+
+    [Function("RecordCashierDineInPayment")]
+    public async Task<HttpResponseData> RecordCashierDineInPayment(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "dine-in/session/{sessionId}/cashier/payment")] HttpRequestData req,
+        string sessionId)
+    {
+        string? claimedPaymentStatus = null;
+        try
+        {
+            var (authorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
+            if (!authorized) return errorResponse!;
+
+            var session = await _orderRepo.GetDineInSessionByIdAsync(sessionId);
+            if (session == null)
+                return await WriteErrorAsync(req, HttpStatusCode.NotFound, "Dine-in session not found");
+
+            var (hasOutletAccess, accessibleOutletId, outletError) = await OutletHelper.ValidateOutletAccess(
+                req, _auth, _mongo, req.Query["outletId"] ?? session.OutletId);
+            if (!hasOutletAccess || !string.Equals(accessibleOutletId, session.OutletId, StringComparison.Ordinal))
+                return await WriteErrorAsync(req, HttpStatusCode.Forbidden, outletError ?? "You cannot record payments for this outlet");
+
+            if (string.Equals(session.Status, "paid", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(session.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
+                return await WriteErrorAsync(req, HttpStatusCode.Conflict, "This table session is already closed");
+
+            var (request, validationError) = await ValidationHelper.ValidateBody<SettleDineInBillRequest>(req);
+            if (validationError != null) return validationError;
+            if (request == null || request.Amount == null)
+                return await WriteErrorAsync(req, HttpStatusCode.BadRequest, "Payment amount is required");
+
+            session.PaymentEntries ??= new List<DineInPaymentEntry>();
+            if (session.PaymentEntries.Any(entry =>
+                    string.Equals(entry.Status, "pending", StringComparison.OrdinalIgnoreCase)))
+                return await WriteErrorAsync(req, HttpStatusCode.Conflict,
+                    "Confirm or resolve the customer's pending payment request before recording another payment");
+
+            if (session.PaymentStatus is not ("unpaid" or "partially_paid"))
+                return await WriteErrorAsync(req, HttpStatusCode.Conflict,
+                    "This session is not available for direct cashier payment");
+
+            await RecalculateSessionTotalsAsync(session);
+            var amountDue = GetSessionAmountDue(session);
+            var amount = Math.Round(request.Amount.Value, 2);
+            if (amount <= 0 || amount > amountDue)
+                return await WriteErrorAsync(req, HttpStatusCode.BadRequest,
+                    $"Payment amount must be greater than zero and no more than the balance due of ₹{amountDue:0.00}");
+
+            claimedPaymentStatus = session.PaymentStatus;
+            if (!await _orderRepo.TransitionDineInPaymentStatusAsync(
+                    sessionId, new[] { claimedPaymentStatus }, "processing"))
+                return await WriteErrorAsync(req, HttpStatusCode.Conflict,
+                    "Another payment is being recorded for this table; refresh and try again");
+
+            var paymentMethod = request.PaymentMethod.Trim().ToLowerInvariant();
+            var paymentTime = MongoService.GetIstNow();
+            var paymentEntry = new DineInPaymentEntry
+            {
+                Amount = amount,
+                PaymentMethod = paymentMethod,
+                UpiReference = request.UpiReference?.Trim(),
+                Status = "confirmed",
+                Notes = request.Notes?.Trim(),
+                RequestedAt = paymentTime,
+                ConfirmedAt = paymentTime,
+                ConfirmedBy = userId
+            };
+            session.PaymentEntries.Add(paymentEntry);
+            session.PaymentMethod = paymentMethod;
+            session.AmountPaid = Math.Round(session.AmountPaid + amount, 2);
+            session.Notes = string.IsNullOrWhiteSpace(session.Notes)
+                ? $"Payment recorded by {userId}"
+                : $"{session.Notes} | Payment recorded by {userId}";
+            AddSessionEvent(
+                session,
+                "cashier_payment_recorded",
+                $"Cashier recorded payment: ₹{amount:0.00} via {paymentMethod}",
+                userId,
+                new Dictionary<string, string>
+                {
+                    ["paymentEntryId"] = paymentEntry.Id,
+                    ["amount"] = amount.ToString("0.00", CultureInfo.InvariantCulture),
+                    ["paymentMethod"] = paymentMethod,
+                    ["remainingDue"] = Math.Max(0, amountDue - amount).ToString("0.00", CultureInfo.InvariantCulture)
+                });
+
+            if (amountDue - amount > 0)
+            {
+                session.PaymentStatus = "partially_paid";
+                session.Status = "bill_requested";
+                session.SettledAt = null;
+                if (!await _orderRepo.UpdateDineInSessionAsync(session))
+                {
+                    await _orderRepo.TransitionDineInPaymentStatusAsync(
+                        sessionId, new[] { "processing" }, claimedPaymentStatus);
+                    claimedPaymentStatus = null;
+                    return await WriteErrorAsync(req, HttpStatusCode.InternalServerError,
+                        "Payment could not be saved. Refresh the table balance before retrying.");
+                }
+                claimedPaymentStatus = null;
+                var partialResponse = req.CreateResponse(HttpStatusCode.OK);
+                await partialResponse.WriteAsJsonAsync(new
+                {
+                    message = $"Payment recorded. ₹{Math.Max(0, amountDue - amount):0.00} still due.",
+                    session = await BuildBillResponseAsync(session)
+                });
+                return partialResponse;
+            }
+
+            if (!await FinalizeSessionPaymentAsync(session))
+            {
+                await _orderRepo.TransitionDineInPaymentStatusAsync(
+                    sessionId, new[] { "processing" }, claimedPaymentStatus);
+                claimedPaymentStatus = null;
+                return await WriteErrorAsync(req, HttpStatusCode.Conflict,
+                    "Unable to finalize settlement. Check the bill and try again.");
+            }
+
+            claimedPaymentStatus = null;
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Payment recorded and table closed",
+                session = await BuildBillResponseAsync(session)
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            if (claimedPaymentStatus != null)
+                await _orderRepo.TransitionDineInPaymentStatusAsync(
+                    sessionId, new[] { "processing" }, claimedPaymentStatus);
+            _log.LogError(ex, "Error recording cashier payment for dine-in session {SessionId}", sessionId);
+            return await WriteErrorAsync(req, HttpStatusCode.InternalServerError, "Failed to record cashier payment");
+        }
+    }
+
     [Function("ConfirmDineInPayment")]
     public async Task<HttpResponseData> ConfirmDineInPayment(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "dine-in/session/{sessionId}/payment/confirm")] HttpRequestData req,
@@ -973,7 +1368,7 @@ public class DineInFunction
         string? claimedPaymentStatus = null;
         try
         {
-            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+            var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var session = await _orderRepo.GetDineInSessionByIdAsync(sessionId);
@@ -982,6 +1377,15 @@ public class DineInFunction
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(new { error = "Dine-in session not found" });
                 return notFound;
+            }
+
+            var (hasOutletAccess, accessibleOutletId, outletError) = await OutletHelper.ValidateOutletAccess(
+                req, _auth, _mongo, req.Query["outletId"] ?? session.OutletId);
+            if (!hasOutletAccess || !string.Equals(accessibleOutletId, session.OutletId, StringComparison.Ordinal))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = outletError ?? "You cannot confirm payments for this outlet" });
+                return forbidden;
             }
 
             if (session.Status == "paid")
@@ -1851,7 +2255,8 @@ public class DineInFunction
             "session_paid",
             $"Session closed as paid. Total settled: ₹{session.GrandTotal:0.00}",
             "system");
-        await _orderRepo.UpdateDineInSessionAsync(session);
+        if (!await _orderRepo.UpdateDineInSessionAsync(session))
+            throw new InvalidOperationException($"Failed to persist settled dine-in session {session.Id}");
 
         foreach (var orderId in session.OrderIds)
         {
@@ -2104,13 +2509,14 @@ public class DineInFunction
             if (principal != null)
             {
                 var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                var role = principal.FindFirst(ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
-                if (role is "admin" or "manager" or "cashier" or "staff" or "cook" or "chef" or "sous-chef" or "kitchen" or "kitchen-staff")
+                if (RoleHelper.HasAnyRole(principal, RoleHelper.StaffRoles))
                     return true;
                 if (!string.IsNullOrWhiteSpace(userId) && string.Equals(session.UserId, userId, StringComparison.Ordinal))
                     return true;
             }
         }
+
+        if (HasTableQrAccess(req, session.QrAccessTokenHash)) return true;
 
         if (string.IsNullOrWhiteSpace(session.AccessTokenHash)) return false;
         var suppliedToken = req.Headers.TryGetValues("X-Dine-In-Session-Token", out var tokenValues)
@@ -2129,6 +2535,35 @@ public class DineInFunction
         {
             return false;
         }
+    }
+
+    private bool HasTableQrAccess(HttpRequestData req, string? expectedHash)
+    {
+        if (string.IsNullOrWhiteSpace(expectedHash)) return false;
+        var suppliedToken = req.Headers.TryGetValues("X-Dine-In-Table-Token", out var tokenValues)
+            ? tokenValues.FirstOrDefault()?.Trim()
+            : null;
+        if (string.IsNullOrWhiteSpace(suppliedToken)) return false;
+
+        try
+        {
+            var suppliedHash = SHA256.HashData(Encoding.UTF8.GetBytes(suppliedToken));
+            var expected = Convert.FromHexString(expectedHash);
+            return suppliedHash.Length == expected.Length
+                && CryptographicOperations.FixedTimeEquals(suppliedHash, expected);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<HttpResponseData> WriteErrorAsync(
+        HttpRequestData req, HttpStatusCode statusCode, string message)
+    {
+        var response = req.CreateResponse(statusCode);
+        await response.WriteAsJsonAsync(new { error = message });
+        return response;
     }
 
     private static (string token, string hash) CreateSessionAccessToken()

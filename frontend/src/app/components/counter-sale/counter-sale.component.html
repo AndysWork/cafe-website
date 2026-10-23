@@ -1,0 +1,124 @@
+<div class="counter-sale-page">
+  <div class="header">
+    <h1>Counter Sale</h1>
+    <p>Create walk-in invoices and print for customers.</p>
+  </div>
+
+  <div class="alerts" *ngIf="successMessage || errorMessage">
+    <div class="alert success" *ngIf="successMessage">{{ successMessage }}</div>
+    <div class="alert error" *ngIf="errorMessage">{{ errorMessage }}</div>
+  </div>
+
+  <div class="layout">
+    <section class="menu-panel">
+      <div class="panel-head">
+        <h2>Menu Items</h2>
+        <input
+          type="text"
+          [(ngModel)]="searchTerm"
+          placeholder="Search item or category"
+          class="search-input"
+        />
+      </div>
+
+      <div class="menu-list" *ngIf="!isLoadingMenu; else loadingMenuTpl">
+        <button class="menu-item" *ngFor="let item of filteredMenuItems" (click)="addToCart(item)">
+          <span class="name">{{ item.name }}</span>
+          <span class="meta">{{ item.categoryName || 'Uncategorized' }}</span>
+          <span class="price">Rs {{ resolveCounterPrice(item) | number:'1.2-2' }}</span>
+        </button>
+
+        <div class="empty" *ngIf="filteredMenuItems.length === 0">
+          No available items found.
+        </div>
+      </div>
+
+      <ng-template #loadingMenuTpl>
+        <div class="empty">Loading menu...</div>
+      </ng-template>
+    </section>
+
+    <section class="checkout-panel">
+      <h2>Invoice Builder</h2>
+
+      <div class="cart" *ngIf="cartItems.length > 0; else emptyCartTpl">
+        <div class="cart-row" *ngFor="let item of cartItems">
+          <div class="info">
+            <div class="title">{{ item.name }}</div>
+            <div class="unit">Rs {{ item.unitPrice | number:'1.2-2' }} each</div>
+          </div>
+          <input
+            type="number"
+            min="1"
+            [ngModel]="item.quantity"
+            (ngModelChange)="updateQuantity(item, $event)"
+            class="qty"
+          />
+          <div class="line-total">Rs {{ item.lineTotal | number:'1.2-2' }}</div>
+          <button type="button" class="remove" (click)="removeItem(item)">Remove</button>
+        </div>
+      </div>
+
+      <ng-template #emptyCartTpl>
+        <div class="empty">Add menu items to start a counter sale.</div>
+      </ng-template>
+
+      <div class="form-grid">
+        <label>
+          Customer Name (optional)
+          <input type="text" [(ngModel)]="customerName" placeholder="Walk-in Customer" />
+        </label>
+
+        <label>
+          Phone Number (optional)
+          <input type="text" [(ngModel)]="phoneNumber" placeholder="10-digit phone" />
+        </label>
+
+        <label>
+          Payment Method
+          <select [(ngModel)]="paymentMethod">
+            <option value="cash_at_counter">Cash at Counter</option>
+            <option value="upi-qr">UPI QR</option>
+          </select>
+        </label>
+
+        <label *ngIf="paymentMethod === 'upi-qr'">
+          UPI Reference
+          <input type="text" [(ngModel)]="upiReference" placeholder="Enter UPI transaction reference" />
+        </label>
+
+        <label class="full-width">
+          Notes (optional)
+          <textarea rows="2" [(ngModel)]="notes" placeholder="Any notes for this invoice"></textarea>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" [(ngModel)]="autoPrintInvoice" />
+          Auto-queue thermal print after invoice generation
+        </label>
+      </div>
+
+      <div class="totals">
+        <span>Total Amount</span>
+        <strong>Rs {{ cartTotal | number:'1.2-2' }}</strong>
+      </div>
+
+      <button class="generate-btn" [disabled]="isGenerating || cartItems.length === 0" (click)="generateInvoice()">
+        {{ isGenerating ? 'Generating...' : 'Generate Invoice' }}
+      </button>
+
+      <div class="latest" *ngIf="latestInvoice as invoice">
+        <h3>Latest Invoice</h3>
+        <p><strong>{{ invoice.invoiceNumber }}</strong> | Order: {{ invoice.orderId }}</p>
+        <p>Subtotal: Rs {{ invoice.subtotal | number:'1.2-2' }} | Total: Rs {{ invoice.total | number:'1.2-2' }}</p>
+
+        <div class="actions">
+          <button class="secondary" [disabled]="isPrinting" (click)="printInvoice()">
+            {{ isPrinting ? 'Dispatching...' : 'Print Invoice' }}
+          </button>
+          <button class="secondary" (click)="downloadReceiptPdf()">Download PDF</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

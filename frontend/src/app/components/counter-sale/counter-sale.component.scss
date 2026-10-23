@@ -1,0 +1,269 @@
+.counter-sale-page {
+  padding: 1rem;
+
+  .header {
+    margin-bottom: 1rem;
+
+    h1 {
+      margin: 0;
+      font-size: 1.6rem;
+    }
+
+    p {
+      margin: 0.25rem 0 0;
+      color: #4b5563;
+    }
+  }
+
+  .alerts {
+    margin-bottom: 0.75rem;
+  }
+
+  .alert {
+    border-radius: 8px;
+    padding: 0.65rem 0.8rem;
+    font-size: 0.95rem;
+  }
+
+  .alert.success {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .alert.error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 1rem;
+  }
+
+  .menu-panel,
+  .checkout-panel {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.9rem;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+
+    h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+  }
+
+  .search-input,
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 0.5rem 0.6rem;
+    font: inherit;
+    background: #fff;
+  }
+
+  .menu-list {
+    display: grid;
+    gap: 0.55rem;
+    max-height: 66vh;
+    overflow: auto;
+  }
+
+  .menu-item {
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-radius: 10px;
+    padding: 0.6rem;
+    text-align: left;
+    display: grid;
+    cursor: pointer;
+
+    .name {
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .meta {
+      font-size: 0.82rem;
+      color: #6b7280;
+    }
+
+    .price {
+      margin-top: 0.15rem;
+      color: #065f46;
+      font-weight: 600;
+    }
+  }
+
+  .cart {
+    display: grid;
+    gap: 0.55rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .cart-row {
+    display: grid;
+    grid-template-columns: 1fr 70px 110px auto;
+    gap: 0.5rem;
+    align-items: center;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 0.5rem;
+
+    .title {
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .unit {
+      font-size: 0.82rem;
+      color: #6b7280;
+    }
+
+    .qty {
+      text-align: center;
+    }
+
+    .line-total {
+      font-weight: 600;
+      color: #111827;
+      text-align: right;
+    }
+
+    .remove {
+      border: none;
+      border-radius: 8px;
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 0.42rem 0.55rem;
+      cursor: pointer;
+    }
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+
+    label {
+      display: grid;
+      gap: 0.28rem;
+      font-size: 0.88rem;
+      color: #374151;
+    }
+
+    .full-width,
+    .checkbox {
+      grid-column: 1 / -1;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+  }
+
+  .totals {
+    margin-top: 0.9rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    strong {
+      font-size: 1.05rem;
+      color: #111827;
+    }
+  }
+
+  .generate-btn,
+  .secondary {
+    margin-top: 0.7rem;
+    border: none;
+    border-radius: 10px;
+    padding: 0.58rem 0.8rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .generate-btn {
+    width: 100%;
+    background: #0f766e;
+    color: #ffffff;
+  }
+
+  .generate-btn:disabled,
+  .secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .latest {
+    margin-top: 0.95rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e5e7eb;
+
+    h3 {
+      margin: 0 0 0.35rem;
+      font-size: 1rem;
+    }
+
+    p {
+      margin: 0.24rem 0;
+      color: #374151;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .secondary {
+      background: #e0f2fe;
+      color: #075985;
+      margin-top: 0.45rem;
+    }
+  }
+
+  .empty {
+    padding: 1rem;
+    text-align: center;
+    color: #6b7280;
+    border: 1px dashed #d1d5db;
+    border-radius: 10px;
+  }
+}
+
+@media (max-width: 980px) {
+  .counter-sale-page .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .counter-sale-page .cart-row {
+    grid-template-columns: 1fr 60px 90px;
+
+    .remove {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+  }
+
+  .counter-sale-page .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

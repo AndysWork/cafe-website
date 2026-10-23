@@ -43,11 +43,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get isAdmin(): boolean {
-    return this.currentUser?.role === 'admin';
+    return this.authStore.isAdmin();
   }
 
   get isCustomer(): boolean {
-    return this.currentUser?.role === 'user';
+    return this.authStore.roles().length === 1 && this.authStore.hasRole('user');
   }
 
   get canBrowseMenu(): boolean {
@@ -57,24 +57,27 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get isPartnerUser(): boolean {
-    return this.currentUser?.role === 'partner' || this.currentUser?.role === 'delivery-partner';
+    return this.authStore.hasAnyRole(['partner', 'delivery-partner']);
   }
 
   get isKitchenUser(): boolean {
-    return this.currentUser?.role === 'cook'
-      || this.currentUser?.role === 'chef'
-      || this.currentUser?.role === 'sous-chef'
-      || this.currentUser?.role === 'kitchen'
-      || this.currentUser?.role === 'kitchen-staff'
-      || this.currentUser?.role === 'kitchen-helper';
+    return this.authStore.hasAnyRole(['cook', 'chef', 'sous-chef', 'kitchen', 'kitchen-staff', 'kitchen-helper']);
+  }
+
+  get isWaiterUser(): boolean {
+    return this.authStore.hasRole('waiter');
+  }
+
+  get isCashierUser(): boolean {
+    return this.authStore.hasRole('cashier');
   }
 
   get isStaffRoleUser(): boolean {
-    return this.isManager || this.isKitchenUser;
+    return this.isManager || this.isKitchenUser || this.isWaiterUser || this.isCashierUser;
   }
 
   get isManager(): boolean {
-    return this.currentUser?.role === 'manager';
+    return this.authStore.hasRole('manager');
   }
 
   openDineInBill(): void {

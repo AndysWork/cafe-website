@@ -53,6 +53,13 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       cta: 'Assign Parcel'
     },
     {
+      title: 'Counter Sale',
+      description: 'Generate walk-in customer invoices and trigger print dispatch from the counter.',
+      icon: '🧾',
+      route: '/manager/counter-sale',
+      cta: 'Open Counter Sale'
+    },
+    {
       title: 'My Attendance',
       description: 'Clock shifts and review attendance summary.',
       icon: '🕐',

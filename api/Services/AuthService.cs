@@ -51,17 +51,26 @@ public class AuthService
         return BCrypt.Net.BCrypt.Verify(password, passwordHash);
     }
 
-    public string GenerateJwtToken(string userId, string username, string role, string? defaultOutletId = null, List<string>? assignedOutlets = null)
+    public string GenerateJwtToken(string userId, string username, string role, string? defaultOutletId = null, List<string>? assignedOutlets = null, IEnumerable<string>? additionalRoles = null)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(_jwtSecret);
         
+        // Primary role must be the first role claim: existing checks use FindFirst(ClaimTypes.Role).
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, userId),
             new Claim(ClaimTypes.Name, username),
             new Claim(ClaimTypes.Role, role)
         };
+
+        if (additionalRoles != null)
+        {
+            foreach (var extraRole in additionalRoles.Where(r => !string.IsNullOrWhiteSpace(r) && !string.Equals(r, role, StringComparison.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, extraRole));
+            }
+        }
         
         // Add outlet claims if provided
         if (!string.IsNullOrEmpty(defaultOutletId))

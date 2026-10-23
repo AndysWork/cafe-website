@@ -8,6 +8,9 @@ import { handleServiceError } from '../utils/error-handler';
 export type ManageableUserRole =
   | 'admin'
   | 'manager'
+  | 'cashier'
+  | 'waiter'
+  | 'kitchen'
   | 'partner'
   | 'delivery-partner'
   | 'cook'
@@ -17,11 +20,14 @@ export type ManageableUserRole =
 
 export const MANAGEABLE_USER_ROLES: ManageableUserRole[] = [
   'user',
-  'delivery-partner',
-  'partner',
+  'waiter',
+  'cashier',
+  'kitchen',
   'cook',
   'chef',
   'sous-chef',
+  'delivery-partner',
+  'partner',
   'manager',
   'admin'
 ];
@@ -31,6 +37,7 @@ export interface AdminUserSummary {
   username: string;
   email: string;
   role: ManageableUserRole | string;
+  roles?: string[];
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
@@ -57,6 +64,13 @@ export class AdminUserRoleService {
     return this.http
       .put<{ success: boolean; message: string }>(`${this.apiUrl}/users/${userId}/role`, { role })
       .pipe(catchError(handleServiceError('AdminUserRoleService.updateUserRole')));
+  }
+
+  /** Replaces all roles of a user (a staff member may hold several roles). */
+  updateUserRoles(userId: string, roles: string[]): Observable<{ success: boolean; message: string }> {
+    return this.http
+      .put<{ success: boolean; message: string }>(`${this.apiUrl}/users/${userId}/roles`, { roles })
+      .pipe(catchError(handleServiceError('AdminUserRoleService.updateUserRoles')));
   }
 
   toggleUserStatus(userId: string): Observable<{ success: boolean; message: string }> {

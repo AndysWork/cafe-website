@@ -140,6 +140,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.routeSub = this.route.queryParams.subscribe((params: any) => {
       const tableParam = params['table'];
       if (tableParam) {
+        this.dineInService.setTableQrToken(params['qrToken'] || null);
         this.dineInService.setTableNumber(tableParam);
         this.activeTableNumber = tableParam;
       }
@@ -175,10 +176,15 @@ export class MenuComponent implements OnInit, OnDestroy {
         const storedSelectionKey = storedSelection ? this.getOutletKey(storedSelection) : '';
         const matchedStoredOutlet = this.outlets.find(o => this.getOutletKey(o) === storedSelectionKey);
 
-        const defaultOutlet = matchedStoredOutlet || this.getPreferredDefaultOutlet(this.outlets);
+        const qrOutletId = this.route.snapshot.queryParams['outletId'];
+        const qrOutlet = qrOutletId
+          ? this.outlets.find(o => this.getOutletKey(o) === qrOutletId)
+          : undefined;
+        const defaultOutlet = qrOutlet || matchedStoredOutlet || this.getPreferredDefaultOutlet(this.outlets);
         if (defaultOutlet) {
           this.selectedOutletId = this.getOutletKey(defaultOutlet);
           this.outletService.selectOutlet(defaultOutlet);
+          if (this.dineInService.currentTable) this.dineInService.refreshActiveSession();
         }
 
         this.loadMenu();

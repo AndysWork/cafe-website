@@ -37,6 +37,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
   showKotModal = false;
   showChecklistModal = false;
   selectedOrderForChecklist: KitchenOrder | null = null;
+  selectedItemIndex: number | null = null;
   checklistItems: KitchenChecklistItem[] = [];
   activeSpeechKey: string | null = null;
   selectedLanguage = 'en';
@@ -282,7 +283,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
     });
   }
 
-  openChecklist(orderId: string) {
+  openChecklist(orderId: string, itemIndex: number | null = null) {
     const order = this.orders.find(o => o.id === orderId);
     if (!order) {
       this.uiStore.error('Order not found');
@@ -298,14 +299,43 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
     ];
 
     this.selectedOrderForChecklist = order;
+    this.selectedItemIndex = itemIndex;
     this.checklistItems = (order.kitchenChecklist?.length ? order.kitchenChecklist : fallbackChecklist)
       .map(i => ({ id: i.id, label: i.label, isCompleted: i.isCompleted }));
     this.showChecklistModal = true;
   }
 
+  markDineInItemReady(order: KitchenOrder, itemIndex: number): void {
+    const isLastItem = order.items.every((item, index) =>
+      index === itemIndex || item.kitchenStatus === 'ready'
+    );
+    if (isLastItem) {
+      this.openChecklist(order.id, itemIndex);
+      return;
+    }
+    this.kitchenService.updateDineInItemStatus(order.id, itemIndex, 'ready').subscribe({
+      next: () => { this.uiStore.success('Item marked ready'); this.loadData(); },
+      error: err => {
+        if (err?.error?.requiresChecklist) {
+          this.openChecklist(order.id, itemIndex);
+          return;
+        }
+        this.uiStore.error(err?.error?.error || 'Failed to mark item ready');
+      }
+    });
+  }
+
+  markDineInItemServed(order: KitchenOrder, itemIndex: number): void {
+    this.kitchenService.updateDineInItemStatus(order.id, itemIndex, 'served').subscribe({
+      next: () => { this.uiStore.success('Item marked served'); this.loadData(); },
+      error: err => this.uiStore.error(err?.error?.error || 'Failed to mark item served')
+    });
+  }
+
   closeChecklist() {
     this.showChecklistModal = false;
     this.selectedOrderForChecklist = null;
+    this.selectedItemIndex = null;
     this.checklistItems = [];
   }
 
@@ -317,6 +347,23 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
     const incomplete = this.checklistItems.filter(item => !item.isCompleted);
     if (incomplete.length > 0) {
       this.uiStore.error('Complete all checklist items before marking ready');
+      return;
+    }
+
+    if (this.selectedItemIndex !== null) {
+      this.kitchenService.updateDineInItemStatus(
+        this.selectedOrderForChecklist.id,
+        this.selectedItemIndex,
+        'ready',
+        this.checklistItems
+      ).subscribe({
+        next: () => {
+          this.uiStore.success('All items are ready; kitchen checklist completed');
+          this.closeChecklist();
+          this.loadData();
+        },
+        error: err => this.uiStore.error(err?.error?.error || 'Failed to mark item ready')
+      });
       return;
     }
 

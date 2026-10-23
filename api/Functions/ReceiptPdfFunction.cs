@@ -61,7 +61,8 @@ public class ReceiptPdfFunction
                 return notFound;
             }
 
-            if (role != "admin" && order.UserId != userId)
+            var normalizedRole = (role ?? string.Empty).Trim().ToLowerInvariant();
+            if (normalizedRole != "admin" && normalizedRole != "manager" && order.UserId != userId)
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Access denied" });

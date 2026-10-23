@@ -38,6 +38,11 @@ public class DineInSession
     [JsonIgnore]
     public string? AccessTokenHash { get; set; }
 
+    [BsonElement("qrAccessTokenHash")]
+    [BsonIgnoreIfNull]
+    [JsonIgnore]
+    public string? QrAccessTokenHash { get; set; }
+
     [BsonElement("status")]
     public string Status { get; set; } = "active"; // "active", "bill_requested", "paid", "cancelled"
 

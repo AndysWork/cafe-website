@@ -170,6 +170,48 @@ public class Order : ISoftDeletable
     [BsonRepresentation(BsonType.ObjectId)]
     public string? DineInSessionId { get; set; }
 
+    [BsonElement("dineInOrderSource")]
+    public string? DineInOrderSource { get; set; }
+
+    [BsonElement("kotNumber")]
+    public string? KotNumber { get; set; }
+
+    [BsonElement("kotReprintCount")]
+    public int KotReprintCount { get; set; }
+
+    [BsonElement("lastKotReprintedAt")]
+    public DateTime? LastKotReprintedAt { get; set; }
+
+    [BsonElement("lastKotReprintedByUserId")]
+    public string? LastKotReprintedByUserId { get; set; }
+
+    [BsonElement("kotCancelledAt")]
+    public DateTime? KotCancelledAt { get; set; }
+
+    [BsonElement("kotCancelledByUserId")]
+    public string? KotCancelledByUserId { get; set; }
+
+    [BsonElement("kotCancellationReason")]
+    public string? KotCancellationReason { get; set; }
+
+    [BsonElement("approvalStatus")]
+    public string? ApprovalStatus { get; set; }
+
+    [BsonElement("approvedByUserId")]
+    public string? ApprovedByUserId { get; set; }
+
+    [BsonElement("approvedAt")]
+    public DateTime? ApprovedAt { get; set; }
+
+    [BsonElement("rejectedByUserId")]
+    public string? RejectedByUserId { get; set; }
+
+    [BsonElement("rejectedAt")]
+    public DateTime? RejectedAt { get; set; }
+
+    [BsonElement("rejectionReason")]
+    public string? RejectionReason { get; set; }
+
     [BsonElement("roundNumber")]
     public int RoundNumber { get; set; } = 1;
 
@@ -245,6 +287,21 @@ public class KitchenChecklistItem
 
 public class OrderItem
 {
+    [BsonElement("kitchenStatus")]
+    public string KitchenStatus { get; set; } = "pending";
+
+    [BsonElement("kitchenReadyAt")]
+    public DateTime? KitchenReadyAt { get; set; }
+
+    [BsonElement("kitchenReadyByUserId")]
+    public string? KitchenReadyByUserId { get; set; }
+
+    [BsonElement("servedAt")]
+    public DateTime? ServedAt { get; set; }
+
+    [BsonElement("servedByUserId")]
+    public string? ServedByUserId { get; set; }
+
     [BsonElement("menuItemId")]
     public string MenuItemId { get; set; } = string.Empty;
 

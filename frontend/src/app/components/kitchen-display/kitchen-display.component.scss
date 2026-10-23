@@ -129,9 +129,40 @@
 .order-items { margin-bottom: 8px; }
 
 .order-item {
-  font-size: 0.9rem; padding: 3px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+  padding: 5px 0;
   .qty { font-weight: 700; color: #84CC16; margin-right: 4px; }
 }
+
+.item-description {
+  display: grid;
+  gap: 3px;
+}
+
+.item-status {
+  color: #cbd5e1;
+  font-size: 0.72rem;
+}
+
+.item-status.ready { color: #86efac; }
+.item-status.served { color: #67e8f9; }
+
+.item-action {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: #166534;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.item-action.served-action { background: #0e7490; }
 
 .order-notes {
   font-size: 0.8rem; color: #fbbf24; padding: 6px;

@@ -12,6 +12,11 @@ public interface IOrderRepository
     Task<Order?> GetOrderByIdAsync(string orderId);
     Task<bool> UpdateOrderStatusAsync(string orderId, string status);
     Task<bool> TryUpdateOrderStatusAsync(string orderId, IReadOnlyCollection<string> expectedStatuses, string status);
+    Task<string> GetNextDineInKotNumberAsync(string outletId);
+    Task<bool> TryReviewQrDineInOrderAsync(string orderId, string outletId, string decision, string userId, string? reason, string? kotNumber);
+    Task<bool> TryEditPendingQrDineInOrderAsync(Order order);
+    Task<bool> TryQueueDineInKotReprintAsync(string orderId, string outletId, string userId);
+    Task<bool> TryCancelDineInKotAsync(string orderId, string outletId, IReadOnlyCollection<string> expectedStatuses, string userId, string reason);
     Task<bool> UpdateOrderAsync(Order order);
     Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus);
     Task<bool> UpdateReceiptImageUrlAsync(string orderId, string? receiptImageUrl);
@@ -38,6 +43,7 @@ public interface IOrderRepository
     Task<DineInSession?> GetLatestDineInSessionByTableAsync(string outletId, string tableNumber);
     Task<DineInSession?> GetDineInSessionByIdAsync(string sessionId);
     Task<List<DineInSession>> GetActiveDineInSessionsAsync(string outletId);
+    Task<List<DineInSession>> GetDineInSessionsByDateRangeAsync(string outletId, DateTime start, DateTime endExclusive);
     Task<List<DineInSession>> GetUserDineInSessionsAsync(string userId);
     Task<bool> UpdateDineInSessionAsync(DineInSession session);
     Task<bool> TransitionDineInPaymentStatusAsync(string sessionId, IReadOnlyCollection<string> expectedStatuses, string newStatus);

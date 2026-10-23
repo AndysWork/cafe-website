@@ -1,0 +1,159 @@
+<div class="page">
+  <div class="header">
+    <div>
+      <h1>Tables</h1>
+      <p>Set up dine-in tables and see live floor status.</p>
+    </div>
+    <div class="tabs">
+      <button type="button" class="btn" [class.selected]="tab === 'floor'" (click)="tab = 'floor'; loadFloor()">Live Floor</button>
+      <button type="button" class="btn" [class.selected]="tab === 'setup'" (click)="tab = 'setup'">Setup</button>
+      <button type="button" class="btn" (click)="loadAll()" [disabled]="loading()">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Live floor -->
+  <ng-container *ngIf="tab === 'floor'">
+    <div class="summary" *ngIf="summary() as s">
+      <span class="chip free">Free {{ s.free }}</span>
+      <span class="chip occupied">Occupied {{ s.occupied }}</span>
+      <span class="chip bill_requested">Bill Requested {{ s.billRequested }}</span>
+      <span class="chip cleaning">Cleaning {{ s.cleaning }}</span>
+      <span class="chip out_of_service">Out of Service {{ s.outOfService }}</span>
+    </div>
+
+    <div *ngIf="floor().length === 0" class="state">
+      No tables configured yet. Use the Setup tab to add tables.
+    </div>
+
+    <section *ngFor="let group of floorByArea()" class="area">
+      <h2>{{ group.area }}</h2>
+      <div class="floor-grid">
+        <div *ngFor="let t of group.tables" class="table-card" [ngClass]="t.status">
+          <div class="table-top">
+            <span class="table-no">{{ t.tableNumber }}</span>
+            <span class="seats" *ngIf="t.capacity">{{ t.capacity }} seats</span>
+          </div>
+          <div class="status-label">{{ statusLabels[t.status] }}</div>
+
+          <div *ngIf="t.sessionId" class="session-info">
+            <div *ngIf="t.customerName">{{ t.customerName }}</div>
+            <div>{{ t.roundsCount }} round(s) · {{ t.minutesActive }} min</div>
+            <div class="amount">Due ₹{{ t.amountDue | number: '1.0-2' }}</div>
+          </div>
+
+          <div class="card-actions" *ngIf="t.id && !t.sessionId">
+            <button *ngIf="t.status === 'cleaning'" type="button" class="btn small"
+              [disabled]="busyId() === t.id" (click)="setStatus(t.id, 'available')">Mark Ready</button>
+            <button *ngIf="t.status === 'free'" type="button" class="btn small"
+              [disabled]="busyId() === t.id" (click)="setStatus(t.id, 'cleaning')">Cleaning</button>
+            <button *ngIf="t.status === 'out_of_service'" type="button" class="btn small"
+              [disabled]="busyId() === t.id" (click)="setStatus(t.id, 'available')">Back in Service</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+
+  <!-- Setup -->
+  <ng-container *ngIf="tab === 'setup'">
+    <div class="forms">
+      <form class="card" (ngSubmit)="addTable()">
+        <h3>Add Table</h3>
+        <label>Table number <input name="tableNumber" [(ngModel)]="newTable.tableNumber" required maxlength="20" placeholder="e.g. T1" /></label>
+        <label>Area <input name="area" [(ngModel)]="newTable.area" maxlength="50" placeholder="e.g. Indoor" /></label>
+        <label>Seats <input name="capacity" type="number" min="1" max="50" [(ngModel)]="newTable.capacity" /></label>
+        <button type="submit" class="btn primary" [disabled]="busyId() === 'new' || !newTable.tableNumber.trim()">Add</button>
+      </form>
+
+      <form class="card" (ngSubmit)="bulkCreate()">
+        <h3>Add Range</h3>
+        <div class="row">
+          <label>Prefix <input name="prefix" [(ngModel)]="bulk.prefix" maxlength="10" /></label>
+          <label>From <input name="from" type="number" min="1" max="999" [(ngModel)]="bulk.from" /></label>
+          <label>To <input name="to" type="number" min="1" max="999" [(ngModel)]="bulk.to" /></label>
+        </div>
+        <div class="row">
+          <label>Area <input name="bulkArea" [(ngModel)]="bulk.area" maxlength="50" /></label>
+          <label>Seats <input name="bulkCapacity" type="number" min="1" max="50" [(ngModel)]="bulk.capacity" /></label>
+        </div>
+        <p class="hint">Creates {{ bulk.prefix }}{{ bulk.from }} … {{ bulk.prefix }}{{ bulk.to }}. Existing numbers are skipped.</p>
+        <button type="submit" class="btn primary" [disabled]="busyId() === 'bulk'">Create Tables</button>
+      </form>
+    </div>
+
+    <div *ngIf="loading()" class="state">Loading tables...</div>
+
+    <div *ngIf="!loading() && tables().length > 0" class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Area</th>
+            <th>Seats</th>
+            <th>Order</th>
+            <th>Housekeeping</th>
+            <th>Active</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let t of tables()" [class.inactive-row]="!t.isActive">
+            <ng-container *ngIf="editingId !== t.id; else editRow">
+              <td class="name">{{ t.tableNumber }}</td>
+              <td>{{ t.area || '—' }}</td>
+              <td>{{ t.capacity }}</td>
+              <td>{{ t.sortOrder }}</td>
+              <td>{{ statusLabels[t.housekeepingStatus] }}</td>
+              <td>{{ t.isActive ? 'Yes' : 'No' }}</td>
+              <td class="actions">
+                <button type="button" class="btn small" (click)="startEdit(t)" [disabled]="busyId() === t.id">Edit</button>
+                <button type="button" class="btn small" (click)="toggleActive(t)" [disabled]="busyId() === t.id">
+                  {{ t.isActive ? 'Deactivate' : 'Activate' }}
+                </button>
+                <button type="button" class="btn small"
+                  (click)="setStatus(t.id, t.housekeepingStatus === 'out_of_service' ? 'available' : 'out_of_service')"
+                  [disabled]="busyId() === t.id">
+                  {{ t.housekeepingStatus === 'out_of_service' ? 'In Service' : 'Out of Service' }}
+                </button>
+                <button type="button" class="btn small"
+                  (click)="generateTableQr(t)"
+                  [disabled]="qrGeneratingId === t.id || busyId() === t.id">
+                  {{ qrGeneratingId === t.id ? 'Generating…' : 'Generate / Rotate QR' }}
+                </button>
+                <button type="button" class="btn small danger" (click)="deleteTable(t)" [disabled]="busyId() === t.id">Delete</button>
+              </td>
+            </ng-container>
+            <ng-template #editRow>
+              <td><input [(ngModel)]="editDraft.tableNumber" maxlength="20" aria-label="Table number" /></td>
+              <td><input [(ngModel)]="editDraft.area" maxlength="50" aria-label="Area" /></td>
+              <td><input type="number" min="1" max="50" [(ngModel)]="editDraft.capacity" aria-label="Seats" /></td>
+              <td><input type="number" [(ngModel)]="editDraft.sortOrder" aria-label="Sort order" /></td>
+              <td>{{ statusLabels[t.housekeepingStatus] }}</td>
+              <td>{{ t.isActive ? 'Yes' : 'No' }}</td>
+              <td class="actions">
+                <button type="button" class="btn small primary" (click)="saveEdit(t)" [disabled]="busyId() === t.id">Save</button>
+                <button type="button" class="btn small" (click)="cancelEdit()">Cancel</button>
+              </td>
+            </ng-template>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+
+  <div class="qr-modal-backdrop" *ngIf="qrPreviewDataUrl" (click)="closeQrPreview()">
+    <section class="qr-modal" role="dialog" aria-modal="true" [attr.aria-label]="'Table ' + qrPreviewTable + ' QR code'" (click)="$event.stopPropagation()">
+      <button type="button" class="qr-close" aria-label="Close QR preview" (click)="closeQrPreview()">×</button>
+      <p class="qr-kicker">TABLE QR ORDERING</p>
+      <h2>Table {{ qrPreviewTable }}</h2>
+      <img [src]="qrPreviewDataUrl" [alt]="'QR code for Table ' + qrPreviewTable" />
+      <p class="qr-instructions">Scan to open the menu and place an order at this table.</p>
+      <code>{{ qrPreviewUrl }}</code>
+      <div class="qr-modal-actions">
+        <button type="button" class="btn primary" (click)="printTableQr()">Print</button>
+        <button type="button" class="btn" (click)="downloadTableQr()">Download PNG</button>
+        <button type="button" class="btn" (click)="copyTableQrUrl()">Copy link</button>
+      </div>
+    </section>
+  </div>
+</div>

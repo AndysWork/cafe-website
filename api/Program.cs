@@ -60,6 +60,10 @@ var host = new HostBuilder()
         s.AddSingleton<DeliveryRoutingService>();
         s.AddSingleton<IdempotencyService>();
         s.AddSingleton<WebPushService>();
+        s.AddSingleton<KotRenderService>();
+        s.AddSingleton<InvoiceRenderService>();
+        s.AddSingleton<ThermalPrinterService>();
+        s.AddSingleton<CafeTableRepository>();
         
         // Event sourcing and outbox services (FLAWs 15 & 17)
         s.AddSingleton<EventLogService>();

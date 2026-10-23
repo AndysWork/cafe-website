@@ -107,8 +107,7 @@ export class DineInBillModalComponent implements OnInit, OnDestroy {
   }
 
   get isManagerRole(): boolean {
-    const role = (this.authService.getUserRole() || '').toString().toLowerCase();
-    return role === 'admin' || role === 'manager';
+    return this.authService.hasAnyRole(['admin', 'manager']);
   }
 
   get canReopenOrdering(): boolean {

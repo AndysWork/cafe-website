@@ -23,6 +23,119 @@ export interface ActiveDineInTable {
   minutesActive: number;
 }
 
+export interface PendingQrDineInOrder {
+  orderId: string;
+  sessionId: string;
+  tableNumber: string;
+  roundNumber: number;
+  createdAt: string;
+  subtotal: number;
+  notes?: string;
+  preparationNotes?: string;
+  items: Array<{
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    variant?: string;
+    addOns: string[];
+  }>;
+}
+
+export interface DineInSessionOrder {
+  orderId: string;
+  tableNumber: string;
+  roundNumber: number;
+  status: string;
+  kotNumber?: string;
+  kotReprintCount: number;
+  createdAt: string;
+  total: number;
+  itemCount: number;
+  items: Array<{
+    index: number;
+    name: string;
+    quantity: number;
+    kitchenStatus: string;
+  }>;
+  canCancelKot: boolean;
+}
+
+export interface CashierPendingDineInPayment {
+  sessionId: string;
+  tableNumber: string;
+  customerName?: string;
+  customerPhone?: string;
+  sessionStatus: string;
+  paymentStatus: string;
+  grandTotal: number;
+  amountPaid: number;
+  amountDue: number;
+  pendingPayment: {
+    id: string;
+    amount: number;
+    paymentMethod: string;
+    upiReference?: string;
+    notes?: string;
+    requestedAt: string;
+  };
+}
+
+export interface CashierActiveDineInSession {
+  sessionId: string;
+  tableNumber: string;
+  customerName?: string;
+  sessionStatus: string;
+  paymentStatus: string;
+  grandTotal: number;
+  amountPaid: number;
+  amountDue: number;
+  hasPendingPayment: boolean;
+}
+
+export interface DineInSalesReport {
+  startDate: string;
+  endDate: string;
+  summary: {
+    sessionCount: number;
+    settledSessions: number;
+    totalBilled: number;
+    salesCollected: number;
+    outstandingBalance: number;
+    paymentTotals: Record<string, number>;
+  };
+  sessions: Array<{
+    sessionId: string;
+    tableNumber: string;
+    customerName?: string;
+    status: string;
+    paymentStatus: string;
+    createdAt: string;
+    settledAt?: string;
+    grandTotal: number;
+    amountPaid: number;
+    amountDue: number;
+    timeline: Array<{
+      eventType: string;
+      message: string;
+      actor?: string;
+      createdAt: string;
+    }>;
+  }>;
+  auditEvents: Array<{
+    entityType: string;
+    entityId: string;
+    eventType: string;
+    actorId?: string;
+    actorRole?: string;
+    oldState?: string;
+    newState?: string;
+    timestamp: string;
+    metadata?: Record<string, string>;
+  }>;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -36,6 +149,7 @@ export class DineInService {
   private readonly TABLE_STORAGE_KEY = 'active_dinein_table';
   private readonly SESSION_STORAGE_KEY = 'active_dinein_session_id';
   private readonly SESSION_TOKEN_STORAGE_KEY = 'active_dinein_session_token';
+  private readonly TABLE_QR_TOKEN_STORAGE_KEY = 'active_dinein_table_qr_token';
 
   private activeTableSubject = new BehaviorSubject<string>(this.loadStoredTable());
   public activeTable$ = this.activeTableSubject.asObservable();
@@ -90,10 +204,17 @@ export class DineInService {
     }
   }
 
+  public setTableQrToken(token: string | null): void {
+    if (typeof localStorage === 'undefined') return;
+    if (token?.trim()) localStorage.setItem(this.TABLE_QR_TOKEN_STORAGE_KEY, token.trim());
+    else localStorage.removeItem(this.TABLE_QR_TOKEN_STORAGE_KEY);
+  }
+
   public clearTableSession(): void {
     localStorage.removeItem(this.TABLE_STORAGE_KEY);
     localStorage.removeItem(this.SESSION_STORAGE_KEY);
     localStorage.removeItem(this.SESSION_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(this.TABLE_QR_TOKEN_STORAGE_KEY);
     this.activeTableSubject.next('');
     this.activeBillSubject.next(null);
     if (!this.isViewingSpecificSession) {
@@ -275,6 +396,130 @@ export class DineInService {
     );
   }
 
+  public placeWaiterDineInOrder(payload: {
+    tableNumber: string;
+    outletId?: string;
+    items: Array<{
+      menuItemId: string;
+      quantity: number;
+      selectedVariantName?: string;
+      selectedAddOnNames?: string[];
+    }>;
+    notes?: string;
+  }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/dine-in/order`, {
+      ...payload,
+      orderType: 'dine-in',
+      paymentMethod: 'dine_in_tab',
+      channel: 'shop'
+    });
+  }
+
+  public getPendingQrDineInOrders(): Observable<{ orders: PendingQrDineInOrder[] }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.get<{ orders: PendingQrDineInOrder[] }>(
+      `${this.apiUrl}/dine-in/orders/qr-pending${query}`
+    );
+  }
+
+  public approveQrDineInOrder(orderId: string): Observable<{ message: string; orderId: string }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.post<{ message: string; orderId: string }>(
+      `${this.apiUrl}/dine-in/orders/${encodeURIComponent(orderId)}/approve${query}`, {}
+    );
+  }
+
+  public rejectQrDineInOrder(orderId: string, reason: string): Observable<{ message: string; orderId: string }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.post<{ message: string; orderId: string }>(
+      `${this.apiUrl}/dine-in/orders/${encodeURIComponent(orderId)}/reject${query}`, { reason }
+    );
+  }
+
+  public editPendingQrDineInOrder(orderId: string, payload: {
+    items: Array<{
+      menuItemId: string;
+      quantity: number;
+      selectedVariantName?: string;
+      selectedAddOnNames?: string[];
+    }>;
+    notes?: string;
+    preparationNotes?: string;
+  }): Observable<{ message: string; orderId: string; subtotal: number }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.put<{ message: string; orderId: string; subtotal: number }>(
+      `${this.apiUrl}/dine-in/orders/${encodeURIComponent(orderId)}/edit${query}`, payload
+    );
+  }
+
+  public getDineInSessionOrders(sessionId: string): Observable<{ orders: DineInSessionOrder[] }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.get<{ orders: DineInSessionOrder[] }>(
+      `${this.apiUrl}/dine-in/session/${encodeURIComponent(sessionId)}/orders${query}`
+    );
+  }
+
+  public reprintDineInKot(orderId: string): Observable<{ message: string; orderId: string; kotNumber: string }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.post<{ message: string; orderId: string; kotNumber: string }>(
+      `${this.apiUrl}/dine-in/orders/${encodeURIComponent(orderId)}/kot/reprint${query}`, {}
+    );
+  }
+
+  public cancelDineInKot(orderId: string, reason: string): Observable<{ message: string; orderId: string }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.post<{ message: string; orderId: string }>(
+      `${this.apiUrl}/dine-in/orders/${encodeURIComponent(orderId)}/kot/cancel${query}`, { reason }
+    );
+  }
+
+  public markDineInItemServed(orderId: string, itemIndex: number): Observable<{ message: string; itemStatus: string; orderStatus: string }> {
+    return this.http.put<{ message: string; itemStatus: string; orderStatus: string }>(
+      `${this.apiUrl}/kitchen/orders/${encodeURIComponent(orderId)}/items/${itemIndex}/status`,
+      { status: 'served' }
+    );
+  }
+
+  public getCashierPendingDineInPayments(): Observable<{
+    payments: CashierPendingDineInPayment[];
+    sessions: CashierActiveDineInSession[];
+  }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.get<{
+      payments: CashierPendingDineInPayment[];
+      sessions: CashierActiveDineInSession[];
+    }>(
+      `${this.apiUrl}/dine-in/cashier/pending-payments${query}`
+    );
+  }
+
+  public recordCashierPayment(
+    sessionId: string,
+    payment: { amount: number; paymentMethod: 'cash_at_counter' | 'upi-qr' }
+  ): Observable<{ message: string }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+    return this.http.post<{ message: string }>(
+      `${this.apiUrl}/dine-in/session/${encodeURIComponent(sessionId)}/cashier/payment${query}`,
+      payment
+    );
+  }
+
+  public getDineInSalesReport(startDate: string, endDate: string): Observable<DineInSalesReport> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const params = new URLSearchParams({ startDate, endDate });
+    if (outletId) params.set('outletId', outletId);
+    return this.http.get<DineInSalesReport>(`${this.apiUrl}/dine-in/reports?${params.toString()}`);
+  }
+
   public getSessionBill(sessionId: string): Observable<DineInBill> {
     return this.http.get<DineInBill>(`${this.apiUrl}/dine-in/session/${sessionId}/bill`, this.sessionOptions()).pipe(
       tap((bill) => this.activeBillSubject.next(bill))
@@ -351,10 +596,12 @@ export class DineInService {
     );
   }
 
-  public confirmPayment(sessionId: string): Observable<{ message: string; session: DineInBill }> {
+  public confirmPayment(sessionId: string, payload: { confirmedAmount?: number; notes?: string } = {}): Observable<{ message: string; session: DineInBill }> {
+    const outletId = this.outletService.getSelectedOutletId();
+    const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
     return this.http.post<{ message: string; session: DineInBill }>(
-      `${this.apiUrl}/dine-in/session/${sessionId}/payment/confirm`,
-      {}
+      `${this.apiUrl}/dine-in/session/${sessionId}/payment/confirm${query}`,
+      payload
     );
   }
 
@@ -393,13 +640,17 @@ export class DineInService {
   }
 
   private sessionOptions(): { headers: HttpHeaders } {
-    const token = typeof localStorage !== 'undefined'
+    const sessionToken = typeof localStorage !== 'undefined'
       ? localStorage.getItem(this.SESSION_TOKEN_STORAGE_KEY)
       : null;
+    const tableQrToken = typeof localStorage !== 'undefined'
+      ? localStorage.getItem(this.TABLE_QR_TOKEN_STORAGE_KEY)
+      : null;
+    let headers = new HttpHeaders();
+    if (sessionToken) headers = headers.set('X-Dine-In-Session-Token', sessionToken);
+    if (tableQrToken) headers = headers.set('X-Dine-In-Table-Token', tableQrToken);
     return {
-      headers: token
-        ? new HttpHeaders({ 'X-Dine-In-Session-Token': token })
-        : new HttpHeaders()
+      headers
     };
   }
 }

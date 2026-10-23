@@ -329,7 +329,6 @@ export class StaffAttendanceComponent implements OnInit {
   }
 
   private useKitchenShiftActions(): boolean {
-    const role = this.authStore.userRole();
-    return role === 'manager' || role === 'cook' || role === 'chef' || role === 'sous-chef';
+    return this.authStore.hasAnyRole(['manager', 'cook', 'chef', 'sous-chef', 'kitchen']);
   }
 }

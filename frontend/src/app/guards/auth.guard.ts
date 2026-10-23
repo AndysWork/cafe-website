@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { Router, CanActivateFn } from '@angular/router';
 import { AuthStore } from '../store/auth.store';
+import { CASHIER_ROLES, KITCHEN_ROLES, PARTNER_ROLES, WAITER_ROLES } from '../utils/roles';
 
 export const authGuard: CanActivateFn = (route, state) => {
   const authStore = inject(AuthStore);
@@ -14,76 +15,34 @@ export const authGuard: CanActivateFn = (route, state) => {
   return false;
 };
 
-export const adminGuard: CanActivateFn = (route, state) => {
-  const authStore = inject(AuthStore);
-  const router = inject(Router);
+/** Builds a guard that allows the user if they hold any of the given roles. */
+export function roleGuard(allowedRoles: string[]): CanActivateFn {
+  return (route, state) => {
+    const authStore = inject(AuthStore);
+    const router = inject(Router);
 
-  if (!authStore.isLoggedIn()) {
-    router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+    if (!authStore.isLoggedIn()) {
+      router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+      return false;
+    }
+
+    if (authStore.hasAnyRole(allowedRoles)) {
+      return true;
+    }
+
+    router.navigate(['/home']);
     return false;
-  }
+  };
+}
 
-  const role = authStore.userRole();
-  if (role === 'admin') {
-    return true;
-  }
+export const adminGuard: CanActivateFn = roleGuard(['admin']);
 
-  router.navigate(['/home']);
-  return false;
-};
+export const kitchenGuard: CanActivateFn = roleGuard(KITCHEN_ROLES);
 
-export const kitchenGuard: CanActivateFn = (route, state) => {
-  const authStore = inject(AuthStore);
-  const router = inject(Router);
+export const partnerGuard: CanActivateFn = roleGuard(PARTNER_ROLES);
 
-  if (!authStore.isLoggedIn()) {
-    router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-    return false;
-  }
+export const managerGuard: CanActivateFn = roleGuard(['manager']);
 
-  const role = authStore.userRole();
-  const allowed = ['admin', 'manager', 'cook', 'chef', 'sous-chef', 'kitchen', 'kitchen-staff', 'kitchen-helper'];
-  if (allowed.includes(role)) {
-    return true;
-  }
+export const waiterGuard: CanActivateFn = roleGuard(WAITER_ROLES);
 
-  router.navigate(['/home']);
-  return false;
-};
-
-export const partnerGuard: CanActivateFn = (route, state) => {
-  const authStore = inject(AuthStore);
-  const router = inject(Router);
-
-  if (!authStore.isLoggedIn()) {
-    router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-    return false;
-  }
-
-  const role = authStore.userRole();
-  const allowed = ['partner', 'delivery-partner'];
-  if (allowed.includes(role)) {
-    return true;
-  }
-
-  router.navigate(['/home']);
-  return false;
-};
-
-export const managerGuard: CanActivateFn = (route, state) => {
-  const authStore = inject(AuthStore);
-  const router = inject(Router);
-
-  if (!authStore.isLoggedIn()) {
-    router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-    return false;
-  }
-
-  const role = authStore.userRole();
-  if (role === 'manager') {
-    return true;
-  }
-
-  router.navigate(['/home']);
-  return false;
-};
+export const cashierGuard: CanActivateFn = roleGuard(CASHIER_ROLES);

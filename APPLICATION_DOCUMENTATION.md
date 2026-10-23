@@ -1,6 +1,6 @@
 # Maa Tara Cafe — Comprehensive Application Documentation
 
-> **Version:** 3.1 | **Last Updated:** July 12, 2026  
+> **Version:** 3.1 | **Last Updated:** October 23, 2026<br>
 > **Stack:** Angular 19.2 + .NET 9 Azure Functions (Isolated Worker) + MongoDB Atlas  
 > **Domain:** Multi-outlet cafe management + online ordering platform
 
@@ -168,6 +168,7 @@
 | 61 | **Audit Logs** | View security audit trail — auth events, data access, security alerts — with CSV export |
 | 62 | **CSRF Protection** | Token-based CSRF protection for state-changing operations |
 | 63 | **Database Backup** | Manual and scheduled (timer trigger) database backup to Azure Blob Storage |
+| 64 | **Dine-In Order Workflow** | Waiter station for table orders, plus a waiter approval queue for customer QR orders before kitchen dispatch |
 
 ### 1.4 Kitchen Roles (Roles: `cook`, `chef`, `sous-chef`)
 
@@ -204,6 +205,29 @@
 | 6 | **Parcel Acceptance/Completion** | Accept assigned parcel tasks and mark completion |
 | 7 | **Mobile Delivery View** | Mobile-oriented partner workflow screen for in-field operations |
 
+### 1.7 Waiter (Role: `waiter`)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 1 | **Waiter Station** | Select an available or occupied table, build an order round with variants/add-ons, and send it directly to the kitchen |
+| 2 | **QR Order Approval** | Review customer-submitted QR orders, edit items/quantities/notes while pending, then approve them for kitchen/KOT dispatch or reject them with a reason |
+| 3 | **Active Table Rounds** | Review rounds for the selected active session, request a duplicate KOT print, or cancel a KOT before kitchen preparation starts; cancellations enqueue a kitchen slip |
+| 4 | **Item Service Tracking** | View kitchen progress for each round item and mark ready items served |
+| 5 | **KOT Printing** | Approved QR orders and waiter-entered rounds receive per-outlet daily KOT numbers and are dispatched through the configured thermal printer outbox |
+
+### 1.8 Cashier (Role: `cashier`)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 1 | **Dine-In Payment Desk** | Confirm pending customer cash/UPI requests or record a cash/UPI payment directly for an active table; partial balances remain open and fully paid tables close automatically |
+
+### 1.9 Dine-In Reporting (Roles: `admin`, `manager`)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 1 | **Sales Summary** | Review session count, billed amount, collected amount, outstanding balances, and confirmed totals by payment method for an outlet and date range |
+| 2 | **Session Audit Timeline** | Inspect session timeline events and recorded order item status changes, including actor and timestamp |
+
 ---
 
 ## 2. Step-by-Step Feature Usage Guide
@@ -219,6 +243,7 @@
    - **Delivery:** Select/add delivery address → Delivery fee calculated by zone
    - **Pickup:** Select outlet for pickup
    - **Dine-in:** Enter table number
+   - **Dine-in QR:** Scan the table QR to join that table's active session from any device, place an order round, then wait for a waiter to approve it before kitchen dispatch
 6. **Schedule Order (Optional)** → Toggle "Schedule for Later" → Pick date and time (30 min to 7 days ahead)
 7. **Apply Discounts** → Enter coupon code → Apply loyalty points
 8. **Pay** → Choose COD or Razorpay (credit/debit/UPI/net banking)
@@ -259,12 +284,18 @@ Wallet functionality has been removed from the product (July 2026).
 6. **Toggle Availability** → Menu Items → Click availability toggle on any item
 
 #### Daily Operations
-1. **Kitchen Display** → Operations → Kitchen Display → View incoming orders → Update status (preparing → ready)
-2. **Cashier** → Finance → Cashier → Record walk-in sales with items, payment method → Save
-3. **Record Sales** → Finance → Sales → "Add Sale" → Enter items, amounts, payment method, date → Save
-4. **Record Expenses** → Finance → Expenses → "Add Expense" → Select type, enter amount, payment method → Save
-5. **Cash Reconciliation** → Finance → Cashier → End of Day → Enter counted cash/coins/online → Compare to expected → Record deficit/surplus
-6. **Daily Performance** → Staff → Daily Performance → Select staff → Enter shift times, orders prepared, good/bad counts, refunds → Save
+1. **Create Table QR Codes** → Open Table Management → Generate or rotate a table's QR credential → Download or print the displayed QR code
+2. **Waiter Station** → Open Staff → Waiter Station → Select a free or occupied table → Add items/variants/add-ons → Send order to kitchen
+3. **QR Approval** → Waiter Station → QR approvals → Review or edit a pending customer order → Approve and send to kitchen, or reject with a reason
+4. **Manage KOTs** → Select an occupied table to view its rounds → Request a duplicate print, or cancel an eligible KOT with a reason before preparation begins
+5. **Kitchen Display** → Operations → Kitchen Display → Confirm and start a round → Mark each dine-in item ready; complete the checklist when the final item is marked ready
+6. **Serve Items** → Waiter Station → Select the occupied table → Mark each ready item served
+7. **Cashier Settlement** → Dine-In Payments → Confirm a pending request or record a payment against an active table balance; partial payments retain the outstanding balance and the table closes when fully paid
+8. **Dine-In Report** → Admin → Reports → Dine-In Sales & Audit → Select a date range to review sales, balances, payment methods, and audit events
+9. **Record Sales** → Finance → Sales → "Add Sale" → Enter items, amounts, payment method, date → Save
+10. **Record Expenses** → Finance → Expenses → "Add Expense" → Select type, enter amount, payment method → Save
+11. **Cash Reconciliation** → Finance → Cashier → End of Day → Enter counted cash/coins/online → Compare to expected → Record deficit/surplus
+12. **Daily Performance** → Staff → Daily Performance → Select staff → Enter shift times, orders prepared, good/bad counts, refunds → Save
 
 #### Staff Management
 1. **Add Staff** → Staff → Staff Management → "Add Employee" → Fill personal info, position, employment type, salary → Assign to outlet(s) → Save
@@ -411,6 +442,7 @@ api/
 │   ├── AuthFunction.cs           # Authentication (8 endpoints)
 │   ├── MenuFunction.cs           # Menu CRUD (9 endpoints)
 │   ├── OrderFunction.cs          # Order lifecycle (uses repository interfaces)
+│   ├── DineInOrderWorkflowFunction.cs # Waiter approval and QR order dispatch
 │   ├── LoyaltyUserFunction.cs    # Loyalty — user endpoints (split from LoyaltyFunction)
 │   ├── LoyaltyAdminFunction.cs   # Loyalty — admin endpoints (split from LoyaltyFunction)
 │   ├── SalesFunction.cs          # Sales recording (7 endpoints)
@@ -601,6 +633,8 @@ Most business collections are outlet-scoped (with select global collections such
 
 ### 4.2 Data Flow — Order Placement
 
+#### 4.2.1 Online Delivery / Pickup Order Placement
+
 ```
 Customer                Angular App              Azure Functions           MongoDB Atlas
    │                        │                         │                        │
@@ -650,6 +684,72 @@ Customer                Angular App              Azure Functions           Mongo
    │                        │                         ├──Verify Signature─────▶│ (Razorpay)
    │                        │◀──Payment Confirmed─────│                        │
 ```
+
+#### 4.2.2 Dine-In Order Flow — QR, Waiter, Kitchen, and Cashier
+
+The two dine-in ordering channels share one table session and one consolidated bill. Each submission creates a separate order round; customers and waiters can add further rounds while ordering remains active.
+
+```mermaid
+flowchart TD
+    Table["Select outlet and table"] --> Session["Create or join active table session"]
+
+    subgraph Ordering["Order taking - repeat for each round"]
+        Channel{"Ordering channel"}
+        Channel -->|Customer| QR["Scan table QR and submit items"]
+        QR --> Review["Waiter reviews pending QR order<br/>May edit items, quantities, and notes"]
+        Review --> Approval{"Approve?"}
+        Approval -->|No| Rejected["Reject with reason<br/>No kitchen dispatch or KOT"]
+        Approval -->|Yes| Round["Approved round enters kitchen queue<br/>Order status: pending"]
+        Channel -->|Waiter| Waiter["Select table and enter items<br/>Send round directly to kitchen"]
+        Waiter --> Round
+    end
+
+    Session --> Channel
+    Round --> KOT["Assign numbered KOT<br/>Queue thermal print through outbox"]
+    KOT -.-> Printer["Configured thermal printer<br/>Outbox retries failed jobs"]
+    KOT --> Confirm["Kitchen confirms round<br/>Order status: confirmed"]
+    Confirm --> Preparing["Kitchen approves and starts preparation<br/>Order status: preparing"]
+    Preparing --> ItemReady["Kitchen marks individual item lines ready"]
+    ItemReady --> AllReady{"All item lines ready?"}
+    AllReady -->|No| ItemReady
+    AllReady -->|Yes| Checklist["Complete pre-ready checklist"]
+    Checklist --> Ready["Round ready for service<br/>Order status: ready"]
+    Ready --> Serve["Waiter or kitchen marks ready item lines served"]
+    Serve --> AllServed{"All item lines served?"}
+    AllServed -->|No| Serve
+    AllServed -->|Yes| Served["Round served<br/>Order status: served"]
+    Served -.-> More["Additional round?<br/>Only while session ordering is active"]
+    More --> Channel
+
+    subgraph Settlement["Consolidated billing and settlement"]
+        Checkout{"Payment entry flow"}
+        Checkout -->|Customer request| Bill["Request final consolidated bill<br/>Session status: bill_requested"]
+        Bill --> Request["Submit cash or UPI payment request<br/>Payment entry: pending"]
+        Request --> Verify["Cashier verifies and confirms received payment"]
+        Checkout -->|Cashier direct entry| Direct["Cashier selects active table balance<br/>Records received cash or UPI payment"]
+        Verify --> Confirmed["Confirmed payment recorded<br/>Actor, method, amount, and time audited"]
+        Direct --> Confirmed
+        Confirmed --> Balance{"Balance still due?"}
+        Balance -->|Yes| Partial["Keep session open for settlement<br/>Show paid amount and remaining balance"]
+        Partial --> Checkout
+        Balance -->|No| Closed["Mark session paid and close table session<br/>Table available for a new session"]
+        Closed --> Cleanup["Mark linked orders paid<br/>Move non-cancelled rounds to delivered to clear KDS"]
+    end
+
+    Session -.->|When ready to settle| Checkout
+    Cleanup --> Reports["Admin / manager sales and audit report<br/>Collections, balances, payment methods, and session timelines"]
+    ItemReady -.-> Audit["Persistent item-status audit events"]
+    Serve -.-> Audit
+    Audit -.-> Reports
+```
+
+**Flow rules:**
+- **Roles:** A staff account may hold multiple roles. Each action still requires its relevant role and outlet access.
+- **KOT dispatch:** QR orders require waiter approval; waiter-entered rounds go directly to the kitchen queue. Thermal printing is asynchronous and is not a prerequisite for kitchen confirmation.
+- **Item tracking:** A line's entire quantity is marked ready or served together. A round becomes ready only after every line is ready and the checklist is complete; concurrent final-item updates prompt checklist completion rather than bypassing it.
+- **Payments:** Both paths support partial payments. Direct cashier entry is blocked while a customer payment request is pending; the cashier must confirm the existing request before recording another payment. Full payment closes the session.
+- **Ordering versus settlement:** A bill request or partial cashier payment puts the session into `bill_requested`, stopping further rounds unless an authorized manager reopens ordering. Settlement does not require every round to have reached `served`; the `delivered` transition at closure is KDS cleanup, not an additional service step.
+- **Audit visibility:** Session timelines capture billing, payments, and closure; persistent order events capture item-status changes. Reports are scoped to the selected outlet and date range.
 
 ### 4.3 Authentication Flow
 

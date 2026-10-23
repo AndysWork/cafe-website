@@ -1,0 +1,57 @@
+@baseUrl = http://localhost:7071/api
+@token = REPLACE_WITH_BEARER_TOKEN
+@outletId = REPLACE_WITH_OUTLET_ID
+@sessionId = REPLACE_WITH_SESSION_ID
+@orderId = REPLACE_WITH_DINE_IN_ORDER_ID
+@itemIndex = 0
+
+### Load pending dine-in payment requests (cashier role)
+GET {{baseUrl}}/dine-in/cashier/pending-payments?outletId={{outletId}}
+Authorization: Bearer {{token}}
+
+### Confirm the latest payment request for a table session (cashier role)
+POST {{baseUrl}}/dine-in/session/{{sessionId}}/payment/confirm?outletId={{outletId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### Record a cashier-entered payment for an active table session (cashier role)
+POST {{baseUrl}}/dine-in/session/{{sessionId}}/cashier/payment?outletId={{outletId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "amount": 250,
+  "paymentMethod": "cash_at_counter",
+  "notes": "Cash received at counter"
+}
+
+### Mark one dine-in item ready (kitchen role)
+PUT {{baseUrl}}/kitchen/orders/{{orderId}}/items/{{itemIndex}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "ready",
+  "checklistItems": [
+    { "label": "Item quantity rechecked", "isCompleted": true },
+    { "label": "Plating and garnish completed", "isCompleted": true },
+    { "label": "Temperature and freshness verified", "isCompleted": true },
+    { "label": "Packaging/sealing verified", "isCompleted": true },
+    { "label": "Special instructions verified", "isCompleted": true }
+  ]
+}
+
+### Mark one prepared dine-in item served (waiter or kitchen role)
+PUT {{baseUrl}}/kitchen/orders/{{orderId}}/items/{{itemIndex}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "served"
+}
+
+### Get outlet dine-in sales and audit report (admin or manager role)
+GET {{baseUrl}}/dine-in/reports?outletId={{outletId}}&startDate=2026-10-01&endDate=2026-10-23
+Authorization: Bearer {{token}}

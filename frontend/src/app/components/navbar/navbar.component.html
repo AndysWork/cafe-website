@@ -61,6 +61,30 @@
           </a>
         </li>
 
+        <li class="nav-item" *ngIf="(isManager || isAdmin) && !isHomeScreen">
+          <a
+            [routerLink]="isAdmin ? '/admin/dine-in-report' : '/manager/dine-in-report'"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">📈</span>
+            Dine-In Report
+          </a>
+        </li>
+
+        <li class="nav-item" *ngIf="(isCashierUser || isManager || isAdmin) && !isHomeScreen">
+          <a
+            routerLink="/staff/cashier"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">💳</span>
+            Dine-In Payments
+          </a>
+        </li>
+
         <li class="nav-item" *ngIf="isStaffRoleUser && !isHomeScreen">
           <a
             routerLink="/staff/attendance"
@@ -70,6 +94,18 @@
           >
             <span class="nav-icon">🕐</span>
             Attendance
+          </a>
+        </li>
+
+        <li class="nav-item" *ngIf="(isWaiterUser || isManager || isAdmin) && !isHomeScreen">
+          <a
+            routerLink="/staff/dine-in"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeMobileMenu()"
+          >
+            <span class="nav-icon">🍽️</span>
+            Waiter Station
           </a>
         </li>
 

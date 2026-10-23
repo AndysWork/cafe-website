@@ -22,7 +22,11 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
 
     [BsonElement("role")]
-    public string Role { get; set; } = "user"; // "admin" or "user"
+    public string Role { get; set; } = "user"; // Primary (highest-priority) role
+
+    /// <summary>All roles assigned to the user (includes the primary role). Empty for legacy users.</summary>
+    [BsonElement("roles")]
+    public List<string> Roles { get; set; } = new();
 
     [BsonElement("assignedOutlets")]
     [BsonRepresentation(BsonType.ObjectId)]
@@ -119,6 +123,7 @@ public class LoginResponse
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public List<string> Roles { get; set; } = new();
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public string? PhoneNumber { get; set; }
@@ -186,6 +191,13 @@ public class UpdateUserRoleRequest
     [Required(ErrorMessage = "Role is required")]
     [StringLength(50, ErrorMessage = "Role cannot exceed 50 characters")]
     public string Role { get; set; } = "user";
+}
+
+public class UpdateUserRolesRequest
+{
+    [Required(ErrorMessage = "At least one role is required")]
+    [MinLength(1, ErrorMessage = "At least one role is required")]
+    public List<string> Roles { get; set; } = new();
 }
 
 public class ChangePasswordRequest

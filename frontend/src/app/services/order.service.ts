@@ -96,6 +96,34 @@ export interface CreateOrderRequest {
   outletId?: string;
 }
 
+export interface CreateCounterSaleRequest {
+  items: {
+    menuItemId: string;
+    quantity: number;
+    selectedVariantName?: string;
+    selectedAddOnNames?: string[];
+  }[];
+  customerName?: string;
+  phoneNumber?: string;
+  paymentMethod: 'cash_at_counter' | 'upi-qr';
+  upiReference?: string;
+  notes?: string;
+  printInvoice?: boolean;
+  outletId?: string;
+}
+
+export interface CounterSaleInvoiceResponse {
+  success: boolean;
+  message: string;
+  orderId: string;
+  invoiceNumber: string;
+  paymentMethod: string;
+  subtotal: number;
+  total: number;
+  receiptPdfPath: string;
+  printQueued: boolean;
+}
+
 export interface OutletSuggestion {
   outletId: string;
   outletName: string;
@@ -231,6 +259,18 @@ export class OrderService {
     const headers = new HttpHeaders({ 'X-Idempotency-Key': crypto.randomUUID() });
     return this.http.post<Order>(`${this.apiUrl}/orders`, orderRequest, { headers }).pipe(
       catchError(handleServiceError('OrderService.createOrder'))
+    );
+  }
+
+  createCounterSaleInvoice(payload: CreateCounterSaleRequest): Observable<CounterSaleInvoiceResponse> {
+    return this.http.post<CounterSaleInvoiceResponse>(`${this.apiUrl}/counter-sales`, payload).pipe(
+      catchError(handleServiceError('OrderService.createCounterSaleInvoice'))
+    );
+  }
+
+  printCounterSaleInvoice(orderId: string): Observable<{ success: boolean; message: string }> {
+    return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/counter-sales/${orderId}/print`, {}).pipe(
+      catchError(handleServiceError('OrderService.printCounterSaleInvoice'))
     );
   }
 

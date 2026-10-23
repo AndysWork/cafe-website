@@ -1,6 +1,15 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { User, UserRole } from '../services/auth.service';
+import {
+  CASHIER_ROLES,
+  KITCHEN_ROLES,
+  MANAGER_ROLES,
+  ROLE_PRIORITY,
+  WAITER_ROLES,
+  hasAnyRole,
+  normalizeRoles
+} from '../utils/roles';
 
 /**
  * Centralized Auth State Store using Angular Signals.
@@ -21,18 +30,18 @@ export class AuthStore {
 
   // ── Computed signals (derived state) ──
   readonly isLoggedIn = computed(() => this._user() !== null && this._token() !== null);
-  readonly isAdmin = computed(() => this._user()?.role === 'admin');
-  readonly isUser = computed(() => {
-    const role = this._user()?.role;
-    return role === 'user'
-      || role === 'admin'
-      || role === 'manager'
-      || role === 'partner'
-      || role === 'delivery-partner'
-      || role === 'cook'
-      || role === 'chef'
-      || role === 'sous-chef';
+  /** All roles of the current user, ordered by priority (primary first). */
+  readonly roles = computed<string[]>(() => {
+    const u = this._user();
+    if (!u) return [];
+    return normalizeRoles([u.role, ...(u.roles ?? [])]);
   });
+  readonly isAdmin = computed(() => this.roles().includes('admin'));
+  readonly isUser = computed(() => this.roles().some(r => r === 'user' || (ROLE_PRIORITY as readonly string[]).includes(r)));
+  readonly isManager = computed(() => hasAnyRole(this.roles(), MANAGER_ROLES));
+  readonly isKitchen = computed(() => hasAnyRole(this.roles(), KITCHEN_ROLES));
+  readonly isWaiter = computed(() => hasAnyRole(this.roles(), WAITER_ROLES));
+  readonly isCashier = computed(() => hasAnyRole(this.roles(), CASHIER_ROLES));
   readonly userRole = computed<UserRole | 'guest'>(() => this._user()?.role ?? 'guest');
   readonly userName = computed(() => {
     const u = this._user();
@@ -58,6 +67,14 @@ export class AuthStore {
 
   setToken(token: string | null): void {
     this._token.set(token);
+  }
+
+  hasRole(role: string): boolean {
+    return hasAnyRole(this.roles(), [role]);
+  }
+
+  hasAnyRole(roles: string[]): boolean {
+    return hasAnyRole(this.roles(), roles);
   }
 
   /**

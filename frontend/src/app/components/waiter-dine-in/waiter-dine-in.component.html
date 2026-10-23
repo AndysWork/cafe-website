@@ -1,0 +1,252 @@
+<main class="waiter-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">MAA TARA CAFE · SERVICE</p>
+      <h1>Waiter Station</h1>
+      <p>Take table orders and review customer QR orders.</p>
+    </div>
+    <div class="header-stats">
+      <span>{{ availableTables.length }} tables available</span>
+      <span>{{ pendingQrOrders.length }} QR orders waiting</span>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Waiter station views">
+    <button type="button" [class.active]="activeTab === 'order'" (click)="activeTab = 'order'">
+      New table order
+    </button>
+    <button type="button" [class.active]="activeTab === 'qr'" (click)="activeTab = 'qr'">
+      QR approvals <span class="count" *ngIf="pendingQrOrders.length">{{ pendingQrOrders.length }}</span>
+    </button>
+  </nav>
+
+  <p class="feedback success" role="status" *ngIf="message">{{ message }}</p>
+  <p class="feedback error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <section class="order-layout" *ngIf="activeTab === 'order'">
+    <div class="menu-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Choose a table</h2>
+          <p>Select a free table or add to an active session.</p>
+        </div>
+        <span *ngIf="loadingTables">Refreshing…</span>
+      </div>
+
+      <div class="table-list" *ngIf="availableTables.length; else noTables">
+        <button
+          type="button"
+          class="table-chip"
+          *ngFor="let table of availableTables"
+          [class.selected]="selectedTableNumber === table.tableNumber"
+          [class.occupied]="table.status === 'occupied'"
+          (click)="selectTable(table.tableNumber)"
+        >
+          <strong>{{ table.tableNumber }}</strong>
+          <small>{{ table.status === 'occupied' ? 'Open tab' : 'Free' }}</small>
+        </button>
+      </div>
+      <ng-template #noTables><p class="empty">No free or occupied tables are available.</p></ng-template>
+
+      <section class="session-orders" *ngIf="selectedTable?.sessionId">
+        <div class="section-heading">
+          <div>
+            <h2>Table {{ selectedTableNumber }} · Existing rounds</h2>
+            <p>Reprint a KOT or cancel it before preparation starts.</p>
+          </div>
+        </div>
+        <p class="empty" *ngIf="!currentSessionOrders.length">No rounds on this table yet.</p>
+        <div class="round-row" *ngFor="let order of currentSessionOrders">
+          <div>
+            <strong>Round #{{ order.roundNumber }} <span *ngIf="order.kotNumber">· {{ order.kotNumber }}</span></strong>
+            <small>{{ order.itemCount }} item(s) · {{ order.status | titlecase }} · ₹{{ order.total | number:'1.0-2' }}</small>
+            <small *ngIf="order.kotReprintCount">Duplicate prints: {{ order.kotReprintCount }}</small>
+            <div class="round-items">
+              <div class="round-item" *ngFor="let item of order.items">
+                <span>{{ item.quantity }}× {{ item.name }} · {{ item.kitchenStatus | titlecase }}</span>
+                <button
+                  type="button"
+                  class="refresh-button"
+                  *ngIf="item.kitchenStatus === 'ready'"
+                  [disabled]="reviewingOrderId === order.orderId"
+                  (click)="markItemServed(order, item.index)"
+                >Mark served</button>
+              </div>
+            </div>
+          </div>
+          <div class="round-actions">
+            <button
+              type="button"
+              class="refresh-button"
+              *ngIf="order.kotNumber && order.status !== 'cancelled'"
+              [disabled]="reviewingOrderId === order.orderId"
+              (click)="reprintKot(order)"
+            >Reprint</button>
+            <button
+              type="button"
+              class="reject-button"
+              *ngIf="order.canCancelKot"
+              [disabled]="reviewingOrderId === order.orderId"
+              (click)="cancelKot(order)"
+            >Cancel KOT</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="section-heading menu-heading">
+        <div>
+          <h2>Menu</h2>
+          <p>{{ filteredMenuItems.length }} items available</p>
+        </div>
+      </div>
+      <label class="search">
+        <span class="sr-only">Search menu</span>
+        <input [(ngModel)]="searchQuery" placeholder="Search menu items" />
+      </label>
+
+      <div class="menu-grid" *ngIf="!loadingMenu; else loadingMenuTemplate">
+        <article class="menu-item" *ngFor="let item of filteredMenuItems">
+          <div class="menu-item-heading">
+            <span>
+              <strong>{{ item.name }}</strong>
+              <small>{{ item.categoryName || item.category || 'Menu' }}</small>
+            </span>
+            <span class="item-price">₹{{ menuItemPrice(item) | number:'1.0-2' }}</span>
+          </div>
+          <label class="custom-select" *ngIf="item.variants?.length">
+            <span>Variant</span>
+            <select [(ngModel)]="selectedVariants[item.id]">
+              <option *ngFor="let variant of item.variants" [ngValue]="variant.variantName">
+                {{ variant.variantName }} · ₹{{ variant.price | number:'1.0-2' }}
+              </option>
+            </select>
+          </label>
+          <div class="addon-list" *ngIf="getActiveAddOns(item).length">
+            <label *ngFor="let addOn of getActiveAddOns(item)">
+              <input
+                type="checkbox"
+                [checked]="selectedAddOns[item.id]?.has(addOn.name) || false"
+                (change)="onAddOnChange(item.id, addOn.name, $event)"
+              />
+              {{ addOn.name }} <span>+₹{{ addOn.price | number:'1.0-2' }}</span>
+            </label>
+          </div>
+          <button type="button" class="add-menu-button" (click)="addToCart(item)">Add to round <b>+</b></button>
+        </article>
+      </div>
+      <ng-template #loadingMenuTemplate><p class="empty">Loading menu…</p></ng-template>
+    </div>
+
+    <aside class="cart-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Current order</h2>
+          <p>{{ selectedTableNumber ? 'Table ' + selectedTableNumber : 'Select a table first' }}</p>
+        </div>
+        <span class="cart-count">{{ cartItemCount }} items</span>
+      </div>
+
+      <div class="cart-lines" *ngIf="cart.length; else emptyCart">
+        <div class="cart-line" *ngFor="let line of cart">
+          <div>
+            <strong>{{ line.menuItem.name }}</strong>
+            <small *ngIf="line.variantName">{{ line.variantName }}</small>
+            <small>₹{{ linePrice(line) | number:'1.0-2' }} each</small>
+          </div>
+          <div class="quantity">
+            <button type="button" (click)="changeQuantity(line, -1)" aria-label="Decrease quantity">−</button>
+            <span>{{ line.quantity }}</span>
+            <button type="button" (click)="changeQuantity(line, 1)" aria-label="Increase quantity">+</button>
+          </div>
+        </div>
+      </div>
+      <ng-template #emptyCart><p class="empty">Tap menu items to build this round.</p></ng-template>
+
+      <label class="notes-field">
+        <span>Kitchen note (optional)</span>
+        <textarea [(ngModel)]="orderNotes" maxlength="500" rows="3" placeholder="Allergies or preparation instructions"></textarea>
+      </label>
+
+      <div class="cart-total">
+        <span>Round total</span>
+        <strong>₹{{ cartTotal | number:'1.0-2' }}</strong>
+      </div>
+      <button
+        type="button"
+        class="submit-button"
+        [disabled]="!selectedTableNumber || !cart.length || submittingOrder"
+        (click)="submitOrder()"
+      >
+        {{ submittingOrder ? 'Sending…' : 'Send order to kitchen' }}
+      </button>
+    </aside>
+  </section>
+
+  <section class="qr-orders" *ngIf="activeTab === 'qr'">
+    <div class="section-heading">
+      <div>
+        <h2>Customer QR orders</h2>
+        <p>Approved orders are sent to the kitchen and printed as a KOT.</p>
+      </div>
+      <button type="button" class="refresh-button" (click)="refreshQrOrders()" [disabled]="loadingQrOrders">
+        {{ loadingQrOrders ? 'Refreshing…' : 'Refresh' }}
+      </button>
+    </div>
+
+    <p class="empty" *ngIf="!pendingQrOrders.length && !loadingQrOrders">No QR orders are waiting for approval.</p>
+    <article class="qr-card" *ngFor="let order of pendingQrOrders">
+      <header>
+        <div>
+          <span class="table-label">TABLE {{ order.tableNumber }}</span>
+          <h3>Round #{{ order.roundNumber }}</h3>
+        </div>
+        <time>{{ order.createdAt | date:'shortTime' }}</time>
+      </header>
+      <ul>
+        <li *ngFor="let item of (editingQrOrderId === order.orderId ? editingQrItems : order.items)">
+          <span>
+            <b>{{ item.quantity }}×</b> {{ item.name }}<small *ngIf="item.variant"> · {{ item.variant }}</small>
+            <small *ngIf="item.addOns.length">Add-ons: {{ item.addOns.join(', ') }}</small>
+          </span>
+          <div class="qr-item-actions" *ngIf="editingQrOrderId === order.orderId; else qrItemTotal">
+            <div class="quantity">
+              <button type="button" (click)="changeQrItemQuantity(item, -1)" aria-label="Decrease quantity">−</button>
+              <span>{{ item.quantity }}</span>
+              <button type="button" (click)="changeQrItemQuantity(item, 1)" aria-label="Increase quantity">+</button>
+            </div>
+          </div>
+          <ng-template #qrItemTotal><strong>₹{{ item.total | number:'1.0-2' }}</strong></ng-template>
+        </li>
+      </ul>
+      <div class="edit-notes" *ngIf="editingQrOrderId === order.orderId">
+        <label>Customer note
+          <textarea [(ngModel)]="editingQrNotes" maxlength="500" rows="2"></textarea>
+        </label>
+        <label>Kitchen note
+          <textarea [(ngModel)]="editingQrPreparationNotes" maxlength="500" rows="2"></textarea>
+        </label>
+      </div>
+      <p class="order-note" *ngIf="editingQrOrderId !== order.orderId && (order.notes || order.preparationNotes)">
+        {{ order.preparationNotes || order.notes }}
+      </p>
+      <footer>
+        <strong>₹{{ (editingQrOrderId === order.orderId ? editingQrSubtotal : order.subtotal) | number:'1.0-2' }}</strong>
+        <div *ngIf="editingQrOrderId !== order.orderId">
+          <button type="button" class="refresh-button" [disabled]="reviewingOrderId === order.orderId" (click)="startEditingQrOrder(order)">Edit</button>
+          <button type="button" class="reject-button" [disabled]="reviewingOrderId === order.orderId" (click)="rejectQrOrder(order)">
+            Reject
+          </button>
+          <button type="button" class="approve-button" [disabled]="reviewingOrderId === order.orderId" (click)="approveQrOrder(order)">
+            {{ reviewingOrderId === order.orderId ? 'Saving…' : 'Approve & send' }}
+          </button>
+        </div>
+        <div *ngIf="editingQrOrderId === order.orderId">
+          <button type="button" class="reject-button" [disabled]="reviewingOrderId === order.orderId" (click)="cancelEditingQrOrder()">Cancel edit</button>
+          <button type="button" class="approve-button" [disabled]="reviewingOrderId === order.orderId || !editingQrItems.length" (click)="saveQrOrderEdit(order)">
+            {{ reviewingOrderId === order.orderId ? 'Saving…' : 'Save changes' }}
+          </button>
+        </div>
+      </footer>
+    </article>
+  </section>
+</main>

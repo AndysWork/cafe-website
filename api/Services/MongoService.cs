@@ -1491,12 +1491,26 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         await _users.UpdateOneAsync(x => x.Id == userId, update);
     }
 
-    // Update user role
+    // Update user role (replaces all roles with a single role)
     public async Task<bool> UpdateUserRoleAsync(string userId, string role)
     {
-        var update = Builders<User>.Update.Set(x => x.Role, role);
+        var update = Builders<User>.Update
+            .Set(x => x.Role, role)
+            .Set(x => x.Roles, new List<string> { role });
         var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
         return result.ModifiedCount > 0;
+    }
+
+    // Replace all roles; the highest-priority role becomes the primary role
+    public async Task<bool> UpdateUserRolesAsync(string userId, List<string> roles)
+    {
+        var normalized = Helpers.RoleHelper.NormalizeRoles(roles);
+        if (normalized.Count == 0) normalized.Add(Helpers.RoleHelper.User);
+        var update = Builders<User>.Update
+            .Set(x => x.Role, normalized[0])
+            .Set(x => x.Roles, normalized);
+        var result = await _users.UpdateOneAsync(x => x.Id == userId, update);
+        return result.MatchedCount > 0;
     }
 
     // Get all users (excludes PasswordHash � use GetUserByIdAsync for full document)
@@ -2189,6 +2203,149 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             Builders<Order>.Filter.Eq(x => x.Id, orderId),
             Builders<Order>.Filter.In(x => x.Status, expectedStatuses),
             Builders<Order>.Filter.Ne(x => x.IsDeleted, true));
+        var result = await _orders.UpdateOneAsync(filter, update);
+        return result.ModifiedCount == 1;
+    }
+
+    public async Task<string> GetNextDineInKotNumberAsync(string outletId)
+    {
+        var day = GetIstNow().ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+        var sequenceId = $"dine-in-kot:{outletId}:{day}";
+        var counters = _database.GetCollection<BsonDocument>("SequenceCounters");
+        var filter = Builders<BsonDocument>.Filter.Eq("_id", sequenceId);
+        var update = Builders<BsonDocument>.Update
+            .Inc("value", 1)
+            .SetOnInsert("outletId", outletId)
+            .SetOnInsert("businessDate", day);
+        var options = new FindOneAndUpdateOptions<BsonDocument>
+        {
+            IsUpsert = true,
+            ReturnDocument = ReturnDocument.After
+        };
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                var counter = await counters.FindOneAndUpdateAsync(filter, update, options);
+                if (counter == null || !counter.TryGetValue("value", out var value))
+                    throw new InvalidOperationException($"Could not allocate a KOT sequence for outlet {outletId}");
+
+                return $"KOT-{day}-{outletId.ToUpperInvariant()}-{value.ToInt64():D4}";
+            }
+            catch (MongoWriteException ex) when (
+                ex.WriteError?.Category == ServerErrorCategory.DuplicateKey && attempt < 2)
+            {
+                // A concurrent first use can race while MongoDB creates the upserted counter.
+            }
+        }
+
+        throw new InvalidOperationException($"Could not allocate a KOT sequence for outlet {outletId}");
+    }
+
+    public async Task<bool> TryReviewQrDineInOrderAsync(
+        string orderId,
+        string outletId,
+        string decision,
+        string userId,
+        string? reason,
+        string? kotNumber)
+    {
+        var isApproval = string.Equals(decision, "approved", StringComparison.Ordinal);
+        if (!isApproval && !string.Equals(decision, "rejected", StringComparison.Ordinal))
+            throw new ArgumentException("Decision must be approved or rejected", nameof(decision));
+
+        var now = GetIstNow();
+        var update = Builders<Order>.Update
+            .Set(x => x.Status, isApproval ? "pending" : "cancelled")
+            .Set(x => x.ApprovalStatus, decision)
+            .Set(x => x.UpdatedAt, now);
+
+        if (isApproval)
+        {
+            update = update
+                .Set(x => x.ApprovedByUserId, userId)
+                .Set(x => x.ApprovedAt, now)
+                .Set(x => x.KotNumber, kotNumber)
+                .Unset(x => x.RejectedByUserId)
+                .Unset(x => x.RejectedAt)
+                .Unset(x => x.RejectionReason);
+        }
+        else
+        {
+            update = update
+                .Set(x => x.RejectedByUserId, userId)
+                .Set(x => x.RejectedAt, now)
+                .Set(x => x.RejectionReason, reason);
+        }
+
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(x => x.Id, orderId),
+            Builders<Order>.Filter.Eq(x => x.OutletId, outletId),
+            Builders<Order>.Filter.Eq(x => x.OrderType, "dine-in"),
+            Builders<Order>.Filter.Eq(x => x.DineInOrderSource, "qr"),
+            Builders<Order>.Filter.Eq(x => x.ApprovalStatus, "pending"),
+            Builders<Order>.Filter.Eq(x => x.Status, "awaiting_waiter_approval"),
+            Builders<Order>.Filter.Ne(x => x.IsDeleted, true));
+        var result = await _orders.UpdateOneAsync(filter, update);
+        return result.ModifiedCount == 1;
+    }
+
+    public async Task<bool> TryEditPendingQrDineInOrderAsync(Order order)
+    {
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(x => x.Id, order.Id),
+            Builders<Order>.Filter.Eq(x => x.OutletId, order.OutletId),
+            Builders<Order>.Filter.Eq(x => x.OrderType, "dine-in"),
+            Builders<Order>.Filter.Eq(x => x.DineInOrderSource, "qr"),
+            Builders<Order>.Filter.Eq(x => x.ApprovalStatus, "pending"),
+            Builders<Order>.Filter.Eq(x => x.Status, "awaiting_waiter_approval"),
+            Builders<Order>.Filter.Ne(x => x.IsDeleted, true));
+        var result = await _orders.ReplaceOneAsync(filter, order);
+        return result.ModifiedCount == 1;
+    }
+
+    public async Task<bool> TryQueueDineInKotReprintAsync(string orderId, string outletId, string userId)
+    {
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(x => x.Id, orderId),
+            Builders<Order>.Filter.Eq(x => x.OutletId, outletId),
+            Builders<Order>.Filter.Eq(x => x.OrderType, "dine-in"),
+            Builders<Order>.Filter.Ne(x => x.KotNumber, null),
+            Builders<Order>.Filter.In(x => x.Status, new[] { "pending", "confirmed", "preparing", "ready", "served" }),
+            Builders<Order>.Filter.Ne(x => x.IsDeleted, true));
+        var now = GetIstNow();
+        var update = Builders<Order>.Update
+            .Inc(x => x.KotReprintCount, 1)
+            .Set(x => x.LastKotReprintedAt, now)
+            .Set(x => x.LastKotReprintedByUserId, userId)
+            .Set(x => x.UpdatedAt, now);
+        var result = await _orders.UpdateOneAsync(filter, update);
+        return result.ModifiedCount == 1;
+    }
+
+    public async Task<bool> TryCancelDineInKotAsync(
+        string orderId,
+        string outletId,
+        IReadOnlyCollection<string> expectedStatuses,
+        string userId,
+        string reason)
+    {
+        if (expectedStatuses.Count == 0) return false;
+        var now = GetIstNow();
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(x => x.Id, orderId),
+            Builders<Order>.Filter.Eq(x => x.OutletId, outletId),
+            Builders<Order>.Filter.Eq(x => x.OrderType, "dine-in"),
+            Builders<Order>.Filter.Ne(x => x.KotNumber, null),
+            Builders<Order>.Filter.In(x => x.Status, expectedStatuses),
+            Builders<Order>.Filter.Ne(x => x.IsDeleted, true));
+        var update = Builders<Order>.Update
+            .Set(x => x.Status, "cancelled")
+            .Set(x => x.KotCancelledAt, now)
+            .Set(x => x.KotCancelledByUserId, userId)
+            .Set(x => x.KotCancellationReason, reason)
+            .Set(x => x.UpdatedAt, now);
         var result = await _orders.UpdateOneAsync(filter, update);
         return result.ModifiedCount == 1;
     }
@@ -4097,6 +4254,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             await _dineInSessions.Indexes.CreateOneAsync(new CreateIndexModel<DineInSession>(
                 Builders<DineInSession>.IndexKeys.Ascending(x => x.UserId).Ascending(x => x.Status),
                 new CreateIndexOptions { Name = "userId_1_status_1", Background = true }
+            ));
+            indexCount++;
+
+            await _dineInSessions.Indexes.CreateOneAsync(new CreateIndexModel<DineInSession>(
+                Builders<DineInSession>.IndexKeys.Ascending(x => x.OutletId).Descending(x => x.CreatedAt),
+                new CreateIndexOptions { Name = "outletId_1_createdAt_-1", Background = true }
             ));
             indexCount++;
 
@@ -8517,15 +8680,17 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             "manager",
             "cook",
             "chef",
-            "sous-chef"
+            "sous-chef",
+            "kitchen"
         };
 
-        var users = await _users.Find(u => u.IsActive && !string.IsNullOrWhiteSpace(u.Role))
-            .Project(u => new { u.Id, u.Role })
+        var users = await _users.Find(u => u.IsActive)
+            .Project(u => new { u.Id, u.Role, u.Roles })
             .ToListAsync();
 
         return users
-            .Where(u => !string.IsNullOrWhiteSpace(u.Id) && !string.IsNullOrWhiteSpace(u.Role) && kitchenRoles.Contains(u.Role))
+            .Where(u => !string.IsNullOrWhiteSpace(u.Id)
+                && Helpers.RoleHelper.HasAnyRole((u.Roles ?? new List<string>()).Append(u.Role ?? string.Empty), kitchenRoles))
             .Select(u => u.Id!)
             .Distinct(StringComparer.Ordinal)
             .ToList();
@@ -8713,5 +8878,3 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     #endregion
 }
-
-

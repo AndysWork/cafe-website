@@ -14,17 +14,7 @@ namespace Cafe.Api.Functions;
 
 public class UserManagementFunction
 {
-    private static readonly HashSet<string> AllowedRoles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "admin",
-        "manager",
-        "partner",
-        "delivery-partner",
-        "cook",
-        "chef",
-        "sous-chef",
-        "user"
-    };
+    private static IEnumerable<string> AllowedRoles => RoleHelper.AssignableRoles;
 
     private readonly IUserRepository _mongo;
     private readonly AuthService _auth;
@@ -69,6 +59,7 @@ public class UserManagementFunction
                 u.Username,
                 u.Email,
                 u.Role,
+                Roles = RoleHelper.GetEffectiveRoles(u),
                 u.FirstName,
                 u.LastName,
                 u.PhoneNumber,
@@ -274,14 +265,14 @@ public class UserManagementFunction
             var (request, validationError) = await ValidationHelper.ValidateBody<UpdateUserRoleRequest>(req);
             if (validationError != null) return validationError;
 
-            var targetRole = (request.Role ?? string.Empty).Trim().ToLowerInvariant();
-            if (!AllowedRoles.Contains(targetRole))
+            var targetRole = RoleHelper.Normalize(request.Role);
+            if (!RoleHelper.IsAssignable(targetRole))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new
                 {
                     error = "Invalid role",
-                    allowedRoles = AllowedRoles.OrderBy(x => x).ToArray()
+                    allowedRoles = AllowedRoles.ToArray()
                 });
                 return badReq;
             }
@@ -301,7 +292,8 @@ public class UserManagementFunction
                 return notFound;
             }
 
-            if (string.Equals(user.Role, targetRole, StringComparison.OrdinalIgnoreCase))
+            var currentRoles = RoleHelper.GetEffectiveRoles(user);
+            if (currentRoles.Count == 1 && string.Equals(currentRoles[0], targetRole, StringComparison.OrdinalIgnoreCase))
             {
                 var ok = req.CreateResponse(HttpStatusCode.OK);
                 await ok.WriteAsJsonAsync(new
@@ -356,6 +348,98 @@ public class UserManagementFunction
             _log.LogError(ex, "Error updating user role for {UserId}", userId);
             var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
             await errorRes.WriteAsJsonAsync(new { error = "Failed to update user role" });
+            return errorRes;
+        }
+    }
+
+    [Function("UpdateUserRoles")]
+    [OpenApiOperation(operationId: "UpdateUserRoles", tags: new[] { "Users" }, Summary = "Update user roles", Description = "Replaces all roles of a user; a staff member can hold multiple roles (Admin only)")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "userId", In = ParameterLocation.Path, Required = true, Type = typeof(string), Description = "User ID")]
+    [OpenApiRequestBody(contentType: "application/json", bodyType: typeof(UpdateUserRolesRequest), Required = true, Description = "Roles payload")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(object), Description = "Roles updated successfully")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid role")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.NotFound, Description = "User not found")]
+    public async Task<HttpResponseData> UpdateUserRoles(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "users/{userId}/roles")] HttpRequestData req,
+        string userId)
+    {
+        var (isAuthorized, adminUserId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!isAuthorized) return errorResponse!;
+
+        try
+        {
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdateUserRolesRequest>(req);
+            if (validationError != null) return validationError;
+
+            var targetRoles = RoleHelper.NormalizeRoles(request.Roles);
+            var invalid = targetRoles.Where(r => !RoleHelper.IsAssignable(r)).ToList();
+            if (targetRoles.Count == 0 || invalid.Count > 0)
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new
+                {
+                    error = invalid.Count > 0 ? $"Invalid role(s): {string.Join(", ", invalid)}" : "At least one role is required",
+                    allowedRoles = AllowedRoles.ToArray()
+                });
+                return badReq;
+            }
+
+            // "user" is the customer role; it is redundant alongside staff roles.
+            if (targetRoles.Count > 1) targetRoles.Remove(RoleHelper.User);
+
+            if (userId == adminUserId && !targetRoles.Contains(RoleHelper.Admin))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "You cannot remove your own admin role" });
+                return forbidden;
+            }
+
+            var user = await _mongo.GetUserByIdAsync(userId);
+            if (user == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "User not found" });
+                return notFound;
+            }
+
+            var oldRoles = RoleHelper.GetEffectiveRoles(user);
+            var success = await _mongo.UpdateUserRolesAsync(userId, targetRoles);
+            if (!success)
+            {
+                var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorRes.WriteAsJsonAsync(new { error = "Failed to update user roles" });
+                return errorRes;
+            }
+
+            new AuditLogger(_log).LogAdminAction(
+                adminUserId: adminUserId!,
+                action: "Update User Roles",
+                targetUserId: userId,
+                details: $"User '{user.Username}' roles updated from [{string.Join(", ", oldRoles)}] to [{string.Join(", ", targetRoles)}]"
+            );
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                message = $"User '{user.Username}' roles updated",
+                data = new
+                {
+                    userId = user.Id,
+                    username = user.Username,
+                    oldRoles,
+                    role = targetRoles[0],
+                    roles = targetRoles
+                }
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating user roles for {UserId}", userId);
+            var errorRes = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorRes.WriteAsJsonAsync(new { error = "Failed to update user roles" });
             return errorRes;
         }
     }

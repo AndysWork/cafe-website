@@ -25,13 +25,20 @@ public class KitchenDisplayFunction
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
     private readonly OutboxService _outbox;
+    private readonly EventLogService _eventLog;
     private readonly ILogger _log;
 
-    public KitchenDisplayFunction(MongoService mongo, AuthService auth, OutboxService outbox, ILoggerFactory loggerFactory)
+    public KitchenDisplayFunction(
+        MongoService mongo,
+        AuthService auth,
+        OutboxService outbox,
+        EventLogService eventLog,
+        ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
         _outbox = outbox;
+        _eventLog = eventLog;
         _log = loggerFactory.CreateLogger<KitchenDisplayFunction>();
     }
 
@@ -83,7 +90,10 @@ public class KitchenDisplayFunction
                 {
                     i.Name,
                     i.Quantity,
-                    Category = i.CategoryName
+                    Category = i.CategoryName,
+                    KitchenStatus = ResolveDineInItemStatus(o, i.KitchenStatus),
+                    i.KitchenReadyAt,
+                    i.ServedAt
                 }),
                 PreparationNotes = o.PreparationNotes,
                 SpecialInstructions = string.IsNullOrWhiteSpace(o.PreparationNotes) ? o.Notes : o.PreparationNotes,
@@ -268,6 +278,35 @@ public class KitchenDisplayFunction
                 }
             }
 
+            if (string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase))
+            {
+                var itemStatus = requestedStatus switch
+                {
+                    "preparing" => "preparing",
+                    "ready" => "ready",
+                    "served" => "served",
+                    _ => null
+                };
+                if (itemStatus != null)
+                {
+                    var itemTime = MongoService.GetIstNow();
+                    foreach (var item in order.Items)
+                    {
+                        item.KitchenStatus = itemStatus;
+                        if (itemStatus == "ready")
+                        {
+                            item.KitchenReadyAt ??= itemTime;
+                            item.KitchenReadyByUserId ??= userId;
+                        }
+                        else if (itemStatus == "served")
+                        {
+                            item.ServedAt ??= itemTime;
+                            item.ServedByUserId ??= userId;
+                        }
+                    }
+                }
+            }
+
             order.Status = requestedStatus;
             order.KitchenHandledByUserId = userId;
             order.KitchenHandledByRole = role;
@@ -336,6 +375,158 @@ public class KitchenDisplayFunction
             var res = req.CreateResponse(HttpStatusCode.InternalServerError);
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;
+        }
+    }
+
+    [Function("UpdateDineInOrderItemStatus")]
+    public async Task<HttpResponseData> UpdateDineInOrderItemStatus(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "kitchen/orders/{id}/items/{itemIndex}/status")]
+        HttpRequestData req,
+        string id,
+        int itemIndex)
+    {
+        var (request, validationError) = await ValidationHelper.ValidateBody<KitchenItemStatusUpdateRequest>(req);
+        if (validationError != null) return validationError;
+        if (request == null || itemIndex < 0)
+            return await Error(req, HttpStatusCode.BadRequest, "A valid item and status are required");
+
+        var requestedStatus = request.Status.Trim().ToLowerInvariant();
+        if (requestedStatus is not ("ready" or "served"))
+            return await Error(req, HttpStatusCode.BadRequest, "Item status must be ready or served");
+
+        var (isAuthorized, userId, role, errorResponse) = requestedStatus == "ready"
+            ? await AuthorizationHelper.ValidateKitchenAccessRole(req, _auth)
+            : await AuthorizationHelper.ValidateAnyRole(
+                req, _auth, RoleHelper.KitchenRoles.Concat(RoleHelper.WaiterRoles).Distinct(),
+                "Kitchen or waiter access role required");
+        if (!isAuthorized) return errorResponse!;
+
+        try
+        {
+            var order = await _mongo.GetOrderByIdAsync(id);
+            if (order == null || !string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase))
+                return await Error(req, HttpStatusCode.NotFound, "Dine-in order not found");
+            var (hasOutletAccess, outletId, outletError) = await OutletHelper.ValidateOutletAccess(
+                req, _auth, _mongo, req.Query["outletId"] ?? order.OutletId);
+            if (!hasOutletAccess || !string.Equals(outletId, order.OutletId, StringComparison.Ordinal))
+                return await Error(req, HttpStatusCode.Forbidden, outletError ?? "You cannot update orders for this outlet");
+            if (itemIndex >= order.Items.Count)
+                return await Error(req, HttpStatusCode.NotFound, "Order item not found");
+
+            if (IsKitchenOpsRole(role))
+            {
+                var (staff, _, staffError) = await ResolveStaffForCurrentUser(req, userId);
+                if (staff?.Id == null)
+                    return await Error(req, HttpStatusCode.Forbidden, staffError ?? "Kitchen staff profile is required");
+                if (!string.IsNullOrWhiteSpace(order.KitchenAssignedStaffId)
+                    && order.KitchenAssignedStaffId != staff.Id)
+                    return await Error(req, HttpStatusCode.Forbidden, "Only assigned kitchen staff can update this order");
+            }
+
+            var expectedOrderStatus = requestedStatus == "ready" ? "preparing" : "ready";
+            var allowedItemStatus = requestedStatus == "ready" ? "preparing" : "ready";
+            var currentItemStatus = order.Items[itemIndex].KitchenStatus;
+            var isReadyRetry = requestedStatus == "ready"
+                && string.Equals(currentItemStatus, "ready", StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(currentItemStatus, allowedItemStatus, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(currentItemStatus, "pending", StringComparison.OrdinalIgnoreCase)
+                && !isReadyRetry)
+                return await Error(req, HttpStatusCode.Conflict, "Order item is not in a state that allows this update");
+            var expectedItemStatus = string.Equals(currentItemStatus, "pending", StringComparison.OrdinalIgnoreCase)
+                ? "pending"
+                : isReadyRetry ? "ready" : allowedItemStatus;
+            if (!string.Equals(order.Status, expectedOrderStatus, StringComparison.OrdinalIgnoreCase))
+                return await Error(req, HttpStatusCode.Conflict,
+                    requestedStatus == "ready"
+                        ? "Items can be marked ready only while the order is preparing"
+                        : "Items can be marked served only after the order is ready");
+
+            var suppliedChecklist = request.ChecklistItems ?? new List<KitchenChecklistUpdateItem>();
+            List<KitchenChecklistItem>? checklist = suppliedChecklist.Any()
+                ? NormalizeChecklist(suppliedChecklist, userId ?? "kitchen")
+                : null;
+            var isLastItemReady = requestedStatus == "ready"
+                && order.Items.Select((item, index) => (item, index))
+                    .Where(pair => pair.index != itemIndex)
+                    .All(pair => string.Equals(pair.item.KitchenStatus, "ready", StringComparison.OrdinalIgnoreCase));
+            if (isLastItemReady)
+            {
+                if (checklist == null)
+                    return await ChecklistRequired(req);
+                if (checklist.Any(item => !item.IsCompleted))
+                    return await Error(req, HttpStatusCode.BadRequest, "Complete all checklist items before marking the order ready");
+            }
+
+            if (!isReadyRetry && !await _mongo.TryUpdateDineInOrderItemStatusAsync(
+                    id, itemIndex, expectedOrderStatus, expectedItemStatus, requestedStatus, userId ?? string.Empty))
+                return await Error(req, HttpStatusCode.Conflict, "Order item status changed; refresh the kitchen display");
+
+            var updatedOrder = await _mongo.GetOrderByIdAsync(id);
+            if (updatedOrder == null)
+                return await Error(req, HttpStatusCode.NotFound, "Dine-in order no longer exists");
+
+            if (requestedStatus == "ready" && updatedOrder.Items.All(item =>
+                    string.Equals(item.KitchenStatus, "ready", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (checklist == null)
+                    return await ChecklistRequired(req);
+                if (checklist.Any(item => !item.IsCompleted))
+                    return await Error(req, HttpStatusCode.BadRequest, "Complete all checklist items before marking the order ready");
+
+                var readyAt = MongoService.GetIstNow();
+                var prepStartedAt = updatedOrder.KitchenPrepStartedAt ?? updatedOrder.KitchenAssignedAt ?? readyAt;
+                var kptMinutes = Math.Round((decimal)Math.Max((readyAt - prepStartedAt).TotalMinutes, 0), 2);
+                if (!await _mongo.TryCompleteDineInOrderPreparationAsync(
+                        id, checklist!, readyAt, prepStartedAt, kptMinutes))
+                {
+                    var currentOrder = await _mongo.GetOrderByIdAsync(id);
+                    if (currentOrder == null
+                        || !string.Equals(currentOrder.Status, "ready", StringComparison.OrdinalIgnoreCase))
+                        return await Error(req, HttpStatusCode.Conflict, "Order changed while completing kitchen preparation");
+                    updatedOrder = currentOrder;
+                }
+                else
+                {
+                    updatedOrder.Status = "ready";
+                }
+            }
+            else if (requestedStatus == "served" && updatedOrder.Items.All(item =>
+                         string.Equals(item.KitchenStatus, "served", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (!await _mongo.TryUpdateOrderStatusAsync(id, new[] { "ready" }, "served"))
+                    return await Error(req, HttpStatusCode.Conflict, "Order changed while completing service");
+                updatedOrder.Status = "served";
+            }
+
+            await _eventLog.LogEventAsync(
+                "Order",
+                id,
+                "DineInItemStatusChanged",
+                userId,
+                role,
+                new { itemIndex, status = expectedItemStatus },
+                new { itemIndex, status = requestedStatus, orderStatus = updatedOrder.Status },
+                new Dictionary<string, string>
+                {
+                    ["itemName"] = updatedOrder.Items[itemIndex].Name,
+                    ["tableNumber"] = updatedOrder.TableNumber ?? string.Empty
+                },
+                updatedOrder.OutletId);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = $"Item marked {requestedStatus}",
+                itemIndex,
+                itemStatus = requestedStatus,
+                orderStatus = updatedOrder.Status
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating item status for dine-in order {OrderId}", id);
+            return await Error(req, HttpStatusCode.InternalServerError, "Failed to update dine-in item status");
         }
     }
 
@@ -646,6 +837,21 @@ public class KitchenDisplayFunction
         }).ToList();
     }
 
+    private static string ResolveDineInItemStatus(Order order, string itemStatus)
+    {
+        if (!string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(itemStatus, "pending", StringComparison.OrdinalIgnoreCase))
+            return itemStatus;
+
+        return order.Status switch
+        {
+            "preparing" => "preparing",
+            "ready" => "ready",
+            "served" => "served",
+            _ => itemStatus
+        };
+    }
+
     private static List<KitchenChecklistItem> NormalizeChecklist(List<KitchenChecklistUpdateItem> suppliedChecklist, string completedBy)
     {
         var now = MongoService.GetIstNow();
@@ -660,6 +866,25 @@ public class KitchenDisplayFunction
                 CompletedBy = i.IsCompleted ? completedBy : null
             })
             .ToList();
+    }
+
+    private static async Task<HttpResponseData> Error(
+        HttpRequestData req, HttpStatusCode statusCode, string message)
+    {
+        var response = req.CreateResponse(statusCode);
+        await response.WriteAsJsonAsync(new { error = message });
+        return response;
+    }
+
+    private static async Task<HttpResponseData> ChecklistRequired(HttpRequestData req)
+    {
+        var response = req.CreateResponse(HttpStatusCode.Conflict);
+        await response.WriteAsJsonAsync(new
+        {
+            error = "All items are ready; complete the kitchen checklist to finish preparation",
+            requiresChecklist = true
+        });
+        return response;
     }
 
     private static (DateTime start, DateTime end) ResolvePeriodRange(string period, DateTime now)
@@ -780,6 +1005,13 @@ public class KitchenDisplayFunction
 
 public class KitchenStatusUpdateRequest
 {
+    public string Status { get; set; } = string.Empty;
+    public List<KitchenChecklistUpdateItem>? ChecklistItems { get; set; }
+}
+
+public class KitchenItemStatusUpdateRequest
+{
+    [System.ComponentModel.DataAnnotations.Required]
     public string Status { get; set; } = string.Empty;
     public List<KitchenChecklistUpdateItem>? ChecklistItems { get; set; }
 }

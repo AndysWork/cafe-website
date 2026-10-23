@@ -5,6 +5,8 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { OutletService } from '../../services/outlet.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
+import { AuthStore } from '../../store/auth.store';
+import { hasAnyRole } from '../../utils/roles';
 
 @Component({
   selector: 'app-login',
@@ -27,6 +29,7 @@ export class LoginComponent {
     private route: ActivatedRoute
   ) {}
   private analyticsTracking = inject(AnalyticsTrackingService);
+  private authStore = inject(AuthStore);
 
   togglePassword(): void {
     this.showPassword = !this.showPassword;
@@ -46,13 +49,13 @@ export class LoginComponent {
         this.outletService.initializeOutlets(user?.assignedOutlets).subscribe({
           next: () => {
             this.isLoading = false;
-            this.navigateAfterLogin(user?.role);
+            this.navigateAfterLogin(this.authStore.roles());
           },
           error: (outletError) => {
             console.error('Error loading outlets:', outletError);
             // Continue anyway even if outlet loading fails
             this.isLoading = false;
-            this.navigateAfterLogin(user?.role);
+            this.navigateAfterLogin(this.authStore.roles());
           }
         });
       },
@@ -66,30 +69,39 @@ export class LoginComponent {
     });
   }
 
-  private navigateAfterLogin(role?: 'admin' | 'manager' | 'partner' | 'delivery-partner' | 'cook' | 'chef' | 'sous-chef' | 'kitchen' | 'kitchen-staff' | 'kitchen-helper' | 'user'): void {
+  /** Lands the user on the screen for their highest-priority role. */
+  private navigateAfterLogin(roles: string[]): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
     if (returnUrl && returnUrl.startsWith('/')) {
       this.router.navigateByUrl(returnUrl);
       return;
     }
 
-    if (role === 'admin') {
+    const has = (...r: string[]) => hasAnyRole(roles, r);
+
+    if (has('admin')) {
       this.router.navigate(['/admin/dashboard']);
       return;
     }
 
-    if (role === 'manager') {
+    if (has('manager')) {
       this.router.navigate(['/manager/dashboard']);
       return;
     }
 
-    if (role === 'partner' || role === 'delivery-partner') {
-      this.router.navigate(['/partner/delivery']);
+    if (has('cook', 'chef', 'sous-chef', 'kitchen', 'kitchen-staff', 'kitchen-helper')) {
+      this.router.navigate(['/kitchen/dashboard']);
       return;
     }
 
-    if (role === 'cook' || role === 'chef' || role === 'sous-chef' || role === 'kitchen' || role === 'kitchen-staff' || role === 'kitchen-helper') {
-      this.router.navigate(['/kitchen/dashboard']);
+    if (has('waiter', 'cashier')) {
+      // Dedicated waiter/cashier screens are added in later phases.
+      this.router.navigate(['/staff/attendance']);
+      return;
+    }
+
+    if (has('partner', 'delivery-partner')) {
+      this.router.navigate(['/partner/delivery']);
       return;
     }
 

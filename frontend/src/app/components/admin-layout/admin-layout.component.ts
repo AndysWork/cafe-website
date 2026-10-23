@@ -77,6 +77,11 @@ export class AdminLayoutComponent implements OnDestroy {
           icon: '🧾',
           label: 'Cashier',
           route: '/admin/cashier'
+        },
+        {
+          icon: '🛒',
+          label: 'Counter Sale',
+          route: '/admin/counter-sale'
         }
       ]
     },
@@ -136,6 +141,11 @@ export class AdminLayoutComponent implements OnDestroy {
           icon: '📦',
           label: 'Inventory',
           route: '/admin/inventory'
+        },
+        {
+          icon: '🪑',
+          label: 'Tables',
+          route: '/admin/tables'
         },
         {
           icon: '📋',
@@ -267,6 +277,11 @@ export class AdminLayoutComponent implements OnDestroy {
           icon: '📥',
           label: 'Export Reports',
           route: '/admin/reports'
+        },
+        {
+          icon: '🍽️',
+          label: 'Dine-In Sales & Audit',
+          route: '/admin/dine-in-report'
         },
         {
           icon: '📢',
