@@ -13,6 +13,23 @@ public static class OutletHelper
 {
     private const string OutletIdHeaderKey = "X-Outlet-Id";
 
+    public static string? GetOrderingUnavailableReason(Cafe.Api.Models.Outlet? outlet, string orderType)
+    {
+        if (outlet == null || !outlet.IsActive || outlet.IsDeleted)
+            return "This outlet is unavailable for new orders.";
+
+        var (enabled, label) = orderType switch
+        {
+            "delivery" => (outlet.Settings.AcceptsOnlineOrders, "Online delivery"),
+            "pickup" => (outlet.Settings.AcceptsTakeaway, "Takeaway"),
+            "dine-in" => (outlet.Settings.AcceptsDineIn, "Dine-in"),
+            "counter" => (outlet.Settings.AcceptsCounterSales, "Counter sales"),
+            _ => (false, "This ordering channel")
+        };
+
+        return enabled ? null : $"{label} ordering is temporarily paused for this outlet.";
+    }
+
     private static bool IsAdminLikeRole(string? role)
     {
         if (string.IsNullOrWhiteSpace(role)) return false;

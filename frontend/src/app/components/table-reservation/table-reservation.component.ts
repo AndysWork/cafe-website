@@ -73,6 +73,9 @@ export class TableReservationComponent implements OnInit {
         } else if (this.outlets.length > 0) {
           this.form.outletId = this.outlets[0].id || this.outlets[0]._id;
         }
+      },
+      error: () => {
+        this.uiStore.error('Could not load outlet availability. Please refresh before booking.');
       }
     });
   }

@@ -340,7 +340,13 @@ export class MenuComponent implements OnInit, OnDestroy {
       return 'Add to cart is available daily from 9:00 AM to 10:00 PM.';
     }
 
-    return 'Online ordering is temporarily turned off by the outlet admin.';
+    if (this.outlets.length === 0) {
+      return 'Outlet ordering availability could not be loaded. Please refresh the page.';
+    }
+
+    return this.activeTableNumber
+      ? 'Dine-in ordering is temporarily paused for this outlet.'
+      : 'Delivery and takeaway ordering are temporarily paused for this outlet.';
   }
 
   get isWithinOrderingWindow(): boolean {
@@ -351,14 +357,21 @@ export class MenuComponent implements OnInit, OnDestroy {
   get isOnlineOrderingEnabledForSelection(): boolean {
     if (this.selectedOutletId) {
       const selectedOutlet = this.outlets.find(o => this.getOutletKey(o) === this.selectedOutletId);
-      return selectedOutlet?.settings?.acceptsOnlineOrders !== false;
+      return this.hasAvailableOrderingChannel(selectedOutlet);
     }
 
     if (this.outlets.length === 0) {
-      return true;
+      return false;
     }
 
-    return this.outlets.some(o => o.settings?.acceptsOnlineOrders !== false);
+    return this.outlets.some(outlet => this.hasAvailableOrderingChannel(outlet));
+  }
+
+  private hasAvailableOrderingChannel(outlet: Outlet | undefined): boolean {
+    if (!outlet?.isActive) return false;
+    return this.activeTableNumber
+      ? outlet.settings.acceptsDineIn !== false
+      : outlet.settings.acceptsOnlineOrders !== false || outlet.settings.acceptsTakeaway !== false;
   }
 
   canOrderItem(item: MenuItem): boolean {
@@ -372,7 +385,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
 
     const itemOutlet = this.outlets.find(o => this.getOutletMatchKeys(o).includes(itemOutletId));
-    return itemOutlet?.settings?.acceptsOnlineOrders !== false;
+    return this.hasAvailableOrderingChannel(itemOutlet);
   }
 
   private canAddToCart(item?: MenuItem): boolean {
@@ -385,7 +398,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       return true;
     }
 
-    this.uiStore.warning('Online ordering is currently turned off by the outlet admin.');
+    this.uiStore.warning(this.orderingClosedMessage);
     return false;
   }
 

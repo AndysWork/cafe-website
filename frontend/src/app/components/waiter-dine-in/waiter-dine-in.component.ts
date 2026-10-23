@@ -6,6 +6,7 @@ import { CafeTableFloorView, CafeTableService } from '../../services/cafe-table.
 import { DineInService, DineInSessionOrder, PendingQrDineInOrder } from '../../services/dine-in.service';
 import { MenuItem, MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
+import { getOrderingUnavailableReason } from '../../models/outlet.model';
 
 interface WaiterCartLine {
   menuItem: MenuItem;
@@ -52,6 +53,9 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   errorMessage = '';
 
   ngOnInit(): void {
+    this.subscriptions.add(this.outletService.getPublicOutlets().subscribe({
+      error: () => this.errorMessage = 'Could not refresh outlet ordering availability. It will be checked when you submit.'
+    }));
     this.loadTables();
     this.loadMenu();
     this.loadPendingQrOrders();
@@ -167,6 +171,10 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   }
 
   submitOrder(): void {
+    if (this.orderingUnavailableReason) {
+      this.errorMessage = this.orderingUnavailableReason;
+      return;
+    }
     if (!this.selectedTableNumber || !this.cart.length || this.submittingOrder) return;
 
     this.submittingOrder = true;
@@ -196,6 +204,10 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
         this.submittingOrder = false;
       }
     }));
+  }
+
+  get orderingUnavailableReason(): string {
+    return getOrderingUnavailableReason(this.outletService.getSelectedOutlet(), 'dine-in');
   }
 
   approveQrOrder(order: PendingQrDineInOrder): void {

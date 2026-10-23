@@ -294,7 +294,15 @@ public class DineInFunction
             var customerName = !string.IsNullOrWhiteSpace(request.CustomerName) ? request.CustomerName.Trim() : username;
             var customerPhone = !string.IsNullOrWhiteSpace(request.CustomerPhone) ? request.CustomerPhone.Trim() : userPhone;
 
-            var outlet = await _outletRepo.GetOutletByIdAsync(outletId);
+            var outlet = await _outletRepo.GetOutletByIdAsync(outletId, bypassCache: true);
+            var orderingError = OutletHelper.GetOrderingUnavailableReason(outlet, "dine-in");
+            if (orderingError != null)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = orderingError });
+                return conflict;
+            }
+
             var (sessionAccessToken, sessionAccessTokenHash) = CreateSessionAccessToken();
 
             var session = new DineInSession
@@ -377,6 +385,15 @@ public class DineInFunction
                 return badReq;
             }
 
+            var orderingOutlet = await _outletRepo.GetOutletByIdAsync(outletId, bypassCache: true);
+            var orderingError = OutletHelper.GetOrderingUnavailableReason(orderingOutlet, "dine-in");
+            if (orderingError != null)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = orderingError });
+                return conflict;
+            }
+
             var (userId, username, userPhone) = GetOptionalUserInfo(req);
             var isWaiterOrder = RoleHelper.HasAnyRole(
                 AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth),
@@ -422,13 +439,12 @@ public class DineInFunction
             var session = await _orderRepo.GetActiveDineInSessionByTableAsync(outletId, tableNumber);
             if (session == null)
             {
-                var outlet = await _outletRepo.GetOutletByIdAsync(outletId);
                 var generatedAccess = CreateSessionAccessToken();
                 sessionAccessToken = generatedAccess.token;
                 session = new DineInSession
                 {
                     OutletId = outletId,
-                    OutletName = outlet?.OutletName ?? "Main Cafe",
+                    OutletName = orderingOutlet!.OutletName,
                     TableNumber = tableNumber,
                     UserId = userId,
                     CustomerName = username,

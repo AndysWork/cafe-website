@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
@@ -7,6 +7,7 @@ import { AnalyticsTrackingService } from '../../services/analytics-tracking.serv
 import { AuthStore, CartStore } from '../../store';
 import { NotificationCenterComponent } from '../notification-center/notification-center.component';
 import { DineInService } from '../../services/dine-in.service';
+import { CUSTOMER_ACCOUNT_NAVIGATION, getRoleNavigationItems } from '../../utils/role-navigation';
 
 @Component({
   selector: 'app-navbar',
@@ -23,6 +24,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private analyticsTracking = inject(AnalyticsTrackingService);
   private authStore = inject(AuthStore);
   private cartStore = inject(CartStore);
+  readonly navigationItems = computed(() => getRoleNavigationItems(this.authStore.roles()).filter(item => !item.account));
+  readonly customerAccountItems = CUSTOMER_ACCOUNT_NAVIGATION;
 
   // Signal-based state reads — no subscriptions needed, auto-updates via change detection
   get currentUser(): User | null { return this.authStore.user(); }
@@ -47,37 +50,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get isCustomer(): boolean {
-    return this.authStore.roles().length === 1 && this.authStore.hasRole('user');
-  }
-
-  get canBrowseMenu(): boolean {
-    if (!this.isLoggedIn) return false;
-    if (this.isHomeScreen) return false;
-    return this.isCustomer || this.isAdmin;
-  }
-
-  get isPartnerUser(): boolean {
-    return this.authStore.hasAnyRole(['partner', 'delivery-partner']);
-  }
-
-  get isKitchenUser(): boolean {
-    return this.authStore.hasAnyRole(['cook', 'chef', 'sous-chef', 'kitchen', 'kitchen-staff', 'kitchen-helper']);
-  }
-
-  get isWaiterUser(): boolean {
-    return this.authStore.hasRole('waiter');
-  }
-
-  get isCashierUser(): boolean {
-    return this.authStore.hasRole('cashier');
-  }
-
-  get isStaffRoleUser(): boolean {
-    return this.isManager || this.isKitchenUser || this.isWaiterUser || this.isCashierUser;
-  }
-
-  get isManager(): boolean {
-    return this.authStore.hasRole('manager');
+    return this.authStore.hasRole('user');
   }
 
   openDineInBill(): void {
@@ -89,7 +62,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get isCustomerLoggedIn(): boolean {
-    return this.isLoggedIn && this.isCustomer;
+    return this.isLoggedIn && this.isCustomer && !this.isAdmin;
   }
 
   get isNonCustomerNonAdminLoggedIn(): boolean {
@@ -103,14 +76,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
   get isHomeScreen(): boolean {
     const path = this.router.url.split('?')[0].split('#')[0];
     return path === '/' || path === '/home';
-  }
-
-  get dashboardRoute(): string {
-    if (this.isAdmin) return '/admin/dashboard';
-    if (this.isManager) return '/manager/dashboard';
-    if (this.isPartnerUser) return '/partner/delivery';
-    if (this.isKitchenUser) return '/kitchen/dashboard';
-    return '/dashboard';
   }
 
   get displayName(): string {

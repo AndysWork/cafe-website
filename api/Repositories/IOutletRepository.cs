@@ -6,7 +6,7 @@ public interface IOutletRepository
 {
     Task<List<Outlet>> GetAllOutletsAsync();
     Task<List<Outlet>> GetActiveOutletsAsync();
-    Task<Outlet?> GetOutletByIdAsync(string id);
+    Task<Outlet?> GetOutletByIdAsync(string id, bool bypassCache = false);
     Task<Outlet?> GetOutletByCodeAsync(string code);
     Task<Outlet> CreateOutletAsync(CreateOutletRequest request, string userId);
     Task<bool> UpdateOutletAsync(string id, UpdateOutletRequest request, string userId);

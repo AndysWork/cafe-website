@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap, catchError, of, shareReplay, map } from 'rxjs';
+import { Observable, tap, catchError, of, shareReplay, map, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Outlet } from '../models/outlet.model';
 import { OutletStore } from '../store/outlet.store';
@@ -27,9 +27,10 @@ export class OutletService {
         settings: {
           openingTime: settings?.openingTime ?? settings?.OpeningTime ?? '',
           closingTime: settings?.closingTime ?? settings?.ClosingTime ?? '',
-          acceptsOnlineOrders: settings?.acceptsOnlineOrders ?? settings?.AcceptsOnlineOrders ?? false,
-          acceptsDineIn: settings?.acceptsDineIn ?? settings?.AcceptsDineIn ?? false,
-          acceptsTakeaway: settings?.acceptsTakeaway ?? settings?.AcceptsTakeaway ?? false,
+          acceptsOnlineOrders: settings?.acceptsOnlineOrders ?? settings?.AcceptsOnlineOrders ?? true,
+          acceptsDineIn: settings?.acceptsDineIn ?? settings?.AcceptsDineIn ?? true,
+          acceptsTakeaway: settings?.acceptsTakeaway ?? settings?.AcceptsTakeaway ?? true,
+          acceptsCounterSales: settings?.acceptsCounterSales ?? settings?.AcceptsCounterSales ?? true,
           taxPercentage: settings?.taxPercentage ?? settings?.TaxPercentage ?? 0,
           deliveryRadius: settings?.deliveryRadius ?? settings?.DeliveryRadius,
           minimumOrderAmount: settings?.minimumOrderAmount ?? settings?.MinimumOrderAmount
@@ -101,9 +102,16 @@ export class OutletService {
   getPublicOutlets(): Observable<Outlet[]> {
     return this.http.get<any>(`${this.apiUrl}/public/outlets`).pipe(
       map(response => this.normalizeOutletsResponse(response)),
+      tap(outlets => {
+        this.outletStore.setAvailableOutlets(outlets);
+        const selected = this.outletStore.selectedOutlet();
+        if (selected && !outlets.some(outlet => (outlet._id || outlet.id) === (selected._id || selected.id))) {
+          this.outletStore.selectOutlet({ ...selected, isActive: false });
+        }
+      }),
       catchError(error => {
         console.error('Error fetching public outlets:', error);
-        return of([]);
+        return throwError(() => error);
       })
     );
   }
@@ -112,7 +120,9 @@ export class OutletService {
    * Get outlet by ID
    */
   getOutletById(id: string): Observable<Outlet> {
-    return this.http.get<Outlet>(`${this.apiUrl}/outlets/${id}`);
+    return this.http.get<Outlet>(`${this.apiUrl}/outlets/${id}`).pipe(
+      map(outlet => this.normalizeOutlet(outlet))
+    );
   }
 
   /**
@@ -133,7 +143,22 @@ export class OutletService {
    * Update outlet (admin only)
    */
   updateOutlet(id: string, outlet: Partial<Outlet>): Observable<any> {
-    return this.http.put(`${this.apiUrl}/outlets/${id}`, outlet);
+    return this.http.put(`${this.apiUrl}/outlets/${id}`, outlet).pipe(
+      tap(() => {
+        const update = (existing: Outlet): Outlet => ({
+          ...existing,
+          ...outlet,
+          settings: { ...existing.settings, ...outlet.settings }
+        });
+        this.outletStore.setAvailableOutlets(this.outletStore.availableOutlets().map(existing =>
+          (existing._id || existing.id) === id ? update(existing) : existing
+        ));
+        const selected = this.outletStore.selectedOutlet();
+        if (selected && (selected._id || selected.id) === id) {
+          this.outletStore.selectOutlet(update(selected));
+        }
+      })
+    );
   }
 
   /**

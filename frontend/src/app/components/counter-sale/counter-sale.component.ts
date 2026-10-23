@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MenuItem, MenuService } from '../../services/menu.service';
+import { OutletService } from '../../services/outlet.service';
+import { getOrderingUnavailableReason } from '../../models/outlet.model';
 import {
   CounterSaleInvoiceResponse,
   CreateCounterSaleRequest,
@@ -26,6 +28,7 @@ interface CounterCartItem {
 export class CounterSaleComponent implements OnInit {
   private menuService = inject(MenuService);
   private orderService = inject(OrderService);
+  private outletService = inject(OutletService);
 
   searchTerm = '';
   customerName = '';
@@ -46,7 +49,14 @@ export class CounterSaleComponent implements OnInit {
   errorMessage = '';
 
   ngOnInit(): void {
+    this.outletService.getPublicOutlets().subscribe({
+      error: () => this.errorMessage = 'Could not refresh outlet ordering availability. It will be checked when you submit.'
+    });
     this.loadMenuItems();
+  }
+
+  get orderingUnavailableReason(): string {
+    return getOrderingUnavailableReason(this.outletService.getSelectedOutlet(), 'counter');
   }
 
   get filteredMenuItems(): MenuItem[] {
@@ -94,6 +104,11 @@ export class CounterSaleComponent implements OnInit {
   async generateInvoice(): Promise<void> {
     this.successMessage = '';
     this.errorMessage = '';
+
+    if (this.orderingUnavailableReason) {
+      this.errorMessage = this.orderingUnavailableReason;
+      return;
+    }
 
     if (this.cartItems.length === 0) {
       this.errorMessage = 'Add at least one item to create a counter sale invoice.';

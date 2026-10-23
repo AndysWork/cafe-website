@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { OutletService } from '../../services/outlet.service';
-import { Outlet } from '../../models/outlet.model';
+import { OrderingSetting, Outlet } from '../../models/outlet.model';
 
 @Component({
   selector: 'app-outlet-management',
@@ -20,7 +20,13 @@ export class OutletManagementComponent implements OnInit {
   isLoading = false;
   errorMessage = '';
   successMessage = '';
-  togglingOnlineOrdersOutletId: string | null = null;
+  togglingOrderingOutletId: string | null = null;
+  readonly orderingChannels: { setting: OrderingSetting; label: string }[] = [
+    { setting: 'acceptsOnlineOrders', label: 'Online delivery' },
+    { setting: 'acceptsTakeaway', label: 'Takeaway' },
+    { setting: 'acceptsDineIn', label: 'Dine-in (QR and waiter)' },
+    { setting: 'acceptsCounterSales', label: 'Counter sales' }
+  ];
 
   // Modal state
   showModal = false;
@@ -51,6 +57,7 @@ export class OutletManagementComponent implements OnInit {
         acceptsOnlineOrders: true,
         acceptsDineIn: true,
         acceptsTakeaway: true,
+        acceptsCounterSales: true,
         taxPercentage: 5,
         deliveryRadius: undefined,
         minimumOrderAmount: undefined
@@ -87,7 +94,7 @@ export class OutletManagementComponent implements OnInit {
     if (outlet.id && !outlet._id) {
       outlet._id = outlet.id;
     }
-    this.outletForm = { ...outlet };
+    this.outletForm = { ...outlet, settings: { ...outlet.settings } };
     this.showModal = true;
   }
 
@@ -173,31 +180,37 @@ export class OutletManagementComponent implements OnInit {
     });
   }
 
-  isOnlineOrderingEnabled(outlet: Outlet): boolean {
-    return outlet.settings?.acceptsOnlineOrders !== false;
+  isOrderingEnabled(outlet: Outlet, setting: OrderingSetting): boolean {
+    return outlet.settings[setting] !== false;
   }
 
-  toggleOnlineOrdering(outlet: Outlet): void {
+  toggleOrdering(outlet: Outlet, setting: OrderingSetting, label: string): void {
     const outletId = outlet._id || outlet.id;
-    if (!outletId) return;
+    if (!outletId) {
+      this.errorMessage = 'Cannot update ordering: outlet ID not found';
+      return;
+    }
+    if (this.togglingOrderingOutletId) return;
 
-    const nextValue = !this.isOnlineOrderingEnabled(outlet);
+    const nextValue = !this.isOrderingEnabled(outlet, setting);
     const updatedSettings = {
       ...outlet.settings,
-      acceptsOnlineOrders: nextValue
+      [setting]: nextValue
     };
 
-    this.togglingOnlineOrdersOutletId = outletId;
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.togglingOrderingOutletId = outletId;
     this.outletService.updateOutlet(outletId, { settings: updatedSettings }).subscribe({
       next: () => {
         outlet.settings = updatedSettings;
-        this.successMessage = `Online ordering ${nextValue ? 'enabled' : 'disabled'} for ${outlet.outletName}`;
-        this.togglingOnlineOrdersOutletId = null;
+        this.successMessage = `${label} ordering ${nextValue ? 'enabled' : 'disabled'} for ${outlet.outletName}`;
+        this.togglingOrderingOutletId = null;
         setTimeout(() => this.successMessage = '', 3000);
       },
       error: (error) => {
-        this.errorMessage = error.error?.error || 'Failed to update online ordering status';
-        this.togglingOnlineOrdersOutletId = null;
+        this.errorMessage = error.error?.error || 'Failed to update ordering status';
+        this.togglingOrderingOutletId = null;
         setTimeout(() => this.errorMessage = '', 3000);
       }
     });

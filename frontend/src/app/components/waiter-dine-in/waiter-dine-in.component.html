@@ -22,6 +22,7 @@
 
   <p class="feedback success" role="status" *ngIf="message">{{ message }}</p>
   <p class="feedback error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+  <p class="feedback error" role="alert" *ngIf="orderingUnavailableReason">{{ orderingUnavailableReason }} Existing orders can still be reviewed and served.</p>
 
   <section class="order-layout" *ngIf="activeTab === 'order'">
     <div class="menu-panel">
@@ -174,7 +175,7 @@
       <button
         type="button"
         class="submit-button"
-        [disabled]="!selectedTableNumber || !cart.length || submittingOrder"
+        [disabled]="!selectedTableNumber || !cart.length || submittingOrder || !!orderingUnavailableReason"
         (click)="submitOrder()"
       >
         {{ submittingOrder ? 'Sending…' : 'Send order to kitchen' }}

@@ -35,10 +35,10 @@ public partial class MongoService
     }
 
     // Get single outlet by ID (cached)
-    public async Task<Outlet?> GetOutletByIdAsync(string id)
+    public async Task<Outlet?> GetOutletByIdAsync(string id, bool bypassCache = false)
     {
         var cacheKey = $"outlet_{id}";
-        if (_cache.TryGetValue(cacheKey, out Outlet? cached) && cached != null)
+        if (!bypassCache && _cache.TryGetValue(cacheKey, out Outlet? cached) && cached != null)
             return cached;
 
         var result = await _outlets.Find(o => o.Id == id && o.IsDeleted != true).FirstOrDefaultAsync();
@@ -206,4 +206,3 @@ public partial class MongoService
 
     #endregion
 }
-

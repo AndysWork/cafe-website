@@ -59,6 +59,31 @@
           <span class="nav-label">{{ item.label }}</span>
         </a>
       </ng-container>
+      <div *ngIf="roleNavigationItems().length" class="nav-item-dropdown" [class.active]="activeDropdown === 'Workspaces'">
+        <button
+          type="button"
+          class="nav-item dropdown-toggle"
+          (click)="toggleDropdown('Workspaces', $event)"
+          [class.active]="activeDropdown === 'Workspaces'"
+          aria-haspopup="true"
+          [attr.aria-expanded]="activeDropdown === 'Workspaces'"
+        >
+          <span class="nav-label">Workspaces</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="dropdown-menu workspace-menu" [class.show]="activeDropdown === 'Workspaces'" (click)="$event.stopPropagation()">
+          <a
+            *ngFor="let item of roleNavigationItems()"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            class="dropdown-item"
+            (click)="closeDropdown(); closeMobileMenu()"
+          >
+            <span class="nav-icon">{{ item.icon }}</span>
+            <span class="nav-label">{{ item.label }}</span>
+          </a>
+        </div>
+      </div>
     </nav>
 
     <div class="navbar-right">

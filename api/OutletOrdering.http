@@ -1,0 +1,79 @@
+@baseUrl = http://localhost:7071/api
+@adminToken = REPLACE_WITH_ADMIN_TOKEN
+@customerToken = REPLACE_WITH_CUSTOMER_TOKEN
+@outletId = REPLACE_WITH_OUTLET_ID
+@menuItemId = REPLACE_WITH_MENU_ITEM_ID
+@tableNumber = REPLACE_WITH_TABLE_NUMBER
+
+### Read current full settings before updating (admin)
+GET {{baseUrl}}/outlets/{{outletId}}
+Authorization: Bearer {{adminToken}}
+
+### Pause delivery and counter sales; keep takeaway and QR/waiter dine-in enabled
+### Copy the current full settings from GET above and change only the desired flags.
+### PUT replaces settings: preserve actual hours, tax, delivery radius, and minimum amount.
+PUT {{baseUrl}}/outlets/{{outletId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "settings": {
+    "openingTime": "08:00",
+    "closingTime": "22:00",
+    "acceptsOnlineOrders": false,
+    "acceptsTakeaway": true,
+    "acceptsDineIn": true,
+    "acceptsCounterSales": false,
+    "taxPercentage": 5,
+    "deliveryRadius": null,
+    "minimumOrderAmount": null
+  }
+}
+
+### Public channel availability (no authentication)
+GET {{baseUrl}}/public/outlets
+
+### Paused delivery is rejected with 409, even for an admin submitting the same order
+POST {{baseUrl}}/orders
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "orderType": "delivery",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }],
+  "deliveryAddress": "12 Station Road, Kanchrapara, West Bengal",
+  "phoneNumber": "9000000000",
+  "paymentMethod": "cash_at_counter"
+}
+
+### Paused counter sales are rejected with 409; existing invoice reprints are unaffected
+POST {{baseUrl}}/counter-sales
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }],
+  "paymentMethod": "cash_at_counter",
+  "printInvoice": false
+}
+
+### After disabling acceptsDineIn, new waiter rounds are rejected with 409
+### Repeat as a QR customer using the table QR/session headers to verify that path.
+POST {{baseUrl}}/dine-in/order
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "tableNumber": "{{tableNumber}}",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }]
+}
+
+### Non-admin changes must be rejected with 403 (use a customer-only account)
+PUT {{baseUrl}}/outlets/{{outletId}}
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "settings": { "acceptsOnlineOrders": false } }

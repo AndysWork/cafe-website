@@ -58,7 +58,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  height: 70px;
+  min-height: 70px;
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -178,6 +178,7 @@
 // ── Horizontal Navigation Menu ──────────────────────────
 .navbar-menu {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   flex: 1;
@@ -301,6 +302,11 @@
 
 .nav-item-dropdown.active .dropdown-arrow {
   transform: rotate(180deg);
+}
+
+.workspace-menu {
+  max-height: calc(100dvh - 100px);
+  overflow-y: auto;
 }
 
 .dropdown-menu {
@@ -763,6 +769,7 @@
 @media (max-width: 768px) {
   .admin-navbar {
     padding: 0 15px;
+    min-height: 65px;
     height: 65px;
   }
 
@@ -790,6 +797,7 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
     padding: 16px;
     gap: 6px;

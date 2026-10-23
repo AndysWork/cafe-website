@@ -8,6 +8,7 @@
     <div class="alert success" *ngIf="successMessage">{{ successMessage }}</div>
     <div class="alert error" *ngIf="errorMessage">{{ errorMessage }}</div>
   </div>
+  <p class="alert error" role="alert" *ngIf="orderingUnavailableReason">{{ orderingUnavailableReason }} Existing invoices can still be printed.</p>
 
   <div class="layout">
     <section class="menu-panel">
@@ -103,7 +104,7 @@
         <strong>Rs {{ cartTotal | number:'1.2-2' }}</strong>
       </div>
 
-      <button class="generate-btn" [disabled]="isGenerating || cartItems.length === 0" (click)="generateInvoice()">
+      <button class="generate-btn" [disabled]="isGenerating || cartItems.length === 0 || !!orderingUnavailableReason" (click)="generateInvoice()">
         {{ isGenerating ? 'Generating...' : 'Generate Invoice' }}
       </button>
 

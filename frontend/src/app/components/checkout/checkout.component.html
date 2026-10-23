@@ -45,6 +45,8 @@
           </div>
         </div>
 
+        <p class="error-msg" role="alert" *ngIf="orderingUnavailableReason">{{ orderingUnavailableReason }}</p>
+
         <!-- Dine-in Table Number -->
         <div *ngIf="orderType === 'dine-in'" class="form-group dine-in-checkout-notice">
           <label>Table Number</label>
@@ -405,7 +407,7 @@
           <button type="button" class="btn-back" (click)="goBackToCart()" [disabled]="isSubmitting">
             ← Back to Cart
           </button>
-          <button type="submit" class="btn-place" [disabled]="isSubmitting || cart.itemCount === 0">
+          <button type="submit" class="btn-place" [disabled]="isSubmitting || cart.itemCount === 0 || !!orderingUnavailableReason">
             {{ isSubmitting ? '⏳ Processing...' : 'Review Order' }}
           </button>
         </div>

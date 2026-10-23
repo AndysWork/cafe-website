@@ -47,153 +47,27 @@
           </a>
         </li>
 
-        <!-- Dashboard (Any logged-in user) -->
-        <li class="nav-item" *ngIf="isLoggedIn">
+        <li class="nav-item" *ngFor="let item of navigationItems()" [class.cart-item]="item.route === '/cart'">
           <a
-            [routerLink]="dashboardRoute"
+            [routerLink]="item.route"
             routerLinkActive="active"
             [routerLinkActiveOptions]="{ exact: true }"
             class="nav-link"
             (click)="closeMobileMenu()"
           >
-            <span class="nav-icon">📊</span>
-            Dashboard
-          </a>
-        </li>
-
-        <li class="nav-item" *ngIf="(isManager || isAdmin) && !isHomeScreen">
-          <a
-            [routerLink]="isAdmin ? '/admin/dine-in-report' : '/manager/dine-in-report'"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">📈</span>
-            Dine-In Report
-          </a>
-        </li>
-
-        <li class="nav-item" *ngIf="(isCashierUser || isManager || isAdmin) && !isHomeScreen">
-          <a
-            routerLink="/staff/cashier"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">💳</span>
-            Dine-In Payments
-          </a>
-        </li>
-
-        <li class="nav-item" *ngIf="isStaffRoleUser && !isHomeScreen">
-          <a
-            routerLink="/staff/attendance"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">🕐</span>
-            Attendance
-          </a>
-        </li>
-
-        <li class="nav-item" *ngIf="(isWaiterUser || isManager || isAdmin) && !isHomeScreen">
-          <a
-            routerLink="/staff/dine-in"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">🍽️</span>
-            Waiter Station
-          </a>
-        </li>
-
-        <li class="nav-item" *ngIf="isStaffRoleUser && !isHomeScreen">
-          <a
-            routerLink="/staff/payslip"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">💸</span>
-            Payslip Access
-          </a>
-        </li>
-
-        <li
-          class="nav-item"
-          *ngIf="(isManager || isKitchenUser) && !isHomeScreen"
-        >
-          <a
-            routerLink="/kitchen/display"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">🍳</span>
-            Kitchen Display
-          </a>
-        </li>
-
-        <li class="nav-item" *ngIf="isManager && !isHomeScreen">
-          <a
-            routerLink="/manager/operations"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">🛵</span>
-            Delivery Tracking
-          </a>
-        </li>
-
-        <li class="nav-item" *ngIf="isPartnerUser && !isHomeScreen">
-          <a
-            routerLink="/partner/payout"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">💰</span>
-            Payout Access
-          </a>
-        </li>
-
-        <!-- Menu (Customers + Admin only) -->
-        <li class="nav-item" *ngIf="canBrowseMenu">
-          <a
-            routerLink="/menu"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon">🍽️</span>
-            Menu
-          </a>
-        </li>
-
-        <!-- Cart (Customers Only) -->
-        <li class="nav-item cart-item" *ngIf="isCustomer && !isHomeScreen">
-          <a
-            routerLink="/cart"
-            routerLinkActive="active"
-            class="nav-link"
-            (click)="closeMobileMenu()"
-          >
-            <span class="nav-icon cart-icon">
-              🛒
-              <span class="cart-badge" *ngIf="cartItemCount > 0">{{
+            <span class="nav-icon" [class.cart-icon]="item.route === '/cart'">
+              {{ item.icon }}
+              <span class="cart-badge" *ngIf="item.route === '/cart' && cartItemCount > 0">{{
                 cartItemCount
               }}</span>
             </span>
-            Cart
+            {{ item.label }}
           </a>
         </li>
         <!-- Profile (All non-admin authenticated roles) -->
         <li
           class="nav-item"
-          *ngIf="(isPartnerUser || isKitchenUser || isManager) && !isHomeScreen"
+          *ngIf="isNonCustomerNonAdminLoggedIn"
         >
           <a
             routerLink="/profile"
@@ -271,6 +145,21 @@
                 </div>
               </a>
             </li>
+            <ng-container *ngIf="isCustomer">
+              <li *ngFor="let item of customerAccountItems">
+                <a
+                  [routerLink]="item.route"
+                  routerLinkActive="active"
+                  class="dropdown-item"
+                  (click)="closeMobileMenu()"
+                >
+                  <span class="dropdown-icon">{{ item.icon }}</span>
+                  <div class="dropdown-content">
+                    <span class="dropdown-title">{{ item.label }}</span>
+                  </div>
+                </a>
+              </li>
+            </ng-container>
             <li class="divider"></li>
             <li>
               <button class="dropdown-item logout-item" (click)="onLogout()">
@@ -326,56 +215,16 @@
                 </div>
               </a>
             </li>
-            <li>
+            <li *ngFor="let item of customerAccountItems">
               <a
-                routerLink="/orders"
+                [routerLink]="item.route"
                 routerLinkActive="active"
                 class="dropdown-item"
                 (click)="closeMobileMenu()"
               >
-                <span class="dropdown-icon">🛒</span>
+                <span class="dropdown-icon">{{ item.icon }}</span>
                 <div class="dropdown-content">
-                  <span class="dropdown-title">My Orders</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a
-                routerLink="/reservations"
-                routerLinkActive="active"
-                class="dropdown-item"
-                (click)="closeMobileMenu()"
-              >
-                <span class="dropdown-icon">📅</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">Reservations</span>
-                </div>
-              </a>
-            </li>
-
-            <li>
-              <a
-                routerLink="/subscriptions"
-                routerLinkActive="active"
-                class="dropdown-item"
-                (click)="closeMobileMenu()"
-              >
-                <span class="dropdown-icon">🔁</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">Subscriptions</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a
-                routerLink="/loyalty"
-                routerLinkActive="active"
-                class="dropdown-item"
-                (click)="closeMobileMenu()"
-              >
-                <span class="dropdown-icon">⭐</span>
-                <div class="dropdown-content">
-                  <span class="dropdown-title">Loyalty Points</span>
+                  <span class="dropdown-title">{{ item.label }}</span>
                 </div>
               </a>
             </li>

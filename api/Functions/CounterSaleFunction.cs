@@ -63,6 +63,15 @@ public class CounterSaleFunction
                 return bad;
             }
 
+            var outlet = await _mongo.GetOutletByIdAsync(outletId, bypassCache: true);
+            var orderingError = OutletHelper.GetOrderingUnavailableReason(outlet, "counter");
+            if (orderingError != null)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = orderingError });
+                return conflict;
+            }
+
             var paymentMethod = (request.PaymentMethod ?? "cash_at_counter").Trim().ToLowerInvariant();
             if (paymentMethod != "cash_at_counter" && paymentMethod != "upi-qr")
             {

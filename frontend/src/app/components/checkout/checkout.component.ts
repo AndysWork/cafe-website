@@ -11,7 +11,7 @@ import { OffersService, OfferValidationResponse } from '../../services/offers.se
 import { LoyaltyService, LoyaltyAccount } from '../../services/loyalty.service';
 import { DeliveryZoneService } from '../../services/delivery-zone.service';
 import { OutletService } from '../../services/outlet.service';
-import { Outlet } from '../../models/outlet.model';
+import { getOrderingUnavailableReason } from '../../models/outlet.model';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
 import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
@@ -163,6 +163,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
+    this.outletService.getPublicOutlets().subscribe({
+      error: () => this.uiStore.warning('Could not refresh outlet ordering availability. It will be checked when you submit.')
+    });
     this.loadUpiRuntimeConfig();
     localStorage.removeItem('pending_payment_recovery');
     this.loadCheckoutDraft();
@@ -430,7 +433,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.submitOrder();
   }
 
+  get orderingUnavailableReason(): string {
+    return getOrderingUnavailableReason(this.outletService.getSelectedOutlet(), this.orderType);
+  }
+
   private getValidationError(): string {
+    if (this.orderingUnavailableReason) return this.orderingUnavailableReason;
+
     const normalizedPhone = this.phoneNumber.trim().replace(/\s/g, '');
     const phoneRegex = /^[0-9]{10}$/;
 
@@ -835,29 +844,18 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   selectSuggestedOutlet(suggestion: OutletSuggestion): void {
-    const outlet: Outlet = {
-      id: suggestion.outletId,
-      outletCode: suggestion.outletCode,
-      outletName: suggestion.outletName,
-      address: suggestion.address,
-      city: suggestion.city,
-      state: suggestion.state,
-      isActive: true,
-      settings: {
-        openingTime: '08:00',
-        closingTime: '22:00',
-        acceptsOnlineOrders: true,
-        acceptsDineIn: true,
-        acceptsTakeaway: true,
-        taxPercentage: 5
+    this.outletService.getOutletById(suggestion.outletId).subscribe({
+      next: outlet => {
+        this.outletService.selectOutlet(outlet);
+        this.outOfZoneDetected = false;
+        this.outOfZoneMessage = `Selected ${suggestion.outletName}. Delivery details are being recalculated.`;
+        this.calculateDeliveryFee();
+        this.saveCheckoutDraft();
+      },
+      error: () => {
+        this.errorMessage = 'Could not load this outlet. Please try selecting it again.';
       }
-    };
-
-    this.outletService.selectOutlet(outlet);
-    this.outOfZoneDetected = false;
-    this.outOfZoneMessage = `Selected ${suggestion.outletName}. Delivery details are being recalculated.`;
-    this.calculateDeliveryFee();
-    this.saveCheckoutDraft();
+    });
   }
 
   private refreshOutletSuggestions(): void {

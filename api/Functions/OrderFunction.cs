@@ -80,6 +80,7 @@ public class OrderFunction
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.Created, contentType: "application/json", bodyType: typeof(Order), Description = "Order successfully created")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid request data")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "User not authenticated")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Conflict, Description = "The outlet or selected ordering channel is unavailable")]
     public async Task<HttpResponseData> CreateOrder(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders")] HttpRequestData req)
     {
@@ -146,6 +147,15 @@ public class OrderFunction
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid order type" });
                 return badRequest;
+            }
+
+            var orderingOutlet = await _mongo.GetOutletByIdAsync(outletId, bypassCache: true);
+            var orderingError = OutletHelper.GetOrderingUnavailableReason(orderingOutlet, orderType);
+            if (orderingError != null)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = orderingError });
+                return conflict;
             }
 
             var normalizedPhone = orderRequest.PhoneNumber?.Trim() ?? string.Empty;
@@ -1757,15 +1767,7 @@ public class OrderFunction
         {
             if (string.IsNullOrWhiteSpace(outlet.Id)) continue;
 
-            var acceptsOrderType = normalizedOrderType switch
-            {
-                "delivery" => outlet.Settings.AcceptsOnlineOrders,
-                "pickup" => outlet.Settings.AcceptsTakeaway,
-                "dine-in" => outlet.Settings.AcceptsDineIn,
-                _ => outlet.Settings.AcceptsOnlineOrders
-            };
-
-            if (!acceptsOrderType) continue;
+            if (OutletHelper.GetOrderingUnavailableReason(outlet, normalizedOrderType) != null) continue;
 
             var zones = await _mongo.GetActiveDeliveryZonesAsync(outlet.Id);
             var closestZone = zones.OrderBy(z => z.MinDistance).FirstOrDefault();

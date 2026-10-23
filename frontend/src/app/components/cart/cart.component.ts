@@ -7,6 +7,8 @@ import { MenuService, MenuItem } from '../../services/menu.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { LoyaltyService } from '../../services/loyalty.service';
 import { DineInService } from '../../services/dine-in.service';
+import { OutletService } from '../../services/outlet.service';
+import { getOrderingUnavailableReason } from '../../models/outlet.model';
 import { DineInBill } from '../../models/dine-in.model';
 import { UIStore } from '../../store/ui.store';
 import { Subscription, Observable } from 'rxjs';
@@ -45,6 +47,7 @@ export class CartComponent implements OnInit, OnDestroy {
 
   public dineInService = inject(DineInService);
   private uiStore = inject(UIStore);
+  private outletService = inject(OutletService);
   public dineInBill$: Observable<DineInBill | null> = this.dineInService.activeBill$;
   sendingToKitchen = false;
 
@@ -56,6 +59,9 @@ export class CartComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
+    this.outletService.getPublicOutlets().subscribe({
+      error: () => this.uiStore.warning('Could not refresh outlet ordering availability. It will be checked when you submit.')
+    });
     this.analyticsTracking.trackCartView();
     this.cartSub = this.cartService.cart$.subscribe(cart => {
       this.cart = cart;
@@ -225,7 +231,15 @@ export class CartComponent implements OnInit, OnDestroy {
     this.dineInService.openBillModal();
   }
 
+  get dineInOrderingUnavailableReason(): string {
+    return getOrderingUnavailableReason(this.outletService.getSelectedOutlet(), 'dine-in');
+  }
+
   sendToKitchen(): void {
+    if (this.dineInOrderingUnavailableReason) {
+      this.uiStore.warning(this.dineInOrderingUnavailableReason);
+      return;
+    }
     if (!this.cart.items || this.cart.items.length === 0) {
       this.uiStore.warning('Your cart is empty');
       return;

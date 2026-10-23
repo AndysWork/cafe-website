@@ -1,9 +1,11 @@
-import { Component, NgZone, OnDestroy } from '@angular/core';
+import { Component, NgZone, OnDestroy, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { OutletService } from '../../services/outlet.service';
 import { OutletSelectorComponent } from '../outlet-selector/outlet-selector.component';
+import { AuthStore } from '../../store/auth.store';
+import { getRoleNavigationItems } from '../../utils/role-navigation';
 
 @Component({
   selector: 'app-admin-layout',
@@ -17,6 +19,13 @@ export class AdminLayoutComponent implements OnDestroy {
   selectedOutlet$;
   isMobileMenuOpen = false;
   activeDropdown: string | null = null;
+  private readonly authStore = inject(AuthStore);
+  readonly roleNavigationItems = computed(() => {
+    const existingRoutes = new Set(this.menuItems.flatMap(item =>
+      item.children ? item.children.map(child => child.route) : [item.route]
+    ));
+    return getRoleNavigationItems(this.authStore.roles()).filter(item => !existingRoutes.has(item.route));
+  });
 
   menuItems = [
     {

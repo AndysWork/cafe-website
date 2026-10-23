@@ -277,6 +277,25 @@ Wallet functionality has been removed from the product (July 2026).
 2. **Create Outlets** → Profile dropdown → "Manage Outlets" → Create outlet with name, address, contact, settings
 3. **Select Outlet** → Use outlet selector (top-right dropdown) → All subsequent data scoped to selected outlet
 
+#### Pause or Resume Outlet Ordering
+In **Manage Outlets**, use the independent On/Off controls on each outlet card, or edit the outlet's settings:
+
+| Control | New orders affected | API setting |
+|---------|---------------------|-------------|
+| Online delivery | Customer delivery orders | `acceptsOnlineOrders` |
+| Takeaway | Customer pickup orders | `acceptsTakeaway` |
+| Dine-in (QR and waiter) | New QR ordering sessions and new rounds, including additions to existing sessions | `acceptsDineIn` |
+| Counter sales | New walk-in counter invoices | `acceptsCounterSales` |
+
+- Only admins can change these settings. Each channel is independent; pausing delivery does not pause pickup, QR/waiter dine-in, or counter sales.
+- The server checks the current persisted outlet settings (bypassing its single-outlet cache) before accepting new orders. A paused channel returns HTTP **409 Conflict** with an explanatory error, including for staff/admin order entry.
+- Already submitted orders remain accessible: QR approvals/rejections, KOT printing, kitchen processing, serving, invoice reprints, billing, payments, and settlement continue normally. New rounds are blocked while dine-in is paused.
+- Existing reservation check-in/seating can still provision a table session, but that session cannot accept new orders while dine-in ordering is paused.
+- Pausing ordering does not deactivate the outlet or hide its menu. Opening-hour, item-availability, and table/session rules still apply.
+- Existing outlets default to counter sales enabled when the new setting is absent; existing channel settings are preserved. No data migration is required.
+- Ordering screens refresh availability when opened. An already-open screen may display older state; server validation still rejects new submissions after a pause. Reopen/refresh the screen after resuming.
+- The existing admin `PUT /api/outlets/{id}` saves settings; when supplying `settings`, send the complete settings object because it replaces the stored object. Request examples are in [OutletOrdering.http](api/OutletOrdering.http).
+
 #### Menu Setup
 1. **Create Categories** → Menu → Categories → Click "Add Category" → Enter name → Save
 2. **Create SubCategories** → Categories page → Select category → "Add SubCategory"
@@ -747,6 +766,7 @@ flowchart TD
 
 **Flow rules:**
 - **Roles:** A staff account may hold multiple roles. Each action still requires its relevant role and outlet access.
+- **Navigation:** Menus combine all assigned roles instead of choosing one primary-role menu. Staff links remain available on the home page; customer links remain available when `user` is one of several roles. Admin pages retain the admin menu and expose other permitted destinations under **Workspaces**, without repeating links already in the admin menu. Desktop and mobile menus use the same role rules; route guards and API authorization remain enforced.
 - **KOT dispatch:** QR orders require waiter approval; waiter-entered rounds go directly to the kitchen queue. Thermal printing is asynchronous and is not a prerequisite for kitchen confirmation.
 - **Item tracking:** A line's entire quantity is marked ready or served together. A round becomes ready only after every line is ready and the checklist is complete; concurrent final-item updates prompt checklist completion rather than bypassing it.
 - **Payments:** Both paths support partial payments. Direct cashier entry is blocked while a customer payment request is pending; the cashier must confirm the existing request before recording another payment. Full payment closes the session.

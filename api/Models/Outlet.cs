@@ -93,6 +93,9 @@ public class OutletSettings
     [BsonElement("acceptsTakeaway")]
     public bool AcceptsTakeaway { get; set; } = true;
 
+    [BsonElement("acceptsCounterSales")]
+    public bool AcceptsCounterSales { get; set; } = true;
+
     [BsonElement("taxPercentage")]
     [Range(0, 100, ErrorMessage = "Tax percentage must be between 0 and 100")]
     public decimal TaxPercentage { get; set; } = 5;

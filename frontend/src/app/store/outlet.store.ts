@@ -52,6 +52,9 @@ export class OutletStore {
 
   setAvailableOutlets(outlets: Outlet[]): void {
     this._availableOutlets.set(outlets);
+    const selectedId = this.selectedOutletId();
+    const refreshedSelection = outlets.find(outlet => (outlet._id || outlet.id) === selectedId);
+    if (refreshedSelection) this.selectOutlet(refreshedSelection);
   }
 
   /**
@@ -59,7 +62,7 @@ export class OutletStore {
    * Called after fetching active outlets.
    */
   autoSelectIfEmpty(outlets: Outlet[]): void {
-    this._availableOutlets.set(outlets);
+    this.setAvailableOutlets(outlets);
     if (!this._selectedOutlet() && outlets.length > 0) {
       this.selectOutlet(outlets[0]);
     }
