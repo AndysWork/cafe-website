@@ -10,6 +10,18 @@
     </button>
   </header>
 
+  <app-bill-printer-control class="bill-printer-panel" [triggers]="printTriggers"></app-bill-printer-control>
+
+  <div class="print-prompts" *ngIf="billPrompts.length" role="status">
+    <div class="print-prompt" *ngFor="let prompt of billPrompts">
+      <span>🧾 {{ prompt.tableNumber ? 'Table ' + prompt.tableNumber : 'A table' }} {{ prompt.reason }}. Print the bill?</span>
+      <button type="button" class="confirm-button" [disabled]="!!printingSessionId" (click)="printBill(prompt.sessionId)">
+        {{ printingSessionId === prompt.sessionId ? 'Printing…' : 'Print' }}
+      </button>
+      <button type="button" class="refresh-button" (click)="dismissPrompt(prompt)">Dismiss</button>
+    </div>
+  </div>
+
   <p class="feedback success" role="status" *ngIf="successMessage">{{ successMessage }}</p>
   <p class="feedback error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
 
@@ -48,6 +60,14 @@
         (click)="confirmPayment(payment)"
       >
         {{ confirmingSessionId === payment.sessionId ? 'Confirming…' : 'Confirm payment' }}
+      </button>
+      <button
+        type="button"
+        class="refresh-button print-bill-button"
+        [disabled]="!!printingSessionId"
+        (click)="printBill(payment.sessionId)"
+      >
+        {{ printingSessionId === payment.sessionId ? 'Printing…' : 'Print bill' }}
       </button>
     </article>
   </section>
@@ -108,6 +128,15 @@
           {{ confirmingSessionId === session.sessionId ? 'Recording…' : 'Record payment' }}
         </button>
       </div>
+
+      <button
+        type="button"
+        class="refresh-button print-bill-button"
+        [disabled]="!!printingSessionId"
+        (click)="printBill(session.sessionId)"
+      >
+        {{ printingSessionId === session.sessionId ? 'Printing…' : 'Print bill' }}
+      </button>
     </article>
   </section>
 </main>

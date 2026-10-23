@@ -105,6 +105,10 @@ public class OutletSettings
 
     [BsonElement("minimumOrderAmount")]
     public decimal? MinimumOrderAmount { get; set; }
+
+    [BsonElement("packagingCharge")]
+    [Range(0, 1000, ErrorMessage = "Packaging charge must be between 0 and 1000")]
+    public decimal PackagingCharge { get; set; }
 }
 
 // Request/Response DTOs

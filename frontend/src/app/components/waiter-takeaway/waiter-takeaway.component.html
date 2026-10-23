@@ -1,0 +1,227 @@
+<p class="feedback success" role="status" *ngIf="message">{{ message }}</p>
+<p class="feedback error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+<p class="feedback error" role="alert" *ngIf="orderingUnavailableReason">
+  {{ orderingUnavailableReason }} Existing parcels can still be collected and handed over.
+</p>
+
+<section class="qr-orders parcel-board" aria-labelledby="active-parcels-heading">
+  <div class="section-heading">
+    <div>
+      <h2 id="active-parcels-heading">Active takeaway parcels</h2>
+      <p>Collect packed parcels from the kitchen, take payment, then hand over to the customer.</p>
+    </div>
+    <span *ngIf="loadingOrders">Refreshing…</span>
+  </div>
+
+  <app-bill-printer-control class="parcel-printer" [triggers]="printTriggers"></app-bill-printer-control>
+
+  <p class="empty" *ngIf="!orders.length">No takeaway parcels in progress.</p>
+
+  <div class="parcel-grid" *ngIf="orders.length">
+    <article
+      class="qr-card parcel-card"
+      *ngFor="let order of orders"
+      [class.parcel-ready]="order.status === 'ready'"
+      [attr.data-status]="order.status"
+    >
+      <header>
+        <div>
+          <span class="table-label">TAKEAWAY · {{ order.token }}</span>
+          <h3>{{ order.customerName }}</h3>
+          <small *ngIf="order.phoneNumber">{{ order.phoneNumber }}</small>
+        </div>
+        <div class="parcel-badges">
+          <span class="status-pill" [attr.data-status]="order.status">{{ statusLabel(order) }}</span>
+          <span class="payment-pill" [class.paid]="order.paymentStatus === 'paid'">{{ paymentLabel(order) }}</span>
+        </div>
+      </header>
+      <ul>
+        <li *ngFor="let item of order.items">
+          <span>
+            {{ item.quantity }}× {{ item.name }}
+            <small *ngIf="item.variant">· {{ item.variant }}</small>
+            <small *ngIf="item.addOns.length">· {{ item.addOns.join(', ') }}</small>
+          </span>
+          <span>₹{{ item.total | number:'1.0-2' }}</span>
+        </li>
+        <li *ngIf="order.packagingCharge > 0">
+          <span>Packaging</span>
+          <span>₹{{ order.packagingCharge | number:'1.0-2' }}</span>
+        </li>
+      </ul>
+      <p class="order-note" *ngIf="order.preparationNotes">{{ order.preparationNotes }}</p>
+      <small class="parcel-meta" *ngIf="order.waiterName">Taken by {{ order.waiterName }}</small>
+
+      <div class="collect-form" *ngIf="collectingOrderId === order.orderId">
+        <div class="choice-row" role="radiogroup" aria-label="Payment method">
+          <label><input type="radio" name="collect-{{ order.orderId }}" value="cash_at_counter" [(ngModel)]="collectMethod" /> Cash</label>
+          <label><input type="radio" name="collect-{{ order.orderId }}" value="upi-qr" [(ngModel)]="collectMethod" /> UPI</label>
+        </div>
+        <label class="notes-field" *ngIf="collectMethod === 'upi-qr'">
+          <span>UPI reference</span>
+          <input [(ngModel)]="collectUpiReference" maxlength="100" placeholder="UTR / transaction ID" />
+        </label>
+        <div class="round-actions">
+          <button type="button" class="approve-button" [disabled]="busyOrderId === order.orderId" (click)="confirmPayment(order)">
+            Confirm ₹{{ order.total | number:'1.0-2' }} received
+          </button>
+          <button type="button" class="refresh-button" (click)="cancelCollecting()">Back</button>
+        </div>
+      </div>
+
+      <footer>
+        <strong>₹{{ order.total | number:'1.0-2' }}</strong>
+        <div>
+          <button
+            type="button"
+            class="refresh-button"
+            *ngIf="order.paymentStatus !== 'paid' && collectingOrderId !== order.orderId"
+            [disabled]="busyOrderId === order.orderId"
+            (click)="startCollecting(order)"
+          >Collect payment</button>
+          <button
+            type="button"
+            class="approve-button"
+            *ngIf="order.status === 'ready'"
+            [disabled]="busyOrderId === order.orderId || !canHandOver(order)"
+            [title]="canHandOver(order) ? 'Complete this takeaway' : 'Collect payment first'"
+            (click)="handOver(order)"
+          >Hand over</button>
+          <button
+            type="button"
+            class="refresh-button"
+            [disabled]="busyOrderId === order.orderId"
+            (click)="reprintKot(order)"
+          >Reprint KOT</button>
+          <button
+            type="button"
+            class="refresh-button"
+            [disabled]="printingOrderId === order.orderId"
+            (click)="printBill(order)"
+          >{{ printingOrderId === order.orderId ? 'Printing…' : 'Print bill' }}</button>
+          <button
+            type="button"
+            class="reject-button"
+            *ngIf="canCancel(order)"
+            [disabled]="busyOrderId === order.orderId"
+            (click)="cancelOrder(order)"
+          >Cancel</button>
+        </div>
+      </footer>
+    </article>
+  </div>
+</section>
+
+<section class="order-layout">
+  <div class="menu-panel">
+    <div class="section-heading menu-heading">
+      <div>
+        <h2>Takeaway menu</h2>
+        <p>{{ filteredMenuItems.length }} items · counter prices</p>
+      </div>
+    </div>
+    <label class="search">
+      <span class="sr-only">Search menu</span>
+      <input [(ngModel)]="searchQuery" placeholder="Search menu items" />
+    </label>
+
+    <div class="menu-grid" *ngIf="!loadingMenu; else loadingMenuTemplate">
+      <article class="menu-item" *ngFor="let item of filteredMenuItems">
+        <div class="menu-item-heading">
+          <span>
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.categoryName || item.category || 'Menu' }}</small>
+          </span>
+          <span class="item-price">₹{{ menuItemPrice(item) | number:'1.0-2' }}</span>
+        </div>
+        <label class="custom-select" *ngIf="item.variants?.length">
+          <span>Variant</span>
+          <select [(ngModel)]="selectedVariants[item.id]">
+            <option *ngFor="let variant of item.variants" [ngValue]="variant.variantName">
+              {{ variant.variantName }} · ₹{{ variant.price | number:'1.0-2' }}
+            </option>
+          </select>
+        </label>
+        <div class="addon-list" *ngIf="getActiveAddOns(item).length">
+          <label *ngFor="let addOn of getActiveAddOns(item)">
+            <input
+              type="checkbox"
+              [checked]="selectedAddOns[item.id]?.has(addOn.name) || false"
+              (change)="onAddOnChange(item.id, addOn.name, $event)"
+            />
+            {{ addOn.name }} <span>+₹{{ addOn.price | number:'1.0-2' }}</span>
+          </label>
+        </div>
+        <button type="button" class="add-menu-button" (click)="addToCart(item)">Add to parcel <b>+</b></button>
+      </article>
+    </div>
+    <ng-template #loadingMenuTemplate><p class="empty">Loading menu…</p></ng-template>
+  </div>
+
+  <aside class="cart-panel">
+    <div class="section-heading">
+      <div>
+        <h2>New takeaway</h2>
+        <p>Kitchen packs it as a parcel</p>
+      </div>
+      <span class="cart-count">{{ cartItemCount }} items</span>
+    </div>
+
+    <div class="cart-lines" *ngIf="cart.length; else emptyCart">
+      <div class="cart-line" *ngFor="let line of cart">
+        <div>
+          <strong>{{ line.menuItem.name }}</strong>
+          <small *ngIf="line.variantName">{{ line.variantName }}</small>
+          <small>₹{{ linePrice(line) | number:'1.0-2' }} each</small>
+        </div>
+        <div class="quantity">
+          <button type="button" (click)="changeQuantity(line, -1)" aria-label="Decrease quantity">−</button>
+          <span>{{ line.quantity }}</span>
+          <button type="button" (click)="changeQuantity(line, 1)" aria-label="Increase quantity">+</button>
+        </div>
+      </div>
+    </div>
+    <ng-template #emptyCart><p class="empty">Tap menu items to build this parcel.</p></ng-template>
+
+    <label class="notes-field">
+      <span>Customer name</span>
+      <input [(ngModel)]="customerName" maxlength="100" placeholder="Name to call out at handover" required />
+    </label>
+    <label class="notes-field">
+      <span>Phone (optional)</span>
+      <input [(ngModel)]="phoneNumber" maxlength="20" inputmode="tel" placeholder="For pickup updates" />
+    </label>
+    <label class="notes-field">
+      <span>Kitchen note (optional)</span>
+      <textarea [(ngModel)]="preparationNotes" maxlength="500" rows="2" placeholder="Less spicy, extra sauce…"></textarea>
+    </label>
+
+    <fieldset class="payment-choice">
+      <legend>Payment</legend>
+      <div class="choice-row">
+        <label><input type="radio" name="paymentTiming" value="handover" [(ngModel)]="paymentTiming" /> Pay at handover</label>
+        <label><input type="radio" name="paymentTiming" value="upfront" [(ngModel)]="paymentTiming" /> Paid now</label>
+      </div>
+      <div class="choice-row" *ngIf="paymentTiming === 'upfront'">
+        <label><input type="radio" name="paymentMethod" value="cash_at_counter" [(ngModel)]="paymentMethod" /> Cash</label>
+        <label><input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" /> UPI</label>
+      </div>
+      <label class="notes-field" *ngIf="paymentTiming === 'upfront' && paymentMethod === 'upi-qr'">
+        <span>UPI reference</span>
+        <input [(ngModel)]="upiReference" maxlength="100" placeholder="UTR / transaction ID" />
+      </label>
+    </fieldset>
+
+    <div class="bill-lines">
+      <div><span>Items</span><span>₹{{ cartSubtotal | number:'1.0-2' }}</span></div>
+      <div *ngIf="packagingCharge > 0"><span>Packaging</span><span>₹{{ (cart.length ? packagingCharge : 0) | number:'1.0-2' }}</span></div>
+    </div>
+    <div class="cart-total">
+      <span>Takeaway total</span>
+      <strong>₹{{ cartTotal | number:'1.0-2' }}</strong>
+    </div>
+    <button type="button" class="submit-button" [disabled]="!canSubmit" (click)="submitOrder()">
+      {{ submitting ? 'Sending…' : 'Send parcel to kitchen' }}
+    </button>
+  </aside>
+</section>

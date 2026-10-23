@@ -182,6 +182,30 @@ public class Order : ISoftDeletable
     [BsonElement("dineInOrderSource")]
     public string? DineInOrderSource { get; set; }
 
+    [BsonElement("takeawaySource")]
+    public string? TakeawaySource { get; set; } // waiter
+
+    [BsonElement("takeawayPaymentTiming")]
+    public string? TakeawayPaymentTiming { get; set; } // upfront, handover
+
+    [BsonElement("packagingCharge")]
+    public decimal PackagingCharge { get; set; }
+
+    [BsonElement("paymentRecordedByUserId")]
+    public string? PaymentRecordedByUserId { get; set; }
+
+    [BsonElement("paymentRecordedAt")]
+    public DateTime? PaymentRecordedAt { get; set; }
+
+    [BsonElement("handedOverAt")]
+    public DateTime? HandedOverAt { get; set; }
+
+    [BsonElement("handedOverByUserId")]
+    public string? HandedOverByUserId { get; set; }
+
+    [BsonElement("handedOverByName")]
+    public string? HandedOverByName { get; set; }
+
     [BsonElement("kotNumber")]
     public string? KotNumber { get; set; }
 

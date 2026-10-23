@@ -185,6 +185,7 @@
 | 6 | **Order-Level TTS** | Speak full order summary using browser speech synthesis (order-level action) |
 | 7 | **Voice Stock-Out Request (STT)** | Web speech capture or typed request routed to admin approval queue |
 | 8 | **Kitchen Translation Selector** | Language switch support on kitchen screens using Google Translate cookie-based flow |
+| 9 | **Takeaway Parcel Cards** | Takeaway orders show a **TAKEAWAY · PACK AS PARCEL** banner, token, and the waiter to hand over to; the action reads **Packed & Ready** and notifies the waiter |
 
 ### 1.5 Manager (Role: `manager`)
 
@@ -216,13 +217,16 @@
 | 2 | **QR Order Approval** | Review customer-submitted QR orders, edit items/quantities/notes while pending, then approve them for kitchen/KOT dispatch or reject them with a reason |
 | 3 | **Active Table Rounds** | Review rounds for the selected active session, request a duplicate KOT print, or cancel a KOT before kitchen preparation starts; cancellations enqueue a kitchen slip |
 | 4 | **Item Service Tracking** | View kitchen progress for each round item and mark ready items served |
-| 5 | **KOT Printing** | Approved QR orders and waiter-entered rounds receive per-outlet daily KOT numbers and are dispatched through the configured thermal printer outbox |
+| 5 | **KOT Printing** | Approved QR orders and waiter-entered rounds receive per-outlet daily KOT numbers and are dispatched through the configured thermal printer outbox. Printer setup: [print-bridge/README.md](print-bridge/README.md) |
+| 6 | **Waiter Takeaway (Parcel)** | **Takeaway** tab: take a parcel order with customer name/phone, choose *Paid now* (cash/UPI) or *Pay at handover*, track packing status, collect payment, and hand the parcel over. See [§4.2.3](#423-waiter-takeaway-parcel-flow) |
+| 7 | **Bluetooth Bill Printing (Takeaway)** | Connect a Bluetooth thermal printer to the waiter's phone; takeaway bills print automatically when payment is recorded and/or at handover, plus a **Print bill** button on every parcel. See [§4.2.5](#425-bluetooth-bill-printing-from-staff-devices) |
 
 ### 1.8 Cashier (Role: `cashier`)
 
 | # | Feature | Description |
 |---|---------|-------------|
-| 1 | **Dine-In Payment Desk** | Confirm pending customer cash/UPI requests or record a cash/UPI payment directly for an active table; partial balances remain open and fully paid tables close automatically |
+| 1 | **Dine-In Payment Desk** | Confirm pending customer cash/UPI requests or record a cash/UPI payment directly for an active table; partial balances remain open and fully paid tables close automatically. The desk refreshes every 15 seconds |
+| 2 | **Bluetooth Bill Printing (Dine-In)** | Connect a Bluetooth thermal printer to the cashier device; the consolidated table bill prints when a table asks for the bill and/or when it is fully settled, plus a **Print bill** button on every table. See [§4.2.5](#425-bluetooth-bill-printing-from-staff-devices) |
 
 ### 1.9 Dine-In Reporting (Roles: `admin`, `manager`)
 
@@ -312,7 +316,7 @@ In **Manage Outlets**, use the independent On/Off controls on each outlet card, 
 4. **Manage KOTs** → Select an occupied table to view its rounds → Request a duplicate print, or cancel an eligible KOT with a reason before preparation begins
 5. **Kitchen Display** → Operations → Kitchen Display → Confirm and start a round → Mark each dine-in item ready; complete the checklist when the final item is marked ready
 6. **Serve Items** → Waiter Station → Select the occupied table → Mark each ready item served
-7. **Cashier Settlement** → Dine-In Payments → Confirm a pending request or record a payment against an active table balance; partial payments retain the outstanding balance and the table closes when fully paid
+7. **Cashier Settlement** → Dine-In Payments → Confirm a pending request or record a payment against an active table balance; partial payments retain the outstanding balance and the table closes when fully paid. Bills print on the device's Bluetooth printer when configured ([§4.2.5](#425-bluetooth-bill-printing-from-staff-devices))
 8. **Dine-In Report** → Admin → Reports → Dine-In Sales & Audit → Select a date range to review sales, balances, payment methods, and audit events
 9. **Record Sales** → Finance → Sales → "Add Sale" → Enter items, amounts, payment method, date → Save
 10. **Record Expenses** → Finance → Expenses → "Add Expense" → Select type, enter amount, payment method → Save
@@ -779,6 +783,93 @@ flowchart TD
 - **Dine-in loyalty:** Settlement awards 10% of the consolidated payable value (rounded down) only to a linked customer account. Entering a customer name alone does not link an account or earn points. Waiter-created walk-in sessions show zero estimated points and generate no loyalty award/notification. Legacy sessions whose customer ID is actually the order-taking waiter are also excluded. Individual-order completion/review paths likewise reject waiter-as-customer and walk-in records; genuine customer reward rules remain unchanged. Already awarded points and historical database records are not automatically modified.
 - **Ordering versus settlement:** A bill request or partial cashier payment puts the session into `bill_requested`, stopping further rounds unless an authorized manager reopens ordering. Settlement does not require every round to have reached `served`; the `delivered` transition at closure is KDS cleanup, not an additional service step.
 - **Audit visibility:** Session timelines capture billing, payments, and closure; persistent order events capture item-status changes. Reports are scoped to the selected outlet and date range.
+
+#### 4.2.3 Waiter Takeaway (Parcel) Flow
+
+A waiter can book a takeaway for a walk-in customer from the **Takeaway** tab of the Waiter Station. The kitchen sees it as a parcel, packs it, and the waiter completes the handover.
+
+```mermaid
+flowchart TD
+    Start["Waiter Station → Takeaway tab"] --> Toggle{"Outlet Takeaway toggle on?"}
+    Toggle -->|No| Blocked["Order blocked<br/>HTTP 409 with reason"]
+    Toggle -->|Yes| Build["Enter customer name (required), phone, items, kitchen note<br/>Counter prices + outlet packaging charge"]
+    Build --> Timing{"Payment timing"}
+    Timing -->|Paid now| PayNow["Record cash or UPI (reference required)<br/>paymentStatus: paid"]
+    Timing -->|Pay at handover| PayLater["paymentStatus: pending"]
+    PayNow --> Create["Create order: orderType pickup, channel shop<br/>takeawaySource waiter, waiter stored separately<br/>Token = daily KOT number"]
+    PayLater --> Create
+    Create --> KOT["Thermal KOT via outbox<br/>*** TAKEAWAY - PACK AS PARCEL ***<br/>TOKEN and 'Hand over to: waiter'"]
+    Create --> KDS["Kitchen display: parcel banner + token"]
+    KDS --> Confirm["Kitchen confirms → starts preparation"]
+    Confirm --> Packed["Kitchen taps 'Packed & Ready'<br/>status: ready"]
+    Packed --> Notify["In-app notification to the waiter<br/>'Parcel TOKEN is packed'"]
+    Notify --> Collect["Waiter collects parcel from kitchen"]
+    Collect --> Paid{"Already paid?"}
+    Paid -->|No| CollectPay["Waiter records cash or UPI"]
+    CollectPay --> Handover
+    Paid -->|Yes| Handover["Waiter taps 'Hand over'<br/>status: delivered, handedOverAt/by stored"]
+    Create -.->|Pending or confirmed and unpaid| Cancel["Waiter cancels with reason<br/>Cancellation slip printed"]
+```
+
+**Rules:**
+- **Roles and access:** Admin, Manager, or Waiter role plus outlet access. The outlet's **Takeaway** On/Off control (`acceptsTakeaway`) is enforced for new orders.
+- **Pricing:** Counter (shop) prices are used (`shopSellingPrice` → `webPrice` → `onlinePrice`), plus variant and active add-on prices. The outlet's **Takeaway Packaging Charge** (`settings.packagingCharge`, ₹0–1000 per order, default 0; set in Manage Outlets) is added once per order and printed on the invoice.
+- **Payment:** Cash is stored as `cash_at_counter`; UPI as `upi-qr` and requires a reference. The recording user and time are stored. Handover requires the order to be `ready` **and** paid.
+- **Kitchen:** The kitchen cannot mark a waiter takeaway `delivered`; only the waiter's handover completes it.
+- **Cancellation:** Allowed only while `pending`/`confirmed` and unpaid. Paid takeaways need a manager refund.
+- **Loyalty:** Waiter takeaways are walk-in sales (`userId: guest_takeaway`) and never earn loyalty points for the waiter or anyone else.
+- **Endpoints:** `POST /takeaway/orders`, `GET /takeaway/orders?outletId=`, and `POST /takeaway/orders/{id}/payment | handover | kot/reprint | cancel`.
+
+#### 4.2.4 Thermal KOT Printing (Print Bridge)
+
+The API cannot reach a printer on the cafe network, so a small print bridge ([print-bridge/](print-bridge/README.md)) runs on an always-on PC or Android cashier tablet in the cafe. It is configured for a single outlet and one 80 mm ESC/POS printer (for example the KP307-UEWB over LAN/WiFi on TCP port 9100, or USB through a shared Windows printer). The Android/Termux setup supports LAN/WiFi printers only; the kitchen printer stays on the cafe network and does not pair over Bluetooth.
+
+```mermaid
+flowchart LR
+    Order["KOT / bill event"] --> Outbox["Outbox message<br/>ThermalKotPrint, ThermalKotCancellationPrint, ThermalInvoicePrint"]
+    Outbox --> Render["Render 48-column ticket text"]
+    Render -->|"HTTPS POST /print + X-Api-Key"| Tunnel["Cloudflare Tunnel / ngrok"]
+    Tunnel --> Bridge["Print bridge on cafe PC or cashier tablet<br/>auth, sanitise, ESC/POS, queue, de-duplicate"]
+    Bridge -->|"TCP 9100 or USB share"| Printer["80 mm thermal printer<br/>print + auto-cut"]
+    Bridge -.->|"Non-2xx / timeout"| Outbox
+```
+
+- **API settings:** `ThermalPrinter__KotEndpoint` (bridge `/print` URL), `ThermalPrinter__ApiKey` (shared secret, equal to the bridge `apiKey`), `ThermalPrinter__Enabled`, `ThermalPrinter__KotCopies`, and optionally `ThermalPrinter__InvoiceEndpoint` / `ThermalPrinter__InvoiceCopies` (bills fall back to the KOT printer).
+- **Reliability:** The bridge answers only after the printer accepts the job; failures return 502 and the outbox retries. Identical jobs repeated within 30 seconds are acknowledged without reprinting, preventing double kitchen tickets after an API timeout.
+- **Formatting:** `₹` prints as `Rs.`; unsupported scripts print as `?`; the takeaway banner and token print bold and double height.
+- **Android tablet option:** [print-bridge/README.md §5.1](print-bridge/README.md#51-run-on-an-android-tablet-with-termux) documents the Termux setup, Cloudflare tunnel, boot startup and status checks. The tablet and kitchen printer must stay on the cafe WiFi; keep the tablet powered and exempt Termux from battery restrictions. An always-on PC remains the more reliable bridge host.
+- **Test:** `POST /api/kitchen/kot/test-print` (admin) from the API, or `POST /test-print` on the bridge itself.
+
+#### 4.2.5 Bluetooth Bill Printing from Staff Devices
+
+Dine-in and takeaway bills can print on a separate Bluetooth-only thermal printer (typically a 58 mm portable printer) paired with the cashier's or waiter's Android phone/tablet. This runs entirely in the browser: no print bridge, API setting, or server change is needed, and the KOT printer (§4.2.4) is unaffected.
+
+```mermaid
+flowchart LR
+    Event["Bill event on the device<br/>bill requested, settled, takeaway paid, handover"] --> Fetch["Load bill<br/>GET /dine-in/session/{id}/bill or takeaway order"]
+    Fetch --> Render["Render 32/48-column receipt<br/>+ ESC/POS encode"]
+    Render -->|"Mode: Bluetooth (BLE)"| BLE["Web Bluetooth (Chrome)<br/>20-byte GATT writes"]
+    Render -->|"Mode: RawBT"| RawBT["RawBT Android app<br/>(classic Bluetooth / SPP)"]
+    BLE --> Printer["Bluetooth thermal printer"]
+    RawBT --> Printer
+```
+
+- **Setup (per device):** open **Dine-In Payments** (cashier) or **Waiter Station → Takeaway**, then **Printer settings**. Choose the connection, paper width (58 mm = 32 characters, the default, or 80 mm = 48), and the automatic triggers. Settings are stored in the browser on that device.
+  - **Bluetooth (BLE):** for printers that advertise Bluetooth Low Energy. Use Chrome on Android (or desktop Chrome/Edge), tap **Connect printer**, and pick the printer. After a page reload, tap **Connect printer** again.
+  - **RawBT:** for classic-Bluetooth-only printers that do not appear in the Chrome chooser. Install the RawBT app, pair the printer in Android settings, and select it in RawBT.
+  - Use **Test print** to confirm the printer and paper width.
+- **Automatic triggers** (each can be switched off per device):
+
+  | Trigger | Where | When |
+  |---------|-------|------|
+  | Dine-in bill requested | Cashier desk | A table newly enters *bill requested* (detected on the 15-second refresh; requests already open when the desk is opened are not reprinted) |
+  | Dine-in settled | Cashier desk | After the cashier confirms or records the payment that clears the balance (prints the *PAID BILL*) |
+  | Takeaway paid | Waiter takeaway | When a *Paid now* order is sent, or when payment is collected |
+  | Takeaway handover | Waiter takeaway | When the parcel is handed over |
+
+- **Manual printing:** **Print bill** is available on each pending payment, each active table, and each takeaway parcel. If an automatic print cannot run (printer not connected, RawBT, or a print error), the cashier desk shows a *Print the bill?* prompt instead.
+- **Bill content:** consolidated items across rounds (cancelled/rejected rounds excluded), customer and waiter names, discounts, tax, total, confirmed payments, and balance due or *PAID IN FULL*. Takeaway bills show the token, packaging charge, and payment status. `₹` prints as `Rs.` and unsupported characters print as `?`.
+- **Limitations:** iPhone/iPad browsers do not support Web Bluetooth (use an Android device). Automatic printing only happens while the relevant screen is open. RawBT can only be opened after a tap, so *bill requested* events in RawBT mode always appear as a prompt. Enabling both takeaway triggers prints two copies for orders paid before handover. Printing failures never block payment or handover.
 
 ### 4.3 Authentication Flow
 

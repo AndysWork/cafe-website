@@ -532,6 +532,11 @@ export class DineInService {
     );
   }
 
+  /** Bill lookup for staff screens (e.g. bill printing) without touching the customer's active bill state. */
+  public getStaffSessionBill(sessionId: string): Observable<DineInBill> {
+    return this.http.get<DineInBill>(`${this.apiUrl}/dine-in/session/${encodeURIComponent(sessionId)}/bill`);
+  }
+
   public requestFinalBill(sessionId: string): Observable<any> {
     return this.http.post<{ message: string; session: DineInBill }>(
       `${this.apiUrl}/dine-in/session/${sessionId}/request-bill`,

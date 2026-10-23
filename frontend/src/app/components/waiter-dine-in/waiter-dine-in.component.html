@@ -3,11 +3,12 @@
     <div>
       <p class="eyebrow">MAA TARA CAFE · SERVICE</p>
       <h1>Waiter Station</h1>
-      <p>Take table orders and review customer QR orders.</p>
+      <p>Take table and takeaway orders, and review customer QR orders.</p>
     </div>
     <div class="header-stats">
       <span>{{ availableTables.length }} tables available</span>
       <span>{{ pendingQrOrders.length }} QR orders waiting</span>
+      <span *ngIf="readyTakeawayCount">{{ readyTakeawayCount }} parcels packed</span>
     </div>
   </header>
 
@@ -15,14 +16,24 @@
     <button type="button" [class.active]="activeTab === 'order'" (click)="activeTab = 'order'">
       New table order
     </button>
+    <button type="button" [class.active]="activeTab === 'takeaway'" (click)="activeTab = 'takeaway'">
+      Takeaway <span class="count" *ngIf="readyTakeawayCount">{{ readyTakeawayCount }}</span>
+    </button>
     <button type="button" [class.active]="activeTab === 'qr'" (click)="activeTab = 'qr'">
       QR approvals <span class="count" *ngIf="pendingQrOrders.length">{{ pendingQrOrders.length }}</span>
     </button>
   </nav>
 
-  <p class="feedback success" role="status" *ngIf="message">{{ message }}</p>
-  <p class="feedback error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
-  <p class="feedback error" role="alert" *ngIf="orderingUnavailableReason">{{ orderingUnavailableReason }} Existing orders can still be reviewed and served.</p>
+  <ng-container *ngIf="activeTab !== 'takeaway'">
+    <p class="feedback success" role="status" *ngIf="message">{{ message }}</p>
+    <p class="feedback error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+    <p class="feedback error" role="alert" *ngIf="orderingUnavailableReason">{{ orderingUnavailableReason }} Existing orders can still be reviewed and served.</p>
+  </ng-container>
+
+  <app-waiter-takeaway
+    [hidden]="activeTab !== 'takeaway'"
+    (readyCountChange)="readyTakeawayCount = $event"
+  ></app-waiter-takeaway>
 
   <section class="order-layout" *ngIf="activeTab === 'order'">
     <div class="menu-panel">

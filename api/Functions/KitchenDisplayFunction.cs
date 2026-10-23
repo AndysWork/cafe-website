@@ -78,6 +78,10 @@ public class KitchenDisplayFunction
                 o.WaiterUserId,
                 o.WaiterName,
                 o.OrderType,
+                IsTakeaway = string.Equals(o.OrderType, "pickup", StringComparison.OrdinalIgnoreCase),
+                o.TakeawaySource,
+                o.KotNumber,
+                o.PaymentStatus,
                 o.TableNumber,
                 o.Status,
                 o.KitchenPrepStartedAt,
@@ -256,6 +260,13 @@ public class KitchenDisplayFunction
                 order.KptMinutes = Math.Round((decimal)kptMinutes, 2);
             }
 
+            if (requestedStatus == "delivered" && TakeawayOrderRules.IsWaiterTakeaway(order))
+            {
+                var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReq.WriteAsJsonAsync(new { error = "The waiter hands over takeaway parcels from the Waiter Station" });
+                return badReq;
+            }
+
             if (requestedStatus == "delivered" && !string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -361,13 +372,41 @@ public class KitchenDisplayFunction
                 deliveryNotificationQueued = true;
             }
 
+            var takeawayWaiterNotified = false;
+            if (requestedStatus == "ready"
+                && TakeawayOrderRules.IsWaiterTakeaway(order)
+                && !string.IsNullOrWhiteSpace(order.WaiterUserId)
+                && !string.IsNullOrWhiteSpace(order.Id))
+            {
+                var paymentHint = string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase)
+                    ? "Paid — hand it over."
+                    : $"Collect ₹{order.Total:N2} before handing over.";
+                await _outbox.EnqueueAsync("OrderNotificationUser", "Order", order.Id,
+                    new
+                    {
+                        UserId = order.WaiterUserId,
+                        Type = "takeaway_ready",
+                        Title = $"Parcel {order.KotNumber} is packed",
+                        Message = $"Takeaway for {order.CustomerName ?? "walk-in customer"} is ready at the kitchen pass. {paymentHint}",
+                        Data = new Dictionary<string, string>
+                        {
+                            ["orderId"] = order.Id,
+                            ["token"] = order.KotNumber ?? string.Empty,
+                            ["status"] = "ready"
+                        },
+                        ActionUrl = "/waiter/dine-in"
+                    });
+                takeawayWaiterNotified = true;
+            }
+
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
                 message = $"Order status updated to {request.Status}",
                 kptMinutes = order.KptMinutes,
                 checklistCompleted = order.KitchenChecklist.Count > 0 && order.KitchenChecklist.All(c => c.IsCompleted),
-                deliveryNotificationQueued
+                deliveryNotificationQueued,
+                takeawayWaiterNotified
             });
             return response;
         }

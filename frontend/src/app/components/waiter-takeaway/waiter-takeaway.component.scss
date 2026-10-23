@@ -1,0 +1,176 @@
+:host {
+  display: block;
+  min-height: 0;
+  background: transparent;
+}
+
+:host([hidden]) {
+  display: none;
+}
+
+.parcel-board {
+  margin-bottom: 20px;
+}
+
+.parcel-printer {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.parcel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.parcel-card {
+  display: flex;
+  flex-direction: column;
+  border-left: 5px solid #d9c6ad;
+}
+
+.parcel-card header {
+  align-items: flex-start;
+}
+
+.parcel-card header small,
+.parcel-meta {
+  color: #77766e;
+  font-size: 12px;
+}
+
+.parcel-card footer {
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.parcel-card footer > div {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.parcel-card.parcel-ready {
+  border-left-color: #2f7d3b;
+  background: #f4fbf4;
+}
+
+.parcel-badges {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.status-pill,
+.payment-pill {
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: #ebe8df;
+  color: #625f55;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-pill[data-status='preparing'] {
+  background: #fdf0d9;
+  color: #8a5a0b;
+}
+
+.status-pill[data-status='ready'] {
+  background: #dcefdc;
+  color: #22602c;
+}
+
+.payment-pill {
+  background: #fff0ed;
+  color: #9b3324;
+}
+
+.payment-pill.paid {
+  background: #e7f4e8;
+  color: #25612d;
+}
+
+.collect-form {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: #faf6ef;
+}
+
+.collect-form .notes-field {
+  margin-top: 0;
+}
+
+.round-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.payment-choice {
+  padding: 0;
+  margin: 17px 0 0;
+  border: 0;
+}
+
+.payment-choice legend {
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.choice-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #ddd9ce;
+  border-radius: 9px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.choice-row label:has(input:checked) {
+  border-color: #a65e1d;
+  background: #fbf1e5;
+  color: #7a3f0e;
+}
+
+.bill-lines {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  color: #6b6a62;
+  font-size: 14px;
+}
+
+.bill-lines div {
+  display: flex;
+  justify-content: space-between;
+}
+
+@media (max-width: 600px) {
+  .parcel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .parcel-card footer > div {
+    justify-content: stretch;
+  }
+
+  .parcel-card footer button {
+    flex: 1 1 auto;
+  }
+}

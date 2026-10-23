@@ -28,6 +28,7 @@ export interface OutletSettings {
   taxPercentage: number;
   deliveryRadius?: number;
   minimumOrderAmount?: number;
+  packagingCharge?: number;
 }
 
 export type OrderingSetting = 'acceptsOnlineOrders' | 'acceptsTakeaway' | 'acceptsDineIn' | 'acceptsCounterSales';

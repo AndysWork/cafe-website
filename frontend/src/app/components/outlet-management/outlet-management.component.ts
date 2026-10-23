@@ -60,7 +60,8 @@ export class OutletManagementComponent implements OnInit {
         acceptsCounterSales: true,
         taxPercentage: 5,
         deliveryRadius: undefined,
-        minimumOrderAmount: undefined
+        minimumOrderAmount: undefined,
+        packagingCharge: 0
       }
     };
   }

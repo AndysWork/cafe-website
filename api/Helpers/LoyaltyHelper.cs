@@ -5,10 +5,16 @@ namespace Cafe.Api.Helpers;
 public static class LoyaltyHelper
 {
     public static bool IsWaiterOrGuestDineInOrder(Order order) =>
-        string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase)
+        IsWaiterTakeawayOrder(order)
+        || string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase)
         && (order.UserId == "guest_dinein"
             || (string.Equals(order.DineInOrderSource, "waiter", StringComparison.OrdinalIgnoreCase)
                 && order.UserId == (order.WaiterUserId ?? order.ApprovedByUserId ?? order.UserId)));
+
+    public static bool IsWaiterTakeawayOrder(Order order) =>
+        string.Equals(order.OrderType, "pickup", StringComparison.OrdinalIgnoreCase)
+        && (order.UserId == "guest_takeaway"
+            || string.Equals(order.TakeawaySource, "waiter", StringComparison.OrdinalIgnoreCase));
 
     public static int GetDineInPointsToEarn(DineInSession session, IEnumerable<Order> orders)
     {

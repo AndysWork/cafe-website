@@ -37,6 +37,10 @@ public class InvoiceRenderService
         sb.AppendLine($"{"Subtotal",-36}{order.Subtotal,12:0.##}");
         sb.AppendLine($"{"Tax",-36}{order.Tax,12:0.##}");
         sb.AppendLine($"{"Platform",-36}{order.PlatformCharge,12:0.##}");
+        if (order.PackagingCharge > 0)
+        {
+            sb.AppendLine($"{"Packaging",-36}{order.PackagingCharge,12:0.##}");
+        }
         if (order.DiscountAmount > 0)
         {
             sb.AppendLine($"{"Discount",-36}{-order.DiscountAmount,12:0.##}");

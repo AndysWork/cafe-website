@@ -1,0 +1,15 @@
+{
+  "name": "maa-tara-print-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Receives KOT and invoice print jobs from the Maa Tara Cafe API and sends them to an 80mm ESC/POS thermal printer.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test/escpos.test.js test/printer.test.js test/server.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}

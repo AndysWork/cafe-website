@@ -22,6 +22,18 @@ public class KotRenderService
         sb.AppendLine($"Date: {order.CreatedAt:dd/MM/yyyy HH:mm}");
         sb.AppendLine($"Type: {order.OrderType?.ToUpper() ?? "DELIVERY"}");
 
+        if (string.Equals(order.OrderType, "pickup", StringComparison.OrdinalIgnoreCase))
+        {
+            sb.AppendLine(line);
+            sb.AppendLine(CenterText("*** TAKEAWAY - PACK AS PARCEL ***", width));
+            if (!string.IsNullOrWhiteSpace(order.KotNumber))
+                sb.AppendLine(CenterText($"TOKEN: {order.KotNumber}", width));
+            if (string.Equals(order.TakeawaySource, "waiter", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(order.WaiterName))
+                sb.AppendLine(CenterText($"Hand over to: {order.WaiterName}", width));
+            sb.AppendLine(line);
+        }
+
         if (!string.IsNullOrWhiteSpace(order.TableNumber))
         {
             var roundText = order.RoundNumber > 0 ? $" (ROUND #{order.RoundNumber})" : "";

@@ -1,0 +1,22 @@
+{
+  "listenHost": "127.0.0.1",
+  "listenPort": 8080,
+  "apiKey": "REPLACE_WITH_THE_SAME_VALUE_AS_ThermalPrinter__ApiKey",
+  "outletId": "",
+  "printer": {
+    "mode": "tcp",
+    "host": "192.168.1.250",
+    "port": 9100,
+    "sharePath": "\\\\localhost\\KP307"
+  },
+  "feedLines": 4,
+  "cut": true,
+  "beep": false,
+  "maxCopies": 3,
+  "timeoutMs": 3000,
+  "retries": 1,
+  "retryDelayMs": 500,
+  "duplicateWindowSeconds": 30,
+  "logDir": "logs",
+  "logRetentionDays": 14
+}

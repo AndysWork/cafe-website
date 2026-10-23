@@ -111,6 +111,33 @@
   border-left: 4px solid #475569;
 }
 
+.order-card.takeaway-card {
+  outline: 2px dashed #f59e0b;
+  outline-offset: -2px;
+}
+
+.takeaway-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: -4px -4px 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #f59e0b;
+  color: #1c1917;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  strong { font-size: 0.95rem; }
+}
+
+.order-handover {
+  font-size: 0.8rem;
+  color: #fde68a;
+  margin-bottom: 8px;
+}
+
 .order-header {
   display: flex; justify-content: space-between; margin-bottom: 6px;
   .order-id { font-weight: 700; color: #38BDF8; }

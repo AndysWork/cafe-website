@@ -66,7 +66,8 @@ public class PublicStatsFunction
                     o.Settings.AcceptsDineIn,
                     o.Settings.AcceptsTakeaway,
                     o.Settings.AcceptsOnlineOrders,
-                    o.Settings.AcceptsCounterSales
+                    o.Settings.AcceptsCounterSales,
+                    o.Settings.PackagingCharge
                 }
             });
 

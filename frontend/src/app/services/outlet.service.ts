@@ -33,7 +33,8 @@ export class OutletService {
           acceptsCounterSales: settings?.acceptsCounterSales ?? settings?.AcceptsCounterSales ?? true,
           taxPercentage: settings?.taxPercentage ?? settings?.TaxPercentage ?? 0,
           deliveryRadius: settings?.deliveryRadius ?? settings?.DeliveryRadius,
-          minimumOrderAmount: settings?.minimumOrderAmount ?? settings?.MinimumOrderAmount
+          minimumOrderAmount: settings?.minimumOrderAmount ?? settings?.MinimumOrderAmount,
+          packagingCharge: settings?.packagingCharge ?? settings?.PackagingCharge ?? 0
         },
         createdBy: raw?.createdBy ?? raw?.CreatedBy,
         createdDate: raw?.createdDate ?? raw?.CreatedDate,

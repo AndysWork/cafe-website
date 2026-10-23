@@ -181,6 +181,37 @@ dd {
   border-radius: 10px;
 }
 
+.bill-printer-panel {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.print-prompts {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.print-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fff7e6;
+  color: #7a4b0e;
+  font-weight: 600;
+}
+
+.print-prompt span {
+  flex: 1 1 220px;
+}
+
+.print-bill-button {
+  margin-top: 10px;
+}
+
 .success {
   background: #e7f4e8;
   color: #25612d;

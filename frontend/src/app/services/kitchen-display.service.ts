@@ -14,6 +14,10 @@ export interface KitchenOrder {
   items: { name: string; quantity: number; price: number; total: number; categoryName?: string; kitchenStatus?: string }[];
   status: string;
   orderType?: string;
+  isTakeaway?: boolean;
+  takeawaySource?: string;
+  kotNumber?: string;
+  paymentStatus?: string;
   tableNumber?: number | string;
   preparationNotes?: string;
   notes?: string;

@@ -412,6 +412,10 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
     return this.orders.filter(o => o.status === status);
   }
 
+  isTakeaway(order: KitchenOrder): boolean {
+    return !!order.isTakeaway || order.orderType === 'pickup' || order.orderType === 'takeaway';
+  }
+
   getTimeSince(dateStr: string): string {
     const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
     if (diff < 1) return 'Just now';

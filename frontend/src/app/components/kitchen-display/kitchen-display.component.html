@@ -42,15 +42,23 @@
         <span class="count">{{ getOrdersByStatus(status).length }}</span>
       </div>
       <div class="order-card" *ngFor="let order of getOrdersByStatus(status)"
+        [class.takeaway-card]="isTakeaway(order)"
         [style.border-left-color]="getStatusColor(order.status)">
+        <div class="takeaway-banner" *ngIf="isTakeaway(order)">
+          🥡 TAKEAWAY · PACK AS PARCEL
+          <strong *ngIf="order.kotNumber">{{ order.kotNumber }}</strong>
+        </div>
         <div class="order-header">
           <span class="order-id">#{{ order.id.slice(-6) }}</span>
           <span class="order-time">{{ getTimeSince(order.createdAt) }}</span>
         </div>
         <div class="order-customer">
-          <span>{{ order.username || order.customerName || 'Guest' }}</span>
-          <span *ngIf="order.orderType" class="order-type">{{ order.orderType }}</span>
+          <span>{{ order.customerName || order.username || 'Guest' }}</span>
+          <span *ngIf="order.orderType && !isTakeaway(order)" class="order-type">{{ order.orderType }}</span>
           <span *ngIf="order.tableNumber" class="order-type">Table {{ order.tableNumber }}</span>
+        </div>
+        <div *ngIf="isTakeaway(order) && order.waiterName" class="order-handover">
+          Hand over to waiter: <strong>{{ order.waiterName }}</strong>
         </div>
         <div class="order-items">
           <div *ngFor="let item of order.items; let itemIndex = index" class="order-item">
@@ -90,7 +98,7 @@
           </button>
           <button *ngIf="order.status === 'pending'" (click)="updateStatus(order.id, 'confirmed')" class="btn-kitchen confirm">Confirm</button>
           <button *ngIf="order.status === 'confirmed'" (click)="updateStatus(order.id, 'preparing')" class="btn-kitchen prepare">Approve & Start</button>
-          <button *ngIf="order.status === 'preparing' && order.orderType !== 'dine-in'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">Ready</button>
+          <button *ngIf="order.status === 'preparing' && order.orderType !== 'dine-in'" (click)="updateStatus(order.id, 'ready')" class="btn-kitchen ready">{{ isTakeaway(order) ? '📦 Packed & Ready' : 'Ready' }}</button>
           <button *ngIf="order.status === 'out-for-delivery'" (click)="updateStatus(order.id, 'delivered')" class="btn-kitchen ready">Delivered</button>
           <button (click)="printKot(order.id)" class="btn-kitchen kot">🖨️ KOT</button>
         </div>

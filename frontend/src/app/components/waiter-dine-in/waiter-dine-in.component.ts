@@ -7,6 +7,7 @@ import { DineInService, DineInSessionOrder, PendingQrDineInOrder } from '../../s
 import { MenuItem, MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
 import { getOrderingUnavailableReason } from '../../models/outlet.model';
+import { WaiterTakeawayComponent } from '../waiter-takeaway/waiter-takeaway.component';
 
 interface WaiterCartLine {
   menuItem: MenuItem;
@@ -18,7 +19,7 @@ interface WaiterCartLine {
 @Component({
   selector: 'app-waiter-dine-in',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, WaiterTakeawayComponent],
   templateUrl: './waiter-dine-in.component.html',
   styleUrls: ['./waiter-dine-in.component.scss']
 })
@@ -29,7 +30,8 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   private readonly outletService = inject(OutletService);
   private readonly subscriptions = new Subscription();
 
-  activeTab: 'order' | 'qr' = 'order';
+  activeTab: 'order' | 'takeaway' | 'qr' = 'order';
+  readyTakeawayCount = 0;
   tables: CafeTableFloorView[] = [];
   menuItems: MenuItem[] = [];
   cart: WaiterCartLine[] = [];
