@@ -291,8 +291,13 @@ public class DineInFunction
 
             // Resolve customer info if authenticated
             var (userId, username, userPhone) = GetOptionalUserInfo(req);
-            var customerName = !string.IsNullOrWhiteSpace(request.CustomerName) ? request.CustomerName.Trim() : username;
-            var customerPhone = !string.IsNullOrWhiteSpace(request.CustomerPhone) ? request.CustomerPhone.Trim() : userPhone;
+            var isWaiterOrder = RoleHelper.HasAnyRole(
+                AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth), RoleHelper.WaiterRoles);
+            var waiterName = isWaiterOrder ? await ResolveWaiterNameAsync(userId, username) : null;
+            var customerName = !string.IsNullOrWhiteSpace(request.CustomerName)
+                ? request.CustomerName.Trim() : isWaiterOrder ? null : username;
+            var customerPhone = !string.IsNullOrWhiteSpace(request.CustomerPhone)
+                ? request.CustomerPhone.Trim() : isWaiterOrder ? null : userPhone;
 
             var outlet = await _outletRepo.GetOutletByIdAsync(outletId, bypassCache: true);
             var orderingError = OutletHelper.GetOrderingUnavailableReason(outlet, "dine-in");
@@ -310,7 +315,9 @@ public class DineInFunction
                 OutletId = outletId,
                 OutletName = outlet?.OutletName ?? "Main Cafe",
                 TableNumber = tableNumber,
-                UserId = userId,
+                UserId = isWaiterOrder ? null : userId,
+                WaiterUserId = isWaiterOrder ? userId : null,
+                WaiterName = waiterName,
                 CustomerName = customerName,
                 CustomerPhone = customerPhone,
                 AccessTokenHash = sessionAccessTokenHash,
@@ -398,6 +405,9 @@ public class DineInFunction
             var isWaiterOrder = RoleHelper.HasAnyRole(
                 AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth),
                 RoleHelper.WaiterRoles);
+            var waiterName = isWaiterOrder ? await ResolveWaiterNameAsync(userId, username) : null;
+            var customerName = !string.IsNullOrWhiteSpace(orderRequest.CustomerName)
+                ? orderRequest.CustomerName.Trim() : isWaiterOrder ? null : username;
             var table = await _tableRepo.GetByNumberAsync(outletId, tableNumber);
             if (isWaiterOrder)
             {
@@ -432,7 +442,8 @@ public class DineInFunction
                 await conflict.WriteAsJsonAsync(new { error = "This table is not available for ordering" });
                 return conflict;
             }
-            var customerPhone = string.IsNullOrWhiteSpace(orderRequest.PhoneNumber) ? userPhone : orderRequest.PhoneNumber.Trim();
+            var customerPhone = !string.IsNullOrWhiteSpace(orderRequest.PhoneNumber)
+                ? orderRequest.PhoneNumber.Trim() : isWaiterOrder ? null : userPhone;
             string? sessionAccessToken = null;
 
             // Find or automatically start active session for this table
@@ -446,8 +457,10 @@ public class DineInFunction
                     OutletId = outletId,
                     OutletName = orderingOutlet!.OutletName,
                     TableNumber = tableNumber,
-                    UserId = userId,
-                    CustomerName = username,
+                    UserId = isWaiterOrder ? null : userId,
+                    WaiterUserId = isWaiterOrder ? userId : null,
+                    WaiterName = waiterName,
+                    CustomerName = customerName,
                     CustomerPhone = customerPhone,
                     AccessTokenHash = generatedAccess.hash,
                     QrAccessTokenHash = table?.QrTokenHash,
@@ -582,8 +595,11 @@ public class DineInFunction
             {
                 Id = newOrderId,
                 OutletId = outletId,
-                UserId = userId ?? session.UserId ?? "guest_dinein",
-                Username = username ?? session.CustomerName ?? $"Table {tableNumber}",
+                UserId = (isWaiterOrder ? session.UserId : userId ?? session.UserId) ?? "guest_dinein",
+                Username = session.CustomerName ?? customerName ?? "Walk-in customer",
+                CustomerName = session.CustomerName ?? customerName,
+                WaiterUserId = isWaiterOrder ? userId : null,
+                WaiterName = waiterName,
                 Items = orderItems,
                 Subtotal = roundSubtotal,
                 Tax = roundTax,
@@ -615,10 +631,15 @@ public class DineInFunction
             // Append order to session and update running totals
             session.OrderIds ??= new List<string>();
             session.OrderIds.Add(newOrderId);
-            if (string.IsNullOrWhiteSpace(session.CustomerName) && !string.IsNullOrWhiteSpace(username))
-                session.CustomerName = username;
+            if (string.IsNullOrWhiteSpace(session.CustomerName) && !string.IsNullOrWhiteSpace(customerName))
+                session.CustomerName = customerName;
             if (string.IsNullOrWhiteSpace(session.CustomerPhone) && !string.IsNullOrWhiteSpace(customerPhone))
                 session.CustomerPhone = customerPhone;
+            if (isWaiterOrder && string.IsNullOrWhiteSpace(session.WaiterUserId))
+            {
+                session.WaiterUserId = userId;
+                session.WaiterName = waiterName;
+            }
 
             await RecalculateSessionTotalsAsync(session);
             AddSessionEvent(
@@ -2274,12 +2295,14 @@ public class DineInFunction
         if (!await _orderRepo.UpdateDineInSessionAsync(session))
             throw new InvalidOperationException($"Failed to persist settled dine-in session {session.Id}");
 
+        var settledOrders = new List<Order>();
         foreach (var orderId in session.OrderIds)
         {
             await _orderRepo.UpdatePaymentStatusAsync(orderId, "paid");
 
             var order = await _orderRepo.GetOrderByIdAsync(orderId);
             if (order == null) continue;
+            settledOrders.Add(order);
 
             // Closing a paid dine-in bill should clear KDS by moving all non-cancelled rounds to delivered.
             if (!string.Equals(order.Status, "cancelled", StringComparison.OrdinalIgnoreCase)
@@ -2298,16 +2321,13 @@ public class DineInFunction
             _log.LogWarning(ex, "Could not complete reservation for dine-in session {SessionId}", session.Id);
         }
 
-        if (!string.IsNullOrWhiteSpace(session.UserId) && session.UserId != "guest_dinein")
+        var pointsToAward = LoyaltyHelper.GetDineInPointsToEarn(session, settledOrders);
+        if (pointsToAward > 0)
         {
-            var pointsToAward = (int)Math.Floor(session.GrandTotal * 0.10m);
-            if (pointsToAward > 0)
-            {
-                await _outbox.EnqueueAsync("LoyaltyPointsAwardExact", "DineInSession", session.Id!,
-                    new { UserId = session.UserId, Points = pointsToAward, Reason = $"Dine-In Table {session.TableNumber} bill settlement", OrderId = session.Id });
-                await _outbox.EnqueueAsync("LoyaltyNotification", "DineInSession", session.Id!,
-                    new { UserId = session.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Dine-In Table {session.TableNumber}" });
-            }
+            await _outbox.EnqueueAsync("LoyaltyPointsAwardExact", "DineInSession", session.Id!,
+                new { UserId = session.UserId, Points = pointsToAward, Reason = $"Dine-In Table {session.TableNumber} bill settlement", OrderId = session.Id });
+            await _outbox.EnqueueAsync("LoyaltyNotification", "DineInSession", session.Id!,
+                new { UserId = session.UserId, PointsEarned = pointsToAward, TotalPoints = pointsToAward, Reason = $"Dine-In Table {session.TableNumber}" });
         }
         return true;
         }
@@ -2342,6 +2362,7 @@ public class DineInFunction
     private async Task<DineInBillResponse> BuildBillResponseAsync(DineInSession session)
     {
         var rounds = new List<DineInRoundDto>();
+        var sessionOrders = new List<Order>();
         int totalItems = 0;
 
         for (int i = 0; i < session.OrderIds.Count; i++)
@@ -2349,6 +2370,7 @@ public class DineInFunction
             var orderId = session.OrderIds[i];
             var order = await _orderRepo.GetOrderByIdAsync(orderId);
             if (order == null) continue;
+            sessionOrders.Add(order);
 
             var roundItems = order.Items.Select(item => new DineInRoundItemDto
             {
@@ -2371,6 +2393,9 @@ public class DineInFunction
                 Status = order.Status,
                 CreatedAt = order.CreatedAt,
                 RoundSubtotal = order.Subtotal,
+                CustomerName = order.CustomerName,
+                WaiterUserId = order.WaiterUserId,
+                WaiterName = order.WaiterName,
                 Items = roundItems
             });
         }
@@ -2392,7 +2417,7 @@ public class DineInFunction
             ? $"INV-T{session.TableNumber}-{session.CreatedAt:yyyyMMdd}-{session.Id?[^4..].ToUpperInvariant()}"
             : null;
 
-        var pointsToEarn = (int)Math.Floor(session.GrandTotal * 0.10m);
+        var pointsToEarn = LoyaltyHelper.GetDineInPointsToEarn(session, sessionOrders);
         var amountDue = GetSessionAmountDue(session);
 
         return new DineInBillResponse
@@ -2403,6 +2428,8 @@ public class DineInFunction
             TableNumber = session.TableNumber,
             CustomerName = session.CustomerName,
             CustomerPhone = session.CustomerPhone,
+            WaiterUserId = session.WaiterUserId,
+            WaiterName = session.WaiterName,
             Status = session.Status,
             PaymentStatus = session.PaymentStatus,
             PaymentMethod = session.PaymentMethod,
@@ -2494,6 +2521,14 @@ public class DineInFunction
 
         var outlets = await _outletRepo.GetAllOutletsAsync();
         return outlets.FirstOrDefault()?.Id;
+    }
+
+    private async Task<string?> ResolveWaiterNameAsync(string? userId, string? username)
+    {
+        var user = !string.IsNullOrWhiteSpace(userId) ? await _userRepo.GetUserByIdAsync(userId) : null;
+        var name = string.Join(" ", new[] { user?.FirstName, user?.LastName }
+            .Where(part => !string.IsNullOrWhiteSpace(part))).Trim();
+        return string.IsNullOrWhiteSpace(name) ? username : name;
     }
 
     private (string? userId, string? username, string? phone) GetOptionalUserInfo(HttpRequestData req)

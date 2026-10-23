@@ -74,7 +74,9 @@ public class KitchenDisplayFunction
             var kitchenItems = orders.Select(o => new
             {
                 o.Id,
-                CustomerName = o.Username,
+                CustomerName = o.CustomerName ?? o.Username,
+                o.WaiterUserId,
+                o.WaiterName,
                 o.OrderType,
                 o.TableNumber,
                 o.Status,

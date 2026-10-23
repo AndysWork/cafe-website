@@ -15,6 +15,9 @@ export interface DineInRound {
   status: string; // pending, confirmed, preparing, ready, served, delivered
   createdAt: string;
   roundSubtotal: number;
+  customerName?: string;
+  waiterUserId?: string;
+  waiterName?: string;
   items: DineInRoundItem[];
 }
 
@@ -61,6 +64,8 @@ export interface DineInBill {
   tableNumber: string;
   customerName?: string;
   customerPhone?: string;
+  waiterUserId?: string;
+  waiterName?: string;
   status: 'active' | 'bill_requested' | 'paid' | 'cancelled';
   paymentStatus: 'unpaid' | 'pending_verification' | 'pending_cash' | 'processing' | 'partially_paid' | 'paid';
   paymentMethod?: string;

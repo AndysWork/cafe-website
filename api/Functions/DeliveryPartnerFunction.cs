@@ -2302,6 +2302,7 @@ public class DeliveryPartnerFunction
 
     private async Task TryAwardWorkflowLoyaltyPointsAsync(Order order)
     {
+        if (LoyaltyHelper.IsWaiterOrGuestDineInOrder(order)) return;
         if (order.Status != "delivered") return;
 
         var issues = await _orderRepo.GetOrderIssuesAsync(order.Id!);

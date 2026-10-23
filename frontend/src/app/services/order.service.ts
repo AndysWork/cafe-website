@@ -25,6 +25,9 @@ export interface Order {
   id: string;
   userId: string;
   username: string;
+  customerName?: string;
+  waiterUserId?: string;
+  waiterName?: string;
   userEmail?: string;
   items: OrderItem[];
   subtotal: number;

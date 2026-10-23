@@ -47,6 +47,9 @@ export interface DineInSessionOrder {
   orderId: string;
   tableNumber: string;
   roundNumber: number;
+  customerName?: string;
+  waiterUserId?: string;
+  waiterName?: string;
   status: string;
   kotNumber?: string;
   kotReprintCount: number;
@@ -399,6 +402,7 @@ export class DineInService {
   public placeWaiterDineInOrder(payload: {
     tableNumber: string;
     outletId?: string;
+    customerName?: string;
     items: Array<{
       menuItemId: string;
       quantity: number;

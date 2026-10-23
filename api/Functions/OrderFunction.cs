@@ -1656,6 +1656,9 @@ public class OrderFunction
             Id = order.Id!,
             UserId = order.UserId,
             Username = order.Username,
+            CustomerName = order.CustomerName,
+            WaiterUserId = order.WaiterUserId,
+            WaiterName = order.WaiterName,
             UserEmail = order.UserEmail,
             Items = order.Items,
             Subtotal = order.Subtotal,
@@ -1874,6 +1877,7 @@ public class OrderFunction
 
     private async Task TryAwardWorkflowLoyaltyPointsAsync(Order order)
     {
+        if (LoyaltyHelper.IsWaiterOrGuestDineInOrder(order)) return;
         if (order.Status != "delivered") return;
 
         var issues = await _orderRepo.GetOrderIssuesAsync(order.Id!);

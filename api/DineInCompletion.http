@@ -4,6 +4,33 @@
 @sessionId = REPLACE_WITH_SESSION_ID
 @orderId = REPLACE_WITH_DINE_IN_ORDER_ID
 @itemIndex = 0
+@menuItemId = REPLACE_WITH_MENU_ITEM_ID
+
+### Take an order as a waiter; identity is derived from the token, not the customer name
+POST {{baseUrl}}/dine-in/order
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "tableNumber": "T1",
+  "customerName": "Asha",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }],
+  "orderType": "dine-in",
+  "paymentMethod": "dine_in_tab"
+}
+
+### Validation: customer names over 100 characters return 400 without creating an order
+POST {{baseUrl}}/dine-in/order
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "tableNumber": "T1",
+  "customerName": "This customer name is intentionally longer than one hundred characters and must be rejected before any session or order is created.",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }]
+}
 
 ### Load pending dine-in payment requests (cashier role)
 GET {{baseUrl}}/dine-in/cashier/pending-payments?outletId={{outletId}}

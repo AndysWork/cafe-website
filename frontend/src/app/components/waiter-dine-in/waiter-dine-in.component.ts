@@ -44,6 +44,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   selectedTableNumber = '';
   searchQuery = '';
   orderNotes = '';
+  customerName = '';
   loadingTables = false;
   loadingMenu = false;
   loadingQrOrders = false;
@@ -119,6 +120,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
 
   selectTable(tableNumber: string): void {
     this.selectedTableNumber = tableNumber;
+    this.customerName = this.selectedTable?.customerName || '';
     this.message = '';
     this.errorMessage = '';
     this.loadSelectedTableOrders();
@@ -184,6 +186,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
     this.subscriptions.add(this.dineInService.placeWaiterDineInOrder({
       tableNumber: this.selectedTableNumber,
       outletId,
+      customerName: this.customerName.trim() || undefined,
       items: this.cart.map(line => ({
         menuItemId: line.menuItem.id,
         quantity: line.quantity,

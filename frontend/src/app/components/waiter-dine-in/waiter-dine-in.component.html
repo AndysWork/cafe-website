@@ -61,6 +61,8 @@
           <div>
             <strong>Round #{{ order.roundNumber }} <span *ngIf="order.kotNumber">· {{ order.kotNumber }}</span></strong>
             <small>{{ order.itemCount }} item(s) · {{ order.status | titlecase }} · ₹{{ order.total | number:'1.0-2' }}</small>
+            <small *ngIf="order.customerName">Customer: {{ order.customerName }}</small>
+            <small *ngIf="order.waiterName">Waiter: {{ order.waiterName }}</small>
             <small *ngIf="order.kotReprintCount">Duplicate prints: {{ order.kotReprintCount }}</small>
             <div class="round-items">
               <div class="round-item" *ngFor="let item of order.items">
@@ -162,6 +164,16 @@
         </div>
       </div>
       <ng-template #emptyCart><p class="empty">Tap menu items to build this round.</p></ng-template>
+
+      <label class="notes-field">
+        <span>Customer name (optional)</span>
+        <input
+          [(ngModel)]="customerName"
+          maxlength="100"
+          [readonly]="!!selectedTable?.customerName"
+          placeholder="Walk-in customer"
+        />
+      </label>
 
       <label class="notes-field">
         <span>Kitchen note (optional)</span>

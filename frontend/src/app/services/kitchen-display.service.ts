@@ -9,6 +9,8 @@ export interface KitchenOrder {
   id: string;
   username: string;
   customerName?: string;
+  waiterUserId?: string;
+  waiterName?: string;
   items: { name: string; quantity: number; price: number; total: number; categoryName?: string; kitchenStatus?: string }[];
   status: string;
   orderType?: string;

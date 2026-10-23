@@ -32,10 +32,7 @@ public class KotRenderService
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(order.Username))
-        {
-            sb.AppendLine($"Customer: {order.Username}");
-        }
+        AppendPeople(sb, order);
 
         sb.AppendLine(line);
         sb.AppendLine(FormatKotRow("ITEM", "QTY", width));
@@ -86,6 +83,7 @@ public class KotRenderService
         if (!string.IsNullOrWhiteSpace(order.TableNumber))
             sb.AppendLine($"Table: {order.TableNumber} (ROUND #{order.RoundNumber})");
         sb.AppendLine($"Order #: {order.Id}");
+        AppendPeople(sb, order);
         sb.AppendLine(line);
         foreach (var item in order.Items)
             sb.AppendLine(FormatKotRow(item.Name, item.Quantity.ToString(), width));
@@ -95,6 +93,22 @@ public class KotRenderService
         sb.AppendLine(line);
         sb.AppendLine($"Cancelled: {order.KotCancelledAt:dd/MM/yyyy HH:mm}");
         return sb.ToString();
+    }
+
+    private static void AppendPeople(StringBuilder sb, Order order)
+    {
+        var customerName = !string.IsNullOrWhiteSpace(order.CustomerName)
+            ? order.CustomerName
+            : string.Equals(order.DineInOrderSource, "waiter", StringComparison.OrdinalIgnoreCase)
+                ? "Walk-in customer"
+                : order.Username;
+        if (!string.IsNullOrWhiteSpace(customerName))
+            sb.AppendLine($"Customer: {customerName}");
+        var waiterName = order.WaiterName
+            ?? (string.Equals(order.DineInOrderSource, "waiter", StringComparison.OrdinalIgnoreCase)
+                && order.WaiterUserId == null ? order.Username : null);
+        if (!string.IsNullOrWhiteSpace(waiterName))
+            sb.AppendLine($"Waiter: {waiterName}");
     }
 
     private static string CenterText(string text, int width)

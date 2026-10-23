@@ -30,6 +30,21 @@ describe('DineInService waiter serving', () => {
 
   afterEach(() => http.verify());
 
+  it('sends the customer name separately and leaves waiter attribution to the server', () => {
+    service.placeWaiterDineInOrder({
+      tableNumber: 'T1',
+      outletId: 'outlet-1',
+      customerName: 'Asha',
+      items: [{ menuItemId: 'item-1', quantity: 2 }]
+    }).subscribe();
+    const request = http.expectOne(`${environment.apiUrl}/dine-in/order`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body.customerName).toBe('Asha');
+    expect(request.request.body.waiterName).toBeUndefined();
+    expect(request.request.body.userId).toBeUndefined();
+    request.flush({ message: 'Order sent' });
+  });
+
   it('sends the selected outlet and item index with the served update', () => {
     outlets.getSelectedOutletId.and.returnValue('outlet-1');
     service.markDineInItemServed('order-1', 2).subscribe();

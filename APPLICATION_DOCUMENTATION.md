@@ -306,7 +306,7 @@ In **Manage Outlets**, use the independent On/Off controls on each outlet card, 
 
 #### Daily Operations
 1. **Create Table QR Codes** → Open Table Management → Generate or rotate a table's QR credential → Download or print the displayed QR code
-2. **Waiter Station** → Open Staff → Waiter Station → Select a free or occupied table → Add items/variants/add-ons → Send order to kitchen
+2. **Waiter Station** → Open Staff → Waiter Station → Select a free or occupied table → Enter the customer name (optional; existing table customer is retained) → Add items/variants/add-ons → Send order to kitchen. The authenticated waiter's name is stored separately.
 3. **QR Approval** → Waiter Station → QR approvals → Review or edit a pending customer order → Approve and send to kitchen, or reject with a reason
 4. **Manage KOTs** → Select an occupied table to view its rounds → Request a duplicate print, or cancel an eligible KOT with a reason before preparation begins
 5. **Kitchen Display** → Operations → Kitchen Display → Confirm and start a round → Mark each dine-in item ready; complete the checklist when the final item is marked ready
@@ -721,12 +721,12 @@ flowchart TD
         Review --> Approval{"Approve?"}
         Approval -->|No| Rejected["Reject with reason<br/>No kitchen dispatch or KOT"]
         Approval -->|Yes| Round["Approved round enters kitchen queue<br/>Order status: pending"]
-        Channel -->|Waiter| Waiter["Select table and enter items<br/>Send round directly to kitchen"]
+        Channel -->|Waiter| Waiter["Select table, customer name, and items<br/>Store authenticated waiter separately<br/>Send round directly to kitchen"]
         Waiter --> Round
     end
 
     Session --> Channel
-    Round --> KOT["Assign numbered KOT<br/>Queue thermal print through outbox"]
+    Round --> KOT["Assign numbered KOT<br/>Print customer and waiter names separately<br/>Queue thermal print through outbox"]
     KOT -.-> Printer["Configured thermal printer<br/>Outbox retries failed jobs"]
     KOT --> Confirm["Kitchen confirms round<br/>Order status: confirmed"]
     Confirm --> Preparing["Kitchen approves and starts preparation<br/>Order status: preparing"]
@@ -755,6 +755,7 @@ flowchart TD
         Partial --> Checkout
         Balance -->|No| Closed["Mark session paid and close table session<br/>Table available for a new session"]
         Closed --> Cleanup["Mark linked orders paid<br/>Move non-cancelled rounds to delivered to clear KDS"]
+        Cleanup --> Loyalty["Award points only to a linked customer account<br/>Never to the waiter taking the order"]
     end
 
     Session -.->|When ready to settle| Checkout
@@ -769,9 +770,12 @@ flowchart TD
 - **Navigation:** Menus combine all assigned roles instead of choosing one primary-role menu. Staff links remain available on the home page; customer links remain available when `user` is one of several roles. Admin pages retain the admin menu and expose other permitted destinations under **Workspaces**, without repeating links already in the admin menu. Desktop and mobile menus use the same role rules; route guards and API authorization remain enforced.
 - **Outlet access for serving:** Non-admin staff need an outlet assignment on either their login account (`assignedOutlets`) or their active staff profile (`outletIds`). Staff profiles are resolved by linked user ID, with email fallback only for legacy profiles not linked to another account. A default/selected outlet or waiter role alone does not grant access. Assign missing outlets through Staff Management. Admin access considers every role claim.
 - **Waiter serving:** Mark Served sends the selected outlet and validates it against the order's stored outlet. A user with both kitchen and waiter roles can serve ready items even when another cook prepared the order; kitchen-only users still require the kitchen assignment. Ready-state checks and item audit logging remain enforced.
+- **Customer and waiter identity:** Waiter-entered rounds accept an optional customer name (maximum 100 characters). The API derives `waiterUserId` and `waiterName` from the authenticated account, preferring its full name; client-supplied waiter identity is not accepted. A staff-created session has no customer account (`userId` is null). Session-opening waiter details and each round's order-taking waiter are stored separately from `customerName`; if a waiter adds the first staff round to a QR customer session, that waiter is also recorded on the session. Adding a round to an existing QR customer session preserves that customer's account, name, and phone.
 - **KOT dispatch:** QR orders require waiter approval; waiter-entered rounds go directly to the kitchen queue. Thermal printing is asynchronous and is not a prerequisite for kitchen confirmation.
+- **KOT names:** Original, duplicate, and cancellation tickets print separate **Customer** and **Waiter** labels. Unnamed waiter-entered orders use **Walk-in customer**. Legacy waiter KOTs no longer label the staff login as the customer.
 - **Item tracking:** A line's entire quantity is marked ready or served together. A round becomes ready only after every line is ready and the checklist is complete; concurrent final-item updates prompt checklist completion rather than bypassing it.
 - **Payments:** Both paths support partial payments. Direct cashier entry is blocked while a customer payment request is pending; the cashier must confirm the existing request before recording another payment. Full payment closes the session.
+- **Dine-in loyalty:** Settlement awards 10% of the consolidated payable value (rounded down) only to a linked customer account. Entering a customer name alone does not link an account or earn points. Waiter-created walk-in sessions show zero estimated points and generate no loyalty award/notification. Legacy sessions whose customer ID is actually the order-taking waiter are also excluded. Individual-order completion/review paths likewise reject waiter-as-customer and walk-in records; genuine customer reward rules remain unchanged. Already awarded points and historical database records are not automatically modified.
 - **Ordering versus settlement:** A bill request or partial cashier payment puts the session into `bill_requested`, stopping further rounds unless an authorized manager reopens ordering. Settlement does not require every round to have reached `served`; the `delivered` transition at closure is KDS cleanup, not an additional service step.
 - **Audit visibility:** Session timelines capture billing, payments, and closure; persistent order events capture item-status changes. Reports are scoped to the selected outlet and date range.
 

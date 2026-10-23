@@ -9,6 +9,7 @@ using Xunit;
 
 namespace Cafe.Api.Tests;
 
+[Collection("Auth environment")]
 public sealed class OutletAccessTests
 {
     private const string UserId = "111111111111111111111111";

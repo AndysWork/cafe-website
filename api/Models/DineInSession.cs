@@ -27,6 +27,12 @@ public class DineInSession
     [BsonElement("userId")]
     public string? UserId { get; set; }
 
+    [BsonElement("waiterUserId")]
+    public string? WaiterUserId { get; set; }
+
+    [BsonElement("waiterName")]
+    public string? WaiterName { get; set; }
+
     [BsonElement("customerName")]
     public string? CustomerName { get; set; }
 
@@ -240,6 +246,9 @@ public class DineInRoundDto
     public string Status { get; set; } = "confirmed"; // pending, confirmed, preparing, ready, served, delivered
     public DateTime CreatedAt { get; set; }
     public decimal RoundSubtotal { get; set; }
+    public string? CustomerName { get; set; }
+    public string? WaiterUserId { get; set; }
+    public string? WaiterName { get; set; }
     public List<DineInRoundItemDto> Items { get; set; } = new();
 }
 
@@ -251,6 +260,8 @@ public class DineInBillResponse
     public string TableNumber { get; set; } = string.Empty;
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
+    public string? WaiterUserId { get; set; }
+    public string? WaiterName { get; set; }
     public string Status { get; set; } = "active"; // active, bill_requested, paid, cancelled
     public string PaymentStatus { get; set; } = "unpaid";
     public string? PaymentMethod { get; set; }
@@ -286,6 +297,7 @@ public class StartDineInSessionRequest
     [Required]
     public string TableNumber { get; set; } = string.Empty;
     public string? OutletId { get; set; }
+    [StringLength(100)]
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
 }

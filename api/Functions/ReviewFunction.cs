@@ -224,6 +224,7 @@ public class ReviewFunction
 
     private async Task TryAwardWorkflowLoyaltyPointsAsync(Order order, CustomerReview review)
     {
+        if (LoyaltyHelper.IsWaiterOrGuestDineInOrder(order)) return;
         if (order.Status != "delivered") return;
 
         var issues = await _mongo.GetOrderIssuesAsync(order.Id!);

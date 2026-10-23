@@ -22,6 +22,15 @@ public class Order : ISoftDeletable
     [BsonElement("username")]
     public string Username { get; set; } = string.Empty;
 
+    [BsonElement("customerName")]
+    public string? CustomerName { get; set; }
+
+    [BsonElement("waiterUserId")]
+    public string? WaiterUserId { get; set; }
+
+    [BsonElement("waiterName")]
+    public string? WaiterName { get; set; }
+
     [BsonElement("userEmail")]
     public string? UserEmail { get; set; }
 
@@ -369,6 +378,9 @@ public class CreateOrderRequest
     
     [IndianPhoneNumber]
     public string? PhoneNumber { get; set; }
+
+    [StringLength(100, ErrorMessage = "Customer name cannot exceed 100 characters")]
+    public string? CustomerName { get; set; }
     
     [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
     public string? Notes { get; set; }
@@ -437,6 +449,9 @@ public class OrderResponse
     public string Id { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
+    public string? CustomerName { get; set; }
+    public string? WaiterUserId { get; set; }
+    public string? WaiterName { get; set; }
     public string? UserEmail { get; set; }
     public List<OrderItem> Items { get; set; } = new();
     public decimal Subtotal { get; set; }
