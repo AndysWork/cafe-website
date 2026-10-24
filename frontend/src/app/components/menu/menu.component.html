@@ -119,7 +119,7 @@
         class="pill"
         [class.active]="selectedCategoryId === category.id"
         (click)="filterByCategory(category.id)">
-        {{ category.name }} <span class="pill-count">{{ getCategoryItemCount(category.id) }}</span>
+        {{ getDisplayText(category.name) }} <span class="pill-count">{{ getCategoryItemCount(category.id) }}</span>
       </button>
     </div>
   </div>
@@ -163,7 +163,7 @@
           [attr.aria-expanded]="isMainAccordionExpanded(categoryGroup.key)"
           (click)="toggleMainAccordion(categoryGroup.key)">
           <span class="category-title-wrap">
-            <span class="category-title">{{ categoryGroup.name }}</span>
+            <span class="category-title">{{ getDisplayText(categoryGroup.name) }}</span>
             <span class="category-item-count">{{ categoryGroup.itemCount }} items</span>
           </span>
           <span class="accordion-caret">{{ isMainAccordionExpanded(categoryGroup.key) ? '−' : '+' }}</span>
@@ -179,7 +179,7 @@
               class="subcategory-accordion-head"
               [attr.aria-expanded]="isSubAccordionExpanded(categoryGroup.key, subGroup.key)"
               (click)="toggleSubAccordion(categoryGroup.key, subGroup.key)">
-              <span class="subcategory-title">{{ subGroup.name }}</span>
+              <span class="subcategory-title">{{ getDisplayText(subGroup.name) }}</span>
               <span class="subcategory-meta">
                 <span class="subcategory-count">{{ subGroup.items.length }}</span>
                 <span class="accordion-caret">{{ isSubAccordionExpanded(categoryGroup.key, subGroup.key) ? '−' : '+' }}</span>
@@ -207,7 +207,7 @@
                       ✓ In Cart
                     </span>
                     <!-- Category Tag -->
-                    <span class="card-category-tag">{{ item.categoryName }}</span>
+                    <span class="card-category-tag">{{ getDisplayText(item.categoryName) }}</span>
                     <!-- Dietary Badge -->
                     <span class="badge-dietary" [ngClass]="item.dietaryType || 'veg'">
                       {{ normalizeDietaryType(item.dietaryType) === 'veg' ? '🟢' : (normalizeDietaryType(item.dietaryType) === 'non-veg' ? '🔴' : '🟡') }}
@@ -320,7 +320,7 @@
             class="drawer-category-main"
             [class.active]="selectedCategoryId === category.id"
             (click)="filterByCategory(category.id)">
-            <span class="drawer-category-name">{{ category.name }}</span>
+            <span class="drawer-category-name">{{ getDisplayText(category.name) }}</span>
             <span class="drawer-count">{{ getCategoryItemCount(category.id) }}</span>
           </button>
 
@@ -328,7 +328,7 @@
             *ngIf="categoryHasSubCategories(category)"
             type="button"
             class="drawer-expand"
-            [attr.aria-label]="'Expand sub-categories for ' + category.name"
+            [attr.aria-label]="'Expand sub-categories for ' + getDisplayText(category.name)"
             (click)="toggleCategoryExpansion(category, $event)">
             {{ isCategoryExpanded(category) ? '−' : '+' }}
           </button>
@@ -340,7 +340,7 @@
             class="drawer-subcategory-chip"
             *ngFor="let subCategory of getCategorySubCategoryNames(category); trackBy: trackByIndex"
             (click)="navigateToSubCategory(category, subCategory)">
-            {{ subCategory }}
+            {{ getDisplayText(subCategory) }}
           </button>
         </div>
       </div>
@@ -364,7 +364,7 @@
       <div class="detail-body">
         <div class="detail-header">
           <h2 class="detail-title">{{ getDisplayText(selectedMenuItem.name) }}</h2>
-          <span class="detail-category">{{ selectedMenuItem.categoryName }}</span>
+          <span class="detail-category">{{ getDisplayText(selectedMenuItem.categoryName) }}</span>
         </div>
 
         <p class="detail-description" *ngIf="selectedMenuItem.description">{{ selectedMenuItem.description }}</p>

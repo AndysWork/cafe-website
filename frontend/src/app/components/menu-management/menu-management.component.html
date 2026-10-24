@@ -68,7 +68,7 @@
         *ngFor="let cat of categories; trackBy: trackByObjId"
         [value]="getCategoryKey(cat)"
       >
-        {{ cat.name }}
+        {{ getDisplayText(cat.name) }}
       </option>
     </select>
 
@@ -148,7 +148,7 @@
         (click)="toggleCategoryAccordion(categoryGroup.key)"
       >
         <span class="admin-category-title-wrap">
-          <span class="admin-category-title">{{ categoryGroup.name }}</span>
+          <span class="admin-category-title">{{ getDisplayText(categoryGroup.name) }}</span>
           <span class="admin-category-count"
             >{{ categoryGroup.itemCount }} items</span
           >
@@ -185,7 +185,7 @@
             "
           >
             <span class="admin-subcategory-title-wrap">
-              <span class="admin-subcategory-title">{{ subGroup.name }}</span>
+              <span class="admin-subcategory-title">{{ getDisplayText(subGroup.name) }}</span>
               <span
                 class="visibility-chip"
                 [class.hidden-to-customer]="!subGroup.isVisibleToCustomers"
@@ -248,7 +248,7 @@
                     <div class="card-title-group">
                       <h3 class="item-name">{{ item.name }}</h3>
                       <div class="item-tags">
-                        <span class="cat-pill">{{ item.category }}</span>
+                        <span class="cat-pill">{{ getDisplayText(item.category) }}</span>
                         <span
                           class="dietary-pill"
                           [ngClass]="normalizeDietaryType(item.dietaryType)"
@@ -477,7 +477,7 @@
                   *ngFor="let cat of categories; trackBy: trackByObjId"
                   [value]="getCategoryKey(cat)"
                 >
-                  {{ cat.name }}
+                  {{ getDisplayText(cat.name) }}
                 </option>
               </select>
             </div>
@@ -498,7 +498,7 @@
                   "
                   [value]="getSubCategoryKey(sc)"
                 >
-                  {{ sc.name }}
+                  {{ getDisplayText(sc.name) }}
                 </option>
               </select>
             </div>

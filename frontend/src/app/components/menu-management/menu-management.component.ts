@@ -10,6 +10,7 @@ import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { environment } from '../../../environments/environment';
 import { getIstIsoString } from '../../utils/date-utils';
+import { decodeHtmlEntities } from '../../utils/text-utils';
 
 interface MenuItemVariant {
   variantName: string;
@@ -200,6 +201,10 @@ export class MenuManagementComponent implements OnInit, OnDestroy {
 
   refreshMenuItems(): void {
     this.loadMenuItems();
+  }
+
+  getDisplayText(value?: string | null): string {
+    return decodeHtmlEntities(value);
   }
 
   syncRecipePricesToMenu(): void {

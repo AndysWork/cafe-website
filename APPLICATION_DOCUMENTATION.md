@@ -307,6 +307,7 @@ In **Manage Outlets**, use the independent On/Off controls on each outlet card, 
 1. **Create Categories** → Menu → Categories → Click "Add Category" → Enter name → Save
 2. **Create SubCategories** → Categories page → Select category → "Add SubCategory"
 3. **Add Menu Items** → Menu → Menu Items → "Add Item" → Fill name, description, category, subcategory, prices (shop/online/dine-in), making price, packaging charge, dietary type → Upload image → Save
+   - Category and subcategory labels decode stored HTML entities as plain text throughout Menu Management and the customer menu (for example, `Breakfast &amp; Wellness` displays as `Breakfast & Wellness`).
 4. **Bulk Upload** → Menu → Upload → Download Excel template → Fill rows → Upload
 5. **Create Combos** → Menu → Combo Meals → "Create Combo" → Select items → Set combo price → Set validity → Save
 6. **Toggle Availability** → Menu Items → Click availability toggle on any item
