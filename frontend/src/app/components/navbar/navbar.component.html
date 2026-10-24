@@ -33,8 +33,7 @@
     <!-- Desktop Menu -->
     <div class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
-        <!-- Home (All users; always rendered so role links keep a stable position) -->
-        <li class="nav-item">
+        <li class="nav-item" *ngIf="!isLandingPage">
           <a
             routerLink="/"
             routerLinkActive="active"

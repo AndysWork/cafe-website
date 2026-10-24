@@ -12,6 +12,9 @@ import { NavbarComponent } from './navbar.component';
 @Component({ selector: 'app-notification-center', standalone: true, template: '' })
 class NotificationStubComponent {}
 
+@Component({ selector: 'app-navbar-test-route', standalone: true, template: '' })
+class TestRouteComponent {}
+
 describe('NavbarComponent multi-role navigation', () => {
   let fixture: ComponentFixture<NavbarComponent>;
   let store: AuthStore;
@@ -29,7 +32,7 @@ describe('NavbarComponent multi-role navigation', () => {
     TestBed.configureTestingModule({
       imports: [NavbarComponent],
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: 'menu', component: TestRouteComponent }]),
         { provide: AuthService, useValue: { logout: jasmine.createSpy('logout') } },
         { provide: CartService, useValue: {} },
         { provide: CartStore, useValue: { itemCount: signal(2) } },
@@ -64,8 +67,14 @@ describe('NavbarComponent multi-role navigation', () => {
     expect(new Set(menuLinks).size).toBe(menuLinks.length);
   });
 
-  it('always renders the Home link so menu width does not change between pages', () => {
+  it('hides Home on the landing page and shows it on other pages', async () => {
     setRoles('waiter', ['waiter']);
+    expect(fixture.componentInstance.isLandingPage).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.navbar-nav .nav-link[href="/"]')).toBeNull();
+
+    await TestBed.inject(Router).navigateByUrl('/menu');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isLandingPage).toBeFalse();
     expect(fixture.nativeElement.querySelector('.navbar-nav .nav-link[href="/"]')).not.toBeNull();
   });
 

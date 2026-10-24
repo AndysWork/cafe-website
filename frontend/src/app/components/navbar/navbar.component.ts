@@ -78,6 +78,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.currentUser !== null;
   }
 
+  get isLandingPage(): boolean {
+    return this.router.url === '/';
+  }
+
   get displayName(): string {
     if (this.currentUser?.firstName) {
       return this.currentUser.firstName;
