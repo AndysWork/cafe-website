@@ -564,6 +564,17 @@ api/
 
 ### 3.4 Security Architecture
 
+The frontend CSP in `frontend/public/staticwebapp.config.json` allows the image storage
+origin (`https://cafestorage7890.blob.core.windows.net`) in `connect-src` as well as
+allowing HTTPS images in `img-src`. The PWA service worker fetches images using
+`connect-src`; allowing only `img-src` causes uploaded images to fail with a
+service-worker-generated 504 even when the blob URL works directly. If the image
+storage/CDN origin changes, update `connect-src` accordingly. The worker registration
+URL in `frontend/src/app/app.config.ts` is versioned so existing installations pick
+up the corrected worker CSP after loading the updated frontend. After deployment,
+close and reopen existing site/PWA tabs to allow the replacement worker to activate.
+No image re-upload is necessary.
+
 ```
 ┌────────────────────────────────────────────────────────┐
 │              Security Layers (12)                       │
