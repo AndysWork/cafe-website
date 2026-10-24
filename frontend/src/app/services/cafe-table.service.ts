@@ -48,6 +48,15 @@ export interface FloorSummary {
   outOfService: number;
 }
 
+export interface CancelledSessionCleanupResult {
+  dryRun: boolean;
+  candidateCount: number;
+  closedCount: number;
+  skippedCount: number;
+  candidates: Array<{ sessionId: string; tableNumber: string; orderCount: number }>;
+  closed: Array<{ sessionId: string; tableNumber: string; orderCount: number }>;
+}
+
 export interface SaveCafeTableRequest {
   tableNumber?: string;
   area?: string;
@@ -83,6 +92,15 @@ export class CafeTableService {
       map(r => ({ tables: r?.data ?? [], summary: r.summary })),
       catchError(handleServiceError('CafeTableService.getFloor'))
     );
+  }
+
+  cleanupCancelledSessions(dryRun = true): Observable<CancelledSessionCleanupResult> {
+    const outletId = this.outletService.getSelectedOutletId();
+    let params = new HttpParams().set('dryRun', String(dryRun));
+    if (outletId) params = params.set('outletId', outletId);
+    return this.http.post<CancelledSessionCleanupResult>(
+      `${this.apiUrl}/cleanup-cancelled-sessions`, {}, { params }
+    ).pipe(catchError(handleServiceError('CafeTableService.cleanupCancelledSessions')));
   }
 
   createTable(request: SaveCafeTableRequest): Observable<CafeTable> {

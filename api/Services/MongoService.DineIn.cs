@@ -102,6 +102,52 @@ public partial class MongoService
         return await _dineInSessions.Find(filter).SortByDescending(s => s.CreatedAt).ToListAsync();
     }
 
+    public async Task<bool> TryCloseCancelledDineInSessionAsync(
+        string sessionId,
+        DateTime expectedUpdatedAt,
+        string actor)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(actor)) return false;
+
+        var cleanId = sessionId.Trim();
+        var filterBuilder = Builders<DineInSession>.Filter;
+        var idFilter = filterBuilder.Eq("_id", cleanId);
+        if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
+        {
+            idFilter = filterBuilder.Or(idFilter, filterBuilder.Eq("_id", objId));
+        }
+
+        var noActivePaymentEntries = filterBuilder.Not(
+            filterBuilder.ElemMatch(
+                session => session.PaymentEntries,
+                entry => entry.Status != "rejected"));
+        var filter = filterBuilder.And(
+            idFilter,
+            filterBuilder.In(session => session.Status, new[] { "active", "bill_requested" }),
+            filterBuilder.Eq(session => session.PaymentStatus, "unpaid"),
+            filterBuilder.Eq(session => session.AmountPaid, 0),
+            filterBuilder.Or(
+                filterBuilder.Exists(session => session.RazorpayOrderId, false),
+                filterBuilder.Eq(session => session.RazorpayOrderId, (string?)null),
+                filterBuilder.Eq(session => session.RazorpayOrderId, string.Empty)),
+            filterBuilder.Eq(session => session.UpdatedAt, expectedUpdatedAt),
+            noActivePaymentEntries);
+
+        var now = GetIstNow();
+        var update = Builders<DineInSession>.Update
+            .Set(session => session.Status, "cancelled")
+            .Set(session => session.UpdatedAt, now)
+            .Push(session => session.Timeline, new DineInSessionEvent
+            {
+                EventType = "session_cancelled_cleanup",
+                Message = "Stale table session closed because all linked order rounds were cancelled",
+                Actor = actor,
+                CreatedAt = now
+            });
+        var result = await _dineInSessions.UpdateOneAsync(filter, update);
+        return result.ModifiedCount == 1;
+    }
+
     public async Task<List<DineInSession>> GetDineInSessionsByDateRangeAsync(
         string outletId, DateTime start, DateTime endExclusive)
     {

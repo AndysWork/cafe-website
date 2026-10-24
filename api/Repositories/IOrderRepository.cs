@@ -43,6 +43,7 @@ public interface IOrderRepository
     Task<DineInSession?> GetLatestDineInSessionByTableAsync(string outletId, string tableNumber);
     Task<DineInSession?> GetDineInSessionByIdAsync(string sessionId);
     Task<List<DineInSession>> GetActiveDineInSessionsAsync(string outletId);
+    Task<bool> TryCloseCancelledDineInSessionAsync(string sessionId, DateTime expectedUpdatedAt, string actor);
     Task<List<DineInSession>> GetDineInSessionsByDateRangeAsync(string outletId, DateTime start, DateTime endExclusive);
     Task<List<DineInSession>> GetUserDineInSessionsAsync(string userId);
     Task<bool> UpdateDineInSessionAsync(DineInSession session);

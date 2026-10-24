@@ -6,10 +6,12 @@ import {
   CafeTable,
   CafeTableFloorView,
   CafeTableService,
+  CancelledSessionCleanupResult,
   FloorSummary,
   TableHousekeepingStatus
 } from '../../services/cafe-table.service';
 import { UIStore } from '../../store/ui.store';
+import { AuthService } from '../../services/auth.service';
 import QRCode from 'qrcode';
 
 interface TableDraft {
@@ -29,6 +31,7 @@ interface TableDraft {
 export class AdminTablesComponent implements OnInit, OnDestroy {
   private tableService = inject(CafeTableService);
   private uiStore = inject(UIStore);
+  private authService = inject(AuthService);
   private refreshTimer?: ReturnType<typeof setInterval>;
 
   readonly statusLabels: Record<string, string> = {
@@ -50,6 +53,9 @@ export class AdminTablesComponent implements OnInit, OnDestroy {
   qrPreviewUrl = '';
   qrPreviewDataUrl = '';
   qrGeneratingId: string | null = null;
+  cleanupBusy = false;
+  cleanupReport: CancelledSessionCleanupResult | null = null;
+  readonly canCleanupCancelledSessions = this.authService.isAdmin();
 
   editingId: string | null = null;
   editDraft: TableDraft = { tableNumber: '', area: '', capacity: 4, sortOrder: 0 };
@@ -81,6 +87,54 @@ export class AdminTablesComponent implements OnInit, OnDestroy {
   loadAll(): void {
     this.loadTables();
     this.loadFloor();
+  }
+
+  previewCancelledSessionCleanup(): void {
+    if (!this.canCleanupCancelledSessions || this.cleanupBusy) return;
+    this.cleanupBusy = true;
+    this.cleanupReport = null;
+    this.tableService.cleanupCancelledSessions(true).subscribe({
+      next: result => {
+        this.cleanupReport = result;
+        this.cleanupBusy = false;
+        if (!result.candidateCount) this.uiStore.success('No stale cancelled table sessions need cleanup.');
+      },
+      error: err => {
+        this.cleanupBusy = false;
+        this.showError(err, 'Failed to check stale cancelled sessions');
+      }
+    });
+  }
+
+  applyCancelledSessionCleanup(): void {
+    const report = this.cleanupReport;
+    if (!report?.candidateCount || this.cleanupBusy) return;
+    const tables = report.candidates.map(candidate => candidate.tableNumber).join(', ');
+    if (!window.confirm(
+      `Close ${report.candidateCount} stale table session(s) for ${tables}? ` +
+      'Only sessions with cancelled rounds and no payment activity will be closed.'
+    )) return;
+
+    this.cleanupBusy = true;
+    this.tableService.cleanupCancelledSessions(false).subscribe({
+      next: result => {
+        this.cleanupReport = null;
+        this.cleanupBusy = false;
+        this.uiStore.success(
+          `${result.closedCount} stale table session(s) closed` +
+          (result.skippedCount ? `; ${result.skippedCount} changed and were skipped` : '')
+        );
+        this.loadFloor();
+      },
+      error: err => {
+        this.cleanupBusy = false;
+        this.showError(err, 'Failed to clean up stale cancelled sessions');
+      }
+    });
+  }
+
+  dismissCancelledSessionCleanup(): void {
+    this.cleanupReport = null;
   }
 
   loadTables(): void {

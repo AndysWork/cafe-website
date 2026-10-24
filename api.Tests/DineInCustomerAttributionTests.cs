@@ -38,6 +38,8 @@ public sealed class DineInCustomerAttributionTests
     private readonly List<OutboxMessage> _messages = new();
     private readonly AuthService _auth;
     private readonly DineInFunction _function;
+    private readonly DineInOrderWorkflowFunction _workflow;
+    private readonly CafeTableFunction _floor;
     private DineInSession? _session;
 
     public DineInCustomerAttributionTests()
@@ -87,7 +89,10 @@ public sealed class DineInCustomerAttributionTests
                 new() { Id = MenuItemId, Name = "Tea", IsAvailable = true, DineInPrice = 100 }
             });
         _orders.Setup(value => value.GetActiveDineInSessionByTableAsync(OutletId, "T1"))
-            .ReturnsAsync(() => _session);
+            .ReturnsAsync(() => _session?.Status is "active" or "bill_requested" ? _session : null);
+        _orders.Setup(value => value.GetActiveDineInSessionsAsync(OutletId))
+            .ReturnsAsync(() => _session?.Status is "active" or "bill_requested"
+                ? new List<DineInSession> { _session } : new List<DineInSession>());
         _orders.Setup(value => value.CreateDineInSessionAsync(It.IsAny<DineInSession>()))
             .ReturnsAsync((DineInSession session) => { session.Id = SessionId; return _session = session; });
         _orders.Setup(value => value.CreateOrderAsync(It.IsAny<Order>()))
@@ -95,6 +100,19 @@ public sealed class DineInCustomerAttributionTests
         _orders.Setup(value => value.GetOrderByIdAsync(It.IsAny<string>()))
             .ReturnsAsync((string id) => _savedOrders.SingleOrDefault(order => order.Id == id));
         _orders.Setup(value => value.UpdateDineInSessionAsync(It.IsAny<DineInSession>())).ReturnsAsync(true);
+        _orders.Setup(value => value.TryCloseCancelledDineInSessionAsync(
+                It.IsAny<string>(), It.IsAny<DateTime>(), WaiterId))
+            .ReturnsAsync(true);
+        _orders.Setup(value => value.GetDineInSessionByIdAsync(SessionId)).ReturnsAsync(() => _session);
+        _orders.Setup(value => value.TryCancelDineInKotAsync(
+                It.IsAny<string>(), OutletId, It.IsAny<IReadOnlyCollection<string>>(), WaiterId, It.IsAny<string>()))
+            .ReturnsAsync((string id, string _, IReadOnlyCollection<string> statuses, string _, string _) =>
+            {
+                var order = _savedOrders.Single(item => item.Id == id);
+                if (!statuses.Contains(order.Status)) return false;
+                order.Status = "cancelled";
+                return true;
+            });
         _orders.Setup(value => value.GetNextDineInKotNumberAsync(OutletId)).ReturnsAsync("KOT-001");
         _function = new DineInFunction(
             _orders.Object, _menu.Object, _outlets.Object,
@@ -103,6 +121,13 @@ public sealed class DineInCustomerAttributionTests
             Mock.Of<IOperationsRepository>(), null!, _auth,
             new OutboxService(database.Object, NullLogger<OutboxService>.Instance),
             null!, new ConfigurationBuilder().Build(), NullLoggerFactory.Instance);
+        _workflow = new DineInOrderWorkflowFunction(
+            _orders.Object, _menu.Object, _outlets.Object, _auth,
+            new OutboxService(database.Object, NullLogger<OutboxService>.Instance),
+            NullLoggerFactory.Instance);
+        _floor = new CafeTableFunction(
+            new CafeTableRepository(database.Object, NullLogger<CafeTableRepository>.Instance),
+            _orders.Object, _outlets.Object, _auth, null!, NullLoggerFactory.Instance);
     }
 
     [Theory]
@@ -275,6 +300,213 @@ public sealed class DineInCustomerAttributionTests
         Assert.Equal("Gourab Ghosh", savedSession.WaiterName);
     }
 
+    [Theory]
+    [InlineData("active", "pending")]
+    [InlineData("bill_requested", "confirmed")]
+    public async Task CancellingLastKotClosesUnpaidSessionAndPreservesAudit(string sessionStatus, string orderStatus)
+    {
+        await PlaceOrder("Asha");
+        var order = Assert.Single(_savedOrders);
+        order.Status = orderStatus;
+        _session!.Status = sessionStatus;
+
+        var response = await _workflow.CancelKot(Request(new { reason = "Customer left" }), order.Id!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("cancelled", _session.Status);
+        Assert.Equal(0, _session.GrandTotal);
+        Assert.Equal("unpaid", _session.PaymentStatus);
+        Assert.Contains(order.Id!, _session.OrderIds);
+        Assert.Contains(_session.Timeline, item => item.EventType == "kot_cancelled" && item.Actor == WaiterId);
+        Assert.Contains(_session.Timeline, item => item.EventType == "session_cancelled" && item.Actor == WaiterId);
+        Assert.Contains(_messages, item => item.EventType == "ThermalKotCancellationPrint");
+
+        var floorResponse = await _floor.GetFloor(Request(new { }));
+        Assert.Equal(HttpStatusCode.OK, floorResponse.StatusCode);
+        var floorTable = Assert.Single(ReadBody(floorResponse).GetProperty("data").EnumerateArray());
+        Assert.Equal("free", floorTable.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task CancellingLastKotAllowsANewCustomerSessionOnTheSameTable()
+    {
+        await PlaceOrder("Asha");
+        var previousSession = _session!;
+        await _workflow.CancelKot(Request(new { reason = "Customer left" }), _savedOrders[0].Id!);
+
+        var response = await PlaceOrder("New customer");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotSame(previousSession, _session);
+        Assert.Equal("New customer", _session!.CustomerName);
+        Assert.Equal(_savedOrders[1].Id, Assert.Single(_session.OrderIds));
+    }
+
+    [Theory]
+    [InlineData("awaiting_waiter_approval")]
+    [InlineData("pending")]
+    [InlineData("preparing")]
+    [InlineData("served")]
+    public async Task CancellingKotKeepsTableOpenWhenAnotherRoundRemains(string remainingStatus)
+    {
+        await PlaceOrder("Asha");
+        await PlaceOrder("Asha");
+        _savedOrders[1].Status = remainingStatus;
+
+        var response = await _workflow.CancelKot(Request(new { reason = "Duplicate round" }), _savedOrders[0].Id!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("active", _session!.Status);
+        Assert.Equal(100, _session.GrandTotal);
+        Assert.DoesNotContain(_session.Timeline, item => item.EventType == "session_cancelled");
+    }
+
+    [Theory]
+    [InlineData("partially_paid", 10, null)]
+    [InlineData("unpaid", 10, null)]
+    [InlineData("pending_cash", 0, "pending")]
+    [InlineData("processing", 0, null)]
+    [InlineData("unpaid", 0, "confirmed")]
+    public async Task CancellingLastKotDoesNotDiscardPaymentActivity(string paymentStatus, int amountPaid, string? entryStatus)
+    {
+        await PlaceOrder("Asha");
+        _session!.PaymentStatus = paymentStatus;
+        _session.AmountPaid = amountPaid;
+        if (entryStatus != null) _session.PaymentEntries.Add(new() { Status = entryStatus, Amount = 10 });
+
+        var response = await _workflow.CancelKot(Request(new { reason = "Customer cancelled" }), _savedOrders[0].Id!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("active", _session.Status);
+        Assert.Equal(amountPaid, _session.AmountPaid);
+        Assert.Equal(paymentStatus, _session.PaymentStatus);
+    }
+
+    [Fact]
+    public async Task CancellingKotDoesNotCloseSessionWithMissingRound()
+    {
+        await PlaceOrder("Asha");
+        _session!.OrderIds.Add("missing-order");
+
+        var response = await _workflow.CancelKot(Request(new { reason = "Customer cancelled" }), _savedOrders[0].Id!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("active", _session.Status);
+    }
+
+    [Fact]
+    public async Task KotAlreadyInPreparationCannotBeCancelledOrCloseTheTable()
+    {
+        await PlaceOrder("Asha");
+        _savedOrders[0].Status = "preparing";
+
+        var response = await _workflow.CancelKot(Request(new { reason = "Customer cancelled" }), _savedOrders[0].Id!);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("active", _session!.Status);
+        Assert.Equal(100, _session.GrandTotal);
+        Assert.DoesNotContain(_messages, item => item.EventType == "ThermalKotCancellationPrint");
+    }
+
+    [Fact]
+    public async Task WaiterSessionOrdersExcludeCancelledKotsButRetainOtherRounds()
+    {
+        await PlaceOrder("Asha");
+        await PlaceOrder("Asha");
+        _savedOrders[0].Status = "cancelled";
+
+        var response = await _workflow.GetSessionOrders(Request(new { }), SessionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var order = Assert.Single(ReadBody(response).GetProperty("orders").EnumerateArray());
+        Assert.Equal(_savedOrders[1].Id, order.GetProperty("orderId").GetString());
+        Assert.Equal(2, _session!.OrderIds.Count);
+    }
+
+    [Fact]
+    public async Task CleanupCancelledSessionsPreviewsOnlyFullyCancelledUnpaidSessions()
+    {
+        await PlaceOrder("Asha");
+        _savedOrders[0].Status = "cancelled";
+        _session!.Status = "active";
+
+        var response = await _floor.CleanupCancelledSessions(
+            Request(new { }, roleOverride: "admin"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = ReadBody(response);
+        Assert.True(body.GetProperty("dryRun").GetBoolean());
+        Assert.Equal(1, body.GetProperty("candidateCount").GetInt32());
+        Assert.Equal(0, body.GetProperty("closedCount").GetInt32());
+        Assert.Equal("T1", body.GetProperty("candidates")[0].GetProperty("tableNumber").GetString());
+        _orders.Verify(value => value.TryCloseCancelledDineInSessionAsync(
+            It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<string>()), Times.Never);
+        Assert.Equal("active", _session.Status);
+    }
+
+    [Fact]
+    public async Task CleanupCancelledSessionsClosesPreviewedSessionWithConditionalUpdate()
+    {
+        await PlaceOrder("Asha");
+        _savedOrders[0].Status = "cancelled";
+        _session!.Status = "bill_requested";
+        var expectedUpdatedAt = _session.UpdatedAt;
+
+        var response = await _floor.CleanupCancelledSessions(
+            Request(new { }, roleOverride: "admin", dryRun: "false"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = ReadBody(response);
+        Assert.False(body.GetProperty("dryRun").GetBoolean());
+        Assert.Equal(1, body.GetProperty("closedCount").GetInt32());
+        _orders.Verify(value => value.TryCloseCancelledDineInSessionAsync(
+            SessionId, expectedUpdatedAt, WaiterId), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("active")]
+    [InlineData("awaiting_waiter_approval")]
+    [InlineData("preparing")]
+    [InlineData("served")]
+    public async Task CleanupCancelledSessionsSkipsAnySessionWithNonCancelledOrder(string activeOrderStatus)
+    {
+        await PlaceOrder("Asha");
+        _savedOrders[0].Status = activeOrderStatus;
+        _session!.Status = "active";
+
+        var response = await _floor.CleanupCancelledSessions(
+            Request(new { }, roleOverride: "admin"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, ReadBody(response).GetProperty("candidateCount").GetInt32());
+        _orders.Verify(value => value.TryCloseCancelledDineInSessionAsync(
+            It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CleanupCancelledSessionsSkipsSessionsWithPaymentActivity()
+    {
+        await PlaceOrder("Asha");
+        _savedOrders[0].Status = "cancelled";
+        _session!.PaymentStatus = "partially_paid";
+        _session.AmountPaid = 5;
+
+        var response = await _floor.CleanupCancelledSessions(
+            Request(new { }, roleOverride: "admin"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, ReadBody(response).GetProperty("candidateCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task CleanupCancelledSessionsIsRestrictedToAdmins()
+    {
+        var response = await _floor.CleanupCancelledSessions(Request(new { }));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        _orders.Verify(value => value.GetActiveDineInSessionsAsync(It.IsAny<string>()), Times.Never);
+    }
+
     private Task<HttpResponseData> PlaceOrder(string? customerName) =>
         _function.PlaceDineInOrder(Request(new CreateOrderRequest {
             OutletId = OutletId, TableNumber = "T1", CustomerName = customerName,
@@ -292,7 +524,12 @@ public sealed class DineInCustomerAttributionTests
         Assert.Equal("paid", _session.Status);
     }
 
-    private HttpRequestData Request(object body, bool isWaiter = true, string? waiterId = null)
+    private HttpRequestData Request(
+        object body,
+        bool isWaiter = true,
+        string? waiterId = null,
+        string? roleOverride = null,
+        string? dryRun = null)
     {
         var services = new ServiceCollection().AddSingleton<IOptions<WorkerOptions>>(
             Options.Create(new WorkerOptions {
@@ -301,9 +538,15 @@ public sealed class DineInCustomerAttributionTests
         var context = new Mock<FunctionContext>();
         context.SetupProperty(value => value.InstanceServices, services);
         var request = new Mock<HttpRequestData>(context.Object);
-        var token = _auth.GenerateJwtToken(isWaiter ? waiterId ?? WaiterId : CustomerId,
-            isWaiter ? "waiter-login" : "customer-login", isWaiter ? "cashier" : "user",
-            additionalRoles: isWaiter ? new[] { "waiter", "delivery-partner" } : null);
+        request.SetupGet(value => value.Url).Returns(new Uri($"http://localhost/api/test?outletId={OutletId}"));
+        var query = new System.Collections.Specialized.NameValueCollection { { "outletId", OutletId } };
+        if (dryRun != null) query.Add("dryRun", dryRun);
+        request.SetupGet(value => value.Query).Returns(query);
+        var token = _auth.GenerateJwtToken(
+            roleOverride == null ? isWaiter ? waiterId ?? WaiterId : CustomerId : WaiterId,
+            roleOverride == null ? isWaiter ? "waiter-login" : "customer-login" : "admin-login",
+            roleOverride ?? (isWaiter ? "cashier" : "user"),
+            additionalRoles: roleOverride == null && isWaiter ? new[] { "waiter", "delivery-partner" } : null);
         request.SetupGet(value => value.Headers).Returns(new HttpHeadersCollection {
             { "Authorization", $"Bearer {token}" }
         });

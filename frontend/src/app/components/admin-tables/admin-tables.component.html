@@ -8,11 +8,34 @@
       <button type="button" class="btn" [class.selected]="tab === 'floor'" (click)="tab = 'floor'; loadFloor()">Live Floor</button>
       <button type="button" class="btn" [class.selected]="tab === 'setup'" (click)="tab = 'setup'">Setup</button>
       <button type="button" class="btn" (click)="loadAll()" [disabled]="loading()">Refresh</button>
+      <button *ngIf="canCleanupCancelledSessions" type="button" class="btn"
+        (click)="previewCancelledSessionCleanup()" [disabled]="cleanupBusy">
+        {{ cleanupBusy ? 'Checking…' : 'Check cancelled sessions' }}
+      </button>
     </div>
   </div>
 
   <!-- Live floor -->
   <ng-container *ngIf="tab === 'floor'">
+    <section class="cleanup-panel" *ngIf="cleanupReport as report">
+      <div>
+        <strong>{{ report.candidateCount }} stale cancelled session(s) found</strong>
+        <p>Only sessions whose linked orders are all cancelled and which have no payment activity are listed.</p>
+        <ul>
+          <li *ngFor="let candidate of report.candidates">
+            Table {{ candidate.tableNumber }} · {{ candidate.orderCount }} cancelled round(s)
+          </li>
+        </ul>
+      </div>
+      <div class="cleanup-actions" *ngIf="report.candidateCount">
+        <button type="button" class="btn danger" [disabled]="cleanupBusy" (click)="applyCancelledSessionCleanup()">
+          {{ cleanupBusy ? 'Closing…' : 'Close these sessions' }}
+        </button>
+        <button type="button" class="btn" [disabled]="cleanupBusy" (click)="dismissCancelledSessionCleanup()">Cancel</button>
+      </div>
+      <button *ngIf="!report.candidateCount" type="button" class="btn" (click)="dismissCancelledSessionCleanup()">Dismiss</button>
+    </section>
+
     <div class="summary" *ngIf="summary() as s">
       <span class="chip free">Free {{ s.free }}</span>
       <span class="chip occupied">Occupied {{ s.occupied }}</span>

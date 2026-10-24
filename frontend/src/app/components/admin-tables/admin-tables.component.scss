@@ -316,3 +316,31 @@ th {
   gap: 8px;
   margin-top: 16px;
 }
+.cleanup-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  margin: 0 0 18px;
+  border: 1px solid #e2bd73;
+  border-radius: 12px;
+  background: #fff9e9;
+}
+
+.cleanup-panel p {
+  margin: 6px 0;
+  color: #625f55;
+}
+
+.cleanup-panel ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.cleanup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

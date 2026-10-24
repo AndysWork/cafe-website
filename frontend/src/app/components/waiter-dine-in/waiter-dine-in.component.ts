@@ -29,6 +29,8 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   private readonly menuService = inject(MenuService);
   private readonly outletService = inject(OutletService);
   private readonly subscriptions = new Subscription();
+  private tableFloorSubscription?: Subscription;
+  private tableOrdersSubscription?: Subscription;
 
   activeTab: 'order' | 'takeaway' | 'qr' = 'order';
   readyTakeawayCount = 0;
@@ -69,6 +71,8 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.tableFloorSubscription?.unsubscribe();
+    this.tableOrdersSubscription?.unsubscribe();
     this.subscriptions.unsubscribe();
   }
 
@@ -327,7 +331,8 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
       next: response => {
         this.message = response.message;
         this.reviewingOrderId = '';
-        this.loadSelectedTableOrders();
+        this.tableOrdersSubscription?.unsubscribe();
+        this.currentSessionOrders = this.currentSessionOrders.filter(item => item.orderId !== order.orderId);
         this.loadTables();
       },
       error: error => {
@@ -359,10 +364,15 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   }
 
   private loadTables(): void {
+    this.tableFloorSubscription?.unsubscribe();
     this.loadingTables = true;
-    this.subscriptions.add(this.tablesService.getFloor().subscribe({
+    this.tableFloorSubscription = this.tablesService.getFloor().subscribe({
       next: result => {
+        const previousSessionId = this.selectedTable?.sessionId;
         this.tables = result.tables;
+        if (previousSessionId !== this.selectedTable?.sessionId) {
+          this.customerName = this.selectedTable?.customerName || '';
+        }
         this.loadingTables = false;
         this.loadSelectedTableOrders();
       },
@@ -370,7 +380,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
         this.errorMessage = error?.error?.error || error?.message || 'Could not load the table floor.';
         this.loadingTables = false;
       }
-    }));
+    });
   }
 
   private loadMenu(): void {
@@ -407,18 +417,19 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   }
 
   private loadSelectedTableOrders(): void {
+    this.tableOrdersSubscription?.unsubscribe();
     const sessionId = this.selectedTable?.sessionId;
     if (!sessionId) {
       this.currentSessionOrders = [];
       return;
     }
-    this.subscriptions.add(this.dineInService.getDineInSessionOrders(sessionId).subscribe({
+    this.tableOrdersSubscription = this.dineInService.getDineInSessionOrders(sessionId).subscribe({
       next: result => {
-        this.currentSessionOrders = result.orders || [];
+        this.currentSessionOrders = (result.orders || []).filter(order => order.status !== 'cancelled');
       },
       error: error => {
         this.errorMessage = error?.error?.error || error?.message || 'Could not load the selected table orders.';
       }
-    }));
+    });
   }
 }

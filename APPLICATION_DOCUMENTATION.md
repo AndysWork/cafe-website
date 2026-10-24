@@ -143,6 +143,7 @@
 | 45 | **Delivery Zones** | Configure distance-based delivery zones with fees, free delivery thresholds, estimated delivery times |
 | 46 | **Delivery Partners** | Manage delivery riders (name, phone, vehicle), assign to orders, track delivery completion |
 | 47 | **Table Reservations Admin** | View and manage all customer reservations, update status (confirmed/seated/completed/cancelled/no-show) |
+| 47a | **Stale Cancelled Table Cleanup** | On the Tables → Live Floor page, admins can preview and close sessions whose linked rounds are all cancelled and have no payment activity; concurrent changes are skipped |
 | 48 | **Wastage Tracking** | Record daily wastage with items, values, and reasons (expired/damaged/overproduction/returned) |
 | 49 | **Multi-Outlet Management** | Create/manage multiple outlets with individual settings (operating hours, tax rates, delivery radius, order types) |
 | 50 | **Outlet Selector** | Switch between outlets — all data automatically scoped to selected outlet |
@@ -215,7 +216,7 @@
 |---|---------|-------------|
 | 1 | **Waiter Station** | Select an available or occupied table, build an order round with variants/add-ons, and send it directly to the kitchen |
 | 2 | **QR Order Approval** | Review customer-submitted QR orders, edit items/quantities/notes while pending, then approve them for kitchen/KOT dispatch or reject them with a reason |
-| 3 | **Active Table Rounds** | Review rounds for the selected active session, request a duplicate KOT print, or cancel a KOT before kitchen preparation starts; cancellations enqueue a kitchen slip |
+| 3 | **Active Table Rounds** | Review non-cancelled rounds for the selected active session, request a duplicate KOT print, or cancel a KOT before kitchen preparation starts; cancellations enqueue a kitchen slip. Cancelling every round closes an unpaid session and frees the table; remaining rounds or payment activity keep it open |
 | 4 | **Item Service Tracking** | View kitchen progress for each round item and mark ready items served |
 | 5 | **KOT Printing** | Approved QR orders and waiter-entered rounds receive per-outlet daily KOT numbers and are dispatched through the configured thermal printer outbox. Printer setup: [print-bridge/README.md](print-bridge/README.md) |
 | 6 | **Waiter Takeaway (Parcel)** | **Takeaway** tab: take a parcel order with customer name/phone, choose *Paid now* (cash/UPI) or *Pay at handover*, track packing status, collect payment, and hand the parcel over. See [§4.2.3](#423-waiter-takeaway-parcel-flow) |
@@ -281,6 +282,7 @@ Wallet functionality has been removed from the product (July 2026).
 1. **Login** → Use admin credentials → Redirected to admin dashboard
 2. **Create Outlets** → Profile dropdown → "Manage Outlets" → Create outlet with name, address, contact, settings
 3. **Select Outlet** → Use outlet selector (top-right dropdown) → All subsequent data scoped to selected outlet
+4. **Clean stale cancelled tables** → Tables → Live Floor → **Check cancelled sessions** → review eligible table/rounds → **Close these sessions**. This only closes sessions with all rounds cancelled, no linked orders missing, no payment activity, and no active payment; the action is logged in the session timeline.
 
 #### Pause or Resume Outlet Ordering
 In **Manage Outlets**, use the independent On/Off controls on each outlet card, or edit the outlet's settings:
@@ -777,6 +779,7 @@ flowchart TD
 - **Waiter serving:** Mark Served sends the selected outlet and validates it against the order's stored outlet. A user with both kitchen and waiter roles can serve ready items even when another cook prepared the order; kitchen-only users still require the kitchen assignment. Ready-state checks and item audit logging remain enforced.
 - **Customer and waiter identity:** Waiter-entered rounds accept an optional customer name (maximum 100 characters). The API derives `waiterUserId` and `waiterName` from the authenticated account, preferring its full name; client-supplied waiter identity is not accepted. A staff-created session has no customer account (`userId` is null). Session-opening waiter details and each round's order-taking waiter are stored separately from `customerName`; if a waiter adds the first staff round to a QR customer session, that waiter is also recorded on the session. Adding a round to an existing QR customer session preserves that customer's account, name, and phone.
 - **KOT dispatch:** QR orders require waiter approval; waiter-entered rounds go directly to the kitchen queue. Thermal printing is asynchronous and is not a prerequisite for kitchen confirmation.
+- **KOT cancellation:** Cancelled rounds disappear from the waiter's operational list but remain in stored order/session history and the audit timeline. Cancelling the last remaining round closes an active/bill-requested session only when it is unpaid with no received, pending, or processing payments. Tables with other rounds or payment activity stay open for service/payment resolution; a missing order reference also prevents automatic closure.
 - **KOT names:** Original, duplicate, and cancellation tickets print separate **Customer** and **Waiter** labels. Unnamed waiter-entered orders use **Walk-in customer**. Legacy waiter KOTs no longer label the staff login as the customer.
 - **Item tracking:** A line's entire quantity is marked ready or served together. A round becomes ready only after every line is ready and the checklist is complete; concurrent final-item updates prompt checklist completion rather than bypassing it.
 - **Payments:** Both paths support partial payments. Direct cashier entry is blocked while a customer payment request is pending; the cashier must confirm the existing request before recording another payment. Full payment closes the session.

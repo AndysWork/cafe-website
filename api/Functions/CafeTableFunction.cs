@@ -103,6 +103,89 @@ public class CafeTableFunction
         }
     }
 
+    [Function("CleanupCancelledDineInSessions")]
+    public async Task<HttpResponseData> CleanupCancelledSessions(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "tables/cleanup-cancelled-sessions")] HttpRequestData req)
+    {
+        var (authorized, userId, _, error) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        if (!authorized) return error!;
+        if (string.IsNullOrWhiteSpace(userId))
+            return await Error(req, HttpStatusCode.Unauthorized, "Authenticated admin identity is required");
+
+        var dryRun = !string.Equals(req.Query["dryRun"], "false", StringComparison.OrdinalIgnoreCase);
+        string? outletId = null;
+        try
+        {
+            outletId = await ResolveOutletIdAsync(req, req.Query["outletId"]);
+            if (string.IsNullOrWhiteSpace(outletId))
+                return await Error(req, HttpStatusCode.BadRequest, "Outlet ID required");
+
+            var candidates = new List<(DineInSession Session, int OrderCount)>();
+            var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
+            foreach (var session in sessions)
+            {
+                if (!CanCleanupCancelledSession(session)) continue;
+
+                var allOrdersCancelled = true;
+                foreach (var orderId in session.OrderIds)
+                {
+                    var order = await _orderRepo.GetOrderByIdAsync(orderId);
+                    if (order == null
+                        || order.OutletId != outletId
+                        || order.OrderType != "dine-in"
+                        || order.DineInSessionId != session.Id
+                        || order.Status != "cancelled")
+                    {
+                        allOrdersCancelled = false;
+                        break;
+                    }
+                }
+
+                if (allOrdersCancelled) candidates.Add((session, session.OrderIds.Count));
+            }
+
+            var closed = new List<object>();
+            if (!dryRun)
+            {
+                foreach (var candidate in candidates)
+                {
+                    if (await _orderRepo.TryCloseCancelledDineInSessionAsync(
+                            candidate.Session.Id!, candidate.Session.UpdatedAt, userId))
+                    {
+                        closed.Add(new
+                        {
+                            sessionId = candidate.Session.Id,
+                            tableNumber = candidate.Session.TableNumber,
+                            orderCount = candidate.OrderCount
+                        });
+                    }
+                }
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                dryRun,
+                candidateCount = candidates.Count,
+                closedCount = closed.Count,
+                skippedCount = dryRun ? 0 : candidates.Count - closed.Count,
+                candidates = candidates.Select(candidate => new
+                {
+                    sessionId = candidate.Session.Id,
+                    tableNumber = candidate.Session.TableNumber,
+                    orderCount = candidate.OrderCount
+                }),
+                closed
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed to clean up cancelled dine-in sessions for outlet {OutletId}", outletId);
+            return await Error(req, HttpStatusCode.InternalServerError, "Failed to clean up cancelled table sessions");
+        }
+    }
+
     [Function("CreateCafeTable")]
     public async Task<HttpResponseData> CreateTable(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "tables")] HttpRequestData req)
@@ -428,6 +511,15 @@ public class CafeTableFunction
         view.OccupiedSince = session.CreatedAt;
         view.MinutesActive = Math.Max(0, (int)(now - session.CreatedAt).TotalMinutes);
     }
+
+    private static bool CanCleanupCancelledSession(DineInSession session) =>
+        !string.IsNullOrWhiteSpace(session.Id)
+        && (session.Status is "active" or "bill_requested")
+        && session.OrderIds is { Count: > 0 }
+        && session.PaymentStatus == "unpaid"
+        && session.AmountPaid == 0
+        && string.IsNullOrWhiteSpace(session.RazorpayOrderId)
+        && !(session.PaymentEntries ?? new()).Any(entry => entry.Status != "rejected");
 
     private async Task<bool> HasActiveSessionAsync(CafeTable table)
     {

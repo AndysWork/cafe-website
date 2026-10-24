@@ -341,7 +341,8 @@ public class DineInOrderWorkflowFunction
             foreach (var orderId in session.OrderIds)
             {
                 var order = await _orderRepo.GetOrderByIdAsync(orderId);
-                if (order == null || order.OrderType != "dine-in" || order.OutletId != outletId) continue;
+                if (order == null || order.OrderType != "dine-in" || order.OutletId != outletId
+                    || order.Status == "cancelled") continue;
                 orders.Add(new
                 {
                     orderId = order.Id,
@@ -445,7 +446,7 @@ public class DineInOrderWorkflowFunction
             order.UpdatedAt = order.KotCancelledAt.Value;
             await AddSessionEventAsync(
                 order, "kot_cancelled", $"KOT {order.KotNumber} cancelled: {reason}", userId);
-            await RecalculateSessionTotalsAsync(order.DineInSessionId);
+            await RecalculateSessionTotalsAsync(order.DineInSessionId, userId);
             await _outbox.EnqueueAsync("ThermalKotCancellationPrint", "Order", orderId,
                 new { OrderId = orderId, Reason = reason });
 
@@ -507,7 +508,7 @@ public class DineInOrderWorkflowFunction
             throw new InvalidOperationException($"Could not record QR order event for session {session.Id}");
     }
 
-    private async Task RecalculateSessionTotalsAsync(string? sessionId)
+    private async Task RecalculateSessionTotalsAsync(string? sessionId, string? cancellationActor = null)
     {
         if (string.IsNullOrWhiteSpace(sessionId))
             throw new InvalidOperationException("Cannot recalculate totals without a dine-in session");
@@ -516,9 +517,11 @@ public class DineInOrderWorkflowFunction
             throw new InvalidOperationException($"Dine-in session {sessionId} was not found");
 
         decimal subtotal = 0;
+        var allOrdersCancelled = session.OrderIds.Count > 0;
         foreach (var id in session.OrderIds)
         {
             var order = await _orderRepo.GetOrderByIdAsync(id);
+            allOrdersCancelled &= order?.Status == "cancelled";
             if (order != null && order.Status != "cancelled") subtotal += order.Subtotal;
         }
 
@@ -526,6 +529,22 @@ public class DineInOrderWorkflowFunction
         session.TaxAmount = 0;
         session.GrandTotal = Math.Max(0, subtotal - session.DiscountAmount - session.LoyaltyDiscountAmount);
         session.UpdatedAt = MongoService.GetIstNow();
+        if (cancellationActor != null && allOrdersCancelled
+            && session.Status is "active" or "bill_requested"
+            && session.PaymentStatus == "unpaid" && session.AmountPaid == 0
+            && string.IsNullOrWhiteSpace(session.RazorpayOrderId)
+            && !(session.PaymentEntries ?? new()).Any(entry => entry.Status is "pending" or "confirmed"))
+        {
+            session.Status = "cancelled";
+            session.Timeline ??= new();
+            session.Timeline.Add(new DineInSessionEvent
+            {
+                EventType = "session_cancelled",
+                Message = "Table session closed because all order rounds were cancelled",
+                Actor = cancellationActor,
+                CreatedAt = session.UpdatedAt
+            });
+        }
         if (!await _orderRepo.UpdateDineInSessionAsync(session))
             throw new InvalidOperationException($"Could not update totals for session {sessionId}");
     }
