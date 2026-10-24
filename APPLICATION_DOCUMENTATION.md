@@ -574,6 +574,21 @@ storage/CDN origin changes, update `connect-src` accordingly. The worker registr
 URL in `frontend/src/app/app.config.ts` is versioned so existing installations pick
 up the corrected worker CSP after loading the updated frontend. After deployment,
 close and reopen existing site/PWA tabs to allow the replacement worker to activate.
+
+**PWA updates and API caching:** `AppUpdateService` (started from `app.config.ts`)
+checks for a new deployment every 10 minutes and whenever the tab becomes visible.
+When a new version is downloaded, it is applied only after the user navigates to
+another page in the app (full reload of the page they navigated to). It never
+reloads the page currently on screen or a backgrounded tab, so an unfinished order
+on the open screen is not discarded; a screen left open indefinitely stays on the
+old version until the user navigates or reopens the app. An unrecoverable
+service-worker state is handled the same way; if that navigation fails because old
+lazy-loaded files are gone, the target page is loaded fresh. Users do not need to
+clear their cache. The `ngsw-config.json`
+data-group URL patterns also match the cross-origin API. The reference data group
+(categories, outlets, loyalty rewards, `/api/public/**` such as home content) uses
+`freshness` (network first, 5s timeout, cached copy only as an offline fallback),
+so admin edits appear on the next load.
 No image re-upload is necessary.
 
 ```
@@ -1174,7 +1189,7 @@ User                Angular App              Azure Functions           MongoDB
 
 #### FLAW 8: Frontend Error Recovery ✅ RESOLVED
 - **Original Problem:** No retry logic, no offline queueing, no graceful degradation in frontend services.
-- **Resolution:** `error.interceptor.ts` now implements exponential backoff retry for transient 5xx errors. `OfflineQueueService` queues critical mutations when offline. `NetworkStatusService` tracks online/offline state. `ngsw-config.json` configured with API caching strategies (reference data: performance mode, fresh data: freshness mode).
+- **Resolution:** `error.interceptor.ts` now implements exponential backoff retry for transient 5xx errors. `OfflineQueueService` queues critical mutations when offline. `NetworkStatusService` tracks online/offline state. `ngsw-config.json` configured with API caching strategies (freshness mode for reference and other API data; performance mode only for partner delivery screens).
 - **Files:** `frontend/src/app/interceptors/error.interceptor.ts`, `frontend/src/app/services/offline-queue.service.ts`, `frontend/src/app/services/network-status.service.ts`, `frontend/ngsw-config.json`
 
 #### FLAW 9: No Database Indexing Strategy ✅ RESOLVED

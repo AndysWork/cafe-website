@@ -36,9 +36,10 @@
         "/api/public/**"
       ],
       "cacheConfig": {
-        "strategy": "performance",
+        "strategy": "freshness",
         "maxSize": 50,
-        "maxAge": "6h"
+        "maxAge": "1d",
+        "timeout": "5s"
       }
     },
     {

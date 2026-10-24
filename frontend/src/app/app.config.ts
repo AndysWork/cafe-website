@@ -1,4 +1,4 @@
-import { ApplicationConfig, provideZoneChangeDetection, isDevMode } from '@angular/core';
+import { ApplicationConfig, provideZoneChangeDetection, isDevMode, provideAppInitializer, inject } from '@angular/core';
 import { DATE_PIPE_DEFAULT_OPTIONS } from '@angular/common';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
@@ -7,6 +7,7 @@ import { authInterceptor } from './interceptors/auth.interceptor';
 import { outletInterceptor } from './interceptors/outlet.interceptor';
 import { analyticsInterceptor } from './interceptors/analytics.interceptor';
 import { errorInterceptor } from './interceptors/error.interceptor';
+import { AppUpdateService } from './services/app-update.service';
 
 import { routes } from './app.routes';
 
@@ -23,6 +24,7 @@ export const appConfig: ApplicationConfig = {
     provideServiceWorker('ngsw-worker.js?policy=blob-images-v1', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000'
-    })
+    }),
+    provideAppInitializer(() => inject(AppUpdateService).start())
   ]
 };
