@@ -47,6 +47,7 @@ export function getRoleNavigationItems(userRoles: string[]): RoleNavigationItem[
   add(WAITER_ROLES, { label: 'Waiter Station', route: '/staff/dine-in', icon: '🍽️' });
   add(KITCHEN_ROLES, { label: 'Kitchen Display', route: admin ? '/admin/kitchen-display' : '/kitchen/display', icon: '🍳' });
   add(MANAGER_ROLES, { label: 'Counter Sale', route: admin ? '/admin/counter-sale' : '/manager/counter-sale', icon: '🛒' });
+  add(['admin', 'manager'], { label: 'Phone Delivery Orders', route: '/phone-orders', icon: '☎', group: 'Operations' });
   add(['manager'], { label: 'Delivery Tracking', route: '/manager/operations', icon: '🛵' });
   add(PARTNER_ROLES, { label: 'Payout Access', route: '/partner/payout', icon: '💰' });
   const staffRoles = [...KITCHEN_ROLES, ...WAITER_ROLES, ...CASHIER_ROLES];

@@ -212,6 +212,13 @@ public class ManagerOperationsFunction
                 return bad;
             }
 
+            var existingOrder = await _orders.GetOrderByIdAsync(body.OrderId);
+            if (existingOrder != null && PhoneDeliveryOrderRules.IsPhoneOrder(existingOrder))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Use manage/delivery-partners/assign for outlet-authorized phone order assignment" });
+                return conflict;
+            }
             var success = await _ops.ReassignOrderPartnerAsync(body.OrderId, body.PartnerId);
             if (!success)
             {

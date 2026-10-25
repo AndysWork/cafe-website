@@ -1,0 +1,41 @@
+.phone-orders { max-width: 1400px; margin: 0 auto; padding: 24px; color: #263238; }
+h1, h2, h3 { margin-top: 0; }
+.entry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.panel { background: #fff; padding: 22px; border: 1px solid #ddd; border-radius: 12px; margin-bottom: 20px; min-width: 0; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+label { display: block; font-weight: 600; margin: 14px 0 6px; }
+input, textarea, select { display: block; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #adb5bd; border-radius: 6px; margin-top: 5px; font: inherit; background: #fff; }
+textarea { min-height: 75px; resize: vertical; }
+small { display: block; font-weight: normal; color: #546e7a; }
+button { padding: 10px 14px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; background: #f4f5f6; margin-top: 8px; font: inherit; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.primary { background: #0f6252; color: white; width: 100%; margin-top: 18px; }
+.secondary { margin-top: 14px; }
+.menu-list { max-height: 760px; overflow-y: auto; }
+.menu-item, .cart-line { border-bottom: 1px solid #eee; padding: 14px 0; }
+.menu-item > div, .cart-line, .board-header, .totals p { display: flex; justify-content: space-between; gap: 12px; }
+.checkbox { display: flex; align-items: center; gap: 8px; font-weight: normal; }
+.checkbox input { width: auto; margin: 0; }
+.quantity { display: flex; align-items: center; gap: 10px; }
+.quantity button { margin: 0; }
+.totals { margin-top: 12px; background: #eef7f3; padding: 12px; border-radius: 6px; }
+.totals strong { width: 100%; }
+.totals span { float: right; }
+.notice { padding: 14px; border-radius: 6px; }
+.error { color: #8b1d1d; background: #fff0f0; }
+.success { color: #155a31; background: #eaf7ef; }
+.payment-warning { background: #fff8df; padding: 10px; }
+.tracked-order { border-top: 1px solid #ddd; padding: 20px 0; overflow-wrap: anywhere; }
+.status { color: #0f6252; white-space: nowrap; }
+.assignment { display: flex; align-items: end; gap: 12px; }
+.assignment label { flex: 1; }
+details { margin-top: 16px; }
+summary { cursor: pointer; }
+a { color: #005b9a; }
+@media (max-width: 800px) {
+  .phone-orders { padding: 12px; }
+  .entry-grid { grid-template-columns: 1fr; }
+  .menu-list { max-height: 400px; }
+  .board-header, .assignment { flex-wrap: wrap; }
+  .panel { padding: 16px; }
+}

@@ -1,0 +1,20 @@
+<main class="tracking">
+  <h1>Your Maa Tara Cafe delivery</h1>
+  <p *ngIf="loading" role="status">Loading your order...</p>
+  <p *ngIf="error" class="error" role="alert">{{ error }}</p>
+  <ng-container *ngIf="tracking as order">
+    <p>Order <strong>{{ order.kotNumber || order.orderId.slice(-6) }}</strong></p>
+    <h2 aria-live="polite">{{ labels[order.status] || order.status }}</h2>
+    <p *ngIf="order.status === 'cancelled'">This order has been cancelled. Please contact the cafe about any prepaid payment.</p>
+    <ol *ngIf="order.status !== 'cancelled'" aria-label="Delivery progress">
+      <li *ngFor="let step of steps" [class.completed]="completed(step)" [attr.aria-current]="order.status === step ? 'step' : null">{{ labels[step] }}</li>
+    </ol>
+    <p>Total: <strong>{{ order.total | currency:'INR' }}</strong></p>
+    <p>{{ order.paymentMethod === 'cod' ? 'Cash on delivery' : order.paymentMethod === 'upi-qr' ? 'Prepaid UPI' : 'Prepaid cash' }} / {{ order.paymentStatus | titlecase }}</p>
+    <p *ngIf="order.deliveryPartnerName">Delivery partner: {{ order.deliveryPartnerName }}</p>
+    <p *ngIf="order.etaMinutes && order.status === 'out-for-delivery'">Estimated travel time: {{ order.etaMinutes }} minutes (may vary).</p>
+    <p class="updated">Last successful check: {{ lastChecked | date:'mediumTime' }}. {{ order.status === 'delivered' || order.status === 'cancelled' ? 'Tracking complete.' : 'Updates every 15 seconds.' }}</p>
+    <a *ngIf="order.supportPhone" [href]="'tel:' + order.supportPhone">Call the cafe: {{ order.supportPhone }}</a>
+  </ng-container>
+  <p class="privacy">This is a private tracking link. Share it only with people who need to follow this delivery.</p>
+</main>

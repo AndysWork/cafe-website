@@ -14,6 +14,7 @@ import { getOrderingUnavailableReason } from '../../models/outlet.model';
 import { BillPrintTrigger, BillPrinterService } from '../../services/bill-printer.service';
 import { renderTakeawayBill } from '../../utils/bill-receipt';
 import { BillPrinterControlComponent } from '../bill-printer-control/bill-printer-control.component';
+import { shopMenuPrice } from '../../utils/shop-menu-price';
 
 interface TakeawayCartLine {
   menuItem: MenuItem;
@@ -121,13 +122,7 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
 
   /** Takeaway is a shop sale, so prices follow the counter (shop) price list. */
   basePrice(menuItem: MenuItem, variantName?: string): number {
-    const variantPrice = variantName
-      ? menuItem.variants?.find(variant => variant.variantName === variantName)?.price
-      : undefined;
-    if (variantPrice !== undefined) return variantPrice;
-    if ((menuItem.shopSellingPrice || 0) > 0) return menuItem.shopSellingPrice!;
-    if ((menuItem.webPrice || 0) > 0) return menuItem.webPrice!;
-    return menuItem.onlinePrice || 0;
+    return shopMenuPrice(menuItem, variantName);
   }
 
   menuItemPrice(menuItem: MenuItem): number {

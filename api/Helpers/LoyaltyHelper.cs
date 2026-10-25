@@ -5,7 +5,8 @@ namespace Cafe.Api.Helpers;
 public static class LoyaltyHelper
 {
     public static bool IsWaiterOrGuestDineInOrder(Order order) =>
-        IsWaiterTakeawayOrder(order)
+        PhoneDeliveryOrderRules.IsPhoneOrder(order)
+        || IsWaiterTakeawayOrder(order)
         || string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase)
         && (order.UserId == "guest_dinein"
             || (string.Equals(order.DineInOrderSource, "waiter", StringComparison.OrdinalIgnoreCase)

@@ -1149,6 +1149,13 @@ public class OrderFunction
             var (cancelRequest, validationError) = await ValidationHelper.ValidateBody<CancelOrderItemRequest>(req);
             if (validationError != null) return validationError;
 
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Phone order items cannot be edited after payment review; cancel an unpaid order and recreate it" });
+                return conflict;
+            }
+
             var item = order.Items.FirstOrDefault(i => i.MenuItemId == menuItemId);
             if (item == null)
             {
@@ -1279,6 +1286,18 @@ public class OrderFunction
             var oldStatus = oldOrder.Status;
             var nextStatus = statusRequest.Status.ToLowerInvariant();
 
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(oldOrder))
+            {
+                var (access, _, _) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo, oldOrder.OutletId);
+                var block = PhoneDeliveryOrderRules.WorkflowBlockReason(oldOrder, nextStatus);
+                if (!access || block != null)
+                {
+                    var conflict = req.CreateResponse(!access ? HttpStatusCode.Forbidden : HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = !access ? "Outlet access denied" : block });
+                    return conflict;
+                }
+            }
+
             if (!IsValidStatusTransition(oldStatus, nextStatus))
             {
                 var badTransition = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -1300,7 +1319,9 @@ public class OrderFunction
                 return badRequest;
             }
 
-            var success = await _orderRepo.UpdateOrderStatusAsync(id, nextStatus);
+            var success = PhoneDeliveryOrderRules.IsPhoneOrder(oldOrder)
+                ? await _orderRepo.TryUpdateOrderStatusAsync(id, new[] { oldStatus }, nextStatus)
+                : await _orderRepo.UpdateOrderStatusAsync(id, nextStatus);
 
             if (!success)
             {
@@ -1310,6 +1331,8 @@ public class OrderFunction
             }
 
             var order = await _orderRepo.GetOrderByIdAsync(id);
+            if (nextStatus == "cancelled")
+                await _mongo.ReleasePhonePartnerAsync(oldOrder);
 
             // Event sourcing: record status transition (FLAW 15)
             _ = _eventLog.LogEventAsync("Order", id, "StatusChanged",
@@ -1407,6 +1430,13 @@ public class OrderFunction
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Cannot confirm payment for a refunded order" });
                 return badRequest;
+            }
+
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Phone COD payment must be recorded by the assigned delivery partner after pickup" });
+                return conflict;
             }
 
             var adminAuditNote = $"Admin payment confirmation by {userId ?? "admin"}";
@@ -1512,7 +1542,20 @@ public class OrderFunction
             }
 
             // Users can only cancel their own orders, admins can cancel any
-            if (role != "admin" && order.UserId != userId)
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            {
+                var (allowed, _, _, roleError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+                if (!allowed) return roleError!;
+                var (access, _, _) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo, order.OutletId);
+                var block = PhoneDeliveryOrderRules.WorkflowBlockReason(order, "cancelled");
+                if (!access || block != null)
+                {
+                    var conflict = req.CreateResponse(!access ? HttpStatusCode.Forbidden : HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = !access ? "Outlet access denied" : block });
+                    return conflict;
+                }
+            }
+            if (!PhoneDeliveryOrderRules.IsPhoneOrder(order) && role != "admin" && order.UserId != userId)
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Access denied" });
@@ -1538,6 +1581,8 @@ public class OrderFunction
                 await error.WriteAsJsonAsync(new { error = "Order status changed before cancellation could complete. Refresh and try again." });
                 return error;
             }
+
+            await _mongo.ReleasePhonePartnerAsync(order);
 
             if (order.LoyaltyPointsUsed > 0)
             {
@@ -1649,10 +1694,14 @@ public class OrderFunction
     }
 
     // Helper method to map Order to OrderResponse
-    private static OrderResponse MapToOrderResponse(Order order)
+    internal static OrderResponse MapToOrderResponse(Order order)
     {
         return new OrderResponse
         {
+            OrderSource = order.OrderSource,
+            DeliveryLocationUrl = order.DeliveryLocationUrl,
+            RecordedByName = order.RecordedByName,
+            KotNumber = order.KotNumber,
             Id = order.Id!,
             UserId = order.UserId,
             Username = order.Username,

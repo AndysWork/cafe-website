@@ -3,7 +3,7 @@ import { HomeComponent } from './components/home/home.component';
 import { LoginComponent } from './components/login/login.component';
 import { RegisterComponent } from './components/register/register.component';
 import { MenuComponent } from './components/menu/menu.component';
-import { authGuard, adminGuard, kitchenGuard, partnerGuard, managerGuard, waiterGuard, cashierGuard } from './guards/auth.guard';
+import { authGuard, adminGuard, kitchenGuard, partnerGuard, managerGuard, waiterGuard, cashierGuard, roleGuard, phoneOrderDraftGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -20,6 +20,8 @@ export const routes: Routes = [
   { path: 'checkout', loadComponent: () => import('./components/checkout/checkout.component').then(m => m.CheckoutComponent), canActivate: [authGuard] },
   { path: 'orders', loadComponent: () => import('./components/orders/orders.component').then(m => m.OrdersComponent), canActivate: [authGuard] },
   { path: 'orders/:id', loadComponent: () => import('./components/order-detail/order-detail.component').then(m => m.OrderDetailComponent), canActivate: [authGuard] },
+  { path: 'phone-orders', loadComponent: () => import('./components/phone-orders/phone-orders.component').then(m => m.PhoneOrdersComponent), canActivate: [roleGuard(['admin', 'manager'])], canDeactivate: [phoneOrderDraftGuard] },
+  { path: 'track-order/:id', loadComponent: () => import('./components/phone-order-tracking/phone-order-tracking.component').then(m => m.PhoneOrderTrackingComponent) },
   { path: 'reviews', loadComponent: () => import('./components/customer-reviews/customer-reviews.component').then(m => m.CustomerReviewsComponent) },
   { path: 'offers', loadComponent: () => import('./components/offers/offers.component').then(m => m.OffersComponent) },
   { path: 'loyalty', loadComponent: () => import('./components/loyalty/loyalty.component').then(m => m.LoyaltyComponent), canActivate: [authGuard] },

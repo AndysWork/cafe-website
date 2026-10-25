@@ -1,0 +1,11 @@
+.tracking { max-width: 620px; margin: 28px auto; padding: 24px; background: white; border: 1px solid #ddd; border-radius: 12px; }
+h1 { font-size: 1.6rem; }
+h2 { color: #0f6252; }
+ol { padding-left: 28px; }
+li { padding: 12px 6px; color: #69757b; border-bottom: 1px solid #eee; }
+li.completed { color: #0f6252; font-weight: 600; }
+li[aria-current="step"] { background: #eef7f3; border-radius: 6px; }
+.error { background: #fff0f0; color: #8b1d1d; padding: 12px; }
+.privacy, .updated { font-size: .85rem; color: #53646b; }
+a { color: #005b9a; }
+@media (max-width: 640px) { .tracking { margin: 12px; padding: 18px; } }

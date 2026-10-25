@@ -16,6 +16,10 @@ public class DeliveryPartnerFunction
 
     private readonly IOperationsRepository _mongo;
     private readonly IOrderRepository _orderRepo;
+    private readonly IPhoneDeliveryOrderRepository _phone;
+    private readonly IUserRepository _users;
+    private readonly IStaffRepository _staff;
+    private readonly IOutletRepository _outlets;
     private readonly NotificationService _notificationService;
     private readonly DeliveryRoutingService _deliveryRoutingService;
     private readonly AuthService _auth;
@@ -26,6 +30,10 @@ public class DeliveryPartnerFunction
     public DeliveryPartnerFunction(
         IOperationsRepository mongo,
         IOrderRepository orderRepo,
+        IPhoneDeliveryOrderRepository phone,
+        IUserRepository users,
+        IStaffRepository staff,
+        IOutletRepository outlets,
         NotificationService notificationService,
         DeliveryRoutingService deliveryRoutingService,
         IdempotencyService idempotency,
@@ -35,6 +43,10 @@ public class DeliveryPartnerFunction
     {
         _mongo = mongo;
         _orderRepo = orderRepo;
+        _phone = phone;
+        _users = users;
+        _staff = staff;
+        _outlets = outlets;
         _notificationService = notificationService;
         _deliveryRoutingService = deliveryRoutingService;
         _idempotency = idempotency;
@@ -217,10 +229,27 @@ public class DeliveryPartnerFunction
             string? partnerId = request.DeliveryPartnerId;
             string? partnerName = null;
 
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            {
+                var (access, _, _) = await OutletHelper.ValidateOutletAccess(req, _auth, _users, _staff, _outlets, order.OutletId);
+                if (!access)
+                {
+                    var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                    await forbidden.WriteAsJsonAsync(new { error = "Outlet access denied" });
+                    return forbidden;
+                }
+                if (order.Status is not ("pending" or "confirmed" or "preparing" or "ready"))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Phone order can only be assigned before pickup" });
+                    return conflict;
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(partnerId))
             {
                 // Auto-assign available partner
-                var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+                var outletId = PhoneDeliveryOrderRules.IsPhoneOrder(order) ? order.OutletId : OutletHelper.GetOutletIdForAdmin(req, _auth);
                 var available = await _mongo.GetAvailableDeliveryPartnerAsync(outletId ?? "default");
                 if (available == null)
                 {
@@ -235,8 +264,8 @@ public class DeliveryPartnerFunction
             var success = await _mongo.AssignDeliveryPartnerAsync(partnerId!, request.OrderId);
             if (!success)
             {
-                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
-                await notFound.WriteAsJsonAsync(new { error = "Order or delivery partner not found" });
+                var notFound = req.CreateResponse(PhoneDeliveryOrderRules.IsPhoneOrder(order) ? HttpStatusCode.Conflict : HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order changed or partner is unavailable, in another outlet, or cannot accept COD" });
                 return notFound;
             }
 
@@ -249,6 +278,7 @@ public class DeliveryPartnerFunction
             int? routeEtaMinutes = null;
 
             if (assignedOrder != null
+                && !PhoneDeliveryOrderRules.IsPhoneOrder(assignedOrder)
                 && string.Equals(assignedOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(assignedOrder.DeliveryAddress)
                 && !string.IsNullOrWhiteSpace(assignedOrder.OutletId))
@@ -467,7 +497,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerRole))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -513,7 +543,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerRole))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -590,7 +620,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerRole))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -659,10 +689,20 @@ public class DeliveryPartnerFunction
                 return badReq;
             }
 
+            var phonePickupBlock = PhoneDeliveryOrderRules.IsPhoneOrder(order)
+                ? PhoneDeliveryOrderRules.PickupBlockReason(order, partner) : null;
+            if (phonePickupBlock != null)
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = phonePickupBlock });
+                return conflict;
+            }
             order.Status = "out-for-delivery";
             order.UpdatedAt = MongoService.GetIstNow();
 
-            var updated = await _orderRepo.UpdateOrderAsync(order);
+            var updated = PhoneDeliveryOrderRules.IsPhoneOrder(order)
+                ? await _phone.TryPickupPhoneDeliveryAsync(orderId, partner)
+                : await _orderRepo.UpdateOrderAsync(order);
             if (!updated)
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
@@ -704,7 +744,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerRole))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -780,6 +820,12 @@ public class DeliveryPartnerFunction
                 return conflict;
             }
 
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Phone delivery orders must be assigned by an Admin or Manager" });
+                return forbidden;
+            }
             var success = await _mongo.TryAssignUnassignedDeliveryPartnerAsync(partner.Id, orderId);
             if (!success)
             {
@@ -902,7 +948,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerRole))
             {
                 var forbiddenRole = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbiddenRole.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -973,7 +1019,9 @@ public class DeliveryPartnerFunction
             order.CompletedAt = now;
             order.UpdatedAt = now;
 
-            var updated = await _orderRepo.UpdateOrderAsync(order);
+            var updated = PhoneDeliveryOrderRules.IsPhoneOrder(order)
+                ? await _phone.TryCompletePhoneDeliveryAsync(orderId, partner)
+                : await _orderRepo.UpdateOrderAsync(order);
             if (!updated)
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
@@ -1219,9 +1267,21 @@ public class DeliveryPartnerFunction
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var requestedPartnerId = query["partnerId"];
 
-            if ((role == "admin" || role == "manager") && !string.IsNullOrWhiteSpace(requestedPartnerId))
+            if (RoleHelper.HasAnyRole(AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth), RoleHelper.ManagerRoles)
+                && !string.IsNullOrWhiteSpace(requestedPartnerId))
             {
                 partner = await _mongo.GetDeliveryPartnerByIdAsync(requestedPartnerId);
+                if (partner != null)
+                {
+                    var (access, _, _) = await OutletHelper.ValidateOutletAccess(
+                        req, _auth, _users, _staff, _outlets, partner.OutletId);
+                    if (!access)
+                    {
+                        var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                        await forbidden.WriteAsJsonAsync(new { error = "Outlet access denied" });
+                        return forbidden;
+                    }
+                }
             }
             else if (!string.IsNullOrWhiteSpace(userId))
             {
@@ -1246,6 +1306,8 @@ public class DeliveryPartnerFunction
             var outletOrders = await _orderRepo.GetAllOrdersAsync(partner.OutletId);
             var pendingRequests = outletOrders
                 .Where(o =>
+                    !PhoneDeliveryOrderRules.IsPhoneOrder(o)
+                    &&
                     string.Equals(o.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
                     && string.IsNullOrWhiteSpace(o.DeliveryPartnerId)
                     && (string.Equals(o.Status, "pending", StringComparison.OrdinalIgnoreCase)
@@ -1623,7 +1685,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerOrManagerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerOrManagerRole))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -1695,6 +1757,14 @@ public class DeliveryPartnerFunction
                 return forbidden;
             }
 
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(order)
+                && (order.OutletId != partner.OutletId || order.Status != "out-for-delivery"))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Pick up the phone order before recording COD payment" });
+                return conflict;
+            }
+
             if (string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
             {
                 var ok = req.CreateResponse(HttpStatusCode.OK);
@@ -1725,7 +1795,17 @@ public class DeliveryPartnerFunction
 
             order.PaymentStatus = "paid";
             order.UpdatedAt = now;
-            await _orderRepo.UpdateOrderAsync(order);
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            {
+                if (!await _phone.TryRecordPhoneCodAsync(orderId, partner, userId))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Phone order changed; refresh before recording payment" });
+                    return conflict;
+                }
+            }
+            else
+                await _orderRepo.UpdateOrderAsync(order);
 
             var payload = new { message = "COD payment confirmed", paymentStatus = "paid" };
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -1916,7 +1996,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerOrManagerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerOrManagerRole))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -1990,7 +2070,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerOrManagerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerOrManagerRole))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -2066,7 +2146,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerOrManagerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerOrManagerRole))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -2153,7 +2233,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerOrManagerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerOrManagerRole))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Partner access required" });
@@ -2234,7 +2314,7 @@ public class DeliveryPartnerFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            if (!IsPartnerRole(role))
+            if (!AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerRole))
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Delivery partner access required" });

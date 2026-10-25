@@ -58,7 +58,7 @@
         <small>{{ order.status | titlecase }} • Rs {{ order.total | number:'1.0-0' }}</small>
       </div>
       <div class="actions">
-        <button class="ghost" (click)="navigate(order.deliveryAddress)">Navigate</button>
+        <button class="ghost" (click)="navigate(order.deliveryAddress, order.deliveryLocationUrl)">Navigate</button>
         <button class="ghost" (click)="call(order.phoneNumber)">Call</button>
       </div>
     </article>

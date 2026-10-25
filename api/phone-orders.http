@@ -1,0 +1,59 @@
+@baseUrl = http://localhost:7071/api
+@staffToken = REPLACE_WITH_STAFF_TOKEN
+@outletId = REPLACE_WITH_OUTLET_ID
+@menuItemId = REPLACE_WITH_MENU_ITEM_ID
+@orderId = REPLACE_WITH_CREATED_ORDER_ID
+@trackingToken = REPLACE_WITH_TOKEN_FROM_TRACKING_PATH
+
+### Quote (Admin/Manager, no mutation)
+POST {{baseUrl}}/phone-orders/quote
+Authorization: Bearer {{staffToken}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "customerName": "Guest Customer",
+  "phoneNumber": "9876543210",
+  "deliveryAddress": "10 Main Road",
+  "deliveryLocationUrl": "https://www.google.com/maps?q=22.5,88.3",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 2 }],
+  "paymentMethod": "cod"
+}
+
+### Create (replace expectedTotal with quote.total; retry with the SAME key and body)
+POST {{baseUrl}}/phone-orders
+Authorization: Bearer {{staffToken}}
+Idempotency-Key: phone-example-unique-attempt-1
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "customerName": "Guest Customer",
+  "phoneNumber": "9876543210",
+  "deliveryAddress": "10 Main Road",
+  "deliveryLocationUrl": "https://www.google.com/maps?q=22.5,88.3",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 2 }],
+  "paymentMethod": "cod",
+  "preparationNotes": "Pack sauce separately",
+  "expectedTotal": 185
+}
+
+### Active + recent completed orders
+GET {{baseUrl}}/phone-orders?outletId={{outletId}}
+Authorization: Bearer {{staffToken}}
+
+### Public limited tracking (no login)
+GET {{baseUrl}}/public/phone-orders/{{orderId}}/tracking?token={{trackingToken}}
+
+### Invalid tracking token returns 404, with no-store
+GET {{baseUrl}}/public/phone-orders/{{orderId}}/tracking?token=invalid
+
+### Assign through existing outlet-authorized endpoint
+POST {{baseUrl}}/manage/delivery-partners/assign?channel=shop
+Authorization: Bearer {{staffToken}}
+Content-Type: application/json
+
+{
+  "orderId": "{{orderId}}",
+  "deliveryPartnerId": "REPLACE_WITH_PARTNER_ID"
+}

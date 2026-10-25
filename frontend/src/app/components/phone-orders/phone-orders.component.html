@@ -1,0 +1,129 @@
+<div class="phone-orders">
+  <header>
+    <h1>Phone Delivery Orders</h1>
+    <p>Enter a customer's phone order, send it to the kitchen, and track it through delivery.</p>
+    <app-outlet-selector></app-outlet-selector>
+  </header>
+  <p *ngIf="message" class="notice success" role="status">{{ message }}</p>
+  <p *ngIf="error" class="notice error" role="alert">{{ error }}</p>
+  <p *ngIf="orderingError" class="notice error">{{ orderingError }}</p>
+  <p *ngIf="!outletMatches" class="notice error">Select an outlet. Drafts must be submitted at the outlet where they were started.</p>
+
+  <div class="entry-grid">
+    <section class="panel">
+      <h2>1. Select items</h2>
+      <fieldset [disabled]="submitting || !outletMatches || !!orderingError">
+        <label>Search menu <input type="search" [(ngModel)]="search" placeholder="Name or category" /></label>
+        <div class="menu-list">
+          <article *ngFor="let item of filteredMenu" class="menu-item">
+            <div><strong>{{ displayText(item.name) }}</strong> <span>{{ menuPrice(item) | currency:'INR' }}</span></div>
+            <label *ngIf="item.variants?.length">Variant
+              <select [(ngModel)]="selectedVariants[item.id]">
+                <option *ngFor="let variant of item.variants" [value]="variant.variantName">{{ displayText(variant.variantName) }} ({{ variant.price | currency:'INR' }})</option>
+              </select>
+            </label>
+            <ng-container *ngFor="let addOn of item.addOns">
+              <label *ngIf="addOn.isActive !== false" class="checkbox">
+                <input type="checkbox" [checked]="selectedAddOns[item.id]?.includes(addOn.name)" (change)="toggleAddOn(item.id, addOn.name, $event)" />
+                {{ displayText(addOn.name) }} (+{{ addOn.price | currency:'INR' }})
+              </label>
+            </ng-container>
+            <button type="button" (click)="addItem(item)">Add item</button>
+          </article>
+          <p *ngIf="!filteredMenu.length">No matching menu items.</p>
+        </div>
+      </fieldset>
+    </section>
+
+    <section class="panel">
+      <h2>2. Customer and delivery</h2>
+      <form (ngSubmit)="submit()">
+        <fieldset [disabled]="submitting || !outletMatches">
+          <label>Customer name * <input [(ngModel)]="customerName" name="customerName" required maxlength="100" (ngModelChange)="invalidateQuote()" autocomplete="name" /></label>
+          <label>Phone number * <input [(ngModel)]="phoneNumber" name="phoneNumber" required type="tel" maxlength="20" (ngModelChange)="invalidateQuote()" autocomplete="tel" /></label>
+          <label>Full delivery address and landmark *
+            <textarea [(ngModel)]="deliveryAddress" name="deliveryAddress" required maxlength="1000" (ngModelChange)="invalidateQuote()" autocomplete="street-address"></textarea>
+          </label>
+          <label>Google Maps location link *
+            <input [(ngModel)]="deliveryLocationUrl" name="deliveryLocationUrl" required type="url" maxlength="2048" placeholder="https://maps.app.goo.gl/..." (ngModelChange)="invalidateQuote()" />
+          </label>
+          <small>Ask the customer to share their current location or destination pin from Google Maps.</small>
+          <label>Kitchen instructions <textarea [(ngModel)]="preparationNotes" name="preparationNotes" maxlength="1000" (ngModelChange)="invalidateQuote()" placeholder="For example: less spicy, separate packing"></textarea></label>
+
+          <h3>Order items</h3>
+          <div *ngFor="let line of cart" class="cart-line">
+            <div>
+              <strong>{{ displayText(line.item.name) }}</strong>
+              <small *ngIf="line.variantName">{{ displayText(line.variantName) }}</small>
+              <small *ngIf="line.addOnNames.length">{{ line.addOnNames.join(', ') }}</small>
+              <span>{{ linePrice(line) * line.quantity | currency:'INR' }}</span>
+            </div>
+            <div class="quantity">
+              <button type="button" (click)="changeQuantity(line, -1)" [attr.aria-label]="'Remove one ' + displayText(line.item.name)">-</button>
+              <span>{{ line.quantity }}</span>
+              <button type="button" (click)="changeQuantity(line, 1)" [disabled]="line.quantity >= 100" [attr.aria-label]="'Add one ' + displayText(line.item.name)">+</button>
+            </div>
+          </div>
+          <p *ngIf="!cart.length">Add at least one item.</p>
+          <p>Item estimate: <strong>{{ subtotal | currency:'INR' }}</strong></p>
+          <button type="button" (click)="reviewTotal()" [disabled]="!validDetails || quoteBusy">{{ quoteBusy ? 'Calculating...' : 'Review total with delivery charge' }}</button>
+          <div *ngIf="quote as total" class="totals">
+            <p>Items <span>{{ total.subtotal | currency:'INR' }}</span></p>
+            <p>Delivery (configured zone) <span>{{ total.deliveryFee | currency:'INR' }}</span></p>
+            <p *ngIf="total.platformCharge">Platform charge <span>{{ total.platformCharge | currency:'INR' }}</span></p>
+            <p *ngIf="total.tax">Tax <span>{{ total.tax | currency:'INR' }}</span></p>
+            <p><strong>Total <span>{{ total.total | currency:'INR' }}</span></strong></p>
+          </div>
+          <label>Payment
+            <select [(ngModel)]="paymentMethod" name="paymentMethod">
+              <option value="cod">Cash on delivery - collect from customer</option>
+              <option value="cash_at_counter">Prepaid cash - already received</option>
+              <option value="upi-qr">Prepaid UPI - already received</option>
+            </select>
+          </label>
+          <label *ngIf="paymentMethod === 'upi-qr'">UPI transaction reference *
+            <input [(ngModel)]="upiReference" name="upiReference" required maxlength="100" />
+          </label>
+          <p *ngIf="paymentMethod !== 'cod'" class="payment-warning">Submitting records {{ quote?.total | currency:'INR' }} as received. Verify the payment before sending this order.</p>
+          <button type="submit" class="primary" [disabled]="!canSubmit">{{ submitting ? 'Sending...' : 'Send phone order to kitchen' }}</button>
+        </fieldset>
+      </form>
+      <button type="button" class="secondary" (click)="clearDraft()" [disabled]="submitting || !hasDraft">Clear draft</button>
+    </section>
+  </div>
+
+  <section class="panel" *ngIf="lastCreated as order">
+    <h2>Order sent: {{ order.kotNumber || order.id.slice(-6) }}</h2>
+    <p>Share this private tracking link with {{ displayText(order.customerName || '') }}. No customer login is needed.</p>
+    <label>Customer tracking link <input readonly [value]="trackingUrl(order)" /></label>
+    <button type="button" (click)="copyTracking(order)">Copy tracking link</button>
+  </section>
+
+  <section class="panel order-board">
+    <header class="board-header"><h2>Kitchen and delivery tracking</h2><button type="button" (click)="refreshOrders()" [disabled]="loading || !outletMatches">{{ loading ? 'Refreshing...' : 'Refresh' }}</button></header>
+    <p>Refreshes every 15 seconds. Assigned partners can pick up only after the kitchen marks an order ready.</p>
+    <p *ngIf="!orders.length">No phone orders to show.</p>
+    <article *ngFor="let order of orders" class="tracked-order">
+      <header class="board-header"><h3>{{ order.kotNumber || order.id.slice(-6) }} - {{ displayText(order.customerName || order.username) }}</h3><strong class="status">{{ order.status | titlecase }}</strong></header>
+      <p>{{ order.createdAt | date:'medium' }} <span *ngIf="order.recordedByName"> / Entered by {{ order.recordedByName }}</span></p>
+      <p><a [href]="'tel:' + order.phoneNumber">{{ order.phoneNumber }}</a> / {{ order.deliveryAddress }}</p>
+      <a [href]="order.deliveryLocationUrl" target="_blank" rel="noopener noreferrer">Open customer's Google Maps location</a>
+      <ul><li *ngFor="let item of order.items">{{ item.quantity }} x {{ displayText(item.name) }} <span *ngIf="item.selectedVariantName">({{ displayText(item.selectedVariantName) }})</span></li></ul>
+      <p *ngIf="order.preparationNotes">Kitchen instructions: {{ order.preparationNotes }}</p>
+      <p><strong>{{ order.total | currency:'INR' }}</strong> (delivery {{ order.deliveryFee | currency:'INR' }}) / {{ order.paymentMethod === 'cod' ? 'Cash on delivery' : order.paymentMethod === 'upi-qr' ? 'Prepaid UPI' : 'Prepaid cash' }} / {{ order.paymentStatus | titlecase }}</p>
+      <p *ngIf="order.deliveryPartnerName">Delivery partner: <strong>{{ order.deliveryPartnerName }}</strong></p>
+      <div *ngIf="isActive(order) && !order.deliveryPartnerId" class="assignment">
+        <label [for]="'partner-' + order.id">Assign available partner
+          <select [id]="'partner-' + order.id" [(ngModel)]="assignments[order.id]">
+            <option value="">Select partner</option>
+            <ng-container *ngFor="let partner of partners">
+              <option *ngIf="order.paymentMethod !== 'cod' || partner.codAllowed !== false" [value]="partner.id">{{ partner.name }} - {{ partner.phone }}</option>
+            </ng-container>
+          </select>
+        </label>
+        <button type="button" (click)="assign(order)" [disabled]="!assignments[order.id] || !!busyOrderId || !outletMatches">{{ busyOrderId === order.id ? 'Assigning...' : 'Assign partner' }}</button>
+      </div>
+      <details><summary>Customer tracking link</summary><input aria-label="Customer tracking link" readonly [value]="trackingUrl(order)" /><button type="button" (click)="copyTracking(order)">Copy link</button></details>
+    </article>
+  </section>
+</div>

@@ -44,6 +44,7 @@ export class AppComponent {
                          !currentUrl.startsWith('/kitchen') &&
                          !currentUrl.startsWith('/partner') &&
                          !currentUrl.startsWith('/manager') &&
+                         !currentUrl.startsWith('/phone-orders') &&
                          !currentUrl.startsWith('/staff');
       this.isCustomerView = isCustomer;
 

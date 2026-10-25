@@ -72,6 +72,30 @@ public class OutboxService
         await _outbox.InsertOneAsync(message);
     }
 
+    public virtual async Task EnqueueOnceAsync(string eventType, string orderId, object payload)
+    {
+        var id = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"phone:{eventType}:{orderId}")))[..24].ToLowerInvariant();
+        var update = Builders<OutboxMessage>.Update
+            .SetOnInsert(m => m.EventType, eventType)
+            .SetOnInsert(m => m.AggregateType, "Order")
+            .SetOnInsert(m => m.AggregateId, orderId)
+            .SetOnInsert(m => m.Payload, System.Text.Json.JsonSerializer.Serialize(payload))
+            .SetOnInsert(m => m.Status, "pending")
+            .SetOnInsert(m => m.RetryCount, 0)
+            .SetOnInsert(m => m.MaxRetries, 5)
+            .SetOnInsert(m => m.CreatedAt, DateTime.UtcNow)
+            .SetOnInsert(m => m.NextRetryAt, DateTime.UtcNow);
+        try
+        {
+            await _outbox.UpdateOneAsync(m => m.Id == id, update, new UpdateOptions { IsUpsert = true });
+        }
+        catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            // A concurrent retry already inserted this side effect.
+        }
+    }
+
     public async Task<List<OutboxMessage>> GetPendingMessagesAsync(int batchSize = 25)
     {
         var filter = Builders<OutboxMessage>.Filter.And(

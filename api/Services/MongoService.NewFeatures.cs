@@ -1063,6 +1063,28 @@ public partial class MongoService : IOperationsRepository
             return false;
         }
 
+        var order = await GetOrderByIdAsync(orderId);
+        if (order != null && Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(order))
+        {
+            if (Cafe.Api.Helpers.PhoneDeliveryOrderRules.AssignmentBlockReason(order, partner) != null)
+                return false;
+            var assigned = await _orders.UpdateOneAsync(o => o.Id == orderId && o.OrderSource == "phone"
+                && o.IsDeleted != true && o.OutletId == partner.OutletId
+                && o.DeliveryPartnerId == order.DeliveryPartnerId && o.UpdatedAt == order.UpdatedAt
+                && (o.Status == "pending" || o.Status == "confirmed" || o.Status == "preparing" || o.Status == "ready"),
+                Builders<Order>.Update.Set(o => o.DeliveryPartnerId, partnerId)
+                    .Set(o => o.DeliveryPartnerName, partner.Name)
+                    .Set(o => o.DeliveryRouteUrl, order.DeliveryLocationUrl)
+                    .Set(o => o.UpdatedAt, GetIstNow()));
+            if (assigned.MatchedCount == 0) return false;
+            await _deliveryPartners.UpdateOneAsync(p => p.Id == partnerId,
+                Builders<DeliveryPartner>.Update.Set(p => p.Status, "on-delivery").Set(p => p.CurrentOrderId, orderId));
+            if (!string.IsNullOrWhiteSpace(order.DeliveryPartnerId) && order.DeliveryPartnerId != partnerId)
+                await _deliveryPartners.UpdateOneAsync(p => p.Id == order.DeliveryPartnerId && p.CurrentOrderId == orderId,
+                    Builders<DeliveryPartner>.Update.Set(p => p.Status, "available").Set(p => p.CurrentOrderId, (string?)null));
+            return true;
+        }
+
         var update = Builders<DeliveryPartner>.Update
             .Set(p => p.Status, "on-delivery")
             .Set(p => p.CurrentOrderId, orderId);
@@ -1090,6 +1112,7 @@ public partial class MongoService : IOperationsRepository
 
         var assignableStatuses = new[] { "pending", "confirmed", "preparing", "ready" };
         var orderFilter = Builders<Order>.Filter.Eq(o => o.Id, orderId)
+            & Builders<Order>.Filter.Ne(o => o.OrderSource, "phone")
             & Builders<Order>.Filter.Ne(o => o.IsDeleted, true)
             & Builders<Order>.Filter.Eq(o => o.OrderType, "delivery")
             & Builders<Order>.Filter.In(o => o.Status, assignableStatuses)
@@ -1118,7 +1141,7 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<List<Order>> GetActiveOrdersForPartnerAsync(string partnerId, string? outletId = null)
     {
-        var statuses = new[] { "confirmed", "preparing", "ready", "out-for-delivery" };
+        var statuses = new[] { "pending", "confirmed", "preparing", "ready", "out-for-delivery" };
         var filterBuilder = Builders<Order>.Filter;
         var filter = filterBuilder.Eq(o => o.DeliveryPartnerId, partnerId) &
                      filterBuilder.In(o => o.Status, statuses) &
@@ -1586,6 +1609,9 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<bool> ReassignOrderPartnerAsync(string orderId, string partnerId)
     {
+        var order = await GetOrderByIdAsync(orderId);
+        if (order != null && Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            return await AssignDeliveryPartnerAsync(partnerId, orderId);
         var partner = await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
         if (partner == null)
         {
@@ -1774,4 +1800,3 @@ public partial class MongoService : IOperationsRepository
 
     #endregion
 }
-

@@ -67,6 +67,15 @@ describe('Role navigation', () => {
     expect(routes.filter(route => route === '/partner/delivery').length).toBe(1);
   });
 
+  it('allows only admins and managers to enter phone delivery orders', () => {
+    expect(routesFor('admin')).toContain('/phone-orders');
+    expect(routesFor('manager')).toContain('/phone-orders');
+    expect(routesFor('admin', 'manager').filter(route => route === '/phone-orders').length).toBe(1);
+    for (const role of ['user', 'waiter', 'cashier', 'chef', 'delivery-partner']) {
+      expect(routesFor(role)).not.toContain('/phone-orders');
+    }
+  });
+
   it('uses guarded admin destinations without exposing manager-only routes to admin-only accounts', () => {
     const routes = routesFor('admin');
     expect(routes).toContain('/admin/dine-in-report');

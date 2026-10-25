@@ -40,6 +40,7 @@ var host = new HostBuilder()
         s.AddSingleton<IMenuRepository>(sp => sp.GetRequiredService<MongoService>());
         s.AddSingleton<IUserRepository>(sp => sp.GetRequiredService<MongoService>());
         s.AddSingleton<IOrderRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<IPhoneDeliveryOrderRepository>(sp => sp.GetRequiredService<MongoService>());
         s.AddSingleton<ILoyaltyRepository>(sp => sp.GetRequiredService<MongoService>());
         s.AddSingleton<IOfferRepository>(sp => sp.GetRequiredService<MongoService>());
         s.AddSingleton<IFinanceRepository>(sp => sp.GetRequiredService<MongoService>());

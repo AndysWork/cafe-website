@@ -503,7 +503,8 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
     return status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
-  getDeliveryMapUrl(order: { deliveryRouteShortUrl?: string; deliveryRouteUrl?: string; deliveryAddress?: string }): string | null {
+  getDeliveryMapUrl(order: { deliveryRouteShortUrl?: string; deliveryRouteUrl?: string; deliveryAddress?: string; deliveryLocationUrl?: string }): string | null {
+    if (order.deliveryLocationUrl) return order.deliveryLocationUrl;
     if (order.deliveryRouteShortUrl) return order.deliveryRouteShortUrl;
     if (order.deliveryRouteUrl) return order.deliveryRouteUrl;
 

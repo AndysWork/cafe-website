@@ -25,6 +25,30 @@ public class Order : ISoftDeletable
     [BsonElement("customerName")]
     public string? CustomerName { get; set; }
 
+    [BsonElement("orderSource")]
+    public string? OrderSource { get; set; }
+
+    [BsonElement("deliveryLocationUrl")]
+    public string? DeliveryLocationUrl { get; set; }
+
+    [BsonElement("recordedByUserId")]
+    public string? RecordedByUserId { get; set; }
+
+    [BsonElement("recordedByName")]
+    public string? RecordedByName { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    [BsonElement("phoneTrackingToken")]
+    public string? PhoneTrackingToken { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    [BsonElement("phoneRequestHash")]
+    public string? PhoneRequestHash { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    [BsonElement("phoneEffectsQueued")]
+    public bool PhoneEffectsQueued { get; set; }
+
     [BsonElement("waiterUserId")]
     public string? WaiterUserId { get; set; }
 
@@ -470,6 +494,11 @@ public class AdminConfirmPaymentRequest
 
 public class OrderResponse
 {
+    public string? OrderSource { get; set; }
+    public string? DeliveryLocationUrl { get; set; }
+    public string? RecordedByName { get; set; }
+    public string? TrackingPath { get; set; }
+    public string? KotNumber { get; set; }
     public string Id { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;

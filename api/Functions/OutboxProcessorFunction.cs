@@ -306,7 +306,8 @@ public class OutboxProcessorFunction
                 if (broadcast != null)
                 {
                     var broadcastOrder = await _orderRepo.GetOrderByIdAsync(broadcast.OrderId);
-                    if (broadcastOrder != null && string.Equals(broadcastOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+                    if (broadcastOrder != null && !Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(broadcastOrder)
+                        && string.Equals(broadcastOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
                     {
                         var partners = await _operationsRepo.GetDeliveryPartnersAsync(broadcast.OutletId);
                         var shortOrderId = broadcastOrder.Id?.Length >= 6 ? broadcastOrder.Id[^6..] : broadcastOrder.Id;
@@ -359,10 +360,12 @@ public class OutboxProcessorFunction
                     {
                         var shortOrderId = alertOrder.Id?.Length >= 6 ? alertOrder.Id[^6..] : alertOrder.Id;
                         var statusLabel = alert.Status.Replace("-", " ");
+                        var assignedPartnerId = Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(alertOrder)
+                            ? alertOrder.DeliveryPartnerId : alert.DeliveryPartnerId;
 
-                        if (!string.IsNullOrWhiteSpace(alert.DeliveryPartnerId))
+                        if (!string.IsNullOrWhiteSpace(assignedPartnerId))
                         {
-                            var assigned = await _operationsRepo.GetDeliveryPartnerByIdAsync(alert.DeliveryPartnerId);
+                            var assigned = await _operationsRepo.GetDeliveryPartnerByIdAsync(assignedPartnerId);
                             if (!string.IsNullOrWhiteSpace(assigned?.UserId))
                             {
                                 await _notification.SendSystemNotificationAsync(
@@ -391,8 +394,9 @@ public class OutboxProcessorFunction
                                 await AuditOrderNotificationAsync(alertOrder, 1, "inapp+webpush");
                             }
                         }
-                        else if (string.Equals(alert.Status, "ready", StringComparison.OrdinalIgnoreCase)
-                                 || string.Equals(alert.Status, "confirmed", StringComparison.OrdinalIgnoreCase))
+                        else if (!Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(alertOrder)
+                                 && (string.Equals(alert.Status, "ready", StringComparison.OrdinalIgnoreCase)
+                                 || string.Equals(alert.Status, "confirmed", StringComparison.OrdinalIgnoreCase)))
                         {
                             var partners = await _operationsRepo.GetDeliveryPartnersAsync(alert.OutletId);
                             var notifiedTargets = 0;

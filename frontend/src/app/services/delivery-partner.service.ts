@@ -104,12 +104,13 @@ export interface PartnerDashboard {
     total: number;
     phoneNumber?: string;
     deliveryAddress?: string;
+    deliveryLocationUrl?: string;
     deliveryRouteShortUrl?: string;
     deliveryRouteUrl?: string;
     deliveryDistanceKm?: number;
     deliveryEtaMinutes?: number;
     deliveryPartnerId?: string;
-    paymentMethod?: 'cod' | 'razorpay' | 'upi-qr';
+    paymentMethod?: 'cod' | 'razorpay' | 'upi-qr' | 'cash_at_counter';
     paymentStatus?: 'pending' | 'paid' | 'refunded';
   }>;
   pendingRequests: Array<{

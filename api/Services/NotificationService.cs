@@ -79,7 +79,7 @@ public class NotificationService
     /// </summary>
     public async Task SendOrderStatusNotificationAsync(Order order, string newStatus)
     {
-        if (string.IsNullOrEmpty(order.UserId)) return;
+        if (string.IsNullOrEmpty(order.UserId) || Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(order)) return;
 
         var (title, message) = newStatus.ToLower() switch
         {

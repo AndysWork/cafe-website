@@ -1297,3 +1297,47 @@ This section records implementation gaps confirmed during a source review on Oct
 | **Two-factor authentication** | No 2FA flow was found in the current authentication implementation. |
 
 The March 2026 audit documents are historical snapshots. See their October 2026 updates for current findings and corrected frontend integration notes.
+
+## Phone Delivery Orders — backend/API and operating guide (October 2026)
+
+### Staff workflow
+
+Open **Operations > Phone Delivery Orders** as an **Admin or Manager**, choose the outlet, add menu items (including variants and add-ons), and enter the guest customer's name, phone, delivery address, and Google Maps location link. Add preparation notes for packing/special instructions. Select **Review total** to obtain the server-calculated amount, choose COD, prepaid cash, or prepaid UPI (bank/UPI reference required), then send the order. Copy the private tracking link for the customer; anyone holding it can see its limited tracking view.
+
+Assign an outlet delivery partner from the phone-order list. Assignment can happen while the kitchen is pending, confirmed, preparing, or ready, but does not dispatch the order or change kitchen readiness. Kitchen staff pack and mark ready using the existing checklist. Only the assigned delivery partner can pick up a ready order, record COD collection after pickup when applicable, and mark it delivered after payment is paid. Prepaid orders do not need another collection. The delivery dashboard receives `deliveryLocationUrl` as the navigation destination; the server never downloads or follows the customer's Maps link.
+
+### Routes and contract
+
+Routes below are relative to `/api`. Staff endpoints accept the existing bearer JWT and outlet context (`outletId` in the phone request/query, or `X-Outlet-Id`/default outlet). All role claims are considered for Admin/Manager authorization; a default outlet is context, not permission. Non-admin staff must have current authorized outlet access. No customer account is created or attached to the staff account, and these guest phone orders never earn loyalty.
+
+| Route | Request / response |
+|---|---|
+| `POST /phone-orders/quote` | Same body as create. Returns `{subtotal,tax,platformCharge,deliveryFee,total}`; no mutation, KOT allocation, or idempotency key required. UPI reference may be empty for quoting. |
+| `POST /phone-orders` | Requires `Idempotency-Key` (1–128 characters). Returns **201** `{order,message}`. Body: `{outletId?,customerName,phoneNumber,deliveryAddress,deliveryLocationUrl,items:[{menuItemId,quantity,selectedVariantName?,selectedAddOnNames?}],paymentMethod,upiReference?,preparationNotes?,notes?,expectedTotal?}`. Payment methods are `cod`, `cash_at_counter`, `upi-qr`. If supplied, `expectedTotal` must exactly match the freshly computed total or the request returns **409** without recording an order/payment. Prepaid UPI requires `upiReference`. |
+| `GET /phone-orders?outletId=...&status=...` | Returns `{orders:[...]}` scoped to one authorized outlet. Bounded to the newest 300 active orders plus 100 delivered/cancelled orders updated within seven days. Optional exact status filter. |
+| `GET /public/phone-orders/{id}/tracking?token=...` | No login. Returns `{orderId,status,kotNumber,createdAt,updatedAt,paymentStatus,paymentMethod,total,deliveryPartnerName,etaMinutes}`; optional partner/ETA values may be null. Customer name and support phone are deliberately omitted. Invalid/missing tokens and non-phone/missing orders return indistinguishable **404** responses. |
+| `POST /manage/delivery-partners/assign?channel=shop` | Existing `{orderId,deliveryPartnerId}` contract. Phone orders require authorized outlet access, an active same-outlet partner, and a pre-pickup order. Offline partners and COD-disabled partners for COD orders are rejected. Reassignment is allowed before pickup through this same endpoint. |
+| `POST /partner/delivery/orders/{id}/pickup` | Existing partner action: assigned partner only; phone order must be ready, in the partner's outlet, with prepaid payment already paid (COD can remain pending). |
+| `POST /partner/delivery/orders/{id}/cod/confirm` | Existing partner collection action after pickup: records the server total, collection log, actor, and timestamp; marks COD paid. |
+| `POST /partner/delivery/orders/{id}/delivered` | Existing partner action: assigned partner, out-for-delivery status, and paid payment required. |
+
+The authorized `order` shape contains standard order fields, `id`, `items`, totals, fees, payment/status fields, partner information, `kotNumber`, customer/delivery/preparation details, timestamps, and `orderSource:"phone"`, `deliveryLocationUrl`, `recordedByName`, and frontend-relative `trackingPath:"/track-order/{id}?token=..."`. Internally, `channel:"shop"` and `orderType:"delivery"` distinguish these from customer web orders. Raw tracking tokens, request fingerprints, and outbox-recovery metadata are not serialized on standard order/dashboard responses; only the authorized phone endpoints expose a tracking link.
+
+### Pricing, payment and fulfillment guarantees
+
+- Quote and creation share the existing waiter takeaway item builder, preserving shop price precedence: `shopSellingPrice > webPrice > onlinePrice`; selected variants replace the base price and active add-ons are added per unit. Item availability and outlet-scoped catalog membership are checked. Quantities must be 1–1000, with 1–100 item lines.
+- Tax and platform charges remain **zero**, matching existing shop-sale behavior. Delivery fee uses the existing active closest/default zone and free-delivery subtotal threshold. The current `delivery-zones/calculate-fee` estimator does **not** accept/resolve addresses; therefore quote and creation use exactly that same default-zone calculation, not geocoding or a guessed distance. Address-aware distance-based fee selection remains outside the existing estimator's capabilities.
+- `cash_at_counter` and `upi-qr` are already-received payments and persist recorder/timestamp audit fields; UPI also persists its reference and confirmer. COD begins pending, with collection audited against the assigned partner. Client prices/fees cannot override server amounts.
+- Creation idempotency is durable in MongoDB's unique order `_id`, scoped to staff actor + outlet + key; a stored request fingerprint rejects a different body using the same key with **409**. An identical retry returns the same order/link without repricing, even after menu prices change. Use a fresh key for a deliberately new order, but retain the original key/body on network retries.
+- Kitchen notification and thermal KOT side effects are idempotently queued with stable outbox identifiers. An interrupted creation can recover side-effect queuing on an identical retry. KOTs show **PHONE DELIVERY - PACK FOR DELIVERY**, customer name, variants, add-ons and preparation notes, not waiter handover. Existing invoices include delivery fee, customer phone/address and payment details.
+- Manual phone orders are excluded from partner self-claim queues and unassigned partner broadcasts. Kitchen/general status endpoints cannot dispatch/deliver them, regress a picked-up order, or bypass partner/payment requirements. Generic item cancellation is disallowed to avoid changing a prepaid amount; paid cancellation requires a refund workflow rather than silently cancelling received funds. Cancelling an unpaid phone order before pickup frees its assigned delivery partner (status `available`).
+
+### Tracking privacy and deployment checks
+
+Tracking tokens use 256 random bits, persist with the order, and are compared in constant time. Public tracking exposes no address, phone, customer identity, staff identity, Maps URL, tracking secret, or partner coordinates. Success, invalid-token and handled failure responses use **`Cache-Control: no-store, private`** and **`Referrer-Policy: no-referrer`**. Application request logs omit the tracking query. Configure any platform/CDN/APIM/access-log telemetry to redact query tokens as well; do not place tracking links in analytics or third-party logging. Treat the link as a private bearer capability.
+
+Only explicit HTTPS Google Maps host/path patterns are accepted (`maps.app.goo.gl`, `goo.gl/maps/...`, `google.com/maps...`, `google.co.in/maps...`, `maps.google.com`, including documented `www` variants). Userinfo, arbitrary ports, lookalike domains, non-HTTPS links, and arbitrary fetch targets are rejected. Short-link destinations are intentionally not dereferenced server-side.
+
+Frontend phone list and tracking requests use `ngsw-bypass=true`; public tracking bypasses auth/outlet/loading/offline interceptors. These pages must not be added to service-worker/API offline caches. Server no-store remains mandatory independently of frontend bypass.
+
+Examples are in `api\phone-orders.http`. Backend regression tests are in `api.Tests\PhoneDeliveryOrderTests.cs`; run `dotnet test .\api.Tests\api.Tests.csproj`. Live MongoDB concurrency, actual printer output, notifications, and partner-device navigation should also be smoke-tested in the deployment environment before production rollout. Existing tax-disabled behavior and default-zone fee limitations are retained, not silently replaced.

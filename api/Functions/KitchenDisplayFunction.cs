@@ -51,7 +51,13 @@ public class KitchenDisplayFunction
             var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateKitchenAccessRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError ?? "Outlet access denied" });
+                return forbidden;
+            }
             var orders = await _mongo.GetOrdersByStatusAsync(new[] { "pending", "confirmed", "preparing", "ready", "served", "out-for-delivery" }, outletId);
 
             if (IsKitchenOpsRole(role))
@@ -78,6 +84,7 @@ public class KitchenDisplayFunction
                 o.WaiterUserId,
                 o.WaiterName,
                 o.OrderType,
+                o.OrderSource,
                 IsTakeaway = string.Equals(o.OrderType, "pickup", StringComparison.OrdinalIgnoreCase),
                 o.TakeawaySource,
                 o.KotNumber,
@@ -164,6 +171,20 @@ public class KitchenDisplayFunction
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(new { error = "Order not found" });
                 return notFound;
+            }
+
+            var originalUpdatedAt = order.UpdatedAt;
+            var originalStatus = order.Status;
+            if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            {
+                var (access, _, _) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo, order.OutletId);
+                var block = PhoneDeliveryOrderRules.WorkflowBlockReason(order, requestedStatus);
+                if (!access || block != null)
+                {
+                    var conflict = req.CreateResponse(!access ? HttpStatusCode.Forbidden : HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = !access ? "Outlet access denied" : block });
+                    return conflict;
+                }
             }
 
             if (requestedStatus == "confirmed" && order.Status != "pending" && order.Status != "confirmed")
@@ -330,13 +351,18 @@ public class KitchenDisplayFunction
                 order.CompletedAt = MongoService.GetIstNow();
             }
 
-            var success = await _mongo.UpdateOrderAsync(order);
+            var success = PhoneDeliveryOrderRules.IsPhoneOrder(order)
+                ? await _mongo.TryUpdatePhoneKitchenAsync(order, originalStatus, originalUpdatedAt)
+                : await _mongo.UpdateOrderAsync(order);
             if (!success)
             {
                 var conflict = req.CreateResponse(HttpStatusCode.Conflict);
                 await conflict.WriteAsJsonAsync(new { error = "Failed to update order status" });
                 return conflict;
             }
+
+            if (requestedStatus == "cancelled")
+                await _mongo.ReleasePhonePartnerAsync(order);
 
             // Recipe-Inventory Sync: When kitchen accepts order into 'preparing' or 'ready', deduct inventory ingredients
             if ((requestedStatus == "preparing" || requestedStatus == "ready") && !order.InventoryDeducted)

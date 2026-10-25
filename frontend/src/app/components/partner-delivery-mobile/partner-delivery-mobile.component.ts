@@ -105,7 +105,11 @@ export class PartnerDeliveryMobileComponent implements OnInit, OnDestroy {
     });
   }
 
-  navigate(address?: string): void {
+  navigate(address?: string, deliveryLocationUrl?: string): void {
+    if (deliveryLocationUrl) {
+      window.open(deliveryLocationUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
     if (!address) {
       this.uiStore.error('Address unavailable');
       return;

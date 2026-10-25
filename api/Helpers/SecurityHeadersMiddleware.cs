@@ -36,7 +36,8 @@ public class SecurityHeadersMiddleware : IFunctionsWorkerMiddleware
                 "frame-ancestors 'none'");
 
             // Referrer Policy - control referrer information
-            httpResponse.Headers.Add("Referrer-Policy", "strict-origin-when-cross-origin");
+            if (!httpResponse.Headers.Contains("Referrer-Policy"))
+                httpResponse.Headers.Add("Referrer-Policy", "strict-origin-when-cross-origin");
 
             // Permissions Policy - control browser features
             httpResponse.Headers.Add("Permissions-Policy",

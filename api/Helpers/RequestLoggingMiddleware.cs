@@ -24,6 +24,8 @@ public class RequestLoggingMiddleware : IFunctionsWorkerMiddleware
         var httpRequest = await context.GetHttpRequestDataAsync();
         var method = httpRequest?.Method ?? "N/A";
         var url = httpRequest?.Url?.PathAndQuery ?? "N/A";
+        if (httpRequest?.Url.AbsolutePath.Contains("/public/phone-orders/", StringComparison.OrdinalIgnoreCase) == true)
+            url = httpRequest.Url.AbsolutePath;
 
         _logger.LogInformation("Request started: {Method} {Url} | Function: {FunctionName} | InvocationId: {InvocationId}",
             method, url, functionName, invocationId);

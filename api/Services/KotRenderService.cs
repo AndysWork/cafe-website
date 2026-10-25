@@ -22,6 +22,13 @@ public class KotRenderService
         sb.AppendLine($"Date: {order.CreatedAt:dd/MM/yyyy HH:mm}");
         sb.AppendLine($"Type: {order.OrderType?.ToUpper() ?? "DELIVERY"}");
 
+        if (Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(order))
+        {
+            sb.AppendLine(line);
+            sb.AppendLine(CenterText("PHONE DELIVERY - PACK FOR DELIVERY", width));
+            sb.AppendLine(line);
+        }
+
         if (string.Equals(order.OrderType, "pickup", StringComparison.OrdinalIgnoreCase))
         {
             sb.AppendLine(line);

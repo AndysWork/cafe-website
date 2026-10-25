@@ -342,84 +342,11 @@ public class WaiterTakeawayFunction
     private async Task<(List<OrderItem> Items, decimal Subtotal, string? Error)> BuildOrderItemsAsync(
         List<OrderItemRequest> requestedItems, string outletId)
     {
-        var menuItemIds = requestedItems.Select(i => i.MenuItemId).Distinct().ToList();
-        var menuItems = await _menuRepo.GetMenuItemsByIdsAsync(menuItemIds, outletId);
-        var menuMap = menuItems.Where(m => m.Id != null).ToDictionary(m => m.Id!, m => m);
-        var categoryIds = menuItems
-            .Where(m => !string.IsNullOrEmpty(m.CategoryId))
-            .Select(m => m.CategoryId!)
-            .Distinct()
-            .ToList();
-        var categories = categoryIds.Count > 0
-            ? await _menuRepo.GetCategoriesByIdsAsync(categoryIds)
-            : new Dictionary<string, string>();
-
-        var orderItems = new List<OrderItem>();
-        decimal subtotal = 0;
-        foreach (var item in requestedItems)
-        {
-            if (!menuMap.TryGetValue(item.MenuItemId, out var menuItem))
-                return (orderItems, 0, $"Menu item {item.MenuItemId} not found");
-            if (!menuItem.IsAvailable)
-                return (orderItems, 0, $"{menuItem.Name} is currently unavailable");
-
-            // Takeaway is a shop sale, so it uses counter pricing.
-            var baseUnitPrice = TakeawayUnitPrice(menuItem);
-            string? variantName = null;
-            decimal? variantPrice = null;
-            if (!string.IsNullOrWhiteSpace(item.SelectedVariantName))
-            {
-                var variant = (menuItem.Variants ?? new List<MenuItemVariant>()).FirstOrDefault(v =>
-                    v.VariantName.Equals(item.SelectedVariantName.Trim(), StringComparison.OrdinalIgnoreCase));
-                if (variant == null)
-                    return (orderItems, 0, $"Selected variant '{item.SelectedVariantName}' is not available for {menuItem.Name}");
-                variantName = variant.VariantName;
-                variantPrice = variant.Price;
-                baseUnitPrice = variant.Price;
-            }
-
-            var addOns = new List<OrderItemAddOn>();
-            foreach (var addOnName in item.SelectedAddOnNames ?? new List<string>())
-            {
-                if (string.IsNullOrWhiteSpace(addOnName)) continue;
-                var addOn = (menuItem.AddOns ?? new List<MenuItemAddOn>()).FirstOrDefault(a =>
-                    a.IsActive && a.Name.Equals(addOnName.Trim(), StringComparison.OrdinalIgnoreCase));
-                if (addOn == null)
-                    return (orderItems, 0, $"Selected add-on '{addOnName}' is not available for {menuItem.Name}");
-                addOns.Add(new OrderItemAddOn { Name = addOn.Name, Price = addOn.Price });
-            }
-
-            var addOnTotal = addOns.Sum(a => a.Price);
-            var unitPrice = baseUnitPrice + addOnTotal;
-            var itemTotal = unitPrice * item.Quantity;
-            subtotal += itemTotal;
-            categories.TryGetValue(menuItem.CategoryId ?? string.Empty, out var categoryName);
-
-            orderItems.Add(new OrderItem
-            {
-                MenuItemId = menuItem.Id!,
-                Name = menuItem.Name,
-                Description = menuItem.Description,
-                CategoryId = menuItem.CategoryId,
-                CategoryName = categoryName,
-                Quantity = item.Quantity,
-                Price = unitPrice,
-                BaseUnitPrice = baseUnitPrice,
-                SelectedVariantName = variantName,
-                SelectedVariantPrice = variantPrice,
-                SelectedAddOns = addOns,
-                AddOnTotal = addOnTotal,
-                Total = itemTotal
-            });
-        }
-
-        return (orderItems, subtotal, null);
+        return await ShopOrderItemBuilder.BuildAsync(_menuRepo, requestedItems, outletId);
     }
 
     public static decimal TakeawayUnitPrice(CafeMenuItem menuItem) =>
-        menuItem.ShopSellingPrice > 0
-            ? menuItem.ShopSellingPrice
-            : menuItem.WebPrice > 0 ? menuItem.WebPrice : menuItem.OnlinePrice;
+        ShopOrderItemBuilder.UnitPrice(menuItem);
 
     private async Task<(Order? Order, HttpResponseData? Error)> LoadOrderAsync(HttpRequestData req, string orderId)
     {

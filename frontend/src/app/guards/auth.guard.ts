@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
-import { Router, CanActivateFn } from '@angular/router';
+import { Router, CanActivateFn, CanDeactivateFn } from '@angular/router';
+import type { PhoneOrdersComponent } from '../components/phone-orders/phone-orders.component';
 import { AuthStore } from '../store/auth.store';
 import { CASHIER_ROLES, KITCHEN_ROLES, PARTNER_ROLES, WAITER_ROLES } from '../utils/roles';
 
@@ -46,3 +47,6 @@ export const managerGuard: CanActivateFn = roleGuard(['manager']);
 export const waiterGuard: CanActivateFn = roleGuard(WAITER_ROLES);
 
 export const cashierGuard: CanActivateFn = roleGuard(CASHIER_ROLES);
+
+export const phoneOrderDraftGuard: CanDeactivateFn<PhoneOrdersComponent> = component =>
+  !component.hasDraft || window.confirm('Leave this page and discard the unfinished phone order?');

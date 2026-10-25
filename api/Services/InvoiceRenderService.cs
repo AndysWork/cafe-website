@@ -22,6 +22,8 @@ public class InvoiceRenderService
         {
             sb.AppendLine($"Phone   : {order.PhoneNumber}");
         }
+        if (Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(order) && !string.IsNullOrWhiteSpace(order.DeliveryAddress))
+            sb.AppendLine($"Address : {order.DeliveryAddress}");
 
         sb.AppendLine(new string('-', width));
         sb.AppendLine($"{"Item",-26}{"Qty",4}{"Rate",8}{"Total",10}");
@@ -37,6 +39,8 @@ public class InvoiceRenderService
         sb.AppendLine($"{"Subtotal",-36}{order.Subtotal,12:0.##}");
         sb.AppendLine($"{"Tax",-36}{order.Tax,12:0.##}");
         sb.AppendLine($"{"Platform",-36}{order.PlatformCharge,12:0.##}");
+        if (order.DeliveryFee > 0)
+            sb.AppendLine($"{"Delivery Fee",-36}{order.DeliveryFee,12:0.##}");
         if (order.PackagingCharge > 0)
         {
             sb.AppendLine($"{"Packaging",-36}{order.PackagingCharge,12:0.##}");
@@ -85,6 +89,7 @@ public class InvoiceRenderService
         {
             "cash_at_counter" => "Cash",
             "upi-qr" => "UPI QR",
+            "cod" => "Cash on Delivery",
             _ => "Cash"
         };
     }
