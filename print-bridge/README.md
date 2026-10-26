@@ -179,6 +179,8 @@ Then, signed in as admin, call `POST /api/kitchen/kot/test-print` (or place a wa
 | Paper not cut | Set `"cut": true`, and check the cutter is enabled in the printer's settings. |
 | KOT printed twice | Increase `duplicateWindowSeconds`; check the API isn't timing out (`ms` in the bridge log should be well under 8000). |
 | Termux setup says `cloudflared` is missing | Run `pkg update && pkg install cloudflared` in Termux, then rerun setup. |
+| Termux says `set: pipefail: invalid option name` or `$'\r': command not found` | The scripts were copied with Windows (CRLF) line endings. Copy a fresh `print-bridge` folder from the repository, or in Termux run `sed -i 's/\r$//' termux/*.sh`, then rerun `bash termux/setup.sh`. |
+| Termux says `CANNOT LINK EXECUTABLE "node": library "lib….so" not found` or `cannot locate symbol "…" referenced by …/bin/node` | Termux packages are only partly upgraded (Node is newer or older than its libraries). Run `pkg update && pkg upgrade -y`, then `pkg reinstall nodejs` (or `pkg uninstall nodejs && pkg install nodejs-lts`), and confirm `node -v` works before rerunning setup. Use Termux from F-Droid, not the outdated Play Store build. |
 | Tablet bridge works but Azure cannot print | Check `~/maatara-print-bridge/status.sh`, the Cloudflare public hostname origin (`http://127.0.0.1:8080`), the Azure endpoint/API key, and that Termux is allowed to run in the background. |
 | Tablet bridge stops after a reboot or screen-off | Open Termux once, confirm Termux:Boot is installed from the same source, disable battery optimization and enable the device's background/auto-start permission; inspect `~/maatara-print-bridge/logs/supervisor.log`. |
 

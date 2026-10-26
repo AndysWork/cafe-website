@@ -1,0 +1,2 @@
+# Shell scripts run on Linux/Android (Termux) and must keep LF line endings.
+*.sh text eol=lf

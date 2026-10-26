@@ -3,11 +3,17 @@
   min-height: 100vh;
   background: #0f172a;
   color: white;
+  box-sizing: border-box;
 }
 
 .kitchen-header {
   margin-bottom: 20px;
-  h1 { font-size: 1.5rem; margin-bottom: 12px; }
+  h1 {
+    font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+    margin-bottom: 12px;
+    line-height: 1.3;
+    word-break: break-word;
+  }
 }
 
 .kitchen-header-actions {
@@ -39,6 +45,7 @@
   border: 1px solid #475569;
   border-radius: 8px;
   padding: 6px 10px;
+  min-height: 36px;
 }
 
 .dashboard-link {
@@ -49,6 +56,8 @@
   border-radius: 8px;
   padding: 6px 10px;
   display: inline-block;
+  min-height: 36px;
+  align-content: center;
 }
 
 .stats-row {
@@ -79,9 +88,10 @@
 
 .kitchen-board {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 1440px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 1024px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   @media (max-width: 640px) { grid-template-columns: 1fr; }
 }
 
@@ -90,6 +100,7 @@
   border-radius: 12px;
   padding: 12px;
   min-height: 300px;
+  min-width: 0;
 }
 
 .column-header {
@@ -121,6 +132,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   margin: -4px -4px 8px;
   padding: 6px 10px;
   border-radius: 6px;
@@ -162,12 +174,16 @@
   gap: 8px;
   font-size: 0.9rem;
   padding: 5px 0;
+  min-width: 0;
   .qty { font-weight: 700; color: #84CC16; margin-right: 4px; }
 }
 
 .item-description {
   display: grid;
   gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
 }
 
 .item-status {
@@ -187,6 +203,7 @@
   cursor: pointer;
   font-size: 0.75rem;
   font-weight: 700;
+  flex: 0 0 auto;
 }
 
 .item-action.served-action { background: #0e7490; }
@@ -215,6 +232,8 @@
 .btn-kitchen {
   border: none; padding: 6px 12px; border-radius: 6px;
   font-weight: 600; font-size: 0.8rem; cursor: pointer;
+  min-height: 34px;
+  touch-action: manipulation;
   &.confirm { background: #3b82f6; color: white; }
   &.prepare { background: #8b5cf6; color: white; }
   &.ready { background: #10b981; color: white; }
@@ -233,6 +252,8 @@
   background: rgba(0,0,0,0.7);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .kot-modal {
@@ -246,6 +267,8 @@
   padding: 20px;
   max-width: 420px;
   width: 100%;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
 }
 
 .checklist-subtitle {
@@ -301,4 +324,90 @@
 
 .kot-actions {
   display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .kitchen-container {
+    padding: 12px;
+  }
+
+  .kitchen-header-actions {
+    gap: 8px;
+  }
+
+  .dashboard-link {
+    width: 100%;
+    text-align: center;
+  }
+
+  .translation-select {
+    flex: 1 1 170px;
+    min-width: 0;
+  }
+
+  .column-header {
+    h2 {
+      font-size: 1rem;
+    }
+  }
+
+  .order-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .btn-kitchen {
+    width: 100%;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .kitchen-container {
+    padding: 10px;
+  }
+
+  .stats-row {
+    gap: 8px;
+  }
+
+  .stat-pill {
+    width: 100%;
+    text-align: center;
+    border-radius: 10px;
+  }
+
+  .order-header {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .order-customer {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .order-item {
+    flex-wrap: wrap;
+  }
+
+  .item-action {
+    margin-top: 4px;
+  }
+
+  .order-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .kot-modal,
+  .checklist-modal {
+    padding: 14px;
+  }
+
+  .kot-actions {
+    flex-direction: column;
+    .btn-kitchen {
+      width: 100%;
+    }
+  }
 }
