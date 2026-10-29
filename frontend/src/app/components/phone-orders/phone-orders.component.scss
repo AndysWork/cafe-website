@@ -32,10 +32,47 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 details { margin-top: 16px; }
 summary { cursor: pointer; }
 a { color: #005b9a; }
+
+details input[readonly] {
+  margin-top: 10px;
+}
+
+details button {
+  margin-top: 10px;
+}
+
 @media (max-width: 800px) {
   .phone-orders { padding: 12px; }
   .entry-grid { grid-template-columns: 1fr; }
   .menu-list { max-height: 400px; }
   .board-header, .assignment { flex-wrap: wrap; }
   .panel { padding: 16px; }
+}
+
+@media (max-width: 600px) {
+  .menu-item > div,
+  .cart-line,
+  .board-header,
+  .totals p {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .quantity {
+    align-self: flex-start;
+  }
+
+  .assignment label,
+  .assignment button {
+    width: 100%;
+  }
+
+  .tracked-order ul {
+    padding-left: 18px;
+  }
+
+  details button {
+    width: 100%;
+  }
 }

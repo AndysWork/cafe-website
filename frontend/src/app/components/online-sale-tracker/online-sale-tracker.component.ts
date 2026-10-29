@@ -18,7 +18,8 @@ import {
   getIstDateString,
   getIstInputDate,
   formatIstDate,
-  formatIstDateTime
+  formatIstDateTime,
+  convertToIst
 } from '../../utils/date-utils';
 
 interface OrderedItem {
@@ -642,9 +643,26 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
     return sale.billSubTotal + sale.packagingCharges - (sale.discountAmount || 0) - sale.platformDeduction;
   }
 
-  formatDate(date: Date | string): string {
-    // Use IST date formatting
-    return formatIstDateTime(date);
+  formatDate(date?: Date | string | number | null): string {
+    if (date === null || date === undefined) return '-';
+
+    if (typeof date === 'string') {
+      const normalized = date.trim();
+      if (!normalized || normalized.startsWith('0001-01-01')) return '-';
+      const formatted = formatIstDateTime(convertToIst(normalized));
+      return formatted === 'Invalid date' ? '-' : formatted;
+    }
+
+    if (typeof date === 'number' && (!Number.isFinite(date) || date <= 0)) {
+      return '-';
+    }
+
+    const formatted = formatIstDateTime(convertToIst(date instanceof Date ? date : String(date)));
+    return formatted === 'Invalid date' ? '-' : formatted;
+  }
+
+  getSaleDateTime(sale: OnlineSale): string {
+    return this.formatDate(sale.orderAt || sale.createdAt);
   }
 
   formatCurrency(amount: number): string {
@@ -753,7 +771,7 @@ export class OnlineSaleTrackerComponent implements OnInit, OnDestroy {
     ];
 
     const rows = this.sales.map((sale) => [
-      this.formatDate(sale.orderAt),
+      this.getSaleDateTime(sale),
       sale.platform,
       sale.orderId,
       sale.customerName || 'N/A',

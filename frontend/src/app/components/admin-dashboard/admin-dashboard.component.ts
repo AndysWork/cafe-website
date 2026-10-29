@@ -110,6 +110,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   offlineMostOrderedItems: MostOrderedItem[] = [];
   outboxHealth: OutboxHealth | null = null;
   outboxDeadLetters: OutboxDeadLetterItem[] = [];
+  showOutboxDeadLetters = false;
   onlineSales: OnlineSale[] = [];
   offlineSales: Sales[] = [];
   allOrders: Order[] = [];
@@ -442,4 +443,8 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   trackByIndex(index: number): number { return index; }
+
+  toggleOutboxDeadLetters(): void {
+    this.showOutboxDeadLetters = !this.showOutboxDeadLetters;
+  }
 }

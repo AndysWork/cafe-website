@@ -49,6 +49,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   searchQuery = '';
   orderNotes = '';
   customerName = '';
+  mobileCartOpen = false;
   loadingTables = false;
   loadingMenu = false;
   loadingQrOrders = false;
@@ -126,6 +127,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
 
   selectTable(tableNumber: string): void {
     this.selectedTableNumber = tableNumber;
+    this.mobileCartOpen = false;
     this.customerName = this.selectedTable?.customerName || '';
     this.message = '';
     this.errorMessage = '';
@@ -160,6 +162,18 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
     if (line.quantity <= 0) {
       this.cart = this.cart.filter(item => item !== line);
     }
+    if (!this.cart.length) {
+      this.mobileCartOpen = false;
+    }
+  }
+
+  openMobileCheckout(): void {
+    if (!this.cart.length) return;
+    this.mobileCartOpen = true;
+  }
+
+  closeMobileCheckout(): void {
+    this.mobileCartOpen = false;
   }
 
   linePrice(line: WaiterCartLine): number {
@@ -205,6 +219,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
         this.message = response?.message || 'Order sent to the kitchen.';
         this.cart = [];
         this.orderNotes = '';
+        this.mobileCartOpen = false;
         this.submittingOrder = false;
         this.loadTables();
       },

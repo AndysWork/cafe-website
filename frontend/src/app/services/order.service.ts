@@ -69,6 +69,7 @@ export interface Order {
   dineInSessionId?: string;
   loyaltyPointsAwarded?: boolean;
   loyaltyPointsAwardedValue?: number;
+  orderSource?: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;

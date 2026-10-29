@@ -80,34 +80,43 @@
         </div>
       </div>
 
-      <div *ngIf="outboxDeadLetters.length > 0" class="table-container">
-        <h3>Recent Failed Retries</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Event</th>
-              <th>Aggregate</th>
-              <th>Retry</th>
-              <th>Status</th>
-              <th>Error</th>
-              <th>Type</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let row of outboxDeadLetters; trackBy: trackByIndex">
-              <td>{{ row.eventType }}</td>
-              <td>{{ row.aggregateType }} / {{ row.aggregateId }}</td>
-              <td>{{ row.retryCount }} / {{ row.maxRetries }}</td>
-              <td>{{ row.status || 'unknown' }}</td>
-              <td>{{ row.error || 'Unknown' }}</td>
-              <td>
-                <span [class]="row.isPushFailure ? 'status-badge status-failed' : 'status-badge status-warning'">
-                  {{ row.isPushFailure ? 'Push Failure' : 'General Failure' }}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div *ngIf="outboxDeadLetters.length > 0" class="collapsible-dead-letters">
+        <button type="button" class="collapse-toggle" (click)="toggleOutboxDeadLetters()">
+          <span>
+            <strong>Recent Failed Retries</strong>
+            <small>{{ outboxDeadLetters.length }} record{{ outboxDeadLetters.length === 1 ? '' : 's' }}</small>
+          </span>
+          <span class="toggle-indicator">{{ showOutboxDeadLetters ? '▲' : '▼' }}</span>
+        </button>
+
+        <div class="table-container" *ngIf="showOutboxDeadLetters">
+          <table>
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Aggregate</th>
+                <th>Retry</th>
+                <th>Status</th>
+                <th>Error</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of outboxDeadLetters; trackBy: trackByIndex">
+                <td>{{ row.eventType }}</td>
+                <td>{{ row.aggregateType }} / {{ row.aggregateId }}</td>
+                <td>{{ row.retryCount }} / {{ row.maxRetries }}</td>
+                <td>{{ row.status || 'unknown' }}</td>
+                <td>{{ row.error || 'Unknown' }}</td>
+                <td>
+                  <span [class]="row.isPushFailure ? 'status-badge status-failed' : 'status-badge status-warning'">
+                    {{ row.isPushFailure ? 'Push Failure' : 'General Failure' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 

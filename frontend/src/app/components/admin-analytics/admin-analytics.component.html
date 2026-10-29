@@ -132,9 +132,88 @@
         </div>
       </div>
 
+      <div class="insight-section" *ngIf="channelBreakdown">
+        <h2>🧭 Sales Channel Breakdown</h2>
+        <div class="revenue-breakdown">
+          <div class="breakdown-card">
+            <h4>🏪 Offline Sales Channels</h4>
+            <p class="amount">
+              {{ formatCurrency(channelBreakdown.offlineTotalRevenue) }}
+            </p>
+            <span class="subtext">{{ channelBreakdown.offlineTotalOrders }} orders</span>
+          </div>
+          <div class="breakdown-card">
+            <h4>📱 Online Sales Channels</h4>
+            <p class="amount">
+              {{ formatCurrency(channelBreakdown.onlineTotalRevenue) }}
+            </p>
+            <span class="subtext">{{ channelBreakdown.onlineTotalOrders }} orders</span>
+          </div>
+        </div>
+
+        <div class="payment-breakdown">
+          <div *ngFor="let metric of channelBreakdown.offline; trackBy: trackByIndex" class="payment-card">
+            <div class="payment-header">
+              <h3>{{ metric.label }}</h3>
+              <span class="payment-count">{{ metric.orders }} orders</span>
+            </div>
+            <div class="payment-amount">{{ formatCurrency(metric.revenue) }}</div>
+            <div class="payment-bar">
+              <div
+                class="payment-bar-fill"
+                [style.width.%]="channelBreakdown.offlineTotalRevenue > 0 ? (metric.revenue / channelBreakdown.offlineTotalRevenue) * 100 : 0"
+              ></div>
+            </div>
+            <span class="payment-percentage">
+              Avg order value: {{ formatCurrency(metric.avgOrderValue) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="payment-breakdown">
+          <div *ngFor="let metric of channelBreakdown.online; trackBy: trackByIndex" class="payment-card">
+            <div class="payment-header">
+              <h3>{{ metric.label }}</h3>
+              <span class="payment-count">{{ metric.orders }} orders</span>
+            </div>
+            <div class="payment-amount">{{ formatCurrency(metric.revenue) }}</div>
+            <div class="payment-bar">
+              <div
+                class="payment-bar-fill"
+                [style.width.%]="channelBreakdown.onlineTotalRevenue > 0 ? (metric.revenue / channelBreakdown.onlineTotalRevenue) * 100 : 0"
+              ></div>
+            </div>
+            <span class="payment-percentage">
+              Avg order value: {{ formatCurrency(metric.avgOrderValue) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="insight-section" *ngIf="offlineItemQuantityInsights.length">
+        <h2>🛒 Offline Item Quantity Insights (Dine In + Takeaway + Phone Orders)</h2>
+        <div class="top-items-grid">
+          <div
+            *ngFor="let item of offlineItemQuantityInsights; let i = index; trackBy: trackByName"
+            class="top-item-card"
+            [class.top-1]="i === 0"
+            [class.top-2]="i === 1"
+            [class.top-3]="i === 2"
+          >
+            <div class="item-rank">{{ i + 1 }}</div>
+            <div class="item-details">
+              <h4>{{ item.name }}</h4>
+              <p>Quantity sold: {{ item.quantity }}</p>
+              <p>Share: {{ item.quantitySharePercent | number:'1.1-1' }}%</p>
+              <p class="item-revenue">{{ formatCurrency(item.revenue) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Top Selling Items -->
       <div class="insight-section">
-        <h2>🏆 Top Selling Items</h2>
+        <h2>🏆 Top Selling Items (Recorded Offline Sales)</h2>
         <div class="top-items-grid">
           <div
             *ngFor="let item of insights.topSellingItems; let i = index; trackBy: trackByName"
@@ -1855,7 +1934,7 @@
             <p class="amount">
               {{ formatCurrency(outletsOverview.onlineSales) }}
             </p>
-            <span class="subtext">Zomato/Swiggy net payout</span>
+            <span class="subtext">Zomato + Swiggy + Web Sales net payout</span>
           </div>
 
           <div class="breakdown-card">

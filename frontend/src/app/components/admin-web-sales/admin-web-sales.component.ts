@@ -11,16 +11,24 @@ import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { ActiveDineInTable, DineInService } from '../../services/dine-in.service';
-import { getIstDateString, getIstFileStamp, getIstInputDate, formatIstDateTime } from '../../utils/date-utils';
+import { getIstDateString, getIstFileStamp, getIstInputDate, formatIstDateTime, convertToIst } from '../../utils/date-utils';
 
 interface OnlineSaleSummaryItem {
   id?: string;
   orderId?: string;
   platform?: string;
   payout?: number;
+  billSubTotal?: number;
   discountAmount?: number;
   platformDeduction?: number;
   orderAt?: string;
+  orderedItems?: Array<{
+    itemName?: string;
+    name?: string;
+    quantity?: number;
+    total?: number;
+    price?: number;
+  }>;
 }
 
 interface WebSalesDashboardResponse {
@@ -49,6 +57,13 @@ interface WorkflowCompliance {
   level: ComplianceLevel;
   label: string;
   reason: string;
+}
+
+interface WebSalesItemQuantityRow {
+  name: string;
+  quantity: number;
+  revenue: number;
+  orders: number;
 }
 
 @Component({
@@ -162,7 +177,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
           const data = response?.data;
           this.dashboardSummary = data?.summary || this.dashboardSummary;
           this.orders = [...(data?.orders || [])].sort((a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            this.toEpochMillis(b.createdAt) - this.toEpochMillis(a.createdAt)
           );
           this.partners = data?.partners || [];
           this.webSales = data?.webSales || [];
@@ -370,8 +385,57 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     });
   }
 
+  get webSalesItemQuantities(): WebSalesItemQuantityRow[] {
+    const itemMap = new Map<string, { quantity: number; revenue: number; orderIds: Set<string> }>();
+    const hasOrderRecords = this.orders.length > 0;
+
+    if (hasOrderRecords) {
+      for (const order of this.orders) {
+        for (const item of order.items || []) {
+          const name = (item.name || 'Unknown item').trim() || 'Unknown item';
+          const existing = itemMap.get(name) || { quantity: 0, revenue: 0, orderIds: new Set<string>() };
+          existing.quantity += item.quantity || 0;
+          existing.revenue += item.total || 0;
+          existing.orderIds.add(order.id);
+          itemMap.set(name, existing);
+        }
+      }
+    } else {
+      for (const sale of this.webSales) {
+        const saleOrderKey = sale.orderId || sale.id || '';
+        for (const item of sale.orderedItems || []) {
+          const name = ((item.itemName || item.name || 'Unknown item').trim()) || 'Unknown item';
+          const quantity = item.quantity || 0;
+          const lineTotal = item.total ?? ((item.price || 0) * quantity);
+          const existing = itemMap.get(name) || { quantity: 0, revenue: 0, orderIds: new Set<string>() };
+          existing.quantity += quantity;
+          existing.revenue += lineTotal || 0;
+          if (saleOrderKey) {
+            existing.orderIds.add(saleOrderKey);
+          }
+          itemMap.set(name, existing);
+        }
+      }
+    }
+
+    return Array.from(itemMap.entries())
+      .map(([name, data]) => ({
+        name,
+        quantity: data.quantity,
+        revenue: data.revenue,
+        orders: data.orderIds.size,
+      }))
+      .sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue || a.name.localeCompare(b.name));
+  }
+
   get totalOrders(): number {
-    return this.dashboardSummary?.totalOrders ?? this.orders.length;
+    if ((this.dashboardSummary?.totalOrders || 0) > 0) {
+      return this.dashboardSummary?.totalOrders || 0;
+    }
+    if (this.orders.length > 0) {
+      return this.orders.length;
+    }
+    return this.webSales.length;
   }
 
   get activeOrders(): number {
@@ -379,7 +443,13 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   get deliveredOrders(): number {
-    return this.dashboardSummary?.deliveredOrders ?? this.orders.filter(o => o.status === 'delivered').length;
+    if ((this.dashboardSummary?.deliveredOrders || 0) > 0) {
+      return this.dashboardSummary?.deliveredOrders || 0;
+    }
+    if (this.orders.length > 0) {
+      return this.orders.filter(o => o.status === 'delivered').length;
+    }
+    return this.webSales.length;
   }
 
   get cancelledOrders(): number {
@@ -387,7 +457,13 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   get totalOrderValue(): number {
-    return this.dashboardSummary?.grossOrderValue ?? this.orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    if ((this.dashboardSummary?.grossOrderValue || 0) > 0) {
+      return this.dashboardSummary?.grossOrderValue || 0;
+    }
+    if (this.orders.length > 0) {
+      return this.orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    }
+    return this.webSales.reduce((sum, sale) => sum + (sale.billSubTotal || sale.payout || 0), 0);
   }
 
   get averageOrderValue(): number {
@@ -449,9 +525,22 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return order.total || 0;
   }
 
-  formatDate(value?: string): string {
-    if (!value) return '-';
-    return formatIstDateTime(value);
+  formatDate(value?: string | Date | number | null): string {
+    if (value === null || value === undefined) return '-';
+
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      if (!normalized || normalized.startsWith('0001-01-01')) return '-';
+      const formatted = formatIstDateTime(convertToIst(normalized));
+      return formatted === 'Invalid date' ? '-' : formatted;
+    }
+
+    if (typeof value === 'number' && (!Number.isFinite(value) || value <= 0)) {
+      return '-';
+    }
+
+    const formatted = formatIstDateTime(convertToIst(value instanceof Date ? value : String(value)));
+    return formatted === 'Invalid date' ? '-' : formatted;
   }
 
   async updateOrderStatus(order: Order): Promise<void> {
@@ -702,7 +791,28 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   private getOrderAgeMinutes(order: Order): number {
     const referenceTime = order.updatedAt || order.createdAt;
-    return Math.max(0, Math.floor((Date.now() - new Date(referenceTime).getTime()) / 60000));
+    const referenceMs = this.toEpochMillis(referenceTime);
+    return Math.max(0, Math.floor((Date.now() - referenceMs) / 60000));
+  }
+
+  private toEpochMillis(value?: string | Date | number | null): number {
+    if (value === null || value === undefined) return 0;
+
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || value <= 0) return 0;
+      return value < 1_000_000_000_000 ? value * 1000 : value;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      if (!normalized || normalized.startsWith('0001-01-01')) return 0;
+      const parsed = convertToIst(normalized);
+      const epoch = parsed.getTime();
+      return Number.isNaN(epoch) ? 0 : epoch;
+    }
+
+    const epoch = convertToIst(value).getTime();
+    return Number.isNaN(epoch) ? 0 : epoch;
   }
 
   getAssignedPartnerDisplay(order: Order): string {
@@ -720,5 +830,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   trackByDineInSessionId(_: number, item: ActiveDineInTable): string {
     return item.id;
+  }
+
+  trackByItemName(_: number, item: WebSalesItemQuantityRow): string {
+    return item.name;
   }
 }

@@ -71,6 +71,8 @@ interface LoyaltyLevelPerk {
 })
 export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly checkoutDraftStorageKey = 'checkout_draft';
+  private readonly primaryOutletCode = 'MTC007';
+  private readonly primaryOutletCoordinates: [number, number] = [22.95079310669224, 88.43370554042531];
 
   @ViewChild('cafeMap', { static: false }) mapElementRef!: ElementRef<HTMLDivElement>;
   latestMenuItems: any[] = [];
@@ -488,8 +490,8 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
 
-      // Kanchrapara, West Bengal center (midpoint of both outlets)
-      const center = [22.9424, 88.4489];
+      // Single active outlet (MTC007)
+      const center = this.primaryOutletCoordinates;
 
       // Fix Leaflet default marker icon path issue with bundlers
       const iconDefault = L.icon({
@@ -513,23 +515,13 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
         maxZoom: 19
       }).addTo(this.map);
 
-      // Outlet 1 — 107 KGR Path, Kanchrapara
-      L.marker([22.947899914909794, 88.44490344042521], { icon: iconDefault })
+      // Primary outlet — MTC007
+      L.marker(this.primaryOutletCoordinates, { icon: iconDefault })
         .addTo(this.map)
         .bindPopup(`
-          <strong>🏪 Maa Tara Cafe</strong><br>
-          📍 107 KGR Path, Kanchrapara<br>
-          🕐 9:00 AM – 10:30 PM<br>
-          📞 <a href="tel:+918240443533">+91-8240443533</a>
-        `);
-
-      // Outlet 2 — Bongaon Road, Kanchrapara
-      L.marker([22.936861432289902, 88.45279946741576], { icon: iconDefault })
-        .addTo(this.map)
-        .bindPopup(`
-          <strong>🏪 Maa Tara Cafe</strong><br>
-          📍 Bongaon Road, Kanchrapara<br>
-          🕐 9:00 AM – 10:00 PM<br>
+          <strong>🏪 Maa Tara Cafe (MTC007)</strong><br>
+          📍 281, KGR Path, Kanchrapara<br>
+          🕐 8:00 AM – 11:00 PM<br>
           📞 <a href="tel:+918240443533">+91-8240443533</a>
         `);
 
@@ -548,7 +540,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   loadOutlets() {
     this.outletService.getPublicOutlets().subscribe({
       next: (data) => {
-        this.outlets = data || [];
+        this.outlets = (data || []).filter(outlet =>
+          (outlet.outletCode || '').trim().toUpperCase() === this.primaryOutletCode
+        );
         this.ensureCustomerOutletSelected(this.outlets);
         this.loadCategories();
       },

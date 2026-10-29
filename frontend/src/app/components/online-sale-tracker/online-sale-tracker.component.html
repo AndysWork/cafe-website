@@ -368,7 +368,7 @@
         </thead>
         <tbody>
           <tr *ngFor="let sale of paginatedSales; trackBy: trackById" [class.zomato-row]="sale.platform === 'Zomato'" [class.swiggy-row]="sale.platform === 'Swiggy'">
-            <td class="date-cell">{{ formatDate(sale.orderAt) }}</td>
+            <td class="date-cell">{{ $any(sale).date | date:'short' }}</td>
             <td>
               <span [class]="'platform-badge ' + sale.platform.toLowerCase()">
                 {{ sale.platform }}

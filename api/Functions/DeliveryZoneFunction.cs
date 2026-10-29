@@ -219,7 +219,8 @@ public class DeliveryZoneFunction
             // Distance is inferred from zone range midpoint until geocoding is introduced.
             var zone = zones.OrderBy(z => z.MinDistance).First();
             var approximateDistanceKm = Math.Round((zone.MinDistance + zone.MaxDistance) / 2d, 1);
-            var isFreeDelivery = zone.FreeDeliveryAbove.HasValue && subtotal >= zone.FreeDeliveryAbove.Value;
+            var freeDeliveryThreshold = zone.FreeDeliveryAbove.GetValueOrDefault();
+            var isFreeDelivery = freeDeliveryThreshold > 0m && subtotal >= freeDeliveryThreshold;
             var fee = isFreeDelivery ? 0m : zone.DeliveryFee;
 
             var feeConfidence = approximateDistanceKm <= 2d

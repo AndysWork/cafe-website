@@ -225,7 +225,6 @@ public sealed class PhoneDeliveryOrderFunction
         response.Headers.Add("Cache-Control", "no-store, private");
         response.Headers.Add("Referrer-Policy", "no-referrer");
         await response.WriteAsJsonAsync(body);
-        response.StatusCode = status;
         return response;
     }
 }

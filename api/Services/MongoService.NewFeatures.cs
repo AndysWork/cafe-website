@@ -64,7 +64,8 @@ public partial class MongoService : IOperationsRepository
 
         // Use the first (closest) zone as default
         var zone = zones.First();
-        if (zone.FreeDeliveryAbove.HasValue && orderSubtotal >= zone.FreeDeliveryAbove.Value)
+        var freeDeliveryThreshold = zone.FreeDeliveryAbove.GetValueOrDefault();
+        if (freeDeliveryThreshold > 0 && orderSubtotal >= freeDeliveryThreshold)
             return 0;
 
         return zone.DeliveryFee;

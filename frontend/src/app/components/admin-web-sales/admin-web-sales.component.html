@@ -267,6 +267,38 @@
 
   <div class="panel">
     <div class="panel-head">
+      <h2>Web Sales Item Quantities</h2>
+      <small *ngIf="webSalesItemQuantities.length > 0">{{ webSalesItemQuantities.length }} unique items</small>
+    </div>
+
+    <div class="table-wrap item-quantity-table" *ngIf="!loading && webSalesItemQuantities.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Qty Sold</th>
+            <th>Orders</th>
+            <th>Revenue</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of webSalesItemQuantities; trackBy: trackByItemName">
+            <td>{{ row.name }}</td>
+            <td>{{ row.quantity }}</td>
+            <td>{{ row.orders }}</td>
+            <td>{{ formatCurrency(row.revenue) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!loading && webSalesItemQuantities.length === 0" class="state">
+      No web sales items found for selected date range.
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
       <h2>Web Order Management</h2>
       <div class="filters">
         <select [(ngModel)]="statusFilter">

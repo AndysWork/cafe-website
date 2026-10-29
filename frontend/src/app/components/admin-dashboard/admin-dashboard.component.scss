@@ -462,6 +462,50 @@
   overflow-x: auto;
 }
 
+.collapsible-dead-letters {
+  margin-top: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.collapse-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  color: #0f172a;
+
+  span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  small {
+    color: #64748b;
+    font-size: 0.8rem;
+  }
+}
+
+.toggle-indicator {
+  font-size: 0.9rem;
+  color: #334155;
+  font-weight: 700;
+}
+
+.collapsible-dead-letters .table-container {
+  margin-top: 0;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 0 0 12px 12px;
+}
+
 .status-badge {
   display: inline-block;
   padding: 4px 10px;

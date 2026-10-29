@@ -6,6 +6,7 @@ import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { SalesService, Sales } from '../../services/sales.service';
+import { Order, OrderService } from '../../services/order.service';
 import {
   ExpenseService,
   ExpenseAnalytics,
@@ -39,6 +40,29 @@ interface SalesInsights {
   itemCategoryBreakdown: { category: string; count: number; revenue: number }[];
 }
 
+interface SalesChannelMetric {
+  label: string;
+  revenue: number;
+  orders: number;
+  avgOrderValue: number;
+}
+
+interface SalesChannelBreakdown {
+  offline: SalesChannelMetric[];
+  online: SalesChannelMetric[];
+  offlineTotalRevenue: number;
+  onlineTotalRevenue: number;
+  offlineTotalOrders: number;
+  onlineTotalOrders: number;
+}
+
+interface OfflineItemQuantityInsight {
+  name: string;
+  quantity: number;
+  revenue: number;
+  quantitySharePercent: number;
+}
+
 @Component({
   selector: 'app-admin-analytics',
   standalone: true,
@@ -56,6 +80,8 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
   salesData: Sales[] = [];
   allSalesData: Sales[] = []; // Store all sales for comparison
   insights: SalesInsights | null = null;
+  channelBreakdown: SalesChannelBreakdown | null = null;
+  offlineItemQuantityInsights: OfflineItemQuantityInsight[] = [];
 
   // Expense Analytics
   expenseAnalytics: ExpenseAnalytics | null = null;
@@ -106,6 +132,7 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
 
   constructor(
     private salesService: SalesService,
+    private orderService: OrderService,
     private expenseService: ExpenseService,
     private operationalExpenseService: OperationalExpenseService,
     private platformChargeService: PlatformChargeService,
@@ -291,18 +318,35 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
 
   loadSalesInsights() {
     this.loading = true;
-    this.salesService.getAllSales().subscribe({
-      next: (data) => {
-        this.allSalesData = data; // Store all sales data
-        this.salesData = this.filterByDateRange(data);
+    Promise.all([
+      this.salesService.getAllSales().toPromise(),
+      this.orderService.getAllOrders().toPromise(),
+      this.http
+        .get<any>(
+          `${environment.apiUrl}/online-sales/date-range?startDate=${this.dateRange.startDate}&endDate=${this.dateRange.endDate}&includeWebSales=true`
+        )
+        .toPromise(),
+    ])
+      .then(([salesData, ordersData, onlineSalesResponse]) => {
+        const sales = Array.isArray(salesData) ? salesData : [];
+        const orders = Array.isArray(ordersData) ? ordersData : [];
+        const onlineSales = Array.isArray(onlineSalesResponse?.data) ? onlineSalesResponse.data : [];
+
+        this.allSalesData = sales;
+        this.salesData = this.filterByDateRange(sales);
         this.calculateInsights();
+        this.calculateChannelInsights(orders, onlineSales);
+        this.calculateOfflineItemQuantityInsights(orders);
+      })
+      .catch((err) => {
+        console.error('Error loading sales analytics:', err);
+        this.insights = null;
+        this.channelBreakdown = null;
+        this.offlineItemQuantityInsights = [];
+      })
+      .finally(() => {
         this.loading = false;
-      },
-      error: (err) => {
-        console.error('Error loading sales data:', err);
-        this.loading = false;
-      },
-    });
+      });
   }
 
   filterByDateRange(sales: Sales[]): Sales[] {
@@ -415,6 +459,138 @@ export class AdminAnalyticsComponent implements OnInit, OnDestroy {
 
   categorizeItem(itemName: string): string {
     return this.calcService.categorizeItem(itemName);
+  }
+
+  private calculateChannelInsights(orders: Order[], onlineSales: any[]): void {
+    const relevantOrders = orders.filter((order) => this.isOrderInDateRange(order) && this.isCompletedOrder(order));
+
+    const dineInOrders = relevantOrders.filter((order) => (order.orderType || '').toLowerCase() === 'dine-in');
+    const takeawayOrders = relevantOrders.filter((order) => {
+      const orderType = (order.orderType || '').toLowerCase();
+      return orderType === 'pickup' || orderType === 'takeaway';
+    });
+    const phoneOrders = relevantOrders.filter((order) => order.orderSource === 'phone');
+
+    const offlineMetrics = [
+      this.buildChannelMetric('Dine In', dineInOrders),
+      this.buildChannelMetric('Takeaway', takeawayOrders),
+      this.buildChannelMetric('Phone Orders', phoneOrders),
+    ];
+
+    const offlineTotalRevenue = offlineMetrics.reduce((sum, metric) => sum + metric.revenue, 0);
+    const offlineTotalOrders = offlineMetrics.reduce((sum, metric) => sum + metric.orders, 0);
+
+    const onlineMetrics = this.buildOnlineChannelMetrics(onlineSales);
+    const onlineTotalRevenue = onlineMetrics.reduce((sum, metric) => sum + metric.revenue, 0);
+    const onlineTotalOrders = onlineMetrics.reduce((sum, metric) => sum + metric.orders, 0);
+
+    this.channelBreakdown = {
+      offline: offlineMetrics,
+      online: onlineMetrics,
+      offlineTotalRevenue,
+      onlineTotalRevenue,
+      offlineTotalOrders,
+      onlineTotalOrders,
+    };
+  }
+
+  private calculateOfflineItemQuantityInsights(orders: Order[]): void {
+    const offlineOrders = orders.filter(
+      (order) => this.isOrderInDateRange(order) && this.isCompletedOrder(order) && this.isOfflineOrderForBreakdown(order)
+    );
+    const itemsByName = new Map<string, { quantity: number; revenue: number }>();
+
+    offlineOrders.forEach((order) => {
+      order.items?.forEach((item) => {
+        const key = (item.name || 'Unknown item').trim() || 'Unknown item';
+        const quantity = Number(item.quantity || 0);
+        const revenue = Number(item.total ?? ((item.price || 0) * quantity));
+        const existing = itemsByName.get(key) || { quantity: 0, revenue: 0 };
+        itemsByName.set(key, {
+          quantity: existing.quantity + quantity,
+          revenue: existing.revenue + revenue,
+        });
+      });
+    });
+
+    const totalQuantity = Array.from(itemsByName.values()).reduce((sum, item) => sum + item.quantity, 0);
+    this.offlineItemQuantityInsights = Array.from(itemsByName.entries())
+      .map(([name, item]) => ({
+        name,
+        quantity: item.quantity,
+        revenue: item.revenue,
+        quantitySharePercent: totalQuantity > 0 ? (item.quantity / totalQuantity) * 100 : 0,
+      }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 12);
+  }
+
+  private buildChannelMetric(label: string, orders: Order[]): SalesChannelMetric {
+    const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const orderCount = orders.length;
+    return {
+      label,
+      revenue,
+      orders: orderCount,
+      avgOrderValue: orderCount > 0 ? revenue / orderCount : 0,
+    };
+  }
+
+  private buildOnlineChannelMetrics(onlineSales: any[]): SalesChannelMetric[] {
+    const platformSales = {
+      zomato: onlineSales.filter((sale) => (sale.platform || '').toLowerCase() === 'zomato'),
+      swiggy: onlineSales.filter((sale) => (sale.platform || '').toLowerCase() === 'swiggy'),
+      webSales: onlineSales.filter((sale) => (sale.platform || '').toLowerCase() === 'web sales'),
+    };
+
+    const rawMetrics: SalesChannelMetric[] = [
+      this.buildOnlineChannelMetric('Zomato', platformSales.zomato),
+      this.buildOnlineChannelMetric('Swiggy', platformSales.swiggy),
+      this.buildOnlineChannelMetric('Web Sales', platformSales.webSales),
+    ];
+
+    return rawMetrics.map((metric) => ({
+      ...metric,
+      avgOrderValue: metric.orders > 0 ? metric.revenue / metric.orders : 0,
+    }));
+  }
+
+  private buildOnlineChannelMetric(label: string, sales: any[]): SalesChannelMetric {
+    const revenue = sales.reduce((sum, sale) => {
+      const billSubTotal = Number(sale.billSubTotal || 0);
+      const packagingCharges = Number(sale.packagingCharges || 0);
+      const discountAmount = Number(sale.discountAmount || 0);
+      const platformDeduction = Number(sale.platformDeduction || 0);
+      return sum + billSubTotal + packagingCharges - discountAmount - platformDeduction;
+    }, 0);
+    const orders = sales.length;
+    return {
+      label,
+      revenue,
+      orders,
+      avgOrderValue: orders > 0 ? revenue / orders : 0,
+    };
+  }
+
+  private isOrderInDateRange(order: Order): boolean {
+    const baseDate = order.completedAt || order.createdAt;
+    if (!baseDate) return false;
+    const orderDate = new Date(baseDate);
+    if (Number.isNaN(orderDate.getTime())) return false;
+    const startDate = getIstStartOfDay(this.dateRange.startDate);
+    const endDate = getIstEndOfDay(this.dateRange.endDate);
+    return orderDate >= startDate && orderDate <= endDate;
+  }
+
+  private isCompletedOrder(order: Order): boolean {
+    const status = (order.status || '').toLowerCase();
+    return status === 'served' || status === 'delivered';
+  }
+
+  private isOfflineOrderForBreakdown(order: Order): boolean {
+    if (order.orderSource === 'phone') return true;
+    const orderType = (order.orderType || '').toLowerCase();
+    return orderType === 'dine-in' || orderType === 'pickup' || orderType === 'takeaway';
   }
 
   // Online Sales Analytics Methods

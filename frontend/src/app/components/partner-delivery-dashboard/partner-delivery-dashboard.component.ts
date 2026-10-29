@@ -411,7 +411,12 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  acceptRequest(order: { id?: string }): void {
+  acceptRequest(order: { id?: string; orderSource?: string }): void {
+    if (this.isPhoneManagedRequest(order)) {
+      this.uiStore.warning('Phone delivery orders are assigned by admin/manager. Wait for assignment.');
+      return;
+    }
+
     if (!order.id) {
       this.uiStore.error('Invalid order');
       return;
@@ -501,6 +506,13 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
 
   formatStatus(status: string): string {
     return status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  isPhoneManagedRequest(order: unknown): boolean {
+    const source = typeof order === 'object' && order !== null && 'orderSource' in order
+      ? String((order as { orderSource?: string }).orderSource || '')
+      : '';
+    return source.toLowerCase() === 'phone';
   }
 
   getDeliveryMapUrl(order: { deliveryRouteShortUrl?: string; deliveryRouteUrl?: string; deliveryAddress?: string; deliveryLocationUrl?: string }): string | null {

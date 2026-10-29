@@ -170,6 +170,10 @@ export class DeliveryPartnerService {
 
   getDeliveryPartners(): Observable<DeliveryPartner[]> {
     return this.http.get<DeliveryPartner[]>(`${this.apiUrl}/manage/delivery-partners`).pipe(
+      map(partners => partners.map(partner => ({
+        ...partner,
+        status: this.normalizePartnerStatus(partner.status)
+      }))),
       catchError(handleServiceError('DeliveryPartnerService.getDeliveryPartners'))
     );
   }
@@ -421,5 +425,16 @@ export class DeliveryPartnerService {
     return this.http.put<{ id?: string; date: string; petrolPricePerLitre: number }>(`${this.apiUrl}/partner/delivery/fuel-price`, payload).pipe(
       catchError(handleServiceError('DeliveryPartnerService.setMyDailyFuelPrice'))
     );
+  }
+
+  private normalizePartnerStatus(status: string | undefined): DeliveryPartner['status'] {
+    const normalized = (status || '').trim().toLowerCase();
+    if (normalized === 'on-delivery' || normalized === 'on_delivery' || normalized === 'on delivery' || normalized === 'busy') {
+      return 'on-delivery';
+    }
+    if (normalized === 'offline' || normalized === 'inactive') {
+      return 'offline';
+    }
+    return 'available';
   }
 }

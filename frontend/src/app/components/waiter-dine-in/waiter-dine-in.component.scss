@@ -591,6 +591,12 @@ h1 {
   border: 0;
 }
 
+.mobile-checkout-trigger,
+.mobile-cart-backdrop,
+.mobile-cart-header {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .order-layout {
     grid-template-columns: 1fr;
@@ -602,6 +608,10 @@ h1 {
 }
 
 @media (max-width: 600px) {
+  .waiter-page {
+    padding-bottom: 92px;
+  }
+
   .page-header,
   .qr-card footer,
   .round-row {
@@ -617,6 +627,85 @@ h1 {
   .cart-panel,
   .qr-orders {
     padding: 15px;
+  }
+
+  .mobile-checkout-trigger {
+    position: fixed;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    z-index: 42;
+    display: block;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 12px;
+    background: #874a18;
+    color: #fff;
+    box-shadow: 0 10px 18px #00000024;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .mobile-cart-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: block;
+    background: #00000052;
+  }
+
+  .cart-panel {
+    position: fixed;
+    top: 8vh;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 41;
+    display: block;
+    border-radius: 16px 16px 0 0;
+    background: #fff;
+    box-shadow: 0 -12px 24px #0000002b;
+    transform: translateY(105%);
+    transition: transform .22s ease;
+    overflow: auto;
+  }
+
+  .cart-panel.mobile-open {
+    transform: translateY(0);
+  }
+
+  .mobile-cart-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: -15px -15px 12px;
+    padding: 12px 15px;
+    border-bottom: 1px solid #ece7de;
+    background: #fff;
+  }
+
+  .mobile-cart-header strong {
+    color: #2d2a24;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .mobile-cart-header .refresh-button {
+    padding: 8px 11px;
+    border-radius: 8px;
+  }
+
+  .cart-panel > .submit-button {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: 0;
+    margin-top: 10px;
+    box-shadow: 0 -6px 14px #00000012;
   }
 
   .qr-card footer > div {

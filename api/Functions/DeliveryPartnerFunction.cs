@@ -1306,8 +1306,6 @@ public class DeliveryPartnerFunction
             var outletOrders = await _orderRepo.GetAllOrdersAsync(partner.OutletId);
             var pendingRequests = outletOrders
                 .Where(o =>
-                    !PhoneDeliveryOrderRules.IsPhoneOrder(o)
-                    &&
                     string.Equals(o.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
                     && string.IsNullOrWhiteSpace(o.DeliveryPartnerId)
                     && (string.Equals(o.Status, "pending", StringComparison.OrdinalIgnoreCase)

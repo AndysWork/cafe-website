@@ -151,7 +151,12 @@
       <ng-template #loadingMenuTemplate><p class="empty">Loading menu…</p></ng-template>
     </div>
 
-    <aside class="cart-panel">
+    <aside class="cart-panel" [class.mobile-open]="mobileCartOpen">
+      <div class="mobile-cart-header">
+        <strong>Review & send</strong>
+        <button type="button" class="refresh-button" (click)="closeMobileCheckout()">Back to menu</button>
+      </div>
+
       <div class="section-heading">
         <div>
           <h2>Current order</h2>
@@ -205,6 +210,12 @@
       </button>
     </aside>
   </section>
+
+  <button type="button" class="mobile-checkout-trigger" *ngIf="activeTab === 'order' && cart.length && !mobileCartOpen" (click)="openMobileCheckout()">
+    Review order · {{ cartItemCount }} item{{ cartItemCount === 1 ? '' : 's' }} · ₹{{ cartTotal | number:'1.0-2' }}
+  </button>
+
+  <div class="mobile-cart-backdrop" *ngIf="activeTab === 'order' && mobileCartOpen" (click)="closeMobileCheckout()"></div>
 
   <section class="qr-orders" *ngIf="activeTab === 'qr'">
     <div class="section-heading">

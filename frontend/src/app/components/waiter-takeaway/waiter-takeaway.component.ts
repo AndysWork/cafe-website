@@ -60,6 +60,7 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
   loadingMenu = false;
   loadingOrders = false;
   submitting = false;
+  mobileCartOpen = false;
   message = '';
   errorMessage = '';
 
@@ -156,6 +157,7 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
   changeQuantity(line: TakeawayCartLine, change: number): void {
     line.quantity += change;
     if (line.quantity <= 0) this.cart = this.cart.filter(item => item !== line);
+    if (!this.cart.length) this.mobileCartOpen = false;
   }
 
   submitOrder(): void {
@@ -186,6 +188,7 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
       next: response => {
         this.message = `${response.message}. Give token ${response.order.token} to ${response.order.customerName}.`;
         this.resetForm();
+        this.mobileCartOpen = false;
         this.submitting = false;
         this.loadOrders();
         if (response.order.paymentStatus === 'paid') this.autoPrintBill('takeawayPaid', response.order);
@@ -261,6 +264,15 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
 
   canCancel(order: WaiterTakeawayOrder): boolean {
     return (order.status === 'pending' || order.status === 'confirmed') && order.paymentStatus !== 'paid';
+  }
+
+  openMobileCheckout(): void {
+    if (!this.cart.length) return;
+    this.mobileCartOpen = true;
+  }
+
+  closeMobileCheckout(): void {
+    this.mobileCartOpen = false;
   }
 
   statusLabel(order: WaiterTakeawayOrder): string {

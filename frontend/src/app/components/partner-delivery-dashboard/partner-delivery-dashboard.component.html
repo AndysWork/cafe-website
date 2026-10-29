@@ -217,7 +217,8 @@
         <div class="order-meta">
           <span>{{ formatStatus(request.status) }}</span>
           <strong>Rs {{ request.total | number:'1.0-2' }}</strong>
-          <button class="btn-primary" (click)="acceptRequest(request)" [disabled]="acceptingRequest[request.id!]">
+          <small *ngIf="isPhoneManagedRequest(request)">Admin assigns phone orders</small>
+          <button class="btn-primary" (click)="acceptRequest(request)" [disabled]="acceptingRequest[request.id!] || isPhoneManagedRequest(request)">
             {{ acceptingRequest[request.id!] ? 'Accepting...' : 'Accept Request' }}
           </button>
         </div>
