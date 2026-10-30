@@ -56,6 +56,98 @@
 
   <div class="panel">
     <div class="panel-head">
+      <h2>Decisive Sales Statistics</h2>
+    </div>
+    <div class="recon-summary-grid">
+      <div class="kpi-card compact">
+        <span class="label">Total Items Sold</span>
+        <strong>{{ totalItemsSold }}</strong>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Most Sold Item</span>
+        <strong>{{ topSellingItem?.name || '-' }}</strong>
+        <small *ngIf="topSellingItem">{{ topSellingItem.quantity }} units</small>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Most Sold Item Value</span>
+        <strong>{{ formatCurrency(mostSoldItemValue) }}</strong>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Top Revenue Item</span>
+        <strong>{{ topRevenueItem?.name || '-' }}</strong>
+        <small *ngIf="topRevenueItem">{{ formatCurrency(topRevenueItem.revenue) }}</small>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Dominant Order Mode</span>
+        <strong>{{ dominantOrderMode?.mode || '-' }}</strong>
+        <small *ngIf="dominantOrderMode">{{ dominantOrderMode.orders }} orders</small>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Peak Order Slot (IST)</span>
+        <strong>{{ busiestOrderHourLabel }}</strong>
+      </div>
+    </div>
+
+    <div class="table-wrap mode-breakdown-table" *ngIf="orderModeBreakdown.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Mode</th>
+            <th>Orders</th>
+            <th>Items Sold</th>
+            <th>Order Value</th>
+            <th>Delivered</th>
+            <th>Cancelled</th>
+            <th>Conversion Rate</th>
+            <th>Cancellation Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of orderModeBreakdown; trackBy: trackByOrderMode">
+            <td>{{ row.mode }}</td>
+            <td>{{ row.orders }}</td>
+            <td>{{ row.quantity }}</td>
+            <td>{{ formatCurrency(row.revenue) }}</td>
+            <td>{{ row.delivered }}</td>
+            <td>{{ row.cancelled }}</td>
+            <td>{{ formatPercent(row.conversionRate) }}</td>
+            <td>{{ formatPercent(row.cancellationRate) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-wrap hour-trend-table" *ngIf="hourlyOrderTrend.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Order Time Slot (IST)</th>
+            <th>Orders</th>
+            <th>Items Sold</th>
+            <th>Order Value</th>
+            <th>Demand Intensity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of hourlyOrderTrend; trackBy: trackByHour">
+            <td>{{ row.label }}</td>
+            <td>{{ row.orders }}</td>
+            <td>{{ row.quantity }}</td>
+            <td>{{ formatCurrency(row.revenue) }}</td>
+            <td>
+              <div class="trend-bar-wrap">
+                <div class="trend-bar-fill" [style.width.%]="row.ordersShare"></div>
+                <span>{{ formatPercent(row.ordersShare) }}</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
       <h2>Web Sales Date Window</h2>
       <div class="date-row">
         <input type="date" [(ngModel)]="startDate" (change)="onDateRangeChange()" />
@@ -268,10 +360,31 @@
   <div class="panel">
     <div class="panel-head">
       <h2>Web Sales Item Quantities</h2>
-      <small *ngIf="webSalesItemQuantities.length > 0">{{ webSalesItemQuantities.length }} unique items</small>
+      <div class="filters">
+        <button type="button" (click)="exportItemAnalyticsCsv()" [disabled]="!filteredWebSalesItemQuantities.length">
+          Export CSV
+        </button>
+        <input type="text" [(ngModel)]="itemSearchTerm" placeholder="Search menu item" />
+        <small *ngIf="webSalesItemQuantities.length > 0">{{ webSalesItemQuantities.length }} unique items</small>
+      </div>
     </div>
 
-    <div class="table-wrap item-quantity-table" *ngIf="!loading && webSalesItemQuantities.length > 0">
+    <div class="recon-summary-grid" *ngIf="!loading && filteredWebSalesItemQuantities.length > 0">
+      <div class="kpi-card compact">
+        <span class="label">Matched Items</span>
+        <strong>{{ filteredWebSalesItemQuantities.length }}</strong>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Total Sold (Match)</span>
+        <strong>{{ matchedItemsSold }}</strong>
+      </div>
+      <div class="kpi-card compact">
+        <span class="label">Total Value (Match)</span>
+        <strong>{{ formatCurrency(matchedItemsRevenue) }}</strong>
+      </div>
+    </div>
+
+    <div class="table-wrap item-quantity-table" *ngIf="!loading && filteredWebSalesItemQuantities.length > 0">
       <table>
         <thead>
           <tr>
@@ -282,7 +395,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let row of webSalesItemQuantities; trackBy: trackByItemName">
+          <tr *ngFor="let row of filteredWebSalesItemQuantities; trackBy: trackByItemName">
             <td>{{ row.name }}</td>
             <td>{{ row.quantity }}</td>
             <td>{{ row.orders }}</td>
@@ -292,8 +405,8 @@
       </table>
     </div>
 
-    <div *ngIf="!loading && webSalesItemQuantities.length === 0" class="state">
-      No web sales items found for selected date range.
+    <div *ngIf="!loading && filteredWebSalesItemQuantities.length === 0" class="state">
+      No web sales items found for current date range and item search.
     </div>
   </div>
 
@@ -317,14 +430,14 @@
           <tr>
             <th>Order</th>
             <th>Customer</th>
-            <th>Type</th>
+            <th>Mode</th>
             <th>Items</th>
             <th>Total</th>
             <th>Payment</th>
             <th>Status</th>
             <th>Compliance</th>
             <th>Partner</th>
-            <th>Created</th>
+            <th>Placed At</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -336,7 +449,7 @@
                 <div>{{ order.username }}</div>
                 <small>{{ order.phoneNumber || '-' }}</small>
               </td>
-              <td>{{ order.orderType || '-' }}</td>
+              <td>{{ formatOrderMode(order) }}</td>
               <td>{{ getOrderItemsSummary(order) }}</td>
               <td>
                 <div>{{ formatCurrency(order.total) }}</div>
@@ -384,7 +497,10 @@
                   <span class="partner-chip fixed-partner">{{ getAssignedPartnerDisplay(order) }}</span>
                 </ng-template>
               </td>
-              <td>{{ formatDate(order.createdAt) }}</td>
+              <td>
+                <div>{{ formatDate(order.createdAt) }}</div>
+                <small>{{ formatTime(order.createdAt) }} IST</small>
+              </td>
               <td>
                 <div class="action-row">
                   <div *ngIf="canBypassConfirmPayment(order)" class="payment-bypass">

@@ -114,13 +114,16 @@
       <p *ngIf="order.deliveryPartnerName">Delivery partner: <strong>{{ order.deliveryPartnerName }}</strong></p>
       <div *ngIf="isActive(order) && !order.deliveryPartnerId" class="assignment">
         <label [for]="'partner-' + order.id">Assign available partner
-          <select [id]="'partner-' + order.id" [(ngModel)]="assignments[order.id]">
+          <select [id]="'partner-' + order.id" [(ngModel)]="assignments[order.id]" [disabled]="!hasAssignablePartners(order)">
             <option value="">Select partner</option>
-            <ng-container *ngFor="let partner of partners">
-              <option *ngIf="order.paymentMethod !== 'cod' || partner.codAllowed !== false" [value]="partner.id">{{ partner.name }} - {{ partner.phone }}</option>
+            <ng-container *ngFor="let partner of getAssignablePartners(order)">
+              <option [value]="partner.id">{{ partner.name }} - {{ partner.phone }}</option>
             </ng-container>
           </select>
         </label>
+        <p *ngIf="!hasAssignablePartners(order)" class="partner-warning">
+          No eligible partner is available for this order right now. For COD orders, enable COD Allowed for at least one available partner.
+        </p>
         <button type="button" (click)="assign(order)" [disabled]="!assignments[order.id] || !!busyOrderId || !outletMatches">{{ busyOrderId === order.id ? 'Assigning...' : 'Assign partner' }}</button>
       </div>
       <details><summary>Customer tracking link</summary><input aria-label="Customer tracking link" readonly [value]="trackingUrl(order)" /><button type="button" (click)="copyTracking(order)">Copy link</button></details>

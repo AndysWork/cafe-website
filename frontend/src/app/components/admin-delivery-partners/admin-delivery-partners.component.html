@@ -98,11 +98,19 @@
             <span>{{ p.vehicleType | titlecase }}</span>
           </div>
         </div>
-        <span class="badge" [ngClass]="p.status">{{ p.status }}</span>
+        <div class="status-stack">
+          <span class="badge" [ngClass]="p.status">{{ p.status }}</span>
+          <small *ngIf="getStatusSourceLabel(p) as source" class="status-source" [class.recovered]="source === 'Recovered'">
+            {{ source }}
+          </small>
+        </div>
       </div>
 
       <div class="card-body">
         <p *ngIf="p.currentOrderId" class="text-warning live-order">📦 On delivery: {{ p.currentOrderId }}</p>
+        <p *ngIf="p.status === 'on-delivery' && !p.currentOrderId" class="text-warning live-order">
+          ⚠ Status is on-delivery but no active order is linked. Use Force Available to recover.
+        </p>
 
         <div class="partner-metrics">
           <div class="metric-item">
@@ -162,6 +170,7 @@
           <button *ngIf="p.status === 'offline'" class="btn-action" (click)="updateStatus(p.id!, 'available')">Set Online</button>
           <button *ngIf="p.status === 'available'" class="btn-delete" (click)="updateStatus(p.id!, 'offline')">Set Offline</button>
           <button *ngIf="p.status === 'on-delivery'" class="btn-action" (click)="completeDelivery(p.id!)">Complete</button>
+          <button *ngIf="canForceSetAvailable(p)" class="btn-delete" (click)="updateStatus(p.id!, 'available')">Force Available</button>
           <button class="btn-edit" (click)="openEditModal(p)">Edit</button>
           <button *ngIf="p.status !== 'on-delivery'" class="btn-delete" (click)="deletePartner(p.id!)">Delete</button>
         </div>

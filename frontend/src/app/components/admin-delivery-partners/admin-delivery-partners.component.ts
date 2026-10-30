@@ -2,10 +2,11 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DeliveryPartnerService, DeliveryPartner, PartnerPayoutSummary, AssignableUser } from '../../services/delivery-partner.service';
+import { OrderService } from '../../services/order.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
-import { Subscription } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { Subscription, forkJoin, of } from 'rxjs';
+import { catchError, filter, map } from 'rxjs/operators';
 
 @Component({
   selector: 'app-admin-delivery-partners',
@@ -17,6 +18,7 @@ import { filter } from 'rxjs/operators';
 export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
   private uiStore = inject(UIStore);
+  private orderService = inject(OrderService);
   private outletSub?: Subscription;
 
   partners: DeliveryPartner[] = [];
@@ -80,6 +82,8 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
   codForm = { partnerId: '', orderId: '', amount: '', collectionReference: '', notes: '' };
   payoutPeriodType: 'day' | 'week' | 'month' | 'year' = 'day';
   payoutSummaryByPartner: Record<string, PartnerPayoutSummary | null> = {};
+  private staleClosedOrderPartnerIds = new Set<string>();
+  private recoveredStatusPartnerIds = new Set<string>();
 
   constructor(private partnerService: DeliveryPartnerService) {}
 
@@ -165,19 +169,96 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.partnerService.getDeliveryPartners().subscribe({
       next: p => {
-        this.partners = p;
-        this.locationDraft = {};
-        for (const partner of this.partners) {
-          if (!partner.id) continue;
-          this.locationDraft[partner.id] = {
-            latitude: partner.currentLatitude != null ? String(partner.currentLatitude) : '',
-            longitude: partner.currentLongitude != null ? String(partner.currentLongitude) : ''
-          };
-        }
-        this.loading = false;
+        this.reconcilePartnerStatuses(p);
       },
       error: () => { this.uiStore.error('Failed to load delivery partners'); this.loading = false; }
     });
+  }
+
+  private reconcilePartnerStatuses(partners: DeliveryPartner[]): void {
+    const onDeliveryPartners = partners.filter(partner =>
+      partner.status === 'on-delivery' && !!partner.currentOrderId && !!partner.id
+    );
+
+    if (!onDeliveryPartners.length) {
+      this.staleClosedOrderPartnerIds.clear();
+      this.recoveredStatusPartnerIds.clear();
+      this.applyPartnerSnapshot(partners);
+      this.loading = false;
+      return;
+    }
+
+    const checks = onDeliveryPartners.map(partner =>
+      this.orderService.getOrderById(partner.currentOrderId as string).pipe(
+        map(order => ({
+          partnerId: partner.id as string,
+          orderStatus: String(order.status || '').toLowerCase()
+        })),
+        catchError(() => of({
+          partnerId: partner.id as string,
+          orderStatus: ''
+        }))
+      )
+    );
+
+    forkJoin(checks).subscribe({
+      next: rows => {
+        this.staleClosedOrderPartnerIds = new Set(
+          rows
+            .filter(row => row.orderStatus === 'delivered' || row.orderStatus === 'cancelled')
+            .map(row => row.partnerId)
+        );
+        this.recoveredStatusPartnerIds = new Set(this.staleClosedOrderPartnerIds);
+        this.applyPartnerSnapshot(partners);
+        this.loading = false;
+      },
+      error: () => {
+        this.staleClosedOrderPartnerIds.clear();
+        this.recoveredStatusPartnerIds.clear();
+        this.applyPartnerSnapshot(partners);
+        this.loading = false;
+      }
+    });
+  }
+
+  private applyPartnerSnapshot(partners: DeliveryPartner[]): void {
+    this.partners = partners.map(partner => {
+      const id = partner.id || '';
+      if (partner.status === 'on-delivery' && this.staleClosedOrderPartnerIds.has(id)) {
+        return {
+          ...partner,
+          status: 'available',
+          currentOrderId: undefined
+        };
+      }
+      return partner;
+    });
+
+    this.locationDraft = {};
+    for (const partner of this.partners) {
+      if (!partner.id) continue;
+      this.locationDraft[partner.id] = {
+        latitude: partner.currentLatitude != null ? String(partner.currentLatitude) : '',
+        longitude: partner.currentLongitude != null ? String(partner.currentLongitude) : ''
+      };
+    }
+  }
+
+  canForceSetAvailable(partner: DeliveryPartner): boolean {
+    return partner.status === 'on-delivery' && !partner.currentOrderId;
+  }
+
+  getStatusSourceLabel(partner: DeliveryPartner): 'Live' | 'Recovered' | null {
+    const id = partner.id || '';
+    if (id && this.recoveredStatusPartnerIds.has(id)) {
+      return 'Recovered';
+    }
+
+    if (partner.status === 'on-delivery' && !!partner.currentOrderId) {
+      return 'Live';
+    }
+
+    return null;
   }
 
   loadAssignableUsers() {

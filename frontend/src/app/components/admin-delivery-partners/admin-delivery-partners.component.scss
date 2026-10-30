@@ -4,6 +4,33 @@
 
 .badge.on-delivery { background: #fff7ed; color: #c2410c; }
 
+.status-stack {
+	display: inline-grid;
+	justify-items: end;
+	gap: 0.2rem;
+}
+
+.status-source {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.05rem 0.45rem;
+	border-radius: 999px;
+	border: 1px solid #bfdbfe;
+	background: #eff6ff;
+	color: #1d4ed8;
+	font-size: 0.62rem;
+	font-weight: 700;
+	line-height: 1.2;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.status-source.recovered {
+	border-color: #fcd34d;
+	background: #fffbeb;
+	color: #92400e;
+}
+
 .filter-panel {
 	margin-bottom: 1rem;
 	padding: 0.85rem;

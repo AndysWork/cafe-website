@@ -66,6 +66,27 @@ interface WebSalesItemQuantityRow {
   orders: number;
 }
 
+interface OrderModeSummaryRow {
+  mode: string;
+  orders: number;
+  quantity: number;
+  revenue: number;
+  delivered: number;
+  cancelled: number;
+  inProgress: number;
+  conversionRate: number;
+  cancellationRate: number;
+}
+
+interface HourlyOrderTrendRow {
+  hour: number;
+  label: string;
+  orders: number;
+  quantity: number;
+  revenue: number;
+  ordersShare: number;
+}
+
 @Component({
   selector: 'app-admin-web-sales',
   standalone: true,
@@ -98,6 +119,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   statusFilter = 'all';
   searchTerm = '';
+  itemSearchTerm = '';
 
   startDate = getIstInputDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   endDate = getIstDateString();
@@ -368,6 +390,41 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     URL.revokeObjectURL(url);
   }
 
+  exportItemAnalyticsCsv(): void {
+    const rows = this.filteredWebSalesItemQuantities;
+    if (!rows.length) {
+      this.uiStore.warning('No item analytics rows available to export.');
+      return;
+    }
+
+    const header = [
+      'Item',
+      'QuantitySold',
+      'Orders',
+      'Revenue'
+    ];
+
+    const lines = rows.map(row => [
+      row.name,
+      row.quantity,
+      row.orders,
+      row.revenue.toFixed(2)
+    ].map(value => this.escapeCsv(value)).join(','));
+
+    const csv = [header.join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const stamp = getIstFileStamp();
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `web-sales-item-analytics-${stamp}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
   private escapeCsv(value: unknown): string {
     const text = String(value ?? '');
     return `"${text.replace(/"/g, '""')}"`;
@@ -426,6 +483,127 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         orders: data.orderIds.size,
       }))
       .sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue || a.name.localeCompare(b.name));
+  }
+
+  get filteredWebSalesItemQuantities(): WebSalesItemQuantityRow[] {
+    const query = this.itemSearchTerm.trim().toLowerCase();
+    if (!query) {
+      return this.webSalesItemQuantities;
+    }
+    return this.webSalesItemQuantities.filter(row => row.name.toLowerCase().includes(query));
+  }
+
+  get totalItemsSold(): number {
+    return this.webSalesItemQuantities.reduce((sum, row) => sum + row.quantity, 0);
+  }
+
+  get matchedItemsSold(): number {
+    return this.filteredWebSalesItemQuantities.reduce((sum, row) => sum + row.quantity, 0);
+  }
+
+  get matchedItemsRevenue(): number {
+    return this.filteredWebSalesItemQuantities.reduce((sum, row) => sum + row.revenue, 0);
+  }
+
+  get topSellingItem(): WebSalesItemQuantityRow | null {
+    return this.webSalesItemQuantities[0] || null;
+  }
+
+  get mostSoldItemValue(): number {
+    return this.topSellingItem?.revenue || 0;
+  }
+
+  get topRevenueItem(): WebSalesItemQuantityRow | null {
+    let top: WebSalesItemQuantityRow | null = null;
+    for (const row of this.webSalesItemQuantities) {
+      if (!top || row.revenue > top.revenue || (row.revenue === top.revenue && row.quantity > top.quantity)) {
+        top = row;
+      }
+    }
+    return top;
+  }
+
+  get orderModeBreakdown(): OrderModeSummaryRow[] {
+    const modeMap = new Map<string, OrderModeSummaryRow>();
+    for (const order of this.orders) {
+      const mode = this.normalizeOrderMode(order.orderType);
+      const existing = modeMap.get(mode) || {
+        mode,
+        orders: 0,
+        quantity: 0,
+        revenue: 0,
+        delivered: 0,
+        cancelled: 0,
+        inProgress: 0,
+        conversionRate: 0,
+        cancellationRate: 0
+      };
+      existing.orders += 1;
+      existing.quantity += this.getOrderItemsCount(order);
+      existing.revenue += order.total || 0;
+      if (order.status === 'delivered') {
+        existing.delivered += 1;
+      } else if (order.status === 'cancelled') {
+        existing.cancelled += 1;
+      } else {
+        existing.inProgress += 1;
+      }
+      modeMap.set(mode, existing);
+    }
+    return Array.from(modeMap.values())
+      .map(row => ({
+        ...row,
+        conversionRate: row.orders > 0 ? (row.delivered / row.orders) * 100 : 0,
+        cancellationRate: row.orders > 0 ? (row.cancelled / row.orders) * 100 : 0
+      }))
+      .sort((a, b) => b.orders - a.orders || b.revenue - a.revenue);
+  }
+
+  get dominantOrderMode(): OrderModeSummaryRow | null {
+    return this.orderModeBreakdown[0] || null;
+  }
+
+  get busiestOrderHourLabel(): string {
+    if (!this.orders.length) return '-';
+    const hourMap = new Map<number, number>();
+    for (const order of this.orders) {
+      const created = this.toEpochMillis(order.createdAt);
+      if (!created) continue;
+      const hour = convertToIst(new Date(created)).getHours();
+      hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
+    }
+    if (!hourMap.size) return '-';
+    const peak = Array.from(hourMap.entries()).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+    return `${this.formatHourRange(peak[0])} (${peak[1]} orders)`;
+  }
+
+  get hourlyOrderTrend(): HourlyOrderTrendRow[] {
+    if (!this.orders.length) return [];
+
+    const hourMap = new Map<number, { orders: number; quantity: number; revenue: number }>();
+    for (const order of this.orders) {
+      const created = this.toEpochMillis(order.createdAt);
+      if (!created) continue;
+      const hour = convertToIst(new Date(created)).getHours();
+      const existing = hourMap.get(hour) || { orders: 0, quantity: 0, revenue: 0 };
+      existing.orders += 1;
+      existing.quantity += this.getOrderItemsCount(order);
+      existing.revenue += order.total || 0;
+      hourMap.set(hour, existing);
+    }
+
+    if (!hourMap.size) return [];
+    const maxOrders = Math.max(...Array.from(hourMap.values()).map(row => row.orders));
+    return Array.from(hourMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([hour, data]) => ({
+        hour,
+        label: this.formatHourRange(hour),
+        orders: data.orders,
+        quantity: data.quantity,
+        revenue: data.revenue,
+        ordersShare: maxOrders > 0 ? (data.orders / maxOrders) * 100 : 0
+      }));
   }
 
   get totalOrders(): number {
@@ -543,6 +721,25 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return formatted === 'Invalid date' ? '-' : formatted;
   }
 
+  formatTime(value?: string | Date | number | null): string {
+    const epoch = this.toEpochMillis(value);
+    if (!epoch) return '-';
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }).format(convertToIst(new Date(epoch)));
+  }
+
+  formatOrderMode(order: Order): string {
+    return this.normalizeOrderMode(order.orderType);
+  }
+
+  formatPercent(value: number): string {
+    return `${(value || 0).toFixed(1)}%`;
+  }
+
   async updateOrderStatus(order: Order): Promise<void> {
     const nextStatus = this.statusDraft[order.id];
     if (!nextStatus || nextStatus === order.status) return;
@@ -554,8 +751,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       && order.paymentStatus === 'pending';
 
     this.saving = true;
+    const orderChannel = this.resolveOrderChannel(order);
     const continueStatusUpdate = () => {
-      this.orderService.updateOrderStatus(order.id, nextStatus, 'web').subscribe({
+      this.orderService.updateOrderStatus(order.id, nextStatus, orderChannel).subscribe({
         next: async () => {
           this.uiStore.success(`Order ${order.id.slice(-6)} updated to ${nextStatus}`);
           await this.loadDashboardData();
@@ -630,7 +828,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     }
 
     this.saving = true;
-    this.deliveryPartnerService.assignDeliveryPartner({ orderId: order.id, deliveryPartnerId: partnerId }, 'web').subscribe({
+    const orderChannel = this.resolveOrderChannel(order);
+    this.deliveryPartnerService.assignDeliveryPartner({ orderId: order.id, deliveryPartnerId: partnerId }, orderChannel).subscribe({
       next: async () => {
         this.uiStore.success('Delivery partner assigned successfully');
         await this.loadDashboardData();
@@ -815,6 +1014,55 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return Number.isNaN(epoch) ? 0 : epoch;
   }
 
+  private normalizeOrderMode(orderType?: string): string {
+    const normalized = (orderType || '').trim().toLowerCase();
+    if (!normalized) return 'Unknown';
+    if (normalized === 'pickup') return 'Takeaway';
+    if (normalized === 'dine-in' || normalized === 'dinein' || normalized === 'dine in') return 'Dine-In';
+    if (normalized === 'delivery') return 'Delivery';
+    if (normalized === 'takeaway' || normalized === 'take-away') return 'Takeaway';
+    return normalized
+      .split('-')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  private resolveOrderChannel(order: Order): 'web' | 'shop' | 'partner' {
+    const channel = String(order.channel || '').trim().toLowerCase();
+    if (channel === 'shop' || channel === 'partner' || channel === 'web') {
+      return channel;
+    }
+
+    const source = String(order.orderSource || '').trim().toLowerCase();
+    if (source === 'phone' || source === 'shop' || source === 'counter') {
+      return 'shop';
+    }
+    if (source === 'partner') {
+      return 'partner';
+    }
+
+    return 'web';
+  }
+
+  private getOrderItemsCount(order: Order): number {
+    return (order.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+  }
+
+  private formatHourRange(hour: number): string {
+    const start = hour % 24;
+    const end = (hour + 1) % 24;
+    const startLabel = this.toHourLabel(start);
+    const endLabel = this.toHourLabel(end);
+    return `${startLabel} - ${endLabel}`;
+  }
+
+  private toHourLabel(hour: number): string {
+    const normalized = ((hour % 24) + 24) % 24;
+    const period = normalized >= 12 ? 'PM' : 'AM';
+    const base = normalized % 12 || 12;
+    return `${base} ${period}`;
+  }
+
   getAssignedPartnerDisplay(order: Order): string {
     const o = order as any;
     return o.deliveryPartnerName || o.deliveryPartnerId || '-';
@@ -834,5 +1082,13 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   trackByItemName(_: number, item: WebSalesItemQuantityRow): string {
     return item.name;
+  }
+
+  trackByOrderMode(_: number, item: OrderModeSummaryRow): string {
+    return item.mode;
+  }
+
+  trackByHour(_: number, item: HourlyOrderTrendRow): number {
+    return item.hour;
   }
 }

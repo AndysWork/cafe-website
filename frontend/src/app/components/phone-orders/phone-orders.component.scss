@@ -27,8 +27,19 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .payment-warning { background: #fff8df; padding: 10px; }
 .tracked-order { border-top: 1px solid #ddd; padding: 20px 0; overflow-wrap: anywhere; }
 .status { color: #0f6252; white-space: nowrap; }
-.assignment { display: flex; align-items: end; gap: 12px; }
-.assignment label { flex: 1; }
+.assignment {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+.assignment label { margin: 0; }
+.partner-warning {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  color: #8a5a00;
+  font-size: 0.9rem;
+}
 details { margin-top: 16px; }
 summary { cursor: pointer; }
 a { color: #005b9a; }
@@ -45,7 +56,7 @@ details button {
   .phone-orders { padding: 12px; }
   .entry-grid { grid-template-columns: 1fr; }
   .menu-list { max-height: 400px; }
-  .board-header, .assignment { flex-wrap: wrap; }
+  .board-header { flex-wrap: wrap; }
   .panel { padding: 16px; }
 }
 
@@ -61,6 +72,10 @@ details button {
 
   .quantity {
     align-self: flex-start;
+  }
+
+  .assignment {
+    grid-template-columns: 1fr;
   }
 
   .assignment label,

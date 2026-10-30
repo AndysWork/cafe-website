@@ -134,6 +134,13 @@
         color: #0f172a;
         font-size: 1rem;
       }
+
+      small {
+        display: block;
+        margin-top: 0.2rem;
+        color: #64748b;
+        font-size: 0.68rem;
+      }
     }
   }
 
@@ -149,6 +156,45 @@
 
   .item-quantity-table table {
     min-width: 640px;
+  }
+
+  .mode-breakdown-table table {
+    min-width: 860px;
+  }
+
+  .hour-trend-table table {
+    min-width: 860px;
+  }
+
+  .trend-bar-wrap {
+    position: relative;
+    min-width: 180px;
+    height: 18px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #f8fafc;
+
+    .trend-bar-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, #38bdf8 0%, #2563eb 100%);
+    }
+
+    span {
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      font-size: 0.66rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
   }
 
   .confirm-dine-in-btn {

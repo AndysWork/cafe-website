@@ -296,6 +296,14 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
     return !['delivered', 'cancelled'].includes(order.status);
   }
 
+  getAssignablePartners(order: PhoneDeliveryOrder): DeliveryPartner[] {
+    return this.partners.filter(partner => order.paymentMethod !== 'cod' || partner.codAllowed !== false);
+  }
+
+  hasAssignablePartners(order: PhoneDeliveryOrder): boolean {
+    return this.getAssignablePartners(order).length > 0;
+  }
+
   trackingUrl(order: PhoneDeliveryOrder): string {
     return new URL(order.trackingPath, this.document.location.origin).href;
   }
