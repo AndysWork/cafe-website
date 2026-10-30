@@ -28,9 +28,6 @@ public static class TakeawayOrderRules
         else if (method is "upi" or "upi-qr") method = "upi-qr";
         else return (null, "Payment method must be cash or UPI");
 
-        if (method == "upi-qr" && string.IsNullOrWhiteSpace(upiReference))
-            return (null, "UPI reference is required for UPI payments");
-
         return (method, null);
     }
 
