@@ -21,6 +21,7 @@ public interface IOrderRepository
     Task<bool> UpdatePaymentStatusAsync(string orderId, string paymentStatus);
     Task<bool> UpdateReceiptImageUrlAsync(string orderId, string? receiptImageUrl);
     Task<bool> DeleteOrderAsync(string orderId);
+    Task<long> DeleteOrderHistoryBeforeDateAsync(string outletId, DateTime keepFromDate);
 
     // Kitchen Display
     Task<List<Order>> GetOrdersByStatusAsync(string[] statuses, string? outletId = null);

@@ -56,6 +56,7 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
   collectingOrderId = '';
   collectMethod: TakeawayPaymentMethod = 'cash_at_counter';
   collectUpiReference = '';
+  collectValidationMessage = '';
   busyOrderId = '';
   loadingMenu = false;
   loadingOrders = false;
@@ -204,19 +205,30 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
     this.collectingOrderId = order.orderId;
     this.collectMethod = 'cash_at_counter';
     this.collectUpiReference = '';
+    this.collectValidationMessage = '';
   }
 
   cancelCollecting(): void {
     this.collectingOrderId = '';
     this.collectUpiReference = '';
+    this.collectValidationMessage = '';
+  }
+
+  onCollectMethodChanged(): void {
+    if (this.collectMethod !== 'upi-qr') {
+      this.collectValidationMessage = '';
+    }
+  }
+
+  onCollectUpiReferenceChanged(): void {
+    if (this.collectMethod === 'upi-qr' && this.collectUpiReference.trim()) {
+      this.collectValidationMessage = '';
+    }
   }
 
   confirmPayment(order: WaiterTakeawayOrder): void {
     if (this.busyOrderId) return;
-    if (this.collectMethod === 'upi-qr' && !this.collectUpiReference.trim()) {
-      this.errorMessage = 'Enter the UPI reference before confirming payment.';
-      return;
-    }
+    this.collectValidationMessage = '';
     this.runAction(order, this.takeawayService.recordPayment(
       order.orderId,
       this.collectMethod,
@@ -310,6 +322,9 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
     this.busyOrderId = order.orderId;
     this.message = '';
     this.errorMessage = '';
+    if (this.collectingOrderId === order.orderId) {
+      this.collectValidationMessage = '';
+    }
     this.subscriptions.add(request.subscribe({
       next: response => {
         this.message = response.message;
@@ -318,7 +333,11 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
         this.loadOrders();
       },
       error: error => {
-        this.errorMessage = this.errorText(error, fallbackError);
+        const resolvedError = this.errorText(error, fallbackError);
+        this.errorMessage = resolvedError;
+        if (this.collectingOrderId === order.orderId) {
+          this.collectValidationMessage = resolvedError;
+        }
         this.busyOrderId = '';
         this.loadOrders();
       }

@@ -4628,6 +4628,24 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return result.ModifiedCount > 0;
     }
 
+    public async Task<long> DeleteOrderHistoryBeforeDateAsync(string outletId, DateTime keepFromDate)
+    {
+        var cutoff = keepFromDate.Date;
+        var now = GetIstNow();
+
+        var filter = Builders<Order>.Filter.Eq(o => o.OutletId, outletId) &
+                     Builders<Order>.Filter.Ne(o => o.IsDeleted, true) &
+                     Builders<Order>.Filter.Lt(o => o.CreatedAt, cutoff);
+
+        var update = Builders<Order>.Update
+            .Set(o => o.IsDeleted, true)
+            .Set(o => o.DeletedAt, now)
+            .Set(o => o.UpdatedAt, now);
+
+        var result = await _orders.UpdateManyAsync(filter, update);
+        return result.ModifiedCount;
+    }
+
     #region Sales Operations
 
     // Get all sales records

@@ -95,10 +95,51 @@
   align-items: flex-start;
 }
 
+.table-label {
+  color: #92551d;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  overflow-wrap: anywhere;
+}
+
+.parcel-card h3 {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .parcel-card header small,
 .parcel-meta {
   color: #77766e;
   font-size: 12px;
+}
+
+.parcel-card ul {
+  padding: 0;
+  margin: 14px 0;
+  list-style: none;
+}
+
+.parcel-card li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0eee8;
+}
+
+.parcel-card li > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.order-note {
+  padding: 10px;
+  border-radius: 8px;
+  background: #faf6ef;
+  color: #6b5540;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .parcel-card footer {
@@ -107,6 +148,8 @@
 }
 
 .parcel-card footer > div {
+  display: flex;
+  gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -164,6 +207,13 @@
 
 .collect-form .notes-field {
   margin-top: 0;
+}
+
+.collect-validation {
+  margin: 0;
+  color: #9b3324;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .round-actions {
@@ -474,11 +524,14 @@
 
   .parcel-card footer > div {
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: stretch;
   }
 
   .parcel-card footer button {
-    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
   }
 
   .cart-line {

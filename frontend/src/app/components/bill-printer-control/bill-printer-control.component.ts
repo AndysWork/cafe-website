@@ -75,7 +75,7 @@ import { ReceiptLine } from '../../utils/escpos';
   styles: [`
     .bill-printer { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
     .bill-printer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-    .bill-printer-pill { padding: 4px 10px; border-radius: 999px; background: #fdecea; color: #a12622; font-weight: 600; }
+    .bill-printer-pill { padding: 4px 10px; border-radius: 999px; background: #fdecea; color: #a12622; font-weight: 600; max-width: 100%; overflow-wrap: anywhere; }
     .bill-printer-pill.ok { background: #e6f4ea; color: #1e7b34; }
     .bill-printer-pill.off { background: #eceff1; color: #546e7a; }
     .bp-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid #c7ccd1; background: #fff; cursor: pointer; font-size: 0.8rem; }
@@ -88,6 +88,11 @@ import { ReceiptLine } from '../../utils/escpos';
     .bp-check { flex-direction: row !important; align-items: center; gap: 6px !important; }
     .bp-hint { margin: 0; color: #5f6368; }
     .bp-error { margin: 0; color: #c62828; }
+    @media (max-width: 600px) {
+      .bill-printer-bar > * { min-width: 0; }
+      .bp-btn { flex: 1 1 calc(50% - 6px); text-align: center; }
+      .bill-printer-pill { flex: 1 1 100%; }
+    }
   `]
 })
 export class BillPrinterControlComponent {

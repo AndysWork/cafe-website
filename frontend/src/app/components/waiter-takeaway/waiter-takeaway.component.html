@@ -54,13 +54,14 @@
 
       <div class="collect-form" *ngIf="collectingOrderId === order.orderId">
         <div class="choice-row" role="radiogroup" aria-label="Payment method">
-          <label><input type="radio" name="collect-{{ order.orderId }}" value="cash_at_counter" [(ngModel)]="collectMethod" /> Cash</label>
-          <label><input type="radio" name="collect-{{ order.orderId }}" value="upi-qr" [(ngModel)]="collectMethod" /> UPI</label>
+          <label><input type="radio" name="collect-{{ order.orderId }}" value="cash_at_counter" [(ngModel)]="collectMethod" (ngModelChange)="onCollectMethodChanged()" /> Cash</label>
+          <label><input type="radio" name="collect-{{ order.orderId }}" value="upi-qr" [(ngModel)]="collectMethod" (ngModelChange)="onCollectMethodChanged()" /> UPI</label>
         </div>
         <label class="notes-field" *ngIf="collectMethod === 'upi-qr'">
           <span>UPI reference</span>
-          <input [(ngModel)]="collectUpiReference" maxlength="100" placeholder="UTR / transaction ID" />
+          <input [(ngModel)]="collectUpiReference" (ngModelChange)="onCollectUpiReferenceChanged()" maxlength="100" placeholder="UTR / transaction ID" />
         </label>
+        <p class="collect-validation" *ngIf="collectValidationMessage">{{ collectValidationMessage }}</p>
         <div class="round-actions">
           <button type="button" class="approve-button" [disabled]="busyOrderId === order.orderId" (click)="confirmPayment(order)">
             Confirm ₹{{ order.total | number:'1.0-2' }} received

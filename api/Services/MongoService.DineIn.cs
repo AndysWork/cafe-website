@@ -5,6 +5,30 @@ namespace Cafe.Api.Services;
 
 public partial class MongoService
 {
+    public async Task<long> DeleteDineInSessionHistoryBeforeDateAsync(string outletId, DateTime keepFromDate)
+    {
+        if (string.IsNullOrWhiteSpace(outletId))
+        {
+            return 0;
+        }
+
+        var cutoff = keepFromDate.Date;
+        var cleanOutletId = outletId.Trim();
+        var filterBuilder = Builders<DineInSession>.Filter;
+        var outletFilter = MongoDB.Bson.ObjectId.TryParse(cleanOutletId, out var outletObjectId)
+            ? filterBuilder.Or(
+                filterBuilder.Eq("outletId", cleanOutletId),
+                filterBuilder.Eq("outletId", outletObjectId))
+            : filterBuilder.Eq("outletId", cleanOutletId);
+
+        var filter = filterBuilder.And(
+            outletFilter,
+            filterBuilder.Lt(s => s.CreatedAt, cutoff));
+
+        var result = await _dineInSessions.DeleteManyAsync(filter);
+        return result.DeletedCount;
+    }
+
     public async Task<DineInSession> CreateDineInSessionAsync(DineInSession session)
     {
         session.CreatedAt = GetIstNow();

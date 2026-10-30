@@ -492,6 +492,17 @@ public class AdminConfirmPaymentRequest
     public string? AdminNote { get; set; }
 }
 
+public class DeleteOrderHistoryRequest
+{
+    [Required(ErrorMessage = "Outlet code is required")]
+    [StringLength(10, MinimumLength = 2, ErrorMessage = "Outlet code must be between 2 and 10 characters")]
+    public string OutletCode { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Keep-from date is required")]
+    [StringLength(40, ErrorMessage = "Keep-from date cannot exceed 40 characters")]
+    public string KeepFromDate { get; set; } = string.Empty;
+}
+
 public class OrderResponse
 {
     public string? OrderSource { get; set; }

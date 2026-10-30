@@ -23,6 +23,7 @@ export interface KitchenOrder {
   preparationNotes?: string;
   notes?: string;
   createdAt: string;
+  waitTime?: number;
   updatedAt: string;
   kptMinutes?: number;
   kitchenPrepStartedAt?: string;

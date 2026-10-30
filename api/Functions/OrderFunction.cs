@@ -20,6 +20,14 @@ public class OrderFunction
 {
     private const decimal BillToPointRate = 0.10m; // ₹1 = 0.1 loyalty points
     private const int ReviewWithItemRatingsBonusPoints = 3;
+    private static readonly string[] HistoryCleanupDateFormats =
+    {
+        "dd.MM.yy",
+        "dd.MM.yyyy",
+        "dd-MM-yy",
+        "dd-MM-yyyy",
+        "yyyy-MM-dd"
+    };
 
     private readonly IOrderRepository _orderRepo;
     private readonly IMenuRepository _menuRepo;
@@ -1619,6 +1627,63 @@ public class OrderFunction
         }
     }
 
+    [Function("DeleteOrderHistoryByOutletCode")]
+    public async Task<HttpResponseData> DeleteOrderHistoryByOutletCode(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/orders/history/delete")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var (body, validationError) = await ValidationHelper.ValidateBody<DeleteOrderHistoryRequest>(req);
+            if (validationError != null) return validationError;
+
+            var outletCode = body!.OutletCode.Trim().ToUpperInvariant();
+            if (!TryParseHistoryCleanupKeepFromDate(body.KeepFromDate, out var keepFromDate))
+            {
+                var badDateResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badDateResponse.WriteAsJsonAsync(new
+                {
+                    error = "Invalid keepFromDate. Use one of: dd.MM.yy, dd.MM.yyyy, dd-MM-yy, dd-MM-yyyy, yyyy-MM-dd"
+                });
+                return badDateResponse;
+            }
+
+            var outlet = await _mongo.GetOutletByCodeAsync(outletCode);
+            if (outlet?.Id == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = $"Outlet with code '{outletCode}' not found" });
+                return notFound;
+            }
+
+            var deletedOrdersCount = await _orderRepo.DeleteOrderHistoryBeforeDateAsync(outlet.Id, keepFromDate);
+            var deletedDineInSessionsCount = await _mongo.DeleteDineInSessionHistoryBeforeDateAsync(outlet.Id, keepFromDate);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                message = "Order history cleanup completed",
+                outletCode,
+                outletId = outlet.Id,
+                keepFromDate = keepFromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                deletedTillDate = keepFromDate.AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                deletedOrdersCount,
+                deletedDineInSessionsCount,
+                totalDeletedRecords = deletedOrdersCount + deletedDineInSessionsCount
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error deleting order history by outlet code");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "An error occurred while deleting order history" });
+            return error;
+        }
+    }
+
     [Function("GetUpiPaymentReconciliationReport")]
     public async Task<HttpResponseData> GetUpiPaymentReconciliationReport(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/reports/upi-reconciliation")] HttpRequestData req)
@@ -2109,5 +2174,31 @@ public class OrderFunction
         return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed)
             ? parsed
             : null;
+    }
+
+    private static bool TryParseHistoryCleanupKeepFromDate(string raw, out DateTime keepFromDate)
+    {
+        keepFromDate = default;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var trimmed = raw.Trim();
+        var dateToken = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+
+        if (DateTime.TryParseExact(dateToken, HistoryCleanupDateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact))
+        {
+            keepFromDate = exact.Date;
+            return true;
+        }
+
+        if (DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed))
+        {
+            keepFromDate = parsed.Date;
+            return true;
+        }
+
+        return false;
     }
 }

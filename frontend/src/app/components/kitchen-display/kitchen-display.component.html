@@ -54,7 +54,7 @@
         </div>
         <div class="order-header">
           <span class="order-id">#{{ order.id.slice(-6) }}</span>
-          <span class="order-time">{{ getTimeSince(order.createdAt) }}</span>
+          <span class="order-time">{{ getTimeSince(order.createdAt, order.waitTime) }}</span>
         </div>
         <div class="order-customer">
           <span>{{ order.customerName || order.username || 'Guest' }}</span>
