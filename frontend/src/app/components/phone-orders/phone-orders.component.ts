@@ -7,6 +7,7 @@ import { MenuItem, MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
 import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery-partner.service';
 import { PhoneDeliveryOrder, PhoneOrderQuote, PhoneOrderRequest, PhoneOrderService } from '../../services/phone-order.service';
+import { OrderService } from '../../services/order.service';
 import { getOrderingUnavailableReason } from '../../models/outlet.model';
 import { shopMenuPrice } from '../../utils/shop-menu-price';
 import { decodeHtmlEntities } from '../../utils/text-utils';
@@ -30,6 +31,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   private readonly service = inject(PhoneOrderService);
   private readonly menuService = inject(MenuService);
   private readonly partnerService = inject(DeliveryPartnerService);
+  private readonly ordersService = inject(OrderService);
   private readonly outlets = inject(OutletService);
   private readonly document = inject(DOCUMENT);
   private readonly subscriptions = new Subscription();
@@ -61,6 +63,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   submitting = false;
   loading = false;
   busyOrderId = '';
+  cancellingOrderId = '';
   error = '';
   message = '';
   loadedOutletId = '';
@@ -304,6 +307,26 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
       error: (error: unknown) => {
         this.error = this.errorText(error, 'Could not assign this delivery partner.');
         this.busyOrderId = '';
+      }
+    }));
+  }
+
+  cancelOrder(order: PhoneDeliveryOrder): void {
+    if (!order?.id || this.cancellingOrderId) return;
+    if (!window.confirm(`Cancel phone order ${order.kotNumber || order.id.slice(-6)}?`)) return;
+
+    this.cancellingOrderId = order.id;
+    this.error = '';
+    this.message = '';
+    this.subscriptions.add(this.ordersService.updateOrderStatus(order.id, 'cancelled', 'shop').subscribe({
+      next: () => {
+        this.message = `Order ${order.kotNumber || order.id.slice(-6)} cancelled.`;
+        this.cancellingOrderId = '';
+        this.refreshOrders();
+      },
+      error: (error: unknown) => {
+        this.error = this.errorText(error, 'Could not cancel this phone order.');
+        this.cancellingOrderId = '';
       }
     }));
   }

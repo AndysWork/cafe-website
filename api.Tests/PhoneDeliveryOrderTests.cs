@@ -421,13 +421,21 @@ public sealed class PhoneDeliveryOrderTests
     [Theory]
     [InlineData("user")]
     [InlineData("waiter")]
-    [InlineData("cashier")]
     [InlineData("delivery-partner")]
     public async Task NonManagersCannotCreateQuoteOrList(string role)
     {
         Assert.Equal(HttpStatusCode.Forbidden, (await _function.Create(Request(Payload(), role))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await _function.Quote(Request(Payload(), role))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await _function.List(Request(null, role))).StatusCode);
+    }
+
+    [Fact]
+    public async Task CashierCanCreateQuoteAndListWithinOutletScope()
+    {
+        Assert.Equal(HttpStatusCode.OK, (await _function.Quote(Request(Payload(), "cashier"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await _function.Create(Request(Payload(), "cashier"))).StatusCode);
+        _phone.Setup(p => p.GetPhoneDeliveryOrdersAsync(OutletId, null)).ReturnsAsync(new List<Order>());
+        Assert.Equal(HttpStatusCode.OK, (await _function.List(Request(null, "cashier", url: $"https://localhost/api/phone-orders?outletId={OutletId}"))).StatusCode);
     }
 
     [Fact]

@@ -3,6 +3,7 @@ import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { DeliveryPartnerService, ParcelRouteQuote } from '../../services/delivery-partner.service';
+import { OrderService } from '../../services/order.service';
 import {
   ManagerAuditReconciliationResponse,
   ManagerOpsBoardResponse,
@@ -20,6 +21,7 @@ import { getIstInputDate } from '../../utils/date-utils';
 export class ManagerOperationsBoardComponent implements OnInit, OnDestroy {
   private managerOps = inject(ManagerOpsService);
   private deliveryPartners = inject(DeliveryPartnerService);
+  private orderService = inject(OrderService);
 
   loading = true;
   actionBusy = false;
@@ -202,6 +204,29 @@ export class ManagerOperationsBoardComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.actionBusy = false;
+      }
+    });
+  }
+
+  onCancelOrder(orderId?: string): void {
+    if (!orderId || this.actionBusy) {
+      return;
+    }
+
+    if (!window.confirm(`Cancel order #${orderId.slice(-6)}?`)) {
+      return;
+    }
+
+    this.actionBusy = true;
+    this.errorMessage = '';
+    this.orderService.updateOrderStatus(orderId, 'cancelled', 'shop').subscribe({
+      next: () => {
+        this.actionBusy = false;
+        this.loadAll();
+      },
+      error: (error) => {
+        this.actionBusy = false;
+        this.errorMessage = error?.error?.error || error?.message || 'Failed to cancel this order.';
       }
     });
   }

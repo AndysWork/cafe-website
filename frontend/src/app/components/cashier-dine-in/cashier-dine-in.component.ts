@@ -11,6 +11,7 @@ import { BillPrintTrigger, BillPrinterService } from '../../services/bill-printe
 import { DineInBill } from '../../models/dine-in.model';
 import { renderDineInBill } from '../../utils/bill-receipt';
 import { BillPrinterControlComponent } from '../bill-printer-control/bill-printer-control.component';
+import { Order, OrderService } from '../../services/order.service';
 
 export interface BillPrintPrompt {
   sessionId: string;
@@ -30,6 +31,7 @@ const POLL_INTERVAL_MS = 15000;
 export class CashierDineInComponent implements OnInit, OnDestroy {
   private readonly dineInService = inject(DineInService);
   private readonly billPrinter = inject(BillPrinterService);
+  private readonly orderService = inject(OrderService);
   private readonly subscriptions = new Subscription();
   /** Sessions already known to be in bill_requested, so each request prints once. */
   private readonly knownBillRequests = new Set<string>();
@@ -40,6 +42,7 @@ export class CashierDineInComponent implements OnInit, OnDestroy {
 
   payments: CashierPendingDineInPayment[] = [];
   sessions: CashierActiveDineInSession[] = [];
+  activeShopOrders: Order[] = [];
   paymentAmounts: Record<string, number> = {};
   paymentMethods: Record<string, 'cash_at_counter' | 'upi-qr'> = {};
   billPrompts: BillPrintPrompt[] = [];
@@ -80,6 +83,7 @@ export class CashierDineInComponent implements OnInit, OnDestroy {
         this.paymentMethods = methods;
         this.lastAmountDue = Object.fromEntries(this.sessions.map(session => [session.sessionId, session.amountDue]));
         this.detectBillRequests();
+        this.loadActiveOrders();
         this.loading = false;
       },
       error: error => {
@@ -87,6 +91,65 @@ export class CashierDineInComponent implements OnInit, OnDestroy {
         this.loading = false;
       }
     }));
+  }
+
+  cancelActiveOrder(order: Order): void {
+    if (!order?.id || !this.canCancelActiveOrder(order)) {
+      return;
+    }
+
+    if (!window.confirm(`Cancel ${this.describeOrder(order)} #${order.id.slice(-6)}?`)) {
+      return;
+    }
+
+    this.confirmingSessionId = order.id;
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.subscriptions.add(this.orderService.updateOrderStatus(order.id, 'cancelled', this.resolveOrderChannel(order)).subscribe({
+      next: () => {
+        this.successMessage = `${this.describeOrder(order)} #${order.id.slice(-6)} cancelled.`;
+        this.confirmingSessionId = '';
+        this.loadPayments(true);
+        this.loadActiveOrders();
+      },
+      error: error => {
+        this.errorMessage = error?.error?.error || error?.message || 'Could not cancel this order.';
+        this.confirmingSessionId = '';
+      }
+    }));
+  }
+
+  canCancelActiveOrder(order: Order): boolean {
+    return ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'scheduled']
+      .includes((order.status || '').toLowerCase());
+  }
+
+  describeOrder(order: Order): string {
+    if (order.orderSource === 'phone') return 'Phone order';
+    if (order.orderType === 'dine-in') return 'Dine-in order';
+    if (order.orderType === 'pickup') return 'Takeaway order';
+    return 'Order';
+  }
+
+  private loadActiveOrders(): void {
+    this.subscriptions.add(this.orderService.getAllOrders('shop').subscribe({
+      next: orders => {
+        this.activeShopOrders = (orders || [])
+          .filter(order => order.orderType === 'dine-in' || order.orderType === 'pickup' || order.orderSource === 'phone')
+          .filter(order => order.status !== 'delivered' && order.status !== 'cancelled')
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      },
+      error: error => {
+        this.errorMessage = error?.error?.error || error?.message || 'Could not load active orders.';
+      }
+    }));
+  }
+
+  private resolveOrderChannel(order: Order): 'web' | 'shop' | 'partner' | undefined {
+    if (order.channel === 'web' || order.channel === 'shop' || order.channel === 'partner') {
+      return order.channel;
+    }
+    return undefined;
   }
 
   confirmPayment(payment: CashierPendingDineInPayment): void {

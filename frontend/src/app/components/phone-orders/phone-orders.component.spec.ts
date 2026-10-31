@@ -4,6 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { PhoneOrdersComponent } from './phone-orders.component';
 import { PhoneDeliveryOrder, PhoneOrderQuote, PhoneOrderService } from '../../services/phone-order.service';
+import { OrderService } from '../../services/order.service';
 import { MenuItem, MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
 import { DeliveryPartnerService } from '../../services/delivery-partner.service';
@@ -18,6 +19,7 @@ describe('PhoneOrdersComponent', () => {
   let service: jasmine.SpyObj<PhoneOrderService>;
   let selectedOutlet: BehaviorSubject<Outlet>;
   let partnerService: jasmine.SpyObj<DeliveryPartnerService>;
+  let ordersService: jasmine.SpyObj<OrderService>;
   const item: MenuItem = {
     id: 'item-1', name: 'Sandwich', categoryId: 'category-1', onlinePrice: 120, shopSellingPrice: 100,
     variants: [{ variantName: 'Large', price: 150 }], addOns: [{ name: 'Cheese', price: 20, isActive: true }]
@@ -32,9 +34,12 @@ describe('PhoneOrdersComponent', () => {
     service.quote.and.returnValue(of(quote));
     partnerService = jasmine.createSpyObj('DeliveryPartnerService', ['getDeliveryPartners', 'assignDeliveryPartner']);
     partnerService.getDeliveryPartners.and.returnValue(of([]));
+    ordersService = jasmine.createSpyObj('OrderService', ['updateOrderStatus']);
+    ordersService.updateOrderStatus.and.returnValue(of({ message: 'Order status updated successfully', status: 'cancelled' }));
     TestBed.configureTestingModule({
       providers: [
         { provide: PhoneOrderService, useValue: service },
+        { provide: OrderService, useValue: ordersService },
         { provide: MenuService, useValue: { getMenuItems: () => of([item]) } },
         { provide: DeliveryPartnerService, useValue: partnerService },
         { provide: OutletService, useValue: {
@@ -184,6 +189,12 @@ describe('PhoneOrdersComponent', () => {
     expect(partnerService.assignDeliveryPartner).toHaveBeenCalledWith({
       orderId: 'order-1', deliveryPartnerId: 'partner-1'
     }, 'shop');
+  });
+
+  it('cancels an active phone order through order status update', () => {
+    spyOn(window, 'confirm').and.returnValue(true);
+    component.cancelOrder({ id: 'order-1', status: 'pending' } as PhoneDeliveryOrder);
+    expect(ordersService.updateOrderStatus).toHaveBeenCalledWith('order-1', 'cancelled', 'shop');
   });
 
   it('warns before unloading an unfinished order', () => {

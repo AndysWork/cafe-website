@@ -4,11 +4,13 @@ import { CashierDineInComponent } from './cashier-dine-in.component';
 import { CashierActiveDineInSession, DineInService } from '../../services/dine-in.service';
 import { BillPrinterService } from '../../services/bill-printer.service';
 import { DineInBill } from '../../models/dine-in.model';
+import { Order, OrderService } from '../../services/order.service';
 
 describe('CashierDineInComponent bill printing', () => {
   let component: CashierDineInComponent;
   let dineIn: jasmine.SpyObj<DineInService>;
   let printer: jasmine.SpyObj<BillPrinterService>;
+  let orderService: jasmine.SpyObj<OrderService>;
   let settings: any;
 
   const session = (overrides: Partial<CashierActiveDineInSession> = {}): CashierActiveDineInSession => ({
@@ -35,12 +37,16 @@ describe('CashierDineInComponent bill printing', () => {
     printer = jasmine.createSpyObj<BillPrinterService>('BillPrinterService', ['autoPrint', 'print'], { settings });
     printer.autoPrint.and.resolveTo(true);
     printer.print.and.resolveTo();
+    orderService = jasmine.createSpyObj<OrderService>('OrderService', ['getAllOrders', 'updateOrderStatus']);
+    orderService.getAllOrders.and.returnValue(of([]));
+    orderService.updateOrderStatus.and.returnValue(of({ message: 'Order status updated successfully', status: 'cancelled' }));
     spyOn(window, 'confirm').and.returnValue(true);
 
     TestBed.configureTestingModule({
       providers: [
         { provide: DineInService, useValue: dineIn },
-        { provide: BillPrinterService, useValue: printer }
+        { provide: BillPrinterService, useValue: printer },
+        { provide: OrderService, useValue: orderService }
       ]
     });
     component = TestBed.runInInjectionContext(() => new CashierDineInComponent());
@@ -112,5 +118,27 @@ describe('CashierDineInComponent bill printing', () => {
     respond([session({ amountDue: 120 })]);
     component.loadPayments(true);
     expect(component.paymentAmounts['s1']).toBe(120);
+  });
+
+  it('cancels active dine-in/takeaway/phone orders through status update', () => {
+    respond([]);
+    const order = {
+      id: 'order-1',
+      userId: 'u1',
+      username: 'Guest',
+      items: [],
+      subtotal: 100,
+      tax: 0,
+      total: 100,
+      status: 'pending',
+      paymentStatus: 'pending',
+      paymentMethod: 'cod',
+      orderType: 'pickup',
+      channel: 'shop',
+      createdAt: '2025-01-01T10:00:00Z',
+      updatedAt: '2025-01-01T10:00:00Z'
+    } as Order;
+    component.cancelActiveOrder(order);
+    expect(orderService.updateOrderStatus).toHaveBeenCalledWith('order-1', 'cancelled', 'shop');
   });
 });

@@ -139,4 +139,34 @@
       </button>
     </article>
   </section>
+
+  <section class="payments-panel">
+    <h2 class="section-title">Order cancellation desk</h2>
+    <p class="empty" *ngIf="loading && !activeShopOrders.length">Loading active dine-in, takeaway, and phone orders…</p>
+    <p class="empty" *ngIf="!loading && !activeShopOrders.length">No active dine-in, takeaway, or phone orders to cancel.</p>
+
+    <article class="payment-card" *ngFor="let order of activeShopOrders">
+      <div class="payment-header">
+        <div>
+          <span class="table-label">{{ describeOrder(order) | uppercase }}</span>
+          <h2>#{{ order.id.slice(-6) }}</h2>
+          <small>Status: {{ order.status | titlecase }}</small>
+          <small *ngIf="order.customerName">{{ order.customerName }}</small>
+        </div>
+        <span class="payment-method">₹{{ order.total | number:'1.2-2' }}</span>
+      </div>
+
+      <p class="reference" *ngIf="order.phoneNumber">Phone: {{ order.phoneNumber }}</p>
+      <p class="reference" *ngIf="order.deliveryAddress">Address: {{ order.deliveryAddress }}</p>
+      <p class="reference" *ngIf="order.tableNumber">Table: {{ order.tableNumber }}</p>
+
+      <button
+        type="button"
+        class="confirm-button"
+        [disabled]="!!confirmingSessionId || !canCancelActiveOrder(order)"
+        (click)="cancelActiveOrder(order)">
+        {{ confirmingSessionId === order.id ? 'Cancelling…' : 'Cancel order' }}
+      </button>
+    </article>
+  </section>
 </main>

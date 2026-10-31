@@ -56,7 +56,7 @@ public sealed class PhoneDeliveryOrderFunction
 
     private async Task<HttpResponseData> PriceOrCreate(HttpRequestData req, bool quoteOnly)
     {
-        var (authorized, userId, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+        var (authorized, userId, _, authError) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!authorized) return authError!;
         if (string.IsNullOrWhiteSpace(userId))
             return await Error(req, HttpStatusCode.Unauthorized, "Authenticated staff identity is required");
@@ -219,7 +219,7 @@ public sealed class PhoneDeliveryOrderFunction
     public async Task<HttpResponseData> List(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "phone-orders")] HttpRequestData req)
     {
-        var (authorized, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+        var (authorized, _, _, authError) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!authorized) return authError!;
         var (outletId, outletError) = await ResolveOutlet(req, req.Query["outletId"]);
         if (outletError != null) return outletError;

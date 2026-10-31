@@ -62,6 +62,7 @@
           <input type="text" placeholder="Urgent reason" [(ngModel)]="urgentReasonByOrder[item.id || '']" />
           <button type="button" (click)="onMarkUrgent(item.id)" [disabled]="actionBusy">Mark Urgent</button>
           <button type="button" (click)="onResend(item.id)" [disabled]="actionBusy">Resend Notification</button>
+          <button type="button" (click)="onCancelOrder(item.id)" [disabled]="actionBusy">Cancel Order</button>
         </div>
       </article>
 
@@ -87,6 +88,7 @@
           </select>
           <button type="button" (click)="onReassign(item.id)" [disabled]="actionBusy">Reassign Partner</button>
           <button type="button" (click)="onResend(item.id)" [disabled]="actionBusy">Resend Notification</button>
+          <button type="button" (click)="onCancelOrder(item.id)" [disabled]="actionBusy">Cancel Order</button>
         </div>
       </article>
 

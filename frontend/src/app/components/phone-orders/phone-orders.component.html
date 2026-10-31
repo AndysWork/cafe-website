@@ -127,6 +127,13 @@
         Manual override saved: {{ order.manualDeliveryDistanceKmOverride | number:'1.0-1' }} km / {{ order.manualDeliveryFeeOverride | currency:'INR' }}
       </p>
       <p *ngIf="order.deliveryPartnerName">Delivery partner: <strong>{{ order.deliveryPartnerName }}</strong></p>
+      <button
+        type="button"
+        *ngIf="isActive(order)"
+        (click)="cancelOrder(order)"
+        [disabled]="!!busyOrderId || !!cancellingOrderId || !outletMatches">
+        {{ cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel order' }}
+      </button>
       <div *ngIf="isActive(order) && !order.deliveryPartnerId" class="assignment">
         <label [for]="'partner-' + order.id">Assign available partner
           <select [id]="'partner-' + order.id" [(ngModel)]="assignments[order.id]" [disabled]="!hasAssignablePartners(order)">

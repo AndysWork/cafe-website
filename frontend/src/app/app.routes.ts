@@ -20,7 +20,7 @@ export const routes: Routes = [
   { path: 'checkout', loadComponent: () => import('./components/checkout/checkout.component').then(m => m.CheckoutComponent), canActivate: [authGuard] },
   { path: 'orders', loadComponent: () => import('./components/orders/orders.component').then(m => m.OrdersComponent), canActivate: [authGuard] },
   { path: 'orders/:id', loadComponent: () => import('./components/order-detail/order-detail.component').then(m => m.OrderDetailComponent), canActivate: [authGuard] },
-  { path: 'phone-orders', loadComponent: () => import('./components/phone-orders/phone-orders.component').then(m => m.PhoneOrdersComponent), canActivate: [roleGuard(['admin', 'manager'])], canDeactivate: [phoneOrderDraftGuard] },
+  { path: 'phone-orders', loadComponent: () => import('./components/phone-orders/phone-orders.component').then(m => m.PhoneOrdersComponent), canActivate: [roleGuard(['admin', 'manager', 'cashier'])], canDeactivate: [phoneOrderDraftGuard] },
   { path: 'track-order/:id', loadComponent: () => import('./components/phone-order-tracking/phone-order-tracking.component').then(m => m.PhoneOrderTrackingComponent) },
   { path: 'reviews', loadComponent: () => import('./components/customer-reviews/customer-reviews.component').then(m => m.CustomerReviewsComponent) },
   { path: 'offers', loadComponent: () => import('./components/offers/offers.component').then(m => m.OffersComponent) },

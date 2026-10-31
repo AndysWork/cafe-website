@@ -77,3 +77,14 @@ Authorization: Bearer {{customerToken}}
 Content-Type: application/json
 
 { "settings": { "acceptsOnlineOrders": false } }
+
+### Admin: Clean outlet order history before keep-from date.
+### This clears Orders (soft delete) and Dine-In Sessions (hard delete) before keepFromDate.
+POST {{baseUrl}}/manage/orders/history/delete
+Authorization: ******
+Content-Type: application/json
+
+{
+  "outletCode": "MTC007",
+  "keepFromDate": "26.10.26"
+}

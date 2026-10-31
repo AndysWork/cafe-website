@@ -681,25 +681,42 @@ public class OrderFunction
     }
 
     /// <summary>
-    /// Retrieves all orders in the system (Admin only)
+    /// Retrieves orders in the system (Admin, Manager, Cashier)
     /// </summary>
     /// <param name="req">HTTP request with authorization header</param>
     /// <returns>List of all orders</returns>
     /// <response code="200">Successfully retrieved all orders</response>
     /// <response code="401">User not authenticated</response>
-    /// <response code="403">User not authorized (admin role required)</response>
-    // GET: Get all orders (Admin only)
+    /// <response code="403">User not authorized</response>
+    // GET: Get all orders for accessible outlet scope
     [Function("GetAllOrders")]
     public async Task<HttpResponseData> GetAllOrders(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "orders")] HttpRequestData req)
     {
         try
         {
-            // Validate admin authorization
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            // Validate admin/manager/cashier authorization
+            var (isAuthorized, _, role, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
-            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            string? outletId;
+            if (string.Equals(role, RoleHelper.Admin, StringComparison.OrdinalIgnoreCase))
+            {
+                outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            }
+            else
+            {
+                var (hasAccess, resolvedOutletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
+                if (!hasAccess)
+                {
+                    var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                    await forbidden.WriteAsJsonAsync(new { error = accessError ?? "Outlet access denied" });
+                    return forbidden;
+                }
+
+                outletId = resolvedOutletId;
+            }
+
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
             var channel = ParseChannelQuery(req.Url.Query);
 
@@ -1242,7 +1259,7 @@ public class OrderFunction
     }
 
     /// <summary>
-    /// Updates the status of an order (Admin only)
+    /// Updates the status of an order (Admin, Manager, Cashier)
     /// </summary>
     /// <param name="req">HTTP request with new status (pending, confirmed, preparing, ready, out-for-delivery, delivered, cancelled)</param>
     /// <param name="id">The order ID</param>
@@ -1250,8 +1267,8 @@ public class OrderFunction
     /// <response code="200">Order status successfully updated</response>
     /// <response code="400">Invalid status or order not found</response>
     /// <response code="401">User not authenticated</response>
-    /// <response code="403">User not authorized (admin role required)</response>
-    // PUT: Update order status (Admin only)
+    /// <response code="403">User not authorized</response>
+    // PUT: Update order status
     [Function("UpdateOrderStatus")]
     public async Task<HttpResponseData> UpdateOrderStatus(
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "orders/{id}/status")] HttpRequestData req,
@@ -1259,8 +1276,8 @@ public class OrderFunction
     {
         try
         {
-            // Validate admin authorization
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            // Validate admin/manager/cashier authorization
+            var (isAuthorized, userId, role, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var (statusRequest, validationError) = await ValidationHelper.ValidateBody<UpdateOrderStatusRequest>(req);
@@ -1281,6 +1298,16 @@ public class OrderFunction
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(new { error = "Order not found" });
                 return notFound;
+            }
+            if (!string.Equals(role, RoleHelper.Admin, StringComparison.OrdinalIgnoreCase))
+            {
+                var (hasAccess, _, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo, oldOrder.OutletId);
+                if (!hasAccess)
+                {
+                    var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                    await forbidden.WriteAsJsonAsync(new { error = accessError ?? "Outlet access denied" });
+                    return forbidden;
+                }
             }
 
             var requiredChannel = ParseChannelQuery(req.Url.Query);
@@ -1344,7 +1371,7 @@ public class OrderFunction
 
             // Event sourcing: record status transition (FLAW 15)
             _ = _eventLog.LogEventAsync("Order", id, "StatusChanged",
-                actorId: null, actorRole: "admin",
+                actorId: userId, actorRole: string.IsNullOrWhiteSpace(role) ? "staff" : role,
                 oldState: new { Status = oldStatus },
                 newState: new { Status = nextStatus },
                 outletId: order?.OutletId);
