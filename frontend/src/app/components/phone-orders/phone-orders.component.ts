@@ -52,6 +52,8 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   deliveryAddress = '';
   deliveryLocationUrl = '';
   preparationNotes = '';
+  manualDeliveryFee = '';
+  manualApproximateDistanceKm = '';
   paymentMethod: PhoneOrderRequest['paymentMethod'] = 'cod';
   upiReference = '';
   quote: PhoneOrderQuote | null = null;
@@ -113,10 +115,9 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   }
 
   get validDetails(): boolean {
-    const phoneDigits = this.phoneNumber.replace(/\D/g, '');
+    const normalizedPhone = this.normalizeIndianPhone(this.phoneNumber);
     return this.outletMatches && !this.orderingError && this.cart.length > 0
-      && !!this.customerName.trim() && /^\+?[0-9 ()-]{10,20}$/.test(this.phoneNumber.trim())
-      && phoneDigits.length >= 10 && phoneDigits.length <= 15
+      && !!this.customerName.trim() && normalizedPhone !== null
       && !!this.deliveryAddress.trim() && this.validMapsUrl;
   }
 
@@ -134,8 +135,17 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   }
 
   get canSubmit(): boolean {
-    return this.validDetails && !!this.quote && !this.quoteBusy && !this.submitting
+    return this.validDetails && this.manualOverrideValid && !!this.quote && !this.quoteBusy && !this.submitting
       && (this.paymentMethod !== 'upi-qr' || !!this.upiReference.trim());
+  }
+
+  get manualOverrideValid(): boolean {
+    return this.manualOverrideValues !== null;
+  }
+
+  get hasManualOverride(): boolean {
+    const values = this.manualOverrideValues;
+    return !!values && values.manualDeliveryFee !== undefined && values.manualApproximateDistanceKm !== undefined;
   }
 
   menuPrice(item: MenuItem): number {
@@ -187,6 +197,10 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   reviewTotal(): void {
     if (!this.validDetails || this.quoteBusy) {
       this.error = 'Add items, customer name, valid phone, delivery address and a Google Maps link, and select an available outlet.';
+      return;
+    }
+    if (!this.manualOverrideValid) {
+      this.error = 'For manual override, enter both distance and delivery fee as valid non-negative numbers.';
       return;
     }
     this.quoteBusy = true;
@@ -245,6 +259,8 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
     this.deliveryAddress = '';
     this.deliveryLocationUrl = '';
     this.preparationNotes = '';
+    this.manualDeliveryFee = '';
+    this.manualApproximateDistanceKm = '';
     this.paymentMethod = 'cod';
     this.upiReference = '';
     this.error = '';
@@ -318,10 +334,12 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   }
 
   private request(): PhoneOrderRequest {
+    const normalizedPhone = this.normalizeIndianPhone(this.phoneNumber);
+    const manualOverride = this.manualOverrideValues;
     return {
       outletId: this.loadedOutletId,
       customerName: this.customerName.trim(),
-      phoneNumber: this.phoneNumber.trim(),
+      phoneNumber: normalizedPhone ?? this.phoneNumber.trim(),
       deliveryAddress: this.deliveryAddress.trim(),
       deliveryLocationUrl: this.deliveryLocationUrl.trim(),
       items: this.cart.map(line => ({
@@ -330,8 +348,36 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
       })),
       paymentMethod: this.paymentMethod,
       upiReference: this.paymentMethod === 'upi-qr' ? this.upiReference.trim() : undefined,
-      preparationNotes: this.preparationNotes.trim() || undefined
+      preparationNotes: this.preparationNotes.trim() || undefined,
+      manualDeliveryFee: manualOverride?.manualDeliveryFee,
+      manualApproximateDistanceKm: manualOverride?.manualApproximateDistanceKm
     };
+  }
+
+  private get manualOverrideValues(): { manualDeliveryFee?: number; manualApproximateDistanceKm?: number } | null {
+    const fee = this.parseOptionalNonNegativeNumber(this.manualDeliveryFee);
+    const distance = this.parseOptionalNonNegativeNumber(this.manualApproximateDistanceKm);
+    if (fee === null || distance === null) return null;
+    if ((fee === undefined) !== (distance === undefined)) return null;
+    return { manualDeliveryFee: fee, manualApproximateDistanceKm: distance };
+  }
+
+  private parseOptionalNonNegativeNumber(value: string): number | undefined | null {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric) || numeric < 0) return null;
+    return numeric;
+  }
+
+  private normalizeIndianPhone(value: string): string | null {
+    const digits = value.replace(/\D/g, '');
+    const normalized = digits.length === 12 && digits.startsWith('91')
+      ? digits.slice(2)
+      : digits;
+    if (normalized.length !== 10) return null;
+    if (!/^[6-9][0-9]{9}$/.test(normalized)) return null;
+    return normalized;
   }
 
   private loadOutlet(outletId: string): void {

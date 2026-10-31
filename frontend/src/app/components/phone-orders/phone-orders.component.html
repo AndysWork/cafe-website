@@ -48,6 +48,15 @@
             <input [(ngModel)]="deliveryLocationUrl" name="deliveryLocationUrl" required type="url" maxlength="2048" placeholder="https://maps.app.goo.gl/..." (ngModelChange)="invalidateQuote()" />
           </label>
           <small>Ask the customer to share their current location or destination pin from Google Maps.</small>
+          <h3>Manual override (optional)</h3>
+          <label>Approximate distance (km)
+            <input [(ngModel)]="manualApproximateDistanceKm" name="manualApproximateDistanceKm" inputmode="decimal" type="text" maxlength="10" placeholder="Example: 3.2" (ngModelChange)="invalidateQuote()" />
+          </label>
+          <label>Delivery charge
+            <input [(ngModel)]="manualDeliveryFee" name="manualDeliveryFee" inputmode="decimal" type="text" maxlength="10" placeholder="Example: 40" (ngModelChange)="invalidateQuote()" />
+          </label>
+          <small>If you enter one manual value, enter both distance and charge. These values override automatic route calculation and zone fee.</small>
+          <p *ngIf="!manualOverrideValid" class="notice error">Manual override is invalid. Enter valid non-negative values for both fields, or leave both empty.</p>
           <label>Kitchen instructions <textarea [(ngModel)]="preparationNotes" name="preparationNotes" maxlength="1000" (ngModelChange)="invalidateQuote()" placeholder="For example: less spicy, separate packing"></textarea></label>
 
           <h3>Order items</h3>
@@ -69,7 +78,10 @@
           <button type="button" (click)="reviewTotal()" [disabled]="!validDetails || quoteBusy">{{ quoteBusy ? 'Calculating...' : 'Review total with delivery charge' }}</button>
           <div *ngIf="quote as total" class="totals">
             <p>Items <span>{{ total.subtotal | currency:'INR' }}</span></p>
-            <p>Delivery (configured zone) <span>{{ total.deliveryFee | currency:'INR' }}</span></p>
+            <p>Delivery {{ total.manualOverrideApplied ? '(manual override)' : '(configured zone)' }} <span>{{ total.deliveryFee | currency:'INR' }}</span></p>
+            <p *ngIf="total.zone">Zone <span>{{ total.zone }}</span></p>
+            <p *ngIf="total.approximateDistanceKm !== undefined">Distance <span>{{ total.approximateDistanceKm | number:'1.0-1' }} km</span></p>
+            <p *ngIf="total.estimatedMinutes">ETA <span>{{ total.estimatedMinutes }} min</span></p>
             <p *ngIf="total.platformCharge">Platform charge <span>{{ total.platformCharge | currency:'INR' }}</span></p>
             <p *ngIf="total.tax">Tax <span>{{ total.tax | currency:'INR' }}</span></p>
             <p><strong>Total <span>{{ total.total | currency:'INR' }}</span></strong></p>
@@ -111,6 +123,9 @@
       <ul><li *ngFor="let item of order.items">{{ item.quantity }} x {{ displayText(item.name) }} <span *ngIf="item.selectedVariantName">({{ displayText(item.selectedVariantName) }})</span></li></ul>
       <p *ngIf="order.preparationNotes">Kitchen instructions: {{ order.preparationNotes }}</p>
       <p><strong>{{ order.total | currency:'INR' }}</strong> (delivery {{ order.deliveryFee | currency:'INR' }}) / {{ order.paymentMethod === 'cod' ? 'Cash on delivery' : order.paymentMethod === 'upi-qr' ? 'Prepaid UPI' : 'Prepaid cash' }} / {{ order.paymentStatus | titlecase }}</p>
+      <p *ngIf="order.manualDeliveryDistanceKmOverride !== undefined && order.manualDeliveryFeeOverride !== undefined">
+        Manual override saved: {{ order.manualDeliveryDistanceKmOverride | number:'1.0-1' }} km / {{ order.manualDeliveryFeeOverride | currency:'INR' }}
+      </p>
       <p *ngIf="order.deliveryPartnerName">Delivery partner: <strong>{{ order.deliveryPartnerName }}</strong></p>
       <div *ngIf="isActive(order) && !order.deliveryPartnerId" class="assignment">
         <label [for]="'partner-' + order.id">Assign available partner

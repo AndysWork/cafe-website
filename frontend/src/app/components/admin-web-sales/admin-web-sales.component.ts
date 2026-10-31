@@ -11,7 +11,7 @@ import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { ActiveDineInTable, DineInService } from '../../services/dine-in.service';
-import { getIstDateString, getIstFileStamp, getIstInputDate, formatIstDateTime, convertToIst } from '../../utils/date-utils';
+import { getIstDateString, getIstFileStamp, getIstInputDate, convertToIst } from '../../utils/date-utils';
 
 interface OnlineSaleSummaryItem {
   id?: string;
@@ -64,6 +64,9 @@ interface WebSalesItemQuantityRow {
   quantity: number;
   revenue: number;
   orders: number;
+  dineInQuantity: number;
+  takeawayQuantity: number;
+  phoneOrderQuantity: number;
 }
 
 interface OrderModeSummaryRow {
@@ -141,6 +144,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   dineInSlaAlerts: any[] = [];
   dayEndOpenTables: any[] = [];
   dayEndOutstandingAmount = 0;
+  private readonly istOffsetMs = 330 * 60 * 1000;
 
   readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled'];
 
@@ -401,6 +405,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       'Item',
       'QuantitySold',
       'Orders',
+      'DineInQuantity',
+      'TakeawayQuantity',
+      'PhoneOrderQuantity',
       'Revenue'
     ];
 
@@ -408,6 +415,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       row.name,
       row.quantity,
       row.orders,
+      row.dineInQuantity,
+      row.takeawayQuantity,
+      row.phoneOrderQuantity,
       row.revenue.toFixed(2)
     ].map(value => this.escapeCsv(value)).join(','));
 
@@ -443,17 +453,34 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   get webSalesItemQuantities(): WebSalesItemQuantityRow[] {
-    const itemMap = new Map<string, { quantity: number; revenue: number; orderIds: Set<string> }>();
+    const itemMap = new Map<string, {
+      quantity: number;
+      revenue: number;
+      orderIds: Set<string>;
+      dineInQuantity: number;
+      takeawayQuantity: number;
+      phoneOrderQuantity: number;
+    }>();
     const hasOrderRecords = this.orders.length > 0;
 
     if (hasOrderRecords) {
       for (const order of this.orders) {
         for (const item of order.items || []) {
           const name = (item.name || 'Unknown item').trim() || 'Unknown item';
-          const existing = itemMap.get(name) || { quantity: 0, revenue: 0, orderIds: new Set<string>() };
-          existing.quantity += item.quantity || 0;
-          existing.revenue += item.total || 0;
+          const quantity = item.quantity || 0;
+          const lineRevenue = this.resolveOrderItemRevenue(item);
+          const existing = itemMap.get(name) || {
+            quantity: 0,
+            revenue: 0,
+            orderIds: new Set<string>(),
+            dineInQuantity: 0,
+            takeawayQuantity: 0,
+            phoneOrderQuantity: 0
+          };
+          existing.quantity += quantity;
+          existing.revenue += lineRevenue;
           existing.orderIds.add(order.id);
+          this.incrementOrderTypeQuantity(existing, order, quantity);
           itemMap.set(name, existing);
         }
       }
@@ -463,13 +490,21 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         for (const item of sale.orderedItems || []) {
           const name = ((item.itemName || item.name || 'Unknown item').trim()) || 'Unknown item';
           const quantity = item.quantity || 0;
-          const lineTotal = item.total ?? ((item.price || 0) * quantity);
-          const existing = itemMap.get(name) || { quantity: 0, revenue: 0, orderIds: new Set<string>() };
+          const lineTotal = this.resolveSaleItemRevenue(item);
+          const existing = itemMap.get(name) || {
+            quantity: 0,
+            revenue: 0,
+            orderIds: new Set<string>(),
+            dineInQuantity: 0,
+            takeawayQuantity: 0,
+            phoneOrderQuantity: 0
+          };
           existing.quantity += quantity;
           existing.revenue += lineTotal || 0;
           if (saleOrderKey) {
             existing.orderIds.add(saleOrderKey);
           }
+          this.incrementOrderTypeQuantityFromSale(existing, sale, quantity);
           itemMap.set(name, existing);
         }
       }
@@ -481,6 +516,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         quantity: data.quantity,
         revenue: data.revenue,
         orders: data.orderIds.size,
+        dineInQuantity: data.dineInQuantity,
+        takeawayQuantity: data.takeawayQuantity,
+        phoneOrderQuantity: data.phoneOrderQuantity,
       }))
       .sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue || a.name.localeCompare(b.name));
   }
@@ -704,21 +742,17 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   formatDate(value?: string | Date | number | null): string {
-    if (value === null || value === undefined) return '-';
-
-    if (typeof value === 'string') {
-      const normalized = value.trim();
-      if (!normalized || normalized.startsWith('0001-01-01')) return '-';
-      const formatted = formatIstDateTime(convertToIst(normalized));
-      return formatted === 'Invalid date' ? '-' : formatted;
-    }
-
-    if (typeof value === 'number' && (!Number.isFinite(value) || value <= 0)) {
-      return '-';
-    }
-
-    const formatted = formatIstDateTime(convertToIst(value instanceof Date ? value : String(value)));
-    return formatted === 'Invalid date' ? '-' : formatted;
+    const epoch = this.toEpochMillis(value);
+    if (!epoch) return '-';
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }).format(new Date(epoch));
   }
 
   formatTime(value?: string | Date | number | null): string {
@@ -1007,11 +1041,23 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       if (!normalized || normalized.startsWith('0001-01-01')) return 0;
       const parsed = convertToIst(normalized);
       const epoch = parsed.getTime();
-      return Number.isNaN(epoch) ? 0 : epoch;
+      if (Number.isNaN(epoch)) return 0;
+
+      // Backend timestamps are sometimes stored in IST but serialized as UTC (Z).
+      // Compensate so rendered values match business-local order time.
+      if (this.isSerializedUtcTimestamp(normalized)) {
+        return epoch - this.istOffsetMs;
+      }
+
+      return epoch;
     }
 
     const epoch = convertToIst(value).getTime();
     return Number.isNaN(epoch) ? 0 : epoch;
+  }
+
+  private isSerializedUtcTimestamp(value: string): boolean {
+    return /z$/i.test(value) || /[+\-]00:00$/i.test(value) || /[+\-]0000$/i.test(value);
   }
 
   private normalizeOrderMode(orderType?: string): string {
@@ -1046,6 +1092,77 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   private getOrderItemsCount(order: Order): number {
     return (order.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+  }
+
+  private resolveOrderItemRevenue(item: Order['items'][number]): number {
+    const lineTotal = item.total || 0;
+    if (lineTotal > 0) {
+      return lineTotal;
+    }
+
+    const quantity = item.quantity || 0;
+    if (quantity <= 0) return 0;
+
+    const computedFromUnitPrice = (item.price || 0) * quantity;
+    if (computedFromUnitPrice > 0) {
+      return computedFromUnitPrice;
+    }
+
+    return 0;
+  }
+
+  private incrementOrderTypeQuantity(
+    aggregate: { dineInQuantity: number; takeawayQuantity: number; phoneOrderQuantity: number },
+    order: Order,
+    quantity: number
+  ): void {
+    const source = String(order.orderSource || '').trim().toLowerCase();
+    if (source === 'phone') {
+      aggregate.phoneOrderQuantity += quantity;
+      return;
+    }
+
+    const mode = this.normalizeOrderMode(order.orderType);
+    if (mode === 'Dine-In') {
+      aggregate.dineInQuantity += quantity;
+      return;
+    }
+
+    if (mode === 'Takeaway' || mode === 'Delivery') {
+      aggregate.takeawayQuantity += quantity;
+    }
+  }
+
+  private incrementOrderTypeQuantityFromSale(
+    aggregate: { dineInQuantity: number; takeawayQuantity: number; phoneOrderQuantity: number },
+    sale: OnlineSaleSummaryItem,
+    quantity: number
+  ): void {
+    const platform = String(sale.platform || '').trim().toLowerCase();
+    if (platform.includes('phone')) {
+      aggregate.phoneOrderQuantity += quantity;
+      return;
+    }
+
+    if (platform.includes('dine')) {
+      aggregate.dineInQuantity += quantity;
+      return;
+    }
+
+    // Uploaded/online sales rows are generally non-dine-in orders.
+    aggregate.takeawayQuantity += quantity;
+  }
+
+  private resolveSaleItemRevenue(
+    item: NonNullable<OnlineSaleSummaryItem['orderedItems']>[number]
+  ): number {
+    const quantity = item.quantity || 0;
+    const lineTotal = item.total ?? ((item.price || 0) * quantity);
+    if ((lineTotal || 0) > 0) {
+      return lineTotal || 0;
+    }
+
+    return 0;
   }
 
   private formatHourRange(hour: number): string {

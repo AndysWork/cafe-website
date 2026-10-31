@@ -90,6 +90,26 @@ describe('PhoneOrdersComponent', () => {
     expect(component.validDetails).toBeFalse();
   });
 
+  it('accepts formatted Indian numbers and normalizes them for requests', () => {
+    fill();
+    component.phoneNumber = '+91 98765-43210';
+    expect(component.validDetails).toBeTrue();
+    component.reviewTotal();
+    service.create.and.returnValue(of({ order: { id: 'order-1', trackingPath: '/track-order/order-1?token=secret' } as PhoneDeliveryOrder, message: 'Sent to kitchen' }));
+    component.submit();
+    const request = service.create.calls.mostRecent().args[0];
+    expect(request.phoneNumber).toBe('9876543210');
+  });
+
+  it('requires both manual override values when one is entered', () => {
+    fill();
+    component.manualApproximateDistanceKm = '3.0';
+    expect(component.manualOverrideValid).toBeFalse();
+    component.reviewTotal();
+    expect(service.quote).not.toHaveBeenCalled();
+    expect(component.error).toContain('manual override');
+  });
+
   it('prices variants and add-ons, and invalidates totals after cart changes', () => {
     fill();
     expect(component.subtotal).toBe(170);
@@ -113,6 +133,8 @@ describe('PhoneOrdersComponent', () => {
 
   it('sends item selections and the reviewed total, records prepaid UPI and exposes tracking', () => {
     fill();
+    component.manualApproximateDistanceKm = '3.1';
+    component.manualDeliveryFee = '55';
     component.reviewTotal();
     component.paymentMethod = 'upi-qr';
     component.upiReference = 'UPI123';
@@ -121,6 +143,8 @@ describe('PhoneOrdersComponent', () => {
     component.submit();
     const request = service.create.calls.mostRecent().args[0];
     expect(request.expectedTotal).toBe(200);
+    expect(request.manualApproximateDistanceKm).toBe(3.1);
+    expect(request.manualDeliveryFee).toBe(55);
     expect(request.paymentMethod).toBe('upi-qr');
     expect(request.upiReference).toBe('UPI123');
     expect(request.items[0]).toEqual({
@@ -185,6 +209,40 @@ describe('PhoneOrdersComponent', () => {
     fixture.detectChanges();
     expect(element.querySelector('.totals')?.textContent).toContain('200.00');
     expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBeFalse();
+    fixture.destroy();
+  });
+
+  it('shows saved manual delivery override details in tracking cards', () => {
+    service.getOrders.and.returnValue(of({
+      orders: [{
+        id: 'order-1',
+        userId: 'guest-id',
+        username: 'Guest',
+        orderSource: 'phone',
+        trackingPath: '/track-order/order-1?token=abc',
+        customerName: 'Guest Customer',
+        status: 'pending',
+        items: [{ menuItemId: item.id, name: item.name, quantity: 1, price: 100, total: 100 }],
+        subtotal: 100,
+        tax: 0,
+        total: 155,
+        deliveryFee: 55,
+        paymentMethod: 'cod',
+        paymentStatus: 'pending',
+        phoneNumber: '9876543210',
+        deliveryAddress: 'Station Road',
+        deliveryLocationUrl: 'https://maps.app.goo.gl/location',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        manualDeliveryFeeOverride: 55,
+        manualDeliveryDistanceKmOverride: 3.1
+      } as PhoneDeliveryOrder]
+    }));
+    const fixture = TestBed.createComponent(PhoneOrdersComponent);
+    fixture.detectChanges();
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.textContent).toContain('Manual override saved:');
+    expect(element.textContent).toContain('3.1 km');
     fixture.destroy();
   });
 });

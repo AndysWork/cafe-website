@@ -100,6 +100,7 @@ export interface PartnerDashboard {
   recentShifts: DeliveryShift[];
   activeOrders: Array<{
     id?: string;
+    orderSource?: string;
     status: string;
     total: number;
     phoneNumber?: string;
@@ -115,6 +116,7 @@ export interface PartnerDashboard {
   }>;
   pendingRequests: Array<{
     id?: string;
+    orderSource?: string;
     status: string;
     total: number;
     phoneNumber?: string;

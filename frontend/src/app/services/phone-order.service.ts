@@ -17,6 +17,8 @@ export interface PhoneOrderRequest {
   upiReference?: string;
   preparationNotes?: string;
   expectedTotal?: number;
+  manualDeliveryFee?: number;
+  manualApproximateDistanceKm?: number;
 }
 
 export interface PhoneOrderQuote {
@@ -25,6 +27,10 @@ export interface PhoneOrderQuote {
   platformCharge: number;
   deliveryFee: number;
   total: number;
+  estimatedMinutes?: number;
+  approximateDistanceKm?: number;
+  zone?: string;
+  manualOverrideApplied?: boolean;
 }
 
 export interface PhoneDeliveryOrder extends Order {

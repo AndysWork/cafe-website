@@ -391,6 +391,9 @@
             <th>Item</th>
             <th>Qty Sold</th>
             <th>Orders</th>
+            <th>Dine-In</th>
+            <th>Takeaway</th>
+            <th>Phone Order</th>
             <th>Revenue</th>
           </tr>
         </thead>
@@ -399,6 +402,9 @@
             <td>{{ row.name }}</td>
             <td>{{ row.quantity }}</td>
             <td>{{ row.orders }}</td>
+            <td>{{ row.dineInQuantity }}</td>
+            <td>{{ row.takeawayQuantity }}</td>
+            <td>{{ row.phoneOrderQuantity }}</td>
             <td>{{ formatCurrency(row.revenue) }}</td>
           </tr>
         </tbody>

@@ -277,8 +277,8 @@ public class DeliveryPartnerFunction
             double? routeDistanceKm = null;
             int? routeEtaMinutes = null;
 
-            if (assignedOrder != null
-                && !PhoneDeliveryOrderRules.IsPhoneOrder(assignedOrder)
+            if (_deliveryRoutingService != null
+                && assignedOrder != null
                 && string.Equals(assignedOrder.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(assignedOrder.DeliveryAddress)
                 && !string.IsNullOrWhiteSpace(assignedOrder.OutletId))

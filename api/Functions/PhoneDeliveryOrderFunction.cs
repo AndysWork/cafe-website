@@ -21,13 +21,15 @@ public sealed class PhoneDeliveryOrderFunction
     private readonly IOutletRepository _outlets;
     private readonly IOperationsRepository _operations;
     private readonly IPhoneDeliveryOrderRepository _phone;
+    private readonly DeliveryRoutingService? _deliveryRoutingService;
     private readonly AuthService _auth;
     private readonly OutboxService _outbox;
     private readonly ILogger _log;
 
     public PhoneDeliveryOrderFunction(IOrderRepository orders, IMenuRepository menu, IUserRepository users,
         IStaffRepository staff, IOutletRepository outlets, IOperationsRepository operations,
-        IPhoneDeliveryOrderRepository phone, AuthService auth, OutboxService outbox, ILoggerFactory loggerFactory)
+        IPhoneDeliveryOrderRepository phone, AuthService auth, OutboxService outbox, ILoggerFactory loggerFactory,
+        DeliveryRoutingService? deliveryRoutingService = null)
     {
         _orders = orders;
         _menu = menu;
@@ -36,6 +38,7 @@ public sealed class PhoneDeliveryOrderFunction
         _outlets = outlets;
         _operations = operations;
         _phone = phone;
+        _deliveryRoutingService = deliveryRoutingService;
         _auth = auth;
         _outbox = outbox;
         _log = loggerFactory.CreateLogger<PhoneDeliveryOrderFunction>();
@@ -72,6 +75,13 @@ public sealed class PhoneDeliveryOrderFunction
                 return await Error(req, HttpStatusCode.BadRequest, "A valid HTTPS Google Maps location URL is required");
             if (!quoteOnly && request.PaymentMethod == "upi-qr" && string.IsNullOrWhiteSpace(request.UpiReference))
                 return await Error(req, HttpStatusCode.BadRequest, "UPI reference is required for prepaid UPI");
+            var hasManualFee = request.ManualDeliveryFee.HasValue;
+            var hasManualDistance = request.ManualApproximateDistanceKm.HasValue;
+            if (hasManualFee != hasManualDistance)
+            {
+                return await Error(req, HttpStatusCode.BadRequest,
+                    "Provide both manual delivery fee and manual distance to override automatic calculation");
+            }
 
             string? orderId = null;
             string? requestHash = null;
@@ -92,12 +102,27 @@ public sealed class PhoneDeliveryOrderFunction
             if (unavailable != null) return await Error(req, HttpStatusCode.Conflict, unavailable);
             var (items, subtotal, itemError) = await ShopOrderItemBuilder.BuildAsync(_menu, request.Items, outletId!);
             if (itemError != null) return await Error(req, HttpStatusCode.BadRequest, itemError);
-            // Same closest-zone/default and free-delivery threshold as the existing public estimator;
-            // that estimator does not currently resolve addresses or Maps URLs.
-            var deliveryFee = await _operations.CalculateDeliveryFeeAsync(outletId!, subtotal);
+            var (deliveryFee, estimatedMinutes, routeDistanceKm, feeZoneName, manualOverrideApplied) = await ResolveDeliveryFeeAsync(
+                outletId!,
+                subtotal,
+                request.DeliveryAddress,
+                request.DeliveryLocationUrl,
+                request.ManualDeliveryFee,
+                request.ManualApproximateDistanceKm);
             var total = subtotal + deliveryFee;
             if (quoteOnly)
-                return await Json(req, HttpStatusCode.OK, new { subtotal, tax = 0m, platformCharge = 0m, deliveryFee, total });
+                return await Json(req, HttpStatusCode.OK, new
+                {
+                    subtotal,
+                    tax = 0m,
+                    platformCharge = 0m,
+                    deliveryFee,
+                    total,
+                    estimatedMinutes,
+                    approximateDistanceKm = routeDistanceKm,
+                    zone = feeZoneName,
+                    manualOverrideApplied
+                });
             if (request.ExpectedTotal.HasValue && request.ExpectedTotal.Value != total)
                 return await Error(req, HttpStatusCode.Conflict, "Order total changed; refresh the quote before recording payment");
 
@@ -124,6 +149,10 @@ public sealed class PhoneDeliveryOrderFunction
                 KotNumber = await _orders.GetNextDineInKotNumberAsync(outletId!),
                 ApprovalStatus = "approved", ApprovedByUserId = userId, ApprovedAt = now,
                 Status = "pending", CreatedAt = now, UpdatedAt = now,
+                DeliveryDistanceKm = routeDistanceKm,
+                DeliveryEtaMinutes = estimatedMinutes,
+                ManualDeliveryFeeOverride = manualOverrideApplied ? deliveryFee : null,
+                ManualDeliveryDistanceKmOverride = manualOverrideApplied ? routeDistanceKm : null,
                 PhoneTrackingToken = PhoneDeliveryOrderRules.NewTrackingToken(), PhoneRequestHash = requestHash
             };
             try
@@ -143,6 +172,47 @@ public sealed class PhoneDeliveryOrderFunction
             _log.LogError(ex, "Phone delivery operation failed");
             return await Error(req, HttpStatusCode.InternalServerError, "Unable to process phone delivery order; retry creation with the same Idempotency-Key");
         }
+    }
+
+    private async Task<(decimal deliveryFee, int? estimatedMinutes, double? distanceKm, string? zoneName, bool manualOverrideApplied)> ResolveDeliveryFeeAsync(
+        string outletId,
+        decimal subtotal,
+        string deliveryAddress,
+        string deliveryLocationUrl,
+        decimal? manualDeliveryFee,
+        double? manualDistanceKm)
+    {
+        var zones = await _operations.GetActiveDeliveryZonesAsync(outletId);
+        zones ??= new List<DeliveryZone>();
+        if (manualDeliveryFee.HasValue && manualDistanceKm.HasValue)
+        {
+            var roundedDistance = Math.Round(manualDistanceKm.Value, 1, MidpointRounding.AwayFromZero);
+            var roundedFee = Math.Round(manualDeliveryFee.Value, 2, MidpointRounding.AwayFromZero);
+            var zoneForDistance = zones.Count > 0
+                ? DeliveryFeeCalculator.SelectZoneForDistance(zones, roundedDistance).Zone
+                : null;
+            return (roundedFee, zoneForDistance?.EstimatedMinutes, roundedDistance, zoneForDistance?.ZoneName, true);
+        }
+
+        double? routeDistanceKm = null;
+        int? routeEtaMinutes = null;
+
+        if (_deliveryRoutingService != null)
+        {
+            var route = await _deliveryRoutingService.ResolveDistanceForDeliveryFeeAsync(outletId, deliveryAddress, deliveryLocationUrl);
+            routeDistanceKm = route.distanceKm;
+            routeEtaMinutes = route.etaMinutes;
+        }
+
+        if (zones.Count == 0)
+        {
+            var fallbackFee = await _operations.CalculateDeliveryFeeAsync(outletId, subtotal);
+            return (fallbackFee, routeEtaMinutes, routeDistanceKm, null, false);
+        }
+
+        var (zone, resolvedDistanceKm, _) = DeliveryFeeCalculator.SelectZoneForDistance(zones, routeDistanceKm);
+        var fee = DeliveryFeeCalculator.ResolveDeliveryFee(subtotal, zone);
+        return (fee, routeEtaMinutes ?? zone.EstimatedMinutes, resolvedDistanceKm, zone.ZoneName, false);
     }
 
     [Function("GetPhoneDeliveryOrders")]

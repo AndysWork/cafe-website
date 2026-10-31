@@ -1813,6 +1813,8 @@ public class OrderFunction
             DeliveryRouteShortUrl = order.DeliveryRouteShortUrl,
             DeliveryDistanceKm = order.DeliveryDistanceKm,
             DeliveryEtaMinutes = order.DeliveryEtaMinutes,
+            ManualDeliveryFeeOverride = order.ManualDeliveryFeeOverride,
+            ManualDeliveryDistanceKmOverride = order.ManualDeliveryDistanceKmOverride,
             DeliveryRouteUpdatedAt = order.DeliveryRouteUpdatedAt,
             TableNumber = order.TableNumber,
             DineInSessionId = order.DineInSessionId,

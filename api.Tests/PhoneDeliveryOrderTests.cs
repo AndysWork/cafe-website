@@ -64,6 +64,20 @@ public sealed class PhoneDeliveryOrderTests
                 AddOns = new() { new() { Name = "Cheese", Price = 15, IsActive = true } }
             }
         });
+        _operations.Setup(o => o.GetActiveDeliveryZonesAsync(OutletId)).ReturnsAsync(new List<DeliveryZone>
+        {
+            new()
+            {
+                OutletId = OutletId,
+                ZoneName = "Core",
+                MinDistance = 0,
+                MaxDistance = 5,
+                DeliveryFee = 25,
+                FreeDeliveryAbove = 500,
+                EstimatedMinutes = 30,
+                IsActive = true
+            }
+        });
         _operations.Setup(o => o.CalculateDeliveryFeeAsync(OutletId, It.IsAny<decimal>())).ReturnsAsync(25m);
         _orders.Setup(o => o.GetNextDineInKotNumberAsync(OutletId)).ReturnsAsync("KOT-123");
         _orders.Setup(o => o.CreateOrderAsync(It.IsAny<Order>())).ReturnsAsync((Order o) => o);
@@ -90,6 +104,38 @@ public sealed class PhoneDeliveryOrderTests
         _orders.Verify(o => o.CreateOrderAsync(It.IsAny<Order>()), Times.Never);
         _orders.Verify(o => o.GetNextDineInKotNumberAsync(It.IsAny<string>()), Times.Never);
         _outbox.Verify(o => o.EnqueueOnceAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ManualDistanceAndFeeOverrideAutoValuesAndPersistOnCreate()
+    {
+        var payload = Payload("cash_at_counter") with
+        {
+            ManualApproximateDistanceKm = 3.1,
+            ManualDeliveryFee = 55,
+            ExpectedTotal = 215
+        };
+
+        var quote = await Read(await _function.Quote(Request(payload)));
+        Assert.True(quote.GetProperty("manualOverrideApplied").GetBoolean());
+        Assert.Equal(55, quote.GetProperty("deliveryFee").GetDecimal());
+        Assert.Equal(3.1, quote.GetProperty("approximateDistanceKm").GetDouble(), 1);
+
+        var created = await Read(await _function.Create(Request(payload)));
+        var order = created.GetProperty("order");
+        Assert.Equal(55, order.GetProperty("deliveryFee").GetDecimal());
+        Assert.Equal(3.1, order.GetProperty("deliveryDistanceKm").GetDouble(), 1);
+        Assert.Equal(55, order.GetProperty("manualDeliveryFeeOverride").GetDecimal());
+        Assert.Equal(3.1, order.GetProperty("manualDeliveryDistanceKmOverride").GetDouble(), 1);
+    }
+
+    [Fact]
+    public async Task RejectsPartialManualOverrideValues()
+    {
+        var feeOnly = Payload() with { ManualDeliveryFee = 40 };
+        var distanceOnly = Payload() with { ManualApproximateDistanceKm = 2.8 };
+        Assert.Equal(HttpStatusCode.BadRequest, (await _function.Quote(Request(feeOnly, key: null))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _function.Quote(Request(distanceOnly, key: null))).StatusCode);
     }
 
     [Fact]

@@ -508,6 +508,34 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
     return status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
+  isPhoneOrder(order: { orderSource?: string }): boolean {
+    return (order.orderSource || '').toLowerCase() === 'phone';
+  }
+
+  getWorkflowSteps(order: {
+    status: string;
+    paymentMethod?: string;
+    paymentStatus?: string;
+  }): Array<{ label: string; completed: boolean; active: boolean }> {
+    const status = (order.status || '').toLowerCase();
+    const isCod = (order.paymentMethod || '').toLowerCase() === 'cod';
+    const isPaid = (order.paymentStatus || '').toLowerCase() === 'paid';
+
+    const steps = [
+      { label: 'Assigned', completed: true, active: false },
+      { label: 'Picked up', completed: status === 'out-for-delivery' || status === 'delivered', active: false },
+      { label: isCod ? 'COD collected' : 'Payment confirmed', completed: !isCod || isPaid, active: false },
+      { label: 'Delivered', completed: status === 'delivered', active: false }
+    ];
+
+    const activeIndex = steps.findIndex(step => !step.completed);
+    if (activeIndex >= 0) {
+      steps[activeIndex].active = true;
+    }
+
+    return steps;
+  }
+
   isPhoneManagedRequest(order: unknown): boolean {
     const source = typeof order === 'object' && order !== null && 'orderSource' in order
       ? String((order as { orderSource?: string }).orderSource || '')

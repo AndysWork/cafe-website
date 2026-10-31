@@ -26,4 +26,8 @@ public sealed record CreatePhoneDeliveryOrderRequest
     [StringLength(500)]
     public string? Notes { get; init; }
     public decimal? ExpectedTotal { get; init; }
+    [Range(typeof(decimal), "0", "10000")]
+    public decimal? ManualDeliveryFee { get; init; }
+    [Range(typeof(double), "0", "200")]
+    public double? ManualApproximateDistanceKm { get; init; }
 }

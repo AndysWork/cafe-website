@@ -184,6 +184,12 @@ public class Order : ISoftDeletable
     [BsonElement("deliveryEtaMinutes")]
     public int? DeliveryEtaMinutes { get; set; }
 
+    [BsonElement("manualDeliveryFeeOverride")]
+    public decimal? ManualDeliveryFeeOverride { get; set; }
+
+    [BsonElement("manualDeliveryDistanceKmOverride")]
+    public double? ManualDeliveryDistanceKmOverride { get; set; }
+
     [BsonElement("deliveryRouteUpdatedAt")]
     public DateTime? DeliveryRouteUpdatedAt { get; set; }
 
@@ -556,6 +562,8 @@ public class OrderResponse
     public string? DeliveryRouteShortUrl { get; set; }
     public double? DeliveryDistanceKm { get; set; }
     public int? DeliveryEtaMinutes { get; set; }
+    public decimal? ManualDeliveryFeeOverride { get; set; }
+    public double? ManualDeliveryDistanceKmOverride { get; set; }
     public DateTime? DeliveryRouteUpdatedAt { get; set; }
     public string? TableNumber { get; set; }
     public string? DineInSessionId { get; set; }

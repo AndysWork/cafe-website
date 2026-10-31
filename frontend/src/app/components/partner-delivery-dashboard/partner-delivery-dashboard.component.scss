@@ -344,6 +344,20 @@
   font-size: 0.95rem;
 }
 
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
 .order-card p {
   margin: 0.25rem 0 0;
   color: #4b5563;
@@ -360,6 +374,52 @@
 .order-meta span {
   color: #6b7280;
   font-size: 0.78rem;
+}
+
+.workflow-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.35rem;
+}
+
+.workflow-step {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #6b7280;
+  border-radius: 8px;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.76rem;
+}
+
+.workflow-step .dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #cbd5e1;
+  flex: 0 0 auto;
+}
+
+.workflow-step.completed {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #14532d;
+}
+
+.workflow-step.completed .dot {
+  background: #22c55e;
+}
+
+.workflow-step.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.workflow-step.active .dot {
+  background: #3b82f6;
 }
 
 @media (max-width: 980px) {

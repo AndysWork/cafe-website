@@ -64,6 +64,8 @@ export interface Order {
   deliveryRouteShortUrl?: string;
   deliveryDistanceKm?: number;
   deliveryEtaMinutes?: number;
+  manualDeliveryFeeOverride?: number;
+  manualDeliveryDistanceKmOverride?: number;
   deliveryRouteUpdatedAt?: string;
   tableNumber?: string;
   dineInSessionId?: string;

@@ -233,7 +233,10 @@
       <article class="order-card live-order-card" *ngFor="let order of d.activeOrders">
         <div class="live-order-top">
           <div>
-            <h3>#{{ order.id }}</h3>
+            <h3>
+              #{{ order.id }}
+              <span *ngIf="isPhoneOrder(order)" class="source-badge">Phone order</span>
+            </h3>
             <p>{{ order.deliveryAddress || 'Address unavailable' }}</p>
           </div>
           <div class="order-meta">
@@ -252,6 +255,17 @@
           <small *ngIf="getDeliveryMapUrl(order) as mapUrl" class="pill-chip route-chip">
             Route: <a [href]="mapUrl" target="_blank" rel="noopener">Open map link</a>
           </small>
+        </div>
+
+        <div class="workflow-strip" aria-label="Delivery workflow status">
+          <div
+            class="workflow-step"
+            *ngFor="let step of getWorkflowSteps(order)"
+            [class.completed]="step.completed"
+            [class.active]="step.active">
+            <span class="dot"></span>
+            <span>{{ step.label }}</span>
+          </div>
         </div>
 
         <div class="cod-actions" *ngIf="canPickup(order)">

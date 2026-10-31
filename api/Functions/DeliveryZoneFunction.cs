@@ -11,13 +11,15 @@ namespace Cafe.Api.Functions;
 public class DeliveryZoneFunction
 {
     private readonly MongoService _mongo;
+    private readonly DeliveryRoutingService? _deliveryRoutingService;
     private readonly AuthService _auth;
     private readonly ILogger _log;
 
-    public DeliveryZoneFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public DeliveryZoneFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory, DeliveryRoutingService? deliveryRoutingService = null)
     {
         _mongo = mongo;
         _auth = auth;
+        _deliveryRoutingService = deliveryRoutingService;
         _log = loggerFactory.CreateLogger<DeliveryZoneFunction>();
     }
 
@@ -182,6 +184,8 @@ public class DeliveryZoneFunction
             }
 
             var subtotalStr = req.Query["subtotal"];
+            var deliveryAddress = req.Query["deliveryAddress"]?.Trim();
+            var deliveryLocationUrl = req.Query["deliveryLocationUrl"]?.Trim();
             if (string.IsNullOrWhiteSpace(subtotalStr))
             {
                 // Backward compatibility for older clients.
@@ -216,25 +220,26 @@ public class DeliveryZoneFunction
                 return defaultResponse;
             }
 
-            // Distance is inferred from zone range midpoint until geocoding is introduced.
-            var zone = zones.OrderBy(z => z.MinDistance).First();
-            var approximateDistanceKm = Math.Round((zone.MinDistance + zone.MaxDistance) / 2d, 1);
+            double? routeDistanceKm = null;
+            int? routeEtaMinutes = null;
+            if (_deliveryRoutingService != null && !string.IsNullOrWhiteSpace(deliveryAddress))
+            {
+                var route = await _deliveryRoutingService.ResolveDistanceForDeliveryFeeAsync(outletId, deliveryAddress, deliveryLocationUrl);
+                routeDistanceKm = route.distanceKm;
+                routeEtaMinutes = route.etaMinutes;
+            }
+
+            var (zone, approximateDistanceKm, feeConfidence) = DeliveryFeeCalculator.SelectZoneForDistance(zones, routeDistanceKm);
+            var fee = DeliveryFeeCalculator.ResolveDeliveryFee(subtotal, zone);
             var freeDeliveryThreshold = zone.FreeDeliveryAbove.GetValueOrDefault();
             var isFreeDelivery = freeDeliveryThreshold > 0m && subtotal >= freeDeliveryThreshold;
-            var fee = isFreeDelivery ? 0m : zone.DeliveryFee;
-
-            var feeConfidence = approximateDistanceKm <= 2d
-                ? "high"
-                : approximateDistanceKm <= 5d
-                    ? "medium"
-                    : "low";
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
                 zone = zone.ZoneName,
                 deliveryFee = fee,
-                estimatedMinutes = zone.EstimatedMinutes,
+                estimatedMinutes = routeEtaMinutes ?? zone.EstimatedMinutes,
                 freeDeliveryAbove = zone.FreeDeliveryAbove ?? 0m,
                 orderAmount = subtotal,
                 isFreeDelivery,
