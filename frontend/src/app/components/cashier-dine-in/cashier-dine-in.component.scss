@@ -228,10 +228,22 @@ dd {
   text-align: center;
 }
 
-@media (max-width: 700px) {
-  .page-header {
+@media (max-width: 900px) {
+  .cashier-page {
+    padding: 22px 14px 44px;
+  }
+
+  .payment-card {
+    padding: 16px;
+  }
+
+  .payment-header {
     align-items: flex-start;
-    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .payment-method {
+    align-self: flex-start;
   }
 
   .amounts {
@@ -239,6 +251,73 @@ dd {
   }
 
   .direct-payment-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .direct-payment-controls .confirm-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 700px) {
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .direct-payment-controls {
     grid-template-columns: 1fr;
+  }
+
+  .direct-payment-controls .confirm-button {
+    grid-column: auto;
+  }
+
+  .refresh-button {
+    width: 100%;
+  }
+
+  .print-prompt {
+    align-items: stretch;
+  }
+
+  .print-prompt .confirm-button,
+  .print-prompt .refresh-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .cashier-page {
+    padding: 18px 10px 34px;
+  }
+
+  h1 {
+    font-size: 25px;
+  }
+
+  .section-title {
+    font-size: 18px;
+  }
+
+  .payment-header h2 {
+    font-size: 17px;
+  }
+
+  .amounts {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin: 12px 0 8px;
+    padding: 12px 0;
+  }
+
+  dd {
+    font-size: 16px;
+  }
+
+  .payment-card > .confirm-button,
+  .payment-card > .refresh-button {
+    width: 100%;
   }
 }

@@ -15,12 +15,14 @@ public class ReceiptPdfFunction
 {
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger _log;
 
-    public ReceiptPdfFunction(MongoService mongo, AuthService auth, ILoggerFactory loggerFactory)
+    public ReceiptPdfFunction(MongoService mongo, AuthService auth, IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
     {
         _mongo = mongo;
         _auth = auth;
+        _httpClientFactory = httpClientFactory;
         _log = loggerFactory.CreateLogger<ReceiptPdfFunction>();
     }
 
@@ -76,7 +78,9 @@ public class ReceiptPdfFunction
                 outlet = await _mongo.GetOutletByIdAsync(order.OutletId);
             }
 
-            var pdfBytes = GenerateReceiptPdf(order, outlet);
+            var branding = ResolveBranding(outlet);
+            var logoBytes = await TryLoadLogoAsync(branding.LogoUrl);
+            var pdfBytes = GenerateReceiptPdf(order, outlet, branding, logoBytes);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             response.Headers.Add("Content-Type", "application/pdf");
@@ -93,15 +97,17 @@ public class ReceiptPdfFunction
         }
     }
 
-    private static byte[] GenerateReceiptPdf(Models.Order order, Models.Outlet? outlet)
+    private static byte[] GenerateReceiptPdf(Models.Order order, Models.Outlet? outlet, ReceiptBranding branding, byte[]? logoBytes)
     {
         QuestPDF.Settings.License = LicenseType.Community;
 
-        var cafeName = outlet?.OutletName ?? "Maa Tara Cafe";
+        var cafeName = branding.CafeName;
         var cafeAddress = outlet != null
             ? $"{outlet.Address}, {outlet.City}, {outlet.State}"
             : "Kalyani, West Bengal";
-        var cafePhone = outlet?.PhoneNumber ?? "";
+        var cafePhone = branding.Phone ?? string.Empty;
+        var cafeEmail = branding.Email ?? string.Empty;
+        var cafeTagline = branding.Tagline ?? string.Empty;
 
         var document = Document.Create(container =>
         {
@@ -114,16 +120,33 @@ public class ReceiptPdfFunction
 
                 page.Header().Column(col =>
                 {
+                    if (logoBytes != null && logoBytes.Length > 0)
+                    {
+                        col.Item().PaddingBottom(6).AlignCenter().Width(90).Image(logoBytes);
+                    }
+
                     col.Item().AlignCenter().Text(cafeName)
                         .FontSize(18).Bold().FontColor("#0EA5E9");
 
                     col.Item().AlignCenter().Text(cafeAddress)
                         .FontSize(8).FontColor("#6b7280");
 
-                    if (!string.IsNullOrEmpty(cafePhone))
+                    if (!string.IsNullOrEmpty(cafePhone) || !string.IsNullOrEmpty(cafeEmail))
                     {
-                        col.Item().AlignCenter().Text($"Phone: {cafePhone}")
+                        var contactLine = string.IsNullOrEmpty(cafePhone)
+                            ? $"Email: {cafeEmail}"
+                            : string.IsNullOrEmpty(cafeEmail)
+                                ? $"Phone: {cafePhone}"
+                                : $"Phone: {cafePhone}   |   Email: {cafeEmail}";
+
+                        col.Item().AlignCenter().Text(contactLine)
                             .FontSize(8).FontColor("#6b7280");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(cafeTagline))
+                    {
+                        col.Item().AlignCenter().Text(cafeTagline)
+                            .FontSize(8).Italic().FontColor("#4b5563");
                     }
 
                     col.Item().PaddingVertical(6).LineHorizontal(1).LineColor("#e2e8f0");
@@ -233,7 +256,10 @@ public class ReceiptPdfFunction
                     col.Item().PaddingTop(10).LineHorizontal(0.5f).LineColor("#e2e8f0");
                     col.Item().PaddingTop(6).AlignCenter().Text("Thank you for your order!")
                         .FontSize(10).SemiBold().FontColor("#0EA5E9");
-                    col.Item().AlignCenter().Text("Visit us again at Maa Tara Cafe")
+                    var footerLine = !string.IsNullOrWhiteSpace(cafeTagline)
+                        ? cafeTagline
+                        : $"Visit us again at {cafeName}";
+                    col.Item().AlignCenter().Text(footerLine)
                         .FontSize(7).FontColor("#9ca3af");
                 });
             });
@@ -263,4 +289,64 @@ public class ReceiptPdfFunction
             row.RelativeItem().Text(value).FontSize(8).FontColor("#374151");
         });
     }
+
+    private static ReceiptBranding ResolveBranding(Models.Outlet? outlet)
+    {
+        var cafeName = !string.IsNullOrWhiteSpace(outlet?.OutletName)
+            ? outlet.OutletName.Trim()
+            : (Environment.GetEnvironmentVariable("CafeBranding__Name")?.Trim() ?? "Maa Tara Cafe");
+
+        var phone = !string.IsNullOrWhiteSpace(outlet?.PhoneNumber)
+            ? outlet.PhoneNumber.Trim()
+            : Environment.GetEnvironmentVariable("CafeBranding__Phone")?.Trim();
+
+        var email = !string.IsNullOrWhiteSpace(outlet?.Email)
+            ? outlet.Email.Trim()
+            : Environment.GetEnvironmentVariable("CafeBranding__Email")?.Trim();
+
+        var tagline = !string.IsNullOrWhiteSpace(outlet?.Settings?.InvoiceTagline)
+            ? outlet.Settings.InvoiceTagline.Trim()
+            : Environment.GetEnvironmentVariable("CafeBranding__Tagline")?.Trim();
+
+        var logoUrl = !string.IsNullOrWhiteSpace(outlet?.Settings?.InvoiceLogoUrl)
+            ? outlet.Settings.InvoiceLogoUrl.Trim()
+            : Environment.GetEnvironmentVariable("CafeBranding__LogoUrl")?.Trim();
+
+        return new ReceiptBranding(cafeName, phone, email, tagline, logoUrl);
+    }
+
+    private async Task<byte[]?> TryLoadLogoAsync(string? logoUrl)
+    {
+        if (string.IsNullOrWhiteSpace(logoUrl) || !Uri.TryCreate(logoUrl, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)
+        {
+            _log.LogWarning("Skipping invoice logo with unsupported URI scheme: {Scheme}", uri.Scheme);
+            return null;
+        }
+
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(6);
+            using var response = await client.GetAsync(uri);
+            if (!response.IsSuccessStatusCode)
+            {
+                _log.LogWarning("Unable to load invoice logo from {LogoUrl}. Status: {StatusCode}", logoUrl, response.StatusCode);
+                return null;
+            }
+
+            return await response.Content.ReadAsByteArrayAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Unable to load invoice logo from {LogoUrl}", logoUrl);
+            return null;
+        }
+    }
+
+    private sealed record ReceiptBranding(string CafeName, string? Phone, string? Email, string? Tagline, string? LogoUrl);
 }

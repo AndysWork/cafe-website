@@ -302,7 +302,13 @@ public class CounterSaleFunction
                 return notFound;
             }
 
-            var invoiceText = _invoiceRender.Render(order, 48);
+            Outlet? outlet = null;
+            if (!string.IsNullOrWhiteSpace(order.OutletId))
+            {
+                outlet = await _mongo.GetOutletByIdAsync(order.OutletId);
+            }
+
+            var invoiceText = _invoiceRender.Render(order, outlet, 48);
             var printed = await _thermalPrinter.TryPrintInvoiceAsync(order, invoiceText, "CounterSaleManualReprint");
             if (!printed)
             {

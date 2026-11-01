@@ -109,6 +109,14 @@ public class OutletSettings
     [BsonElement("packagingCharge")]
     [Range(0, 1000, ErrorMessage = "Packaging charge must be between 0 and 1000")]
     public decimal PackagingCharge { get; set; }
+
+    [BsonElement("invoiceLogoUrl")]
+    [StringLength(500, ErrorMessage = "Invoice logo URL cannot exceed 500 characters")]
+    public string? InvoiceLogoUrl { get; set; }
+
+    [BsonElement("invoiceTagline")]
+    [StringLength(200, ErrorMessage = "Invoice tagline cannot exceed 200 characters")]
+    public string? InvoiceTagline { get; set; }
 }
 
 // Request/Response DTOs

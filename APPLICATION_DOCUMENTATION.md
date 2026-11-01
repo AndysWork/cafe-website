@@ -865,6 +865,9 @@ flowchart LR
 ```
 
 - **API settings:** `ThermalPrinter__KotEndpoint` (bridge `/print` URL), `ThermalPrinter__ApiKey` (shared secret, equal to the bridge `apiKey`), `ThermalPrinter__Enabled`, `ThermalPrinter__KotCopies`, and optionally `ThermalPrinter__InvoiceEndpoint` / `ThermalPrinter__InvoiceCopies` (bills fall back to the KOT printer).
+- **Invoice branding (PDF + thermal text):** Bills can include cafe identity details from outlet settings or environment defaults.
+  - Outlet-level: `settings.invoiceLogoUrl`, `settings.invoiceTagline`, plus outlet `phoneNumber` and `email`.
+  - Environment fallback: `CafeBranding__Name`, `CafeBranding__LogoUrl`, `CafeBranding__Tagline`, `CafeBranding__Phone`, `CafeBranding__Email`.
 - **Reliability:** The bridge answers only after the printer accepts the job; failures return 502 and the outbox retries. Identical jobs repeated within 30 seconds are acknowledged without reprinting, preventing double kitchen tickets after an API timeout.
 - **Formatting:** `₹` prints as `Rs.`; unsupported scripts print as `?`; the takeaway banner and token print bold and double height.
 - **Android tablet option:** [print-bridge/README.md §5.1](print-bridge/README.md#51-run-on-an-android-tablet-with-termux) documents the Termux setup, Cloudflare tunnel, boot startup and status checks. The tablet and kitchen printer must stay on the cafe WiFi; keep the tablet powered and exempt Termux from battery restrictions. An always-on PC remains the more reliable bridge host.

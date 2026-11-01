@@ -5,13 +5,26 @@ namespace Cafe.Api.Services;
 
 public class InvoiceRenderService
 {
-    public string Render(Order order, int width = 48)
+    public string Render(Order order, Outlet? outlet, int width = 48)
     {
+        var branding = ResolveBranding(outlet);
         var sb = new StringBuilder();
         var invoiceNumber = BuildInvoiceNumber(order);
         var printedAt = MongoService.GetIstNow().ToString("dd MMM yyyy hh:mm tt");
 
-        sb.AppendLine(Center("MAA TARA CAFE", width));
+        sb.AppendLine(Center(branding.CafeName, width));
+        if (!string.IsNullOrWhiteSpace(branding.Tagline))
+        {
+            sb.AppendLine(Center(branding.Tagline, width));
+        }
+        if (!string.IsNullOrWhiteSpace(branding.Phone))
+        {
+            sb.AppendLine(Center($"Phone: {branding.Phone}", width));
+        }
+        if (!string.IsNullOrWhiteSpace(branding.Email))
+        {
+            sb.AppendLine(Center($"Email: {branding.Email}", width));
+        }
         sb.AppendLine(Center("COUNTER SALE INVOICE", width));
         sb.AppendLine(new string('-', width));
         sb.AppendLine($"Invoice : {invoiceNumber}");
@@ -67,6 +80,11 @@ public class InvoiceRenderService
         return sb.ToString();
     }
 
+    public string Render(Order order, int width = 48)
+    {
+        return Render(order, outlet: null, width);
+    }
+
     private static string Center(string text, int width)
     {
         if (string.IsNullOrEmpty(text) || text.Length >= width) return text;
@@ -99,4 +117,27 @@ public class InvoiceRenderService
         var suffix = order.Id?.Length >= 6 ? order.Id[^6..].ToUpperInvariant() : (order.Id ?? "NA").ToUpperInvariant();
         return $"CS-{order.CreatedAt:yyyyMMdd}-{suffix}";
     }
+
+    private static InvoiceBranding ResolveBranding(Outlet? outlet)
+    {
+        var cafeName = !string.IsNullOrWhiteSpace(outlet?.OutletName)
+            ? outlet.OutletName.Trim()
+            : (Environment.GetEnvironmentVariable("CafeBranding__Name")?.Trim() ?? "MAA TARA CAFE");
+
+        var phone = !string.IsNullOrWhiteSpace(outlet?.PhoneNumber)
+            ? outlet.PhoneNumber.Trim()
+            : Environment.GetEnvironmentVariable("CafeBranding__Phone")?.Trim();
+
+        var email = !string.IsNullOrWhiteSpace(outlet?.Email)
+            ? outlet.Email.Trim()
+            : Environment.GetEnvironmentVariable("CafeBranding__Email")?.Trim();
+
+        var tagline = !string.IsNullOrWhiteSpace(outlet?.Settings?.InvoiceTagline)
+            ? outlet.Settings.InvoiceTagline.Trim()
+            : Environment.GetEnvironmentVariable("CafeBranding__Tagline")?.Trim();
+
+        return new InvoiceBranding(cafeName, phone, email, tagline);
+    }
+
+    private sealed record InvoiceBranding(string CafeName, string? Phone, string? Email, string? Tagline);
 }

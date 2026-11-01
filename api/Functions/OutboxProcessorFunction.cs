@@ -27,6 +27,7 @@ public class OutboxProcessorFunction
     private readonly IOrderRepository _orderRepo;
     private readonly IOperationsRepository _operationsRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
+    private readonly MongoService _mongo;
     private readonly KotRenderService _kotRender;
     private readonly InvoiceRenderService _invoiceRender;
     private readonly ThermalPrinterService _thermalPrinter;
@@ -42,6 +43,7 @@ public class OutboxProcessorFunction
         IOrderRepository orderRepo,
         IOperationsRepository operationsRepo,
         ILoyaltyRepository loyaltyRepo,
+        MongoService mongo,
         KotRenderService kotRender,
         InvoiceRenderService invoiceRender,
         ThermalPrinterService thermalPrinter,
@@ -56,6 +58,7 @@ public class OutboxProcessorFunction
         _orderRepo = orderRepo;
         _operationsRepo = operationsRepo;
         _loyaltyRepo = loyaltyRepo;
+        _mongo = mongo;
         _kotRender = kotRender;
         _invoiceRender = invoiceRender;
         _thermalPrinter = thermalPrinter;
@@ -238,7 +241,13 @@ public class OutboxProcessorFunction
                         throw new InvalidOperationException($"Order {thermalInvoice.OrderId} not found for thermal invoice print");
                     }
 
-                    var invoiceText = _invoiceRender.Render(printOrder, 48);
+                    Outlet? outlet = null;
+                    if (!string.IsNullOrWhiteSpace(printOrder.OutletId))
+                    {
+                        outlet = await _mongo.GetOutletByIdAsync(printOrder.OutletId);
+                    }
+
+                    var invoiceText = _invoiceRender.Render(printOrder, outlet, 48);
                     var printed = await _thermalPrinter.TryPrintInvoiceAsync(
                         printOrder,
                         invoiceText,
