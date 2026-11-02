@@ -203,6 +203,26 @@
   gap: 0.75rem;
 }
 
+.item-cancel-list {
+  border: 1px dashed #d8e2e6;
+  border-radius: 0.5rem;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+  background: #fbfdff;
+}
+
+.item-cancel-title {
+  color: #475569;
+}
+
+.item-cancel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

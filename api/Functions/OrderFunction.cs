@@ -802,6 +802,16 @@ public class OrderFunction
                 return notFound;
             }
 
+            if (!IsEligibleForAdminReconciliation(order))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new
+                {
+                    error = "Reconciliation is allowed only for Web Sales, Dine-In, Takeaway, Phone Order, and Counter Sale orders"
+                });
+                return conflict;
+            }
+
             // Users can only view their own orders, admins can view all
             if (role != "admin" && order.UserId != userId)
             {
@@ -1148,6 +1158,7 @@ public class OrderFunction
 
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+            var isCashierRole = RoleHelper.HasAnyRole(principal, RoleHelper.CashierRoles);
 
             var order = await _orderRepo.GetOrderByIdAsync(id);
             if (order == null)
@@ -1157,11 +1168,22 @@ public class OrderFunction
                 return notFound;
             }
 
-            if (role != "admin" && order.UserId != userId)
+            if (!isCashierRole && order.UserId != userId)
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
                 await forbidden.WriteAsJsonAsync(new { error = "Access denied" });
                 return forbidden;
+            }
+
+            if (isCashierRole)
+            {
+                var (hasAccess, _, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo, order.OutletId);
+                if (!hasAccess)
+                {
+                    var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                    await forbidden.WriteAsJsonAsync(new { error = accessError ?? "Outlet access denied" });
+                    return forbidden;
+                }
             }
 
             if (order.Status != "pending" && order.Status != "confirmed" && order.Status != "scheduled")
@@ -1256,6 +1278,518 @@ public class OrderFunction
             await res.WriteAsJsonAsync(new { error = "An error occurred while cancelling item" });
             return res;
         }
+    }
+
+    [Function("AdminReconcileOrder")]
+    public async Task<HttpResponseData> AdminReconcileOrder(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "admin/orders/{id}/reconcile")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var (isAuthorized, adminUserId, role, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized || string.IsNullOrWhiteSpace(adminUserId))
+            {
+                return errorResponse!;
+            }
+
+            var (reconcileRequest, validationError) = await ValidationHelper.ValidateBody<AdminReconcileOrderRequest>(req);
+            if (validationError != null) return validationError;
+
+            var order = await _orderRepo.GetOrderByIdAsync(id);
+            if (order == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Order not found" });
+                return notFound;
+            }
+
+            var normalizedStatus = reconcileRequest.Status?.Trim().ToLowerInvariant();
+            var normalizedPaymentStatus = reconcileRequest.PaymentStatus?.Trim().ToLowerInvariant();
+            var normalizedPaymentMethod = reconcileRequest.PaymentMethod?.Trim().ToLowerInvariant();
+
+            var validStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "scheduled", "pending", "confirmed", "preparing", "ready",
+                "served", "out-for-delivery", "delivered", "cancelled", "awaiting_waiter_approval"
+            };
+            var validPaymentStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "pending", "paid", "refunded", "partially_paid", "unpaid", "pending_verification", "pending_cash", "processing"
+            };
+            var validPaymentMethods = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "cod", "upi-qr", "dine_in_tab", "cash_at_counter"
+            };
+
+            if (!string.IsNullOrWhiteSpace(normalizedStatus) && !validStatuses.Contains(normalizedStatus))
+            {
+                var badStatus = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badStatus.WriteAsJsonAsync(new
+                {
+                    error = $"Invalid status. Valid values: {string.Join(", ", validStatuses.OrderBy(x => x))}"
+                });
+                return badStatus;
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedPaymentStatus) && !validPaymentStatuses.Contains(normalizedPaymentStatus))
+            {
+                var badPaymentStatus = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badPaymentStatus.WriteAsJsonAsync(new
+                {
+                    error = $"Invalid payment status. Valid values: {string.Join(", ", validPaymentStatuses.OrderBy(x => x))}"
+                });
+                return badPaymentStatus;
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedPaymentMethod) && !validPaymentMethods.Contains(normalizedPaymentMethod))
+            {
+                var badPaymentMethod = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badPaymentMethod.WriteAsJsonAsync(new
+                {
+                    error = $"Invalid payment method. Valid values: {string.Join(", ", validPaymentMethods.OrderBy(x => x))}"
+                });
+                return badPaymentMethod;
+            }
+
+            var oldState = new
+            {
+                order.CreatedAt,
+                order.Status,
+                order.PaymentStatus,
+                order.PaymentMethod,
+                order.Subtotal,
+                order.Tax,
+                order.PlatformCharge,
+                order.DeliveryFee,
+                order.PackagingCharge,
+                order.DiscountAmount,
+                order.LoyaltyDiscountAmount,
+                order.Total,
+                ItemsCount = order.Items.Count
+            };
+
+            var now = MongoService.GetIstNow();
+
+            if (reconcileRequest.Items != null)
+            {
+                if (reconcileRequest.Items.Count == 0)
+                {
+                    var badItems = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badItems.WriteAsJsonAsync(new { error = "When provided, items list cannot be empty" });
+                    return badItems;
+                }
+
+                order.Items = reconcileRequest.Items.Select(item =>
+                {
+                    var addOns = (item.SelectedAddOns ?? new List<OrderItemAddOn>())
+                        .Where(a => !string.IsNullOrWhiteSpace(a.Name) && a.Price >= 0)
+                        .Select(a => new OrderItemAddOn
+                        {
+                            Name = a.Name.Trim(),
+                            Price = Math.Round(a.Price, 2)
+                        })
+                        .ToList();
+
+                    var addOnTotal = Math.Round(addOns.Sum(a => a.Price), 2);
+                    var baseUnitPrice = Math.Round(item.BaseUnitPrice, 2);
+                    var unitPrice = Math.Round(baseUnitPrice + addOnTotal, 2);
+                    var total = Math.Round(unitPrice * item.Quantity, 2);
+
+                    return new OrderItem
+                    {
+                        MenuItemId = item.MenuItemId.Trim(),
+                        Name = item.Name.Trim(),
+                        Description = string.IsNullOrWhiteSpace(item.Description) ? null : item.Description.Trim(),
+                        CategoryName = string.IsNullOrWhiteSpace(item.CategoryName) ? null : item.CategoryName.Trim(),
+                        Quantity = item.Quantity,
+                        BaseUnitPrice = baseUnitPrice,
+                        Price = unitPrice,
+                        SelectedVariantName = string.IsNullOrWhiteSpace(item.SelectedVariantName) ? null : item.SelectedVariantName.Trim(),
+                        SelectedVariantPrice = string.IsNullOrWhiteSpace(item.SelectedVariantName) ? null : baseUnitPrice,
+                        SelectedAddOns = addOns,
+                        AddOnTotal = addOnTotal,
+                        Total = total
+                    };
+                }).ToList();
+            }
+
+            if (order.Items.Count == 0)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Order must contain at least one item" });
+                return badRequest;
+            }
+
+            order.Status = string.IsNullOrWhiteSpace(normalizedStatus) ? order.Status : normalizedStatus;
+            order.PaymentStatus = string.IsNullOrWhiteSpace(normalizedPaymentStatus) ? order.PaymentStatus : normalizedPaymentStatus;
+            order.PaymentMethod = string.IsNullOrWhiteSpace(normalizedPaymentMethod) ? order.PaymentMethod : normalizedPaymentMethod;
+
+            order.UpiReference = reconcileRequest.UpiReference?.Trim();
+            order.DeliveryAddress = reconcileRequest.DeliveryAddress?.Trim();
+            order.PhoneNumber = reconcileRequest.PhoneNumber?.Trim();
+            order.CustomerName = reconcileRequest.CustomerName?.Trim();
+            order.Notes = reconcileRequest.Notes?.Trim();
+            order.PreparationNotes = reconcileRequest.PreparationNotes?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(reconcileRequest.CreatedAt))
+            {
+                if (!DateTimeOffset.TryParse(reconcileRequest.CreatedAt.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var parsedCreatedAt))
+                {
+                    var badCreatedAt = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badCreatedAt.WriteAsJsonAsync(new
+                    {
+                        error = "Invalid createdAt value. Use an ISO timestamp like 2026-11-02T10:00:00+05:30."
+                    });
+                    return badCreatedAt;
+                }
+
+                order.CreatedAt = parsedCreatedAt.DateTime;
+            }
+
+            if (reconcileRequest.ClearCouponAndLoyalty)
+            {
+                order.CouponCode = null;
+                order.LoyaltyPointsUsed = 0;
+                order.DiscountAmount = 0;
+                order.LoyaltyDiscountAmount = 0;
+            }
+
+            order.Subtotal = reconcileRequest.ManualSubtotalOverride.HasValue
+                ? Math.Round(reconcileRequest.ManualSubtotalOverride.Value, 2)
+                : Math.Round(order.Items.Sum(i => i.Total), 2);
+
+            order.Tax = Math.Round(reconcileRequest.Tax ?? order.Tax, 2);
+            order.PlatformCharge = Math.Round(reconcileRequest.PlatformCharge ?? order.PlatformCharge, 2);
+            order.DeliveryFee = Math.Round(reconcileRequest.DeliveryFee ?? order.DeliveryFee, 2);
+            order.PackagingCharge = Math.Round(reconcileRequest.PackagingCharge ?? order.PackagingCharge, 2);
+            order.DiscountAmount = Math.Round(reconcileRequest.DiscountAmount ?? order.DiscountAmount, 2);
+            order.LoyaltyDiscountAmount = Math.Round(reconcileRequest.LoyaltyDiscountAmount ?? order.LoyaltyDiscountAmount, 2);
+
+            var gross = Math.Max(0, order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee + order.PackagingCharge);
+            order.DiscountAmount = Math.Min(Math.Max(0, order.DiscountAmount), gross);
+            var afterDiscount = Math.Max(0, gross - order.DiscountAmount);
+            order.LoyaltyDiscountAmount = Math.Min(Math.Max(0, order.LoyaltyDiscountAmount), afterDiscount);
+
+            order.Total = reconcileRequest.ManualTotalOverride.HasValue
+                ? Math.Round(Math.Max(0, reconcileRequest.ManualTotalOverride.Value), 2)
+                : Math.Round(Math.Max(0, gross - order.DiscountAmount - order.LoyaltyDiscountAmount), 2);
+
+            if (reconcileRequest.ClearDeliveryPartnerAssignment || string.Equals(order.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                order.DeliveryPartnerId = null;
+                order.DeliveryPartnerName = null;
+                order.NotifiedAt = null;
+                order.NotifiedTargetsCount = 0;
+            }
+
+            if (string.Equals(order.Status, "delivered", StringComparison.OrdinalIgnoreCase))
+            {
+                order.CompletedAt ??= now;
+            }
+            else if (!string.IsNullOrWhiteSpace(normalizedStatus))
+            {
+                order.CompletedAt = null;
+            }
+
+            if (string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+            {
+                order.PaymentRecordedByUserId = adminUserId;
+                order.PaymentRecordedAt ??= now;
+            }
+            else if (!string.IsNullOrWhiteSpace(normalizedPaymentStatus))
+            {
+                order.PaymentRecordedByUserId = null;
+                order.PaymentRecordedAt = null;
+            }
+
+            order.UpdatedAt = now;
+            order.LastReconciledAt = now;
+            order.LastReconciledByUserId = adminUserId;
+            order.LastReconciledByRole = string.IsNullOrWhiteSpace(role) ? RoleHelper.Admin : role;
+            order.LastReconciliationReason = reconcileRequest.Reason.Trim();
+
+            var updated = await _orderRepo.UpdateOrderAsync(order);
+            if (!updated)
+            {
+                var updateFailed = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await updateFailed.WriteAsJsonAsync(new { error = "Failed to reconcile order" });
+                return updateFailed;
+            }
+
+            _ = _eventLog.LogEventAsync("Order", id, "AdminReconciled",
+                actorId: adminUserId,
+                actorRole: string.IsNullOrWhiteSpace(role) ? RoleHelper.Admin : role,
+                oldState: oldState,
+                newState: new
+                {
+                    order.CreatedAt,
+                    order.Status,
+                    order.PaymentStatus,
+                    order.PaymentMethod,
+                    order.Subtotal,
+                    order.Tax,
+                    order.PlatformCharge,
+                    order.DeliveryFee,
+                    order.PackagingCharge,
+                    order.DiscountAmount,
+                    order.LoyaltyDiscountAmount,
+                    order.Total,
+                    ItemsCount = order.Items.Count,
+                    Reason = order.LastReconciliationReason
+                },
+                outletId: order.OutletId);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(MapToOrderResponse(order));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error reconciling order {OrderId}", id);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "An error occurred while reconciling order" });
+            return error;
+        }
+    }
+
+    [Function("AdminReconcileOrderLegacyRoute")]
+    public Task<HttpResponseData> AdminReconcileOrderLegacyRoute(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "orders/{id}/reconcile")] HttpRequestData req,
+        string id)
+    {
+        return AdminReconcileOrder(req, id);
+    }
+
+    [Function("AdminCreateMissedOrder")]
+    public async Task<HttpResponseData> AdminCreateMissedOrder(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/orders/reconcile/missed")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, adminUserId, role, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized || string.IsNullOrWhiteSpace(adminUserId))
+            {
+                return errorResponse!;
+            }
+
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badOutlet = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badOutlet.WriteAsJsonAsync(new { error = "Please select an outlet before adding missed orders" });
+                return badOutlet;
+            }
+
+            var (createRequest, validationError) = await ValidationHelper.ValidateBody<AdminCreateMissedOrderRequest>(req);
+            if (validationError != null) return validationError;
+
+            if (!DateTimeOffset.TryParse(createRequest.CreatedAt.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var parsedCreatedAt))
+            {
+                var badCreatedAt = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badCreatedAt.WriteAsJsonAsync(new
+                {
+                    error = "Invalid createdAt value. Use an ISO timestamp like 2026-11-02T10:00:00+05:30."
+                });
+                return badCreatedAt;
+            }
+
+            var normalizedStatus = string.IsNullOrWhiteSpace(createRequest.Status)
+                ? "delivered"
+                : createRequest.Status.Trim().ToLowerInvariant();
+            var normalizedPaymentStatus = string.IsNullOrWhiteSpace(createRequest.PaymentStatus)
+                ? "paid"
+                : createRequest.PaymentStatus.Trim().ToLowerInvariant();
+            var normalizedPaymentMethod = string.IsNullOrWhiteSpace(createRequest.PaymentMethod)
+                ? "cash_at_counter"
+                : createRequest.PaymentMethod.Trim().ToLowerInvariant();
+            var orderType = createRequest.OrderType.Trim().ToLowerInvariant();
+            var channel = NormalizeOrderChannel(createRequest.Channel, orderType);
+
+            var validStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "scheduled", "pending", "confirmed", "preparing", "ready",
+                "served", "out-for-delivery", "delivered", "cancelled", "awaiting_waiter_approval"
+            };
+            var validPaymentStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "pending", "paid", "refunded", "partially_paid", "unpaid", "pending_verification", "pending_cash", "processing"
+            };
+            var validPaymentMethods = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "cod", "upi-qr", "dine_in_tab", "cash_at_counter"
+            };
+
+            if (!validStatuses.Contains(normalizedStatus))
+            {
+                var badStatus = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badStatus.WriteAsJsonAsync(new
+                {
+                    error = $"Invalid status. Valid values: {string.Join(", ", validStatuses.OrderBy(x => x))}"
+                });
+                return badStatus;
+            }
+
+            if (!validPaymentStatuses.Contains(normalizedPaymentStatus))
+            {
+                var badPaymentStatus = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badPaymentStatus.WriteAsJsonAsync(new
+                {
+                    error = $"Invalid payment status. Valid values: {string.Join(", ", validPaymentStatuses.OrderBy(x => x))}"
+                });
+                return badPaymentStatus;
+            }
+
+            if (!validPaymentMethods.Contains(normalizedPaymentMethod))
+            {
+                var badPaymentMethod = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badPaymentMethod.WriteAsJsonAsync(new
+                {
+                    error = $"Invalid payment method. Valid values: {string.Join(", ", validPaymentMethods.OrderBy(x => x))}"
+                });
+                return badPaymentMethod;
+            }
+
+            var orderItems = createRequest.Items.Select(item =>
+            {
+                var addOns = (item.SelectedAddOns ?? new List<OrderItemAddOn>())
+                    .Where(a => !string.IsNullOrWhiteSpace(a.Name) && a.Price >= 0)
+                    .Select(a => new OrderItemAddOn
+                    {
+                        Name = a.Name.Trim(),
+                        Price = Math.Round(a.Price, 2)
+                    })
+                    .ToList();
+
+                var addOnTotal = Math.Round(addOns.Sum(a => a.Price), 2);
+                var baseUnitPrice = Math.Round(item.BaseUnitPrice, 2);
+                var unitPrice = Math.Round(baseUnitPrice + addOnTotal, 2);
+                var total = Math.Round(unitPrice * item.Quantity, 2);
+
+                return new OrderItem
+                {
+                    MenuItemId = item.MenuItemId.Trim(),
+                    Name = item.Name.Trim(),
+                    Description = string.IsNullOrWhiteSpace(item.Description) ? null : item.Description.Trim(),
+                    CategoryName = string.IsNullOrWhiteSpace(item.CategoryName) ? null : item.CategoryName.Trim(),
+                    Quantity = item.Quantity,
+                    BaseUnitPrice = baseUnitPrice,
+                    Price = unitPrice,
+                    SelectedVariantName = string.IsNullOrWhiteSpace(item.SelectedVariantName) ? null : item.SelectedVariantName.Trim(),
+                    SelectedVariantPrice = string.IsNullOrWhiteSpace(item.SelectedVariantName) ? null : baseUnitPrice,
+                    SelectedAddOns = addOns,
+                    AddOnTotal = addOnTotal,
+                    Total = total
+                };
+            }).ToList();
+
+            if (orderItems.Count == 0)
+            {
+                var badItems = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badItems.WriteAsJsonAsync(new { error = "At least one order item is required" });
+                return badItems;
+            }
+
+            var computedSubtotal = Math.Round(orderItems.Sum(x => x.Total), 2);
+            var subtotal = createRequest.ManualSubtotalOverride.HasValue
+                ? Math.Round(Math.Max(0, createRequest.ManualSubtotalOverride.Value), 2)
+                : computedSubtotal;
+            var tax = Math.Round(Math.Max(0, createRequest.Tax ?? 0), 2);
+            var platformCharge = Math.Round(Math.Max(0, createRequest.PlatformCharge ?? 0), 2);
+            var deliveryFee = Math.Round(Math.Max(0, createRequest.DeliveryFee ?? 0), 2);
+            var packagingCharge = Math.Round(Math.Max(0, createRequest.PackagingCharge ?? 0), 2);
+            var discountAmount = Math.Round(Math.Max(0, createRequest.DiscountAmount ?? 0), 2);
+            var loyaltyDiscountAmount = Math.Round(Math.Max(0, createRequest.LoyaltyDiscountAmount ?? 0), 2);
+
+            var computedTotal = Math.Round(subtotal + tax + platformCharge + deliveryFee + packagingCharge - discountAmount - loyaltyDiscountAmount, 2);
+            var total = createRequest.ManualTotalOverride.HasValue
+                ? Math.Round(Math.Max(0, createRequest.ManualTotalOverride.Value), 2)
+                : Math.Max(0, computedTotal);
+
+            discountAmount = Math.Min(discountAmount, subtotal + tax + platformCharge + deliveryFee + packagingCharge);
+            loyaltyDiscountAmount = Math.Min(loyaltyDiscountAmount, Math.Max(0, subtotal + tax + platformCharge + deliveryFee + packagingCharge - discountAmount));
+
+            var now = MongoService.GetIstNow();
+            var createdAt = parsedCreatedAt.DateTime;
+            var displayName = string.IsNullOrWhiteSpace(createRequest.Username)
+                ? (string.IsNullOrWhiteSpace(createRequest.CustomerName) ? "Walk-in customer" : createRequest.CustomerName!.Trim())
+                : createRequest.Username.Trim();
+
+            var order = new Order
+            {
+                Id = ObjectId.GenerateNewId().ToString(),
+                OutletId = outletId,
+                UserId = adminUserId,
+                Username = displayName,
+                CustomerName = string.IsNullOrWhiteSpace(createRequest.CustomerName) ? null : createRequest.CustomerName.Trim(),
+                OrderSource = string.IsNullOrWhiteSpace(createRequest.OrderSource) ? null : createRequest.OrderSource.Trim().ToLowerInvariant(),
+                Items = orderItems,
+                Subtotal = subtotal,
+                Tax = tax,
+                PlatformCharge = platformCharge,
+                Total = total,
+                Status = normalizedStatus,
+                PaymentStatus = normalizedPaymentStatus,
+                PaymentMethod = normalizedPaymentMethod,
+                UpiReference = string.IsNullOrWhiteSpace(createRequest.UpiReference) ? null : createRequest.UpiReference.Trim(),
+                DeliveryAddress = string.IsNullOrWhiteSpace(createRequest.DeliveryAddress) ? null : createRequest.DeliveryAddress.Trim(),
+                PhoneNumber = string.IsNullOrWhiteSpace(createRequest.PhoneNumber) ? null : createRequest.PhoneNumber.Trim(),
+                Notes = string.IsNullOrWhiteSpace(createRequest.Notes) ? null : createRequest.Notes.Trim(),
+                PreparationNotes = string.IsNullOrWhiteSpace(createRequest.PreparationNotes) ? null : createRequest.PreparationNotes.Trim(),
+                DiscountAmount = discountAmount,
+                LoyaltyDiscountAmount = loyaltyDiscountAmount,
+                DeliveryFee = deliveryFee,
+                PackagingCharge = packagingCharge,
+                OrderType = orderType,
+                Channel = channel,
+                CreatedAt = createdAt,
+                UpdatedAt = now,
+                LastReconciledAt = now,
+                LastReconciledByUserId = adminUserId,
+                LastReconciledByRole = string.IsNullOrWhiteSpace(role) ? RoleHelper.Admin : role,
+                LastReconciliationReason = createRequest.Reason.Trim(),
+                CompletedAt = normalizedStatus == "delivered" ? createdAt : null,
+                PaymentRecordedByUserId = normalizedPaymentStatus == "paid" ? adminUserId : null,
+                PaymentRecordedAt = normalizedPaymentStatus == "paid" ? createdAt : null
+            };
+
+            var createdOrder = await _orderRepo.CreateOrderAsync(order);
+
+            _ = _eventLog.LogEventAsync("Order", createdOrder.Id!, "AdminInsertedMissedOrder",
+                actorId: adminUserId,
+                actorRole: string.IsNullOrWhiteSpace(role) ? RoleHelper.Admin : role,
+                newState: new
+                {
+                    createdOrder.Id,
+                    createdOrder.OrderType,
+                    createdOrder.Channel,
+                    createdOrder.OrderSource,
+                    createdOrder.Status,
+                    createdOrder.PaymentStatus,
+                    createdOrder.Total,
+                    createdOrder.CreatedAt,
+                    createdOrder.LastReconciliationReason
+                },
+                outletId: createdOrder.OutletId);
+
+            var response = req.CreateResponse(HttpStatusCode.Created);
+            await response.WriteAsJsonAsync(MapToOrderResponse(createdOrder));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error creating missed order from reconciliation");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "An error occurred while creating missed order" });
+            return error;
+        }
+    }
+
+    [Function("AdminCreateMissedOrderLegacyRoute")]
+    public Task<HttpResponseData> AdminCreateMissedOrderLegacyRoute(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "orders/reconcile/missed")] HttpRequestData req)
+    {
+        return AdminCreateMissedOrder(req);
     }
 
     /// <summary>
@@ -1825,6 +2359,10 @@ public class OrderFunction
             Notes = order.Notes,
             CreatedAt = order.CreatedAt,
             UpdatedAt = order.UpdatedAt,
+            LastReconciledAt = order.LastReconciledAt,
+            LastReconciledByUserId = order.LastReconciledByUserId,
+            LastReconciledByRole = order.LastReconciledByRole,
+            LastReconciliationReason = order.LastReconciliationReason,
             CompletedAt = order.CompletedAt,
             ReceiptImageUrl = order.ReceiptImageUrl,
             DeliveryFee = order.DeliveryFee,
@@ -2193,6 +2731,41 @@ public class OrderFunction
         }
 
         return paymentMethod == "upi-qr" && paymentPending;
+    }
+
+    private static bool IsEligibleForAdminReconciliation(Order order)
+    {
+        if (string.Equals(order.OrderSource, "phone", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(order.TakeawaySource, "waiter", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(order.Channel, "web", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var isCounterSale =
+            string.Equals(order.Channel, "shop", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(order.OrderType, "pickup", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(order.TakeawaySource, "waiter", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(order.OrderSource, "phone", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(order.Status, "delivered", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(order.PaymentMethod, "cash_at_counter", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(order.PaymentMethod, "upi-qr", StringComparison.OrdinalIgnoreCase));
+
+        return isCounterSale;
     }
 
     private static DateTime? ParseDateQuery(HttpRequestData req, string key)

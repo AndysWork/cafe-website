@@ -139,6 +139,18 @@ public class Order : ISoftDeletable
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 
+    [BsonElement("lastReconciledAt")]
+    public DateTime? LastReconciledAt { get; set; }
+
+    [BsonElement("lastReconciledByUserId")]
+    public string? LastReconciledByUserId { get; set; }
+
+    [BsonElement("lastReconciledByRole")]
+    public string? LastReconciledByRole { get; set; }
+
+    [BsonElement("lastReconciliationReason")]
+    public string? LastReconciliationReason { get; set; }
+
     [BsonElement("completedAt")]
     public DateTime? CompletedAt { get; set; }
 
@@ -330,6 +342,7 @@ public class Order : ISoftDeletable
     [BsonElement("deletedBy")] public string? DeletedBy { get; set; }
 }
 
+[BsonIgnoreExtraElements]
 public class KitchenChecklistItem
 {
     [BsonElement("id")]
@@ -435,7 +448,7 @@ public class CreateOrderRequest
 
     [StringLength(100, ErrorMessage = "Customer name cannot exceed 100 characters")]
     public string? CustomerName { get; set; }
-    
+
     [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
     public string? Notes { get; set; }
 
@@ -498,6 +511,180 @@ public class AdminConfirmPaymentRequest
     public string? AdminNote { get; set; }
 }
 
+public class AdminReconcileOrderRequest
+{
+    [Required(ErrorMessage = "Reconciliation reason is required")]
+    [StringLength(300, MinimumLength = 5, ErrorMessage = "Reason must be between 5 and 300 characters")]
+    public string Reason { get; set; } = string.Empty;
+
+    [StringLength(40, ErrorMessage = "Status cannot exceed 40 characters")]
+    public string? Status { get; set; }
+
+    [StringLength(40, ErrorMessage = "Payment status cannot exceed 40 characters")]
+    public string? PaymentStatus { get; set; }
+
+    [StringLength(40, ErrorMessage = "Payment method cannot exceed 40 characters")]
+    public string? PaymentMethod { get; set; }
+
+    [StringLength(100, ErrorMessage = "UPI reference cannot exceed 100 characters")]
+    public string? UpiReference { get; set; }
+
+    [StringLength(500, ErrorMessage = "Delivery address cannot exceed 500 characters")]
+    public string? DeliveryAddress { get; set; }
+
+    [IndianPhoneNumber]
+    public string? PhoneNumber { get; set; }
+
+    [StringLength(100, ErrorMessage = "Customer name cannot exceed 100 characters")]
+    public string? CustomerName { get; set; }
+
+    [StringLength(50, ErrorMessage = "Created-at timestamp cannot exceed 50 characters")]
+    public string? CreatedAt { get; set; }
+
+    [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
+    public string? Notes { get; set; }
+
+    [StringLength(500, ErrorMessage = "Preparation notes cannot exceed 500 characters")]
+    public string? PreparationNotes { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Tax must be between 0 and 100000")]
+    public decimal? Tax { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Platform charge must be between 0 and 100000")]
+    public decimal? PlatformCharge { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Delivery fee must be between 0 and 100000")]
+    public decimal? DeliveryFee { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Packaging charge must be between 0 and 100000")]
+    public decimal? PackagingCharge { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Discount amount must be between 0 and 100000")]
+    public decimal? DiscountAmount { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Loyalty discount amount must be between 0 and 100000")]
+    public decimal? LoyaltyDiscountAmount { get; set; }
+
+    [Range(0, 1000000, ErrorMessage = "Manual total must be between 0 and 1000000")]
+    public decimal? ManualTotalOverride { get; set; }
+
+    [Range(0, 1000000, ErrorMessage = "Manual subtotal must be between 0 and 1000000")]
+    public decimal? ManualSubtotalOverride { get; set; }
+
+    public bool ClearDeliveryPartnerAssignment { get; set; }
+
+    public bool ClearCouponAndLoyalty { get; set; }
+
+    public List<AdminReconcileOrderItemRequest>? Items { get; set; }
+}
+
+public class AdminCreateMissedOrderRequest
+{
+    [Required(ErrorMessage = "Reconciliation reason is required")]
+    [StringLength(300, MinimumLength = 5, ErrorMessage = "Reason must be between 5 and 300 characters")]
+    public string Reason { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Created-at timestamp is required")]
+    [StringLength(50, ErrorMessage = "Created-at timestamp cannot exceed 50 characters")]
+    public string CreatedAt { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Order type is required")]
+    [AllowedValuesList("delivery", "pickup", "dine-in")]
+    public string OrderType { get; set; } = "pickup";
+
+    [AllowedValuesList("web", "shop", "partner")]
+    public string? Channel { get; set; }
+
+    [StringLength(50, ErrorMessage = "Order source cannot exceed 50 characters")]
+    public string? OrderSource { get; set; }
+
+    [StringLength(120, ErrorMessage = "Username cannot exceed 120 characters")]
+    public string? Username { get; set; }
+
+    [StringLength(100, ErrorMessage = "Customer name cannot exceed 100 characters")]
+    public string? CustomerName { get; set; }
+
+    [IndianPhoneNumber]
+    public string? PhoneNumber { get; set; }
+
+    [StringLength(500, ErrorMessage = "Delivery address cannot exceed 500 characters")]
+    public string? DeliveryAddress { get; set; }
+
+    [StringLength(100, ErrorMessage = "UPI reference cannot exceed 100 characters")]
+    public string? UpiReference { get; set; }
+
+    [StringLength(40, ErrorMessage = "Status cannot exceed 40 characters")]
+    public string? Status { get; set; }
+
+    [StringLength(40, ErrorMessage = "Payment status cannot exceed 40 characters")]
+    public string? PaymentStatus { get; set; }
+
+    [StringLength(40, ErrorMessage = "Payment method cannot exceed 40 characters")]
+    public string? PaymentMethod { get; set; }
+
+    [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters")]
+    public string? Notes { get; set; }
+
+    [StringLength(500, ErrorMessage = "Preparation notes cannot exceed 500 characters")]
+    public string? PreparationNotes { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Tax must be between 0 and 100000")]
+    public decimal? Tax { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Platform charge must be between 0 and 100000")]
+    public decimal? PlatformCharge { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Delivery fee must be between 0 and 100000")]
+    public decimal? DeliveryFee { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Packaging charge must be between 0 and 100000")]
+    public decimal? PackagingCharge { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Discount amount must be between 0 and 100000")]
+    public decimal? DiscountAmount { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Loyalty discount amount must be between 0 and 100000")]
+    public decimal? LoyaltyDiscountAmount { get; set; }
+
+    [Range(0, 1000000, ErrorMessage = "Manual total must be between 0 and 1000000")]
+    public decimal? ManualTotalOverride { get; set; }
+
+    [Range(0, 1000000, ErrorMessage = "Manual subtotal must be between 0 and 1000000")]
+    public decimal? ManualSubtotalOverride { get; set; }
+
+    [Required(ErrorMessage = "At least one order item is required")]
+    [MinLength(1, ErrorMessage = "At least one order item is required")]
+    public List<AdminReconcileOrderItemRequest> Items { get; set; } = new();
+}
+
+public class AdminReconcileOrderItemRequest
+{
+    [Required(ErrorMessage = "Menu item ID is required")]
+    [StringLength(80, ErrorMessage = "Menu item ID cannot exceed 80 characters")]
+    public string MenuItemId { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Item name is required")]
+    [StringLength(120, ErrorMessage = "Item name cannot exceed 120 characters")]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(300, ErrorMessage = "Description cannot exceed 300 characters")]
+    public string? Description { get; set; }
+
+    [StringLength(100, ErrorMessage = "Category name cannot exceed 100 characters")]
+    public string? CategoryName { get; set; }
+
+    [StringLength(100, ErrorMessage = "Selected variant name cannot exceed 100 characters")]
+    public string? SelectedVariantName { get; set; }
+
+    [Range(1, 1000, ErrorMessage = "Quantity must be between 1 and 1000")]
+    public int Quantity { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Base unit price must be between 0 and 100000")]
+    public decimal BaseUnitPrice { get; set; }
+
+    public List<OrderItemAddOn>? SelectedAddOns { get; set; }
+}
+
 public class DeleteOrderHistoryRequest
 {
     [Required(ErrorMessage = "Outlet code is required")]
@@ -547,6 +734,10 @@ public class OrderResponse
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public DateTime? LastReconciledAt { get; set; }
+    public string? LastReconciledByUserId { get; set; }
+    public string? LastReconciledByRole { get; set; }
+    public string? LastReconciliationReason { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? ReceiptImageUrl { get; set; }
     public decimal DeliveryFee { get; set; }

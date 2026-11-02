@@ -58,6 +58,19 @@
         <div class="meta">
           <small class="chip">{{ item.deliveryAddress || 'No address' }}</small>
         </div>
+        <div class="item-cancel-list" *ngIf="item.items?.length">
+          <small class="item-cancel-title">Item cancellation</small>
+          <div class="item-cancel-row" *ngFor="let orderItem of item.items">
+            <span>{{ orderItem.name }} × {{ orderItem.quantity }}</span>
+            <button
+              type="button"
+              class="secondary"
+              (click)="onCancelOrderItem(item, orderItem)"
+              [disabled]="actionBusy || !canCancelOrderItem(item.status)">
+              Cancel Item
+            </button>
+          </div>
+        </div>
         <div class="actions">
           <input type="text" placeholder="Urgent reason" [(ngModel)]="urgentReasonByOrder[item.id || '']" />
           <button type="button" (click)="onMarkUrgent(item.id)" [disabled]="actionBusy">Mark Urgent</button>
@@ -80,6 +93,19 @@
             <span class="status-chip" [ngClass]="getStatusClass(item.status)">{{ item.status }}</span>
           </div>
           <span class="chip">{{ item.deliveryPartnerName || 'Unassigned' }}</span>
+        </div>
+        <div class="item-cancel-list" *ngIf="item.items?.length">
+          <small class="item-cancel-title">Item cancellation</small>
+          <div class="item-cancel-row" *ngFor="let orderItem of item.items">
+            <span>{{ orderItem.name }} × {{ orderItem.quantity }}</span>
+            <button
+              type="button"
+              class="secondary"
+              (click)="onCancelOrderItem(item, orderItem)"
+              [disabled]="actionBusy || !canCancelOrderItem(item.status)">
+              Cancel Item
+            </button>
+          </div>
         </div>
         <div class="actions">
           <select [(ngModel)]="selectedPartnerByOrder[item.id || '']">

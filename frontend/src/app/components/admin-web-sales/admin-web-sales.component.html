@@ -5,6 +5,7 @@
       <p>Unified admin view for website orders, revenue signals, partner assignment, and growth controls.</p>
     </div>
     <div class="quick-links">
+      <button type="button" class="link-btn" (click)="scrollToOrderManagement()">Past Order Reconciliation</button>
       <a routerLink="/admin/online-sale-tracker" class="link-btn">Sales Tracker</a>
       <a routerLink="/admin/online-profit-tracker" class="link-btn">Profit Tracker</a>
       <a routerLink="/admin/offers" class="link-btn">Offers</a>
@@ -412,23 +413,196 @@
     </div>
 
     <div *ngIf="!loading && filteredWebSalesItemQuantities.length === 0" class="state">
-      No web sales items found for current date range and item search.
+      No items found for current date range and item search.
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="web-order-management">
     <div class="panel-head">
       <h2>Web Order Management</h2>
       <div class="filters">
+        <button type="button" (click)="toggleAddMissedOrderPanel()">
+          {{ showAddMissedOrderPanel ? 'Hide Add Missed Order' : 'Add Missed Order' }}
+        </button>
         <select [(ngModel)]="statusFilter">
           <option value="all">All Statuses</option>
           <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
         </select>
         <input type="text" [(ngModel)]="searchTerm" placeholder="Search by order ID / user / phone" />
       </div>
+
+      <div class="state">
+        Reconciliation is available from the <strong>Reconcile</strong> button in each order row under <strong>Actions</strong>.
+      </div>
     </div>
 
     <div *ngIf="loading" class="state">Loading web orders...</div>
+
+    <div *ngIf="showAddMissedOrderPanel" class="issue-panel reconcile-panel add-missed-order-panel">
+      <div class="issue-head">
+        <h3>Add Missed Order (Admin Recovery)</h3>
+        <small>Create historical order entry to correct reports after incidents</small>
+      </div>
+
+      <div class="reconcile-controls">
+        <label>
+          Reason *
+          <input type="text" [(ngModel)]="missedOrderDraft.reason" placeholder="Why this missed order is being added" />
+        </label>
+        <label>
+          Order Date &amp; Time (IST) *
+          <input type="datetime-local" [(ngModel)]="missedOrderDraft.createdAt" />
+        </label>
+        <label>
+          Order Type
+          <select [(ngModel)]="missedOrderDraft.orderType">
+            <option value="delivery">delivery</option>
+            <option value="pickup">pickup</option>
+            <option value="dine-in">dine-in</option>
+          </select>
+        </label>
+        <label>
+          Channel
+          <select [(ngModel)]="missedOrderDraft.channel">
+            <option value="web">web</option>
+            <option value="shop">shop</option>
+            <option value="partner">partner</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="reconcile-controls">
+        <label>
+          Order Source
+          <input type="text" [(ngModel)]="missedOrderDraft.orderSource" placeholder="phone / counter / web" />
+        </label>
+        <label>
+          Status
+          <select [(ngModel)]="missedOrderDraft.status">
+            <option *ngFor="let status of reconcileStatusOptions" [value]="status">{{ formatStatusLabel(status) }}</option>
+          </select>
+        </label>
+        <label>
+          Payment Status
+          <select [(ngModel)]="missedOrderDraft.paymentStatus">
+            <option *ngFor="let paymentStatus of reconcilePaymentStatusOptions" [value]="paymentStatus">{{ paymentStatus }}</option>
+          </select>
+        </label>
+        <label>
+          Payment Method
+          <select [(ngModel)]="missedOrderDraft.paymentMethod">
+            <option *ngFor="let method of reconcilePaymentMethodOptions" [value]="method">{{ method }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="reconcile-controls">
+        <label>
+          Username
+          <input type="text" [(ngModel)]="missedOrderDraft.username" placeholder="Walk-in customer name" />
+        </label>
+        <label>
+          Customer Name
+          <input type="text" [(ngModel)]="missedOrderDraft.customerName" />
+        </label>
+        <label>
+          Phone
+          <input type="text" [(ngModel)]="missedOrderDraft.phoneNumber" />
+        </label>
+        <label>
+          Delivery Address
+          <input type="text" [(ngModel)]="missedOrderDraft.deliveryAddress" />
+        </label>
+      </div>
+
+      <div class="reconcile-controls">
+        <label>
+          UPI Reference
+          <input type="text" [(ngModel)]="missedOrderDraft.upiReference" />
+        </label>
+        <label>
+          Tax
+          <input type="number" min="0" step="0.01" [(ngModel)]="missedOrderDraft.tax" />
+        </label>
+        <label>
+          Platform Charge
+          <input type="number" min="0" step="0.01" [(ngModel)]="missedOrderDraft.platformCharge" />
+        </label>
+        <label>
+          Delivery Fee
+          <input type="number" min="0" step="0.01" [(ngModel)]="missedOrderDraft.deliveryFee" />
+        </label>
+        <label>
+          Packaging Charge
+          <input type="number" min="0" step="0.01" [(ngModel)]="missedOrderDraft.packagingCharge" />
+        </label>
+        <label>
+          Discount
+          <input type="number" min="0" step="0.01" [(ngModel)]="missedOrderDraft.discountAmount" />
+        </label>
+        <label>
+          Loyalty Discount
+          <input type="number" min="0" step="0.01" [(ngModel)]="missedOrderDraft.loyaltyDiscountAmount" />
+        </label>
+        <label>
+          Manual Subtotal (optional)
+          <input type="number" min="0" step="0.01" [(ngModel)]="missedOrderDraft.manualSubtotalOverride" />
+        </label>
+        <label>
+          Manual Total (optional)
+          <input type="number" min="0" step="0.01" [(ngModel)]="missedOrderDraft.manualTotalOverride" />
+        </label>
+      </div>
+
+      <div class="reconcile-controls textarea-row">
+        <label>
+          Notes
+          <input type="text" [(ngModel)]="missedOrderDraft.notes" />
+        </label>
+        <label>
+          Preparation Notes
+          <input type="text" [(ngModel)]="missedOrderDraft.preparationNotes" />
+        </label>
+      </div>
+
+      <div class="table-wrap reconcile-items-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Menu Item ID</th>
+              <th>Name</th>
+              <th>Qty</th>
+              <th>Base Price</th>
+              <th>Variant</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of missedOrderDraft.items; let i = index">
+              <td><input type="text" [(ngModel)]="row.menuItemId" /></td>
+              <td><input type="text" [(ngModel)]="row.name" /></td>
+              <td><input type="number" min="1" step="1" [(ngModel)]="row.quantity" /></td>
+              <td><input type="number" min="0" step="0.01" [(ngModel)]="row.baseUnitPrice" /></td>
+              <td><input type="text" [(ngModel)]="row.selectedVariantName" /></td>
+              <td>
+                <button type="button" (click)="removeMissedOrderItem(i)">Remove</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="reconcile-footer">
+        <button type="button" (click)="addMissedOrderItem()">Add Item</button>
+        <span class="preview">
+          Preview Subtotal: {{ formatCurrency(getMissedOrderPreviewSubtotal()) }} ·
+          Preview Total: {{ formatCurrency(getMissedOrderPreviewTotal()) }}
+        </span>
+        <button type="button" (click)="submitMissedOrder()" [disabled]="creatingMissedOrder">
+          {{ creatingMissedOrder ? 'Adding…' : 'Add Missed Order' }}
+        </button>
+      </div>
+    </div>
 
     <div class="table-wrap" *ngIf="!loading && filteredOrders.length > 0">
       <table>
@@ -524,6 +698,9 @@
                     {{ isIssuePanelOpen(order.id) ? 'Hide Issues' : 'Issues' }}
                     <span *ngIf="getOpenIssueCount(order.id) > 0">({{ getOpenIssueCount(order.id) }})</span>
                   </button>
+                  <button *ngIf="canReconcileOrder(order)" (click)="toggleReconcilePanel(order)">
+                    {{ isReconcilePanelOpen(order.id) ? 'Hide Reconcile' : 'Reconcile' }}
+                  </button>
                   <a [routerLink]="['/orders', order.id]">Open</a>
                 </div>
               </td>
@@ -581,13 +758,169 @@
                 </div>
               </td>
             </tr>
+            <tr *ngIf="isReconcilePanelOpen(order.id)" class="issue-row">
+              <td colspan="11">
+                <div class="issue-panel reconcile-panel">
+                  <div class="issue-head">
+                    <h3>Admin Order Reconciliation</h3>
+                    <small>Critical recovery use only (crash / incident correction)</small>
+                  </div>
+
+                  <div class="reconcile-controls">
+                    <label>
+                      Reason *
+                      <input
+                        type="text"
+                        [(ngModel)]="getReconcileDraft(order).reason"
+                        placeholder="Explain why this correction is required" />
+                    </label>
+                    <label>
+                      Status
+                      <select [(ngModel)]="getReconcileDraft(order).status">
+                        <option *ngFor="let status of reconcileStatusOptions" [value]="status">{{ formatStatusLabel(status) }}</option>
+                      </select>
+                    </label>
+                    <label>
+                      Payment Status
+                      <select [(ngModel)]="getReconcileDraft(order).paymentStatus">
+                        <option *ngFor="let paymentStatus of reconcilePaymentStatusOptions" [value]="paymentStatus">{{ paymentStatus }}</option>
+                      </select>
+                    </label>
+                    <label>
+                      Payment Method
+                      <select [(ngModel)]="getReconcileDraft(order).paymentMethod">
+                        <option *ngFor="let method of reconcilePaymentMethodOptions" [value]="method">{{ method }}</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div class="reconcile-controls">
+                    <label>
+                      Customer Name
+                      <input type="text" [(ngModel)]="getReconcileDraft(order).customerName" />
+                    </label>
+                    <label>
+                      Order Date &amp; Time (IST)
+                      <input type="datetime-local" [(ngModel)]="getReconcileDraft(order).createdAt" />
+                    </label>
+                    <label>
+                      Phone
+                      <input type="text" [(ngModel)]="getReconcileDraft(order).phoneNumber" />
+                    </label>
+                    <label>
+                      UPI Reference
+                      <input type="text" [(ngModel)]="getReconcileDraft(order).upiReference" />
+                    </label>
+                    <label>
+                      Delivery Address
+                      <input type="text" [(ngModel)]="getReconcileDraft(order).deliveryAddress" />
+                    </label>
+                  </div>
+
+                  <div class="reconcile-controls">
+                    <label>
+                      Tax
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).tax" />
+                    </label>
+                    <label>
+                      Platform Charge
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).platformCharge" />
+                    </label>
+                    <label>
+                      Delivery Fee
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).deliveryFee" />
+                    </label>
+                    <label>
+                      Packaging Charge
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).packagingCharge" />
+                    </label>
+                    <label>
+                      Discount
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).discountAmount" />
+                    </label>
+                    <label>
+                      Loyalty Discount
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).loyaltyDiscountAmount" />
+                    </label>
+                    <label>
+                      Manual Subtotal (optional)
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).manualSubtotalOverride" />
+                    </label>
+                    <label>
+                      Manual Total (optional)
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).manualTotalOverride" />
+                    </label>
+                  </div>
+
+                  <div class="reconcile-controls textarea-row">
+                    <label>
+                      Notes
+                      <input type="text" [(ngModel)]="getReconcileDraft(order).notes" />
+                    </label>
+                    <label>
+                      Preparation Notes
+                      <input type="text" [(ngModel)]="getReconcileDraft(order).preparationNotes" />
+                    </label>
+                  </div>
+
+                  <div class="reconcile-flags">
+                    <label class="checkbox-inline">
+                      <input type="checkbox" [(ngModel)]="getReconcileDraft(order).clearDeliveryPartnerAssignment" />
+                      Clear delivery partner assignment
+                    </label>
+                    <label class="checkbox-inline">
+                      <input type="checkbox" [(ngModel)]="getReconcileDraft(order).clearCouponAndLoyalty" />
+                      Clear coupon and loyalty effects
+                    </label>
+                  </div>
+
+                  <div class="table-wrap reconcile-items-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Menu Item ID</th>
+                          <th>Name</th>
+                          <th>Qty</th>
+                          <th>Base Price</th>
+                          <th>Variant</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr *ngFor="let row of getReconcileDraft(order).items; let i = index">
+                          <td><input type="text" [(ngModel)]="row.menuItemId" /></td>
+                          <td><input type="text" [(ngModel)]="row.name" /></td>
+                          <td><input type="number" min="1" step="1" [(ngModel)]="row.quantity" /></td>
+                          <td><input type="number" min="0" step="0.01" [(ngModel)]="row.baseUnitPrice" /></td>
+                          <td><input type="text" [(ngModel)]="row.selectedVariantName" /></td>
+                          <td>
+                            <button type="button" (click)="removeReconcileItem(order, i)">Remove</button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="reconcile-footer">
+                    <button type="button" (click)="addReconcileItem(order)">Add Item</button>
+                    <span class="preview">
+                      Preview Subtotal: {{ formatCurrency(getReconcilePreviewSubtotal(order)) }} ·
+                      Preview Total: {{ formatCurrency(getReconcilePreviewTotal(order)) }}
+                    </span>
+                    <button type="button" (click)="submitReconciliation(order)" [disabled]="saving || reconcilingOrderId === order.id">
+                      {{ reconcilingOrderId === order.id ? 'Reconciling…' : 'Apply Reconciliation' }}
+                    </button>
+                  </div>
+                </div>
+              </td>
+            </tr>
           </ng-container>
         </tbody>
       </table>
     </div>
 
     <div *ngIf="!loading && filteredOrders.length === 0" class="state">
-      No orders found for current filters.
+      No orders found for current filters. Try adjusting date range, status, or search.
     </div>
   </div>
 </div>

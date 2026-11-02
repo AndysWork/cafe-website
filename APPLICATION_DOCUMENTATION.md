@@ -1309,6 +1309,8 @@ Open **Operations > Phone Delivery Orders** as an **Admin or Manager**, choose t
 
 Assign an outlet delivery partner from the phone-order list. Assignment can happen while the kitchen is pending, confirmed, preparing, or ready, but does not dispatch the order or change kitchen readiness. Kitchen staff pack and mark ready using the existing checklist. Only the assigned delivery partner can pick up a ready order, record COD collection after pickup when applicable, and mark it delivered after payment is paid. Prepaid orders do not need another collection. The delivery dashboard receives `deliveryLocationUrl` as the navigation destination; the server never downloads or follows the customer's Maps link.
 
+On **Manager Operations Board**, managers can now cancel individual order items (not only full-order cancellation) for eligible pre-fulfillment statuses (`pending`, `confirmed`, `scheduled`) using the same `cancel-item` safeguards as cashier cancellation.
+
 ### Routes and contract
 
 Routes below are relative to `/api`. Staff endpoints accept the existing bearer JWT and outlet context (`outletId` in the phone request/query, or `X-Outlet-Id`/default outlet). All role claims are considered for Admin/Manager authorization; a default outlet is context, not permission. Non-admin staff must have current authorized outlet access. No customer account is created or attached to the staff account, and these guest phone orders never earn loyalty.
@@ -1323,6 +1325,13 @@ Routes below are relative to `/api`. Staff endpoints accept the existing bearer 
 | `POST /partner/delivery/orders/{id}/pickup` | Existing partner action: assigned partner only; phone order must be ready, in the partner's outlet, with prepaid payment already paid (COD can remain pending). |
 | `POST /partner/delivery/orders/{id}/cod/confirm` | Existing partner collection action after pickup: records the server total, collection log, actor, and timestamp; marks COD paid. |
 | `POST /partner/delivery/orders/{id}/delivered` | Existing partner action: assigned partner, out-for-delivery status, and paid payment required. |
+
+For recovery during crashes or technical incidents, admins now have a strict reconciliation endpoint:
+
+| Route | Request / response |
+|---|---|
+| `PUT /admin/orders/{id}/reconcile` | **Admin only**. Requires `reason`. Supports item-level replacement (`items[]` with quantity/base price/add-ons), financial corrections (tax/platform/delivery/packaging/discount/loyalty/manual subtotal/manual total), payment fields, status updates (including cancellation), optional order timestamp correction via `createdAt` (ISO date-time), optional partner unassignment, and coupon/loyalty reset. Recomputes totals safely, stamps `lastReconciledAt/by/reason`, and records an `AdminReconciled` event for audit. Allowed order categories: **Web sales**, **Dine-In**, **Takeaway**, **Phone orders**, and **Counter sales**. |
+| `POST /admin/orders/reconcile/missed` | **Admin only**. Creates a missing historical order directly from reconciliation UI for report correction. Requires `reason`, `createdAt`, `orderType`, and `items[]`; supports optional source/channel/status/payment/customer/notes plus financial fields (tax/platform/delivery/packaging/discount/loyalty/manual subtotal/manual total). Stamps reconciliation audit metadata and records an `AdminInsertedMissedOrder` event. |
 
 The authorized `order` shape contains standard order fields, `id`, `items`, totals, fees, payment/status fields, partner information, `kotNumber`, customer/delivery/preparation details, timestamps, and `orderSource:"phone"`, `deliveryLocationUrl`, `recordedByName`, and frontend-relative `trackingPath:"/track-order/{id}?token=..."`. Internally, `channel:"shop"` and `orderType:"delivery"` distinguish these from customer web orders. Raw tracking tokens, request fingerprints, and outbox-recovery metadata are not serialized on standard order/dashboard responses; only the authorized phone endpoints expose a tracking link.
 

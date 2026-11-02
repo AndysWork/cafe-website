@@ -199,6 +199,11 @@ export class AdminLayoutComponent implements OnDestroy {
           route: '/admin/web-sales'
         },
         {
+          icon: '🧾',
+          label: 'Past Order Reconciliation',
+          route: '/admin/web-sales'
+        },
+        {
           icon: '🎁',
           label: 'Offers',
           route: '/admin/offers'

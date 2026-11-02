@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
@@ -57,6 +57,7 @@ export interface Order {
   orderType?: string;
   channel?: 'web' | 'shop' | 'partner';
   deliveryFee?: number;
+  packagingCharge?: number;
   deliveryPartnerId?: string;
   deliveryPartnerName?: string;
   deliveryRouteUrl?: string;
@@ -74,7 +75,74 @@ export interface Order {
   orderSource?: string;
   createdAt: string;
   updatedAt: string;
+  lastReconciledAt?: string;
+  lastReconciledByUserId?: string;
+  lastReconciledByRole?: string;
+  lastReconciliationReason?: string;
   completedAt?: string;
+}
+
+export interface AdminReconcileOrderItemRequest {
+  menuItemId: string;
+  name: string;
+  description?: string;
+  categoryName?: string;
+  selectedVariantName?: string;
+  quantity: number;
+  baseUnitPrice: number;
+  selectedAddOns?: { name: string; price: number }[];
+}
+
+export interface AdminReconcileOrderRequest {
+  reason: string;
+  status?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  upiReference?: string;
+  deliveryAddress?: string;
+  phoneNumber?: string;
+  customerName?: string;
+  createdAt?: string;
+  notes?: string;
+  preparationNotes?: string;
+  tax?: number;
+  platformCharge?: number;
+  deliveryFee?: number;
+  packagingCharge?: number;
+  discountAmount?: number;
+  loyaltyDiscountAmount?: number;
+  manualTotalOverride?: number;
+  manualSubtotalOverride?: number;
+  clearDeliveryPartnerAssignment?: boolean;
+  clearCouponAndLoyalty?: boolean;
+  items?: AdminReconcileOrderItemRequest[];
+}
+
+export interface AdminCreateMissedOrderRequest {
+  reason: string;
+  createdAt: string;
+  orderType: 'delivery' | 'pickup' | 'dine-in';
+  channel?: 'web' | 'shop' | 'partner';
+  orderSource?: string;
+  username?: string;
+  customerName?: string;
+  phoneNumber?: string;
+  deliveryAddress?: string;
+  upiReference?: string;
+  status?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  notes?: string;
+  preparationNotes?: string;
+  tax?: number;
+  platformCharge?: number;
+  deliveryFee?: number;
+  packagingCharge?: number;
+  discountAmount?: number;
+  loyaltyDiscountAmount?: number;
+  manualTotalOverride?: number;
+  manualSubtotalOverride?: number;
+  items: AdminReconcileOrderItemRequest[];
 }
 
 export interface CreateOrderRequest {
@@ -469,6 +537,38 @@ export class OrderService {
 
     return this.http.get<UpiReconciliationReport>(`${this.apiUrl}/manage/reports/upi-reconciliation`, { params }).pipe(
       catchError(handleServiceError('OrderService.getUpiReconciliationReport'))
+    );
+  }
+
+  adminReconcileOrder(orderId: string, payload: AdminReconcileOrderRequest): Observable<Order> {
+    const adminRoute = `${this.apiUrl}/admin/orders/${orderId}/reconcile`;
+    const legacyRoute = `${this.apiUrl}/orders/${orderId}/reconcile`;
+
+    return this.http.put<Order>(adminRoute, payload).pipe(
+      catchError((error) => {
+        if (error?.status === 404) {
+          return this.http.put<Order>(legacyRoute, payload);
+        }
+
+        return throwError(() => error);
+      }),
+      catchError(handleServiceError('OrderService.adminReconcileOrder'))
+    );
+  }
+
+  adminCreateMissedOrder(payload: AdminCreateMissedOrderRequest): Observable<Order> {
+    const adminRoute = `${this.apiUrl}/admin/orders/reconcile/missed`;
+    const legacyRoute = `${this.apiUrl}/orders/reconcile/missed`;
+
+    return this.http.post<Order>(adminRoute, payload).pipe(
+      catchError((error) => {
+        if (error?.status === 404) {
+          return this.http.post<Order>(legacyRoute, payload);
+        }
+
+        return throwError(() => error);
+      }),
+      catchError(handleServiceError('OrderService.adminCreateMissedOrder'))
     );
   }
 }

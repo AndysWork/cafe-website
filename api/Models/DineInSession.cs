@@ -137,6 +137,7 @@ public class DineInSession
     public string? ReopenedReason { get; set; }
 }
 
+[BsonIgnoreExtraElements]
 public class DineInPaymentEntry
 {
     [BsonElement("id")]
@@ -206,6 +207,7 @@ public class DineInVoidRequest
     public string? ReviewNotes { get; set; }
 }
 
+[BsonIgnoreExtraElements]
 public class DineInSessionEvent
 {
     [BsonElement("id")]

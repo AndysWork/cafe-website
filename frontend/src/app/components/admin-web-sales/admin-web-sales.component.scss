@@ -493,6 +493,96 @@
     padding: 0.4rem;
   }
 
+  .reconcile-panel {
+    .reconcile-controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.45rem;
+      margin-bottom: 0.45rem;
+
+      label {
+        display: grid;
+        gap: 0.2rem;
+        font-size: 0.68rem;
+        color: #334155;
+      }
+
+      .add-missed-order-panel {
+        margin-bottom: 0.65rem;
+      }
+
+      input,
+      select {
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 0.3rem 0.42rem;
+        font-size: 0.72rem;
+      }
+    }
+
+    .textarea-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .reconcile-flags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin: 0.35rem 0 0.55rem;
+
+      .checkbox-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.28rem;
+        font-size: 0.68rem;
+      }
+    }
+
+    .reconcile-items-table table {
+      min-width: 760px;
+
+      input {
+        width: 100%;
+        min-width: 0;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 0.24rem 0.35rem;
+        font-size: 0.68rem;
+      }
+
+      button {
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        border-radius: 6px;
+        padding: 0.2rem 0.42rem;
+        font-size: 0.66rem;
+      }
+    }
+
+    .reconcile-footer {
+      margin-top: 0.55rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+
+      .preview {
+        color: #334155;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+
+      button {
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        border-radius: 6px;
+        padding: 0.3rem 0.5rem;
+        font-size: 0.7rem;
+        cursor: pointer;
+      }
+    }
+  }
+
   @media (max-width: 900px) {
     .page-header {
       flex-direction: column;
@@ -501,6 +591,24 @@
     .panel .panel-head {
       flex-direction: column;
       align-items: flex-start;
+    }
+
+    .reconcile-panel {
+      .reconcile-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .textarea-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  }
+
+  @media (max-width: 640px) {
+    .reconcile-panel {
+      .reconcile-controls {
+        grid-template-columns: 1fr;
+      }
     }
   }
 }

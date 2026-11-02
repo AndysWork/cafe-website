@@ -160,6 +160,20 @@
       <p class="reference" *ngIf="order.deliveryAddress">Address: {{ order.deliveryAddress }}</p>
       <p class="reference" *ngIf="order.tableNumber">Table: {{ order.tableNumber }}</p>
 
+      <div class="line-items" *ngIf="order.items?.length">
+        <strong>Ordered items</strong>
+        <div class="line-item-row" *ngFor="let item of order.items">
+          <span>{{ item.name }} × {{ item.quantity }}</span>
+          <button
+            type="button"
+            class="refresh-button"
+            [disabled]="!!confirmingSessionId || !canCancelOrderItem(order)"
+            (click)="cancelActiveOrderItem(order, item)">
+            {{ confirmingSessionId === order.id ? 'Cancelling…' : 'Cancel Item' }}
+          </button>
+        </div>
+      </div>
+
       <button
         type="button"
         class="confirm-button"

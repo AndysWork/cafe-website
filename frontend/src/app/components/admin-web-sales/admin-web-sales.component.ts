@@ -6,12 +6,12 @@ import { RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { Order, OrderIssue, OrderService, UpiReconciliationReport } from '../../services/order.service';
+import { AdminCreateMissedOrderRequest, AdminReconcileOrderRequest, Order, OrderIssue, OrderService, UpiReconciliationReport } from '../../services/order.service';
 import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery-partner.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { ActiveDineInTable, DineInService } from '../../services/dine-in.service';
-import { getIstDateString, getIstFileStamp, getIstInputDate, convertToIst } from '../../utils/date-utils';
+import { getIstDateString, getIstFileStamp, getIstInputDate, convertToIst, getIstIsoString } from '../../utils/date-utils';
 
 interface OnlineSaleSummaryItem {
   id?: string;
@@ -90,6 +90,69 @@ interface HourlyOrderTrendRow {
   ordersShare: number;
 }
 
+interface ReconcileItemDraft {
+  menuItemId: string;
+  name: string;
+  description?: string;
+  categoryName?: string;
+  selectedVariantName?: string;
+  quantity: number;
+  baseUnitPrice: number;
+  selectedAddOns?: { name: string; price: number }[];
+}
+
+interface ReconcileOrderDraft {
+  reason: string;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  upiReference: string;
+  deliveryAddress: string;
+  phoneNumber: string;
+  customerName: string;
+  createdAt: string;
+  notes: string;
+  preparationNotes: string;
+  tax?: number | null;
+  platformCharge?: number | null;
+  deliveryFee?: number | null;
+  packagingCharge?: number | null;
+  discountAmount?: number | null;
+  loyaltyDiscountAmount?: number | null;
+  manualSubtotalOverride?: number | null;
+  manualTotalOverride?: number | null;
+  clearDeliveryPartnerAssignment: boolean;
+  clearCouponAndLoyalty: boolean;
+  items: ReconcileItemDraft[];
+}
+
+interface MissedOrderDraft {
+  reason: string;
+  createdAt: string;
+  orderType: 'delivery' | 'pickup' | 'dine-in';
+  channel: 'web' | 'shop' | 'partner';
+  orderSource: string;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  username: string;
+  customerName: string;
+  phoneNumber: string;
+  deliveryAddress: string;
+  upiReference: string;
+  notes: string;
+  preparationNotes: string;
+  tax?: number | null;
+  platformCharge?: number | null;
+  deliveryFee?: number | null;
+  packagingCharge?: number | null;
+  discountAmount?: number | null;
+  loyaltyDiscountAmount?: number | null;
+  manualSubtotalOverride?: number | null;
+  manualTotalOverride?: number | null;
+  items: ReconcileItemDraft[];
+}
+
 @Component({
   selector: 'app-admin-web-sales',
   standalone: true,
@@ -106,6 +169,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   saving = false;
 
   orders: Order[] = [];
+  reconciliationOrders: Order[] = [];
   partners: DeliveryPartner[] = [];
   webSales: OnlineSaleSummaryItem[] = [];
   dashboardSummary: NonNullable<WebSalesDashboardResponse['data']>['summary'] = {
@@ -136,6 +200,12 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   issueStatusDraft: Record<string, string> = {};
   issueResolutionDraft: Record<string, string> = {};
   issueRefundDraft: Record<string, boolean> = {};
+  expandedReconcileOrderId: string | null = null;
+  reconcilingOrderId: string | null = null;
+  reconcileDraftByOrder: Record<string, ReconcileOrderDraft> = {};
+  showAddMissedOrderPanel = false;
+  creatingMissedOrder = false;
+  missedOrderDraft: MissedOrderDraft = this.createDefaultMissedOrderDraft();
   paymentRefDraft: Record<string, string> = {};
   upiReconLoading = false;
   upiReconciliationReport: UpiReconciliationReport | null = null;
@@ -147,6 +217,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   private readonly istOffsetMs = 330 * 60 * 1000;
 
   readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled'];
+  readonly reconcileStatusOptions = ['scheduled', 'pending', 'confirmed', 'preparing', 'ready', 'served', 'out-for-delivery', 'delivered', 'cancelled'];
+  readonly reconcilePaymentStatusOptions = ['pending', 'paid', 'refunded', 'partially_paid', 'unpaid', 'pending_verification', 'pending_cash', 'processing'];
+  readonly reconcilePaymentMethodOptions = ['cod', 'upi-qr', 'dine_in_tab', 'cash_at_counter'];
 
   constructor(
     private orderService: OrderService,
@@ -167,6 +240,11 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.outletSub?.unsubscribe();
+  }
+
+  scrollToOrderManagement(): void {
+    const section = document.getElementById('web-order-management');
+    section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async loadData(): Promise<void> {
@@ -207,7 +285,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
           );
           this.partners = data?.partners || [];
           this.webSales = data?.webSales || [];
-          resolve();
+          this.loadReconciliationOrders(outletId).finally(() => resolve());
         },
         error: (error) => {
           console.error('Error loading dashboard:', error);
@@ -222,7 +300,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     this.statusDraft = {};
     this.partnerDraft = {};
     this.paymentRefDraft = {};
-    for (const order of this.orders) {
+    for (const order of this.reconciliationOrders) {
       this.statusDraft[order.id] = order.status;
       this.partnerDraft[order.id] = '';
       this.paymentRefDraft[order.id] = '';
@@ -442,13 +520,58 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   get filteredOrders(): Order[] {
     const query = this.searchTerm.trim().toLowerCase();
-    return this.orders.filter(order => {
+    return this.reconciliationOrders.filter(order => {
       const statusMatch = this.statusFilter === 'all' || order.status === this.statusFilter;
       const textMatch = !query ||
         order.id.toLowerCase().includes(query) ||
         (order.username || '').toLowerCase().includes(query) ||
         (order.phoneNumber || '').toLowerCase().includes(query);
       return statusMatch && textMatch;
+    });
+  }
+
+  private async loadReconciliationOrders(outletId: string): Promise<void> {
+    return new Promise((resolve) => {
+      const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
+      this.http.get<Order[]>(`${environment.apiUrl}/orders`, { headers }).subscribe({
+        next: (allOrders) => {
+          const dashboardEligible = (this.orders || []).filter(order => this.canReconcileOrder(order));
+          const allEligible = (allOrders || []).filter(order => this.canReconcileOrder(order));
+          const merged = new Map<string, Order>();
+
+          for (const order of [...dashboardEligible, ...allEligible]) {
+            if (!order?.id) continue;
+            const existing = merged.get(order.id);
+            if (!existing || this.toEpochMillis(order.updatedAt || order.createdAt) >= this.toEpochMillis(existing.updatedAt || existing.createdAt)) {
+              merged.set(order.id, order);
+            }
+          }
+
+          const rangeStart = this.toEpochMillis(this.startDate);
+          const rangeEndExclusive = this.toEpochMillis(this.endDate) + (24 * 60 * 60 * 1000);
+
+          this.reconciliationOrders = [...merged.values()]
+            .filter(order => {
+              const created = this.toEpochMillis(order.createdAt);
+              return created >= rangeStart && created < rangeEndExclusive;
+            })
+            .sort((a, b) => this.toEpochMillis(b.createdAt) - this.toEpochMillis(a.createdAt));
+          resolve();
+        },
+        error: (error) => {
+          console.error('Error loading reconciliation orders:', error);
+          const rangeStart = this.toEpochMillis(this.startDate);
+          const rangeEndExclusive = this.toEpochMillis(this.endDate) + (24 * 60 * 60 * 1000);
+          this.reconciliationOrders = (this.orders || [])
+            .filter(order => this.canReconcileOrder(order))
+            .filter(order => {
+              const created = this.toEpochMillis(order.createdAt);
+              return created >= rangeStart && created < rangeEndExclusive;
+            })
+            .sort((a, b) => this.toEpochMillis(b.createdAt) - this.toEpochMillis(a.createdAt));
+          resolve();
+        }
+      });
     });
   }
 
@@ -461,10 +584,11 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       takeawayQuantity: number;
       phoneOrderQuantity: number;
     }>();
-    const hasOrderRecords = this.orders.length > 0;
+    const analyticsOrders = this.reconciliationOrders.length > 0 ? this.reconciliationOrders : this.orders;
+    const hasOrderRecords = analyticsOrders.length > 0;
 
     if (hasOrderRecords) {
-      for (const order of this.orders) {
+      for (const order of analyticsOrders) {
         for (const item of order.items || []) {
           const name = (item.name || 'Unknown item').trim() || 'Unknown item';
           const quantity = item.quantity || 0;
@@ -878,6 +1002,347 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     });
   }
 
+  canReconcileOrder(order: Order): boolean {
+    const source = String(order.orderSource || '').trim().toLowerCase();
+    if (source === 'phone') return true;
+
+    const orderType = String(order.orderType || '').trim().toLowerCase();
+    if (orderType === 'dine-in' || orderType === 'pickup') return true;
+
+    return this.resolveOrderChannel(order) === 'web';
+  }
+
+  isReconcilePanelOpen(orderId: string): boolean {
+    return this.expandedReconcileOrderId === orderId;
+  }
+
+  toggleReconcilePanel(order: Order): void {
+    if (!this.canReconcileOrder(order)) {
+      this.uiStore.warning('Reconciliation is allowed only for Web, Dine-In, Takeaway, Phone, and Counter Sale orders.');
+      return;
+    }
+
+    if (this.expandedReconcileOrderId === order.id) {
+      this.expandedReconcileOrderId = null;
+      return;
+    }
+
+    this.expandedReconcileOrderId = order.id;
+    this.getReconcileDraft(order);
+  }
+
+  getReconcileDraft(order: Order): ReconcileOrderDraft {
+    const existing = this.reconcileDraftByOrder[order.id];
+    if (existing) return existing;
+
+    const draft: ReconcileOrderDraft = {
+      reason: '',
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      upiReference: order.upiReference || '',
+      deliveryAddress: order.deliveryAddress || '',
+      phoneNumber: order.phoneNumber || '',
+      customerName: order.customerName || '',
+      createdAt: this.toIstDateTimeInput(order.createdAt),
+      notes: order.notes || '',
+      preparationNotes: order.preparationNotes || '',
+      tax: order.tax ?? 0,
+      platformCharge: order.platformCharge ?? 0,
+      deliveryFee: order.deliveryFee ?? 0,
+      packagingCharge: order.packagingCharge ?? 0,
+      discountAmount: order.discountAmount ?? 0,
+      loyaltyDiscountAmount: order.loyaltyDiscountAmount ?? 0,
+      manualSubtotalOverride: null,
+      manualTotalOverride: null,
+      clearDeliveryPartnerAssignment: false,
+      clearCouponAndLoyalty: false,
+      items: (order.items || []).map(item => ({
+        menuItemId: item.menuItemId || '',
+        name: item.name || '',
+        description: item.description || '',
+        categoryName: item.categoryName || '',
+        selectedVariantName: item.selectedVariantName || '',
+        quantity: item.quantity || 1,
+        baseUnitPrice: item.baseUnitPrice ?? Math.max(0, (item.price || 0) - (item.addOnTotal || 0)),
+        selectedAddOns: (item.selectedAddOns || []).map(addOn => ({ name: addOn.name, price: addOn.price }))
+      }))
+    };
+
+    this.reconcileDraftByOrder[order.id] = draft;
+    return draft;
+  }
+
+  addReconcileItem(order: Order): void {
+    const draft = this.getReconcileDraft(order);
+    draft.items.push({
+      menuItemId: '',
+      name: '',
+      quantity: 1,
+      baseUnitPrice: 0,
+      selectedAddOns: []
+    });
+  }
+
+  removeReconcileItem(order: Order, index: number): void {
+    const draft = this.getReconcileDraft(order);
+    if (draft.items.length <= 1) {
+      this.uiStore.warning('At least one item is required.');
+      return;
+    }
+    draft.items.splice(index, 1);
+  }
+
+  getReconcilePreviewSubtotal(order: Order): number {
+    const draft = this.getReconcileDraft(order);
+    return draft.items.reduce((sum, item) => {
+      const addOnTotal = (item.selectedAddOns || []).reduce((s, addOn) => s + (addOn.price || 0), 0);
+      const unitPrice = (item.baseUnitPrice || 0) + addOnTotal;
+      return sum + ((item.quantity || 0) * unitPrice);
+    }, 0);
+  }
+
+  getReconcilePreviewTotal(order: Order): number {
+    const draft = this.getReconcileDraft(order);
+    if (typeof draft.manualTotalOverride === 'number' && Number.isFinite(draft.manualTotalOverride)) {
+      return Math.max(0, draft.manualTotalOverride);
+    }
+
+    const subtotal = (typeof draft.manualSubtotalOverride === 'number' && Number.isFinite(draft.manualSubtotalOverride))
+      ? draft.manualSubtotalOverride
+      : this.getReconcilePreviewSubtotal(order);
+
+    const tax = draft.tax || 0;
+    const platformCharge = draft.platformCharge || 0;
+    const deliveryFee = draft.deliveryFee || 0;
+    const packagingCharge = draft.packagingCharge || 0;
+    const discountAmount = draft.discountAmount || 0;
+    const loyaltyDiscountAmount = draft.loyaltyDiscountAmount || 0;
+
+    return Math.max(0, subtotal + tax + platformCharge + deliveryFee + packagingCharge - discountAmount - loyaltyDiscountAmount);
+  }
+
+  submitReconciliation(order: Order): void {
+    if (!this.canReconcileOrder(order)) {
+      this.uiStore.error('This order type is not eligible for reconciliation.');
+      return;
+    }
+
+    const draft = this.getReconcileDraft(order);
+    const reason = (draft.reason || '').trim();
+    if (reason.length < 5) {
+      this.uiStore.warning('Please enter a clear reconciliation reason (minimum 5 characters).');
+      return;
+    }
+
+    if (!draft.items.length) {
+      this.uiStore.warning('At least one order item is required.');
+      return;
+    }
+
+    const hasInvalidItem = draft.items.some(item =>
+      !item.menuItemId?.trim() || !item.name?.trim() || (item.quantity || 0) <= 0 || (item.baseUnitPrice || 0) < 0
+    );
+    if (hasInvalidItem) {
+      this.uiStore.warning('Each item must have menu item ID, name, quantity, and base price.');
+      return;
+    }
+
+    const payload: AdminReconcileOrderRequest = {
+      reason,
+      status: draft.status,
+      paymentStatus: draft.paymentStatus,
+      paymentMethod: draft.paymentMethod,
+      upiReference: draft.upiReference,
+      deliveryAddress: draft.deliveryAddress,
+      phoneNumber: draft.phoneNumber,
+      customerName: draft.customerName,
+      createdAt: draft.createdAt ? getIstIsoString(draft.createdAt) : undefined,
+      notes: draft.notes,
+      preparationNotes: draft.preparationNotes,
+      tax: this.optionalNumber(draft.tax),
+      platformCharge: this.optionalNumber(draft.platformCharge),
+      deliveryFee: this.optionalNumber(draft.deliveryFee),
+      packagingCharge: this.optionalNumber(draft.packagingCharge),
+      discountAmount: this.optionalNumber(draft.discountAmount),
+      loyaltyDiscountAmount: this.optionalNumber(draft.loyaltyDiscountAmount),
+      manualSubtotalOverride: this.optionalNumber(draft.manualSubtotalOverride),
+      manualTotalOverride: this.optionalNumber(draft.manualTotalOverride),
+      clearDeliveryPartnerAssignment: draft.clearDeliveryPartnerAssignment,
+      clearCouponAndLoyalty: draft.clearCouponAndLoyalty,
+      items: draft.items.map(item => ({
+        menuItemId: item.menuItemId.trim(),
+        name: item.name.trim(),
+        description: item.description,
+        categoryName: item.categoryName,
+        selectedVariantName: item.selectedVariantName,
+        quantity: Math.max(1, Math.trunc(item.quantity || 0)),
+        baseUnitPrice: Math.max(0, item.baseUnitPrice || 0),
+        selectedAddOns: (item.selectedAddOns || []).map(addOn => ({
+          name: addOn.name,
+          price: Math.max(0, addOn.price || 0)
+        }))
+      }))
+    };
+
+    this.saving = true;
+    this.reconcilingOrderId = order.id;
+
+    this.orderService.adminReconcileOrder(order.id, payload).subscribe({
+      next: async () => {
+        this.uiStore.success(`Order ${order.id.slice(-6)} reconciled successfully`);
+        this.expandedReconcileOrderId = null;
+        delete this.reconcileDraftByOrder[order.id];
+        await this.loadDashboardData();
+        this.initializeDrafts();
+        this.saving = false;
+        this.reconcilingOrderId = null;
+      },
+      error: (error) => {
+        console.error('Error reconciling order:', error);
+        this.uiStore.error(error.error?.error || 'Failed to reconcile order');
+        this.saving = false;
+        this.reconcilingOrderId = null;
+      }
+    });
+  }
+
+  toggleAddMissedOrderPanel(): void {
+    this.showAddMissedOrderPanel = !this.showAddMissedOrderPanel;
+    if (this.showAddMissedOrderPanel) {
+      this.missedOrderDraft = this.createDefaultMissedOrderDraft();
+    }
+  }
+
+  addMissedOrderItem(): void {
+    this.missedOrderDraft.items.push({
+      menuItemId: '',
+      name: '',
+      quantity: 1,
+      baseUnitPrice: 0,
+      selectedAddOns: []
+    });
+  }
+
+  removeMissedOrderItem(index: number): void {
+    if (this.missedOrderDraft.items.length <= 1) {
+      this.uiStore.warning('At least one item is required.');
+      return;
+    }
+
+    this.missedOrderDraft.items.splice(index, 1);
+  }
+
+  getMissedOrderPreviewSubtotal(): number {
+    return this.missedOrderDraft.items.reduce((sum, item) => {
+      const addOnTotal = (item.selectedAddOns || []).reduce((s, addOn) => s + (addOn.price || 0), 0);
+      const unitPrice = (item.baseUnitPrice || 0) + addOnTotal;
+      return sum + ((item.quantity || 0) * unitPrice);
+    }, 0);
+  }
+
+  getMissedOrderPreviewTotal(): number {
+    if (typeof this.missedOrderDraft.manualTotalOverride === 'number' && Number.isFinite(this.missedOrderDraft.manualTotalOverride)) {
+      return Math.max(0, this.missedOrderDraft.manualTotalOverride);
+    }
+
+    const subtotal = (typeof this.missedOrderDraft.manualSubtotalOverride === 'number' && Number.isFinite(this.missedOrderDraft.manualSubtotalOverride))
+      ? this.missedOrderDraft.manualSubtotalOverride
+      : this.getMissedOrderPreviewSubtotal();
+
+    const tax = this.missedOrderDraft.tax || 0;
+    const platformCharge = this.missedOrderDraft.platformCharge || 0;
+    const deliveryFee = this.missedOrderDraft.deliveryFee || 0;
+    const packagingCharge = this.missedOrderDraft.packagingCharge || 0;
+    const discountAmount = this.missedOrderDraft.discountAmount || 0;
+    const loyaltyDiscountAmount = this.missedOrderDraft.loyaltyDiscountAmount || 0;
+
+    return Math.max(0, subtotal + tax + platformCharge + deliveryFee + packagingCharge - discountAmount - loyaltyDiscountAmount);
+  }
+
+  submitMissedOrder(): void {
+    const draft = this.missedOrderDraft;
+    const reason = (draft.reason || '').trim();
+    if (reason.length < 5) {
+      this.uiStore.warning('Please enter a clear reason (minimum 5 characters).');
+      return;
+    }
+
+    if (!draft.createdAt) {
+      this.uiStore.warning('Please select order date and time.');
+      return;
+    }
+
+    if (!draft.items.length) {
+      this.uiStore.warning('At least one order item is required.');
+      return;
+    }
+
+    const hasInvalidItem = draft.items.some(item =>
+      !item.menuItemId?.trim() || !item.name?.trim() || (item.quantity || 0) <= 0 || (item.baseUnitPrice || 0) < 0
+    );
+    if (hasInvalidItem) {
+      this.uiStore.warning('Each item must have menu item ID, name, quantity, and base price.');
+      return;
+    }
+
+    const payload: AdminCreateMissedOrderRequest = {
+      reason,
+      createdAt: getIstIsoString(draft.createdAt),
+      orderType: draft.orderType,
+      channel: draft.channel,
+      orderSource: draft.orderSource || undefined,
+      status: draft.status || undefined,
+      paymentStatus: draft.paymentStatus || undefined,
+      paymentMethod: draft.paymentMethod || undefined,
+      username: draft.username || undefined,
+      customerName: draft.customerName || undefined,
+      phoneNumber: draft.phoneNumber || undefined,
+      deliveryAddress: draft.deliveryAddress || undefined,
+      upiReference: draft.upiReference || undefined,
+      notes: draft.notes || undefined,
+      preparationNotes: draft.preparationNotes || undefined,
+      tax: this.optionalNumber(draft.tax),
+      platformCharge: this.optionalNumber(draft.platformCharge),
+      deliveryFee: this.optionalNumber(draft.deliveryFee),
+      packagingCharge: this.optionalNumber(draft.packagingCharge),
+      discountAmount: this.optionalNumber(draft.discountAmount),
+      loyaltyDiscountAmount: this.optionalNumber(draft.loyaltyDiscountAmount),
+      manualSubtotalOverride: this.optionalNumber(draft.manualSubtotalOverride),
+      manualTotalOverride: this.optionalNumber(draft.manualTotalOverride),
+      items: draft.items.map(item => ({
+        menuItemId: item.menuItemId.trim(),
+        name: item.name.trim(),
+        description: item.description,
+        categoryName: item.categoryName,
+        selectedVariantName: item.selectedVariantName,
+        quantity: Math.max(1, Math.trunc(item.quantity || 0)),
+        baseUnitPrice: Math.max(0, item.baseUnitPrice || 0),
+        selectedAddOns: (item.selectedAddOns || []).map(addOn => ({
+          name: addOn.name,
+          price: Math.max(0, addOn.price || 0)
+        }))
+      }))
+    };
+
+    this.creatingMissedOrder = true;
+    this.orderService.adminCreateMissedOrder(payload).subscribe({
+      next: async () => {
+        this.uiStore.success('Missed order added successfully');
+        this.showAddMissedOrderPanel = false;
+        this.missedOrderDraft = this.createDefaultMissedOrderDraft();
+        await this.loadDashboardData();
+        this.initializeDrafts();
+        this.creatingMissedOrder = false;
+      },
+      error: (error) => {
+        console.error('Error adding missed order:', error);
+        this.uiStore.error(error.error?.error || 'Failed to add missed order');
+        this.creatingMissedOrder = false;
+      }
+    });
+  }
+
   canAssignPartner(order: Order): boolean {
     return order.orderType === 'delivery' && order.status !== 'delivered' && order.status !== 'cancelled';
   }
@@ -1028,6 +1493,43 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return Math.max(0, Math.floor((Date.now() - referenceMs) / 60000));
   }
 
+  private createDefaultMissedOrderDraft(): MissedOrderDraft {
+    return {
+      reason: '',
+      createdAt: this.toIstDateTimeInput(new Date()),
+      orderType: 'pickup',
+      channel: 'shop',
+      orderSource: '',
+      status: 'delivered',
+      paymentStatus: 'paid',
+      paymentMethod: 'cash_at_counter',
+      username: '',
+      customerName: '',
+      phoneNumber: '',
+      deliveryAddress: '',
+      upiReference: '',
+      notes: '',
+      preparationNotes: '',
+      tax: 0,
+      platformCharge: 0,
+      deliveryFee: 0,
+      packagingCharge: 0,
+      discountAmount: 0,
+      loyaltyDiscountAmount: 0,
+      manualSubtotalOverride: null,
+      manualTotalOverride: null,
+      items: [
+        {
+          menuItemId: '',
+          name: '',
+          quantity: 1,
+          baseUnitPrice: 0,
+          selectedAddOns: []
+        }
+      ]
+    };
+  }
+
   private toEpochMillis(value?: string | Date | number | null): number {
     if (value === null || value === undefined) return 0;
 
@@ -1128,9 +1630,37 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (mode === 'Takeaway' || mode === 'Delivery') {
+    if (mode === 'Takeaway') {
       aggregate.takeawayQuantity += quantity;
     }
+  }
+
+  private toIstDateTimeInput(value?: string | Date | number | null): string {
+    const epoch = this.toEpochMillis(value);
+    if (!Number.isFinite(epoch)) return '';
+
+    const date = new Date(epoch);
+    const parts = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(date);
+
+    const getPart = (type: Intl.DateTimeFormatPartTypes): string =>
+      parts.find(p => p.type === type)?.value || '';
+
+    const year = getPart('year');
+    const month = getPart('month');
+    const day = getPart('day');
+    const hour = getPart('hour');
+    const minute = getPart('minute');
+
+    if (!year || !month || !day || !hour || !minute) return '';
+    return `${year}-${month}-${day}T${hour}:${minute}`;
   }
 
   private incrementOrderTypeQuantityFromSale(
@@ -1149,8 +1679,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Uploaded/online sales rows are generally non-dine-in orders.
-    aggregate.takeawayQuantity += quantity;
+    if (platform.includes('takeaway') || platform.includes('pickup')) {
+      aggregate.takeawayQuantity += quantity;
+    }
   }
 
   private resolveSaleItemRevenue(
@@ -1163,6 +1694,10 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     }
 
     return 0;
+  }
+
+  private optionalNumber(value: number | null | undefined): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
   }
 
   private formatHourRange(hour: number): string {

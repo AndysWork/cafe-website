@@ -124,6 +124,44 @@ export class CashierDineInComponent implements OnInit, OnDestroy {
       .includes((order.status || '').toLowerCase());
   }
 
+  canCancelOrderItem(order: Order): boolean {
+    return ['pending', 'confirmed', 'scheduled'].includes((order.status || '').toLowerCase());
+  }
+
+  cancelActiveOrderItem(order: Order, item: Order['items'][number]): void {
+    if (!order?.id || !item?.menuItemId || !this.canCancelOrderItem(order)) {
+      return;
+    }
+
+    const maxQty = Math.max(1, item.quantity || 1);
+    const input = window.prompt(`Cancel quantity for ${item.name} (1-${maxQty})`, '1');
+    if (input === null) return;
+
+    const parsedQty = Number(input);
+    if (!Number.isFinite(parsedQty) || parsedQty < 1) {
+      this.errorMessage = 'Enter a valid cancellation quantity.';
+      return;
+    }
+
+    const quantity = Math.min(maxQty, Math.trunc(parsedQty));
+    this.confirmingSessionId = order.id;
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    this.subscriptions.add(this.orderService.cancelOrderItem(order.id, item.menuItemId, quantity).subscribe({
+      next: () => {
+        this.successMessage = `${quantity} x ${item.name} cancelled from order #${order.id.slice(-6)}.`;
+        this.confirmingSessionId = '';
+        this.loadPayments(true);
+        this.loadActiveOrders();
+      },
+      error: error => {
+        this.errorMessage = error?.error?.error || error?.message || 'Could not cancel this item.';
+        this.confirmingSessionId = '';
+      }
+    }));
+  }
+
   describeOrder(order: Order): string {
     if (order.orderSource === 'phone') return 'Phone order';
     if (order.orderType === 'dine-in') return 'Dine-in order';

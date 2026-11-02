@@ -119,6 +119,36 @@ dd {
   color: #8c5314;
 }
 
+.line-items {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #eeece6;
+  border-radius: 10px;
+  background: #fbfaf7;
+  display: grid;
+  gap: 8px;
+
+  strong {
+    font-size: 13px;
+    color: #555249;
+  }
+
+  .line-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: #3f3c34;
+
+    .refresh-button {
+      padding: 6px 10px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+  }
+}
+
 .direct-payment-controls {
   display: grid;
   grid-template-columns: minmax(120px, 1fr) minmax(160px, 1fr) auto;
@@ -285,6 +315,11 @@ dd {
   .print-prompt .confirm-button,
   .print-prompt .refresh-button {
     width: 100%;
+  }
+
+  .line-items .line-item-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

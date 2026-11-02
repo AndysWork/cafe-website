@@ -457,6 +457,12 @@ public class ManagerOperationsFunction
             deliveryPartnerName = order.DeliveryPartnerName,
             deliveryAddress = order.DeliveryAddress,
             phoneNumber = order.PhoneNumber,
+            items = (order.Items ?? new List<OrderItem>()).Select(i => new
+            {
+                menuItemId = i.MenuItemId,
+                name = i.Name,
+                quantity = i.Quantity
+            }),
             createdAt = order.CreatedAt,
             updatedAt = order.UpdatedAt,
             isUrgent = order.IsUrgent,

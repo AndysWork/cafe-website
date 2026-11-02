@@ -18,6 +18,11 @@ export interface ManagerOrderCard {
   isUrgent?: boolean;
   urgentReason?: string;
   urgentMarkedAt?: string;
+  items?: Array<{
+    menuItemId: string;
+    name: string;
+    quantity: number;
+  }>;
 }
 
 export interface ManagerParcelTaskCard {

@@ -6,6 +6,7 @@ import { DeliveryPartnerService, ParcelRouteQuote } from '../../services/deliver
 import { OrderService } from '../../services/order.service';
 import {
   ManagerAuditReconciliationResponse,
+  ManagerOrderCard,
   ManagerOpsBoardResponse,
   ManagerOpsService
 } from '../../services/manager-ops.service';
@@ -227,6 +228,44 @@ export class ManagerOperationsBoardComponent implements OnInit, OnDestroy {
       error: (error) => {
         this.actionBusy = false;
         this.errorMessage = error?.error?.error || error?.message || 'Failed to cancel this order.';
+      }
+    });
+  }
+
+  canCancelOrderItem(status?: string): boolean {
+    const normalized = (status || '').trim().toLowerCase();
+    return normalized === 'pending' || normalized === 'confirmed' || normalized === 'scheduled';
+  }
+
+  onCancelOrderItem(order: ManagerOrderCard, orderItem: { menuItemId: string; name: string; quantity: number }): void {
+    const orderId = order?.id;
+    if (!orderId || this.actionBusy || !orderItem?.menuItemId || !this.canCancelOrderItem(order.status)) {
+      return;
+    }
+
+    const maxQty = Math.max(1, orderItem.quantity || 1);
+    const input = window.prompt(`Cancel quantity for ${orderItem.name} (1-${maxQty})`, '1');
+    if (input === null) {
+      return;
+    }
+
+    const parsedQty = Number(input);
+    if (!Number.isFinite(parsedQty) || parsedQty < 1) {
+      this.errorMessage = 'Enter a valid cancellation quantity.';
+      return;
+    }
+
+    const quantity = Math.min(maxQty, Math.trunc(parsedQty));
+    this.actionBusy = true;
+    this.errorMessage = '';
+    this.orderService.cancelOrderItem(orderId, orderItem.menuItemId, quantity).subscribe({
+      next: () => {
+        this.actionBusy = false;
+        this.loadAll();
+      },
+      error: (error) => {
+        this.actionBusy = false;
+        this.errorMessage = error?.error?.error || error?.message || 'Failed to cancel this item.';
       }
     });
   }
