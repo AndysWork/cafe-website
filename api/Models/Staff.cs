@@ -148,6 +148,7 @@ public class Staff
     public double CasualLeaveBalance { get; set; } = 0;
 }
 
+[BsonIgnoreExtraElements]
 public class StaffShift
 {
     [BsonElement("id")]
