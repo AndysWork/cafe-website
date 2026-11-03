@@ -290,14 +290,24 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
       return;
     }
 
-    const fallbackChecklist: KitchenChecklistItem[] = [
-      { label: 'Checked all order details', isCompleted: false }
+    const defaultLabel = 'Checked all order details';
+    const existingChecklist = order.kitchenChecklist || [];
+    const consolidatedChecklist: KitchenChecklistItem[] = [
+      {
+        label: defaultLabel,
+        isCompleted: existingChecklist.length > 0
+          ? existingChecklist.every(item => !!item.isCompleted)
+          : false
+      }
     ];
 
     this.selectedOrderForChecklist = order;
     this.selectedItemIndex = itemIndex;
-    this.checklistItems = (order.kitchenChecklist?.length ? order.kitchenChecklist : fallbackChecklist)
-      .map(i => ({ id: i.id, label: i.label, isCompleted: i.isCompleted }));
+    this.checklistItems = consolidatedChecklist.map(i => ({
+      id: i.id,
+      label: i.label,
+      isCompleted: i.isCompleted
+    }));
     this.showChecklistModal = true;
   }
 
