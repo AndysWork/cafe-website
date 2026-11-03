@@ -291,11 +291,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
     }
 
     const fallbackChecklist: KitchenChecklistItem[] = [
-      { label: 'Item quantity rechecked', isCompleted: false },
-      { label: 'Plating and garnish completed', isCompleted: false },
-      { label: 'Temperature and freshness verified', isCompleted: false },
-      { label: 'Packaging/sealing verified', isCompleted: false },
-      { label: 'Special instructions verified', isCompleted: false }
+      { label: 'Checked all order details', isCompleted: false }
     ];
 
     this.selectedOrderForChecklist = order;
