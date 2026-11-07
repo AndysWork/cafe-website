@@ -109,9 +109,7 @@ public class CreateDailyCashReconciliationRequest
     [Range(0, 100000, ErrorMessage = "Expected coins must be between 0 and 100,000")]
     public decimal ExpectedCoins { get; set; }
 
-    // ExpectedOnline removed - user will manually track actual online instead
-    // [Range(0, 10000000, ErrorMessage = "Expected online must be between 0 and 10,000,000")]
-    // public decimal ExpectedOnline { get; set; }
+    // Expected online is auto-calculated on the backend from outlet-scoped sales summary
 
     [Range(0, 10000000, ErrorMessage = "Counted cash must be between 0 and 10,000,000")]
     public decimal CountedCash { get; set; }

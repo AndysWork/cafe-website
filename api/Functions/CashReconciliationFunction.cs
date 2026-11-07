@@ -109,7 +109,7 @@ public class CashReconciliationFunction
                 return badRequest;
             }
 
-            var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var summary = await _mongo.GetDailySalesSummaryForReconciliationAsync(parsedDate, outletId);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -162,7 +162,7 @@ public class CashReconciliationFunction
                 Date = request.Date,
                 ExpectedCash = request.ExpectedCash,
                 ExpectedCoins = request.ExpectedCoins,
-                ExpectedOnline = 0, // User manually tracks actual online only
+                ExpectedOnline = 0, // Auto-calculated in MongoService from outlet-scoped daily summary
                 CountedCash = request.CountedCash,
                 CountedCoins = request.CountedCoins,
                 ActualOnline = request.ActualOnline,
@@ -263,7 +263,7 @@ public class CashReconciliationFunction
                 Date = r.Date,
                 ExpectedCash = r.ExpectedCash,
                 ExpectedCoins = r.ExpectedCoins,
-                ExpectedOnline = 0, // User manually tracks actual online only
+                ExpectedOnline = 0, // Auto-calculated in MongoService from outlet-scoped daily summary
                 CountedCash = r.CountedCash,
                 CountedCoins = r.CountedCoins,
                 ActualOnline = r.ActualOnline,

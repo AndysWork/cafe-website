@@ -112,28 +112,71 @@
   </section>
 
   <section class="panel order-board">
-    <header class="board-header"><h2>Kitchen and delivery tracking</h2><button type="button" (click)="refreshOrders()" [disabled]="loading || !outletMatches">{{ loading ? 'Refreshing...' : 'Refresh' }}</button></header>
+    <header class="board-header">
+      <h2>Kitchen and delivery tracking</h2>
+      <button type="button" (click)="refreshOrders()" [disabled]="loading || !outletMatches">{{ loading ? 'Refreshing...' : 'Refresh' }}</button>
+    </header>
     <p>Refreshes every 15 seconds. Assigned partners can pick up only after the kitchen marks an order ready.</p>
+    <div class="board-summary" *ngIf="orders.length">
+      <p class="summary-chip active">Active: {{ activeOrderCount }}</p>
+      <p class="summary-chip completed">Completed: {{ completedOrderCount }}</p>
+      <p class="summary-chip total">Total: {{ orders.length }}</p>
+      <div class="board-filters">
+        <button type="button" [class.selected]="boardFilter === 'all'" (click)="boardFilter = 'all'">All</button>
+        <button type="button" [class.selected]="boardFilter === 'active'" (click)="boardFilter = 'active'">Active</button>
+        <button type="button" [class.selected]="boardFilter === 'completed'" (click)="boardFilter = 'completed'">Completed</button>
+      </div>
+    </div>
+    <label *ngIf="orders.length" class="board-search">
+      Search by KOT / customer / phone
+      <input
+        type="search"
+        [(ngModel)]="boardSearch"
+        placeholder="Example: Ritika / 6291710990 / KOT-20261107..."
+        aria-label="Search phone orders" />
+    </label>
     <p *ngIf="!orders.length">No phone orders to show.</p>
-    <article *ngFor="let order of orders" class="tracked-order">
-      <header class="board-header"><h3>{{ order.kotNumber || order.id.slice(-6) }} - {{ displayText(order.customerName || order.username) }}</h3><strong class="status">{{ order.status | titlecase }}</strong></header>
-      <p>{{ order.createdAt | date:'medium' }} <span *ngIf="order.recordedByName"> / Entered by {{ order.recordedByName }}</span></p>
-      <p><a [href]="'tel:' + order.phoneNumber">{{ order.phoneNumber }}</a> / {{ order.deliveryAddress }}</p>
-      <a [href]="order.deliveryLocationUrl" target="_blank" rel="noopener noreferrer">Open customer's Google Maps location</a>
-      <ul><li *ngFor="let item of order.items">{{ item.quantity }} x {{ displayText(item.name) }} <span *ngIf="item.selectedVariantName">({{ displayText(item.selectedVariantName) }})</span></li></ul>
+    <p *ngIf="orders.length && !boardOrders.length">No orders match this filter/search.</p>
+
+    <article *ngFor="let order of boardOrders" class="tracked-order" [class.inactive-order]="!isActive(order)">
+      <header class="board-header">
+        <h3>{{ order.kotNumber || order.id.slice(-6) }} - {{ displayText(order.customerName || order.username) }}</h3>
+        <strong class="status" [ngClass]="statusClass(order.status)">{{ order.status | titlecase }}</strong>
+      </header>
+
+      <p class="order-meta">
+        {{ order.createdAt | date:'EEE, MMM d, y, h:mm:ss a' }}
+        <span *ngIf="order.recordedByName"> / Entered by {{ order.recordedByName }}</span>
+      </p>
+      <p class="order-contact"><a [href]="'tel:' + order.phoneNumber">{{ order.phoneNumber }}</a> / {{ order.deliveryAddress }}</p>
+      <a class="maps-link" [href]="order.deliveryLocationUrl" target="_blank" rel="noopener noreferrer">Open customer's Google Maps location</a>
+
+      <ul class="order-items">
+        <li *ngFor="let item of order.items">
+          <span>{{ item.quantity }} x {{ displayText(item.name) }}</span>
+          <span *ngIf="item.selectedVariantName">({{ displayText(item.selectedVariantName) }})</span>
+        </li>
+      </ul>
       <p *ngIf="order.preparationNotes">Kitchen instructions: {{ order.preparationNotes }}</p>
-      <p><strong>{{ order.total | currency:'INR' }}</strong> (delivery {{ order.deliveryFee | currency:'INR' }}) / {{ order.paymentMethod === 'cod' ? 'Cash on delivery' : order.paymentMethod === 'upi-qr' ? 'Prepaid UPI' : 'Prepaid cash' }} / {{ order.paymentStatus | titlecase }}</p>
+      <p class="payment-line">
+        <strong>{{ order.total | currency:'INR' }}</strong>
+        <span>(delivery {{ order.deliveryFee | currency:'INR' }})</span>
+        <span class="pill">{{ paymentMethodLabel(order.paymentMethod) }}</span>
+        <span class="pill">{{ order.paymentStatus | titlecase }}</span>
+      </p>
       <p *ngIf="order.manualDeliveryDistanceKmOverride !== undefined && order.manualDeliveryFeeOverride !== undefined">
         Manual override saved: {{ order.manualDeliveryDistanceKmOverride | number:'1.0-1' }} km / {{ order.manualDeliveryFeeOverride | currency:'INR' }}
       </p>
       <p *ngIf="order.deliveryPartnerName">Delivery partner: <strong>{{ order.deliveryPartnerName }}</strong></p>
-      <button
-        type="button"
-        *ngIf="isActive(order)"
-        (click)="cancelOrder(order)"
-        [disabled]="!!busyOrderId || !!cancellingOrderId || !outletMatches">
-        {{ cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel order' }}
-      </button>
+      <div class="order-actions" *ngIf="isActive(order)">
+        <button
+          type="button"
+          class="danger"
+          (click)="cancelOrder(order)"
+          [disabled]="!!busyOrderId || !!cancellingOrderId || !outletMatches">
+          {{ cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel order' }}
+        </button>
+      </div>
       <div *ngIf="isActive(order) && !order.deliveryPartnerId" class="assignment">
         <label [for]="'partner-' + order.id">Assign available partner
           <select [id]="'partner-' + order.id" [(ngModel)]="assignments[order.id]" [disabled]="!hasAssignablePartners(order)">
@@ -148,7 +191,11 @@
         </p>
         <button type="button" (click)="assign(order)" [disabled]="!assignments[order.id] || !!busyOrderId || !outletMatches">{{ busyOrderId === order.id ? 'Assigning...' : 'Assign partner' }}</button>
       </div>
-      <details><summary>Customer tracking link</summary><input aria-label="Customer tracking link" readonly [value]="trackingUrl(order)" /><button type="button" (click)="copyTracking(order)">Copy link</button></details>
+      <details>
+        <summary>Customer tracking link</summary>
+        <input aria-label="Customer tracking link" readonly [value]="trackingUrl(order)" />
+        <button type="button" (click)="copyTracking(order)">Copy link</button>
+      </details>
     </article>
   </section>
 </div>

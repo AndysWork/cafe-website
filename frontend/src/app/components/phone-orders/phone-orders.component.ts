@@ -68,6 +68,8 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   message = '';
   loadedOutletId = '';
   lastCreated: PhoneDeliveryOrder | null = null;
+  boardFilter: 'all' | 'active' | 'completed' = 'active';
+  boardSearch = '';
 
   ngOnInit(): void {
     this.subscriptions.add(this.outlets.selectedOutlet$.pipe(
@@ -333,6 +335,71 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
 
   isActive(order: PhoneDeliveryOrder): boolean {
     return !['delivered', 'cancelled'].includes(order.status);
+  }
+
+  get boardOrders(): PhoneDeliveryOrder[] {
+    const query = this.boardSearch.trim().toLowerCase();
+    const filtered = this.orders.filter(order => {
+      if (this.boardFilter === 'active') return this.isActive(order);
+      if (this.boardFilter === 'completed') return !this.isActive(order);
+      return true;
+    }).filter(order => {
+      if (!query) return true;
+      const searchable = [
+        order.kotNumber,
+        order.id,
+        order.customerName,
+        order.username,
+        order.phoneNumber,
+        order.deliveryAddress
+      ].filter(Boolean).join(' ').toLowerCase();
+      return searchable.includes(query);
+    });
+
+    return [...filtered].sort((a, b) => {
+      const aActive = this.isActive(a) ? 1 : 0;
+      const bActive = this.isActive(b) ? 1 : 0;
+      if (aActive !== bActive) return bActive - aActive;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }
+
+  get activeOrderCount(): number {
+    return this.orders.filter(order => this.isActive(order)).length;
+  }
+
+  get completedOrderCount(): number {
+    return this.orders.length - this.activeOrderCount;
+  }
+
+  statusClass(status: string | undefined): string {
+    switch ((status || '').toLowerCase()) {
+      case 'delivered':
+        return 'status-delivered';
+      case 'cancelled':
+        return 'status-cancelled';
+      case 'ready':
+        return 'status-ready';
+      case 'out-for-delivery':
+        return 'status-out';
+      case 'preparing':
+        return 'status-preparing';
+      default:
+        return 'status-pending';
+    }
+  }
+
+  paymentMethodLabel(method: string | undefined): string {
+    switch ((method || '').toLowerCase()) {
+      case 'cod':
+        return 'Cash on delivery';
+      case 'upi-qr':
+        return 'Prepaid UPI';
+      case 'cash_at_counter':
+        return 'Prepaid cash';
+      default:
+        return method || 'Unknown';
+    }
   }
 
   getAssignablePartners(order: PhoneDeliveryOrder): DeliveryPartner[] {

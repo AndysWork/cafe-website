@@ -129,7 +129,8 @@ public sealed class PhoneDeliveryOrderFunction
             var staff = await _users.GetUserByIdAsync(userId);
             var staffName = string.Join(" ", new[] { staff?.FirstName, staff?.LastName }
                 .Where(s => !string.IsNullOrWhiteSpace(s)));
-            var now = MongoService.GetIstNow();
+            // Persist timestamps in UTC so UI/localization conversion remains correct.
+            var now = DateTime.UtcNow;
             var paid = request.PaymentMethod != "cod";
             var order = new Order
             {
@@ -221,10 +222,19 @@ public sealed class PhoneDeliveryOrderFunction
     {
         var (authorized, _, _, authError) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!authorized) return authError!;
-        var (outletId, outletError) = await ResolveOutlet(req, req.Query["outletId"]);
-        if (outletError != null) return outletError;
-        var orders = await _phone.GetPhoneDeliveryOrdersAsync(outletId!, req.Query["status"]);
-        return await Json(req, HttpStatusCode.OK, new { orders = orders.Select(ToResponse).ToList() });
+
+        try
+        {
+            var (outletId, outletError) = await ResolveOutlet(req, req.Query["outletId"]);
+            if (outletError != null) return outletError;
+            var orders = await _phone.GetPhoneDeliveryOrdersAsync(outletId!, req.Query["status"]);
+            return await Json(req, HttpStatusCode.OK, new { orders = orders.Select(ToResponse).ToList() });
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed to load phone orders");
+            return await Error(req, HttpStatusCode.InternalServerError, "Unable to load phone orders right now");
+        }
     }
 
     [Function("GetPublicPhoneDeliveryTracking")]

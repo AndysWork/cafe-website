@@ -26,7 +26,72 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .success { color: #155a31; background: #eaf7ef; }
 .payment-warning { background: #fff8df; padding: 10px; }
 .tracked-order { border-top: 1px solid #ddd; padding: 20px 0; overflow-wrap: anywhere; }
-.status { color: #0f6252; white-space: nowrap; }
+.tracked-order.inactive-order { opacity: 0.92; }
+.order-meta { color: #455a64; margin: 6px 0; }
+.order-contact { margin: 6px 0; }
+.maps-link { display: inline-block; margin-bottom: 10px; }
+.order-items { margin: 0 0 10px; padding-left: 18px; }
+.order-items li { margin-bottom: 4px; }
+.payment-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 8px; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: #eef2f7;
+  color: #29434e;
+}
+.order-actions { margin: 10px 0; display: flex; gap: 8px; }
+.danger { background: #fff1f1; border-color: #f2c3c3; color: #9a2020; }
+
+.board-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+.summary-chip {
+  margin: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+.summary-chip.active { background: #e8f6ef; color: #13653f; }
+.summary-chip.completed { background: #eef2f7; color: #34495e; }
+.summary-chip.total { background: #edf4ff; color: #1f4f8f; }
+
+.board-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.board-filters button { margin-top: 0; padding: 7px 12px; }
+.board-filters button.selected {
+  background: #0f6252;
+  border-color: #0f6252;
+  color: #fff;
+}
+.board-search {
+  display: block;
+  margin: 0 0 10px;
+  max-width: 560px;
+}
+.board-search input {
+  margin-top: 6px;
+}
+
+.status {
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+.status-delivered { background: #e6f7ef; color: #126a3f; }
+.status-cancelled { background: #fdecec; color: #9b1c1c; }
+.status-ready { background: #e7f2ff; color: #1f4f8f; }
+.status-out { background: #fff4de; color: #8a5a00; }
+.status-preparing { background: #f2ecff; color: #5f3ca0; }
+.status-pending { background: #edf2f7; color: #334155; }
 .assignment {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) auto;
@@ -83,8 +148,45 @@ details button {
     width: 100%;
   }
 
+  .board-filters {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .tracked-order {
+    border: 1px solid #dfe7ee;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #fbfdff;
+  }
+
+  .tracked-order h3 {
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+
+  .order-meta,
+  .order-contact,
+  .payment-line,
+  .tracked-order p {
+    font-size: 0.92rem;
+    margin: 6px 0;
+  }
+
+  .status {
+    font-size: 0.76rem;
+    padding: 4px 8px;
+  }
+
+  .pill {
+    font-size: 0.75rem;
+    padding: 3px 8px;
+  }
+
   .tracked-order ul {
     padding-left: 18px;
+    margin: 6px 0;
   }
 
   details button {

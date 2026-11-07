@@ -254,7 +254,6 @@ export class CashierComponent implements OnInit, OnDestroy {
         date: this.selectedDate,
         expectedCash: this.reconciliation.expectedCash,
         expectedCoins: this.reconciliation.expectedCoins,
-        // expectedOnline removed - user manually tracks actual online only
         countedCash: this.reconciliation.countedCash,
         countedCoins: this.reconciliation.countedCoins,
         actualOnline: this.reconciliation.actualOnline,

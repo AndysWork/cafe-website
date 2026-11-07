@@ -5577,6 +5577,80 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
     #region Daily Cash Reconciliation Methods
 
+    private static string NormalizePaymentMethod(string? paymentMethod)
+    {
+        if (string.IsNullOrWhiteSpace(paymentMethod))
+        {
+            return string.Empty;
+        }
+
+        var chars = paymentMethod.Trim().ToLowerInvariant().Where(char.IsLetterOrDigit);
+        return new string(chars.ToArray());
+    }
+
+    private static bool IsOnlineExpensePaymentMethod(string? paymentMethod)
+    {
+        var normalized = NormalizePaymentMethod(paymentMethod);
+        return normalized == "online" ||
+               normalized == "card" ||
+               normalized == "upi" ||
+               normalized == "banktransfer";
+    }
+
+    private static bool IsOnlineOrderPaymentMethod(string? paymentMethod)
+    {
+        var normalized = NormalizePaymentMethod(paymentMethod);
+        return normalized == "online" ||
+               normalized == "card" ||
+               normalized == "upi" ||
+               normalized == "upiqr" ||
+               normalized == "razorpay" ||
+               normalized == "prepaid";
+    }
+
+    private async Task<decimal> GetOnlineExpensesForDateAsync(DateTime date, string? outletId)
+    {
+        var (startOfDay, endOfDay) = GetStorageRangeForIstDay(date);
+        var filter = Builders<Expense>.Filter.And(
+            Builders<Expense>.Filter.Gte(e => e.Date, startOfDay),
+            Builders<Expense>.Filter.Lt(e => e.Date, endOfDay),
+            Builders<Expense>.Filter.Ne(e => e.IsDeleted, true)
+        );
+
+        if (!string.IsNullOrEmpty(outletId))
+        {
+            filter &= Builders<Expense>.Filter.Eq(e => e.OutletId, outletId);
+        }
+
+        var expenses = await _expenses.Find(filter).ToListAsync();
+        return expenses.Where(e => IsOnlineExpensePaymentMethod(e.PaymentMethod)).Sum(e => e.Amount);
+    }
+
+    private static decimal ReadSummaryDecimal(object? summary, string propertyName)
+    {
+        if (summary == null)
+        {
+            return 0;
+        }
+
+        var property = summary.GetType().GetProperty(propertyName);
+        if (property == null)
+        {
+            return 0;
+        }
+
+        var value = property.GetValue(summary);
+        return value switch
+        {
+            decimal d => d,
+            double d => (decimal)d,
+            float f => (decimal)f,
+            int i => i,
+            long l => l,
+            _ => 0
+        };
+    }
+
     // Create a new cash reconciliation record
     public async Task<DailyCashReconciliation> CreateCashReconciliationAsync(DailyCashReconciliation reconciliation, string userId)
     {
@@ -5600,16 +5674,14 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             // First reconciliation - use provided opening balances or zero
             // Opening balances should be set by the caller if this is the first entry
         }
+
+        // Always use outlet-scoped summary as source of truth for expected values
+        var salesSummary = await GetDailySalesSummaryForReconciliationAsync(reconciliation.Date, reconciliation.OutletId);
+        reconciliation.ExpectedCash = ReadSummaryDecimal(salesSummary, "ExpectedCash");
+        reconciliation.ExpectedCoins = 0; // user splits counted cash into notes/coins
+        reconciliation.ExpectedOnline = ReadSummaryDecimal(salesSummary, "ExpectedOnline");
         
-        // Get today's expenses to calculate closing online balance
-        var (startOfDay, endOfDay) = GetStorageRangeForIstDay(reconciliation.Date);
-        var expenses = await _expenses
-            .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
-            .ToListAsync();
-        var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("Bank Transfer", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+        var onlineExpenses = await GetOnlineExpensesForDateAsync(reconciliation.Date, reconciliation.OutletId);
         
         // Calculate totals and deficits
         reconciliation.ExpectedTotal = reconciliation.ExpectedCash + reconciliation.ExpectedCoins + reconciliation.ExpectedOnline;
@@ -5693,16 +5765,14 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             reconciliation.OpeningCoinBalance = previousReconciliation.ClosingCoinBalance;
             reconciliation.OpeningOnlineBalance = previousReconciliation.ClosingOnlineBalance;
         }
+
+        // Always use outlet-scoped summary as source of truth for expected values
+        var salesSummary = await GetDailySalesSummaryForReconciliationAsync(reconciliation.Date, reconciliation.OutletId);
+        reconciliation.ExpectedCash = ReadSummaryDecimal(salesSummary, "ExpectedCash");
+        reconciliation.ExpectedCoins = 0; // user splits counted cash into notes/coins
+        reconciliation.ExpectedOnline = ReadSummaryDecimal(salesSummary, "ExpectedOnline");
         
-        // Get today's expenses to calculate closing online balance
-        var (startOfDay, endOfDay) = GetStorageRangeForIstDay(reconciliation.Date);
-        var expenses = await _expenses
-            .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
-            .ToListAsync();
-        var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("Bank Transfer", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+        var onlineExpenses = await GetOnlineExpensesForDateAsync(reconciliation.Date, reconciliation.OutletId);
         
         // Recalculate totals and deficits
         reconciliation.ExpectedTotal = reconciliation.ExpectedCash + reconciliation.ExpectedCoins + reconciliation.ExpectedOnline;
@@ -5758,12 +5828,12 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             reconciliation.UpdatedAt = GetIstNow();
             
             // Get sales summary to auto-calculate expected values
-            var salesSummary = await GetDailySalesSummaryForReconciliationAsync(reconciliation.Date) as dynamic;
+            var salesSummary = await GetDailySalesSummaryForReconciliationAsync(reconciliation.Date, reconciliation.OutletId);
             if (salesSummary != null)
             {
-                reconciliation.ExpectedCash = salesSummary.ExpectedCash ?? 0;
+                reconciliation.ExpectedCash = ReadSummaryDecimal(salesSummary, "ExpectedCash");
                 reconciliation.ExpectedCoins = 0; // Part of cash, user splits during counting
-                reconciliation.ExpectedOnline = salesSummary.ExpectedOnline ?? 0;
+                reconciliation.ExpectedOnline = ReadSummaryDecimal(salesSummary, "ExpectedOnline");
             }
             
             // Use the running balance (from previous reconciliation in the batch)
@@ -5771,15 +5841,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             reconciliation.OpeningCoinBalance = openingCoinBalance;
             reconciliation.OpeningOnlineBalance = openingOnlineBalance;
             
-            // Get expenses for this date to calculate closing online balance
-            var (startOfDay, endOfDay) = GetStorageRangeForIstDay(reconciliation.Date);
-            var expenses = await _expenses
-                .Find(e => e.Date >= startOfDay && e.Date < endOfDay)
-                .ToListAsync();
-            var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
-                                                      e.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
-                                                      e.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase) ||
-                                                      e.PaymentMethod.Equals("Bank Transfer", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+            var onlineExpenses = await GetOnlineExpensesForDateAsync(reconciliation.Date, reconciliation.OutletId);
             
             // Calculate totals and deficits
             reconciliation.ExpectedTotal = reconciliation.ExpectedCash + reconciliation.ExpectedCoins + reconciliation.ExpectedOnline;
@@ -5877,7 +5939,9 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         
         var orders = await _orders.Find(ordersFilter).ToListAsync();
         
-        var onlineOrderTotal = orders.Sum(o => o.Total);
+        var onlineOrderTotal = orders
+            .Where(o => IsOnlineOrderPaymentMethod(o.PaymentMethod))
+            .Sum(o => o.Total);
         
         // Get expenses for the date
         var expensesFilter = Builders<Expense>.Filter.And(
@@ -5893,10 +5957,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         var expenses = await _expenses.Find(expensesFilter).ToListAsync();
         
         var cashExpenses = expenses.Where(e => e.PaymentMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
-        var onlineExpenses = expenses.Where(e => e.PaymentMethod.Equals("Online", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("UPI", StringComparison.OrdinalIgnoreCase) ||
-                                                  e.PaymentMethod.Equals("Bank Transfer", StringComparison.OrdinalIgnoreCase)).Sum(e => e.Amount);
+        var onlineExpenses = expenses.Where(e => IsOnlineExpensePaymentMethod(e.PaymentMethod)).Sum(e => e.Amount);
         
         // Get previous day's closing balance to calculate expected cash
         var previousDay = date.AddDays(-1);
