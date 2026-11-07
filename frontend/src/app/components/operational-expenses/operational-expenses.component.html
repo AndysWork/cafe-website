@@ -12,8 +12,8 @@
       <strong>About Operational Expenses:</strong>
       <ul>
         <li>Track monthly operational costs for your cafe</li>
-        <li>Rent is automatically calculated from offline expenses</li>
-        <li>All transactions are recorded as Cash</li>
+        <li>Use expected values as planning targets and enter actual values for monthly calculation</li>
+        <li>Choose payment method per record (Cash, Online, Card, or UPI)</li>
         <li>One record per month - edit existing record to make changes</li>
       </ul>
     </div>
@@ -57,30 +57,11 @@
               </div>
 
               <div class="expense-breakdown">
-                <div class="breakdown-item">
-                  <span class="breakdown-label">🏠 Rent:</span>
-                  <span class="breakdown-value">{{ formatCurrency(expense.rent) }}</span>
-                  <span class="breakdown-note">(Auto-calculated)</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-label">👨‍🍳 Cook Salary:</span>
-                  <span class="breakdown-value">{{ formatCurrency(expense.cookSalary) }}</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-label">👷 Helper Salary:</span>
-                  <span class="breakdown-value">{{ formatCurrency(expense.helperSalary) }}</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-label">⚡ Electricity:</span>
-                  <span class="breakdown-value">{{ formatCurrency(expense.electricity) }}</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-label">🔧 Machine Maintenance:</span>
-                  <span class="breakdown-value">{{ formatCurrency(expense.machineMaintenance) }}</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-label">📝 Misc:</span>
-                  <span class="breakdown-value">{{ formatCurrency(expense.misc) }}</span>
+                <div *ngFor="let costInput of expense.costInputs; trackBy: trackByCostInputKey" class="breakdown-item">
+                  <span class="breakdown-label">{{ costInput.label }}:</span>
+                  <span class="breakdown-value">
+                    Expected {{ formatCurrency(costInput.expectedValue) }} | Actual {{ formatCurrency(costInput.actualValue) }}
+                  </span>
                 </div>
               </div>
 
@@ -120,62 +101,58 @@
           <div class="form-row">
             <div class="form-group">
               <label>Month *</label>
-              <select [(ngModel)]="formData.month" name="month" [disabled]="isEditMode" (change)="calculateRent()" required>
+              <select [(ngModel)]="formData.month" name="month" [disabled]="isEditMode" (change)="autoFillInputsFromExpenses()" required>
                 <option *ngFor="let month of months; trackBy: trackByIndex" [ngValue]="month.value">{{ month.name }}</option>
               </select>
             </div>
             <div class="form-group">
               <label>Year *</label>
               <input type="number" [(ngModel)]="formData.year" name="year" [disabled]="isEditMode"
-                     (change)="calculateRent()" min="2020" max="2100" required>
+                     (change)="autoFillInputsFromExpenses()"
+                     min="2020" max="2100" required>
             </div>
           </div>
 
-          <!-- Calculated Rent -->
-          <div class="rent-display">
-            <div class="rent-label">
-              🏠 Rent (Auto-calculated from Offline Expenses):
-              <button type="button" class="btn-refresh" (click)="calculateRent()" [disabled]="calculatingRent">
-                {{ calculatingRent ? '⏳' : '🔄' }} Refresh
-              </button>
-            </div>
-            <div class="rent-value">{{ formatCurrency(calculatedRent) }}</div>
-          </div>
-
-          <!-- Salary Fields -->
-          <div class="form-section">
-            <h3>💰 Salaries</h3>
-            <div class="form-row">
-              <div class="form-group">
-                <label>👨‍🍳 Cook Salary</label>
-                <input type="number" [(ngModel)]="formData.cookSalary" name="cookSalary" min="0" step="100">
-              </div>
-              <div class="form-group">
-                <label>👷 Helper Salary</label>
-                <input type="number" [(ngModel)]="formData.helperSalary" name="helperSalary" min="0" step="100">
-              </div>
-            </div>
-          </div>
-
-          <!-- Utility and Maintenance Fields -->
-          <div class="form-section">
-            <h3>🔧 Utilities & Maintenance</h3>
-            <div class="form-row">
-              <div class="form-group">
-                <label>⚡ Electricity</label>
-                <input type="number" [(ngModel)]="formData.electricity" name="electricity" min="0" step="50">
-              </div>
-              <div class="form-group">
-                <label>🔧 Machine Maintenance</label>
-                <input type="number" [(ngModel)]="formData.machineMaintenance" name="machineMaintenance" min="0" step="50">
-              </div>
-            </div>
-          </div>
-
-          <!-- Miscellaneous -->
           <div class="form-group">
-            <label>📝 Miscellaneous</label>
-            <input type="number" [(ngModel)]="formData.misc" name="misc" min="0" step="50">
+            <button class="btn-secondary" type="button" (click)="autoFillInputsFromExpenses()" [disabled]="autoCalculatingExpenseValues">
+              {{ autoCalculatingExpenseValues ? 'Calculating…' : 'Auto-fill Gas, Water, Staff Food, Petrol from Expenses' }}
+            </button>
+          </div>
+
+          <!-- Expected vs Actual Inputs -->
+          <div class="form-section">
+            <h3>📊 Expected vs Actual Inputs</h3>
+            <div *ngFor="let costInput of formData.costInputs; let i = index; trackBy: trackByCostInputKey" class="form-row">
+              <div class="form-group">
+                <label>{{ costInput.label }} (Expected)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="formData.costInputs[i].expectedValue"
+                  [name]="'expectedValue' + i"
+                  min="0"
+                  step="50"
+                >
+              </div>
+              <div class="form-group">
+                <label>{{ costInput.label }} (Actual)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="formData.costInputs[i].actualValue"
+                  [name]="'actualValue' + i"
+                  min="0"
+                  step="50"
+                >
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Payment Method *</label>
+              <select [(ngModel)]="formData.transactionType" name="transactionType" required>
+                <option *ngFor="let method of operationalPaymentMethods; trackBy: trackByIndex" [value]="method">
+                  {{ method }}
+                </option>
+              </select>
+            </div>
           </div>
 
           <!-- Notes -->
@@ -187,12 +164,17 @@
 
           <!-- Total Display -->
           <div class="total-display">
-            <div class="total-label">💼 Total Operational Cost:</div>
+            <div class="total-label">📌 Total Expected Cost:</div>
+            <div class="total-value">{{ formatCurrency(getTotalExpectedCost()) }}</div>
+          </div>
+
+          <div class="total-display">
+            <div class="total-label">💼 Total Operational Cost (Actual):</div>
             <div class="total-value">{{ formatCurrency(getTotalOperationalCost()) }}</div>
           </div>
 
           <div class="info-note">
-            <strong>Note:</strong> Transaction type is automatically set to <strong>Cash</strong> for all operational expenses.
+            <strong>Note:</strong> Transaction type can be selected as <strong>Cash</strong>, <strong>Online</strong>, <strong>Card</strong>, or <strong>UPI</strong>.
           </div>
         </form>
       </div>

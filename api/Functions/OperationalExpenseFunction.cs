@@ -157,6 +157,22 @@ public class OperationalExpenseFunction
             var (requestBody, validationError) = await ValidationHelper.ValidateBody<CreateOperationalExpenseRequest>(req);
             if (validationError != null) return validationError;
 
+            var costInputValidationError = ValidateCostInputs(requestBody.CostInputs);
+            if (costInputValidationError != null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = costInputValidationError });
+                return badRequest;
+            }
+
+            var transactionTypeValidationError = ValidateTransactionType(requestBody.TransactionType);
+            if (transactionTypeValidationError != null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = transactionTypeValidationError });
+                return badRequest;
+            }
+
             // Validate outlet access
             var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _mongo);
             if (!hasAccess)
@@ -180,14 +196,10 @@ public class OperationalExpenseFunction
                 OutletId = outletId,
                 Month = requestBody.Month,
                 Year = requestBody.Year,
-                CookSalary = requestBody.CookSalary,
-                HelperSalary = requestBody.HelperSalary,
-                Electricity = requestBody.Electricity,
-                MachineMaintenance = requestBody.MachineMaintenance,
-                Misc = requestBody.Misc,
+                CostInputs = requestBody.CostInputs,
                 Notes = requestBody.Notes,
                 RecordedBy = username ?? "Unknown",
-                TransactionType = "Cash" // Always cash for operational expenses
+                TransactionType = requestBody.TransactionType
             };
 
             var created = await _mongo.CreateOperationalExpenseAsync(expense);
@@ -220,6 +232,22 @@ public class OperationalExpenseFunction
             var (requestBody, validationError) = await ValidationHelper.ValidateBody<UpdateOperationalExpenseRequest>(req);
             if (validationError != null) return validationError;
 
+            var costInputValidationError = ValidateCostInputs(requestBody.CostInputs);
+            if (costInputValidationError != null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = costInputValidationError });
+                return badRequest;
+            }
+
+            var transactionTypeValidationError = ValidateTransactionType(requestBody.TransactionType);
+            if (transactionTypeValidationError != null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = transactionTypeValidationError });
+                return badRequest;
+            }
+
             var existing = await _mongo.GetOperationalExpenseByIdAsync(id);
             if (existing == null)
             {
@@ -229,11 +257,8 @@ public class OperationalExpenseFunction
             }
 
             // Update fields
-            existing.CookSalary = requestBody.CookSalary;
-            existing.HelperSalary = requestBody.HelperSalary;
-            existing.Electricity = requestBody.Electricity;
-            existing.MachineMaintenance = requestBody.MachineMaintenance;
-            existing.Misc = requestBody.Misc;
+            existing.CostInputs = requestBody.CostInputs;
+            existing.TransactionType = requestBody.TransactionType;
             existing.Notes = requestBody.Notes;
 
             var success = await _mongo.UpdateOperationalExpenseAsync(id, existing);
@@ -291,5 +316,56 @@ public class OperationalExpenseFunction
             await error.WriteAsJsonAsync(new { error = "Failed to delete operational expense" });
             return error;
         }
+    }
+
+    private static string? ValidateCostInputs(List<OperationalCostInput>? costInputs)
+    {
+        if (costInputs == null || costInputs.Count == 0)
+        {
+            return "At least one cost input is required";
+        }
+
+        foreach (var input in costInputs)
+        {
+            if (string.IsNullOrWhiteSpace(input.Key))
+            {
+                return "Each cost input must include a key";
+            }
+
+            if (string.IsNullOrWhiteSpace(input.Label))
+            {
+                return "Each cost input must include a label";
+            }
+
+            if (input.ExpectedValue < 0 || input.ActualValue < 0)
+            {
+                return "Expected and actual values cannot be negative";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ValidateTransactionType(string? transactionType)
+    {
+        if (string.IsNullOrWhiteSpace(transactionType))
+        {
+            return "Transaction type is required";
+        }
+
+        var allowedTransactionTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Cash",
+            "Online",
+            "Card",
+            "UPI"
+        };
+
+        if (!allowedTransactionTypes.Contains(transactionType))
+        {
+            return "Transaction type must be one of: Cash, Online, Card, UPI";
+        }
+
+        return null;
     }
 }

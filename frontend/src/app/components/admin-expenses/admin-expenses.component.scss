@@ -1164,7 +1164,6 @@
   background: #f8f9fa;
   padding: 1.5rem;
   border-radius: 8px;
-  margin-bottom: 2rem;
 
   h3 {
     margin: 0 0 1rem 0;
@@ -1172,13 +1171,14 @@
   }
 
   .form-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) auto;
     gap: 1rem;
-    align-items: flex-end;
+    align-items: end;
+    justify-content: start;
 
     .form-group {
-      flex: 1;
-      min-width: 300px;
+      min-width: 0;
 
       label {
         display: block;
@@ -1205,8 +1205,10 @@
     .form-actions {
       display: flex;
       gap: 0.5rem;
-      align-items: flex-end;
-      padding-bottom: 0.15rem;
+      align-items: center;
+      justify-content: flex-end;
+      padding-bottom: 0;
+      flex-shrink: 0;
 
       button {
         white-space: nowrap;
@@ -1216,6 +1218,10 @@
 }
 
 .expense-types-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
   h3 {
     margin: 0 0 1rem 0;
     color: #333;
@@ -1223,11 +1229,13 @@
 
   .types-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 1rem;
-    max-height: 400px;
+    min-height: 240px;
+    max-height: clamp(280px, 44vh, 460px);
     overflow-y: auto;
-    padding: 0.5rem;
+    padding: 0.5rem 0.75rem 0.5rem 0.5rem;
+    align-content: start;
 
     .expense-type-card {
       background: white;
@@ -1236,8 +1244,10 @@
       padding: 1rem;
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
+      gap: 0.75rem;
       transition: all 0.2s;
+      min-height: 90px;
 
       &:hover {
         border-color: #0EA5E9;
@@ -1252,6 +1262,8 @@
         strong {
           font-size: 1.1rem;
           color: #1f2937;
+          line-height: 1.3;
+          word-break: break-word;
         }
 
         .status-badge {
@@ -1272,15 +1284,22 @@
       .type-actions {
         display: flex;
         gap: 0.5rem;
+        align-self: flex-start;
+        flex-shrink: 0;
 
         .btn-edit-small,
         .btn-delete-small {
-          padding: 0.5rem;
+          width: 2.2rem;
+          height: 2.2rem;
+          padding: 0;
           border: none;
           border-radius: 4px;
           cursor: pointer;
           font-size: 1rem;
           transition: all 0.2s;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
 
           &:hover {
             transform: scale(1.1);
@@ -1316,6 +1335,55 @@
 
 .large-modal {
   max-width: 900px !important;
+  width: min(900px, 100%);
+  max-height: min(90vh, 820px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+
+  .modal-header,
+  .modal-footer {
+    flex-shrink: 0;
+  }
+
+  .modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .expense-type-form {
+    padding: 1rem;
+
+    .form-row {
+      grid-template-columns: 1fr;
+      align-items: stretch;
+
+      .form-group,
+      .form-actions {
+        flex: 1 1 100%;
+      }
+
+      .form-actions {
+        justify-content: flex-start;
+        padding-bottom: 0;
+
+        button {
+          flex: 0 0 auto;
+        }
+      }
+    }
+  }
+
+  .expense-types-list .types-grid {
+    grid-template-columns: 1fr;
+    max-height: clamp(260px, 40vh, 420px);
+  }
 }
 
 .btn-warning {
@@ -1768,4 +1836,3 @@
     }
   }
 }
-

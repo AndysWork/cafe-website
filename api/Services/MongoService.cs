@@ -5224,14 +5224,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         expense.CreatedAt = GetIstNow();
         expense.UpdatedAt = GetIstNow();
-        
-        // Calculate rent automatically
-        expense.Rent = await CalculateRentForMonthAsync(expense.Month, expense.Year, expense.OutletId);
-        
-        // Calculate total operational cost
-        expense.TotalOperationalCost = expense.Rent + expense.CookSalary + 
-            expense.HelperSalary + expense.Electricity + 
-            expense.MachineMaintenance + expense.Misc;
+
+        expense.TotalOperationalCost = CalculateOperationalExpenseTotal(expense);
         
         await _operationalExpenses.InsertOneAsync(expense);
         return expense;
@@ -5241,14 +5235,8 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<bool> UpdateOperationalExpenseAsync(string id, OperationalExpense expense)
     {
         expense.UpdatedAt = GetIstNow();
-        
-        // Recalculate rent
-        expense.Rent = await CalculateRentForMonthAsync(expense.Month, expense.Year, expense.OutletId);
-        
-        // Recalculate total operational cost
-        expense.TotalOperationalCost = expense.Rent + expense.CookSalary + 
-            expense.HelperSalary + expense.Electricity + 
-            expense.MachineMaintenance + expense.Misc;
+
+        expense.TotalOperationalCost = CalculateOperationalExpenseTotal(expense);
         
         var result = await _operationalExpenses.ReplaceOneAsync(x => x.Id == id, expense);
         return result.ModifiedCount > 0;
@@ -5273,6 +5261,18 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await _operationalExpenses.Find(filter)
             .SortByDescending(e => e.Month)
             .ToListAsync();
+    }
+
+    private static decimal CalculateOperationalExpenseTotal(OperationalExpense expense)
+    {
+        if (expense.CostInputs != null && expense.CostInputs.Count > 0)
+        {
+            return expense.CostInputs.Sum(item => item.ActualValue);
+        }
+
+        return expense.Rent + expense.CookSalary +
+               expense.HelperSalary + expense.Electricity +
+               expense.MachineMaintenance + expense.Misc;
     }
 
     #endregion

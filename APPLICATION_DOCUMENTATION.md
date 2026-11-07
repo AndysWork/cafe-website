@@ -93,7 +93,7 @@
 | 11 | **Sales Summary** | Aggregated sales analytics with revenue breakdown |
 | 12 | **Expense Tracking** | Record expenses by type (inventory/salary/rent/utilities/maintenance/marketing/other), Excel upload |
 | 13 | **Expense Analytics** | Hierarchical expense breakdown, category analysis, date range filtering |
-| 14 | **Operational Expenses** | Track monthly fixed costs (rent, salaries, electricity, maintenance, misc) with rent calculation |
+| 14 | **Operational Expenses** | Track monthly costs with expected vs actual inputs per category; calculations are based on actual values |
 | 15 | **Cashier Module** | Quick point-of-sale recording with sales item types and payment method tracking |
 | 16 | **Cash Reconciliation** | Daily cash/coin/online counting vs expected, deficit tracking, opening/closing balance management |
 | 17 | **Online Sales Tracker** | Record Zomato/Swiggy orders with platform commission, payout, discount, GST tracking |
@@ -1062,7 +1062,7 @@ User                Angular App              Azure Functions           MongoDB
         │  • CustomerSegment           (Id, UserId, Segment, TotalOrders, TotalSpent)
         │  • ExternalOrderClaim        (Id, UserId, Platform, InvoiceUrl, Status)
         │  • OnlineSale                (Id, OutletId, Platform, OrderId, Payout, KPT)
-        │  • OperationalExpense        (Id, OutletId, Month, Year, Rent, Salaries, Total)
+        │  • OperationalExpense        (Id, OutletId, Month, Year, CostInputs[Expected+Actual], Total)
         │  • DailyCashReconciliation   (Id, OutletId, Date, Expected vs Counted)
         │  • PriceForecast             (Id, MenuItemId, Current vs Future prices)
         │  • OverheadCost              (Id, OutletId, CostType, Monthly/Daily/Hourly)

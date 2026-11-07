@@ -24,8 +24,12 @@ public class OperationalExpense
     [Required(ErrorMessage = "Year is required")]
     public int Year { get; set; }
 
+    [BsonElement("costInputs")]
+    public List<OperationalCostInput> CostInputs { get; set; } = new List<OperationalCostInput>();
+
+    // Legacy fields preserved for backward compatibility with historical records
     [BsonElement("rent")]
-    public decimal Rent { get; set; } // Calculated from offline expenses
+    public decimal Rent { get; set; }
 
     [BsonElement("cookSalary")]
     public decimal CookSalary { get; set; }
@@ -57,9 +61,23 @@ public class OperationalExpense
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; }
 
-    // Transaction type is always Cash for operational expenses
     [BsonElement("transactionType")]
     public string TransactionType { get; set; } = "Cash";
+}
+
+public class OperationalCostInput
+{
+    [Required(ErrorMessage = "Key is required")]
+    public string Key { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Label is required")]
+    public string Label { get; set; } = string.Empty;
+
+    [Range(0, double.MaxValue, ErrorMessage = "Expected value cannot be negative")]
+    public decimal ExpectedValue { get; set; }
+
+    [Range(0, double.MaxValue, ErrorMessage = "Actual value cannot be negative")]
+    public decimal ActualValue { get; set; }
 }
 
 // Request/Response DTOs
@@ -73,21 +91,25 @@ public class CreateOperationalExpenseRequest
     [Range(2020, 2100, ErrorMessage = "Year must be between 2020 and 2100")]
     public int Year { get; set; }
     
-    public decimal CookSalary { get; set; }
-    public decimal HelperSalary { get; set; }
-    public decimal Electricity { get; set; }
-    public decimal MachineMaintenance { get; set; }
-    public decimal Misc { get; set; }
+    [Required(ErrorMessage = "Cost inputs are required")]
+    [MinLength(1, ErrorMessage = "At least one cost input is required")]
+    public List<OperationalCostInput> CostInputs { get; set; } = new List<OperationalCostInput>();
+
+    [Required(ErrorMessage = "Transaction type is required")]
+    public string TransactionType { get; set; } = "Cash";
+
     public string? Notes { get; set; }
 }
 
 public class UpdateOperationalExpenseRequest
 {
-    public decimal CookSalary { get; set; }
-    public decimal HelperSalary { get; set; }
-    public decimal Electricity { get; set; }
-    public decimal MachineMaintenance { get; set; }
-    public decimal Misc { get; set; }
+    [Required(ErrorMessage = "Cost inputs are required")]
+    [MinLength(1, ErrorMessage = "At least one cost input is required")]
+    public List<OperationalCostInput> CostInputs { get; set; } = new List<OperationalCostInput>();
+
+    [Required(ErrorMessage = "Transaction type is required")]
+    public string TransactionType { get; set; } = "Cash";
+
     public string? Notes { get; set; }
 }
 

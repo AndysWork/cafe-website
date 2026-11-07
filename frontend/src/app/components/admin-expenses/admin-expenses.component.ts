@@ -5,7 +5,15 @@ import { FormsModule } from '@angular/forms';
 import { ExpenseService, Expense, CreateExpenseRequest, ExpenseSummary, HierarchicalExpense, MonthExpense, WeekExpense } from '../../services/expense.service';
 import { OfflineExpenseTypeService, OfflineExpenseType } from '../../services/offline-expense-type.service';
 import { OnlineExpenseTypeService, OnlineExpenseType } from '../../services/online-expense-type.service';
-import { OperationalExpenseService, OperationalExpense, CreateOperationalExpenseRequest, UpdateOperationalExpenseRequest } from '../../services/operational-expense.service';
+import {
+  OperationalExpenseService,
+  OperationalExpense,
+  CreateOperationalExpenseRequest,
+  UpdateOperationalExpenseRequest,
+  OperationalCostInput,
+  AUTO_CALCULATED_COST_INPUT_EXPENSE_TYPES,
+  normalizeExpenseType
+} from '../../services/operational-expense.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription } from 'rxjs';
@@ -78,8 +86,7 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
   showOperationalModal = false;
   isOperationalEditMode = false;
   editingOperationalId: string | null = null;
-  calculatedRent: number = 0;
-  calculatingRent = false;
+  autoCalculatingExpenseValues = false;
   groupedOperationalExpenses: { [year: number]: OperationalExpense[] } = {};
   expandedOperationalYears: Set<number> = new Set();
 
@@ -93,13 +100,11 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
   operationalFormData: CreateOperationalExpenseRequest = {
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
-    cookSalary: 0,
-    helperSalary: 0,
-    electricity: 0,
-    machineMaintenance: 0,
-    misc: 0,
+    costInputs: [],
+    transactionType: 'Cash',
     notes: ''
   };
+  operationalPaymentMethods = ['Cash', 'Online', 'Card', 'UPI'];
 
   months = [
     { value: 1, name: 'January' },
@@ -734,32 +739,12 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     return this.groupedOperationalExpenses[year].reduce((sum, e) => sum + e.totalOperationalCost, 0);
   }
 
-  calculateRent() {
-    if (!this.operationalFormData.month || !this.operationalFormData.year) {
-      this.uiStore.warning('Please select month and year first');
-      return;
-    }
-
-    this.calculatingRent = true;
-    this.operationalExpenseService.calculateRentForMonth(this.operationalFormData.year, this.operationalFormData.month).subscribe({
-      next: (data) => {
-        this.calculatedRent = data.rent;
-        this.calculatingRent = false;
-      },
-      error: (error) => {
-        console.error('Error calculating rent:', error);
-        this.uiStore.error('Failed to calculate rent');
-        this.calculatingRent = false;
-      }
-    });
-  }
-
   openOperationalAddModal() {
     this.isOperationalEditMode = false;
     this.editingOperationalId = null;
     this.resetOperationalForm();
     this.showOperationalModal = true;
-    this.calculateRent();
+    this.autoFillInputsFromExpenses();
   }
 
   openOperationalEditModal(expense: OperationalExpense) {
@@ -768,15 +753,17 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     this.operationalFormData = {
       month: expense.month,
       year: expense.year,
-      cookSalary: expense.cookSalary,
-      helperSalary: expense.helperSalary,
-      electricity: expense.electricity,
-      machineMaintenance: expense.machineMaintenance,
-      misc: expense.misc,
+      costInputs: expense.costInputs.map(item => ({
+        key: item.key,
+        label: item.label,
+        expectedValue: Number(item.expectedValue) || 0,
+        actualValue: Number(item.actualValue) || 0
+      })),
+      transactionType: expense.transactionType || 'Cash',
       notes: expense.notes || ''
     };
-    this.calculatedRent = expense.rent;
     this.showOperationalModal = true;
+    this.autoFillInputsFromExpenses();
   }
 
   closeOperationalModal() {
@@ -790,14 +777,38 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
     this.operationalFormData = {
       month: currentDate.getMonth() + 1,
       year: currentDate.getFullYear(),
-      cookSalary: 0,
-      helperSalary: 0,
-      electricity: 0,
-      machineMaintenance: 0,
-      misc: 0,
+      costInputs: this.operationalExpenseService.createDefaultCostInputs(),
+      transactionType: 'Cash',
       notes: ''
     };
-    this.calculatedRent = 0;
+  }
+
+  autoFillInputsFromExpenses() {
+    if (!this.operationalFormData.month || !this.operationalFormData.year) {
+      this.uiStore.warning('Please select month and year first');
+      return;
+    }
+
+    const { startDate, endDate } = this.getMonthDateRange(this.operationalFormData.year, this.operationalFormData.month);
+    this.autoCalculatingExpenseValues = true;
+
+    this.expenseService.getExpensesByDateRange(startDate, endDate).subscribe({
+      next: (expenses) => {
+        for (let i = 0; i < this.operationalFormData.costInputs.length; i++) {
+          const input = this.operationalFormData.costInputs[i];
+          const autoCalculatedValue = this.getAutoCalculatedValueForInput(input.key, expenses);
+          if (autoCalculatedValue !== null) {
+            this.operationalFormData.costInputs[i].actualValue = autoCalculatedValue;
+          }
+        }
+        this.autoCalculatingExpenseValues = false;
+      },
+      error: (error) => {
+        console.error('Error auto-calculating operational values from expenses:', error);
+        this.uiStore.error('Failed to auto-calculate values from expenses');
+        this.autoCalculatingExpenseValues = false;
+      }
+    });
   }
 
   saveOperationalExpense() {
@@ -810,11 +821,8 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
 
     if (this.isOperationalEditMode && this.editingOperationalId) {
       const updateRequest: UpdateOperationalExpenseRequest = {
-        cookSalary: Number(this.operationalFormData.cookSalary),
-        helperSalary: Number(this.operationalFormData.helperSalary),
-        electricity: Number(this.operationalFormData.electricity),
-        machineMaintenance: Number(this.operationalFormData.machineMaintenance),
-        misc: Number(this.operationalFormData.misc),
+        costInputs: this.normalizeCostInputs(this.operationalFormData.costInputs),
+        transactionType: this.operationalFormData.transactionType || 'Cash',
         notes: this.operationalFormData.notes
       };
 
@@ -835,11 +843,8 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
       const createRequest: CreateOperationalExpenseRequest = {
         month: Number(this.operationalFormData.month),
         year: Number(this.operationalFormData.year),
-        cookSalary: Number(this.operationalFormData.cookSalary),
-        helperSalary: Number(this.operationalFormData.helperSalary),
-        electricity: Number(this.operationalFormData.electricity),
-        machineMaintenance: Number(this.operationalFormData.machineMaintenance),
-        misc: Number(this.operationalFormData.misc),
+        costInputs: this.normalizeCostInputs(this.operationalFormData.costInputs),
+        transactionType: this.operationalFormData.transactionType || 'Cash',
         notes: this.operationalFormData.notes
       };
 
@@ -1022,9 +1027,50 @@ export class AdminExpensesComponent implements OnInit, OnDestroy {
   }
 
   getTotalOperationalCost(): number {
-    return this.calculatedRent + this.operationalFormData.cookSalary + this.operationalFormData.helperSalary +
-           this.operationalFormData.electricity + this.operationalFormData.machineMaintenance + this.operationalFormData.misc;
+    return this.operationalFormData.costInputs.reduce((sum, item) => sum + (Number(item.actualValue) || 0), 0);
   }
+
+  getTotalExpectedCost(): number {
+    return this.operationalFormData.costInputs.reduce((sum, item) => sum + (Number(item.expectedValue) || 0), 0);
+  }
+
+  private normalizeCostInputs(costInputs: OperationalCostInput[]): OperationalCostInput[] {
+    return costInputs.map(item => ({
+      key: item.key,
+      label: item.label,
+      expectedValue: Number(item.expectedValue) || 0,
+      actualValue: Number(item.actualValue) || 0
+    }));
+  }
+
+  private getAutoCalculatedValueForInput(costInputKey: string, expenses: Expense[]): number | null {
+    const aliases = AUTO_CALCULATED_COST_INPUT_EXPENSE_TYPES[costInputKey];
+    if (!aliases || aliases.length === 0) {
+      return null;
+    }
+
+    const aliasSet = new Set(aliases.map(alias => normalizeExpenseType(alias)));
+    return expenses.reduce((sum, expense) => {
+      const normalizedType = normalizeExpenseType(expense.expenseType || '');
+      if (!aliasSet.has(normalizedType)) {
+        return sum;
+      }
+      return sum + (Number(expense.amount) || 0);
+    }, 0);
+  }
+
+  private getMonthDateRange(year: number, month: number): { startDate: string; endDate: string } {
+    const monthString = String(month).padStart(2, '0');
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDayString = String(lastDay).padStart(2, '0');
+
+    return {
+      startDate: `${year}-${monthString}-01`,
+      endDate: `${year}-${monthString}-${endDayString}`
+    };
+  }
+
+  trackByCostInputKey(index: number, item: OperationalCostInput): string { return item.key; }
 
   trackByKey(index: number, item: any): string { return item.key; }
   trackByIndex(index: number): number { return index; }

@@ -2,11 +2,20 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UIStore } from '../../store/ui.store';
-import { OperationalExpenseService, OperationalExpense, CreateOperationalExpenseRequest, UpdateOperationalExpenseRequest } from '../../services/operational-expense.service';
+import { Expense, ExpenseService } from '../../services/expense.service';
+import {
+  OperationalExpenseService,
+  OperationalExpense,
+  CreateOperationalExpenseRequest,
+  UpdateOperationalExpenseRequest,
+  OperationalCostInput,
+  AUTO_CALCULATED_COST_INPUT_EXPENSE_TYPES,
+  normalizeExpenseType
+} from '../../services/operational-expense.service';
 import { OutletService } from '../../services/outlet.service';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { getIstDateString, formatIstDate, getIstNow } from '../../utils/date-utils';
+import { formatIstDate } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-operational-expenses',
@@ -25,8 +34,7 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
   showModal = false;
   isEditMode = false;
   editingId: string | null = null;
-  calculatedRent: number = 0;
-  calculatingRent = false;
+  autoCalculatingExpenseValues = false;
 
   // Grouping by year
   groupedExpenses: { [year: number]: OperationalExpense[] } = {};
@@ -35,13 +43,11 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
   formData: CreateOperationalExpenseRequest = {
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
-    cookSalary: 0,
-    helperSalary: 0,
-    electricity: 0,
-    machineMaintenance: 0,
-    misc: 0,
+    costInputs: [],
+    transactionType: 'Cash',
     notes: ''
   };
+  operationalPaymentMethods = ['Cash', 'Online', 'Card', 'UPI'];
 
   months = [
     { value: 1, name: 'January' },
@@ -58,7 +64,10 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
     { value: 12, name: 'December' }
   ];
 
-  constructor(private operationalExpenseService: OperationalExpenseService) {}
+  constructor(
+    private operationalExpenseService: OperationalExpenseService,
+    private expenseService: ExpenseService
+  ) {}
 
   ngOnInit() {
     // Subscribe to outlet changes
@@ -131,33 +140,12 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
     return this.groupedExpenses[year].reduce((sum, e) => sum + e.totalOperationalCost, 0);
   }
 
-  calculateRent() {
-    if (!this.formData.month || !this.formData.year) {
-      this.uiStore.warning('Please select month and year first');
-      return;
-    }
-
-    this.calculatingRent = true;
-    this.operationalExpenseService.calculateRentForMonth(this.formData.year, this.formData.month).subscribe({
-      next: (data) => {
-        this.calculatedRent = data.rent;
-        this.calculatingRent = false;
-      },
-      error: (error) => {
-        console.error('Error calculating rent:', error);
-        this.uiStore.error('Failed to calculate rent');
-        this.calculatingRent = false;
-      }
-    });
-  }
-
   openAddModal() {
     this.isEditMode = false;
     this.editingId = null;
     this.resetForm();
     this.showModal = true;
-    // Calculate rent for current month
-    this.calculateRent();
+    this.autoFillInputsFromExpenses();
   }
 
   openEditModal(expense: OperationalExpense) {
@@ -166,15 +154,17 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
     this.formData = {
       month: expense.month,
       year: expense.year,
-      cookSalary: expense.cookSalary,
-      helperSalary: expense.helperSalary,
-      electricity: expense.electricity,
-      machineMaintenance: expense.machineMaintenance,
-      misc: expense.misc,
+      costInputs: expense.costInputs.map(item => ({
+        key: item.key,
+        label: item.label,
+        expectedValue: Number(item.expectedValue) || 0,
+        actualValue: Number(item.actualValue) || 0
+      })),
+      transactionType: expense.transactionType || 'Cash',
       notes: expense.notes || ''
     };
-    this.calculatedRent = expense.rent;
     this.showModal = true;
+    this.autoFillInputsFromExpenses();
   }
 
   closeModal() {
@@ -188,14 +178,38 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
     this.formData = {
       month: currentDate.getMonth() + 1,
       year: currentDate.getFullYear(),
-      cookSalary: 0,
-      helperSalary: 0,
-      electricity: 0,
-      machineMaintenance: 0,
-      misc: 0,
+      costInputs: this.operationalExpenseService.createDefaultCostInputs(),
+      transactionType: 'Cash',
       notes: ''
     };
-    this.calculatedRent = 0;
+  }
+
+  autoFillInputsFromExpenses() {
+    if (!this.formData.month || !this.formData.year) {
+      this.uiStore.warning('Please select month and year first');
+      return;
+    }
+
+    const { startDate, endDate } = this.getMonthDateRange(this.formData.year, this.formData.month);
+    this.autoCalculatingExpenseValues = true;
+
+    this.expenseService.getExpensesByDateRange(startDate, endDate).subscribe({
+      next: (expenses) => {
+        for (let i = 0; i < this.formData.costInputs.length; i++) {
+          const input = this.formData.costInputs[i];
+          const autoCalculatedValue = this.getAutoCalculatedValueForInput(input.key, expenses);
+          if (autoCalculatedValue !== null) {
+            this.formData.costInputs[i].actualValue = autoCalculatedValue;
+          }
+        }
+        this.autoCalculatingExpenseValues = false;
+      },
+      error: (error) => {
+        console.error('Error auto-calculating operational values from expenses:', error);
+        this.uiStore.error('Failed to auto-calculate values from expenses');
+        this.autoCalculatingExpenseValues = false;
+      }
+    });
   }
 
   saveExpense() {
@@ -208,11 +222,8 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
 
     if (this.isEditMode && this.editingId) {
       const updateRequest: UpdateOperationalExpenseRequest = {
-        cookSalary: this.formData.cookSalary,
-        helperSalary: this.formData.helperSalary,
-        electricity: this.formData.electricity,
-        machineMaintenance: this.formData.machineMaintenance,
-        misc: this.formData.misc,
+        costInputs: this.normalizeCostInputs(this.formData.costInputs),
+        transactionType: this.formData.transactionType || 'Cash',
         notes: this.formData.notes
       };
 
@@ -232,11 +243,8 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
       const createRequest: CreateOperationalExpenseRequest = {
         month: Number(this.formData.month),
         year: Number(this.formData.year),
-        cookSalary: Number(this.formData.cookSalary),
-        helperSalary: Number(this.formData.helperSalary),
-        electricity: Number(this.formData.electricity),
-        machineMaintenance: Number(this.formData.machineMaintenance),
-        misc: Number(this.formData.misc),
+        costInputs: this.normalizeCostInputs(this.formData.costInputs),
+        transactionType: this.formData.transactionType || 'Cash',
         notes: this.formData.notes
       };
       this.operationalExpenseService.createOperationalExpense(createRequest).subscribe({
@@ -283,9 +291,50 @@ export class OperationalExpensesComponent implements OnInit, OnDestroy {
   }
 
   getTotalOperationalCost(): number {
-    return this.calculatedRent + this.formData.cookSalary + this.formData.helperSalary +
-           this.formData.electricity + this.formData.machineMaintenance + this.formData.misc;
+    return this.formData.costInputs.reduce((sum, item) => sum + (Number(item.actualValue) || 0), 0);
   }
+
+  getTotalExpectedCost(): number {
+    return this.formData.costInputs.reduce((sum, item) => sum + (Number(item.expectedValue) || 0), 0);
+  }
+
+  private normalizeCostInputs(costInputs: OperationalCostInput[]): OperationalCostInput[] {
+    return costInputs.map(item => ({
+      key: item.key,
+      label: item.label,
+      expectedValue: Number(item.expectedValue) || 0,
+      actualValue: Number(item.actualValue) || 0
+    }));
+  }
+
+  private getAutoCalculatedValueForInput(costInputKey: string, expenses: Expense[]): number | null {
+    const aliases = AUTO_CALCULATED_COST_INPUT_EXPENSE_TYPES[costInputKey];
+    if (!aliases || aliases.length === 0) {
+      return null;
+    }
+
+    const aliasSet = new Set(aliases.map(alias => normalizeExpenseType(alias)));
+    return expenses.reduce((sum, expense) => {
+      const normalizedType = normalizeExpenseType(expense.expenseType || '');
+      if (!aliasSet.has(normalizedType)) {
+        return sum;
+      }
+      return sum + (Number(expense.amount) || 0);
+    }, 0);
+  }
+
+  private getMonthDateRange(year: number, month: number): { startDate: string; endDate: string } {
+    const monthString = String(month).padStart(2, '0');
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDayString = String(lastDay).padStart(2, '0');
+
+    return {
+      startDate: `${year}-${monthString}-01`,
+      endDate: `${year}-${monthString}-${endDayString}`
+    };
+  }
+
+  trackByCostInputKey(index: number, item: OperationalCostInput): string { return item.key; }
 
   trackByObjId(index: number, item: any): string { return item.id; }
 
