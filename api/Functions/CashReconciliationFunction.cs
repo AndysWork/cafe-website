@@ -26,7 +26,7 @@ public class CashReconciliationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "cash-reconciliation")] HttpRequestData req)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try
@@ -63,7 +63,7 @@ public class CashReconciliationFunction
         string date)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try
@@ -97,7 +97,7 @@ public class CashReconciliationFunction
         string date)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try
@@ -130,7 +130,7 @@ public class CashReconciliationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "cash-reconciliation")] HttpRequestData req)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try
@@ -191,7 +191,7 @@ public class CashReconciliationFunction
         string id)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try
@@ -240,7 +240,7 @@ public class CashReconciliationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "cash-reconciliation/bulk")] HttpRequestData req)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try
@@ -291,7 +291,7 @@ public class CashReconciliationFunction
         string id)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try
@@ -323,7 +323,7 @@ public class CashReconciliationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "cash-reconciliation/summary")] HttpRequestData req)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try
@@ -359,7 +359,7 @@ public class CashReconciliationFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "cash-reconciliation/bulk-upload")] HttpRequestData req)
     {
         // Validate admin authorization
-        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+        var (isAuthorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateCashierRole(req, _auth);
         if (!isAuthorized) return errorResponse!;
 
         try

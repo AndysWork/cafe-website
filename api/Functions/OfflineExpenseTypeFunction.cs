@@ -29,7 +29,7 @@ public class OfflineExpenseTypeFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                await AuthorizationHelper.ValidateCashierRole(req, _authService);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -55,7 +55,7 @@ public class OfflineExpenseTypeFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                await AuthorizationHelper.ValidateCashierRole(req, _authService);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -81,7 +81,7 @@ public class OfflineExpenseTypeFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                await AuthorizationHelper.ValidateCashierRole(req, _authService);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -111,7 +111,7 @@ public class OfflineExpenseTypeFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                await AuthorizationHelper.ValidateCashierRole(req, _authService);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -148,7 +148,7 @@ public class OfflineExpenseTypeFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                await AuthorizationHelper.ValidateCashierRole(req, _authService);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -181,7 +181,7 @@ public class OfflineExpenseTypeFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _authService);
+                await AuthorizationHelper.ValidateCashierRole(req, _authService);
             
             if (!isAuthorized)
                 return errorResponse!;

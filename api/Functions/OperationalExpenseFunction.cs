@@ -29,7 +29,7 @@ public class OperationalExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -57,7 +57,7 @@ public class OperationalExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -85,7 +85,7 @@ public class OperationalExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -121,7 +121,7 @@ public class OperationalExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -149,7 +149,7 @@ public class OperationalExpenseFunction
         try
         {
             var (isAuthorized, userId, username, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -224,7 +224,7 @@ public class OperationalExpenseFunction
         try
         {
             var (isAuthorized, _, username, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -291,7 +291,7 @@ public class OperationalExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;

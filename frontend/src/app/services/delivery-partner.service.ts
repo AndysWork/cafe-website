@@ -159,6 +159,7 @@ export interface AssignableUser {
   username: string;
   email: string;
   role: string;
+  roles?: string[];
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
@@ -170,8 +171,13 @@ export class DeliveryPartnerService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
 
-  getDeliveryPartners(): Observable<DeliveryPartner[]> {
-    return this.http.get<DeliveryPartner[]>(`${this.apiUrl}/manage/delivery-partners`).pipe(
+  getDeliveryPartners(onlyAssignable = false): Observable<DeliveryPartner[]> {
+    let params = new HttpParams();
+    if (onlyAssignable) {
+      params = params.set('forAssignment', 'true');
+    }
+
+    return this.http.get<DeliveryPartner[]>(`${this.apiUrl}/manage/delivery-partners`, { params }).pipe(
       map(partners => partners.map(partner => ({
         ...partner,
         status: this.normalizePartnerStatus(partner.status)
@@ -181,8 +187,11 @@ export class DeliveryPartnerService {
   }
 
   getAssignableUsers(): Observable<AssignableUser[]> {
-    return this.http.get<{ success: boolean; data: AssignableUser[] }>(`${this.apiUrl}/users`).pipe(
-      map(response => response?.data || []),
+    return this.http.get<{ success: boolean; data: Array<AssignableUser & { Roles?: string[] }> }>(`${this.apiUrl}/users`).pipe(
+      map(response => (response?.data || []).map(user => ({
+        ...user,
+        roles: user.roles ?? user.Roles ?? []
+      }))),
       catchError(handleServiceError('DeliveryPartnerService.getAssignableUsers'))
     );
   }

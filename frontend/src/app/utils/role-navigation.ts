@@ -5,7 +5,7 @@ export interface RoleNavigationItem {
   route: string;
   icon: string;
   account?: boolean;
-  group?: 'Dashboards' | 'Operations' | 'Staff' | 'My Account';
+  group?: 'Dashboards' | 'Finance' | 'Operations' | 'Staff' | 'My Account';
 }
 
 export interface RoleNavigationGroup {
@@ -14,7 +14,7 @@ export interface RoleNavigationGroup {
 }
 
 export function groupRoleNavigationItems(items: RoleNavigationItem[]): RoleNavigationGroup[] {
-  const labels: RoleNavigationGroup['label'][] = ['Dashboards', 'Operations', 'Staff', 'My Account'];
+  const labels: RoleNavigationGroup['label'][] = ['Dashboards', 'Finance', 'Operations', 'Staff', 'My Account'];
   return labels.map(label => ({
     label,
     items: items.filter(item => (item.group ?? (item.account ? 'My Account' : 'Operations')) === label)
@@ -42,6 +42,8 @@ export function getRoleNavigationItems(userRoles: string[]): RoleNavigationItem[
   add(KITCHEN_ROLES, { label: 'Kitchen Dashboard', route: '/kitchen/dashboard', icon: '📊', group: 'Dashboards' });
   add(PARTNER_ROLES, { label: 'Delivery Dashboard', route: '/partner/delivery', icon: '🛵', group: 'Dashboards' });
   add(['user'], { label: 'My Dashboard', route: '/dashboard', icon: '📊', group: 'Dashboards' });
+  add(CASHIER_ROLES, { label: 'Expenses', route: '/finance/expenses', icon: '💸', group: 'Finance' });
+  add(CASHIER_ROLES, { label: 'Cashier', route: '/finance/cashier', icon: '🧾', group: 'Finance' });
   add(MANAGER_ROLES, { label: 'Dine-In Report', route: admin ? '/admin/dine-in-report' : '/manager/dine-in-report', icon: '📈' });
   add(CASHIER_ROLES, { label: 'Dine-In Payments', route: '/staff/cashier', icon: '💳' });
   add(WAITER_ROLES, { label: 'Waiter Station', route: '/staff/dine-in', icon: '🍽️' });

@@ -410,6 +410,17 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
     return this.getAssignablePartners(order).length > 0;
   }
 
+  partnerEligibilityHint(order: PhoneDeliveryOrder): string {
+    if (this.hasAssignablePartners(order)) return '';
+    if (!this.partners.length) {
+      return 'No delivery-partner users are currently available for this outlet. Ensure the user has delivery-partner role and partner status is Available.';
+    }
+    if ((order.paymentMethod || '').toLowerCase() === 'cod') {
+      return 'Available partners exist, but none are COD-enabled. Turn on COD Allowed for at least one available delivery partner.';
+    }
+    return 'No delivery partner is currently available. Set a delivery-partner user to Available status and try again.';
+  }
+
   trackingUrl(order: PhoneDeliveryOrder): string {
     return new URL(order.trackingPath, this.document.location.origin).href;
   }
@@ -499,7 +510,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
 
   private loadPartners(): void {
     const outletId = this.loadedOutletId;
-    this.outletSubscriptions.add(this.partnerService.getDeliveryPartners().subscribe({
+    this.outletSubscriptions.add(this.partnerService.getDeliveryPartners(true).subscribe({
       next: partners => {
         if (this.loadedOutletId === outletId) this.partners = partners.filter(partner => partner.status === 'available');
       },

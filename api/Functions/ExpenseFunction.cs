@@ -40,7 +40,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -84,7 +84,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -127,7 +127,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -178,7 +178,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -220,7 +220,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -292,7 +292,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -502,7 +502,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, userId, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -570,7 +570,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -632,7 +632,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;
@@ -668,7 +668,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) =
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
@@ -725,7 +725,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, _, _, errorResponse) =
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
 
             var body = await req.ReadFromJsonAsync<RepairExpensesRequest>();
@@ -784,7 +784,7 @@ public class ExpenseFunction
         try
         {
             var (isAuthorized, userId, _, errorResponse) = 
-                await AuthorizationHelper.ValidateAdminRole(req, _auth);
+                await AuthorizationHelper.ValidateCashierRole(req, _auth);
             
             if (!isAuthorized)
                 return errorResponse!;

@@ -6,14 +6,15 @@ describe('Role navigation', () => {
   it('groups all permitted routes exactly once in a stable functional order', () => {
     const items = getRoleNavigationItems(['admin', 'manager', 'waiter', 'cashier', 'chef', 'delivery-partner', 'user']);
     const groups = groupRoleNavigationItems(items);
-    expect(groups.map(group => group.label)).toEqual(['Dashboards', 'Operations', 'Staff', 'My Account']);
+    expect(groups.map(group => group.label)).toEqual(['Dashboards', 'Finance', 'Operations', 'Staff', 'My Account']);
     const groupedRoutes = groups.flatMap(group => group.items.map(item => item.route));
     expect(groupedRoutes.slice().sort()).toEqual(items.map(item => item.route).sort());
     expect(new Set(groupedRoutes).size).toBe(groupedRoutes.length);
     expect(groups[0].items.every(item => item.label.includes('Dashboard'))).toBeTrue();
-    expect(groups[1].items.some(item => item.route === '/staff/cashier')).toBeTrue();
-    expect(groups[2].items.map(item => item.route)).toEqual(['/staff/attendance', '/staff/payslip']);
-    expect(groups[3].items.some(item => item.route === '/orders')).toBeTrue();
+    expect(groups[1].items.some(item => item.route === '/finance/expenses')).toBeTrue();
+    expect(groups[2].items.some(item => item.route === '/staff/cashier')).toBeTrue();
+    expect(groups[3].items.map(item => item.route)).toEqual(['/staff/attendance', '/staff/payslip']);
+    expect(groups[4].items.some(item => item.route === '/orders')).toBeTrue();
   });
 
   it('hides empty groups without adding permissions', () => {
@@ -26,6 +27,8 @@ describe('Role navigation', () => {
     const routes = routesFor('waiter', 'cook', 'cashier');
     expect(routes).toContain('/staff/dine-in');
     expect(routes).toContain('/staff/cashier');
+    expect(routes).toContain('/finance/expenses');
+    expect(routes).toContain('/finance/cashier');
     expect(routes).toContain('/kitchen/dashboard');
     expect(routes).toContain('/kitchen/display');
     expect(routes).toContain('/staff/attendance');
@@ -51,7 +54,7 @@ describe('Role navigation', () => {
   });
 
   it('does not grant roles just to display their menus', () => {
-    expect(routesFor('cashier')).toEqual(['/staff/cashier', '/staff/attendance', '/staff/payslip']);
+    expect(routesFor('cashier')).toEqual(['/finance/expenses', '/finance/cashier', '/staff/cashier', '/staff/attendance', '/staff/payslip']);
     expect(routesFor('waiter')).toEqual(['/staff/dine-in', '/staff/attendance', '/staff/payslip']);
     expect(routesFor('delivery-partner')).toEqual(['/partner/delivery', '/partner/payout']);
     expect(routesFor('user')).toEqual(['/dashboard', '/menu', '/cart', '/orders', '/reservations', '/subscriptions', '/loyalty']);
@@ -64,6 +67,7 @@ describe('Role navigation', () => {
     const routes = routesFor('manager', 'chef', 'cook', 'kitchen-staff', 'waiter', 'cashier', 'partner', 'delivery-partner');
     expect(new Set(routes).size).toBe(routes.length);
     expect(routes.filter(route => route === '/staff/cashier').length).toBe(1);
+    expect(routes.filter(route => route === '/finance/expenses').length).toBe(1);
     expect(routes.filter(route => route === '/partner/delivery').length).toBe(1);
   });
 

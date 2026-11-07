@@ -265,7 +265,7 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
     this.partnerService.getAssignableUsers().subscribe({
       next: users => {
         this.assignableUsers = users.filter(u =>
-          u.isActive && [u.role, ...((u as { roles?: string[] }).roles ?? [])]
+          u.isActive && [u.role, ...(u.roles ?? [])]
             .some(r => r === 'partner' || r === 'delivery-partner')
         );
         this.applyUserFilter();

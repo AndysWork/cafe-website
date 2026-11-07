@@ -73,6 +73,15 @@ public class DeliveryPartnerFunction
                 partners = partners.Where(p => !IsLikelyTestPartner(p)).ToList();
             }
 
+            var forAssignment = string.Equals(req.Query["forAssignment"], "true", StringComparison.OrdinalIgnoreCase);
+            if (forAssignment)
+            {
+                var usersById = await BuildPartnerUsersByIdAsync(partners);
+                partners = partners
+                    .Where(partner => IsPartnerEligibleForAssignment(partner, usersById))
+                    .ToList();
+            }
+
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(partners);
             return response;
@@ -138,6 +147,50 @@ public class DeliveryPartnerFunction
     {
         var normalized = NormalizeRole(role);
         return IsPartnerRole(normalized) || normalized == "admin" || normalized == "manager";
+    }
+
+    private static bool IsUserEligibleForDeliveryPartner(User? user)
+    {
+        if (user == null || !user.IsActive) return false;
+        return RoleHelper.GetEffectiveRoles(user).Any(IsPartnerRole);
+    }
+
+    private static bool IsPartnerEligibleForAssignment(DeliveryPartner partner, IReadOnlyDictionary<string, User> usersById)
+    {
+        if (!partner.IsActive) return false;
+        if (!string.Equals(partner.Status, "available", StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.IsNullOrWhiteSpace(partner.UserId)) return false;
+        return usersById.TryGetValue(partner.UserId, out var user) && IsUserEligibleForDeliveryPartner(user);
+    }
+
+    private static bool IsPartnerEligibleForAssignment(DeliveryPartner? partner, User? user)
+    {
+        if (partner == null) return false;
+        if (!partner.IsActive) return false;
+        if (!string.Equals(partner.Status, "available", StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.IsNullOrWhiteSpace(partner.UserId)) return false;
+        if (string.IsNullOrWhiteSpace(user?.Id)) return false;
+        if (!string.Equals(partner.UserId, user.Id, StringComparison.OrdinalIgnoreCase)) return false;
+        return IsUserEligibleForDeliveryPartner(user);
+    }
+
+    private async Task<IReadOnlyDictionary<string, User>> BuildPartnerUsersByIdAsync(IEnumerable<DeliveryPartner> partners)
+    {
+        var userIds = partners
+            .Select(p => p.UserId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (userIds.Count == 0)
+        {
+            return new Dictionary<string, User>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var users = await _users.GetAllUsersAsync();
+        return users
+            .Where(u => !string.IsNullOrWhiteSpace(u.Id) && userIds.Contains(u.Id!))
+            .ToDictionary(u => u.Id!, StringComparer.OrdinalIgnoreCase);
     }
 
     [Function("CreateDeliveryPartner")]
@@ -250,7 +303,12 @@ public class DeliveryPartnerFunction
             {
                 // Auto-assign available partner
                 var outletId = PhoneDeliveryOrderRules.IsPhoneOrder(order) ? order.OutletId : OutletHelper.GetOutletIdForAdmin(req, _auth);
-                var available = await _mongo.GetAvailableDeliveryPartnerAsync(outletId ?? "default");
+                var partners = await _mongo.GetDeliveryPartnersAsync(outletId ?? "default");
+                var usersById = await BuildPartnerUsersByIdAsync(partners);
+                var available = partners
+                    .Where(partner => IsPartnerEligibleForAssignment(partner, usersById))
+                    .OrderByDescending(partner => partner.Rating)
+                    .FirstOrDefault();
                 if (available == null)
                 {
                     var conflict = req.CreateResponse(HttpStatusCode.Conflict);
@@ -259,6 +317,19 @@ public class DeliveryPartnerFunction
                 }
                 partnerId = available.Id!;
                 partnerName = available.Name;
+            }
+            else
+            {
+                var selectedPartner = await _mongo.GetDeliveryPartnerByIdAsync(partnerId);
+                var partnerUser = string.IsNullOrWhiteSpace(selectedPartner?.UserId)
+                    ? null
+                    : await _users.GetUserByIdAsync(selectedPartner.UserId);
+                if (!IsPartnerEligibleForAssignment(selectedPartner, partnerUser))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "Selected delivery partner must be available and linked to an active user with delivery-partner role" });
+                    return conflict;
+                }
             }
 
             var success = await _mongo.AssignDeliveryPartnerAsync(partnerId!, request.OrderId);

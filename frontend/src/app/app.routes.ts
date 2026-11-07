@@ -30,6 +30,8 @@ export const routes: Routes = [
   { path: 'partner/delivery', loadComponent: () => import('./components/partner-delivery-dashboard/partner-delivery-dashboard.component').then(m => m.PartnerDeliveryDashboardComponent), canActivate: [partnerGuard] },
   { path: 'partner/payout', loadComponent: () => import('./components/partner-payout-access/partner-payout-access.component').then(m => m.PartnerPayoutAccessComponent), canActivate: [partnerGuard] },
   { path: 'partner/delivery/mobile', loadComponent: () => import('./components/partner-delivery-mobile/partner-delivery-mobile.component').then(m => m.PartnerDeliveryMobileComponent), canActivate: [partnerGuard] },
+  { path: 'finance/expenses', loadComponent: () => import('./components/admin-expenses/admin-expenses.component').then(m => m.AdminExpensesComponent), canActivate: [roleGuard(['admin', 'manager', 'cashier'])] },
+  { path: 'finance/cashier', loadComponent: () => import('./components/cashier/cashier.component').then(m => m.CashierComponent), canActivate: [roleGuard(['admin', 'manager', 'cashier'])] },
   { path: 'manager/dashboard', loadComponent: () => import('./components/manager-dashboard/manager-dashboard.component').then(m => m.ManagerDashboardComponent), canActivate: [managerGuard] },
   { path: 'manager/operations', loadComponent: () => import('./components/manager-operations-board/manager-operations-board.component').then(m => m.ManagerOperationsBoardComponent), canActivate: [managerGuard] },
   { path: 'manager/dine-in-report', loadComponent: () => import('./components/dine-in-report/dine-in-report.component').then(m => m.DineInReportComponent), canActivate: [managerGuard] },
