@@ -125,6 +125,33 @@ describe('landing menu showcase', () => {
     expect(scroll).toHaveBeenCalledTimes(2);
   }));
 
+  it('continues forward across the repeated mobile category set', () => {
+    const carousel = document.createElement('nav');
+    carousel.innerHTML = '<button></button><div class="category-repeat"><button></button></div>';
+    const first = carousel.querySelector('button')!;
+    const repeat = carousel.querySelector('.category-repeat button')!;
+    Object.defineProperty(first, 'offsetWidth', { value: 76 });
+    Object.defineProperty(first, 'offsetLeft', { value: 0 });
+    Object.defineProperty(repeat, 'offsetLeft', { value: 988 });
+    Object.defineProperty(carousel, 'scrollWidth', { value: 1976 });
+    Object.defineProperty(carousel, 'clientWidth', { value: 300 });
+    Object.defineProperty(carousel, 'scrollLeft', { value: 1064, writable: true });
+    const scroll = jasmine.createSpy('scrollBy');
+    const reset = jasmine.createSpy('scrollTo');
+    carousel.scrollBy = scroll;
+    carousel.scrollTo = reset;
+    spyOn(carousel, 'matches').and.returnValue(false);
+    spyOnProperty(document, 'hidden', 'get').and.returnValue(false);
+    spyOn(window, 'matchMedia').and.callFake(query =>
+      jasmine.createSpyObj<MediaQueryList>('media', ['addEventListener'], { matches: query === '(max-width: 600px)' })
+    );
+    const component: HomeComponent = Object.create(HomeComponent.prototype);
+    component.categoryCarousel = new ElementRef(carousel);
+    component.advanceCategories();
+    expect(reset).toHaveBeenCalledWith({ left: 76, behavior: 'instant' });
+    expect(scroll).toHaveBeenCalledWith({ left: 76, behavior: 'auto' });
+  });
+
   it('advances artwork at five seconds, loops and stops on destruction', fakeAsync(() => {
     const carousel = document.createElement('div');
     const slide = document.createElement('div');

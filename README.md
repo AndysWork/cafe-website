@@ -23,6 +23,11 @@ The cart and selected table remain available when a customer signs in.
 
 ### Homepage quick navigation
 
+The hero displays the full bundled pizza-and-drink image without cropping,
+independently of live menu images. Desktop text overlays the image with a dark
+gradient; on tablets, text sits above the unobscured image. Mobile places the
+full image first, followed by centered copy and equal-width action buttons.
+
 The mobile bottom bar opens separate dialogs for
 Our Story, Offers, Rewards, and Contact. Dialogs support Escape, backdrop
 dismissal, focus restoration, and scrolling without scrolling the page behind.
@@ -36,7 +41,9 @@ the loyalty overview; personal points and available rewards require login.
 Contact uses the outlet address and clickable phone details, with Instagram,
 Facebook, WhatsApp, and Google Maps icons inside the turquoise-and-lime card.
 The quick category strip advances one category every three seconds when it
-overflows, then resets to the beginning and repeats. Its scrollbar is hidden;
+overflows. On mobile (up to 600px), a repeated visual set allows seamless forward
+looping with safe-area edge spacing for curved displays; desktop resets to the
+beginning and repeats. Its scrollbar is hidden;
 manual scrolling and category links remain available. Automatic movement pauses
 on hover, keyboard focus, hidden tabs, open popups, or reduced-motion preferences.
 The Find Our Cafe artwork area supports a separate five-second looping carousel
@@ -65,6 +72,8 @@ The desktop cart sits next to Order Now, using a dark SVG icon on a lime
 button in the header.
 Navbar action buttons have 12px spacing; notifications match the cart's
 lime button, dark SVG icon, and unread-count badge styling.
+Mobile profile dropdowns toggle by tap and expand within the navigation drawer.
+Hover opening and delayed closing are limited to desktop fine-pointer devices.
 Instagram, Facebook, and WhatsApp icons link to the cafe's accounts below the
 copyright. The benefits strip is removed; free delivery within 3 km on orders
 of ₹299 or more is displayed inside the Offers dialog. This is promotional

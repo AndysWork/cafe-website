@@ -171,7 +171,6 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     { imageUrl: '/images/cafe/cafe-05.jpg', alt: 'Maa Tara Cafe blue food cart at night' }
   ];
   latestMenuItems: LandingShowcaseItem[] = [];
-  heroImage = '';
   bowlItem: LandingShowcaseItem | null = null;
   showcaseItems: LandingShowcaseItem[] = [];
   readonly quickCategories = [
@@ -684,11 +683,6 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
           subCategoryId: this.normalizeId(item.subCategoryId ?? item.SubCategoryId ?? item.subCategory?.id ?? item.subCategory?._id),
         }));
 
-        const visibleItems = this.menuItems.filter(item =>
-          item.isAvailable !== false && item.isVisibleToCustomers !== false && item.isAddOnOnly !== true);
-        const pizza = visibleItems.find(item =>
-          (item.name || item.catalogueName || '').toLowerCase().includes('pizza') && (item.imageUrl || item.imageThumbnailUrl));
-        this.heroImage = pizza?.imageUrl || pizza?.imageThumbnailUrl || '';
         this.bowlItem = selectShowcaseItem(this.menuItems, 'bowl', '🥗');
         // Update stats after menu items are loaded
         this.loadStats();
@@ -764,7 +758,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   advanceCategories(): void {
-    this.advanceCarousel(this.categoryCarousel?.nativeElement, 'button', 0);
+    this.advanceCarousel(this.categoryCarousel?.nativeElement, 'button', 0, true);
   }
 
   startVisitCarousel(): void {
@@ -775,13 +769,24 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.advanceCarousel(this.visitCarousel?.nativeElement, '.visit-art-slide', 0);
   }
 
-  private advanceCarousel(carousel: HTMLElement | undefined, selector: string, gap: number): void {
+  private advanceCarousel(carousel: HTMLElement | undefined, selector: string, gap: number, loopCategories = false): void {
     if (!carousel || this.activePanel || document.hidden || carousel.matches(':hover') ||
         carousel.contains(document.activeElement) ||
         window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const card = carousel.querySelector<HTMLElement>(selector);
     const maxScroll = carousel.scrollWidth - carousel.clientWidth;
     if (!card || maxScroll <= 1) return;
+    if (loopCategories && window.matchMedia('(max-width: 600px)').matches) {
+      const repeat = carousel.querySelector<HTMLElement>('.category-repeat button');
+      const loopWidth = repeat ? repeat.offsetLeft - card.offsetLeft : 0;
+      if (loopWidth > 0) {
+        if (carousel.scrollLeft >= loopWidth) {
+          carousel.scrollTo({ left: carousel.scrollLeft % loopWidth, behavior: 'instant' });
+        }
+        carousel.scrollBy({ left: card.offsetWidth, behavior: 'auto' });
+        return;
+      }
+    }
     if (carousel.scrollLeft >= maxScroll - 1) {
       carousel.scrollTo({ left: 0, behavior: 'instant' });
     } else {

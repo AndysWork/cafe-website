@@ -347,7 +347,6 @@
 .profile-dropdown {
   position: relative;
 
-  &:hover .dropdown-menu,
   &.active .dropdown-menu {
     opacity: 1;
     visibility: visible;
@@ -355,7 +354,6 @@
     transform: translateY(0);
   }
 
-  &:hover .arrow,
   &.active .arrow {
     transform: rotate(180deg);
   }
@@ -1273,6 +1271,7 @@
 
   .auth-section {
     width: 100%;
+    flex-wrap: wrap;
     margin-left: 0;
     padding-top: 20px;
     border-top: 1px solid #e2e8f0;
@@ -1295,6 +1294,21 @@
     .btn-login {
       width: 100%;
       justify-content: center;
+    }
+  }
+
+  .auth-section .profile-dropdown {
+    flex: 1;
+    min-width: 0;
+    .profile-badge { width: 100%; padding: 10px; }
+    .username { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .profile-menu {
+      display: none;
+      position: static;
+      min-width: 0;
+      width: 100%;
+      transform: none;
+      &.show { display: block; }
     }
   }
 }

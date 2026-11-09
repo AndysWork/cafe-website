@@ -119,6 +119,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   openDropdown(dropdown: string) {
+    if (!window.matchMedia('(min-width: 1025px) and (hover: hover) and (pointer: fine)').matches) return;
     if (this.closeTimeout) {
       clearTimeout(this.closeTimeout);
     }
@@ -126,6 +127,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   scheduleCloseDropdown() {
+    if (!window.matchMedia('(min-width: 1025px) and (hover: hover) and (pointer: fine)').matches) return;
     this.closeTimeout = setTimeout(() => {
       this.activeDropdown = null;
     }, 200);

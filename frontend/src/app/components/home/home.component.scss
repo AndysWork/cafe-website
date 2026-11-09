@@ -302,7 +302,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid #cbd5e1;
     background: #f8fafc;
     color: #0f172a;
-    border-radius: 999px;
+    border-radius: 22px;
     font-size: 0.82rem;
     font-weight: 700;
     padding: 8px 14px;
@@ -1819,8 +1819,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .cravings-hero {
   position: relative;
-  min-height: 340px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   overflow: hidden;
   background: linear-gradient(120deg, #00a9c5, #00869e 65%, #075067);
@@ -1829,6 +1829,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .cravings-copy {
   position: relative;
+  grid-area: 1 / 1;
   z-index: 1;
   width: min(52%, 670px);
   margin-left: max(5%, calc((100% - 1350px) / 2));
@@ -1881,14 +1882,13 @@ a.find-cafe-link {
 }
 .cravings-secondary { background: transparent; color: #fff; border: 2px solid #fff; }
 .cravings-visual {
-  position: absolute;
-  inset: 0 0 0 43%;
+  position: relative;
+  grid-area: 1 / 1;
   display: grid;
   place-items: center;
-  &::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #008aa2, transparent 70%); }
-  img { width: 100%; height: 100%; object-fit: cover; }
+  &::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 35, 45, .92), rgba(0, 35, 45, .75) 40%, rgba(0, 35, 45, .12) 75%); }
+  img { display: block; width: 100%; height: auto; }
 }
-.hero-food-fallback { font-size: clamp(8rem, 20vw, 18rem); }
 
 .quick-category-bar {
   position: relative;
@@ -1965,6 +1965,7 @@ a.find-cafe-link {
   strong { font-size: .9rem; }
 }
 .featured-heading .discover-link { padding: 10px 16px; border-radius: 999px; background: #eaff00; color: #092534; }
+.category-repeat { display: none; }
 .hero-services {
   display: flex;
   flex-wrap: wrap;
@@ -2157,6 +2158,7 @@ a.find-cafe-link {
 }
 .category-card { font-family: inherit; cursor: pointer; }
 .home-bottom-nav { display: none; }
+.bottom-nav-icon { display: block; width: 24px; height: 24px; margin: 0 auto; flex-shrink: 0; }
 .copyright-footer {
   padding: 16px;
   text-align: center;
@@ -2270,7 +2272,7 @@ a.find-cafe-link {
   align-items: center;
   gap: 24px;
   padding: 28px;
-  border-radius: 22px;
+  border-radius: 999px;
   background: radial-gradient(circle at 95% 0, #17c6bb, transparent 55%), linear-gradient(130deg, #00677b, #008da6);
   color: #fff;
   h3 { margin: 10px 0; font-size: clamp(1.8rem, 6vw, 2.8rem); font-weight: 900; line-height: 1.1; }
@@ -2316,20 +2318,66 @@ a.find-cafe-link {
 }
 
 @media (max-width: 900px) {
+  .cravings-copy { grid-area: auto; width: auto; margin: 0 20px; padding: 32px 0 24px; }
+  .cravings-visual { grid-area: auto; }
+  .cravings-visual::after { display: none; }
   .quick-category-bar { margin-left: 16px; margin-right: 16px; }
   .home-promos { grid-template-columns: 1fr; }
   .special-tile { flex-basis: calc((100% - 12px) / 2); }
 }
 @media (max-width: 600px) {
   .landing-container { padding-bottom: 72px; }
-  .cravings-hero { min-height: 315px; }
-  .cravings-copy { width: 68%; margin-left: 20px; padding: 36px 0 60px; }
+  .cravings-hero { background: linear-gradient(160deg, #064957, #032d38); }
+  .cravings-visual {
+    grid-row: 1;
+    margin: 14px 14px 0;
+    border-radius: 20px;
+    overflow: hidden;
+  }
+  .cravings-copy {
+    grid-row: 2;
+    margin: 0 16px;
+    padding: 22px 0 42px;
+    text-align: center;
+  }
+  .hero-eyebrow { display: block; font-size: .62rem; letter-spacing: .1em; }
+  .hero-cafe-name { font-size: 1rem; }
   .cravings-copy h1 { font-size: clamp(2rem, 8vw, 3rem); }
-  .cravings-copy p { font-size: .82rem; }
-  .cravings-visual { left: 36%; opacity: .8; }
-  .cravings-visual::after { background: linear-gradient(90deg, #008aa2 0%, rgba(0, 105, 127, .6) 35%, transparent); }
-  .cravings-primary, .cravings-secondary { padding: 9px 14px; font-size: .78rem; }
-  .quick-category-bar { padding: 10px; border-radius: 20px; }
+  .cravings-copy p { margin: 14px auto 0; max-width: 340px; font-size: .85rem; line-height: 1.6; }
+  .cravings-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .quick-category-bar {
+    position: relative;
+    margin-left: max(12px, env(safe-area-inset-left));
+    margin-right: max(12px, env(safe-area-inset-right));
+    padding: 10px 0;
+    border-radius: 999px;
+    scroll-padding-inline: 12px;
+    button { flex: 0 0 76px; }
+    .category-repeat { display: contents; }
+  }
+  .hero-services {
+    justify-content: center;
+    gap: 6px;
+    span {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 8px;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(0, 60, 72, .35);
+      white-space: nowrap;
+    }
+    span:first-child { padding-left: 8px; }
+  }
+  .cravings-primary, .cravings-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 9px 8px;
+    font-size: .75rem;
+    white-space: nowrap;
+  }
   .quick-category-bar button { flex-basis: 76px; font-size: .72rem; }
   .featured-section, .specials-section { padding: 0 16px; margin: 26px auto; }
   .featured-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

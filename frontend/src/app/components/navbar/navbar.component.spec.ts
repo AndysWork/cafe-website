@@ -1,5 +1,5 @@
 import { Component, signal } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { AuthService, UserRole } from '../../services/auth.service';
 import { CartService } from '../../services/cart.service';
@@ -26,6 +26,25 @@ describe('NavbarComponent multi-role navigation', () => {
   };
   const links = () => Array.from(fixture.nativeElement.querySelectorAll('a[href]') as NodeListOf<HTMLAnchorElement>)
     .map(link => link.getAttribute('href'));
+
+  it('ignores emulated mobile hover and keeps the profile open after a tap', fakeAsync(() => {
+    spyOn(window, 'matchMedia').and.returnValue(
+      jasmine.createSpyObj<MediaQueryList>('media', ['addEventListener'], { matches: false })
+    );
+    setRoles('user');
+    const component = fixture.componentInstance;
+    component.toggleMobileMenu();
+    component.openDropdown('customer-profile');
+    expect(component.activeDropdown).toBeNull();
+    fixture.nativeElement.querySelector('.customer-profile .profile-badge').click();
+    component.scheduleCloseDropdown();
+    tick(250);
+    fixture.detectChanges();
+    expect(component.activeDropdown).toBe('customer-profile');
+    expect(fixture.nativeElement.querySelector('.profile-badge').getAttribute('aria-expanded')).toBe('true');
+    fixture.nativeElement.querySelector('.profile-badge').click();
+    expect(component.activeDropdown).toBeNull();
+  }));
 
   beforeEach(() => {
     localStorage.removeItem('authToken');
