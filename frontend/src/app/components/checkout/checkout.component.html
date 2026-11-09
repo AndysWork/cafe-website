@@ -3,8 +3,7 @@
   <div class="hero">
     <div class="hero-pattern"></div>
     <div class="hero-content">
-      <span class="hero-badge">🛒 Checkout</span>
-      <h1>Complete Your Order</h1>
+      <h1><svg aria-hidden="true" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 15h28l3 29H7l3-29ZM17 17V11a7 7 0 0 1 14 0v6M17 29l5 5 10-11"/></svg><span>Complete <em>Your Order</em></span></h1>
       <p>You're just one step away from deliciousness!</p>
     </div>
     <div class="hero-wave">
@@ -27,18 +26,18 @@
         <div class="order-type-section">
           <label class="section-label">🍽️ Order Type</label>
           <div class="order-type-options">
-            <label class="order-type-option" [class.active]="orderType === 'delivery'" (click)="orderType = 'delivery'; onOrderTypeChange()">
-              <input type="radio" name="orderType" value="delivery" [(ngModel)]="orderType" />
+            <label class="order-type-option" [class.active]="orderType === 'delivery'">
+              <input type="radio" name="orderType" value="delivery" [(ngModel)]="orderType" (ngModelChange)="onOrderTypeChange()" />
               <span class="type-icon">🚚</span>
               <span>Delivery</span>
             </label>
-            <label class="order-type-option" [class.active]="orderType === 'pickup'" (click)="orderType = 'pickup'; onOrderTypeChange()">
-              <input type="radio" name="orderType" value="pickup" [(ngModel)]="orderType" />
-              <span class="type-icon">🏃</span>
+            <label class="order-type-option" [class.active]="orderType === 'pickup'">
+              <input type="radio" name="orderType" value="pickup" [(ngModel)]="orderType" (ngModelChange)="onOrderTypeChange()" />
+              <span class="type-icon" aria-hidden="true">🛍️</span>
               <span>Pickup</span>
             </label>
-            <label class="order-type-option" [class.active]="orderType === 'dine-in'" (click)="orderType = 'dine-in'; onOrderTypeChange()">
-              <input type="radio" name="orderType" value="dine-in" [(ngModel)]="orderType" />
+            <label class="order-type-option" [class.active]="orderType === 'dine-in'">
+              <input type="radio" name="orderType" value="dine-in" [(ngModel)]="orderType" (ngModelChange)="onOrderTypeChange()" />
               <span class="type-icon">🍽️</span>
               <span>Dine-in</span>
             </label>
@@ -141,7 +140,7 @@
               [(ngModel)]="deliveryAddress"
               (ngModelChange)="onDeliveryAddressInputChange()"
               placeholder="Enter your complete delivery address"
-              rows="3"
+              rows="1"
               required
               [disabled]="isSubmitting"></textarea>
             <small class="inline-error" *ngIf="deliveryAddressError">{{ deliveryAddressError }}</small>
@@ -230,7 +229,7 @@
             name="notes"
             [(ngModel)]="notes"
             placeholder="Any special requests or instructions?"
-            rows="2"
+            rows="1"
             [disabled]="isSubmitting"
             (ngModelChange)="onInlineFieldChange()"></textarea>
         </div>
@@ -264,6 +263,7 @@
               *ngIf="couponValid"
               type="button"
               class="btn-remove-coupon"
+              aria-label="Remove coupon"
               (click)="removeCoupon()">
               ✕
             </button>
@@ -272,29 +272,9 @@
             {{ couponValid ? '✅' : '❌' }} {{ couponMessage }}
           </div>
 
-          <div class="available-coupons" *ngIf="loadingAvailableOffers || availableOffers.length > 0">
-            <div class="available-coupons-title">Available Coupons</div>
-
-            <div class="available-coupons-loading" *ngIf="loadingAvailableOffers">
-              Loading coupons...
-            </div>
-
-            <div class="available-coupons-list" *ngIf="!loadingAvailableOffers && availableOffers.length > 0">
-              <button
-                type="button"
-                class="coupon-chip"
-                *ngFor="let offer of availableOffers"
-                (click)="onAvailableCouponClick(offer.code)"
-                [disabled]="couponValid || validatingCoupon"
-                [title]="(offer.title || 'Offer') + ': ' + (offer.description || '')"
-              >
-                <span class="coupon-chip-code">{{ offer.code }}</span>
-                <span class="coupon-chip-meta" *ngIf="offer.minOrderAmount">Min ₹{{ offer.minOrderAmount }}</span>
-              </button>
-            </div>
-          </div>
         </div>
 
+        <div class="checkout-extras">
         <!-- Loyalty Points Section -->
         <div *ngIf="loyaltyLoaded" class="loyalty-section">
           <label class="section-label">⭐ Loyalty Points Payment</label>
@@ -344,12 +324,14 @@
           </div>
         </div>
 
+        </div>
+
         <!-- Payment Method Selection -->
         <div class="payment-section">
           <label class="section-label" id="payment-method-label">💳 Payment Method</label>
           <div class="payment-options" role="radiogroup" aria-labelledby="payment-method-label">
-            <label class="payment-option" [class.active]="paymentMethod === 'upi-qr'" [class.disabled]="!isUpiQrEnabled" (click)="isUpiQrEnabled && onPaymentMethodChange('upi-qr')">
-              <input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" [disabled]="isSubmitting || !isUpiQrEnabled" />
+            <label class="payment-option" [class.active]="paymentMethod === 'upi-qr'" [class.disabled]="!isUpiQrEnabled">
+              <input type="radio" name="paymentMethod" value="upi-qr" [(ngModel)]="paymentMethod" (ngModelChange)="onPaymentMethodChange($event)" [disabled]="isSubmitting || !isUpiQrEnabled" />
               <div class="option-content">
                 <span class="option-icon">📱</span>
                 <div>
@@ -359,8 +341,8 @@
               </div>
               <span class="recommended-badge" *ngIf="isUpiQrEnabled && paymentMethod === 'upi-qr'">✓</span>
             </label>
-            <label class="payment-option" [class.active]="paymentMethod === 'cod'" (click)="onPaymentMethodChange('cod')">
-              <input type="radio" name="paymentMethod" value="cod" [(ngModel)]="paymentMethod" [disabled]="isSubmitting" />
+            <label class="payment-option" [class.active]="paymentMethod === 'cod'">
+              <input type="radio" name="paymentMethod" value="cod" [(ngModel)]="paymentMethod" (ngModelChange)="onPaymentMethodChange($event)" [disabled]="isSubmitting" />
               <div class="option-content">
                 <span class="option-icon">💵</span>
                 <div>
@@ -408,7 +390,7 @@
             ← Back to Cart
           </button>
           <button type="submit" class="btn-place" [disabled]="isSubmitting || cart.itemCount === 0 || !!orderingUnavailableReason">
-            {{ isSubmitting ? '⏳ Processing...' : 'Review Order' }}
+            {{ isSubmitting ? '⏳ Processing...' : 'Review Order →' }}
           </button>
         </div>
       </form>
@@ -448,9 +430,11 @@
       <div class="summary-items">
         <div *ngFor="let item of cart.items; trackBy: trackByName" class="s-item">
           <div class="s-item-left">
-            <span class="s-item-qty">{{ item.quantity }}×</span>
+            <img *ngIf="item.imageThumbnailUrl || item.imageUrl; else itemPlaceholder" class="s-item-image" [src]="item.imageThumbnailUrl || item.imageUrl" [alt]="item.name" />
+            <ng-template #itemPlaceholder><span class="s-item-image item-placeholder" aria-hidden="true">🍽️</span></ng-template>
             <span class="s-item-name">{{ item.name }}</span>
           </div>
+          <span class="s-item-qty">{{ item.quantity }}×</span>
           <span class="s-item-price">₹{{ item.price * item.quantity }}</span>
         </div>
       </div>
@@ -495,9 +479,25 @@
         </div>
       </div>
 
-      <div class="item-count-badge">
-        {{ cart.itemCount }} {{ cart.itemCount === 1 ? 'item' : 'items' }} in your order
+      <div class="delivery-notice" *ngIf="orderType === 'delivery'">
+        <span aria-hidden="true">🚚</span>
+        <span>Delivery availability and fees are confirmed for your address.</span>
+      </div>
+
+      <div class="available-coupons" *ngIf="loadingAvailableOffers || availableOffers.length > 0">
+        <div class="available-coupons-title">Available Coupons</div>
+        <div class="available-coupons-loading" *ngIf="loadingAvailableOffers">Loading coupons...</div>
+        <div class="available-coupons-list" *ngIf="!loadingAvailableOffers">
+          <button type="button" class="coupon-chip" *ngFor="let offer of availableOffers"
+            (click)="onAvailableCouponClick(offer.code)" [disabled]="couponValid || validatingCoupon"
+            [title]="(offer.title || 'Offer') + ': ' + (offer.description || '')">
+            <span class="coupon-chip-code">{{ offer.code }}</span>
+            <span class="coupon-chip-meta" *ngIf="offer.minOrderAmount">Min ₹{{ offer.minOrderAmount }}</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
+  <svg class="checkout-food-art" viewBox="0 310 570 458" aria-hidden="true"><image href="/images/cafe/login-background.png" width="1152" height="768"/></svg>
+  <svg class="checkout-bottom-wave" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true"><path fill="#eaff00" d="M0 25Q180 140 360 70T720 75T1080 60T1440 30V120H0Z"/><path fill="#00bed4" opacity=".55" d="M0 70Q200 20 400 95T800 80T1200 90T1440 60V120H0Z"/></svg>
 </div>

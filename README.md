@@ -107,6 +107,12 @@ copy only; it does not change delivery-zone fee calculations.
 
 ## Sign In
 
+Checkout uses a turquoise/lime responsive design, with order details beside the
+live summary on desktop and above it on mobile. Saved addresses, coupons,
+loyalty redemption, scheduling, QR payment, and the final review step remain
+available. Delivery messaging uses actual address checks rather than a fixed
+free-delivery promotion from the visual reference.
+
 Guest mobile navigation uses the turquoise/lime theme with Sign In.
 Home and Menu rows are hidden on mobile; the logo still links Home,
 the cart shortcut and landing-page information dialogs remain available.
