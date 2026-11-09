@@ -107,6 +107,18 @@ copy only; it does not change delivery-zone fee calculations.
 
 ## Sign In
 
+Guest mobile navigation uses the turquoise/lime theme with Sign In.
+Home and Menu rows are hidden on mobile; the logo still links Home,
+the cart shortcut and landing-page information dialogs remain available.
+On desktop, guest inner-page headers show only the Home-linked logo, cart, and
+Sign In in the same turquoise/lime theme; Home and Menu rows remain hidden.
+
+The Cart uses a turquoise cafe backdrop, rounded order-item and summary panels,
+responsive quantity controls and a warm-gradient checkout action. Live totals,
+loyalty previews, customizations, checkout recovery and dine-in actions remain.
+Order notes retain their 500-character limit. Delivery terms are confirmed at
+checkout rather than displaying an unverified free-delivery promotion.
+
 Desktop Forgot Password follows the same two-column cafe theme, with a lime
 Send Reset Link button, accessible email input, OR divider and Back to Login
 link. Its success/error states and reset-email behavior are preserved; the

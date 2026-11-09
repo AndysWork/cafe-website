@@ -3,9 +3,8 @@
   <div class="hero">
     <div class="hero-pattern"></div>
     <div class="hero-content">
-      <span class="hero-badge">🛒 Your Cart</span>
-      <h1>{{ cart.itemCount }} {{ cart.itemCount === 1 ? 'Item' : 'Items' }}</h1>
-      <p *ngIf="cart.itemCount > 0">Review your selections before checkout</p>
+      <h1><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 3h3l3 13h11l3-10H6"/><circle cx="9" cy="21" r="1"/><circle cx="19" cy="21" r="1"/></svg> Your <span>Cart</span></h1>
+      <p *ngIf="cart.itemCount > 0"><strong>{{ cart.itemCount }} {{ cart.itemCount === 1 ? 'Item' : 'Items' }}</strong><span class="hero-separator">|</span>Review your order and proceed to checkout</p>
       <p *ngIf="cart.itemCount === 0">Your cart is empty</p>
     </div>
     <div class="hero-wave">
@@ -41,7 +40,7 @@
     <div class="items-section">
       <div class="items-header">
         <h2>Order Items</h2>
-        <button class="btn-clear" (click)="clearCart()">🗑️ Clear All</button>
+        <button class="btn-clear" (click)="clearCart()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg> Clear Cart</button>
       </div>
 
       <div *ngFor="let item of cart.items; trackBy: trackByMenuItemId" class="cart-item">
@@ -51,6 +50,7 @@
         <div class="item-placeholder" *ngIf="!(item.imageThumbnailUrl || item.imageUrl)">🍽️</div>
         <div class="item-details">
           <h3 class="item-name">{{ getDisplayText(item.name) }}</h3>
+          <div class="item-category" *ngIf="item.categoryName">{{ getDisplayText(item.categoryName) }}</div>
           <div class="item-options" *ngIf="getItemOptionSummary(item)">{{ getItemOptionSummary(item) }}</div>
           <div class="item-price">₹{{ item.price }}</div>
           <small class="points-preview">Earn ~{{ getEstimatedPointsForItem(item) }} pts</small>
@@ -67,7 +67,7 @@
           <button class="qty-btn" (click)="increaseQuantity(item)" aria-label="Increase quantity">+</button>
         </div>
         <div class="item-total">₹{{ getItemTotal(item) }}</div>
-        <button class="btn-remove" (click)="removeItem(item)" [attr.aria-label]="'Remove ' + getDisplayText(item.name) + ' from cart'">✕</button>
+        <button class="btn-remove" (click)="removeItem(item)" [attr.aria-label]="'Remove ' + getDisplayText(item.name) + ' from cart'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
       </div>
     </div>
 
@@ -76,7 +76,7 @@
       <div class="summary-card">
         <h3>Order Summary</h3>
         <div class="summary-row">
-          <span>Subtotal</span>
+          <span>Item Total</span>
           <span>₹{{ cart.subtotal }}</span>
         </div>
         <div class="summary-row">
@@ -91,8 +91,12 @@
           <div>Estimated earn: <strong>{{ estimatedTotalEarnPoints }} pts</strong></div>
           <div *ngIf="loyaltyPointsAvailable > 0">Possible redemption now: <strong>₹{{ redeemValuePreview }}</strong></div>
         </div>
+        <div class="delivery-notice" *ngIf="!dineInService.currentTable">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M1 4h13v13H1ZM14 9h5l4 4v4h-9"/><circle cx="5" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          <span>Delivery availability and fees are confirmed at checkout.</span>
+        </div>
         <div class="prep-notes-card">
-          <label for="prepNotes">Kitchen Preparation Notes</label>
+          <label for="prepNotes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7l-5-5L4 14v6Z"/></svg> Add Order Note (optional)</label>
           <textarea
             id="prepNotes"
             rows="3"
@@ -121,11 +125,16 @@
           <div class="dine-separator"><span>OR STANDARD CHECKOUT</span></div>
         </div>
 
-        <button class="btn-checkout" (click)="proceedToCheckout()">🛒 Proceed to Checkout</button>
+        <button class="btn-checkout" (click)="proceedToCheckout()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg> Proceed to Checkout <span aria-hidden="true">→</span></button>
         <button class="btn-continue" (click)="continueOrdering()">← Continue Ordering</button>
       </div>
     </div>
   </div>
+
+  <svg class="cart-food-art" viewBox="0 310 570 458" aria-hidden="true" focusable="false">
+    <image href="/images/cafe/login-background.png" width="1152" height="768" />
+  </svg>
+  <svg class="cart-bottom-wave" viewBox="0 0 1440 100" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path fill="#e6ff00" d="M0 25Q160 120 360 45T760 65T1200 50T1440 15V100H0Z"/><path fill="#00c8e9" d="M0 80Q240 120 490 60T920 80T1440 50V100H0Z"/></svg>
 
   <div class="custom-modal-overlay" *ngIf="showCustomizationModal" (click)="closeCustomizationModal()">
     <div class="custom-modal" (click)="$event.stopPropagation()">

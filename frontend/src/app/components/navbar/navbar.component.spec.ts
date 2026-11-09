@@ -52,7 +52,7 @@ describe('NavbarComponent multi-role navigation', () => {
     TestBed.configureTestingModule({
       imports: [NavbarComponent],
       providers: [
-        provideRouter([{ path: '', component: TestRouteComponent }, { path: 'home', component: TestRouteComponent }, { path: 'menu', component: TestRouteComponent }, { path: 'profile', component: TestRouteComponent }]),
+        provideRouter([{ path: '', component: TestRouteComponent }, { path: 'home', component: TestRouteComponent }, { path: 'menu', component: TestRouteComponent }, { path: 'cart', component: TestRouteComponent }, { path: 'login', component: TestRouteComponent }, { path: 'profile', component: TestRouteComponent }]),
         { provide: AuthService, useValue: { logout: jasmine.createSpy('logout') } },
         { provide: CartService, useValue: {} },
         { provide: CartStore, useValue: { itemCount: signal(2) } },
@@ -86,6 +86,25 @@ describe('NavbarComponent multi-role navigation', () => {
     expect(links()).not.toContain('/reservations');
     expect(fixture.nativeElement.querySelector('.group-toggle')).toBeNull();
     expect(fixture.nativeElement.querySelector('.btn-login')).not.toBeNull();
+  });
+
+  it('connects the mobile toggle to its menu and closes it when signing in from cart', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/cart');
+    fixture.detectChanges();
+    const toggle: HTMLButtonElement = fixture.nativeElement.querySelector('.mobile-menu-toggle');
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-controls')).toBe('navbar-menu');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(fixture.nativeElement.querySelector('.guest-navbar')).not.toBeNull();
+    const signIn: HTMLButtonElement = fixture.nativeElement.querySelector('.btn-login');
+    expect(signIn.textContent?.trim()).toBe('Sign In');
+    signIn.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(router.url).toBe('/login');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('opens home dialogs instead of linking to removed inline sections', () => {

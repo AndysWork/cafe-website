@@ -9,6 +9,7 @@
   class="navbar"
   [class.mobile-open]="isMobileMenuOpen"
   [class.landing-navbar]="isLandingPage"
+  [class.guest-navbar]="!isLoggedIn"
   role="navigation"
   aria-label="Main navigation"
 >
@@ -25,6 +26,7 @@
       (click)="toggleMobileMenu()"
       aria-label="Toggle navigation menu"
       [attr.aria-expanded]="isMobileMenuOpen"
+      aria-controls="navbar-menu"
     >
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
@@ -34,7 +36,7 @@
     <ng-container *ngTemplateOutlet="cartLink; context: { placement: 'mobile-cart' }"></ng-container>
 
     <!-- Desktop Menu -->
-    <div class="navbar-menu" [class.active]="isMobileMenuOpen">
+    <div id="navbar-menu" class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
         <li class="landing-links" *ngIf="isLandingPage">
           <a *ngIf="!isCustomerOnly" routerLink="/" class="landing-home-link" (click)="closeMobileMenu()">Home</a>
@@ -43,7 +45,7 @@
           <button type="button" (click)="openHomePanel('offers')" aria-haspopup="dialog">Offers</button>
           <button type="button" (click)="openHomePanel('contact')" aria-haspopup="dialog">Visit Us</button>
         </li>
-        <li class="nav-item" *ngIf="!isLandingPage && !isCustomerOnly">
+        <li class="nav-item home-nav-item" *ngIf="!isLandingPage && !isCustomerOnly">
           <a
             routerLink="/"
             routerLinkActive="active"
@@ -56,8 +58,8 @@
           </a>
         </li>
 
-        <li class="nav-item" *ngIf="!isLoggedIn && !isLandingPage">
-          <a routerLink="/menu" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()"><span class="nav-icon">🍽️</span>Menu</a>
+        <li class="nav-item guest-menu-item" *ngIf="!isLoggedIn && !isLandingPage">
+          <a routerLink="/menu" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()"><span class="nav-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 3v6a3 3 0 0 0 6 0V3M7 3v18M17 3v18M17 3c-3 3-3 8 0 9"/></svg></span>Menu</a>
         </li>
 
         <li class="nav-item navigation-group" *ngFor="let group of navigationGroups(); let index = index"
@@ -101,8 +103,8 @@
         <a *ngIf="isLandingPage" routerLink="/menu" class="landing-order">Order Now <span aria-hidden="true">→</span></a>
         <ng-container *ngTemplateOutlet="cartLink; context: { placement: 'desktop-cart' }"></ng-container>
         <button *ngIf="!isLoggedIn" class="btn-login" (click)="onLogin()">
-          <span class="login-icon">🔐</span>
-          Login
+          <svg class="login-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h6v18h-6M3 12h12m-5-5 5 5-5 5"/></svg>
+          Sign In
         </button>
 
         <!-- Notification Bell (Logged in users) -->

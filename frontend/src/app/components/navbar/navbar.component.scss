@@ -108,6 +108,7 @@
   font-size: .65rem;
   font-weight: 800;
 }
+
 @media (min-width: 1025px) {
   .landing-cart.desktop-cart { display: inline-flex; }
 }
@@ -1311,4 +1312,90 @@
       &.show { display: block; }
     }
   }
+
 }
+
+@media (min-width: 1025px) {
+    .guest-navbar:not(.landing-navbar) {
+      background: linear-gradient(90deg, #00a9c1, #007994);
+      border-bottom: 0;
+      box-shadow: 0 3px 12px #00647d24;
+      animation: none;
+      &::before, &::after { display: none; }
+      .navbar-container { height: 68px; }
+      .brand-logo { height: 54px; border-radius: 8px; animation: none; filter: none; }
+      .home-nav-item, .guest-menu-item { display: none; }
+      .btn-login {
+        background: #e6ff00;
+        color: #101b3d;
+        box-shadow: none;
+        animation: none;
+        text-transform: none;
+        letter-spacing: 0;
+        &::before { display: none; }
+        &:hover {
+          background: #d7f200;
+          transform: none;
+          box-shadow: none;
+          .login-icon { transform: none; }
+        }
+      }
+      :is(a, button):focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .guest-navbar {
+      background: linear-gradient(90deg, #00a9c1, #007994);
+      border-bottom: 0;
+      box-shadow: 0 3px 12px #00647d24;
+      animation: none;
+      &::before, &::after { display: none; }
+      .brand-logo { border-radius: 8px; animation: none; filter: none; }
+      .mobile-menu-toggle {
+        background: #ffffff1f;
+        border-color: #ffffff55;
+        box-shadow: none;
+        .hamburger-line { background: #fff; }
+      }
+      .navbar-menu {
+        background: linear-gradient(160deg, #f8feff, #dff8fc);
+        border-left: 1px solid #bcebf2;
+        padding: 20px 16px;
+        box-shadow: -8px 0 24px #005b7526;
+        height: calc(100dvh - 60px);
+        &::before { display: none; }
+      }
+      .home-nav-item, .guest-menu-item, .landing-home-link { display: none; }
+      .nav-link {
+        min-height: 48px;
+        padding: 12px 16px;
+        margin-bottom: 8px;
+        border: 1px solid transparent;
+        color: #123849;
+        font-weight: 600;
+        background: transparent;
+        box-shadow: none;
+        text-transform: none;
+        &::before, &::after { display: none; }
+        &:hover, &.active { color: #005e73; background: #c9f1f7; border-color: #9edee9; transform: none; box-shadow: none; }
+        .nav-icon { display: inline-flex; align-items: center; color: #007994; }
+      }
+      .auth-section { padding-top: 12px; border-top: 0; gap: 12px; }
+      .btn-login {
+        min-height: 48px;
+        margin: 0;
+        padding: 12px 20px;
+        border: 0;
+        background: #e6ff00;
+        color: #101b3d;
+        box-shadow: 0 4px 12px #00647d14;
+        animation: none;
+        text-transform: none;
+        letter-spacing: 0;
+        &::before { display: none; }
+        &:hover { background: #d7f200; color: #101b3d; transform: none; box-shadow: none; .login-icon { transform: none; } }
+      }
+      :is(a, button):focus-visible { outline: 3px solid #006c84; outline-offset: 3px; }
+    }
+  }
