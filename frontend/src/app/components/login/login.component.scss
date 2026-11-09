@@ -16,13 +16,12 @@
 }
 
 .auth-background {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: left center;
+  display: block;
+  flex: 1;
+  min-width: 0;
+  max-width: 580px;
+  height: min(85dvh, 780px);
+  mask-image: radial-gradient(ellipse, #000 55%, transparent 78%);
 }
 
 .back-home {
@@ -119,11 +118,20 @@
   a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 20px; border-radius: 999px; background: #e6ff00; color: #101b3d; font-weight: 700; text-decoration: none; &:hover { background: #d7f200; } }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (min-width: 1600px) {
-  .auth-page { padding-right: 9%; }
+@media (min-width: 701px) {
+  .auth-page {
+    justify-content: center;
+    gap: clamp(24px, 4vw, 72px);
+    padding: 56px 5% 24px 2%;
+    background: radial-gradient(ellipse at 85% 45%, #c7faff, #43d5ed 48%, #0085aa 78%, #004559);
+  }
+  .auth-form-panel { flex: 1.15; width: auto; max-width: 650px; }
+  .form-wrapper {
+    border-radius: 48px;
+    background: linear-gradient(135deg, #effcffef, #fffffffa 55%, #def9ffed);
+  }
 }
 @media (max-width: 1000px) and (min-width: 701px) {
-  .auth-page { padding: 56px 3% 24px; }
   .auth-form-panel { width: 49%; }
   .form-wrapper { padding: 32px 24px; }
 }

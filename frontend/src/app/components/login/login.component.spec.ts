@@ -44,7 +44,7 @@ describe('Login presentation', () => {
 
   it('uses the supplied background and branded sign-in card with required accessible fields', () => {
     const root: HTMLElement = fixture.nativeElement;
-    expect(root.querySelector('.auth-background')?.getAttribute('src')).toBe('/images/cafe/login-background.png');
+    expect(root.querySelector('.auth-background image')?.getAttribute('href')).toBe('/images/cafe/login-background.png');
     expect(root.querySelector('h1')?.textContent).toBe('Sign In');
     expect(root.querySelector('.form-header p')?.textContent).toContain('Maa Tara Cafe');
     expect(root.querySelector<HTMLInputElement>('#username')?.required).toBeTrue();

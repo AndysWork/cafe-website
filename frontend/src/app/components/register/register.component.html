@@ -1,4 +1,15 @@
 <div class="auth-page">
+  <header class="mobile-register-header">
+    <a class="back-home" routerLink="/" aria-label="Back to Home" title="Back to Home">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 10 9-7 9 7v11H3Z"/><path d="M9 21v-8h6v8"/></svg>
+    </a>
+    <svg class="mobile-register-logo" viewBox="175 0 240 190" role="img" aria-label="Maa Tara Cafe">
+      <image href="/images/cafe/login-background.png" width="1152" height="768" />
+    </svg>
+    <h1>Create Account</h1>
+    <p>Fill in your details to get started</p>
+  </header>
   <!-- Registration Success Overlay -->
   <div class="success-overlay" *ngIf="registrationSuccess">
     <div class="success-card">
@@ -14,41 +25,15 @@
 
   <!-- Left Visual Panel -->
   <div class="auth-visual">
-    <div class="floating-shapes">
-      <div class="shape shape-1"></div>
-      <div class="shape shape-2"></div>
-      <div class="shape shape-3"></div>
-      <div class="shape shape-4"></div>
-      <div class="shape shape-5"></div>
-      <div class="shape shape-6"></div>
-    </div>
     <div class="visual-content">
-      <div class="brand-icon">☕</div>
-      <h1 class="brand-title">Join Our Community</h1>
-      <p class="brand-tagline">Create your account and start enjoying your café experience</p>
-      <div class="visual-perks">
-        <div class="perk">
-          <span class="perk-icon">🎁</span>
-          <div>
-            <strong>Welcome Bonus</strong>
-            <span>Get rewards on your first order</span>
-          </div>
-        </div>
-        <div class="perk">
-          <span class="perk-icon">💳</span>
-          <div>
-            <strong>Loyalty Points</strong>
-            <span>Earn points with every purchase</span>
-          </div>
-        </div>
-        <div class="perk">
-          <span class="perk-icon">🔔</span>
-          <div>
-            <strong>Exclusive Offers</strong>
-            <span>Be first to know about deals</span>
-          </div>
-        </div>
-      </div>
+      <svg class="desktop-register-logo" viewBox="175 0 240 190" role="img" aria-label="Maa Tara Cafe">
+        <image href="/images/cafe/login-background.png" width="1152" height="768" />
+      </svg>
+      <h1 class="brand-title">Create Account</h1>
+      <p class="brand-tagline">Join Our Caf&eacute; Community</p>
+      <svg class="desktop-register-food" viewBox="0 310 570 458" aria-hidden="true" focusable="false">
+        <image href="/images/cafe/login-background.png" width="1152" height="768" />
+      </svg>
     </div>
   </div>
 
@@ -56,11 +41,11 @@
   <div class="auth-form-panel">
     <div class="form-wrapper">
       <div class="form-header">
-        <h2>Create Account</h2>
+        <h2>Create <span>Account</span></h2>
         <p>Fill in your details to get started</p>
       </div>
 
-      <form (ngSubmit)="onSubmit()" #registerForm="ngForm" class="auth-form">
+      <form (ngSubmit)="onSubmit()" #registerForm="ngForm" class="auth-form" aria-label="Create account form">
         <!-- Name Row -->
         <div class="form-row">
           <div class="input-group" [class.has-value]="firstName">
@@ -121,7 +106,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0 1 13 0"/></svg>
             </span>
             <select id="gender" name="gender" [(ngModel)]="gender">
-              <option value="">Select gender (optional)</option>
+              <option value="">Select gender</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
               <option value="other">Other</option>
@@ -130,7 +115,7 @@
             <label for="gender">Gender</label>
           </div>
 
-          <div class="input-group" [class.has-value]="dateOfBirth">
+          <div class="input-group date-group" [class.has-value]="dateOfBirth">
             <span class="input-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </span>
@@ -154,7 +139,7 @@
             placeholder=" "
           />
           <label for="password">Password <span class="required">*</span></label>
-          <button type="button" class="toggle-password" (click)="togglePassword()" tabindex="-1">
+          <button type="button" class="toggle-password" (click)="togglePassword()" [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'" [attr.aria-pressed]="showPassword">
             <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             <svg *ngIf="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
           </button>
@@ -191,14 +176,14 @@
             placeholder=" "
           />
           <label for="confirmPassword">Confirm Password <span class="required">*</span></label>
-          <button type="button" class="toggle-password" (click)="toggleConfirmPassword()" tabindex="-1">
+          <button type="button" class="toggle-password" (click)="toggleConfirmPassword()" [attr.aria-label]="showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'" [attr.aria-pressed]="showConfirmPassword">
             <svg *ngIf="!showConfirmPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             <svg *ngIf="showConfirmPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
           </button>
         </div>
 
         <!-- Error Message -->
-        <div class="error-toast" *ngIf="errorMessage">
+        <div class="error-toast" *ngIf="errorMessage" role="alert">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
           <span>{{ errorMessage }}</span>
         </div>
@@ -222,4 +207,7 @@
       </form>
     </div>
   </div>
+  <svg class="mobile-register-food" viewBox="0 310 570 458" aria-hidden="true" focusable="false">
+    <image href="/images/cafe/login-background.png" width="1152" height="768" />
+  </svg>
 </div>

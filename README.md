@@ -107,6 +107,24 @@ copy only; it does not change delivery-zone fee calculations.
 
 ## Sign In
 
+Desktop Forgot Password follows the same two-column cafe theme, with a lime
+Send Reset Link button, accessible email input, OR divider and Back to Login
+link. Its success/error states and reset-email behavior are preserved; the
+navbar is hidden on recovery. Mobile stacks centered cafe branding, the
+translucent reset card and food artwork against the matching turquoise backdrop.
+
+Desktop sign-in uses the same full-width turquoise background and two-column
+composition as Create Account, with cafe artwork on the left and a rounded
+translucent card on the right, without empty solid-color side bands.
+
+On mobile, Create Account uses the matching turquoise cafe theme with centered
+branding, a rounded translucent form, paired name and gender/birth-date fields,
+lime submit action and food artwork. The customer navbar is hidden on mobile
+registration, with an arrow/home exit instead. Desktop registration uses a
+two-column turquoise layout with cafe branding and food artwork on the left,
+a rounded form card on the right, and no customer navbar.
+Existing validation, password strength, success confirmation and return URLs remain.
+
 The login page uses the supplied cafe welcome artwork as its bundled background
 with a rounded white sign-in card and lime actions. The artwork fits without
 cropping on desktop. Mobile uses centered welcome branding above a translucent

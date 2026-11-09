@@ -26,6 +26,8 @@ import { DineInBillModalComponent } from './components/dine-in-bill-modal/dine-i
 export class AppComponent {
   title = 'Dashboard';
   showNavbar = true;
+  isRegistrationPage = false;
+  isPasswordRecoveryPage = false;
   isCustomerView = true;
   private analyticsTracking = inject(AnalyticsTrackingService);
   networkStatus = inject(NetworkStatusService);
@@ -39,6 +41,8 @@ export class AppComponent {
     ).subscribe((event: any) => {
       const currentUrl = (event.urlAfterRedirects || event.url || '').split('?')[0] || '/';
       this.showNavbar = !currentUrl.startsWith('/admin') && currentUrl !== '/login';
+      this.isRegistrationPage = currentUrl === '/register';
+      this.isPasswordRecoveryPage = currentUrl === '/forgot-password';
 
       const isCustomer = !currentUrl.startsWith('/admin') &&
                          !currentUrl.startsWith('/kitchen') &&
