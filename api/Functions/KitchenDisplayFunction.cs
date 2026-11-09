@@ -77,7 +77,11 @@ public class KitchenDisplayFunction
                 }
             }
 
-            var kitchenItems = orders.Select(o => new
+            var utcNow = MongoService.GetUtcNow();
+            var kitchenItems = orders.Select(o =>
+            {
+                var createdAtIst = OrderDateHelper.ToKitchenCreatedAtIst(o);
+                return new
             {
                 o.Id,
                 CustomerName = o.CustomerName ?? o.Username,
@@ -111,10 +115,11 @@ public class KitchenDisplayFunction
                 PreparationNotes = o.PreparationNotes,
                 SpecialInstructions = string.IsNullOrWhiteSpace(o.PreparationNotes) ? o.Notes : o.PreparationNotes,
                 Notes = o.Notes,
-                o.CreatedAt,
-                WaitTime = IstDateHelper.GetSessionElapsedMinutes(o.CreatedAt, o.CreatedAtIsUtc, MongoService.GetUtcNow()),
+                CreatedAt = createdAtIst,
+                WaitTime = IstDateHelper.GetSessionElapsedMinutes(createdAtIst.DateTime, false, utcNow),
                 IsScheduled = o.IsScheduled,
                 ScheduledFor = o.ScheduledFor
+                };
             }).OrderBy(o => o.CreatedAt).ToList();
 
             var response = req.CreateResponse(HttpStatusCode.OK);
@@ -617,7 +622,7 @@ public class KitchenDisplayFunction
             var preparingOrders = await _mongo.GetOrdersByStatusAsync(new[] { "preparing" }, outletId);
             var completedToday = await _mongo.GetOrdersByStatusAsync(new[] { "delivered" }, outletId);
             var todayCompleted = completedToday.Where(o =>
-                (o.CreatedAtIsUtc == true ? IstDateHelper.NormalizeToIst(o.CreatedAt) : o.CreatedAt) >= todayStart).ToList();
+                OrderDateHelper.ToKitchenCreatedAtIst(o).DateTime >= todayStart).ToList();
 
             double avgPrepTime = 0;
             if (todayCompleted.Any())

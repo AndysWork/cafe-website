@@ -107,6 +107,10 @@ copy only; it does not change delivery-zone fee calculations.
 
 ## Sign In
 
+The mobile sign-in illustration is clipped to its SVG crop so tall/narrow
+Android viewports do not expose the surrounding source image. Space is reserved
+for the Home shortcut, and the form remains scrollable when the keyboard opens.
+
 Checkout uses a turquoise/lime responsive design, with order details beside the
 live summary on desktop and above it on mobile. Saved addresses, coupons,
 loyalty redemption, scheduling, QR payment, and the final review step remain
@@ -236,6 +240,13 @@ for creation timestamps. Unmarked orders are treated as legacy wall-clock values
 so historical unmarked UTC records still require reconciliation. Other order
 timestamps may use a different convention and must not be interpreted using the
 creation marker.
+
+The kitchen queue resolves unmarked, session-linked dine-in order creation
+timestamps as UTC, retaining the existing ObjectId-based compatibility check for
+historical IST wall-clock records. Other unmarked orders remain IST wall-clock.
+Its `createdAt` response includes an explicit `+05:30` offset, and elapsed minutes
+and completed-today creation-date checks use the same normalized value. This does
+not enable marker writes, migrate stored records, or reinterpret preparation timestamps.
 
 The read-only historical audit found expense and sales dates stored at both
 00:00 UTC and 18:30 UTC. Do not blanket-convert their boundaries or data.

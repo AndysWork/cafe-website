@@ -7,7 +7,12 @@
     <image href="/images/cafe/login-background.png" width="1152" height="768" />
   </svg>
   <svg class="mobile-welcome" viewBox="90 0 490 310" aria-hidden="true" focusable="false">
-    <image href="/images/cafe/login-background.png" width="1152" height="768" />
+    <defs>
+      <clipPath id="login-welcome-crop">
+        <rect x="90" y="0" width="490" height="310" />
+      </clipPath>
+    </defs>
+    <image href="/images/cafe/login-background.png" width="1152" height="768" clip-path="url(#login-welcome-crop)" />
   </svg>
 
   <div class="auth-form-panel">

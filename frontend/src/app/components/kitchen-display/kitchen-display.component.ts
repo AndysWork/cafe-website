@@ -8,6 +8,7 @@ import { UIStore } from '../../store/ui.store';
 import { Subscription, interval } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { RouterModule } from '@angular/router';
+import { convertToIst } from '../../utils/date-utils';
 
 declare global {
   interface Window {
@@ -425,7 +426,7 @@ export class KitchenDisplayComponent implements OnInit, OnDestroy, AfterViewInit
   getTimeSince(dateStr: string, waitTime?: number): string {
     const diff = Number.isFinite(waitTime)
       ? Math.max(0, Math.floor(waitTime!))
-      : Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+      : Math.floor((Date.now() - convertToIst(dateStr).getTime()) / 60000);
 
     if (!Number.isFinite(diff) || diff < 0) return 'Just now';
     if (diff < 1) return 'Just now';

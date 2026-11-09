@@ -5,6 +5,17 @@ namespace Cafe.Api.Helpers;
 
 public static class OrderDateHelper
 {
+    public static DateTimeOffset ToKitchenCreatedAtIst(Order order)
+    {
+        // Dine-in rounds write UTC even before the optional marker rollout is enabled.
+        var isDineInRound = order.OrderType == "dine-in"
+            && !string.IsNullOrWhiteSpace(order.DineInSessionId);
+        var legacyWallClock = order.CreatedAtIsUtc != true
+            && (order.CreatedAtIsUtc == false || !isDineInRound
+                || DineInTimestampHelper.IsLegacyWallClock(order.CreatedAt, order.Id));
+        return DineInTimestampHelper.ToIstOffset(order.CreatedAt, order.CreatedAtIsUtc, legacyWallClock);
+    }
+
     public static DateTime ToIstCreatedAt(Order order)
     {
         return order.CreatedAtIsUtc == true

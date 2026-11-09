@@ -53,6 +53,11 @@ describe('Login presentation', () => {
     expect(root.querySelector('.back-home')?.getAttribute('href')).toBe('/');
     expect(root.querySelector('.back-home')?.getAttribute('aria-label')).toBe('Back to Home');
     expect(root.querySelectorAll('.back-home svg').length).toBe(2);
+    expect(root.querySelector('.mobile-welcome image')?.getAttribute('clip-path')).toBe('url(#login-welcome-crop)');
+    const crop = root.querySelector('#login-welcome-crop rect');
+    expect(crop?.getAttribute('x')).toBe('90');
+    expect(crop?.getAttribute('width')).toBe('490');
+    expect(crop?.getAttribute('height')).toBe('310');
   });
 
   it('allows keyboard-accessible password visibility without submitting', () => {
