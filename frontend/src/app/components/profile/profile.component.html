@@ -1,27 +1,71 @@
 ﻿<div class="profile-page">
-  <!-- Hero -->
-  <div class="hero">
-    <div class="hero-pattern"></div>
-    <div class="hero-content" *ngIf="user as currentUser">
+  <section class="profile-overview" *ngIf="user as currentUser" aria-labelledby="profile-title">
+    <header class="overview-heading">
+      <h1 id="profile-title">My Profile</h1>
+      <button type="button" class="edit-profile-button" (click)="switchTab('profile')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l5-1L21 7l-4-4L5 15Z"/></svg>
+        Edit Profile
+      </button>
+    </header>
+    <div class="account-summary">
       <div class="avatar-wrapper">
         <div class="avatar" *ngIf="!currentUser.profilePictureUrl">{{ (currentUser.firstName || currentUser.username || '?')[0] | uppercase }}</div>
         <img class="avatar-img" *ngIf="currentUser.profilePictureUrl" [src]="currentUser.profilePictureUrl" alt="Profile picture" />
-        <label class="avatar-edit" [class.uploading]="isUploadingPicture">
-          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" (change)="onProfilePictureSelected($event)" hidden />
-          {{ isUploadingPicture ? '⏳' : '📷' }}
-        </label>
+        <button type="button" class="avatar-edit" (click)="pictureInput.click()" [disabled]="isUploadingPicture" [attr.aria-label]="isUploadingPicture ? 'Uploading profile photo' : 'Change profile photo'">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5l2-3h4l2 3h5v13H3Z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+        <input #pictureInput type="file" accept="image/jpeg,image/png,image/webp,image/gif" (change)="onProfilePictureSelected($event)" hidden />
       </div>
-      <h1>{{ currentUser.firstName ? (currentUser.firstName + ' ' + (currentUser.lastName || '')) : currentUser.username }}</h1>
-      <p>{{ currentUser.email }}</p>
-      <button *ngIf="currentUser.profilePictureUrl" class="btn-remove-pic" (click)="removeProfilePicture()" [disabled]="isUploadingPicture">
-        Remove Photo
-      </button>
+      <div class="account-details">
+        <h2>{{ currentUser.firstName ? (currentUser.firstName + ' ' + (currentUser.lastName || '')) : currentUser.username }}</h2>
+        <p><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="m3 6 9 7 9-7"/></svg>{{ currentUser.email }}</p>
+        <p *ngIf="currentUser.phoneNumber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 4 4-2 3c1 3 4 6 7 7l3-2 4 4c-2 5-7 2-11-1S0 7 5 3Z"/></svg>{{ currentUser.phoneNumber }}</p>
+        <button type="button" *ngIf="currentUser.profilePictureUrl" class="btn-remove-pic" (click)="removeProfilePicture()" [disabled]="isUploadingPicture">Remove Photo</button>
+      </div>
+      <aside class="rewards-summary" aria-label="Rewards balance" aria-live="polite">
+        <span class="rewards-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 5 4 4-7 4 7 5-4-2 14H5Z"/></svg>MTC Rewards Member</span>
+        <span *ngIf="loadingRewards">Loading points...</span>
+        <strong *ngIf="!loadingRewards && loyaltyAccount && !rewardsError">{{ loyaltyAccount.currentPoints | number }} <small>Points</small></strong>
+        <span *ngIf="rewardsError" role="alert">{{ rewardsError }} <button type="button" (click)="loadRewards()">Retry</button></span>
+        <a routerLink="/loyalty">View Rewards <span aria-hidden="true">&#8594;</span></a>
+      </aside>
     </div>
-    <div class="hero-wave">
-      <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path d="M0,64L60,69.3C120,75,240,85,360,80C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90L1440,96L1440,120L0,120Z" fill="#fafafa"/></svg>
-    </div>
-  </div>
+    <div class="msg msg-success" role="status" *ngIf="profileMessage && (!showEditor || activeTab !== 'profile')">{{ profileMessage }}</div>
+    <div class="msg msg-error" role="alert" *ngIf="profileError && (!showEditor || activeTab !== 'profile')">{{ profileError }}</div>
 
+    <section class="quick-actions" aria-labelledby="quick-actions-title">
+      <h2 id="quick-actions-title">Quick Actions</h2>
+      <div class="quick-action-grid">
+        <a routerLink="/orders"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 3h3l3 13h11l3-10H6"/><circle cx="9" cy="21" r="1"/><circle cx="18" cy="21" r="1"/></svg><span>Track Order</span></a>
+        <button type="button" (click)="switchTab('favorites')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21 3 12C-3 5 7-1 12 6 17-1 27 5 21 12Z"/></svg><span>My Favorites</span></button>
+        <button type="button" (click)="switchTab('addresses')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 10c0 5-7 12-7 12S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Manage Addresses</span></button>
+        <a routerLink="/loyalty"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18v11H3ZM2 6h20v4H2ZM12 6v15"/><path d="M12 6C3 6 6-2 10 2l2 4c9 0 6-8 2-4Z"/></svg><span>Redeem Points</span></a>
+        <button type="button" (click)="switchTab('password')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3 1-2h4l1 2 3 2 2 1-1 4v4l1 4-2 1-3 2-1 2h-4l-1-2-3-2-2-1 1-4v-4L4 6l2-1Z"/><circle cx="12" cy="12" r="4"/></svg><span>Account Settings</span></button>
+      </div>
+    </section>
+
+    <section class="order-history" aria-labelledby="order-history-title">
+      <div class="history-heading"><h2 id="order-history-title">Order History</h2><a routerLink="/orders">View All Orders <span aria-hidden="true">&#8594;</span></a></div>
+      <p *ngIf="loadingLastOrder" role="status">Loading your orders...</p>
+      <p *ngIf="ordersError" role="alert">{{ ordersError }} <button type="button" class="history-retry" (click)="loadLastDeliveredOrder()">Retry</button></p>
+      <p *ngIf="!loadingLastOrder && !ordersError && !recentOrders.length" class="history-empty">No orders yet. <a routerLink="/menu">Find your next favourite</a></p>
+      <div *ngIf="!loadingLastOrder && !ordersError" class="recent-orders">
+        <article class="recent-order" *ngFor="let order of recentOrders">
+          <img *ngIf="getOrderImage(order) as image; else noOrderImage" [src]="image" alt="" class="order-thumbnail" loading="lazy" />
+          <ng-template #noOrderImage><div class="order-thumbnail order-image-placeholder" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3v7M2 3v5c0 4 6 4 6 0V3M5 11v10M17 3v18M17 3c-5 5-5 10 0 10"/></svg></div></ng-template>
+          <div class="order-summary">
+            <a [routerLink]="['/orders', order.id]" class="order-title" [title]="'Order #' + order.id">Order #{{ order.id | slice:-6 }}</a>
+            <p>{{ getOrderItemCount(order) }} {{ getOrderItemCount(order) === 1 ? 'Item' : 'Items' }} <span aria-hidden="true">&middot;</span> <strong>{{ order.total | currency:'INR':'symbol':'1.0-2' }}</strong></p>
+            <time [attr.datetime]="order.createdAt">{{ formatOrderDate(order.createdAt) }}</time>
+          </div>
+          <div class="order-actions">
+            <span class="order-status" [class.delivered]="order.status === 'delivered'" [class.cancelled]="order.status === 'cancelled'">{{ order.status === 'out-for-delivery' ? 'Out for delivery' : (order.status | titlecase) }}<span *ngIf="order.status === 'delivered'" aria-hidden="true"> &#10003;</span></span>
+            <button type="button" class="reorder-button" *ngIf="order.status === 'delivered' && order.items.length" (click)="reorderLastOrder(order)" [disabled]="isReorderingLastOrder || !menuSnapshotReady"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 14 6M18 18a8 8 0 0 1-14-6"/></svg>{{ isReorderingLastOrder ? 'Adding...' : 'Reorder' }}</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </section>
   <!-- Content -->
   <div class="profile-content">
     <div class="recovery-banner pending-payment" *ngIf="pendingPaymentRecovery">
@@ -49,25 +93,12 @@
       </div>
     </div>
 
-    <div class="quick-reorder-banner">
-      <div>
-        <strong>Reorder Last Order</strong>
-        <p *ngIf="loadingLastOrder">Checking your latest delivered order...</p>
-        <p *ngIf="!loadingLastOrder && !lastDeliveredOrder">No delivered order found yet.</p>
-        <p *ngIf="!loadingLastOrder && lastDeliveredOrder">{{ lastDeliveredOrder.items.length }} item(s) from {{ lastDeliveredOrder.createdAt | date:'mediumDate' }}</p>
-      </div>
-      <button class="btn-resume" *ngIf="lastDeliveredOrder" (click)="reorderLastOrder()" [disabled]="isReorderingLastOrder">
-        {{ isReorderingLastOrder ? 'Adding...' : 'Reorder Now' }}
-      </button>
-    </div>
-
-    <!-- Tabs -->
-    <div class="tabs">
-      <button class="tab" [class.active]="activeTab === 'profile'" (click)="switchTab('profile')">Profile Info</button>
-      <button class="tab" [class.active]="activeTab === 'password'" (click)="switchTab('password')">Password</button>
-      <button class="tab" [class.active]="activeTab === 'addresses'" (click)="switchTab('addresses')">Addresses</button>
-      <button class="tab" [class.active]="activeTab === 'favorites'" (click)="switchTab('favorites')">Loved Food</button>
-      <button class="tab" [class.active]="activeTab === 'notifications'" (click)="switchTab('notifications')">Notifications</button>
+    <dialog #accountEditor class="account-editor" aria-labelledby="account-editor-title" (cancel)="$event.preventDefault(); closeEditor()" (close)="onEditorClosed()" (click)="onEditorBackdropClick($event)">
+    <div class="editor-heading"><h2 id="account-editor-title">{{ editorTitle }}</h2><button type="button" class="editor-close" (click)="closeEditor()" autofocus>Close</button></div>
+    <div class="editor-body" *ngIf="showEditor">
+    <div class="tabs settings-tabs" *ngIf="activeTab === 'password' || activeTab === 'notifications'">
+      <button type="button" class="tab" [class.active]="activeTab === 'password'" [attr.aria-pressed]="activeTab === 'password'" (click)="switchTab('password')">Password</button>
+      <button type="button" class="tab" [class.active]="activeTab === 'notifications'" [attr.aria-pressed]="activeTab === 'notifications'" (click)="switchTab('notifications')">Notifications</button>
     </div>
 
     <!-- Profile Tab -->
@@ -378,6 +409,8 @@
       </div>
     </div>
 
+    </div>
+    </dialog>
     <!-- Back Link -->
     <div class="back-link">
       <a routerLink="/menu">← Back to Menu</a>

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -10,7 +10,8 @@ import { OrderService, Order, OrderItem } from '../../services/order.service';
 import { CartService } from '../../services/cart.service';
 import { UIStore } from '../../store/ui.store';
 import { NotificationStore } from '../../store';
-import { getIstIsoString } from '../../utils/date-utils';
+import { formatIstDateTime, getIstIsoString } from '../../utils/date-utils';
+import { LoyaltyAccount, LoyaltyService } from '../../services/loyalty.service';
 
 @Component({
   selector: 'app-profile',
@@ -18,7 +19,7 @@ import { getIstIsoString } from '../../utils/date-utils';
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss'
 })
-export class ProfileComponent implements OnInit {
+export class ProfileComponent implements OnInit, OnDestroy {
   private readonly checkoutDraftStorageKey = 'checkout_draft';
   private readonly pendingPaymentStorageKey = 'pending_payment_recovery';
 
@@ -56,6 +57,26 @@ export class ProfileComponent implements OnInit {
   isChangingPassword = false;
 
   activeTab: 'profile' | 'password' | 'notifications' | 'addresses' | 'favorites' = 'profile';
+  showEditor = false;
+  @ViewChild('accountEditor') accountEditor?: ElementRef<HTMLDialogElement>;
+  private previousBodyOverflow = '';
+  private editorTrigger: HTMLElement | null = null;
+  get editorTitle(): string {
+    switch (this.activeTab) {
+      case 'profile': return 'Edit Profile';
+      case 'favorites': return 'My Favorites';
+      case 'addresses': return 'Manage Addresses';
+      default: return 'Account Settings';
+    }
+  }
+  private loyaltyService = inject(LoyaltyService);
+  loyaltyAccount: LoyaltyAccount | null = null;
+  loadingRewards = false;
+  rewardsError = '';
+  recentOrders: Order[] = [];
+  ordersError = '';
+  menuSnapshotReady = false;
+  readonly formatOrderDate = formatIstDateTime;
 
   // Notification preferences
   notificationStore = inject(NotificationStore);
@@ -104,6 +125,7 @@ export class ProfileComponent implements OnInit {
 
       this.loadLatestMenuSnapshot();
       this.loadLastDeliveredOrder();
+      this.loadRewards();
     }
 
     this.loadCheckoutDraft();
@@ -135,8 +157,8 @@ export class ProfileComponent implements OnInit {
     localStorage.removeItem(this.pendingPaymentStorageKey);
   }
 
-  reorderLastOrder(): void {
-    if (!this.lastDeliveredOrder || this.isReorderingLastOrder) return;
+  reorderLastOrder(order: Order | null = this.lastDeliveredOrder): void {
+    if (!order || order.status !== 'delivered' || this.isReorderingLastOrder || !this.menuSnapshotReady) return;
 
     this.isReorderingLastOrder = true;
 
@@ -144,7 +166,7 @@ export class ProfileComponent implements OnInit {
     let substituted = 0;
     let skipped = 0;
 
-    for (const item of this.lastDeliveredOrder.items || []) {
+    for (const item of order.items || []) {
       const resolved = this.resolveReorderItem(item);
       if (!resolved) {
         skipped += 1;
@@ -198,11 +220,21 @@ export class ProfileComponent implements OnInit {
   }
 
   switchTab(tab: 'profile' | 'password' | 'notifications' | 'addresses' | 'favorites'): void {
+    if (!this.showEditor) {
+      this.editorTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      this.previousBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    this.showEditor = true;
     this.activeTab = tab;
+    if (this.accountEditor && !this.accountEditor.nativeElement.open) {
+      this.accountEditor.nativeElement.showModal();
+    }
     this.clearMessages();
     if (tab === 'notifications') {
       this.notificationStore.loadPreferences();
     }
+
     if (tab === 'addresses' && this.addresses.length === 0) {
       this.loadAddresses();
     }
@@ -211,12 +243,69 @@ export class ProfileComponent implements OnInit {
     }
   }
 
+  closeEditor(): void {
+    if (!this.showEditor) return;
+    this.showEditor = false;
+    this.accountEditor?.nativeElement.close();
+    document.body.style.overflow = this.previousBodyOverflow;
+    this.currentPassword = '';
+    this.newPassword = '';
+    this.confirmPassword = '';
+    this.editorTrigger?.focus();
+    this.editorTrigger = null;
+  }
+
+  onEditorBackdropClick(event: MouseEvent): void {
+    if (event.target !== event.currentTarget || !this.accountEditor) return;
+    const bounds = this.accountEditor.nativeElement.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right ||
+        event.clientY < bounds.top || event.clientY > bounds.bottom) {
+      this.closeEditor();
+    }
+  }
+
+  onEditorClosed(): void {
+    if (!this.accountEditor?.nativeElement.open) this.closeEditor();
+  }
+
+  ngOnDestroy(): void {
+    this.closeEditor();
+  }
+
   clearMessages(): void {
     this.profileMessage = '';
     this.profileError = '';
     this.passwordMessage = '';
     this.passwordError = '';
     this.prefsMessage = '';
+  }
+
+  loadRewards(): void {
+    this.loadingRewards = true;
+    this.rewardsError = '';
+    this.loyaltyService.getLoyaltyAccount().subscribe({
+      next: account => {
+        this.loyaltyAccount = account;
+        this.loadingRewards = false;
+      },
+      error: () => {
+        this.rewardsError = 'Unable to load rewards.';
+        this.loadingRewards = false;
+      }
+    });
+  }
+
+  getOrderImage(order: Order): string | undefined {
+    for (const item of order.items) {
+      const menuItem = this.menuItemMap.get(item.menuItemId);
+      const image = menuItem?.imageThumbnailUrl || menuItem?.imageUrl;
+      if (image) return image;
+    }
+    return undefined;
+  }
+
+  getOrderItemCount(order: Order): number {
+    return order.items.reduce((count, item) => count + item.quantity, 0);
   }
 
   togglePreference(key: string, event: Event): void {
@@ -679,9 +768,11 @@ export class ProfileComponent implements OnInit {
     this.menuService.getMenuItems().subscribe({
       next: (items) => {
         this.menuItemMap = new Map((items || []).map(item => [item.id, item]));
+        this.menuSnapshotReady = true;
       },
       error: () => {
         this.menuItemMap = new Map();
+        this.uiStore.error('Unable to load menu images and reorder availability. Please refresh to retry.');
       }
     });
   }
@@ -701,17 +792,20 @@ export class ProfileComponent implements OnInit {
     }
   }
 
-  private loadLastDeliveredOrder(): void {
+  loadLastDeliveredOrder(): void {
     this.loadingLastOrder = true;
+    this.ordersError = '';
     this.orderService.getMyOrders().subscribe({
       next: (orders) => {
-        this.lastDeliveredOrder = [...(orders || [])]
-          .filter(o => o.status === 'delivered' && (o.items?.length || 0) > 0)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
+        const sortedOrders = [...orders]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        this.recentOrders = sortedOrders.slice(0, 3);
+        this.lastDeliveredOrder = sortedOrders.find(o => o.status === 'delivered' && o.items.length > 0) || null;
         this.loadingLastOrder = false;
       },
       error: () => {
         this.lastDeliveredOrder = null;
+        this.ordersError = 'Unable to load your order history.';
         this.loadingLastOrder = false;
       }
     });

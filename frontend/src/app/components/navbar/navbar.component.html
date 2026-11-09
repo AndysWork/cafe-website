@@ -37,13 +37,13 @@
     <div class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
         <li class="landing-links" *ngIf="isLandingPage">
-          <a routerLink="/" class="landing-home-link" (click)="closeMobileMenu()">Home</a>
-          <a routerLink="/menu" (click)="closeMobileMenu()">Menu</a>
+          <a *ngIf="!isCustomerOnly" routerLink="/" class="landing-home-link" (click)="closeMobileMenu()">Home</a>
+          <a *ngIf="!isCustomerOnly" routerLink="/menu" (click)="closeMobileMenu()">Menu</a>
           <button type="button" (click)="openHomePanel('story')" aria-haspopup="dialog">Our Story</button>
           <button type="button" (click)="openHomePanel('offers')" aria-haspopup="dialog">Offers</button>
           <button type="button" (click)="openHomePanel('contact')" aria-haspopup="dialog">Visit Us</button>
         </li>
-        <li class="nav-item" *ngIf="!isLandingPage">
+        <li class="nav-item" *ngIf="!isLandingPage && !isCustomerOnly">
           <a
             routerLink="/"
             routerLinkActive="active"
@@ -56,7 +56,7 @@
           </a>
         </li>
 
-        <li class="nav-item" *ngIf="(isCustomerOnly || !isLoggedIn) && !isLandingPage">
+        <li class="nav-item" *ngIf="!isLoggedIn && !isLandingPage">
           <a routerLink="/menu" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()"><span class="nav-icon">🍽️</span>Menu</a>
         </li>
 

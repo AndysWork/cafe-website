@@ -28,6 +28,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private cartStore = inject(CartStore);
   readonly customerAccountItems = [
     { label: 'Overview', route: '/dashboard', icon: '📊' },
+    { label: 'Menu', route: '/menu', icon: '🍽️' },
     ...CUSTOMER_ACCOUNT_NAVIGATION.map(item => ({
       ...item, label: item.route === '/loyalty' ? 'Rewards' : item.label
     }))

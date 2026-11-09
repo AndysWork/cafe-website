@@ -21,6 +21,30 @@ My Reservations is shown only when signed in; the API continues to require
 authentication for booking and private reservation access.
 The cart and selected table remain available when a customer signs in.
 
+### My Profile
+
+The profile overview shows the signed-in customer's photo, contact details,
+live rewards balance, and three latest orders. Quick actions open orders,
+favorites, saved addresses, loyalty rewards, and account settings. Edit Profile
+opens a modal editor, while Favorites, Manage Addresses, and Account Settings
+open their own modal views instead of an inline settings section. Account
+Settings contains password and notification controls. Modals support Escape,
+backdrop dismissal, focus restoration, and background scroll locking.
+Password, notification preferences, photo management,
+one-time personal fields, and checkout/payment recovery remain available.
+Delivered orders can be reordered through the existing menu-availability/cart
+flow; loading and retry states distinguish failed requests from empty accounts.
+
+### Redeem Points
+
+The loyalty page uses a turquoise-and-lime rewards layout with live balance,
+tier progress, configured reward costs, and expandable points history (latest
+entry first). Redemption still requires sufficient points and confirmation;
+controls are disabled while a redemption is pending. Card/QR, tier benefits,
+birthday bonuses, referrals, transfers, and external claims remain available.
+Food icons and the bundled cafe artwork are decorative; the reference design's
+example rewards and balances are not seeded into the account.
+
 ### Homepage quick navigation
 
 The hero displays the full bundled pizza-and-drink image without cropping,
@@ -59,7 +83,9 @@ and phone block are removed. Desktop Offers and Visit Us open the
 corresponding dialogs. Desktop Our Story opens the same story popup as the
 mobile bottom navigation.
 Customer-only (`user`) accounts have no Dashboards or Operations dropdowns in
-the navbar. A single Account menu contains Overview, My Orders, Reservations,
+the navbar. Redundant customer Home links are removed (the logo returns home),
+and Menu sits inside the Account dropdown instead of a separate navigation row.
+A single Account menu contains Overview, Menu, My Orders, Reservations,
 Subscriptions, Rewards, Profile and Logout; cart access and notifications remain.
 Staff/admin and mixed-role accounts retain their additive workspace navigation.
 Guests see direct Menu and Cart links, not Operations, My Account or Reserve

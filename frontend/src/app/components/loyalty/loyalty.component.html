@@ -3,9 +3,12 @@
   <div class="hero">
     <div class="hero-pattern"></div>
     <div class="hero-content">
-      <span class="hero-badge">⭐ Rewards Program</span>
-      <h1>Loyalty Points</h1>
-      <p>Earn points with every order, redeem exciting rewards</p>
+      <a routerLink="/profile" class="rewards-back" aria-label="Back to My Profile">&#8592;</a>
+      <div class="rewards-heading">
+        <h1>MTC Rewards <span aria-hidden="true">♛</span></h1>
+        <p>Order &middot; Earn Points &middot; Redeem &middot; Enjoy!</p>
+      </div>
+      <span class="hero-badge" *ngIf="!loading && !error">{{ getTierIcon() }} {{ tier }} Member</span>
     </div>
     <div class="hero-wave">
       <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path d="M0,64L60,69.3C120,75,240,85,360,80C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90L1440,96L1440,120L0,120Z" fill="#fafafa"/></svg>
@@ -29,25 +32,24 @@
   <!-- Content -->
   <div *ngIf="!loading && !error" class="loyalty-content">
     <!-- Points Card -->
+    <div class="points-overview">
     <div class="points-hero-card">
-      <div class="points-glow"></div>
+      <div class="points-summary">
       <div class="points-top">
-        <div class="points-star">{{ getTierIcon() }}</div>
-        <div class="points-number">{{ currentPoints }}</div>
-        <div class="points-label">Available Points</div>
-      </div>
-      <div class="points-meta">
-        <div class="tier-chip" [ngClass]="getTierColorClass()">{{ tier }} Member</div>
+        <div class="points-label"><span aria-hidden="true">⭐</span> Your Loyalty Points <span aria-hidden="true">✨</span></div>
+        <div class="points-number"><span aria-hidden="true">🪙</span> {{ currentPoints | number }}</div>
         <div class="multiplier-badge" *ngIf="tierMultiplier > 1">×{{ tierMultiplier }} Points</div>
       </div>
       <div class="points-bottom">
         <div class="progress-section" *ngIf="nextTier">
-          <div class="progress-text">{{ pointsToNextTier }} pts to <strong>{{ nextTier }}</strong></div>
-          <div class="progress-track">
-            <div class="progress-fill" [style.width.%]="(currentPoints / (currentPoints + pointsToNextTier)) * 100"></div>
+          <div class="progress-text"><strong>Next Tier: {{ nextTier }}</strong><span>{{ pointsToNextTier | number }} points to go!</span></div>
+          <div class="progress-track" role="progressbar" aria-label="Progress to next rewards tier" [attr.aria-valuenow]="tierProgressPercent" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-fill" [style.width.%]="tierProgressPercent"></div>
           </div>
+          <div class="progress-count">{{ currentPoints | number }} / {{ tierTargetPoints | number }} pts</div>
         </div>
         <div class="max-tier" *ngIf="!nextTier">🎉 Maximum tier achieved!</div>
+      </div>
       </div>
 
       <!-- Expiry Warning -->
@@ -72,27 +74,19 @@
       </div>
     </div>
 
-    <!-- Tier Benefits -->
-    <div class="tier-benefits-card" *ngIf="tierBenefits.length > 0">
-      <h3>{{ getTierIcon() }} {{ tier }} Benefits</h3>
-      <div class="benefits-list">
-        <div class="benefit-item" *ngFor="let benefit of tierBenefits">
-          <span class="benefit-check">✓</span>
-          <span>{{ benefit }}</span>
-        </div>
-      </div>
-      <div class="tier-progress-hint" *ngIf="nextTier">
-        Reach <strong>{{ nextTier }}</strong> for more perks!
-      </div>
+    <div class="rewards-artwork" aria-hidden="true">
+      <img src="/images/cafe/hero-pizza-drink.png" alt="" width="1536" height="768" />
+      <span>Good food.<br /><strong>Great rewards.</strong></span>
+    </div>
     </div>
 
     <!-- Tab Navigation -->
-    <div class="tab-nav">
-      <button class="tab-btn" [class.active]="activeTab === 'rewards'" (click)="activeTab = 'rewards'">🎁 Rewards</button>
-      <button class="tab-btn" [class.active]="activeTab === 'card'" (click)="activeTab = 'card'; generateQrCode()">💳 Card</button>
-      <button class="tab-btn" [class.active]="activeTab === 'referral'" (click)="activeTab = 'referral'">🤝 Referral</button>
-      <button class="tab-btn" [class.active]="activeTab === 'transfer'" (click)="activeTab = 'transfer'">🔄 Transfer</button>
-      <button class="tab-btn" [class.active]="activeTab === 'claims'" (click)="activeTab = 'claims'">📱 Claims</button>
+    <div class="tab-nav" aria-label="Rewards sections">
+      <button class="tab-btn" [class.active]="activeTab === 'rewards'" [attr.aria-pressed]="activeTab === 'rewards'" (click)="activeTab = 'rewards'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18v11H3ZM2 6h20v4H2ZM12 6v15M12 6C3 6 6-2 10 2l2 4c9 0 6-8 2-4Z"/></svg>Rewards</button>
+      <button class="tab-btn" [class.active]="activeTab === 'card'" [attr.aria-pressed]="activeTab === 'card'" (click)="activeTab = 'card'"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 9h20M6 15h4"/></svg>Card</button>
+      <button class="tab-btn" [class.active]="activeTab === 'referral'" [attr.aria-pressed]="activeTab === 'referral'" (click)="activeTab = 'referral'"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="3"/><path d="M2 20v-3a7 7 0 0 1 14 0v3M16 3a3 3 0 0 1 0 6M22 20v-3a7 7 0 0 0-4-6"/></svg>Referral</button>
+      <button class="tab-btn" [class.active]="activeTab === 'transfer'" [attr.aria-pressed]="activeTab === 'transfer'" (click)="activeTab = 'transfer'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h17l-4-4M21 17H4l4 4M20 7l-4 4M4 17l4-4"/></svg>Transfer</button>
+      <button class="tab-btn" [class.active]="activeTab === 'claims'" [attr.aria-pressed]="activeTab === 'claims'" (click)="activeTab = 'claims'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v5a3 3 0 0 0 0 6v5H3v-5a3 3 0 0 0 0-6ZM12 4v4M12 11v2M12 16v4"/></svg>Claims</button>
     </div>
 
     <!-- ═══ TAB: Rewards ═══ -->
@@ -108,31 +102,39 @@
         </div>
         <div class="rewards-grid" *ngIf="availableRewards.length > 0">
           <div *ngFor="let reward of availableRewards; trackBy: trackByName" class="reward-card" [class.can-redeem]="reward.canRedeem">
-            <div class="reward-emoji">{{ reward.icon }}</div>
+            <div class="reward-emoji" aria-hidden="true">
+              <svg *ngIf="reward.icon === '🏷️'; else foodIcon" class="discount-art" viewBox="0 0 80 96"><path d="M24 8h32l14 20v56a6 6 0 0 1-6 6H16a6 6 0 0 1-6-6V28Z"/><circle cx="40" cy="21" r="4"/><path d="M40 17V5q0-12 12-10"/><path d="m26 68 28-28"/><circle cx="28" cy="44" r="6"/><circle cx="52" cy="65" r="6"/></svg>
+              <ng-template #foodIcon>{{ reward.icon }}</ng-template>
+            </div>
+            <div class="reward-details">
             <h3 class="reward-name">{{ reward.name }}</h3>
             <p class="reward-desc" *ngIf="reward.description">{{ reward.description }}</p>
-            <div class="reward-cost">{{ reward.pointsCost }} pts</div>
-            <button class="btn-redeem" [disabled]="!reward.canRedeem" (click)="redeemReward(reward)">
-              {{ reward.canRedeem ? 'Redeem' : 'Need ' + (reward.pointsCost - currentPoints) + ' more' }}
+            <div class="reward-cost"><span aria-hidden="true">🪙</span> {{ reward.pointsCost | number }} pts</div>
+            </div>
+            <button class="btn-redeem" [disabled]="!reward.canRedeem || redeemingRewardId !== null" (click)="redeemReward(reward)">
+              {{ redeemingRewardId === reward.id ? 'Redeeming...' : reward.canRedeem ? 'Redeem Now' : 'Need ' + (reward.pointsCost - currentPoints) + ' more' }} <span *ngIf="reward.canRedeem" aria-hidden="true">&#8594;</span>
             </button>
           </div>
         </div>
       </div>
 
       <!-- Points History -->
-      <div class="section" *ngIf="rewardsHistory.length > 0">
+      <div class="section points-history-section">
         <div class="section-header">
           <h2>📋 Points History</h2>
+          <button type="button" class="history-toggle" *ngIf="rewardsHistory.length > 1" (click)="showAllHistory = !showAllHistory" [attr.aria-expanded]="showAllHistory" aria-controls="points-history-list">{{ showAllHistory ? 'Show Less' : 'View All' }} <span aria-hidden="true">&#8594;</span></button>
         </div>
-        <div class="history-list">
-          <div *ngFor="let item of rewardsHistory; trackBy: trackByIndex" class="history-item" [ngClass]="'history-' + item.type">
+        <p *ngIf="rewardsHistory.length === 0" class="history-empty">Your points activity will appear here after you earn or redeem points.</p>
+        <div class="history-list" id="points-history-list">
+          <div *ngFor="let item of visibleHistory; trackBy: trackByIndex" class="history-item" [ngClass]="'history-' + item.type">
+            <span class="history-symbol" aria-hidden="true">{{ item.type === 'redeemed' ? '🎁' : '🪙' }}</span>
             <div class="history-left">
               <div class="history-action">{{ item.action }}</div>
               <div class="history-date">{{ item.date }}
                 <span class="history-expiry" *ngIf="item.expiresAt && item.type === 'earned'"> · Expires {{ item.expiresAt }}</span>
               </div>
             </div>
-            <div class="history-points" [ngClass]="'points-' + item.type">{{ item.points }}</div>
+            <div class="history-points" [ngClass]="'points-' + item.type">{{ item.points }} pts</div>
           </div>
         </div>
       </div>
@@ -140,6 +142,11 @@
 
     <!-- ═══ TAB: Loyalty Card / QR ═══ -->
     <div class="tab-content" *ngIf="activeTab === 'card'">
+      <div class="tier-benefits-card" *ngIf="tierBenefits.length > 0">
+        <h3>{{ getTierIcon() }} {{ tier }} Benefits</h3>
+        <div class="benefits-list"><div class="benefit-item" *ngFor="let benefit of tierBenefits"><span class="benefit-check">✓</span><span>{{ benefit }}</span></div></div>
+        <div class="tier-progress-hint" *ngIf="nextTier">Reach <strong>{{ nextTier }}</strong> for more perks!</div>
+      </div>
       <div class="section">
         <div class="loyalty-card-wrapper">
           <div class="loyalty-card" [ngClass]="getTierColorClass()">

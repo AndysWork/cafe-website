@@ -120,7 +120,7 @@ describe('NavbarComponent multi-role navigation', () => {
     expect(fixture.componentInstance.isCustomerOnly).toBeTrue();
     expect(fixture.nativeElement.querySelectorAll('.group-toggle').length).toBe(0);
     expect(fixture.nativeElement.querySelector('.customer-profile .username').textContent.trim()).toBe('Welcome staff');
-    for (const route of ['/dashboard', '/orders', '/reservations', '/subscriptions', '/loyalty', '/profile']) {
+    for (const route of ['/dashboard', '/menu', '/orders', '/reservations', '/subscriptions', '/loyalty', '/profile']) {
       expect(fixture.nativeElement.querySelectorAll(`.customer-profile a[href="${route}"]`).length).toBe(1);
     }
     expect(fixture.nativeElement.querySelector('.customer-cart .landing-cart-count').textContent.trim()).toBe('2');
@@ -139,11 +139,14 @@ describe('NavbarComponent multi-role navigation', () => {
     expect(fixture.componentInstance.activeDropdown).toBeNull();
   });
 
-  it('keeps direct customer menu and cart access away from home', async () => {
+  it('moves customer Menu into the account dropdown and removes redundant Home links', async () => {
     setRoles('user');
     await TestBed.inject(Router).navigateByUrl('/menu');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.navbar-nav .nav-link[href="/menu"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.navbar-nav a[href="/menu"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.navbar-nav a[href="/"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.navbar-brand[href="/"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.customer-profile a[href="/menu"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('.customer-cart[href="/cart"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelectorAll('.group-toggle').length).toBe(0);
     fixture.componentInstance.toggleMobileMenu();

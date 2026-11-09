@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { LoyaltyService, LoyaltyAccount, Reward, PointsTransaction, ExternalOrderClaim } from '../../services/loyalty.service';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
 import { UIStore } from '../../store/ui.store';
@@ -23,7 +24,7 @@ interface DisplayReward extends Reward {
 @Component({
   selector: 'app-loyalty',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './loyalty.component.html',
   styleUrls: ['./loyalty.component.scss']
 })
@@ -32,7 +33,11 @@ export class LoyaltyComponent implements OnInit {
   private analyticsService = inject(AnalyticsTrackingService);
   private uiStore = inject(UIStore);
 
-  @ViewChild('qrCanvas') qrCanvas!: ElementRef<HTMLCanvasElement>;
+  private qrCanvasRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('qrCanvas') set qrCanvas(canvas: ElementRef<HTMLCanvasElement> | undefined) {
+    this.qrCanvasRef = canvas;
+    if (canvas) this.generateQrCode();
+  }
 
   // Account data
   currentPoints = 0;
@@ -55,6 +60,19 @@ export class LoyaltyComponent implements OnInit {
   loading = true;
   error: string | null = null;
   activeTab: 'rewards' | 'card' | 'referral' | 'transfer' | 'claims' = 'rewards';
+  showAllHistory = false;
+  redeemingRewardId: string | null = null;
+  get tierTargetPoints(): number {
+    return this.currentPoints + this.pointsToNextTier;
+  }
+  get tierProgressPercent(): number {
+    return this.tierTargetPoints > 0
+      ? Math.min(100, Math.max(0, this.currentPoints / this.tierTargetPoints * 100))
+      : 0;
+  }
+  get visibleHistory(): DisplayTransaction[] {
+    return this.showAllHistory ? this.rewardsHistory : this.rewardsHistory.slice(0, 1);
+  }
 
   // Data
   rewardsHistory: DisplayTransaction[] = [];
@@ -133,7 +151,9 @@ export class LoyaltyComponent implements OnInit {
 
       // Transform transactions for display
       if (transactions) {
-        this.rewardsHistory = transactions.map(t => this.transformTransaction(t));
+        this.rewardsHistory = [...transactions]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .map(t => this.transformTransaction(t));
       }
 
       // Transform rewards for display
@@ -159,7 +179,9 @@ export class LoyaltyComponent implements OnInit {
     const date = formatIstDate(new Date(transaction.createdAt), {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
 
     let action = transaction.description || '';
@@ -206,6 +228,9 @@ export class LoyaltyComponent implements OnInit {
       }
     }
 
+    if (nameLower.includes('%') || nameLower.includes('discount') || nameLower.includes('off ')) {
+      icon = '🏷️';
+    }
     const canRedeem = this.currentPoints >= reward.pointsCost;
 
     return {
@@ -220,6 +245,7 @@ export class LoyaltyComponent implements OnInit {
   }
 
   async redeemReward(reward: DisplayReward) {
+    if (this.redeemingRewardId) return;
     if (!reward.canRedeem) {
       this.uiStore.warning(`You need ${reward.pointsCost - this.currentPoints} more points to redeem this reward.`);
       return;
@@ -228,6 +254,7 @@ export class LoyaltyComponent implements OnInit {
     const confirmed = confirm(`Redeem ${reward.name} for ${reward.pointsCost} points?`);
     if (!confirmed) return;
 
+    this.redeemingRewardId = reward.id;
     this.analyticsService.trackFeatureUsage('Loyalty Redeem', `Redeemed: ${reward.name} (${reward.pointsCost} pts)`);
 
     try {
@@ -242,6 +269,8 @@ export class LoyaltyComponent implements OnInit {
       const message = err.error?.message || 'Failed to redeem reward. Please try again.';
       this.uiStore.error(message);
       console.error('Error redeeming reward:', err);
+    } finally {
+      this.redeemingRewardId = null;
     }
   }
 
@@ -443,8 +472,8 @@ export class LoyaltyComponent implements OnInit {
 
   // ─── QR Code ───
   generateQrCode() {
-    if (!this.qrCanvas || !this.loyaltyCardNumber) return;
-    const canvas = this.qrCanvas.nativeElement;
+    if (!this.qrCanvasRef || !this.loyaltyCardNumber) return;
+    const canvas = this.qrCanvasRef.nativeElement;
     const data = JSON.stringify({
       card: this.loyaltyCardNumber,
       tier: this.tier,

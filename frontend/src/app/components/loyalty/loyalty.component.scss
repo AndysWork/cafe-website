@@ -15,29 +15,30 @@ $radius: 16px;
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes glow { 0%,100% { box-shadow: 0 0 30px rgba(226, 55, 68, .3); } 50% { box-shadow: 0 0 60px rgba(226, 55, 68, .5); } }
 
-.loyalty-page { background: $light-bg; min-height: 100vh; padding-bottom: 60px; }
+.loyalty-page {
+  background: radial-gradient(ellipse at 98% 30%, #eaff0060, transparent 26%),
+    linear-gradient(180deg, #009db8 0, #007d99 240px, #b9f4fc 370px, #effcff 100%);
+  min-height: 100vh; padding-bottom: 60px; color: #102333;
+  button:focus-visible, a:focus-visible { outline: 3px solid #00677e; outline-offset: 3px; }
+  svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+}
 
 /* Hero */
 .hero {
   position: relative;
-  background:
-    radial-gradient(circle at 25% 50%, rgba(226, 55, 68, 0.95) 0%, transparent 55%),
-    radial-gradient(circle at 80% 30%, rgba(239, 79, 95, 0.85) 0%, transparent 50%),
-    radial-gradient(circle at 55% 90%, rgba(203, 32, 45, 0.4) 0%, transparent 45%),
-    linear-gradient(135deg, #E23744 0%, #CB202D 100%);
-  padding: 60px 20px 60px; text-align: center; overflow: hidden;
-  border-radius: 0 0 32px 32px;
+  padding: 24px 24px 18px;
   .hero-pattern { position: absolute; inset: 0; background: radial-gradient(circle at 20% 80%, rgba(255,255,255,.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,.08) 0%, transparent 50%); }
-  .hero-content { position: relative; z-index: 1; animation: slideUp .6s ease-out; }
+  .hero-content { position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; max-width: 1100px; margin: auto; }
   .hero-badge {
-    display: inline-block; background: rgba(255,255,255,.2); backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,.3); color: #fff; padding: 8px 20px;
-    border-radius: 50px; font-size: .85rem; font-weight: 600; margin-bottom: 16px;
+    background: #b7f4ff; color: #063246; padding: 10px 18px; margin-left: auto;
+    border-radius: 50px; font-size: .8rem; font-weight: 800; white-space: nowrap;
   }
-  h1 { color: #fff; font-size: 2.2rem; font-weight: 800; margin: 0 0 8px; }
-  p { color: rgba(255,255,255,.9); font-size: 1.05rem; margin: 0; }
+  h1 { color: #fff; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 900; margin: 0 0 4px; span { color: #edff00; } }
+  p { color: #fff; font-size: .85rem; margin: 0; }
   .hero-wave { display: none; }
 }
+.rewards-back { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; background: #b7f4ff; color: #00677e; border-radius: 50%; text-decoration: none; font-size: 1.4rem; }
+.rewards-heading { min-width: 0; }
 
 /* Loading */
 .loading-state {
@@ -67,15 +68,21 @@ $radius: 16px;
 }
 
 /* Content */
-.loyalty-content { max-width: 800px; margin: 0 auto; padding: 0 20px; }
+.loyalty-content { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+.points-overview { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: center; gap: 24px; }
+.points-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: center; }
+.rewards-artwork {
+  position: relative; align-self: stretch; min-height: 160px; overflow: hidden; border-radius: 28px;
+  img { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: 70% center; }
+  > span { position: absolute; inset: auto 0 0; padding: 28px 16px 14px; color: #fff; font-size: 1.1rem; background: linear-gradient(transparent, #002c3fe6); strong { color: #edff00; } }
+}
 
 /* Points Hero Card */
 .points-hero-card {
   position: relative;
-  background: linear-gradient(135deg, #E23744 0%, #CB202D 40%, #9B111E 100%);
-  border-radius: $radius; padding: 36px; margin-top: -40px; overflow: hidden;
-  color: #fff; text-align: center; box-shadow: 0 12px 40px rgba(226, 55, 68, .35);
-  animation: slideUp .6s ease-out, glow 3s ease-in-out infinite;
+  background: linear-gradient(135deg, #12b8cf99, #007b9899);
+  border: 1px solid #8ceaf5; border-radius: 24px; padding: 24px; overflow: hidden;
+  color: #fff; text-align: left; box-shadow: inset 0 0 16px #a5faff30, 0 8px 22px #003d5a30;
   .points-glow {
     position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
     background: radial-gradient(circle, rgba(255,255,255,.15) 0%, transparent 60%);
@@ -83,11 +90,11 @@ $radius: 16px;
   }
   .points-top { position: relative; z-index: 1; }
   .points-star { font-size: 2.5rem; margin-bottom: 4px; animation: float 3s ease-in-out infinite; }
-  .points-number { font-size: 3.5rem; font-weight: 900; line-height: 1; text-shadow: 0 2px 10px rgba(0,0,0,.15); }
-  .points-label { font-size: 1rem; opacity: .9; margin-top: 4px; font-weight: 500; }
+  .points-number { font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 900; line-height: 1.1; margin-top: 10px; text-shadow: 0 2px 10px rgba(0,0,0,.15); span { font-size: .55em; } }
+  .points-label { font-size: .95rem; font-weight: 800; }
   .points-bottom {
-    position: relative; z-index: 1; margin-top: 24px; padding-top: 24px;
-    border-top: 1px solid rgba(255,255,255,.2);
+    position: relative; z-index: 1; padding-left: 22px;
+    border-left: 1px solid #c5f8ff99;
   }
   .tier-chip {
     display: inline-block; padding: 6px 20px; border-radius: 50px; font-size: .85rem;
@@ -97,15 +104,16 @@ $radius: 16px;
     &.gold { background: rgba(255,215,0,.3); border: 1px solid rgba(255,215,0,.5); }
     &.platinum { background: rgba(229,228,226,.3); border: 1px solid rgba(229,228,226,.5); }
   }
-  .progress-section { margin-top: 16px; }
-  .progress-text { font-size: .85rem; opacity: .9; margin-bottom: 8px; }
-  .progress-track { background: rgba(255,255,255,.2); border-radius: 10px; height: 10px; overflow: hidden; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, #FCA5A5, #EF4444); border-radius: 10px; transition: width .8s ease; }
+  .progress-section { margin-top: 0; }
+  .progress-text { font-size: .85rem; margin-bottom: 10px; span { display: block; margin-top: 5px; } }
+  .progress-track { background: #b9e8efb3; border-radius: 10px; height: 13px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #eaff00; border-radius: 10px; transition: width .8s ease; }
+  .progress-count { text-align: center; font-size: .75rem; margin-top: 6px; }
   .max-tier { font-size: 1.1rem; font-weight: 600; margin-top: 8px; }
 }
 
 /* Sections */
-.section { margin-top: 36px; animation: slideUp .6s ease-out; }
+.section { margin-top: 24px; animation: slideUp .6s ease-out; }
 .section-header { margin-bottom: 20px;
   h2 { font-size: 1.4rem; font-weight: 700; color: $dark; margin: 0; }
 }
@@ -120,30 +128,39 @@ $radius: 16px;
 }
 
 /* Rewards Grid */
-.rewards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+.rewards-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 
 .reward-card {
-  background: $card-bg; border-radius: $radius; padding: 28px 20px; text-align: center;
-  box-shadow: 0 4px 16px rgba(0,0,0,.06); transition: all .3s; border: 2px solid transparent;
+  display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px;
+  align-items: center; background: linear-gradient(135deg, #dff9ff, #f8fdff);
+  border-radius: 22px; padding: 16px; text-align: left;
+  box-shadow: 0 5px 12px #0085a51a; transition: all .3s; border: 1px solid #ffffff;
+  &:nth-child(6n + 1) { background: linear-gradient(135deg, #fffed1, #fffef1); }
   &:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,.1); }
   &.can-redeem { border-color: rgba($green, .3);
     &:hover { border-color: $green; }
   }
-  .reward-emoji { font-size: 2.5rem; margin-bottom: 12px; }
-  .reward-name { font-size: 1.05rem; font-weight: 700; color: $dark; margin: 0 0 6px; }
-  .reward-desc { font-size: .85rem; color: #888; margin: 0 0 12px; line-height: 1.4; }
+  .reward-emoji svg.discount-art {
+    width: 64px; height: 82px; transform: rotate(12deg);
+    path:first-child { fill: #ffce00; stroke: #f3a900; stroke-width: 2; }
+    circle, path { stroke: #fff; stroke-width: 4; }
+    circle { fill: none; }
+  }
+  .reward-emoji { font-size: 3.6rem; text-align: center; filter: drop-shadow(0 5px 3px #00354920); }
+  .reward-name { font-size: .95rem; font-weight: 800; color: #102333; margin: 0 0 6px; overflow-wrap: anywhere; }
+  .reward-desc { font-size: .78rem; color: #233e4a; margin: 0 0 10px; line-height: 1.4; }
   .reward-cost {
     display: inline-block; padding: 4px 14px; border-radius: 50px; font-size: .85rem;
-    font-weight: 700; background: rgba(255, 84, 0, .1); color: #D93800;
+    font-weight: 800; background: #fff; color: #bc2634;
   }
 }
 
 .btn-redeem {
-  display: block; width: 100%; margin-top: 16px; padding: 10px; border: none; border-radius: 50px;
+  grid-column: 1 / -1; display: block; width: 100%; margin-top: 0; padding: 10px; border: none; border-radius: 50px;
   font-size: .9rem; font-weight: 600; cursor: pointer; transition: all .3s;
-  background: linear-gradient(135deg, $green, #00e676); color: #fff;
+  background: #eaff00; color: #16323e;
   &:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 16px rgba($green, .3); }
-  &:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+  &:disabled { background: #dce8e8; color: #425b62; cursor: not-allowed; }
 }
 
 /* History */
@@ -326,19 +343,20 @@ $radius: 16px;
 
 /* Tab Navigation */
 .tab-nav {
-  display: flex; gap: 6px; margin-top: 28px; padding: 6px; background: $card-bg;
-  border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.05); overflow-x: auto;
+  display: flex; gap: 6px; margin-top: 24px; padding: 10px; background: #effbff;
+  border: 5px solid #fff; border-radius: 30px; box-shadow: 0 5px 16px #007b9920; overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   &::-webkit-scrollbar { display: none; }
 }
 
 .tab-btn {
-  flex: 1; min-width: max-content; padding: 10px 16px; border: none; border-radius: 10px;
-  background: transparent; font-size: .85rem; font-weight: 600; color: #888;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  flex: 1; min-width: max-content; padding: 10px 16px; border: none; border-radius: 999px;
+  background: transparent; font-size: .85rem; font-weight: 600; color: #16323e;
   cursor: pointer; transition: all .3s; white-space: nowrap;
-  &:hover { color: $dark; background: #f5f5f5; }
-  &.active { background: linear-gradient(135deg, #E23744, #CB202D); color: #fff;
-    box-shadow: 0 4px 14px rgba(226, 55, 68, .3);
+  &:hover { background: #d7f4fb; }
+  &.active { background: #eaff00; color: #102333;
+    box-shadow: 0 4px 14px #b7c90030;
   }
 }
 
@@ -505,7 +523,7 @@ $radius: 16px;
 
 .history-item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px; border-bottom: 1px solid #f0f0f0; transition: background .2s;
+  gap: 14px; padding: 14px 20px; border-bottom: 1px solid #f0f0f0; transition: background .2s;
   &:last-child { border-bottom: none; }
   &:hover { background: #fafafa; }
   &.history-earned { border-left: 3px solid $green; }
@@ -516,57 +534,83 @@ $radius: 16px;
 }
 
 .history-left {
+  flex: 1; min-width: 0; overflow-wrap: anywhere;
   .history-action { font-size: .92rem; font-weight: 600; color: $dark; }
-  .history-date { font-size: .8rem; color: #999; margin-top: 2px; }
+  .history-date { font-size: .8rem; color: #466776; margin-top: 2px; }
   .history-expiry { color: #ff9800; font-weight: 500; }
 }
 
 .history-points {
-  font-size: 1rem; font-weight: 700; white-space: nowrap;
+  font-size: .9rem; font-weight: 800; white-space: nowrap; padding: 7px 12px; border-radius: 999px; background: #e7faed;
   &.points-earned { color: $green; }
-  &.points-redeemed { color: $primary; }
+  &.points-redeemed { color: #bb263a; background: #ffe4e6; }
   &.points-expired { color: #999; text-decoration: line-through; }
   &.points-transferred { color: #ff9800; }
   &.points-received { color: $accent; }
 }
+.points-history-section { padding: 22px; background: #f2fcff; border: 1px solid #fff; border-radius: 28px; box-shadow: 0 5px 16px #007b991a; }
+.points-history-section .section-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.history-toggle { padding: 8px 0 8px 10px; border: 0; background: transparent; color: #06455c; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.history-symbol { font-size: 1.8rem; }
+.history-empty { color: #466776; font-size: .9rem; line-height: 1.5; }
+.loyalty-page {
+  .btn-action, .btn-claim-toggle, .btn-copy, .btn-share, .btn-transfer, .btn-submit-claim { background: #007f99; }
+  .referral-code, .referral-stats .stat-number { color: #00748e; }
+}
 
 /* Responsive */
 @media (max-width: 768px) {
-  .hero { padding: 48px 16px 70px;
-    h1 { font-size: 1.8rem; } p { font-size: .95rem; }
-  }
-  .points-hero-card { padding: 28px 20px;
-    .points-number { font-size: 2.8rem; }
-  }
-  .rewards-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
-  .reward-card { padding: 22px 16px; }
+  .hero { padding: 18px 16px; .hero-content { gap: 12px; } h1 { font-size: 1.7rem; } p { font-size: .72rem; } .hero-badge { font-size: .7rem; padding: 8px 12px; } }
+  .loyalty-content { padding: 0 16px; }
+  .points-overview { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .rewards-artwork { display: none; }
+  .points-hero-card { padding: 22px; }
+  .rewards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .reward-card { padding: 14px; }
+  .tab-nav { padding: 6px; gap: 4px; }
+  .tab-btn { gap: 6px; padding: 10px 12px; }
   .birthday-banner { flex-direction: column; text-align: center; }
   .referral-code { font-size: 1.1rem; letter-spacing: 2px; }
-  .loyalty-card { width: 280px; padding: 24px 20px; }
+  .loyalty-card { box-sizing: border-box; width: 300px; padding: 24px 20px; }
 }
 @media (max-width: 480px) {
-  .hero { padding: 40px 14px 60px;
-    h1 { font-size: 1.5rem; } .hero-badge { font-size: .78rem; padding: 6px 14px; }
+  .hero {
+    padding: 16px 12px; h1 { font-size: 1.55rem; } p { font-size: .66rem; }
+    .hero-content { flex-wrap: wrap; gap: 10px; }
+    .hero-badge { margin: 0 0 0 auto; padding: 6px 12px; }
   }
-  .points-hero-card { padding: 24px 16px; margin-top: -30px;
-    .points-star { font-size: 2rem; }
-    .points-number { font-size: 2.2rem; }
+  .rewards-back { width: 30px; height: 30px; }
+  .loyalty-content { padding: 0 12px; }
+  .points-hero-card { padding: 18px 14px; .points-number { font-size: 2.7rem; } .points-label { font-size: .75rem; } .points-bottom { padding-left: 12px; } .progress-text { font-size: .75rem; } }
+  .points-summary { gap: 12px; }
+  .rewards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .reward-card {
+    grid-template-columns: minmax(0, 1fr); align-content: start; padding: 12px; gap: 8px;
+    .reward-emoji { font-size: 2.8rem; }
+    .reward-name { font-size: .85rem; }
+    .reward-desc { font-size: .74rem; }
+    .reward-cost { padding: 4px 8px; font-size: .78rem; }
+    .btn-redeem { align-self: end; font-size: .75rem; padding: 10px 4px; }
   }
-  .rewards-grid { grid-template-columns: 1fr; }
+  .reward-details { align-self: start; }
+  .points-history-section { padding: 16px 12px; }
   .section-header h2 { font-size: 1.2rem; }
-  .history-item { padding: 12px 16px; }
-  .tab-btn { padding: 8px 12px; font-size: .8rem; }
+  .history-item { padding: 12px 10px; gap: 8px; flex-wrap: wrap; }
+  .history-symbol { font-size: 1.4rem; }
+  .history-left .history-action { font-size: .82rem; }
+  .history-points { font-size: .78rem; padding: 6px 8px; }
+  .history-toggle { font-size: .75rem; }
+  .tab-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-width: 3px; border-radius: 22px; }
+  .tab-btn { min-width: 0; flex-direction: column; padding: 8px 2px; gap: 5px; font-size: .64rem; border-radius: 16px; svg { width: 20px; height: 20px; } }
   .loyalty-card { width: 260px; padding: 22px 18px; }
   .referral-input-row { flex-direction: column; }
   .referral-code-box { flex-direction: column; gap: 8px; padding: 10px 16px; }
   .birthday-banner { padding: 12px 14px; gap: 10px; }
 }
 @media (max-width: 360px) {
-  .hero { padding: 32px 12px 50px; h1 { font-size: 1.3rem; } }
-  .points-hero-card { padding: 20px 14px;
-    .points-number { font-size: 1.8rem; }
-  }
-  .reward-card { padding: 18px 12px; }
+  .hero h1 { font-size: 1.3rem; }
+  .points-hero-card .points-label { font-size: .68rem; }
+  .reward-card { padding: 10px; }
   .loyalty-card { width: 240px; padding: 18px 14px; }
   .card-number { font-size: .9rem; }
 }
