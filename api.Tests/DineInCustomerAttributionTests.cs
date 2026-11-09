@@ -156,6 +156,25 @@ public sealed class DineInCustomerAttributionTests
     }
 
     [Fact]
+    public async Task AnonymousDineInOrderAndReservationAreRejectedBeforeProcessing()
+    {
+        var dineInRequest = Request(new { });
+        dineInRequest.Headers.Remove("Authorization");
+        var orderResponse = await _function.PlaceDineInOrder(dineInRequest);
+        Assert.Equal(HttpStatusCode.Unauthorized, orderResponse.StatusCode);
+        Assert.Empty(_savedOrders);
+
+        var reservationRequest = Request(new { });
+        reservationRequest.Headers.Remove("Authorization");
+        var reservations = new TableReservationFunction(null!, _auth, null!, NullLoggerFactory.Instance);
+        var reservationResponse = await reservations.CreateReservation(reservationRequest);
+        Assert.Equal(HttpStatusCode.Unauthorized, reservationResponse.StatusCode);
+
+        var authenticatedResponse = await reservations.CreateReservation(Request(new { }, isWaiter: false));
+        Assert.Equal(HttpStatusCode.BadRequest, authenticatedResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task WaiterAddingRoundPreservesQrCustomerAndAwardsOnlyThatCustomer()
     {
         _session = new DineInSession {

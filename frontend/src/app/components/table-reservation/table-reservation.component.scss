@@ -4,6 +4,17 @@
   padding: 26px 18px 56px;
 }
 
+.signin-notice { color: #006f82; font-size: .9rem; line-height: 1.5; }
+.compact-reservation {
+  padding: 0;
+  .reservation-shell { padding: 0; border: 0; box-shadow: none; background: transparent; }
+  .booking-layout { grid-template-columns: minmax(0, 1fr); }
+  .booking-form { padding: 18px; background: #effcf9; border-color: #b8e6df; }
+  .booking-aside { background: #effcf9; border-color: #b8e6df; h3 { color: #006f82; } }
+  .btn-submit, .btn-primary { background: #eaff00; color: #062c38; box-shadow: none; }
+  .time-chip.selected { background: #008da6; border-color: #008da6; color: #fff; }
+}
+
 .page-hero {
   position: relative;
   border-radius: 24px;

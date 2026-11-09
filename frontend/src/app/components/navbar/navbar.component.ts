@@ -7,7 +7,8 @@ import { AnalyticsTrackingService } from '../../services/analytics-tracking.serv
 import { AuthStore, CartStore } from '../../store';
 import { NotificationCenterComponent } from '../notification-center/notification-center.component';
 import { DineInService } from '../../services/dine-in.service';
-import { getRoleNavigationItems, groupRoleNavigationItems } from '../../utils/role-navigation';
+import { CUSTOMER_ACCOUNT_NAVIGATION, getRoleNavigationItems, groupRoleNavigationItems } from '../../utils/role-navigation';
+import { HomePanel, HomePanelService } from '../../services/home-panel.service';
 
 @Component({
   selector: 'app-navbar',
@@ -18,13 +19,21 @@ import { getRoleNavigationItems, groupRoleNavigationItems } from '../../utils/ro
 })
 export class NavbarComponent implements OnInit, OnDestroy {
   public dineInService = inject(DineInService);
+  private readonly homePanelService = inject(HomePanelService);
   isMobileMenuOpen = false;
   activeDropdown: string | null = null;
   private closeTimeout?: ReturnType<typeof setTimeout>;
   private analyticsTracking = inject(AnalyticsTrackingService);
   private authStore = inject(AuthStore);
   private cartStore = inject(CartStore);
+  readonly customerAccountItems = [
+    { label: 'Overview', route: '/dashboard', icon: '📊' },
+    ...CUSTOMER_ACCOUNT_NAVIGATION.map(item => ({
+      ...item, label: item.route === '/loyalty' ? 'Rewards' : item.label
+    }))
+  ];
   readonly navigationGroups = computed(() => {
+    if (!this.isLoggedIn || this.isCustomerOnly) return [];
     const items = getRoleNavigationItems(this.authStore.roles());
     if (this.isNonCustomerNonAdminLoggedIn) {
       items.push({ label: 'Profile', route: '/profile', icon: '👤', group: 'My Account' });
@@ -58,8 +67,18 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.authStore.hasRole('user');
   }
 
+  get isCustomerOnly(): boolean {
+    const roles = this.authStore.roles();
+    return this.isLoggedIn && roles.length === 1 && roles[0] === 'user';
+  }
+
   openDineInBill(): void {
     this.dineInService.openBillModal();
+  }
+
+  openHomePanel(panel: HomePanel): void {
+    this.closeMobileMenu();
+    this.homePanelService.open(panel);
   }
 
   get isNonAdminLoggedIn(): boolean {
@@ -79,7 +98,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get isLandingPage(): boolean {
-    return this.router.url === '/';
+    const path = this.router.url.split(/[?#]/, 1)[0];
+    return path === '/' || path === '/home';
   }
 
   get displayName(): string {

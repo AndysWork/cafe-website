@@ -91,8 +91,10 @@ export class AuthService {
   }
 
   login(username: string, password: string): Observable<LoginResponse> {
-    // Clear any existing auth data before login
-    this.clearAuthData();
+    // Preserve a guest's cart and table while still clearing an existing user session.
+    if (this.authStore.isLoggedIn()) {
+      this.clearAuthData();
+    }
 
     return this.http.post<ApiLoginResponse>(`${this.apiUrl}/auth/login`, { username, password })
       .pipe(

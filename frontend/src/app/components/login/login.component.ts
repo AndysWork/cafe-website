@@ -21,6 +21,7 @@ export class LoginComponent {
   errorMessage = '';
   isLoading = false;
   showPassword = false;
+  get returnUrl(): string | null { return this.route.snapshot.queryParamMap.get('returnUrl'); }
 
   constructor(
     private authService: AuthService,

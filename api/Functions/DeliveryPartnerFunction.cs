@@ -1990,7 +1990,7 @@ public class DeliveryPartnerFunction
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var periodType = string.IsNullOrWhiteSpace(query["periodType"]) ? "day" : query["periodType"]!.Trim().ToLowerInvariant();
-            var referenceDate = DateTime.TryParse(query["date"], out var parsedDate)
+            var referenceDate = IstDateHelper.TryParseIstDate(query["date"], out var parsedDate)
                 ? parsedDate
                 : MongoService.GetIstNow();
 
@@ -2326,7 +2326,7 @@ public class DeliveryPartnerFunction
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var periodType = string.IsNullOrWhiteSpace(query["periodType"]) ? "day" : query["periodType"]!.Trim().ToLowerInvariant();
-            var referenceDate = DateTime.TryParse(query["date"], out var parsedDate)
+            var referenceDate = IstDateHelper.TryParseIstDate(query["date"], out var parsedDate)
                 ? parsedDate
                 : MongoService.GetIstNow();
 

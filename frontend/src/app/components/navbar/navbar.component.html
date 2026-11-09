@@ -8,6 +8,7 @@
 <nav
   class="navbar"
   [class.mobile-open]="isMobileMenuOpen"
+  [class.landing-navbar]="isLandingPage"
   role="navigation"
   aria-label="Main navigation"
 >
@@ -30,9 +31,18 @@
       <span class="hamburger-line"></span>
     </button>
 
+    <ng-container *ngTemplateOutlet="cartLink; context: { placement: 'mobile-cart' }"></ng-container>
+
     <!-- Desktop Menu -->
     <div class="navbar-menu" [class.active]="isMobileMenuOpen">
       <ul class="navbar-nav">
+        <li class="landing-links" *ngIf="isLandingPage">
+          <a routerLink="/" class="landing-home-link" (click)="closeMobileMenu()">Home</a>
+          <a routerLink="/menu" (click)="closeMobileMenu()">Menu</a>
+          <button type="button" (click)="openHomePanel('story')" aria-haspopup="dialog">Our Story</button>
+          <button type="button" (click)="openHomePanel('offers')" aria-haspopup="dialog">Offers</button>
+          <button type="button" (click)="openHomePanel('contact')" aria-haspopup="dialog">Visit Us</button>
+        </li>
         <li class="nav-item" *ngIf="!isLandingPage">
           <a
             routerLink="/"
@@ -44,6 +54,10 @@
             <span class="nav-icon">🏠</span>
             Home
           </a>
+        </li>
+
+        <li class="nav-item" *ngIf="(isCustomerOnly || !isLoggedIn) && !isLandingPage">
+          <a routerLink="/menu" routerLinkActive="active" class="nav-link" (click)="closeMobileMenu()"><span class="nav-icon">🍽️</span>Menu</a>
         </li>
 
         <li class="nav-item navigation-group" *ngFor="let group of navigationGroups(); let index = index"
@@ -84,13 +98,15 @@
 
       <!-- Login/Logout Button -->
       <div class="auth-section">
+        <a *ngIf="isLandingPage" routerLink="/menu" class="landing-order">Order Now <span aria-hidden="true">→</span></a>
+        <ng-container *ngTemplateOutlet="cartLink; context: { placement: 'desktop-cart' }"></ng-container>
         <button *ngIf="!isLoggedIn" class="btn-login" (click)="onLogin()">
           <span class="login-icon">🔐</span>
           Login
         </button>
 
         <!-- Notification Bell (Logged in users) -->
-        <app-notification-center *ngIf="isLoggedIn"></app-notification-center>
+        <app-notification-center *ngIf="isLoggedIn" class="navbar-notification"></app-notification-center>
 
         <!-- Admin Profile Dropdown -->
         <div
@@ -188,10 +204,18 @@
             (mouseleave)="scheduleCloseDropdown()"
             role="menu"
           >
+            <li *ngFor="let item of isCustomerOnly ? customerAccountItems : []">
+              <a [routerLink]="item.route" routerLinkActive="active" class="dropdown-item" (click)="closeMobileMenu()">
+                <span class="dropdown-icon">{{ item.icon }}</span>
+                <div class="dropdown-content"><span class="dropdown-title">{{ item.label }}</span></div>
+              </a>
+            </li>
             <li>
               <a
                 routerLink="/profile"
                 routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: true }"
+                ariaCurrentWhenActive="page"
                 class="dropdown-item primary-profile-item"
                 (click)="closeMobileMenu()"
               >
@@ -225,3 +249,10 @@
     </div>
   </div>
 </nav>
+
+<ng-template #cartLink let-placement="placement">
+  <a *ngIf="isLandingPage || isCustomerOnly || !isLoggedIn" routerLink="/cart" class="landing-cart" [ngClass]="placement" [class.customer-cart]="isCustomerOnly" aria-label="View cart" (click)="closeMobileMenu()">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h2l2.5 12h11l2-8H6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="20" r="1.8" fill="currentColor"/><circle cx="18" cy="20" r="1.8" fill="currentColor"/></svg>
+    <span class="landing-cart-count" *ngIf="cartItemCount > 0">{{ cartItemCount }}</span>
+  </a>
+</ng-template>

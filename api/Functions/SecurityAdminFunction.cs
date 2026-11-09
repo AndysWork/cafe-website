@@ -283,12 +283,12 @@ public class SecurityAdminFunction
                 category = cat;
 
             DateTime? startDate = null;
-            if (!string.IsNullOrEmpty(startDateStr) && DateTime.TryParse(startDateStr, out var sd))
+            if (!string.IsNullOrEmpty(startDateStr) && IstDateHelper.TryParseIstDate(startDateStr, out var sd))
                 startDate = sd;
 
             DateTime? endDate = null;
-            if (!string.IsNullOrEmpty(endDateStr) && DateTime.TryParse(endDateStr, out var ed))
-                endDate = ed;
+            if (!string.IsNullOrEmpty(endDateStr) && IstDateHelper.TryParseIstDate(endDateStr, out var ed))
+                endDate = IstDateHelper.ToIstDayEnd(ed);
 
             int maxResults = 100;
             if (!string.IsNullOrEmpty(maxResultsStr) && int.TryParse(maxResultsStr, out var mr))

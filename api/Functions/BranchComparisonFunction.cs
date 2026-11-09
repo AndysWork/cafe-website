@@ -32,8 +32,12 @@ public class BranchComparisonFunction
             var startDateStr = req.Query["startDate"];
             var endDateStr = req.Query["endDate"];
 
-            DateTime startDate = DateTime.TryParse(startDateStr, out var sd) ? sd : MongoService.GetIstNow().AddDays(-30);
-            DateTime endDate = DateTime.TryParse(endDateStr, out var ed) ? ed : MongoService.GetIstNow();
+            DateTime startDate = IstDateHelper.TryParseIstDate(startDateStr, out var sd)
+                ? sd
+                : IstDateHelper.ToIstDate(MongoService.GetIstNow().AddDays(-30));
+            DateTime endDate = IstDateHelper.TryParseIstDate(endDateStr, out var ed)
+                ? IstDateHelper.ToIstDayEnd(ed)
+                : IstDateHelper.ToIstDayEnd(MongoService.GetIstNow());
 
             // Parse optional outletIds filter
             var outletIdsParam = req.Query["outletIds"];

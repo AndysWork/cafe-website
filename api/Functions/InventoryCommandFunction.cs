@@ -691,9 +691,15 @@ public class InventoryCommandFunction
                         {
                             try { expiryDate = DateTime.FromOADate(oaDate); } catch { }
                         }
-                        else if (DateTime.TryParse(expCell.Text, out var parsedDate))
+                        else if (IstDateHelper.TryParseImportDate(expCell.Text, out var parsedDate))
                         {
-                            expiryDate = parsedDate;
+                            expiryDate = IstDateHelper.ToIstDate(parsedDate);
+                        }
+                        else if (!string.IsNullOrWhiteSpace(expCell.Text))
+                        {
+                            var invalidDate = req.CreateResponse(HttpStatusCode.BadRequest);
+                            await invalidDate.WriteAsJsonAsync(new { error = $"Invalid expiry date in row {row}. Use yyyy-MM-dd or dd/MM/yyyy." });
+                            return invalidDate;
                         }
                     }
 

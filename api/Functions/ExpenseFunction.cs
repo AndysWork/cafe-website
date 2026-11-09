@@ -10,6 +10,7 @@ using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Enums;
 using Microsoft.OpenApi.Models;
 using MongoDB.Bson;
+using System.Globalization;
 
 namespace Cafe.Api.Functions;
 
@@ -136,17 +137,15 @@ public class ExpenseFunction
             var startDateStr = query["startDate"];
             var endDateStr = query["endDate"];
 
-            if (!DateTime.TryParse(startDateStr, out var startDate) || 
-                !DateTime.TryParse(endDateStr, out var endDate))
+            if (!IstDateHelper.TryParseIstDate(startDateStr, out var startDate) || 
+                !IstDateHelper.TryParseIstDate(endDateStr, out var endDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
 
-            // Convert to IST date (date-only, no time component)
-            startDate = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
-            endDate = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, 999, DateTimeKind.Unspecified);
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
@@ -186,15 +185,12 @@ public class ExpenseFunction
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var dateStr = query["date"];
 
-            if (!DateTime.TryParse(dateStr, out var date))
+            if (!IstDateHelper.TryParseIstDate(dateStr, out var date))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
-
-            // Convert to IST date (date-only, no time component)
-            date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
 
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
             var summary = await _mongo.GetExpenseSummaryByDateAsync(date, outletId);
@@ -302,12 +298,23 @@ public class ExpenseFunction
             var endDateStr = query["endDate"];
             var source = query["source"] ?? "All"; // "Offline", "Online", or "All"
 
-            DateTime startDate = string.IsNullOrEmpty(startDateStr) 
-                ? MongoService.GetIstNow().AddMonths(-6) 
-                : DateTime.Parse(startDateStr);
-            DateTime endDate = string.IsNullOrEmpty(endDateStr) 
-                ? MongoService.GetIstNow() 
-                : DateTime.Parse(endDateStr);
+            DateTime startDate = string.IsNullOrEmpty(startDateStr)
+                ? IstDateHelper.ToIstDate(MongoService.GetIstNow().AddMonths(-6))
+                : IstDateHelper.TryParseIstDate(startDateStr, out var parsedStartDate)
+                    ? parsedStartDate
+                    : DateTime.MinValue;
+            DateTime endDate = string.IsNullOrEmpty(endDateStr)
+                ? IstDateHelper.ToIstDayEnd(MongoService.GetIstNow())
+                : IstDateHelper.TryParseIstDate(endDateStr, out var parsedEndDate)
+                    ? IstDateHelper.ToIstDayEnd(parsedEndDate)
+                    : DateTime.MinValue;
+
+            if (startDate == DateTime.MinValue || endDate == DateTime.MinValue)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
+                return badRequest;
+            }
 
             var outletId = OutletHelper.GetOutletIdFromRequest(req, _auth);
 
@@ -408,7 +415,14 @@ public class ExpenseFunction
                 .Select(b => b.AsBsonDocument)
                 .Select(b => new
                 {
-                    Date = DateTime.Parse(b["_id"].AsString).ToString("MMM dd, yyyy"),
+                    Date = DateTime.TryParseExact(
+                        b["_id"].AsString,
+                        "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out var bucketDate)
+                        ? bucketDate.ToString("MMM dd, yyyy", CultureInfo.InvariantCulture)
+                        : b["_id"].AsString,
                     TotalAmount = b["total"].ToDecimal(),
                     Count = b["count"].ToInt32()
                 })
@@ -524,13 +538,13 @@ public class ExpenseFunction
             }
 
             // Parse date as IST date (date-only, no time component)
-            if (!DateTime.TryParse(expenseRequest.Date, out var expenseDate))
+            if (!IstDateHelper.TryParseIstDate(expenseRequest.Date, out var expenseDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
-            var istDate = new DateTime(expenseDate.Year, expenseDate.Month, expenseDate.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
+            var istDate = IstDateHelper.ToIstDate(expenseDate);
 
             var expense = new Expense
             {
@@ -587,13 +601,13 @@ public class ExpenseFunction
             }
 
             // Parse date as IST date (date-only, no time component)
-            if (!DateTime.TryParse(expenseRequest.Date, out var expenseDate))
+            if (!IstDateHelper.TryParseIstDate(expenseRequest.Date, out var expenseDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
-            var istDate = new DateTime(expenseDate.Year, expenseDate.Month, expenseDate.Day, 0, 0, 0, 0, DateTimeKind.Unspecified);
+            var istDate = IstDateHelper.ToIstDate(expenseDate);
 
             existingExpense.Date = istDate;
             existingExpense.ExpenseType = expenseRequest.ExpenseType;
@@ -672,16 +686,16 @@ public class ExpenseFunction
             if (!isAuthorized) return errorResponse!;
 
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
-            if (!DateTime.TryParse(query["startDate"], out var startDate) ||
-                !DateTime.TryParse(query["endDate"], out var endDate))
+            if (!IstDateHelper.TryParseIstDate(query["startDate"], out var startDate) ||
+                !IstDateHelper.TryParseIstDate(query["endDate"], out var endDate))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);
                 await bad.WriteAsJsonAsync(new { error = "startDate and endDate are required (YYYY-MM-DD)" });
                 return bad;
             }
 
-            startDate = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
-            endDate   = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, DateTimeKind.Unspecified);
+            startDate = IstDateHelper.ToIstDate(startDate);
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             var result = await _mongo.DiagnoseExpensesAsync(startDate, endDate);
 
@@ -736,16 +750,16 @@ public class ExpenseFunction
                 return bad;
             }
 
-            if (!DateTime.TryParse(body.StartDate, out var startDate) ||
-                !DateTime.TryParse(body.EndDate, out var endDate))
+            if (!IstDateHelper.TryParseIstDate(body.StartDate, out var startDate) ||
+                !IstDateHelper.TryParseIstDate(body.EndDate, out var endDate))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);
                 await bad.WriteAsJsonAsync(new { error = "Invalid startDate or endDate" });
                 return bad;
             }
 
-            startDate = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
-            endDate   = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, DateTimeKind.Unspecified);
+            startDate = IstDateHelper.ToIstDate(startDate);
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             var outlet = await _mongo.GetOutletByIdAsync(body.TargetOutletId);
             if (outlet == null)
@@ -890,11 +904,10 @@ public class ExpenseFunction
                 string.IsNullOrEmpty(amountStr))
                 continue;
 
-            if (!DateTime.TryParse(dateValue, out var date))
+            if (!IstDateHelper.TryParseIstDate(dateValue, out var date))
                 continue;
 
-            // Convert to IST date (date-only, no time component)
-            var istDate = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, DateTimeKind.Unspecified);
+            var istDate = IstDateHelper.ToIstDate(date);
 
             if (!decimal.TryParse(amountStr, out var amount))
                 continue;

@@ -96,7 +96,7 @@
         </div>
 
         <p class="switch-auth">
-          Don't have an account? <a routerLink="/register">Create one</a>
+          Don't have an account? <a routerLink="/register" [queryParams]="returnUrl ? { returnUrl: returnUrl } : {}">Create one</a>
         </p>
       </form>
     </div>

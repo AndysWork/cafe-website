@@ -44,12 +44,12 @@
           <span>{{ session.status | titlecase }} · ₹{{ session.amountPaid | number:'1.2-2' }} paid of ₹{{ session.grandTotal | number:'1.2-2' }}</span>
         </summary>
         <div class="session-detail">
-          <p>Opened {{ session.createdAt | date:'medium' }}<span *ngIf="session.settledAt"> · Closed {{ session.settledAt | date:'medium' }}</span></p>
+          <p>Opened {{ session.createdAt | date:'medium':'+0530' }}<span *ngIf="session.settledAt"> · Closed {{ session.settledAt | date:'medium':'+0530' }}</span></p>
           <p>Payment status: {{ session.paymentStatus | titlecase }} · Balance due: ₹{{ session.amountDue | number:'1.2-2' }}</p>
           <h3>Session timeline</h3>
           <ul>
             <li *ngFor="let event of session.timeline">
-              <time>{{ event.createdAt | date:'short' }}</time>
+              <time>{{ event.createdAt | date:'short':'+0530' }}</time>
               <span>{{ event.message }}</span>
               <small>{{ event.actor || 'System' }}</small>
             </li>
@@ -63,7 +63,7 @@
       <p class="audit-limit" *ngIf="data.auditEvents.length === 500">Showing the latest 500 events for this date range.</p>
       <p class="empty" *ngIf="!data.auditEvents.length">No order audit events were recorded in this period.</p>
       <div class="audit-row" *ngFor="let event of data.auditEvents">
-        <time>{{ event.timestamp | date:'short' }}</time>
+        <time>{{ event.timestamp | date:'short':'+0530' }}</time>
         <strong>{{ event.eventType | titlecase }}</strong>
         <span>{{ event.entityType }} · {{ event.entityId }}</span>
         <small>{{ event.actorId || 'System' }}<span *ngIf="event.actorRole"> ({{ event.actorRole }})</span></small>

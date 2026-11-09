@@ -94,13 +94,14 @@ public class SalesFunction
             var startDateStr = query["startDate"];
             var endDateStr = query["endDate"];
 
-            if (!DateTime.TryParse(startDateStr, out var startDate) || 
-                !DateTime.TryParse(endDateStr, out var endDate))
+            if (!IstDateHelper.TryParseIstDate(startDateStr, out var startDate) || 
+                !IstDateHelper.TryParseIstDate(endDateStr, out var endDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
                 return badRequest;
             }
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             // Extract outlet ID from request (optional for admin)
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
@@ -136,7 +137,7 @@ public class SalesFunction
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             var dateStr = query["date"];
 
-            if (!DateTime.TryParse(dateStr, out var date))
+            if (!IstDateHelper.TryParseIstDate(dateStr, out var date))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
@@ -557,7 +558,7 @@ public class SalesFunction
             var paymentMethod = worksheet.Cells[row, 6].Value?.ToString() ?? "Cash";
 
             // Check if this is a new date (new sales record)
-            if (!string.IsNullOrEmpty(dateValue) && DateTime.TryParse(dateValue, out var parsedDate))
+            if (!string.IsNullOrEmpty(dateValue) && IstDateHelper.TryParseIstDate(dateValue, out var parsedDate))
             {
                 // Save previous record if exists
                 if (currentDate != DateTime.MinValue && currentItems.Any())
@@ -576,7 +577,7 @@ public class SalesFunction
                 }
 
                 // Start new record
-                currentDate = parsedDate;
+                currentDate = IstDateHelper.ToIstDate(parsedDate);
                 currentItems.Clear();
                 currentPaymentMethod = paymentMethod;
             }

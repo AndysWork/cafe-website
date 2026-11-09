@@ -22,6 +22,11 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     {
         return TimeZoneInfo.ConvertTime(DateTimeOffset.Now, IstTimeZone).DateTime;
     }
+
+    public static DateTime GetUtcNow()
+    {
+        return DateTime.UtcNow;
+    }
     
     // Helper method to convert a source timestamp to IST
     public static DateTime ConvertToIst(DateTime sourceDateTime)
@@ -6013,7 +6018,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             Platform = "Web Sales",
             OrderId = order.Id ?? string.Empty,
             CustomerName = order.Username,
-            OrderAt = order.CreatedAt,
+            OrderAt = order.CreatedAtIsUtc == true ? Helpers.OrderDateHelper.ToIstCreatedAt(order) : order.CreatedAt,
             OrderedItems = order.Items?.Select(i => new OrderedItem
             {
                 Quantity = i.Quantity,
@@ -6043,18 +6048,22 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             Builders<Order>.Filter.Ne(o => o.IsDeleted, true)
         };
 
-        if (startOfDay.HasValue)
-            orderFilters.Add(Builders<Order>.Filter.Gte(o => o.CreatedAt, startOfDay.Value));
-        if (endOfDay.HasValue)
-            orderFilters.Add(Builders<Order>.Filter.Lte(o => o.CreatedAt, endOfDay.Value));
+        if (startOfDay.HasValue || endOfDay.HasValue)
+            orderFilters.Add(Helpers.OrderDateHelper.CreatedInRange(startOfDay, endOfDay?.Date.AddDays(1)));
         if (!string.IsNullOrWhiteSpace(outletId))
             orderFilters.Add(Builders<Order>.Filter.Eq(o => o.OutletId, outletId));
 
         var orderFilter = Builders<Order>.Filter.And(orderFilters);
-        var orders = await _orders.Find(orderFilter)
-            .SortByDescending(o => o.CreatedAt)
-            .Limit(Helpers.PaginationHelper.SafetyLimit)
-            .ToListAsync();
+        var marker = Builders<Order>.Filter;
+        var marked = _orders.Find(orderFilter & marker.Eq(o => o.CreatedAtIsUtc, true))
+            .SortByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)
+            .Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+        var legacy = _orders.Find(orderFilter & marker.Ne(o => o.CreatedAtIsUtc, true))
+            .SortByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)
+            .Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+        await Task.WhenAll(marked, legacy);
+        var orders = Helpers.OrderDateHelper.TakeLatest(
+            marked.Result.Concat(legacy.Result), Helpers.PaginationHelper.SafetyLimit);
 
         return orders.Select(MapOrderToWebSale).ToList();
     }

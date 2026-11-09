@@ -4,6 +4,7 @@ import { Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { CustomerReviewsComponent } from '../customer-reviews/customer-reviews.component';
+import { TableReservationComponent } from '../table-reservation/table-reservation.component';
 import { OutletService } from '../../services/outlet.service';
 import { Outlet } from '../../models/outlet.model';
 import { AnalyticsTrackingService } from '../../services/analytics-tracking.service';
@@ -16,25 +17,8 @@ import { CartService } from '../../services/cart.service';
 import { MenuService, MenuItem as ServiceMenuItem } from '../../services/menu.service';
 import { UIStore } from '../../store/ui.store';
 import { getIstIsoString } from '../../utils/date-utils';
-
-declare const L: any;
-
-function loadLeaflet(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof L !== 'undefined') { resolve(); return; }
-    // Load CSS
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(link);
-    // Load JS
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Leaflet'));
-    document.head.appendChild(script);
-  });
-}
+import { HomePanel, HomePanelService } from '../../services/home-panel.service';
+import { Subscription } from 'rxjs';
 
 interface Category {
   id: string;
@@ -53,6 +37,83 @@ interface MenuItem {
   subCategoryId: string;
   categoryName?: string;
   catalogueName: string;
+  name?: string;
+  description?: string;
+  imageUrl?: string;
+  imageThumbnailUrl?: string;
+  webPrice?: number;
+  shopSellingPrice?: number;
+  onlinePrice?: number;
+  isAvailable?: boolean;
+  isVisibleToCustomers?: boolean;
+  isAddOnOnly?: boolean;
+}
+
+export interface LandingShowcaseItem {
+  name: string;
+  imageUrl: string;
+  price: number | null;
+  icon: string;
+}
+
+export function selectShowcaseItem(items: MenuItem[], search: string, icon: string): LandingShowcaseItem | null {
+  const matches = items.filter(item =>
+    item.isAvailable !== false && item.isVisibleToCustomers !== false && item.isAddOnOnly !== true &&
+    (item.name || item.catalogueName || '').toLowerCase().includes(search.toLowerCase()));
+  const item = matches.find(candidate => candidate.imageUrl || candidate.imageThumbnailUrl) || matches[0];
+  if (!item) return null;
+  const price = item.webPrice ?? item.shopSellingPrice ?? item.onlinePrice;
+  return {
+    name: item.name || item.catalogueName,
+    imageUrl: item.imageThumbnailUrl || item.imageUrl || '',
+    price: typeof price === 'number' && Number.isFinite(price) ? price : null,
+    icon
+  };
+}
+
+export function selectLandingSections(items: MenuItem[], configuredItems: MenuItem[], hasConfiguredSelection: boolean) {
+  const isVisible = (item: MenuItem) =>
+    item.isAvailable !== false && item.isVisibleToCustomers !== false && item.isAddOnOnly !== true;
+  items = items.filter(isVisible);
+  configuredItems = configuredItems.filter(isVisible);
+  const nameOf = (item: MenuItem) => (item.name || item.catalogueName || '').toLowerCase();
+  const configuredNames = new Set(configuredItems.map(nameOf));
+  const candidates = items.filter(item => !configuredNames.has(nameOf(item)));
+  const terms = [
+    { search: 'breakfast', icon: '🍳' },
+    { search: 'momo', icon: '🥟' },
+    { search: 'burger', icon: '🍔' },
+    { search: 'pasta', icon: '🍝' },
+    { search: 'pizza', icon: '🍕' },
+    { search: 'waffle', icon: '🧇' },
+    { search: 'sandwich', icon: '🥪' },
+    { search: 'coffee', icon: '☕' }
+  ];
+  const specialNames = new Set<string>();
+  const specials = terms
+    .map(({ search, icon }) => selectShowcaseItem(candidates, search, icon))
+    .filter((item): item is LandingShowcaseItem => {
+      if (!item || specialNames.has(item.name.toLowerCase())) return false;
+      specialNames.add(item.name.toLowerCase());
+      return true;
+    });
+  const imageItems = items.filter(item => item.imageUrl || item.imageThumbnailUrl);
+  const seenCategories = new Set<string>();
+  const variedItems = imageItems.filter(item => {
+    const category = item.categoryId || item.categoryName || '';
+    if (!category || seenCategories.has(category)) return false;
+    seenCategories.add(category);
+    return true;
+  });
+  const discoveryNames = new Set<string>();
+  const discovery = (hasConfiguredSelection ? configuredItems : [...variedItems, ...imageItems])
+    .filter(item => {
+      const name = nameOf(item);
+      if (!name || specialNames.has(name) || discoveryNames.has(name)) return false;
+      discoveryNames.add(name);
+      return true;
+    }).slice(0, 6);
+  return { specials, discovery };
 }
 
 interface LoyaltyLevelPerk {
@@ -62,20 +123,71 @@ interface LoyaltyLevelPerk {
   perks: string[];
 }
 
+interface PublicStatsResponse {
+  success: boolean;
+  data?: {
+    totalOrders: number;
+    menuItemCount: number;
+    fiveStarReviewCount: number;
+    yearsServing: number;
+  };
+}
+
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, CustomerReviewsComponent],
+  imports: [CommonModule, RouterModule, CustomerReviewsComponent, TableReservationComponent],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.scss']
 })
 export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly checkoutDraftStorageKey = 'checkout_draft';
   private readonly primaryOutletCode = 'MTC007';
-  private readonly primaryOutletCoordinates: [number, number] = [22.95079310669224, 88.43370554042531];
-
-  @ViewChild('cafeMap', { static: false }) mapElementRef!: ElementRef<HTMLDivElement>;
-  latestMenuItems: any[] = [];
+  private readonly homePanelService = inject(HomePanelService);
+  private homePanelSubscription?: Subscription;
+  private storyStatsSubscription?: Subscription;
+  @ViewChild('specialsCarousel') specialsCarousel?: ElementRef<HTMLElement>;
+  @ViewChild('categoryCarousel') categoryCarousel?: ElementRef<HTMLElement>;
+  @ViewChild('visitCarousel') visitCarousel?: ElementRef<HTMLElement>;
+  @ViewChild('homeDialog', { static: true }) homeDialog!: ElementRef<HTMLDialogElement>;
+  activePanel: HomePanel | null = null;
+  readonly panelTitles: Record<HomePanel, string> = {
+    story: 'Our Story', offers: 'Current Offers', rewards: 'Loyalty Rewards', contact: 'Contact Us', reserve: 'Reserve a Table'
+  };
+  readonly zomatoRating = 4.2;
+  storyStats: PublicStatsResponse['data'] | null = null;
+  storyStatsLoading = true;
+  storyStatsError = '';
+  offersError = '';
+  loyaltyError = '';
+  private previousBodyOverflow = '';
+  private specialsIntervalId?: ReturnType<typeof setInterval>;
+  private visitIntervalId?: ReturnType<typeof setInterval>;
+  readonly visitSlides = [
+    { imageUrl: '/images/cafe/cafe-01.jpg', alt: 'Maa Tara Cafe outdoor seating under illuminated canopy' },
+    { imageUrl: '/images/cafe/cafe-02.jpg', alt: 'Cafe seating and food cart beneath string lights' },
+    { imageUrl: '/images/cafe/cafe-03.jpg', alt: 'Maa Tara Cafe entrance and heart-shaped photo spot' },
+    { imageUrl: '/images/cafe/cafe-04.jpg', alt: 'Illuminated heart-shaped photo chair at Maa Tara Cafe' },
+    { imageUrl: '/images/cafe/cafe-05.jpg', alt: 'Maa Tara Cafe blue food cart at night' }
+  ];
+  latestMenuItems: LandingShowcaseItem[] = [];
+  heroImage = '';
+  bowlItem: LandingShowcaseItem | null = null;
+  showcaseItems: LandingShowcaseItem[] = [];
+  readonly quickCategories = [
+    { name: 'Pizza', icon: '🍕', search: 'pizza' },
+    { name: 'Burgers', icon: '🍔', search: 'burger' },
+    { name: 'Momos', icon: '🥟', search: 'momo' },
+    { name: 'Pasta', icon: '🍝', search: 'pasta' },
+    { name: 'Protein Bowls', icon: '🥗', search: 'bowl' },
+    { name: 'Tandoor', icon: '🍢', search: 'tandoor' },
+    { name: 'Indian & Rice', icon: '🍚', search: 'rice' },
+    { name: 'Breakfast', icon: '🍳', search: 'breakfast' },
+    { name: 'Tea', icon: '🍵', search: 'tea' },
+    { name: 'Coffee', icon: '☕', search: 'coffee' },
+    { name: 'Mocktails', icon: '🍹', search: 'mocktail' },
+    { name: 'Waffles', icon: '🧇', search: 'waffle' }
+  ];
   outlets: Outlet[] = [];
   currentYear = new Date().getFullYear();
   homeContentConfig: HomeContentConfig | null = null;
@@ -219,19 +331,11 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    this.startTestimonialRotation();
+    this.homePanelSubscription = this.homePanelService.requests.subscribe(panel => this.openHomePanel(panel));
     // Load outlets first so menu/category requests are scoped to one outlet.
     this.loadOutlets();
-    // Load real stats from public API
-    this.loadPublicStats();
     this.loadOffersHighlights();
     this.loadLoyaltyHighlights();
-    this.loadCheckoutDraft();
-
-    if (this.isLoggedIn) {
-      this.loadLatestMenuSnapshot();
-      this.loadLastDeliveredOrder();
-    }
   }
 
   get isLoggedIn(): boolean {
@@ -382,6 +486,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private loadLoyaltyHighlights() {
+    this.loyaltyError = '';
     if (!this.authService.isLoggedIn()) {
       this.loyaltyAccount = null;
       this.loyaltyRewards = [];
@@ -395,7 +500,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
         this.loyaltyAccount = account;
         this.loyaltyLoading = false;
       },
-      error: () => {
+      error: (error) => {
+        console.error('Error loading loyalty account:', error);
+        this.loyaltyError = 'Could not load your loyalty account. Please try again from the rewards page.';
         this.loyaltyAccount = null;
         this.loyaltyLoading = false;
       }
@@ -412,10 +519,11 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
           .sort((a, b) => {
             if (a.canRedeem === b.canRedeem) return a.pointsCost - b.pointsCost;
             return a.canRedeem ? -1 : 1;
-          })
-          .slice(0, 6);
+          });
       },
-      error: () => {
+      error: (error) => {
+        console.error('Error loading loyalty rewards:', error);
+        this.loyaltyError = 'Could not load available rewards. Please try again from the rewards page.';
         this.loyaltyRewards = [];
       }
     });
@@ -423,6 +531,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private loadOffersHighlights() {
     this.offersLoading = true;
+    this.offersError = '';
     this.offersService.getActiveOffers().subscribe({
       next: (offers) => {
         const now = new Date();
@@ -430,13 +539,14 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
           .filter(offer => {
             if (!offer.isActive) return false;
             if (!offer.validTill) return true;
-            return new Date(offer.validTill as any) >= now;
+            return new Date(offer.validTill) >= now;
           })
-          .sort((a, b) => new Date(b.validTill as any).getTime() - new Date(a.validTill as any).getTime())
-          .slice(0, 6);
+          .sort((a, b) => new Date(b.validTill).getTime() - new Date(a.validTill).getTime());
         this.offersLoading = false;
       },
-      error: () => {
+      error: (error) => {
+        console.error('Error loading active offers:', error);
+        this.offersError = 'Could not load current offers. Please try again later.';
         this.activeOffers = [];
         this.offersLoading = false;
       }
@@ -457,83 +567,22 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
-    loadLeaflet()
-      .then(() => setTimeout(() => this.initMap(), 300))
-      .catch(err => console.error('Failed to load Leaflet:', err));
+    this.startSpecialsCarousel();
+    this.startVisitCarousel();
   }
 
   ngOnDestroy() {
+    this.homePanelSubscription?.unsubscribe();
+    this.storyStatsSubscription?.unsubscribe();
+    this.closeHomePanel();
+    if (this.specialsIntervalId) {
+      clearInterval(this.specialsIntervalId);
+    }
+    if (this.visitIntervalId) {
+      clearInterval(this.visitIntervalId);
+    }
     if (this.testimonialIntervalId) {
       clearInterval(this.testimonialIntervalId);
-    }
-    if (this.map) {
-      this.map.remove();
-      this.map = undefined;
-    }
-  }
-
-  private map: any;
-
-  private initMap() {
-    try {
-      if (this.map) return;
-
-      if (typeof L === 'undefined') {
-        console.error('Leaflet: L is not defined. CDN script may not have loaded.');
-        return;
-      }
-
-      const mapEl = this.mapElementRef?.nativeElement;
-      if (!mapEl) {
-        console.error('Leaflet: Map container element not found');
-        return;
-      }
-
-
-      // Single active outlet (MTC007)
-      const center = this.primaryOutletCoordinates;
-
-      // Fix Leaflet default marker icon path issue with bundlers
-      const iconDefault = L.icon({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      });
-
-      this.map = L.map(mapEl, {
-        center,
-        zoom: 15,
-        scrollWheelZoom: false
-      });
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19
-      }).addTo(this.map);
-
-      // Primary outlet — MTC007
-      L.marker(this.primaryOutletCoordinates, { icon: iconDefault })
-        .addTo(this.map)
-        .bindPopup(`
-          <strong>🏪 Maa Tara Cafe (MTC007)</strong><br>
-          📍 281, KGR Path, Kanchrapara<br>
-          🕐 8:00 AM – 11:00 PM<br>
-          📞 <a href="tel:+918240443533">+91-8240443533</a>
-        `);
-
-      // Force Leaflet to recalculate container size
-      setTimeout(() => {
-        if (this.map) {
-          this.map.invalidateSize();
-        }
-      }, 500);
-
-    } catch (error) {
-      console.error('Leaflet: Error initializing map:', error);
     }
   }
 
@@ -635,6 +684,12 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
           subCategoryId: this.normalizeId(item.subCategoryId ?? item.SubCategoryId ?? item.subCategory?.id ?? item.subCategory?._id),
         }));
 
+        const visibleItems = this.menuItems.filter(item =>
+          item.isAvailable !== false && item.isVisibleToCustomers !== false && item.isAddOnOnly !== true);
+        const pizza = visibleItems.find(item =>
+          (item.name || item.catalogueName || '').toLowerCase().includes('pizza') && (item.imageUrl || item.imageThumbnailUrl));
+        this.heroImage = pizza?.imageUrl || pizza?.imageThumbnailUrl || '';
+        this.bowlItem = selectShowcaseItem(this.menuItems, 'bowl', '🥗');
         // Update stats after menu items are loaded
         this.loadStats();
 
@@ -670,45 +725,119 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   private applyLatestMenuItems(config: HomeContentConfig | null) {
     if (!this.menuItems || this.menuItems.length === 0) {
       this.latestMenuItems = [];
+      this.showcaseItems = [];
       return;
     }
 
     const selectedIdOrder = (config?.featuredMenuItemIds || []).map(id => this.normalizeId(id));
-    const menuItemById = new Map(this.menuItems.map(item => [this.normalizeId((item as any).id), item]));
-
-    const selectedItems = selectedIdOrder.length > 0
+    const availableItems = this.menuItems.filter(item =>
+      item.isAvailable !== false && item.isVisibleToCustomers !== false && item.isAddOnOnly !== true);
+    const availableById = new Map(availableItems.map(item => [this.normalizeId(item.id), item]));
+    const configuredItems = selectedIdOrder.length > 0
       ? selectedIdOrder
-          .map(id => menuItemById.get(id))
+          .map(id => availableById.get(id))
           .filter((item): item is MenuItem => !!item)
-          .slice(0, 6)
-      : this.menuItems.slice(0, 6);
-
-    const tags = ['NEW', 'POPULAR', 'BESTSELLER', 'CHEF SPECIAL', 'TRENDING', 'HOT'];
-    this.latestMenuItems = selectedItems.map((item: any, index: number) => {
+      : [];
+    const sections = selectLandingSections(availableItems, configuredItems, selectedIdOrder.length > 0);
+    this.showcaseItems = sections.specials;
+    this.latestMenuItems = sections.discovery.map((item) => {
       const categoryName = this.getCategoryNameById(item.categoryId);
+      const price = item.webPrice ?? item.shopSellingPrice ?? item.onlinePrice;
       return {
         name: item.name || item.catalogueName || item.description || 'Menu Item',
-        category: categoryName || 'Special',
-        price: `₹${item.webPrice || item.shopSellingPrice || item.onlinePrice || 99}`,
-        image: this.getCategoryIcon(categoryName),
-        tag: tags[index % tags.length]
+        price: typeof price === 'number' && Number.isFinite(price) ? price : null,
+        imageUrl: item.imageThumbnailUrl || item.imageUrl || '',
+        icon: this.getCategoryIcon(categoryName)
       };
     });
   }
 
+  startSpecialsCarousel(): void {
+    this.specialsIntervalId = setInterval(() => {
+      this.advanceSpecials();
+      this.advanceCategories();
+    }, 3000);
+  }
+
+  advanceSpecials(): void {
+    this.advanceCarousel(this.specialsCarousel?.nativeElement, '.special-tile', 12);
+  }
+
+  advanceCategories(): void {
+    this.advanceCarousel(this.categoryCarousel?.nativeElement, 'button', 0);
+  }
+
+  startVisitCarousel(): void {
+    this.visitIntervalId = setInterval(() => this.advanceVisitArtwork(), 5000);
+  }
+
+  advanceVisitArtwork(): void {
+    this.advanceCarousel(this.visitCarousel?.nativeElement, '.visit-art-slide', 0);
+  }
+
+  private advanceCarousel(carousel: HTMLElement | undefined, selector: string, gap: number): void {
+    if (!carousel || this.activePanel || document.hidden || carousel.matches(':hover') ||
+        carousel.contains(document.activeElement) ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const card = carousel.querySelector<HTMLElement>(selector);
+    const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+    if (!card || maxScroll <= 1) return;
+    if (carousel.scrollLeft >= maxScroll - 1) {
+      carousel.scrollTo({ left: 0, behavior: 'instant' });
+    } else {
+      carousel.scrollBy({ left: card.offsetWidth + gap, behavior: 'auto' });
+    }
+  }
+
+  openHomePanel(panel: HomePanel): void {
+    if (!this.activePanel) {
+      this.previousBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    this.activePanel = panel;
+    if (panel === 'story') this.loadPublicStats();
+    if (!this.homeDialog.nativeElement.open) this.homeDialog.nativeElement.showModal();
+  }
+
+  closeHomePanel(): void {
+    if (!this.activePanel) return;
+    this.homeDialog.nativeElement.close();
+    this.activePanel = null;
+    document.body.style.overflow = this.previousBodyOverflow;
+  }
+
+  onPanelBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeHomePanel();
+  }
+
+  browseMenu(search = ''): void {
+    this.analyticsTracking.trackFeatureUsage('Menu Browse', search || 'all');
+    this.router.navigate(['/menu'], { queryParams: search ? { search } : {} });
+  }
+
   loadPublicStats() {
-    this.http.get<any>(`${environment.apiUrl}/public/stats`).subscribe({
+    this.storyStatsSubscription?.unsubscribe();
+    this.storyStats = null;
+    this.storyStatsLoading = true;
+    this.storyStatsError = '';
+    this.storyStatsSubscription = this.http.get<PublicStatsResponse>(`${environment.apiUrl}/public/stats`, {
+      headers: { 'ngsw-bypass': 'true', 'Cache-Control': 'no-cache' }
+    }).subscribe({
       next: (res) => {
+        this.storyStatsLoading = false;
         if (res?.success && res.data) {
           const d = res.data;
-          // Animate the stat values
-          this.animateStatValue(0, d.totalOrders, 'Online Orders Served', '😊', '+');
-          this.animateStatValue(1, d.menuItemCount, 'Menu Items', '🍽️', '+');
-          this.animateStatValue(2, d.averageRating, 'Average Rating', '⭐', '⭐', true);
-          this.animateStatValue(3, d.yearsServing, 'Years Serving', '🎉', '+');
+          this.storyStats = d;
+        } else {
+          this.storyStatsError = 'Cafe statistics are unavailable. Please try again.';
+          console.error('Public stats response did not contain statistics.');
         }
       },
-      error: (err) => console.error('Error loading public stats:', err)
+      error: (err) => {
+        console.error('Error loading public stats:', err);
+        this.storyStatsLoading = false;
+        this.storyStatsError = 'Could not load cafe statistics. Please try again.';
+      }
     });
   }
 
@@ -730,7 +859,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
       if (isRating) {
         this.stats[index] = {
-          value: currentValue > 0 ? `${Math.round(currentValue)}${suffix}` : '...',
+          value: currentValue > 0 ? `${currentValue.toFixed(1)}${suffix}` : '...',
           label,
           icon
         };

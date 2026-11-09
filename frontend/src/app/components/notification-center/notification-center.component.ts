@@ -17,7 +17,7 @@ import { parseIstDate } from '../../utils/date-utils';
       [attr.aria-label]="'Notifications' + (store.hasUnread() ? ' - ' + store.unreadCount() + ' unread' : '')"
       aria-haspopup="true"
       [attr.aria-expanded]="store.isOpen()">
-      <span class="bell-icon">🔔</span>
+      <svg class="bell-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 21h4M12 2V1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       @if (store.hasUnread()) {
         <span class="notification-badge">{{ store.displayBadge() }}</span>
       }
@@ -111,7 +111,33 @@ import { parseIstDate } from '../../utils/date-utils';
       &:hover { transform: scale(1.15); }
     }
 
-    .bell-icon { display: inline-block; }
+    .bell-icon { display: inline-block; width: 24px; height: 24px; }
+
+    :host(.navbar-notification) {
+      .notification-bell {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border-radius: 12px;
+        background: #eaff00;
+        color: #062c38;
+        box-shadow: 0 3px 10px rgba(6, 44, 56, .2);
+        &:hover { background: #fff; transform: none; }
+        &:focus-visible { outline: 3px solid #062c38; outline-offset: 3px; }
+      }
+      .bell-icon { width: 26px; height: 26px; }
+      .notification-badge {
+        top: -4px;
+        right: -8px;
+        background: #062c38;
+        border: 2px solid #eaff00;
+        box-shadow: none;
+        animation: none;
+      }
+    }
 
     .notification-badge {
       position: absolute;

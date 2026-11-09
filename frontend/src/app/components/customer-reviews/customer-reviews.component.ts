@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReviewsService, Review } from '../../services/reviews.service';
 
@@ -10,6 +10,7 @@ import { ReviewsService, Review } from '../../services/reviews.service';
   styleUrls: ['./customer-reviews.component.scss']
 })
 export class CustomerReviewsComponent implements OnInit {
+  @Input() compact = false;
   reviews: Review[] = [];
   isLoading = true;
   errorMessage = '';

@@ -80,7 +80,7 @@ public class CafeTableFunction
 
             var tables = await _tables.GetByOutletAsync(outletId, includeInactive: false);
             var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
-            var floor = BuildFloor(tables, sessions, MongoService.GetIstNow());
+            var floor = BuildFloor(tables, sessions, MongoService.GetUtcNow());
 
             var summary = new
             {
@@ -509,7 +509,7 @@ public class CafeTableFunction
         view.GrandTotal = session.GrandTotal;
         view.AmountDue = Math.Max(0, Math.Round(session.GrandTotal - session.AmountPaid, 2));
         view.OccupiedSince = session.CreatedAt;
-        view.MinutesActive = Math.Max(0, (int)(now - session.CreatedAt).TotalMinutes);
+        view.MinutesActive = IstDateHelper.GetSessionElapsedMinutes(session.CreatedAt, session.CreatedAtIsUtc, now);
     }
 
     private static bool CanCleanupCancelledSession(DineInSession session) =>

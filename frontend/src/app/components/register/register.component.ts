@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -31,8 +31,11 @@ export class RegisterComponent {
 
   constructor(
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {}
+
+  get returnUrl(): string | null { return this.route.snapshot.queryParamMap.get('returnUrl'); }
 
   togglePassword(): void {
     this.showPassword = !this.showPassword;
@@ -117,7 +120,7 @@ export class RegisterComponent {
         this.registeredEmail = this.email;
         // Redirect to login after showing success message
         setTimeout(() => {
-          this.router.navigate(['/login']);
+          this.router.navigate(['/login'], { queryParams: this.returnUrl ? { returnUrl: this.returnUrl } : {} });
         }, 4000);
       },
       error: (error) => {

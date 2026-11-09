@@ -74,6 +74,7 @@ export interface Order {
   loyaltyPointsAwardedValue?: number;
   orderSource?: string;
   createdAt: string;
+  createdAtIsUtc?: boolean | null;
   updatedAt: string;
   lastReconciledAt?: string;
   lastReconciledByUserId?: string;
@@ -299,6 +300,7 @@ export interface UpiReconciliationItem {
   upiConfirmedBy?: string;
   upiConfirmedAt?: string;
   createdAt: string;
+  createdAtIsUtc?: boolean | null;
   updatedAt: string;
 }
 

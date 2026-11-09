@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using Cafe.Api.Helpers;
+using Cafe.Api.Services;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -49,10 +50,10 @@ public class CafeTable
     public string? QrTokenHash { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedAt")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
 
     [BsonElement("updatedBy")]
     public string? UpdatedBy { get; set; }

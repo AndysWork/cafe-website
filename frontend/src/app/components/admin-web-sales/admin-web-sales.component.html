@@ -228,7 +228,7 @@
               </td>
               <td>{{ row.upiConfirmedBy || '-' }}</td>
               <td>{{ formatDate(row.upiConfirmedAt) }}</td>
-              <td>{{ formatDate(row.createdAt) }}</td>
+              <td>{{ formatDate(row.createdAt, row.createdAtIsUtc) }}</td>
             </tr>
           </tbody>
         </table>
@@ -569,8 +569,8 @@
         <table>
           <thead>
             <tr>
-              <th>Menu Item ID</th>
-              <th>Name</th>
+              <th>Search Item</th>
+              <th>Selected Item</th>
               <th>Qty</th>
               <th>Base Price</th>
               <th>Variant</th>
@@ -579,8 +579,33 @@
           </thead>
           <tbody>
             <tr *ngFor="let row of missedOrderDraft.items; let i = index">
-              <td><input type="text" [(ngModel)]="row.menuItemId" /></td>
-              <td><input type="text" [(ngModel)]="row.name" /></td>
+              <td>
+                <div class="autocomplete-field">
+                  <input
+                    type="text"
+                    [(ngModel)]="row.menuItemSearch"
+                    placeholder="Search by name / ID"
+                    autocomplete="off"
+                    (focus)="onMenuSearchFocus('missed-' + i)"
+                    (blur)="onMenuSearchBlur(row)"
+                    (keydown)="onMenuSearchKeydown($event, row, 'missed-' + i)"
+                  />
+                  <ul *ngIf="isMenuSuggestionOpen('missed-' + i, row)" class="suggestions-list">
+                    <li
+                      *ngFor="let item of getFilteredMenuCatalog(row.menuItemSearch, 8); let itemIndex = index"
+                      [class.is-active]="activeMenuSuggestionKey === ('missed-' + i) && activeMenuSuggestionIndex === itemIndex"
+                      (mousedown)="onMenuSuggestionMouseDown($event, row, item)"
+                    >
+                      <span class="item-name">{{ item.name }}</span>
+                      <span class="item-meta">{{ item.id }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </td>
+              <td>
+                <input type="text" [ngModel]="row.name" readonly />
+                <small *ngIf="row.menuItemId" class="item-id-hint">{{ row.menuItemId }}</small>
+              </td>
               <td><input type="number" min="1" step="1" [(ngModel)]="row.quantity" /></td>
               <td><input type="number" min="0" step="0.01" [(ngModel)]="row.baseUnitPrice" /></td>
               <td><input type="text" [(ngModel)]="row.selectedVariantName" /></td>
@@ -678,8 +703,8 @@
                 </ng-template>
               </td>
               <td>
-                <div>{{ formatDate(order.createdAt) }}</div>
-                <small>{{ formatTime(order.createdAt) }} IST</small>
+                <div>{{ formatDate(order.createdAt, order.createdAtIsUtc) }}</div>
+                <small>{{ formatTime(order.createdAt, order.createdAtIsUtc) }} IST</small>
               </td>
               <td>
                 <div class="action-row">
@@ -878,8 +903,7 @@
                     <table>
                       <thead>
                         <tr>
-                          <th>Menu Item ID</th>
-                          <th>Name</th>
+                          <th>Selected Item</th>
                           <th>Qty</th>
                           <th>Base Price</th>
                           <th>Variant</th>
@@ -888,12 +912,15 @@
                       </thead>
                       <tbody>
                         <tr *ngFor="let row of getReconcileDraft(order).items; let i = index">
-                          <td><input type="text" [(ngModel)]="row.menuItemId" /></td>
-                          <td><input type="text" [(ngModel)]="row.name" /></td>
+                          <td>
+                            <input type="text" [ngModel]="row.name" readonly aria-label="Selected item" />
+                            <small *ngIf="row.menuItemId" class="item-id-hint">{{ row.menuItemId }}</small>
+                          </td>
                           <td><input type="number" min="1" step="1" [(ngModel)]="row.quantity" /></td>
                           <td><input type="number" min="0" step="0.01" [(ngModel)]="row.baseUnitPrice" /></td>
                           <td><input type="text" [(ngModel)]="row.selectedVariantName" /></td>
                           <td>
+                            <button type="button" (click)="openReconcileItemPicker(order, $event, row)" [attr.aria-label]="'Change ' + row.name">Change</button>
                             <button type="button" (click)="removeReconcileItem(order, i)">Remove</button>
                           </td>
                         </tr>
@@ -902,7 +929,7 @@
                   </div>
 
                   <div class="reconcile-footer">
-                    <button type="button" (click)="addReconcileItem(order)">Add Item</button>
+                    <button type="button" (click)="openReconcileItemPicker(order, $event)">Add Item</button>
                     <span class="preview">
                       Preview Subtotal: {{ formatCurrency(getReconcilePreviewSubtotal(order)) }} ·
                       Preview Total: {{ formatCurrency(getReconcilePreviewTotal(order)) }}
@@ -911,6 +938,7 @@
                       {{ reconcilingOrderId === order.id ? 'Reconciling…' : 'Apply Reconciliation' }}
                     </button>
                   </div>
+
                 </div>
               </td>
             </tr>
@@ -922,5 +950,29 @@
     <div *ngIf="!loading && filteredOrders.length === 0" class="state">
       No orders found for current filters. Try adjusting date range, status, or search.
     </div>
+  </div>
+
+  <div *ngIf="menuPickerOrder" class="item-picker-backdrop" (click)="closeReconcileItemPicker()">
+    <section class="item-picker" role="dialog" aria-modal="true" aria-labelledby="item-picker-title"
+      cdkTrapFocus [cdkTrapFocusAutoCapture]="true" (click)="$event.stopPropagation()">
+      <header>
+        <h2 id="item-picker-title">{{ menuPickerRow ? 'Change item' : 'Add item' }}</h2>
+        <button type="button" class="close-picker" aria-label="Close item picker" (click)="closeReconcileItemPicker()">×</button>
+      </header>
+      <label for="reconcile-item-search">Search menu items</label>
+      <input id="reconcile-item-search" type="search" [(ngModel)]="menuPickerSearch"
+        placeholder="Search by name, ID or category" autocomplete="off" cdkFocusInitial />
+      <div class="item-picker-results" aria-live="polite">
+        <p *ngIf="menuCatalog.length === 0">No menu items available. Refresh and try again.</p>
+        <p *ngIf="menuCatalog.length > 0 && getFilteredMenuCatalog(menuPickerSearch, menuCatalog.length).length === 0">No matching menu items.</p>
+        <button type="button" class="item-picker-result"
+          *ngFor="let item of getFilteredMenuCatalog(menuPickerSearch, menuCatalog.length)"
+          (click)="selectReconcileItem(item)">
+          <strong>{{ item.name }}</strong>
+          <span>{{ item.categoryName || item.category }} · {{ item.id }}</span>
+        </button>
+      </div>
+      <footer><button type="button" (click)="closeReconcileItemPicker()">Cancel</button></footer>
+    </section>
   </div>
 </div>

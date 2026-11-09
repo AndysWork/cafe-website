@@ -69,13 +69,13 @@ public class OnlineSaleFunction
 
             var now = MongoService.GetIstNow();
             var startDate = string.IsNullOrWhiteSpace(startDateStr)
-                ? new DateTime(now.Year, now.Month, 1)
-                : DateTime.TryParse(startDateStr, out var parsedStart)
+                ? IstDateHelper.ToIstDate(new DateTime(now.Year, now.Month, 1))
+                : IstDateHelper.TryParseIstDate(startDateStr, out var parsedStart)
                     ? parsedStart
                     : DateTime.MinValue;
             var endDate = string.IsNullOrWhiteSpace(endDateStr)
-                ? now.Date
-                : DateTime.TryParse(endDateStr, out var parsedEnd)
+                ? IstDateHelper.ToIstDate(now)
+                : IstDateHelper.TryParseIstDate(endDateStr, out var parsedEnd)
                     ? parsedEnd
                     : DateTime.MinValue;
 
@@ -92,6 +92,7 @@ public class OnlineSaleFunction
                 await badRequest.WriteAsJsonAsync(new { success = false, message = "endDate must be greater than or equal to startDate" });
                 return badRequest;
             }
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var outletForPartners = string.IsNullOrWhiteSpace(outletId) ? "default" : outletId;
@@ -105,7 +106,7 @@ public class OnlineSaleFunction
             var allOrders = await _orderRepo.GetAllOrdersAsync(outletId, null, null);
             var webOrdersAll = allOrders
                 .Where(IsWebOrderChannel)
-                .OrderByDescending(o => o.CreatedAt)
+                .OrderByDescending(OrderDateHelper.ToIstCreatedAt)
                 .ToList();
 
             var effectivePage = page ?? 1;
@@ -125,7 +126,7 @@ public class OnlineSaleFunction
                 .Concat(pagedOrders)
                 .GroupBy(o => o.Id)
                 .Select(g => g.First())
-                .OrderByDescending(o => o.CreatedAt)
+                .OrderByDescending(OrderDateHelper.ToIstCreatedAt)
                 .ToList();
 
             var partners = await _operationsRepo.GetDeliveryPartnersAsync(outletForPartners);
@@ -255,19 +256,20 @@ public class OnlineSaleFunction
                 return badRequest;
             }
 
-            if (!DateTime.TryParse(startDateStr, out var startDate))
+            if (!IstDateHelper.TryParseIstDate(startDateStr, out var startDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { success = false, message = $"Invalid startDate format: {startDateStr}" });
                 return badRequest;
             }
 
-            if (!DateTime.TryParse(endDateStr, out var endDate))
+            if (!IstDateHelper.TryParseIstDate(endDateStr, out var endDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { success = false, message = $"Invalid endDate format: {endDateStr}" });
                 return badRequest;
             }
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var sales = await _mongo.GetOnlineSalesByDateRangeAsync(platform, startDate, endDate, outletId, includeWebSales);
@@ -307,19 +309,20 @@ public class OnlineSaleFunction
                 return badRequest;
             }
 
-            if (!DateTime.TryParse(startDateStr, out var startDate))
+            if (!IstDateHelper.TryParseIstDate(startDateStr, out var startDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { success = false, message = $"Invalid startDate format: {startDateStr}" });
                 return badRequest;
             }
 
-            if (!DateTime.TryParse(endDateStr, out var endDate))
+            if (!IstDateHelper.TryParseIstDate(endDateStr, out var endDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { success = false, message = $"Invalid endDate format: {endDateStr}" });
                 return badRequest;
             }
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
             var dailyIncome = await _mongo.GetDailyOnlineIncomeAsync(startDate, endDate, outletId, includeWebSales);
@@ -361,12 +364,13 @@ public class OnlineSaleFunction
                 return badRequest;
             }
 
-            if (!DateTime.TryParse(startDateStr, out var startDate) || !DateTime.TryParse(endDateStr, out var endDate))
+            if (!IstDateHelper.TryParseIstDate(startDateStr, out var startDate) || !IstDateHelper.TryParseIstDate(endDateStr, out var endDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { success = false, message = "Invalid date format" });
                 return badRequest;
             }
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             var outletId = !string.IsNullOrWhiteSpace(outletIdFromQuery)
                 ? outletIdFromQuery
@@ -457,12 +461,13 @@ public class OnlineSaleFunction
                 return badRequest;
             }
 
-            if (!DateTime.TryParse(startDateStr, out var startDate) || !DateTime.TryParse(endDateStr, out var endDate))
+            if (!IstDateHelper.TryParseIstDate(startDateStr, out var startDate) || !IstDateHelper.TryParseIstDate(endDateStr, out var endDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { success = false, message = "Invalid date format" });
                 return badRequest;
             }
+            endDate = IstDateHelper.ToIstDayEnd(endDate);
 
             var filterOutletIds = !string.IsNullOrWhiteSpace(outletIdsParam)
                 ? outletIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(id => id.Trim()).ToHashSet()
@@ -775,14 +780,33 @@ public class OnlineSaleFunction
             DateTime? startDate = null;
             DateTime? endDate = null;
 
-            if (!string.IsNullOrEmpty(startDateStr) && DateTime.TryParse(startDateStr, out var parsedStart))
+            if (startDateStr != null)
             {
+                if (!IstDateHelper.TryParseIsoDate(startDateStr, out var parsedStart))
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { success = false, message = "startDate must use yyyy-MM-dd" });
+                    return badRequest;
+                }
                 startDate = parsedStart;
             }
 
-            if (!string.IsNullOrEmpty(endDateStr) && DateTime.TryParse(endDateStr, out var parsedEnd))
+            if (endDateStr != null)
             {
-                endDate = parsedEnd;
+                if (!IstDateHelper.TryParseIsoDate(endDateStr, out var parsedEnd))
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { success = false, message = "endDate must use yyyy-MM-dd" });
+                    return badRequest;
+                }
+                endDate = IstDateHelper.ToIstDayEnd(parsedEnd);
+            }
+
+            if (startDate.HasValue && endDate.HasValue && startDate > endDate)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { success = false, message = "endDate must not precede startDate" });
+                return badRequest;
             }
 
             var deletedCount = await _mongo.BulkDeleteOnlineSalesAsync(platform, startDate, endDate);
@@ -1027,14 +1051,14 @@ public class OnlineSaleFunction
             DateTime? startDate = null;
             DateTime? endDate = null;
 
-            if (!string.IsNullOrEmpty(startDateStr) && DateTime.TryParse(startDateStr, out var parsedStart))
+            if (!string.IsNullOrEmpty(startDateStr) && IstDateHelper.TryParseIstDate(startDateStr, out var parsedStart))
             {
                 startDate = parsedStart;
             }
 
-            if (!string.IsNullOrEmpty(endDateStr) && DateTime.TryParse(endDateStr, out var parsedEnd))
+            if (!string.IsNullOrEmpty(endDateStr) && IstDateHelper.TryParseIstDate(endDateStr, out var parsedEnd))
             {
-                endDate = parsedEnd;
+                endDate = IstDateHelper.ToIstDayEnd(parsedEnd);
             }
 
             // Get outlet ID for filtering

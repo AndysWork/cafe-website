@@ -337,9 +337,15 @@ public class FrozenItemFunction
                             {
                                 expiryDate = DateTime.FromOADate(oaDate);
                             }
-                            else if (DateTime.TryParse(expiryCell.Text, out var parsedDate))
+                            else if (IstDateHelper.TryParseImportDate(expiryCell.Text, out var parsedDate))
                             {
-                                expiryDate = parsedDate;
+                                expiryDate = IstDateHelper.ToIstDate(parsedDate);
+                            }
+                            else if (!string.IsNullOrWhiteSpace(expiryCell.Text))
+                            {
+                                var invalidDate = req.CreateResponse(HttpStatusCode.BadRequest);
+                                await invalidDate.WriteAsJsonAsync(new { error = $"Invalid expiry date in row {row}. Use yyyy-MM-dd or dd/MM/yyyy." });
+                                return invalidDate;
                             }
                         }
 

@@ -1,5 +1,5 @@
-<div class="reservation-page">
-  <section class="page-hero">
+<div class="reservation-page" [class.compact-reservation]="compact">
+  <section class="page-hero" *ngIf="!compact">
     <div class="hero-content">
       <h1>Reserve a Table</h1>
       <p>Choose your date, pick a time, and we will keep your table ready.</p>
@@ -13,9 +13,9 @@
 
   <div class="reservation-shell">
     <!-- Tabs -->
-    <div class="tabs">
+    <div class="tabs" *ngIf="!compact">
       <button class="tab" [class.active]="activeTab === 'book'" (click)="switchTab('book')">Book a Table</button>
-      <button class="tab" [class.active]="activeTab === 'my'" (click)="switchTab('my')">My Reservations</button>
+      <button *ngIf="isLoggedIn" class="tab" [class.active]="activeTab === 'my'" (click)="switchTab('my')">My Reservations</button>
     </div>
 
     <!-- Booking Form -->
@@ -90,7 +90,9 @@
             ></textarea>
           </div>
 
-          <button type="submit" class="btn-submit" [disabled]="submitting || !isDineInCurrentlyAvailable">
+          <p *ngIf="!isLoggedIn" class="signin-notice">You can fill in your booking details now. Sign in to confirm your reservation.</p>
+          <button *ngIf="!isLoggedIn" type="button" class="btn-submit" (click)="loginToReserve()">Sign in to Reserve</button>
+          <button *ngIf="isLoggedIn" type="submit" class="btn-submit" [disabled]="submitting || !isDineInCurrentlyAvailable">
             {{
               !isDineInCurrentlyAvailable
                 ? 'Shop Closed'

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -17,6 +17,7 @@ import { getIstInputDate } from '../../utils/date-utils';
   styleUrls: ['./table-reservation.component.scss']
 })
 export class TableReservationComponent implements OnInit {
+  @Input() compact = false;
   private reservationService = inject(TableReservationService);
   private outletService = inject(OutletService);
   private dineInService = inject(DineInService);
@@ -61,6 +62,8 @@ export class TableReservationComponent implements OnInit {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     this.form.reservationDate = getIstInputDate(tomorrow);
+    const draft = this.reservationService.takeBookingDraft();
+    if (draft) this.form = draft;
 
     this.prefillUserDetails();
 
@@ -84,8 +87,8 @@ export class TableReservationComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     if (user) {
       const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
-      this.form.customerName = fullName || user.username || '';
-      this.form.customerPhone = user.phoneNumber || '';
+      this.form.customerName ||= fullName || user.username || '';
+      this.form.customerPhone ||= user.phoneNumber || '';
       if (user.email && !this.form.customerEmail) {
         this.form.customerEmail = user.email;
       }
@@ -93,11 +96,19 @@ export class TableReservationComponent implements OnInit {
   }
 
   switchTab(tab: 'book' | 'my') {
+    if (tab === 'my' && !this.isLoggedIn) {
+      this.loginToReserve();
+      return;
+    }
     this.activeTab = tab;
     if (tab === 'my') this.loadMyReservations();
   }
 
   loadMyReservations() {
+    if (!this.isLoggedIn) {
+      this.loginToReserve();
+      return;
+    }
     this.loadingMy = true;
     this.reservationService.getMyReservations().subscribe({
       next: (data) => { this.myReservations = data; this.loadingMy = false; },
@@ -106,6 +117,11 @@ export class TableReservationComponent implements OnInit {
   }
 
   submitReservation() {
+    if (!this.isLoggedIn) {
+      this.loginToReserve();
+      return;
+    }
+    if (this.submitting) return;
     if (!this.isDineInCurrentlyAvailable) {
       this.uiStore.warning(this.dineInClosedReason);
       return;
@@ -130,6 +146,16 @@ export class TableReservationComponent implements OnInit {
         this.submitting = false;
       }
     });
+  }
+
+  get isLoggedIn(): boolean {
+    return this.authService.isLoggedIn();
+  }
+
+  loginToReserve(): void {
+    this.reservationService.saveBookingDraft(this.form);
+    this.uiStore.notify('Please sign in to confirm your reservation.');
+    this.router.navigate(['/login'], { queryParams: { returnUrl: '/reservations' } });
   }
 
   bookAnother() {

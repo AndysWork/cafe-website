@@ -36,9 +36,9 @@ public class CashReconciliationFunction
             DateTime? startDate = null;
             DateTime? endDate = null;
 
-            if (DateTime.TryParse(query["startDate"], out var start))
+            if (IstDateHelper.TryParseIstDate(query["startDate"], out var start))
                 startDate = start;
-            if (DateTime.TryParse(query["endDate"], out var end))
+            if (IstDateHelper.TryParseIstDate(query["endDate"], out var end))
                 endDate = end;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
@@ -68,7 +68,7 @@ public class CashReconciliationFunction
 
         try
         {
-            if (!DateTime.TryParse(date, out var parsedDate))
+            if (!IstDateHelper.TryParseIstDate(date, out var parsedDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
@@ -102,7 +102,7 @@ public class CashReconciliationFunction
 
         try
         {
-            if (!DateTime.TryParse(date, out var parsedDate))
+            if (!IstDateHelper.TryParseIstDate(date, out var parsedDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Invalid date format" });
@@ -330,8 +330,8 @@ public class CashReconciliationFunction
         {
             var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
             
-            if (!DateTime.TryParse(query["startDate"], out var startDate) ||
-                !DateTime.TryParse(query["endDate"], out var endDate))
+            if (!IstDateHelper.TryParseIstDate(query["startDate"], out var startDate) ||
+                !IstDateHelper.TryParseIstDate(query["endDate"], out var endDate))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Start date and end date are required" });
@@ -413,6 +413,12 @@ public class CashReconciliationFunction
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { success = true, count = result.Count, data = result });
             return response;
+        }
+        catch (FormatException ex)
+        {
+            var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+            await badRequest.WriteAsJsonAsync(new { error = ex.Message });
+            return badRequest;
         }
         catch (Exception ex)
         {
@@ -507,7 +513,9 @@ public class CashReconciliationFunction
             // Clean up line endings and check if it looks like CSV
             csvText = csvText.Replace("\r\n", "\n").Replace("\r", "\n");
             
-            if ((csvText.Contains(',') || csvText.Contains('\t')) && (csvText.Contains('\n') || csvText.Split(new[] { ',', '\t' }).Length >= 4))
+            var isExcel = fileData.Length >= 4 && fileData[0] == 0x50 && fileData[1] == 0x4B
+                && fileData[2] == 0x03 && fileData[3] == 0x04;
+            if (!isExcel && (csvText.Contains(',') || csvText.Contains('\t')) && (csvText.Contains('\n') || csvText.Split(new[] { ',', '\t' }).Length >= 4))
             {
                 _log.LogInformation("Parsing as CSV/TSV file");
                 var result = ParseCsvReconciliation(csvText);
@@ -538,11 +546,14 @@ public class CashReconciliationFunction
                 // Start from row 2 (skip header)
                 for (int row = 2; row <= rowCount; row++)
                 {
-                    var dateStr = worksheet.Cells[row, 1].Text;
+                    var dateCell = worksheet.Cells[row, 1];
+                    var dateStr = dateCell.Text;
                     if (string.IsNullOrWhiteSpace(dateStr) || dateStr.StartsWith("#")) continue;
 
-                    if (DateTime.TryParse(dateStr, out var date))
+                    if (dateCell.Value is DateTime dateValue ||
+                        IstDateHelper.TryParseImportDate(dateStr, out dateValue))
                     {
+                        var date = DateTime.SpecifyKind(dateValue.Date, DateTimeKind.Unspecified);
                         reconciliations.Add(new DailyCashReconciliation
                         {
                             Date = date,
@@ -552,10 +563,18 @@ public class CashReconciliationFunction
                             Notes = worksheet.Cells[row, 5].Text
                         });
                     }
+                    else
+                    {
+                        throw new FormatException($"Invalid date in row {row}. Use yyyy-MM-dd or dd/MM/yyyy.");
+                    }
                 }
                 
                 _log.LogInformation($"Successfully parsed {reconciliations.Count} records from Excel");
             }
+        }
+        catch (FormatException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -590,7 +609,7 @@ public class CashReconciliationFunction
             
             if (parts.Length >= 4)
             {
-                if (DateTime.TryParse(parts[0], out var date))
+                if (IstDateHelper.TryParseImportDate(parts[0], out var date))
                 {
                     var reconciliation = new DailyCashReconciliation
                     {
@@ -605,7 +624,7 @@ public class CashReconciliationFunction
                 }
                 else
                 {
-                    _log.LogWarning($"Could not parse date from: {parts[0]}");
+                    throw new FormatException($"Invalid date in row {i + 1}. Use yyyy-MM-dd or dd/MM/yyyy.");
                 }
             }
             else

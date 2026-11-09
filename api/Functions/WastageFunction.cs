@@ -94,8 +94,12 @@ public class WastageFunction
             var startDateStr = req.Query["startDate"];
             var endDateStr = req.Query["endDate"];
 
-            DateTime startDate = DateTime.TryParse(startDateStr, out var sd) ? sd : MongoService.GetIstNow().AddDays(-30);
-            DateTime endDate = DateTime.TryParse(endDateStr, out var ed) ? ed : MongoService.GetIstNow();
+            DateTime startDate = IstDateHelper.TryParseIstDate(startDateStr, out var sd)
+                ? sd
+                : IstDateHelper.ToIstDate(MongoService.GetIstNow().AddDays(-30));
+            DateTime endDate = IstDateHelper.TryParseIstDate(endDateStr, out var ed)
+                ? IstDateHelper.ToIstDayEnd(ed)
+                : IstDateHelper.ToIstDayEnd(MongoService.GetIstNow());
 
             var records = await _mongo.GetWastageRecordsAsync(outletId ?? "default", startDate, endDate);
 
@@ -125,8 +129,12 @@ public class WastageFunction
             var startDateStr = req.Query["startDate"];
             var endDateStr = req.Query["endDate"];
 
-            DateTime startDate = DateTime.TryParse(startDateStr, out var sd) ? sd : MongoService.GetIstNow().AddDays(-30);
-            DateTime endDate = DateTime.TryParse(endDateStr, out var ed) ? ed : MongoService.GetIstNow();
+            DateTime startDate = IstDateHelper.TryParseIstDate(startDateStr, out var sd)
+                ? sd
+                : IstDateHelper.ToIstDate(MongoService.GetIstNow().AddDays(-30));
+            DateTime endDate = IstDateHelper.TryParseIstDate(endDateStr, out var ed)
+                ? IstDateHelper.ToIstDayEnd(ed)
+                : IstDateHelper.ToIstDayEnd(MongoService.GetIstNow());
 
             var summary = await _mongo.GetWastageSummaryAsync(outletId ?? "default", startDate, endDate);
 

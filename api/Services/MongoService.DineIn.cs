@@ -1,4 +1,5 @@
 using Cafe.Api.Models;
+using Cafe.Api.Helpers;
 using MongoDB.Driver;
 
 namespace Cafe.Api.Services;
@@ -31,8 +32,9 @@ public partial class MongoService
 
     public async Task<DineInSession> CreateDineInSessionAsync(DineInSession session)
     {
-        session.CreatedAt = GetIstNow();
-        session.UpdatedAt = GetIstNow();
+        session.CreatedAt = GetUtcNow();
+        session.CreatedAtIsUtc = IstDateHelper.UtcTimestampMarker;
+        session.UpdatedAt = GetUtcNow();
         await _dineInSessions.InsertOneAsync(session);
         return session;
     }
@@ -157,7 +159,7 @@ public partial class MongoService
             filterBuilder.Eq(session => session.UpdatedAt, expectedUpdatedAt),
             noActivePaymentEntries);
 
-        var now = GetIstNow();
+        var now = GetUtcNow();
         var update = Builders<DineInSession>.Update
             .Set(session => session.Status, "cancelled")
             .Set(session => session.UpdatedAt, now)
@@ -166,7 +168,8 @@ public partial class MongoService
                 EventType = "session_cancelled_cleanup",
                 Message = "Stale table session closed because all linked order rounds were cancelled",
                 Actor = actor,
-                CreatedAt = now
+                CreatedAt = now,
+                CreatedAtIsUtc = IstDateHelper.UtcTimestampMarker
             });
         var result = await _dineInSessions.UpdateOneAsync(filter, update);
         return result.ModifiedCount == 1;
@@ -203,7 +206,7 @@ public partial class MongoService
                     Builders<Order>.Filter.Eq($"{itemPath}.kitchenStatus", (string?)null))
                 : Builders<Order>.Filter.Eq($"{itemPath}.kitchenStatus", expectedItemStatus),
             Builders<Order>.Filter.Ne(order => order.IsDeleted, true));
-        var now = GetIstNow();
+        var now = GetUtcNow();
         var update = Builders<Order>.Update
             .Set($"{itemPath}.kitchenStatus", newItemStatus)
             .Set(x => x.UpdatedAt, now);
@@ -255,7 +258,7 @@ public partial class MongoService
     public async Task<bool> UpdateDineInSessionAsync(DineInSession session)
     {
         if (session == null || string.IsNullOrWhiteSpace(session.Id)) return false;
-        session.UpdatedAt = GetIstNow();
+        session.UpdatedAt = GetUtcNow();
         var cleanId = session.Id.Trim();
         var filter = Builders<DineInSession>.Filter.Eq("_id", cleanId);
         if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
@@ -287,7 +290,7 @@ public partial class MongoService
             Builders<DineInSession>.Filter.In(s => s.PaymentStatus, expectedStatuses));
         var update = Builders<DineInSession>.Update
             .Set(s => s.PaymentStatus, newStatus)
-            .Set(s => s.UpdatedAt, GetIstNow());
+            .Set(s => s.UpdatedAt, GetUtcNow());
         var result = await _dineInSessions.UpdateOneAsync(filter, update);
         return result.ModifiedCount == 1;
     }

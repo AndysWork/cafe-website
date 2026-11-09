@@ -3,6 +3,7 @@ import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { DineInSalesReport, DineInService } from '../../services/dine-in.service';
+import { getIstDateString } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-dine-in-report',
@@ -13,7 +14,7 @@ import { DineInSalesReport, DineInService } from '../../services/dine-in.service
 })
 export class DineInReportComponent implements OnInit, OnDestroy {
   private readonly dineInService = inject(DineInService);
-  private readonly subscriptions = new Subscription();
+  private reportRequest?: Subscription;
 
   startDate = '';
   endDate = '';
@@ -22,15 +23,13 @@ export class DineInReportComponent implements OnInit, OnDestroy {
   errorMessage = '';
 
   ngOnInit(): void {
-    this.endDate = this.toLocalDateInput(new Date());
-    const start = new Date();
-    start.setDate(start.getDate() - 6);
-    this.startDate = this.toLocalDateInput(start);
+    this.endDate = getIstDateString();
+    this.startDate = this.shiftDateInput(this.endDate, -6);
     this.loadReport();
   }
 
   ngOnDestroy(): void {
-    this.subscriptions.unsubscribe();
+    this.reportRequest?.unsubscribe();
   }
 
   loadReport(): void {
@@ -40,7 +39,9 @@ export class DineInReportComponent implements OnInit, OnDestroy {
     }
     this.loading = true;
     this.errorMessage = '';
-    this.subscriptions.add(this.dineInService.getDineInSalesReport(this.startDate, this.endDate).subscribe({
+    this.report = null;
+    this.reportRequest?.unsubscribe();
+    this.reportRequest = this.dineInService.getDineInSalesReport(this.startDate, this.endDate).subscribe({
       next: report => {
         this.report = report;
         this.loading = false;
@@ -49,11 +50,16 @@ export class DineInReportComponent implements OnInit, OnDestroy {
         this.errorMessage = error?.error?.error || error?.message || 'Could not load the dine-in report.';
         this.loading = false;
       }
-    }));
+    });
   }
 
-  private toLocalDateInput(date: Date): string {
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-    return local.toISOString().slice(0, 10);
+  private shiftDateInput(date: string, days: number): string {
+    const [year, month, day] = date.split('-').map(Number);
+    const shifted = new Date(Date.UTC(year, month - 1, day + days));
+    return [
+      shifted.getUTCFullYear(),
+      String(shifted.getUTCMonth() + 1).padStart(2, '0'),
+      String(shifted.getUTCDate()).padStart(2, '0')
+    ].join('-');
   }
 }

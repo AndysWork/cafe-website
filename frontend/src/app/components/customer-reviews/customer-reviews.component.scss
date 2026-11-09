@@ -256,3 +256,20 @@
     }
   }
 }
+.customer-reviews-section.compact {
+  margin: 24px 0 0;
+  padding: 16px;
+  background: linear-gradient(140deg, #d3f5f2, #f3fac3);
+  border-color: #c8e6e9;
+  .section-header { margin-bottom: 20px; }
+  .section-header h2 { font-size: 1.4rem; }
+  .section-header .section-subtitle { font-size: .9rem; }
+  .reviews-container { flex-wrap: wrap; gap: 12px; }
+  .reviews-container .reviews-grid { flex: 1 0 100%; min-width: 0; grid-template-columns: 1fr; order: -1; }
+  .reviews-container .nav-btn { width: 44px; height: 44px; }
+  .review-header { flex-wrap: wrap; gap: 10px; }
+  .review-text, .ordered-items { overflow-wrap: anywhere; }
+  .review-card { border-top: 4px solid #008da6; box-shadow: 0 4px 16px rgba(0, 100, 110, .1); }
+  .review-card:nth-child(2) { border-top-color: #adbf20; }
+  .review-card:nth-child(3) { border-top-color: #e17a40; }
+}

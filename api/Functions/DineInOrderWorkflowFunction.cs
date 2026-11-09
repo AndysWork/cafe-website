@@ -198,7 +198,7 @@ public class DineInOrderWorkflowFunction
             order.Total = subtotal;
             order.Notes = request.Notes?.Trim();
             order.PreparationNotes = request.PreparationNotes?.Trim();
-            order.UpdatedAt = MongoService.GetIstNow();
+            order.UpdatedAt = MongoService.GetUtcNow();
 
             if (!await _orderRepo.TryEditPendingQrDineInOrderAsync(order))
                 return await Error(req, HttpStatusCode.Conflict, "Order was already reviewed; refresh and try again");
@@ -241,7 +241,7 @@ public class DineInOrderWorkflowFunction
                     orderId, outletId, "approved", userId, null, kotNumber))
                 return await Error(req, HttpStatusCode.Conflict, "Order was already reviewed");
 
-            var now = MongoService.GetIstNow();
+            var now = MongoService.GetUtcNow();
             order.Status = "pending";
             order.ApprovalStatus = "approved";
             order.ApprovedByUserId = userId;
@@ -296,7 +296,7 @@ public class DineInOrderWorkflowFunction
                     orderId, outletId, "rejected", userId, request.Reason.Trim(), null))
                 return await Error(req, HttpStatusCode.Conflict, "Order was already reviewed");
 
-            var now = MongoService.GetIstNow();
+            var now = MongoService.GetUtcNow();
             order.Status = "cancelled";
             order.ApprovalStatus = "rejected";
             order.RejectedByUserId = userId;
@@ -440,7 +440,7 @@ public class DineInOrderWorkflowFunction
                 return await Error(req, HttpStatusCode.Conflict, "KOT can only be cancelled before kitchen preparation starts");
 
             order.Status = "cancelled";
-            order.KotCancelledAt = MongoService.GetIstNow();
+            order.KotCancelledAt = MongoService.GetUtcNow();
             order.KotCancelledByUserId = userId;
             order.KotCancellationReason = reason;
             order.UpdatedAt = order.KotCancelledAt.Value;
@@ -496,14 +496,15 @@ public class DineInOrderWorkflowFunction
             EventType = eventType,
             Message = message,
             Actor = actor,
-            CreatedAt = MongoService.GetIstNow(),
+            CreatedAt = MongoService.GetUtcNow(),
+            CreatedAtIsUtc = IstDateHelper.UtcTimestampMarker,
             Metadata = new Dictionary<string, string>
             {
                 ["orderId"] = order.Id ?? string.Empty,
                 ["roundNumber"] = order.RoundNumber.ToString()
             }
         });
-        session.UpdatedAt = MongoService.GetIstNow();
+        session.UpdatedAt = MongoService.GetUtcNow();
         if (!await _orderRepo.UpdateDineInSessionAsync(session))
             throw new InvalidOperationException($"Could not record QR order event for session {session.Id}");
     }
@@ -528,7 +529,7 @@ public class DineInOrderWorkflowFunction
         session.Subtotal = subtotal;
         session.TaxAmount = 0;
         session.GrandTotal = Math.Max(0, subtotal - session.DiscountAmount - session.LoyaltyDiscountAmount);
-        session.UpdatedAt = MongoService.GetIstNow();
+        session.UpdatedAt = MongoService.GetUtcNow();
         if (cancellationActor != null && allOrdersCancelled
             && session.Status is "active" or "bill_requested"
             && session.PaymentStatus == "unpaid" && session.AmountPaid == 0
@@ -542,7 +543,8 @@ public class DineInOrderWorkflowFunction
                 EventType = "session_cancelled",
                 Message = "Table session closed because all order rounds were cancelled",
                 Actor = cancellationActor,
-                CreatedAt = session.UpdatedAt
+                CreatedAt = session.UpdatedAt,
+                CreatedAtIsUtc = IstDateHelper.UtcTimestampMarker
             });
         }
         if (!await _orderRepo.UpdateDineInSessionAsync(session))

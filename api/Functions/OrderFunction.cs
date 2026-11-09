@@ -98,7 +98,7 @@ public class OrderFunction
         try
         {
             // Validate user authorization (any authenticated user can create orders)
-            var authHeader = req.Headers.GetValues("Authorization").FirstOrDefault();
+            var authHeader = req.Headers.TryGetValues("Authorization", out var authValues) ? authValues.FirstOrDefault() : null;
             if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
             {
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
@@ -1444,7 +1444,9 @@ public class OrderFunction
                     return badCreatedAt;
                 }
 
-                order.CreatedAt = parsedCreatedAt.DateTime;
+                order.CreatedAt = order.CreatedAtIsUtc == true
+                    ? parsedCreatedAt.UtcDateTime
+                    : parsedCreatedAt.DateTime;
             }
 
             if (reconcileRequest.ClearCouponAndLoyalty)
@@ -2255,17 +2257,22 @@ public class OrderFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            var from = ParseDateQuery(req, "from");
-            var to = ParseDateQuery(req, "to");
+            if (!TryParseDateQuery(req, "from", out var from)
+                || !TryParseDateQuery(req, "to", out var to)
+                || (from.HasValue && to.HasValue && from.Value > to.Value))
+            {
+                var invalidRange = req.CreateResponse(HttpStatusCode.BadRequest);
+                await invalidRange.WriteAsJsonAsync(new { error = "Use a valid date range in yyyy-MM-dd format." });
+                return invalidRange;
+            }
             var toExclusive = to?.Date.AddDays(1);
 
             var orders = await _orderRepo.GetAllOrdersAsync(outletId);
             var upiOrders = orders
                 .Where(o => string.Equals(o.PaymentMethod, "upi-qr", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(o.PaymentMethod, "upi", StringComparison.OrdinalIgnoreCase))
-                .Where(o => !from.HasValue || o.CreatedAt >= from.Value)
-                .Where(o => !toExclusive.HasValue || o.CreatedAt < toExclusive.Value)
-                .OrderByDescending(o => o.CreatedAt)
+                .Where(o => OrderDateHelper.IsCreatedInRange(o, from, toExclusive))
+                .OrderByDescending(OrderDateHelper.ToIstCreatedAt)
                 .ToList();
 
             var pending = upiOrders.Count(o => string.Equals(o.PaymentStatus, "pending", StringComparison.OrdinalIgnoreCase));
@@ -2305,6 +2312,7 @@ public class OrderFunction
                     upiConfirmedBy = o.UpiConfirmedBy,
                     upiConfirmedAt = o.UpiConfirmedAt,
                     createdAt = o.CreatedAt,
+                    createdAtIsUtc = o.CreatedAtIsUtc,
                     updatedAt = o.UpdatedAt
                 })
             });
@@ -2358,6 +2366,7 @@ public class OrderFunction
             PreparationNotes = order.PreparationNotes,
             Notes = order.Notes,
             CreatedAt = order.CreatedAt,
+            CreatedAtIsUtc = order.CreatedAtIsUtc,
             UpdatedAt = order.UpdatedAt,
             LastReconciledAt = order.LastReconciledAt,
             LastReconciledByUserId = order.LastReconciledByUserId,
@@ -2768,14 +2777,14 @@ public class OrderFunction
         return isCounterSale;
     }
 
-    private static DateTime? ParseDateQuery(HttpRequestData req, string key)
+    private static bool TryParseDateQuery(HttpRequestData req, string key, out DateTime? result)
     {
         var value = req.Query[key];
-        if (string.IsNullOrWhiteSpace(value)) return null;
-
-        return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed)
-            ? parsed
-            : null;
+        result = null;
+        if (value == null) return true;
+        if (!IstDateHelper.TryParseIsoDate(value, out var parsed)) return false;
+        result = parsed;
+        return true;
     }
 
     private static bool TryParseHistoryCleanupKeepFromDate(string raw, out DateTime keepFromDate)
@@ -2795,9 +2804,9 @@ public class OrderFunction
             return true;
         }
 
-        if (DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed))
+        if (IstDateHelper.TryParseIstDate(trimmed, out var parsed))
         {
-            keepFromDate = parsed.Date;
+            keepFromDate = IstDateHelper.ToIstDate(parsed);
             return true;
         }
 

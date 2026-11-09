@@ -325,8 +325,8 @@ public class DineInFunction
                 Status = "active",
                 PaymentStatus = "unpaid",
                 AmountPaid = 0,
-                CreatedAt = MongoService.GetIstNow(),
-                UpdatedAt = MongoService.GetIstNow()
+                CreatedAt = MongoService.GetUtcNow(),
+                UpdatedAt = MongoService.GetUtcNow()
             };
 
             AddSessionEvent(
@@ -366,6 +366,15 @@ public class DineInFunction
     {
         try
         {
+            var (isAuthenticated, authenticatedUserId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthenticated) return authError!;
+            if (string.IsNullOrWhiteSpace(authenticatedUserId))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Authenticated user identity is required" });
+                return unauthorized;
+            }
+
             var (orderRequest, valError) = await ValidationHelper.ValidateBody<CreateOrderRequest>(req);
             if (valError != null) return valError;
 
@@ -467,8 +476,8 @@ public class DineInFunction
                     Status = "active",
                     PaymentStatus = "unpaid",
                     AmountPaid = 0,
-                    CreatedAt = MongoService.GetIstNow(),
-                    UpdatedAt = MongoService.GetIstNow()
+                    CreatedAt = MongoService.GetUtcNow(),
+                    UpdatedAt = MongoService.GetUtcNow()
                 };
 
                 AddSessionEvent(
@@ -617,13 +626,14 @@ public class DineInFunction
                 KotNumber = kotNumber,
                 ApprovalStatus = isWaiterOrder ? "approved" : "pending",
                 ApprovedByUserId = isWaiterOrder ? userId : null,
-                ApprovedAt = isWaiterOrder ? MongoService.GetIstNow() : null,
+                ApprovedAt = isWaiterOrder ? MongoService.GetUtcNow() : null,
                 PhoneNumber = customerPhone,
                 PreparationNotes = orderRequest.PreparationNotes?.Trim(),
                 Notes = orderRequest.Notes?.Trim(),
                 Status = isWaiterOrder ? "pending" : "awaiting_waiter_approval",
-                CreatedAt = MongoService.GetIstNow(),
-                UpdatedAt = MongoService.GetIstNow()
+                CreatedAt = MongoService.GetUtcNow(),
+                CreatedAtIsUtc = IstDateHelper.UtcTimestampMarker,
+                UpdatedAt = MongoService.GetUtcNow()
             };
 
             await _orderRepo.CreateOrderAsync(order);
@@ -770,8 +780,8 @@ public class DineInFunction
 
             await RecalculateSessionTotalsAsync(session);
             session.Status = "bill_requested";
-            session.BillRequestedAt = MongoService.GetIstNow();
-            session.LastPaymentRequestedAt = MongoService.GetIstNow();
+            session.BillRequestedAt = MongoService.GetUtcNow();
+            session.LastPaymentRequestedAt = MongoService.GetUtcNow();
             AddSessionEvent(
                 session,
                 "bill_requested",
@@ -838,7 +848,7 @@ public class DineInFunction
             var couponCode = request.CouponCode.Trim().ToUpperInvariant();
             var offer = await _offerRepo.GetOfferByCodeAsync(couponCode);
 
-            var now = MongoService.GetIstNow();
+            var now = MongoService.GetUtcNow();
             if (offer == null || !offer.IsActive || offer.ValidFrom > now || offer.ValidTill < now
                 || (offer.UsageLimit.HasValue && offer.UsageCount >= offer.UsageLimit.Value))
             {
@@ -1037,14 +1047,14 @@ public class DineInFunction
                 UpiReference = request.UpiReference?.Trim(),
                 Status = "pending",
                 Notes = request.Notes,
-                RequestedAt = MongoService.GetIstNow()
+                RequestedAt = MongoService.GetUtcNow()
             };
             session.PaymentEntries.Add(paymentEntry);
             session.PaymentMethod = paymentMethod;
             session.PaymentStatus = GetPaymentStatusForPendingEntries(session);
             session.Status = "bill_requested";
             session.SettledAt = null;
-            session.LastPaymentRequestedAt = MongoService.GetIstNow();
+            session.LastPaymentRequestedAt = MongoService.GetUtcNow();
             session.Notes = string.IsNullOrWhiteSpace(session.Notes)
                 ? request.Notes
                 : $"{session.Notes} | {request.Notes}";
@@ -1116,9 +1126,74 @@ public class DineInFunction
             if (endDate < startDate || (endDate - startDate).TotalDays > 30)
                 return await WriteErrorAsync(req, HttpStatusCode.BadRequest, "Choose a valid date range of no more than 31 days");
 
-            var start = DateTime.SpecifyKind(startDate.Date, DateTimeKind.Unspecified);
-            var endExclusive = DateTime.SpecifyKind(endDate.Date.AddDays(1), DateTimeKind.Unspecified);
-            var sessions = await _orderRepo.GetDineInSessionsByDateRangeAsync(outletId, start, endExclusive);
+            var istStart = DateTime.SpecifyKind(startDate.Date, DateTimeKind.Unspecified);
+            var istEndExclusive = DateTime.SpecifyKind(endDate.Date.AddDays(1), DateTimeKind.Unspecified);
+            var nowIst = DateTime.SpecifyKind(MongoService.GetIstNow(), DateTimeKind.Unspecified);
+            var queryEndExclusive = istEndExclusive > nowIst ? nowIst : istEndExclusive;
+            if (queryEndExclusive <= istStart) queryEndExclusive = istStart;
+
+            var istZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+            bool WasStoredAsIstWallClock(DateTime timestamp, string? id)
+            {
+                return DineInTimestampHelper.IsLegacyWallClock(timestamp, id);
+            }
+
+            DateTime ToIst(DateTime timestamp, bool legacyIstWallClock = false)
+            {
+                if (legacyIstWallClock)
+                    return DateTime.SpecifyKind(timestamp, DateTimeKind.Unspecified);
+
+                return timestamp.Kind switch
+                {
+                    DateTimeKind.Utc => TimeZoneInfo.ConvertTimeFromUtc(timestamp, istZone),
+                    DateTimeKind.Local => TimeZoneInfo.ConvertTime(timestamp, istZone),
+                    _ => TimeZoneInfo.ConvertTimeFromUtc(
+                        DateTime.SpecifyKind(timestamp, DateTimeKind.Utc), istZone)
+                };
+            }
+
+            DateTimeOffset ToIstOffset(DateTime timestamp, bool legacyIstWallClock = false)
+            {
+                return DineInTimestampHelper.ToIstOffset(timestamp, null, legacyIstWallClock);
+            }
+
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(istStart, istZone);
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(queryEndExclusive, istZone);
+
+            // Query one day wider so legacy timestamp representations can be filtered in IST.
+            var rawSessions = await _orderRepo.GetDineInSessionsByDateRangeAsync(
+                outletId,
+                startUtc.AddDays(-1),
+                endUtc.AddDays(1));
+
+            var maxAllowedTimestamp = nowIst.AddMinutes(1);
+            var sessions = rawSessions
+                .Where(session =>
+                {
+                    var isLegacyIstWallClock = session.CreatedAtIsUtc != true && WasStoredAsIstWallClock(session.CreatedAt, session.Id);
+                    var createdAtIst = ToIst(session.CreatedAt, isLegacyIstWallClock);
+                    if (createdAtIst < istStart || createdAtIst >= queryEndExclusive) return false;
+                    if (createdAtIst > maxAllowedTimestamp) return false;
+
+                    if (session.SettledAt.HasValue
+                        && ToIst(session.SettledAt.Value, session.SettledAtIsUtc != true && isLegacyIstWallClock) > maxAllowedTimestamp)
+                        return false;
+
+                    return true;
+                })
+                .ToList();
+
+            foreach (var session in sessions)
+            {
+                var isLegacyIstWallClock = session.CreatedAtIsUtc != true && WasStoredAsIstWallClock(session.CreatedAt, session.Id);
+                session.Timeline = (session.Timeline ?? new List<DineInSessionEvent>())
+                    .Where(entry =>
+                    {
+                        var entryIst = ToIst(entry.CreatedAt, entry.CreatedAtIsUtc != true && isLegacyIstWallClock);
+                        return entryIst <= maxAllowedTimestamp;
+                    })
+                    .ToList();
+            }
             var confirmedPayments = sessions
                 .SelectMany(session => session.PaymentEntries ?? new List<DineInPaymentEntry>())
                 .Where(entry => string.Equals(entry.Status, "confirmed", StringComparison.OrdinalIgnoreCase))
@@ -1127,12 +1202,26 @@ public class DineInFunction
                 .GroupBy(entry => string.IsNullOrWhiteSpace(entry.PaymentMethod) ? "unspecified" : entry.PaymentMethod)
                 .ToDictionary(group => group.Key, group => group.Sum(entry => entry.Amount), StringComparer.OrdinalIgnoreCase);
 
-            var istZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
-            var auditEvents = await _eventLog.GetOutletEventsAsync(
-                outletId,
-                TimeZoneInfo.ConvertTimeToUtc(start, istZone),
-                TimeZoneInfo.ConvertTimeToUtc(endExclusive, istZone),
-                500);
+            var auditSelector = new DineInAuditSelector(istStart, queryEndExclusive, maxAllowedTimestamp, 500);
+            // Scan the union of both possible representations before applying the limit.
+            await foreach (var entry in _eventLog.GetOutletEventsAsync(
+                outletId, startUtc, DateTime.SpecifyKind(queryEndExclusive, DateTimeKind.Utc)))
+                auditSelector.Add(entry);
+            var auditEvents = auditSelector.GetLatest();
+            var auditEventRows = auditEvents.Select(entry => new
+            {
+                entityType = entry.EntityType,
+                entityId = entry.EntityId,
+                eventType = entry.EventType,
+                actorId = entry.ActorId,
+                actorRole = entry.ActorRole,
+                oldState = entry.OldState,
+                newState = entry.NewState,
+                timestamp = ToIstOffset(
+                    entry.Timestamp,
+                    WasStoredAsIstWallClock(entry.Timestamp, entry.Id)),
+                metadata = entry.Metadata
+            });
             var sessionRows = sessions.Select(session => new
             {
                 sessionId = session.Id,
@@ -1140,20 +1229,38 @@ public class DineInFunction
                 customerName = session.CustomerName,
                 status = session.Status,
                 paymentStatus = session.PaymentStatus,
-                createdAt = session.CreatedAt,
-                settledAt = session.SettledAt,
+                createdAt = ToIstOffset(
+                    session.CreatedAt,
+                    session.CreatedAtIsUtc != true && WasStoredAsIstWallClock(session.CreatedAt, session.Id)),
+                settledAt = session.SettledAt.HasValue
+                    ? ToIstOffset(
+                        session.SettledAt.Value,
+                        session.SettledAtIsUtc != true && session.CreatedAtIsUtc != true && WasStoredAsIstWallClock(session.CreatedAt, session.Id))
+                    : (DateTimeOffset?)null,
                 grandTotal = session.GrandTotal,
                 amountPaid = session.AmountPaid,
                 amountDue = GetSessionAmountDue(session),
                 timeline = (session.Timeline ?? new List<DineInSessionEvent>())
-                    .OrderByDescending(entry => entry.CreatedAt)
+                    .OrderByDescending(entry => ToIstOffset(entry.CreatedAt,
+                        entry.CreatedAtIsUtc != true && session.CreatedAtIsUtc != true && WasStoredAsIstWallClock(session.CreatedAt, session.Id)))
+                    .Select(entry => new
+                    {
+                        id = entry.Id,
+                        eventType = entry.EventType,
+                        message = entry.Message,
+                        actor = entry.Actor,
+                        createdAt = ToIstOffset(
+                            entry.CreatedAt,
+                            entry.CreatedAtIsUtc != true && session.CreatedAtIsUtc != true && WasStoredAsIstWallClock(session.CreatedAt, session.Id)),
+                        metadata = entry.Metadata
+                    })
                     .Take(50)
             });
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
-                startDate = start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                startDate = istStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 endDate = endDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 summary = new
                 {
@@ -1165,7 +1272,7 @@ public class DineInFunction
                     paymentTotals
                 },
                 sessions = sessionRows,
-                auditEvents
+                auditEvents = auditEventRows
             });
             return response;
         }
@@ -1315,7 +1422,7 @@ public class DineInFunction
                     "Another payment is being recorded for this table; refresh and try again");
 
             var paymentMethod = request.PaymentMethod.Trim().ToLowerInvariant();
-            var paymentTime = MongoService.GetIstNow();
+            var paymentTime = MongoService.GetUtcNow();
             var paymentEntry = new DineInPaymentEntry
             {
                 Amount = amount,
@@ -1505,7 +1612,7 @@ public class DineInFunction
 
             pendingPayment.Amount = confirmedAmount;
             pendingPayment.Status = "confirmed";
-            pendingPayment.ConfirmedAt = MongoService.GetIstNow();
+            pendingPayment.ConfirmedAt = MongoService.GetUtcNow();
             pendingPayment.ConfirmedBy = userId;
             if (!string.IsNullOrWhiteSpace(confirmReq.Notes))
             {
@@ -1664,7 +1771,7 @@ public class DineInFunction
                     AmountDue = amountDue,
                     s.CreatedAt,
                     s.BillRequestedAt,
-                    MinutesActive = (int)(MongoService.GetIstNow() - s.CreatedAt).TotalMinutes
+                    MinutesActive = IstDateHelper.GetSessionElapsedMinutes(s.CreatedAt, s.CreatedAtIsUtc, MongoService.GetUtcNow())
                 });
             }
 
@@ -1805,7 +1912,7 @@ public class DineInFunction
                 Reason = request.Reason.Trim(),
                 Status = "pending",
                 RequestedBy = actor,
-                RequestedAt = MongoService.GetIstNow()
+                RequestedAt = MongoService.GetUtcNow()
             };
 
             session.VoidRequests ??= new List<DineInVoidRequest>();
@@ -1882,7 +1989,7 @@ public class DineInFunction
 
             var decision = request.Decision.ToLowerInvariant();
             voidRequest.ReviewedBy = userId;
-            voidRequest.ReviewedAt = MongoService.GetIstNow();
+            voidRequest.ReviewedAt = MongoService.GetUtcNow();
             voidRequest.ReviewNotes = request.Notes?.Trim();
 
             if (decision == "rejected")
@@ -1928,7 +2035,7 @@ public class DineInFunction
 
             order.Subtotal = Math.Round(order.Items.Sum(i => i.Total), 2);
             order.Total = Math.Round(order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee, 2);
-            order.UpdatedAt = MongoService.GetIstNow();
+            order.UpdatedAt = MongoService.GetUtcNow();
             if (!order.Items.Any())
             {
                 order.Status = "cancelled";
@@ -2018,7 +2125,7 @@ public class DineInFunction
                     {
                         order.DineInSessionId = occupied.Id;
                         order.TableNumber = targetTable;
-                        order.UpdatedAt = MongoService.GetIstNow();
+                        order.UpdatedAt = MongoService.GetUtcNow();
                         await _orderRepo.UpdateOrderAsync(order);
                     }
                 }
@@ -2069,7 +2176,7 @@ public class DineInFunction
                 var order = await _orderRepo.GetOrderByIdAsync(orderId);
                 if (order == null) continue;
                 order.TableNumber = targetTable;
-                order.UpdatedAt = MongoService.GetIstNow();
+                order.UpdatedAt = MongoService.GetUtcNow();
                 await _orderRepo.UpdateOrderAsync(order);
             }
 
@@ -2109,7 +2216,7 @@ public class DineInFunction
             }
 
             var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
-            var now = MongoService.GetIstNow();
+            var now = MongoService.GetUtcNow();
             var alerts = new List<object>();
 
             foreach (var session in sessions)
@@ -2186,7 +2293,7 @@ public class DineInFunction
             }
 
             var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
-            var now = MongoService.GetIstNow();
+            var now = MongoService.GetUtcNow();
             var openSessions = sessions
                 .Where(s => s.Status != "paid")
                 .Select(s => new
@@ -2279,8 +2386,9 @@ public class DineInFunction
         session.AmountPaid = Math.Round(session.GrandTotal, 2);
         session.PaymentStatus = "paid";
         session.Status = "paid";
-        session.SettledAt = MongoService.GetIstNow();
-        session.UpdatedAt = MongoService.GetIstNow();
+        session.SettledAt = MongoService.GetUtcNow();
+        session.SettledAtIsUtc = IstDateHelper.UtcTimestampMarker;
+        session.UpdatedAt = MongoService.GetUtcNow();
         session.PaymentEntries ??= new List<DineInPaymentEntry>();
         foreach (var entry in session.PaymentEntries.Where(e => string.Equals(e.Status, "pending", StringComparison.OrdinalIgnoreCase)))
         {
@@ -2486,7 +2594,8 @@ public class DineInFunction
             EventType = eventType,
             Message = message,
             Actor = actor,
-            CreatedAt = MongoService.GetIstNow(),
+            CreatedAt = MongoService.GetUtcNow(),
+            CreatedAtIsUtc = IstDateHelper.UtcTimestampMarker,
             Metadata = metadata
         });
     }

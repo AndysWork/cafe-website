@@ -47,6 +47,17 @@ export interface CreateReservationRequest {
 export class TableReservationService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
+  private bookingDraft: CreateReservationRequest | null = null;
+
+  saveBookingDraft(form: CreateReservationRequest): void {
+    this.bookingDraft = { ...form };
+  }
+
+  takeBookingDraft(): CreateReservationRequest | null {
+    const draft = this.bookingDraft;
+    this.bookingDraft = null;
+    return draft;
+  }
 
   createReservation(reservation: CreateReservationRequest): Observable<TableReservation> {
     return this.http.post<TableReservation>(`${this.apiUrl}/reservations`, reservation).pipe(

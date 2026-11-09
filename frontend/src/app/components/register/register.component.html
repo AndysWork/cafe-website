@@ -8,7 +8,7 @@
       <p class="success-email">{{ registeredEmail }}</p>
       <p class="success-hint">Please check your inbox (and spam folder) for the welcome email from Maa Tara Cafe.</p>
       <p class="success-redirect">Redirecting to login page...</p>
-      <a routerLink="/login" class="btn-go-login">Go to Login Now</a>
+      <a routerLink="/login" [queryParams]="returnUrl ? { returnUrl: returnUrl } : {}" class="btn-go-login">Go to Login Now</a>
     </div>
   </div>
 
@@ -217,7 +217,7 @@
         </div>
 
         <p class="switch-auth">
-          Already have an account? <a routerLink="/login">Sign in</a>
+          Already have an account? <a routerLink="/login" [queryParams]="returnUrl ? { returnUrl: returnUrl } : {}">Sign in</a>
         </p>
       </form>
     </div>

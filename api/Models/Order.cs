@@ -8,6 +8,10 @@ namespace Cafe.Api.Models;
 
 public class Order : ISoftDeletable
 {
+    [BsonExtraElements]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public BsonDocument? ExtraElements { get; set; }
+
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
@@ -135,6 +139,10 @@ public class Order : ISoftDeletable
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+
+    [BsonElement("createdAtIsUtc")]
+    [BsonIgnoreIfNull]
+    public bool? CreatedAtIsUtc { get; set; }
 
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; } = MongoService.GetIstNow();
@@ -733,6 +741,7 @@ public class OrderResponse
     public string? PreparationNotes { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
+    public bool? CreatedAtIsUtc { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime? LastReconciledAt { get; set; }
     public string? LastReconciledByUserId { get; set; }

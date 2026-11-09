@@ -137,7 +137,14 @@ export class MenuComponent implements OnInit, OnDestroy {
       }
     });
 
-    this.routeSub = this.route.queryParams.subscribe((params: any) => {
+    let previousSearch: string | null = null;
+    this.routeSub = this.route.queryParams.subscribe((params) => {
+      const search = typeof params['search'] === 'string' ? params['search'] : null;
+      if (search !== previousSearch) {
+        this.searchQuery = search ?? '';
+        previousSearch = search;
+        this.applyFilters();
+      }
       const tableParam = params['table'];
       if (tableParam) {
         this.dineInService.setTableQrToken(params['qrToken'] || null);

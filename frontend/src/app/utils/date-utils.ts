@@ -128,6 +128,33 @@ export function convertToIst(date: Date | string): Date {
   return parseDateInput(date);
 }
 
+export function getStoredTimestampEpoch(value?: string | Date | number | null, isUtc?: boolean | null): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    return value < 1_000_000_000_000 ? value * 1000 : value;
+  }
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (!raw || raw.startsWith('0001-01-01')) return 0;
+    const epoch = convertToIst(raw).getTime();
+    if (Number.isNaN(epoch)) return 0;
+    return isUtc !== true && (/z$/i.test(raw) || /[+\-]00:?00$/i.test(raw))
+      ? epoch - 330 * 60 * 1000
+      : epoch;
+  }
+  const epoch = value.getTime();
+  return Number.isNaN(epoch) ? 0 : epoch;
+}
+
+export function getIstHour(epoch: number): number {
+  return Number(new Intl.DateTimeFormat('en-GB', {
+    timeZone: IST_TIME_ZONE,
+    hour: '2-digit',
+    hourCycle: 'h23'
+  }).format(new Date(epoch)));
+}
+
 /**
  * Format date in IST timezone
  */

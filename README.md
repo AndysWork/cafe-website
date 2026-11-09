@@ -5,17 +5,82 @@
 - `frontend/`: Angular application
 - `api/`: Azure Functions (.NET) backend
 
+## Customer Access
+
+Customers can browse the menu and add items to the cart without signing in.
+`GET /api/menu` is public; an optional `X-Outlet-Id` filters the results, and
+customer visibility rules still apply. Some individual and category menu
+endpoints require an outlet ID. Checkout, submitting dine-in orders, and making
+reservations require authentication; staff functionality remains role-protected.
+The `/reservations` page itself is public. The homepage Reserve button opens
+the shared booking form in a popup. Guests can enter details, then use Sign in
+to Reserve; their draft survives in-app login navigation and returns to the
+reservation page for review and explicit confirmation (not automatic submission).
+Drafts are held in memory only and are not retained across a browser reload.
+My Reservations is shown only when signed in; the API continues to require
+authentication for booking and private reservation access.
+The cart and selected table remain available when a customer signs in.
+
+### Homepage quick navigation
+
+The mobile bottom bar opens separate dialogs for
+Our Story, Offers, Rewards, and Contact. Dialogs support Escape, backdrop
+dismissal, focus restoration, and scrolling without scrolling the page behind.
+Our Story uses public statistics and recorded customer reviews. Its served-order
+and menu/review counts are fetched afresh each time the dialog opens, bypassing
+service-worker caching; loading and failure states replace stale counts. Its order
+count covers Zomato/Swiggy imports, not all ordering channels. The displayed
+Zomato rating of 4.2 is manually supplied, not fetched from Zomato.
+Offers displays active configured deals and their codes and limits. Guests see
+the loyalty overview; personal points and available rewards require login.
+Contact uses the outlet address and clickable phone details, with Instagram,
+Facebook, WhatsApp, and Google Maps icons inside the turquoise-and-lime card.
+The quick category strip advances one category every three seconds when it
+overflows, then resets to the beginning and repeats. Its scrollbar is hidden;
+manual scrolling and category links remain available. Automatic movement pauses
+on hover, keyboard focus, hidden tabs, open popups, or reduced-motion preferences.
+The Find Our Cafe artwork area supports a separate five-second looping carousel
+with the same pause behavior. Its five supplied cafe photos display in their
+provided order, filling the artwork area with proportional cropping, then repeat
+from the first photo. The adjacent
+text and maps link remain static.
+These details are no longer repeated as inline sections below Discover. The
+statistics strip, announcement banner, checkout recovery/reorder cards, category
+grid, loyalty/offers panels, outlets/map, and reviews are removed from the page.
+The mobile navigation and a compact copyright footer remain; the footer branding
+and phone block are removed. Desktop Offers and Visit Us open the
+corresponding dialogs. Desktop Our Story opens the same story popup as the
+mobile bottom navigation.
+Customer-only (`user`) accounts have no Dashboards or Operations dropdowns in
+the navbar. A single Account menu contains Overview, My Orders, Reservations,
+Subscriptions, Rewards, Profile and Logout; cart access and notifications remain.
+Staff/admin and mixed-role accounts retain their additive workspace navigation.
+Guests see direct Menu and Cart links, not Operations, My Account or Reserve
+navbar links. The homepage Reserve popup and public reservation page remain
+available; private account navigation is limited to signed-in users.
+The customer account button displays the signed-in name; dropdown links are
+highlighted only when their destination is active, rather than always emphasizing Profile.
+The desktop cart sits next to Order Now, using a dark SVG icon on a lime
+44px button with an item-count badge. Mobile keeps the same prominent cart
+button in the header.
+Navbar action buttons have 12px spacing; notifications match the cart's
+lime button, dark SVG icon, and unread-count badge styling.
+Instagram, Facebook, and WhatsApp icons link to the cafe's accounts below the
+copyright. The benefits strip is removed; free delivery within 3 km on orders
+of ₹299 or more is displayed inside the Offers dialog. This is promotional
+copy only; it does not change delivery-zone fee calculations.
+
 ## Timezone Standard
 
-This codebase uses **IST (India Standard Time)** as the business timezone across frontend and backend flows.
+IST (India Standard Time) is the business timezone. Calendar dates and timestamp
+instants are distinct: a calendar date is not a UTC instant, while new dine-in
+timestamps are stored as UTC instants and displayed in IST. Other legacy flows
+still need field-by-field review; do not apply a blanket timestamp conversion.
 
-- Avoid introducing new direct UTC calls in business logic, such as `DateTime.UtcNow`, `ToUniversalTime()`, `Date.UTC(...)`, `getUTC*`, `setUTC*`, and `toISOString()` for business dates.
-- Backend timestamp and date normalization should use helpers in `api/Services/MongoService.cs`:
-	- `GetIstNow()`
-	- `ConvertToIst(...)`
-	- `ConvertToUtc(...)`
-	- `NormalizeToIstCalendarDate(...)`
-	- storage-day window helper `GetStorageRangeForIstDay(...)`
+- Use `IstDateHelper` for IST business-date operations, and explicit UTC values
+  for new dine-in timestamp instants.
+- Text dates in reconciliation, frozen-item, and inventory imports use
+  `dd/MM/yyyy`, `dd-MM-yyyy`, or `yyyy-MM-dd`.
 - Frontend business date formatting and payload preparation should use utilities in `frontend/src/app/utils/date-utils.ts`:
 	- `getIstInputDate(...)`
 	- `getIstIsoString(...)`
@@ -26,3 +91,52 @@ This codebase uses **IST (India Standard Time)** as the business timezone across
 - Backend build: `dotnet build` from `api/`
 - Frontend build: `npm run build` from `frontend/`
 - UTC-pattern audit can be run using repository audit scripts/commands used during migration.
+
+### Staged UTC marker rollout
+
+The local and deployed APIs can share a database. Keep
+`Timezone__EnableUtcMarkers` unset or `false` while any API instance is running
+code that cannot read additional MongoDB fields. Deploy the compatible code
+to **every** instance first, including local instances that use the database.
+Only after verifying that all instances are upgraded, set
+`Timezone__EnableUtcMarkers=true` on each instance and restart it. Roll back only
+to a version that tolerates these fields once marker writes have begun.
+
+Markers identify new dine-in session creation, settlement, timeline, and order
+creation timestamps. They do not classify older records or normalize every order
+or financial field. Unmarked records retain the existing compatibility behavior;
+the dine-in report's historical timestamp heuristic remains provisional. Until
+markers are enabled, newly created unmarked records can still exhibit the
+legacy mixed-clock issue. No historical records are migrated by this setting.
+
+GST, UPI reconciliation, and web-sales order date filtering use the UTC marker
+for creation timestamps. Unmarked orders are treated as legacy wall-clock values,
+so historical unmarked UTC records still require reconciliation. Other order
+timestamps may use a different convention and must not be interpreted using the
+creation marker.
+
+The read-only historical audit found expense and sales dates stored at both
+00:00 UTC and 18:30 UTC. Do not blanket-convert their boundaries or data.
+Those fields require a separate data-contract audit and regression tests.
+Expense create/update and spreadsheet imports construct unspecified-kind dates,
+which the MongoDB driver serializes using the API host's local timezone. Sales
+create/update accept a `DateTime` from JSON while spreadsheet imports construct
+unspecified-kind dates. Date-range and summary consumers also serialize
+unspecified-kind boundaries, and cash reconciliation uses a separate storage
+range. Consequently, changing only a writer or a range query can shift records
+or make related reports disagree. Historical dates cannot be classified solely
+by their stored time of day.
+
+Web-sales order lists select the most recent records separately for marked UTC
+and unmarked legacy orders, then apply their existing safety limit after
+normalization. Dine-in audit events are streamed for the candidate date range
+and normalized before selecting the latest 500; their legacy classification
+still uses the provisional ObjectId heuristic.
+
+The marker rollout is not yet validated across all screens, existing mixed
+records, or deployed/local API instances; do not enable it until those checks
+are complete. In particular, cash reconciliation still uses a raw order
+timestamp range, session lookup sorts raw creation timestamps, and history
+deletion uses a raw cutoff. These paths need compatible treatment and tests
+before marker rollout. The web-sales safety limit also still caps results used
+for some counts and reports, rather than representing an unlimited total.

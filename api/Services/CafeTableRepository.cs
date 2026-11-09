@@ -84,7 +84,7 @@ public class CafeTableRepository
     public async Task<bool> TryReplaceAsync(CafeTable table)
     {
         table.TableKey = CafeTable.ToKey(table.TableNumber);
-        table.UpdatedAt = DateTime.UtcNow;
+        table.UpdatedAt = MongoService.GetIstNow();
         try
         {
             await _tables.ReplaceOneAsync(t => t.Id == table.Id, table);
@@ -103,7 +103,7 @@ public class CafeTableRepository
             t => t.OutletId == outletId && t.TableKey == key,
             Builders<CafeTable>.Update
                 .Set(t => t.HousekeepingStatus, status)
-                .Set(t => t.UpdatedAt, DateTime.UtcNow)
+                .Set(t => t.UpdatedAt, MongoService.GetIstNow())
                 .Set(t => t.UpdatedBy, updatedBy));
         return result.MatchedCount > 0;
     }
@@ -114,7 +114,7 @@ public class CafeTableRepository
             t => t.Id == tableId,
             Builders<CafeTable>.Update
                 .Set(t => t.QrTokenHash, tokenHash)
-                .Set(t => t.UpdatedAt, DateTime.UtcNow)
+                .Set(t => t.UpdatedAt, MongoService.GetIstNow())
                 .Set(t => t.UpdatedBy, updatedBy));
         return result.ModifiedCount == 1;
     }

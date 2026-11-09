@@ -38,7 +38,7 @@ public class GstReportFunction
             var (startDate, endDate, month, year) = ResolveDateRange(req);
 
             var orders = await _mongo.GetAllOrdersAsync(outletId);
-            var monthOrders = orders.Where(o => o.CreatedAt >= startDate && o.CreatedAt <= endDate && o.Status != "cancelled").ToList();
+            var monthOrders = orders.Where(o => OrderDateHelper.IsCreatedInRange(o, startDate, endDate.Date.AddDays(1)) && o.Status != "cancelled").ToList();
 
             var marketplaceSales = await GetMarketplaceSalesAsync(startDate, endDate, outletId);
 
@@ -110,7 +110,7 @@ public class GstReportFunction
             var (startDate, endDate, month, year) = ResolveDateRange(req);
 
             var orders = await _mongo.GetAllOrdersAsync(outletId);
-            var monthOrders = orders.Where(o => o.CreatedAt >= startDate && o.CreatedAt <= endDate && o.Status != "cancelled").ToList();
+            var monthOrders = orders.Where(o => OrderDateHelper.IsCreatedInRange(o, startDate, endDate.Date.AddDays(1)) && o.Status != "cancelled").ToList();
             var marketplaceSales = await GetMarketplaceSalesAsync(startDate, endDate, outletId);
 
             using var package = new ExcelPackage();
@@ -236,10 +236,10 @@ public class GstReportFunction
         var startDateStr = req.Query["startDate"];
         var endDateStr = req.Query["endDate"];
 
-        if (DateTime.TryParse(startDateStr, out var parsedStart) && DateTime.TryParse(endDateStr, out var parsedEnd))
+        if (IstDateHelper.TryParseIstDate(startDateStr, out var parsedStart) && IstDateHelper.TryParseIstDate(endDateStr, out var parsedEnd))
         {
-            var startDate = parsedStart.Date;
-            var endDate = parsedEnd.Date.AddDays(1).AddTicks(-1);
+            var startDate = IstDateHelper.ToIstDate(parsedStart);
+            var endDate = IstDateHelper.ToIstDayEnd(parsedEnd);
             return (startDate, endDate, startDate.Month, startDate.Year);
         }
 

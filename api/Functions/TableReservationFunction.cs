@@ -30,6 +30,15 @@ public class TableReservationFunction
     {
         try
         {
+            var (isAuthenticated, userId, _, authError) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!isAuthenticated) return authError!;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Authenticated user identity is required" });
+                return unauthorized;
+            }
+
             var (request, validationError) = await ValidationHelper.ValidateBody<CreateReservationRequest>(req);
             if (validationError != null) return validationError;
 
@@ -57,16 +66,6 @@ public class TableReservationFunction
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = BuildOutletClosedMessage(targetOutlet) });
                 return badRequest;
-            }
-
-            // Try to get userId if logged in (optional for reservations)
-            string? userId = null;
-            var authHeader = req.Headers.TryGetValues("Authorization", out var headerValues) ? headerValues.FirstOrDefault() : null;
-            if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            {
-                var token = authHeader.Substring("Bearer ".Length).Trim();
-                var principal = _auth.ValidateToken(token);
-                userId = principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             }
 
             var reservation = new TableReservation
@@ -122,7 +121,7 @@ public class TableReservationFunction
             if (!isAuthorized) return errorResponse!;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
-            DateTime? date = DateTime.TryParse(req.Query["date"], out var d) ? d : null;
+            DateTime? date = IstDateHelper.TryParseIstDate(req.Query["date"], out var d) ? d : null;
 
             var reservations = await _mongo.GetReservationsAsync(outletId, date);
             var response = req.CreateResponse(HttpStatusCode.OK);

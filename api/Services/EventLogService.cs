@@ -90,7 +90,7 @@ public class EventLogService
                 NewState = newState != null ? JsonSerializer.Serialize(newState, JsonOptions) : null,
                 Metadata = metadata,
                 OutletId = outletId,
-                Timestamp = DateTime.UtcNow
+                Timestamp = MongoService.GetUtcNow()
             };
 
             await _eventLogs.InsertOneAsync(entry);
@@ -126,16 +126,16 @@ public class EventLogService
             .ToListAsync();
     }
 
-    public async Task<List<EventLog>> GetOutletEventsAsync(
-        string outletId, DateTime startInclusive, DateTime endExclusive, int limit = 500)
+    public async IAsyncEnumerable<EventLog> GetOutletEventsAsync(
+        string outletId, DateTime startInclusive, DateTime endExclusive)
     {
         var filter = Builders<EventLog>.Filter.And(
             Builders<EventLog>.Filter.Eq(e => e.OutletId, outletId),
             Builders<EventLog>.Filter.Gte(e => e.Timestamp, startInclusive),
             Builders<EventLog>.Filter.Lt(e => e.Timestamp, endExclusive));
-        return await _eventLogs.Find(filter)
-            .SortByDescending(e => e.Timestamp)
-            .Limit(Math.Clamp(limit, 1, 1000))
-            .ToListAsync();
+        using var cursor = await _eventLogs.Find(filter).ToCursorAsync();
+        while (await cursor.MoveNextAsync())
+            foreach (var entry in cursor.Current)
+                yield return entry;
     }
 }

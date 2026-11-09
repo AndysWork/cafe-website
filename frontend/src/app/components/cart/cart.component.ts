@@ -11,6 +11,7 @@ import { OutletService } from '../../services/outlet.service';
 import { getOrderingUnavailableReason } from '../../models/outlet.model';
 import { DineInBill } from '../../models/dine-in.model';
 import { UIStore } from '../../store/ui.store';
+import { AuthService } from '../../services/auth.service';
 import { Subscription, Observable } from 'rxjs';
 import { decodeHtmlEntities, resolveWebSalePrice } from '../../utils/text-utils';
 import { getIstIsoString } from '../../utils/date-utils';
@@ -48,6 +49,7 @@ export class CartComponent implements OnInit, OnDestroy {
   public dineInService = inject(DineInService);
   private uiStore = inject(UIStore);
   private outletService = inject(OutletService);
+  private authService = inject(AuthService);
   public dineInBill$: Observable<DineInBill | null> = this.dineInService.activeBill$;
   sendingToKitchen = false;
 
@@ -236,6 +238,10 @@ export class CartComponent implements OnInit, OnDestroy {
   }
 
   sendToKitchen(): void {
+    if (!this.authService.isLoggedIn()) {
+      this.router.navigate(['/login'], { queryParams: { returnUrl: '/cart' } });
+      return;
+    }
     if (this.dineInOrderingUnavailableReason) {
       this.uiStore.warning(this.dineInOrderingUnavailableReason);
       return;
@@ -343,6 +349,10 @@ export class CartComponent implements OnInit, OnDestroy {
   }
 
   private loadLoyaltyPreview(): void {
+    if (!this.authService.isLoggedIn()) {
+      this.loyaltyPointsAvailable = 0;
+      return;
+    }
     this.loyaltyService.getLoyaltyAccount().subscribe({
       next: (account) => {
         this.loyaltyPointsAvailable = account?.currentPoints || 0;

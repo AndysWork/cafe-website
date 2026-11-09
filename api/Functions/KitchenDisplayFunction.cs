@@ -112,7 +112,7 @@ public class KitchenDisplayFunction
                 SpecialInstructions = string.IsNullOrWhiteSpace(o.PreparationNotes) ? o.Notes : o.PreparationNotes,
                 Notes = o.Notes,
                 o.CreatedAt,
-                WaitTime = (int)(MongoService.GetIstNow() - o.CreatedAt).TotalMinutes,
+                WaitTime = IstDateHelper.GetSessionElapsedMinutes(o.CreatedAt, o.CreatedAtIsUtc, MongoService.GetUtcNow()),
                 IsScheduled = o.IsScheduled,
                 ScheduledFor = o.ScheduledFor
             }).OrderBy(o => o.CreatedAt).ToList();
@@ -196,7 +196,7 @@ public class KitchenDisplayFunction
 
             if (requestedStatus == "preparing" && !order.KitchenPrepStartedAt.HasValue)
             {
-                order.KitchenPrepStartedAt = MongoService.GetIstNow();
+                order.KitchenPrepStartedAt = GetKitchenClock(order);
             }
 
             if (IsKitchenOpsRole(role) && requestedStatus == "preparing")
@@ -226,7 +226,7 @@ public class KitchenDisplayFunction
                 order.KitchenAssignedStaffId = staff.Id;
                 order.KitchenAssignedStaffName = $"{staff.FirstName} {staff.LastName}".Trim();
                 order.KitchenAssignedRole = role;
-                order.KitchenAssignedAt ??= MongoService.GetIstNow();
+                order.KitchenAssignedAt ??= GetKitchenClock(order);
             }
 
             if (IsKitchenOpsRole(role) && requestedStatus != "preparing" && requestedStatus != "confirmed")
@@ -266,7 +266,7 @@ public class KitchenDisplayFunction
                 }
 
                 order.KitchenChecklist = normalized;
-                var readyAt = MongoService.GetIstNow();
+                var readyAt = GetKitchenClock(order);
                 order.KitchenPrepStartedAt ??= order.KitchenAssignedAt ?? readyAt;
                 order.KitchenReadyAt = readyAt;
 
@@ -323,7 +323,7 @@ public class KitchenDisplayFunction
                 };
                 if (itemStatus != null)
                 {
-                    var itemTime = MongoService.GetIstNow();
+                    var itemTime = GetKitchenClock(order);
                     foreach (var item in order.Items)
                     {
                         item.KitchenStatus = itemStatus;
@@ -344,11 +344,11 @@ public class KitchenDisplayFunction
             order.Status = requestedStatus;
             order.KitchenHandledByUserId = userId;
             order.KitchenHandledByRole = role;
-            order.UpdatedAt = MongoService.GetIstNow();
+            order.UpdatedAt = GetKitchenClock(order);
 
             if (requestedStatus == "delivered")
             {
-                order.CompletedAt = MongoService.GetIstNow();
+                order.CompletedAt = GetKitchenClock(order);
             }
 
             var success = PhoneDeliveryOrderRules.IsPhoneOrder(order)
@@ -543,7 +543,7 @@ public class KitchenDisplayFunction
                 if (checklist.Any(item => !item.IsCompleted))
                     return await Error(req, HttpStatusCode.BadRequest, "Complete all checklist items before marking the order ready");
 
-                var readyAt = MongoService.GetIstNow();
+                var readyAt = GetKitchenClock(updatedOrder);
                 var prepStartedAt = updatedOrder.KitchenPrepStartedAt ?? updatedOrder.KitchenAssignedAt ?? readyAt;
                 var kptMinutes = Math.Round((decimal)Math.Max((readyAt - prepStartedAt).TotalMinutes, 0), 2);
                 if (!await _mongo.TryCompleteDineInOrderPreparationAsync(
@@ -616,7 +616,8 @@ public class KitchenDisplayFunction
             var pendingOrders = await _mongo.GetOrdersByStatusAsync(new[] { "pending" }, outletId);
             var preparingOrders = await _mongo.GetOrdersByStatusAsync(new[] { "preparing" }, outletId);
             var completedToday = await _mongo.GetOrdersByStatusAsync(new[] { "delivered" }, outletId);
-            var todayCompleted = completedToday.Where(o => o.CreatedAt >= todayStart).ToList();
+            var todayCompleted = completedToday.Where(o =>
+                (o.CreatedAtIsUtc == true ? IstDateHelper.NormalizeToIst(o.CreatedAt) : o.CreatedAt) >= todayStart).ToList();
 
             double avgPrepTime = 0;
             if (todayCompleted.Any())
@@ -1028,6 +1029,9 @@ public class KitchenDisplayFunction
         }
         return (staff, outletId, null);
     }
+
+    private static DateTime GetKitchenClock(Order order) =>
+        order.CreatedAtIsUtc == true ? MongoService.GetUtcNow() : MongoService.GetIstNow();
 
     private static DateTime ResolveClientNow(HttpRequestData req)
     {

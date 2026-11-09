@@ -1,4 +1,5 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
+import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
@@ -11,7 +12,8 @@ import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { ActiveDineInTable, DineInService } from '../../services/dine-in.service';
-import { getIstDateString, getIstFileStamp, getIstInputDate, convertToIst, getIstIsoString } from '../../utils/date-utils';
+import { MenuItem, MenuService } from '../../services/menu.service';
+import { getIstDateString, getIstFileStamp, convertToIst, getIstIsoString, getIstHour, getStoredTimestampEpoch } from '../../utils/date-utils';
 
 interface OnlineSaleSummaryItem {
   id?: string;
@@ -92,6 +94,7 @@ interface HourlyOrderTrendRow {
 
 interface ReconcileItemDraft {
   menuItemId: string;
+  menuItemSearch?: string;
   name: string;
   description?: string;
   categoryName?: string;
@@ -156,7 +159,7 @@ interface MissedOrderDraft {
 @Component({
   selector: 'app-admin-web-sales',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [A11yModule, CommonModule, FormsModule, RouterModule],
   templateUrl: './admin-web-sales.component.html',
   styleUrls: ['./admin-web-sales.component.scss']
 })
@@ -188,7 +191,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   searchTerm = '';
   itemSearchTerm = '';
 
-  startDate = getIstInputDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  startDate = `${getIstDateString().slice(0, 7)}-01`;
   endDate = getIstDateString();
 
   statusDraft: Record<string, string> = {};
@@ -214,7 +217,13 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   dineInSlaAlerts: any[] = [];
   dayEndOpenTables: any[] = [];
   dayEndOutstandingAmount = 0;
-  private readonly istOffsetMs = 330 * 60 * 1000;
+  menuCatalog: MenuItem[] = [];
+  activeMenuSuggestionKey: string | null = null;
+  activeMenuSuggestionIndex = -1;
+  menuPickerOrder: Order | null = null;
+  menuPickerRow: ReconcileItemDraft | null = null;
+  menuPickerSearch = '';
+  private menuPickerTrigger: HTMLElement | null = null;
 
   readonly statusOptions = ['pending', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled'];
   readonly reconcileStatusOptions = ['scheduled', 'pending', 'confirmed', 'preparing', 'ready', 'served', 'out-for-delivery', 'delivered', 'cancelled'];
@@ -225,6 +234,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     private orderService: OrderService,
     private deliveryPartnerService: DeliveryPartnerService,
     private dineInService: DineInService,
+    private menuService: MenuService,
     private http: HttpClient
   ) {}
 
@@ -250,6 +260,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   async loadData(): Promise<void> {
     this.loading = true;
     try {
+      await this.loadMenuCatalog();
       await this.loadDashboardData();
       await this.loadUpiReconciliationReport();
       await this.loadPendingDineInPayments();
@@ -258,6 +269,25 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     } finally {
       this.loading = false;
     }
+  }
+
+  private async loadMenuCatalog(): Promise<void> {
+    return new Promise((resolve) => {
+      this.menuService.getMenuItems().subscribe({
+        next: items => {
+          this.menuCatalog = (items || [])
+            .filter(item => !!item.id && !!item.name)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          resolve();
+        },
+        error: error => {
+          console.error('Error loading menu catalog:', error);
+          this.menuCatalog = [];
+          this.uiStore.warning('Menu items could not be loaded. Refresh and try again.');
+          resolve();
+        }
+      });
+    });
   }
 
   async loadDashboardData(): Promise<void> {
@@ -281,7 +311,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
           const data = response?.data;
           this.dashboardSummary = data?.summary || this.dashboardSummary;
           this.orders = [...(data?.orders || [])].sort((a, b) =>
-            this.toEpochMillis(b.createdAt) - this.toEpochMillis(a.createdAt)
+            this.toEpochMillis(b.createdAt, b.createdAtIsUtc) - this.toEpochMillis(a.createdAt, a.createdAtIsUtc)
           );
           this.partners = data?.partners || [];
           this.webSales = data?.webSales || [];
@@ -552,10 +582,10 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
           this.reconciliationOrders = [...merged.values()]
             .filter(order => {
-              const created = this.toEpochMillis(order.createdAt);
+              const created = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
               return created >= rangeStart && created < rangeEndExclusive;
             })
-            .sort((a, b) => this.toEpochMillis(b.createdAt) - this.toEpochMillis(a.createdAt));
+            .sort((a, b) => this.toEpochMillis(b.createdAt, b.createdAtIsUtc) - this.toEpochMillis(a.createdAt, a.createdAtIsUtc));
           resolve();
         },
         error: (error) => {
@@ -565,10 +595,10 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
           this.reconciliationOrders = (this.orders || [])
             .filter(order => this.canReconcileOrder(order))
             .filter(order => {
-              const created = this.toEpochMillis(order.createdAt);
+              const created = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
               return created >= rangeStart && created < rangeEndExclusive;
             })
-            .sort((a, b) => this.toEpochMillis(b.createdAt) - this.toEpochMillis(a.createdAt));
+            .sort((a, b) => this.toEpochMillis(b.createdAt, b.createdAtIsUtc) - this.toEpochMillis(a.createdAt, a.createdAtIsUtc));
           resolve();
         }
       });
@@ -729,9 +759,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     if (!this.orders.length) return '-';
     const hourMap = new Map<number, number>();
     for (const order of this.orders) {
-      const created = this.toEpochMillis(order.createdAt);
+      const created = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
       if (!created) continue;
-      const hour = convertToIst(new Date(created)).getHours();
+      const hour = getIstHour(created);
       hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
     }
     if (!hourMap.size) return '-';
@@ -744,9 +774,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
     const hourMap = new Map<number, { orders: number; quantity: number; revenue: number }>();
     for (const order of this.orders) {
-      const created = this.toEpochMillis(order.createdAt);
+      const created = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
       if (!created) continue;
-      const hour = convertToIst(new Date(created)).getHours();
+      const hour = getIstHour(created);
       const existing = hourMap.get(hour) || { orders: 0, quantity: 0, revenue: 0 };
       existing.orders += 1;
       existing.quantity += this.getOrderItemsCount(order);
@@ -865,8 +895,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return order.total || 0;
   }
 
-  formatDate(value?: string | Date | number | null): string {
-    const epoch = this.toEpochMillis(value);
+  formatDate(value?: string | Date | number | null, isUtc?: boolean | null): string {
+    const epoch = this.toEpochMillis(value, isUtc);
     if (!epoch) return '-';
     return new Intl.DateTimeFormat('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -879,8 +909,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     }).format(new Date(epoch));
   }
 
-  formatTime(value?: string | Date | number | null): string {
-    const epoch = this.toEpochMillis(value);
+  formatTime(value?: string | Date | number | null, isUtc?: boolean | null): string {
+    const epoch = this.toEpochMillis(value, isUtc);
     if (!epoch) return '-';
     return new Intl.DateTimeFormat('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -1044,7 +1074,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       deliveryAddress: order.deliveryAddress || '',
       phoneNumber: order.phoneNumber || '',
       customerName: order.customerName || '',
-      createdAt: this.toIstDateTimeInput(order.createdAt),
+      createdAt: this.toIstDateTimeInput(order.createdAt, order.createdAtIsUtc),
       notes: order.notes || '',
       preparationNotes: order.preparationNotes || '',
       tax: order.tax ?? 0,
@@ -1059,6 +1089,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       clearCouponAndLoyalty: false,
       items: (order.items || []).map(item => ({
         menuItemId: item.menuItemId || '',
+        menuItemSearch: item.name || '',
         name: item.name || '',
         description: item.description || '',
         categoryName: item.categoryName || '',
@@ -1073,15 +1104,166 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return draft;
   }
 
-  addReconcileItem(order: Order): void {
-    const draft = this.getReconcileDraft(order);
-    draft.items.push({
+  getFilteredMenuCatalog(search: string = '', limit = 25): MenuItem[] {
+    const query = (search || '').trim().toLowerCase();
+    const source = this.menuCatalog || [];
+    if (!query) return source.slice(0, limit);
+    return source
+      .filter(item => {
+        const id = (item.id || '').toLowerCase();
+        const name = (item.name || '').toLowerCase();
+        const category = (item.categoryName || item.category || '').toLowerCase();
+        return id.includes(query) || name.includes(query) || category.includes(query);
+      })
+      .slice(0, limit);
+  }
+
+  isMenuSuggestionOpen(key: string, row: ReconcileItemDraft): boolean {
+    return this.activeMenuSuggestionKey === key && this.getFilteredMenuCatalog(row.menuItemSearch, 8).length > 0;
+  }
+
+  onMenuSearchFocus(key: string): void {
+    this.activeMenuSuggestionKey = key;
+    this.activeMenuSuggestionIndex = -1;
+  }
+
+  onMenuSearchBlur(row: ReconcileItemDraft): void {
+    setTimeout(() => {
+      this.syncMenuSearchToSelection(row);
+      this.activeMenuSuggestionKey = null;
+      this.activeMenuSuggestionIndex = -1;
+    }, 120);
+  }
+
+  onMenuSearchKeydown(event: KeyboardEvent, row: ReconcileItemDraft, key: string): void {
+    const suggestions = this.getFilteredMenuCatalog(row.menuItemSearch, 8);
+    if (!suggestions.length) return;
+
+    this.activeMenuSuggestionKey = key;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.activeMenuSuggestionIndex = (this.activeMenuSuggestionIndex + 1) % suggestions.length;
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.activeMenuSuggestionIndex =
+        this.activeMenuSuggestionIndex <= 0 ? suggestions.length - 1 : this.activeMenuSuggestionIndex - 1;
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const selected = this.activeMenuSuggestionIndex >= 0
+        ? suggestions[this.activeMenuSuggestionIndex]
+        : suggestions[0];
+      this.selectMenuSuggestion(row, selected);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      this.activeMenuSuggestionKey = null;
+      this.activeMenuSuggestionIndex = -1;
+    }
+  }
+
+  selectMenuSuggestion(row: ReconcileItemDraft, item: MenuItem): void {
+    this.applyMenuSelection(row, item.id);
+    this.activeMenuSuggestionKey = null;
+    this.activeMenuSuggestionIndex = -1;
+  }
+
+  onMenuSuggestionMouseDown(event: MouseEvent, row: ReconcileItemDraft, item: MenuItem): void {
+    event.preventDefault();
+    this.selectMenuSuggestion(row, item);
+  }
+
+  private syncMenuSearchToSelection(row: ReconcileItemDraft): void {
+    const search = (row.menuItemSearch || '').trim().toLowerCase();
+    if (!search) return;
+
+    if (row.menuItemId && (row.name || '').trim().toLowerCase() === search) {
+      return;
+    }
+
+    const exactMatch = this.menuCatalog.find(item =>
+      (item.id || '').toLowerCase() === search || (item.name || '').trim().toLowerCase() === search
+    );
+    if (exactMatch) {
+      this.applyMenuSelection(row, exactMatch.id);
+    }
+  }
+
+  applyMenuSelection(row: ReconcileItemDraft, menuItemId: string): void {
+    const selectedId = (menuItemId || '').trim();
+    if (!selectedId) {
+      row.menuItemId = '';
+      row.name = '';
+      row.description = '';
+      row.categoryName = '';
+      row.selectedVariantName = '';
+      row.baseUnitPrice = 0;
+      return;
+    }
+
+    const menuItem = this.menuCatalog.find(item => item.id === selectedId);
+    if (!menuItem) {
+      row.menuItemId = selectedId;
+      return;
+    }
+
+    row.menuItemId = menuItem.id;
+    row.menuItemSearch = menuItem.name;
+    row.name = menuItem.name;
+    row.description = menuItem.description || '';
+    row.categoryName = menuItem.categoryName || menuItem.category || '';
+    row.selectedVariantName = menuItem.variants?.[0]?.variantName || '';
+    row.baseUnitPrice = Math.max(
+      0,
+      menuItem.shopSellingPrice
+      ?? menuItem.webPrice
+      ?? menuItem.onlinePrice
+      ?? row.baseUnitPrice
+      ?? 0
+    );
+  }
+
+  openReconcileItemPicker(order: Order, event: Event, row: ReconcileItemDraft | null = null): void {
+    this.menuPickerOrder = order;
+    this.menuPickerRow = row;
+    this.menuPickerSearch = '';
+    this.menuPickerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  }
+
+  closeReconcileItemPicker(): void {
+    this.menuPickerOrder = null;
+    this.menuPickerRow = null;
+    this.menuPickerSearch = '';
+    const trigger = this.menuPickerTrigger;
+    this.menuPickerTrigger = null;
+    setTimeout(() => trigger?.focus());
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.menuPickerOrder) this.closeReconcileItemPicker();
+  }
+
+  selectReconcileItem(item: MenuItem): void {
+    if (!this.menuPickerOrder) return;
+    const row = this.menuPickerRow ?? {
       menuItemId: '',
+      menuItemSearch: '',
       name: '',
       quantity: 1,
       baseUnitPrice: 0,
       selectedAddOns: []
-    });
+    };
+    this.applyMenuSelection(row, item.id);
+    if (!this.menuPickerRow) this.getReconcileDraft(this.menuPickerOrder).items.push(row);
+    this.closeReconcileItemPicker();
   }
 
   removeReconcileItem(order: Order, index: number): void {
@@ -1217,6 +1399,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   addMissedOrderItem(): void {
     this.missedOrderDraft.items.push({
       menuItemId: '',
+      menuItemSearch: '',
       name: '',
       quantity: 1,
       baseUnitPrice: 0,
@@ -1521,6 +1704,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       items: [
         {
           menuItemId: '',
+          menuItemSearch: '',
           name: '',
           quantity: 1,
           baseUnitPrice: 0,
@@ -1530,36 +1714,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     };
   }
 
-  private toEpochMillis(value?: string | Date | number | null): number {
-    if (value === null || value === undefined) return 0;
-
-    if (typeof value === 'number') {
-      if (!Number.isFinite(value) || value <= 0) return 0;
-      return value < 1_000_000_000_000 ? value * 1000 : value;
-    }
-
-    if (typeof value === 'string') {
-      const normalized = value.trim();
-      if (!normalized || normalized.startsWith('0001-01-01')) return 0;
-      const parsed = convertToIst(normalized);
-      const epoch = parsed.getTime();
-      if (Number.isNaN(epoch)) return 0;
-
-      // Backend timestamps are sometimes stored in IST but serialized as UTC (Z).
-      // Compensate so rendered values match business-local order time.
-      if (this.isSerializedUtcTimestamp(normalized)) {
-        return epoch - this.istOffsetMs;
-      }
-
-      return epoch;
-    }
-
-    const epoch = convertToIst(value).getTime();
-    return Number.isNaN(epoch) ? 0 : epoch;
-  }
-
-  private isSerializedUtcTimestamp(value: string): boolean {
-    return /z$/i.test(value) || /[+\-]00:00$/i.test(value) || /[+\-]0000$/i.test(value);
+  private toEpochMillis(value?: string | Date | number | null, isUtc?: boolean | null): number {
+    return getStoredTimestampEpoch(value, isUtc);
   }
 
   private normalizeOrderMode(orderType?: string): string {
@@ -1635,8 +1791,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     }
   }
 
-  private toIstDateTimeInput(value?: string | Date | number | null): string {
-    const epoch = this.toEpochMillis(value);
+  private toIstDateTimeInput(value?: string | Date | number | null, isUtc?: boolean | null): string {
+    const epoch = this.toEpochMillis(value, isUtc);
     if (!Number.isFinite(epoch)) return '';
 
     const date = new Date(epoch);

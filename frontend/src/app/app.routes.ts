@@ -14,7 +14,7 @@ export const routes: Routes = [
   { path: 'reset-password', loadComponent: () => import('./components/reset-password/reset-password.component').then(m => m.ResetPasswordComponent) },
   { path: 'dashboard', loadComponent: () => import('./components/customer-dashboard/customer-dashboard.component').then(m => m.CustomerDashboardComponent), canActivate: [authGuard] },
   { path: 'profile', loadComponent: () => import('./components/profile/profile.component').then(m => m.ProfileComponent), canActivate: [authGuard] },
-  { path: 'menu', component: MenuComponent, canActivate: [authGuard] },
+  { path: 'menu', component: MenuComponent },
   { path: 'dine-in', component: MenuComponent },
   { path: 'cart', loadComponent: () => import('./components/cart/cart.component').then(m => m.CartComponent) },
   { path: 'checkout', loadComponent: () => import('./components/checkout/checkout.component').then(m => m.CheckoutComponent), canActivate: [authGuard] },

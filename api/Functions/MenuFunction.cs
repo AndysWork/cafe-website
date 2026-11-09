@@ -32,13 +32,11 @@ public class MenuFunction
     /// <param name="req">HTTP request</param>
     /// <returns>List of all menu items with pricing and details</returns>
     /// <response code="200">Successfully retrieved menu items</response>
-    /// <response code="400">Outlet ID is required</response>
     // GET: Get all menu items
     [Function("GetMenu")]
     [OpenApiOperation(operationId: "GetMenu", tags: new[] { "Menu" }, Summary = "Get all menu items", Description = "Retrieves all menu items with pricing and availability")]
-    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = true, Type = typeof(string), Description = "Outlet ID for filtering menu items")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Optional outlet ID for filtering menu items")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(List<CafeMenuItem>), Description = "Successfully retrieved menu items")]
-    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Outlet ID is required")]
     public async Task<HttpResponseData> GetMenu([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "menu")] HttpRequestData req)
     {
         try

@@ -8,6 +8,7 @@ import { DineInService } from '../../services/dine-in.service';
 import { AuthStore, CartStore } from '../../store';
 import { NotificationCenterComponent } from '../notification-center/notification-center.component';
 import { NavbarComponent } from './navbar.component';
+import { HomePanelService } from '../../services/home-panel.service';
 
 @Component({ selector: 'app-notification-center', standalone: true, template: '' })
 class NotificationStubComponent {}
@@ -32,7 +33,7 @@ describe('NavbarComponent multi-role navigation', () => {
     TestBed.configureTestingModule({
       imports: [NavbarComponent],
       providers: [
-        provideRouter([{ path: 'menu', component: TestRouteComponent }]),
+        provideRouter([{ path: '', component: TestRouteComponent }, { path: 'home', component: TestRouteComponent }, { path: 'menu', component: TestRouteComponent }, { path: 'profile', component: TestRouteComponent }]),
         { provide: AuthService, useValue: { logout: jasmine.createSpy('logout') } },
         { provide: CartService, useValue: {} },
         { provide: CartStore, useValue: { itemCount: signal(2) } },
@@ -47,6 +48,44 @@ describe('NavbarComponent multi-role navigation', () => {
     fixture = TestBed.createComponent(NavbarComponent);
   });
 
+  it('offers menu and cart without account or reservation navbar links to guests', () => {
+    fixture.detectChanges();
+    expect(links()).toContain('/menu');
+    expect(links()).toContain('/cart');
+    expect(links()).not.toContain('/reservations');
+    expect(fixture.componentInstance.navigationGroups()).toEqual([]);
+    expect(fixture.nativeElement.querySelector('.group-toggle')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.profile-badge')).toBeNull();
+  });
+
+  it('keeps guest links direct on other pages and in the mobile menu', async () => {
+    await TestBed.inject(Router).navigateByUrl('/menu');
+    fixture.detectChanges();
+    fixture.componentInstance.toggleMobileMenu();
+    fixture.detectChanges();
+    for (const route of ['/menu', '/cart']) expect(links()).toContain(route);
+    expect(links()).not.toContain('/reservations');
+    expect(fixture.nativeElement.querySelector('.group-toggle')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.btn-login')).not.toBeNull();
+  });
+
+  it('opens home dialogs instead of linking to removed inline sections', () => {
+    fixture.detectChanges();
+    const open = spyOn(TestBed.inject(HomePanelService), 'open');
+    const buttons: NodeListOf<HTMLButtonElement> = fixture.nativeElement.querySelectorAll('.landing-links button');
+    fixture.componentInstance.toggleMobileMenu();
+    buttons[0].click();
+    expect(open).toHaveBeenCalledWith('story');
+    expect(fixture.componentInstance.isMobileMenuOpen).toBeFalse();
+    buttons[1].click();
+    expect(open).toHaveBeenCalledWith('offers');
+    expect(fixture.componentInstance.isMobileMenuOpen).toBeFalse();
+    buttons[2].click();
+    expect(open).toHaveBeenCalledWith('contact');
+    expect(links()).not.toContain('#offers');
+    expect(links()).not.toContain('#outlets');
+  });
+
   it('renders all staff menus on home, not just the primary role', () => {
     expect(TestBed.inject(Router).url).toBe('/');
     setRoles('cook', ['cook', 'cashier', 'waiter']);
@@ -55,6 +94,72 @@ describe('NavbarComponent multi-role navigation', () => {
     }
     expect(links()).not.toContain('/admin/dashboard');
     expect(links()).not.toContain('/partner/delivery');
+  });
+
+  it('simplifies customer-only navigation into one account menu', () => {
+    setRoles('user', ['user']);
+    expect(fixture.componentInstance.isCustomerOnly).toBeTrue();
+    expect(fixture.nativeElement.querySelectorAll('.group-toggle').length).toBe(0);
+    expect(fixture.nativeElement.querySelector('.customer-profile .username').textContent.trim()).toBe('Welcome staff');
+    for (const route of ['/dashboard', '/orders', '/reservations', '/subscriptions', '/loyalty', '/profile']) {
+      expect(fixture.nativeElement.querySelectorAll(`.customer-profile a[href="${route}"]`).length).toBe(1);
+    }
+    expect(fixture.nativeElement.querySelector('.customer-cart .landing-cart-count').textContent.trim()).toBe('2');
+    expect(fixture.nativeElement.querySelector('app-notification-center')).not.toBeNull();
+    const orderButton = fixture.nativeElement.querySelector('.landing-order');
+    expect(orderButton.nextElementSibling.classList.contains('desktop-cart')).toBeTrue();
+    expect(orderButton.nextElementSibling.querySelector('svg')).not.toBeNull();
+    expect(links()).not.toContain('/admin/dashboard');
+    fixture.componentInstance.toggleMobileMenu();
+    fixture.nativeElement.querySelector('.customer-profile .profile-badge').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.customer-profile .profile-menu').classList.contains('show')).toBeTrue();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isMobileMenuOpen).toBeFalse();
+    expect(fixture.componentInstance.activeDropdown).toBeNull();
+  });
+
+  it('keeps direct customer menu and cart access away from home', async () => {
+    setRoles('user');
+    await TestBed.inject(Router).navigateByUrl('/menu');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.navbar-nav .nav-link[href="/menu"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.customer-cart[href="/cart"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('.group-toggle').length).toBe(0);
+    fixture.componentInstance.toggleMobileMenu();
+    fixture.componentInstance.toggleDropdown('customer-profile');
+    fixture.nativeElement.querySelector('.customer-profile a[href="/profile"]').click();
+    expect(fixture.componentInstance.isMobileMenuOpen).toBeFalse();
+    expect(fixture.componentInstance.activeDropdown).toBeNull();
+  });
+
+  it('shows the customer name and highlights Profile only on the profile route', async () => {
+    store.setUser({ username: 'customer', firstName: 'Gourab', email: 'customer@example.com', role: 'user' });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.customer-profile .username').textContent.trim()).toBe('Welcome Gourab');
+    const profile: HTMLAnchorElement = fixture.nativeElement.querySelector('.primary-profile-item');
+    expect(profile.classList.contains('active')).toBeFalse();
+    expect(profile.getAttribute('aria-current')).toBeNull();
+    await TestBed.inject(Router).navigateByUrl('/profile');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(profile.classList.contains('active')).toBeTrue();
+    expect(profile.getAttribute('aria-current')).toBe('page');
+    await TestBed.inject(Router).navigateByUrl('/menu');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(profile.classList.contains('active')).toBeFalse();
+  });
+
+  it('restores additive staff navigation when customer roles change', () => {
+    setRoles('user');
+    expect(fixture.componentInstance.navigationGroups()).toEqual([]);
+    setRoles('user', ['user', 'cashier']);
+    expect(fixture.componentInstance.isCustomerOnly).toBeFalse();
+    expect(links()).toContain('/staff/cashier');
+    expect(fixture.nativeElement.querySelectorAll('.group-toggle').length).toBeGreaterThan(0);
+    expect(fixture.nativeElement.querySelector('.customer-profile a[href="/orders"]')).toBeNull();
   });
 
   it('renders manager, kitchen, and partner dashboards together', () => {
@@ -76,6 +181,15 @@ describe('NavbarComponent multi-role navigation', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.isLandingPage).toBeFalse();
     expect(fixture.nativeElement.querySelector('.navbar-nav .nav-link[href="/"]')).not.toBeNull();
+  });
+
+  it('keeps landing navigation when scrolling to a home section', async () => {
+    await TestBed.inject(Router).navigateByUrl('/#offers');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isLandingPage).toBeTrue();
+    await TestBed.inject(Router).navigateByUrl('/home?source=link#outlets');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isLandingPage).toBeTrue();
   });
 
   it('keeps customer menus and cart badge alongside secondary staff roles', () => {

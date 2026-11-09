@@ -3,11 +3,16 @@ using MongoDB.Bson.Serialization.Attributes;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using Cafe.Api.Helpers;
+using Cafe.Api.Services;
 
 namespace Cafe.Api.Models;
 
 public class DineInSession
 {
+    [BsonExtraElements]
+    [JsonIgnore]
+    public BsonDocument? ExtraElements { get; set; }
+
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
@@ -98,16 +103,24 @@ public class DineInSession
     public string? Notes { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetUtcNow();
+
+    [BsonElement("createdAtIsUtc")]
+    [BsonIgnoreIfNull]
+    public bool? CreatedAtIsUtc { get; set; }
 
     [BsonElement("updatedAt")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = MongoService.GetUtcNow();
 
     [BsonElement("billRequestedAt")]
     public DateTime? BillRequestedAt { get; set; }
 
     [BsonElement("settledAt")]
     public DateTime? SettledAt { get; set; }
+
+    [BsonElement("settledAtIsUtc")]
+    [BsonIgnoreIfNull]
+    public bool? SettledAtIsUtc { get; set; }
 
     [BsonElement("amountPaid")]
     public decimal AmountPaid { get; set; }
@@ -159,7 +172,7 @@ public class DineInPaymentEntry
     public string? Notes { get; set; }
 
     [BsonElement("requestedAt")]
-    public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
+    public DateTime RequestedAt { get; set; } = MongoService.GetUtcNow();
 
     [BsonElement("confirmedAt")]
     public DateTime? ConfirmedAt { get; set; }
@@ -195,7 +208,7 @@ public class DineInVoidRequest
     public string? RequestedBy { get; set; }
 
     [BsonElement("requestedAt")]
-    public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
+    public DateTime RequestedAt { get; set; } = MongoService.GetUtcNow();
 
     [BsonElement("reviewedBy")]
     public string? ReviewedBy { get; set; }
@@ -223,7 +236,11 @@ public class DineInSessionEvent
     public string? Actor { get; set; }
 
     [BsonElement("createdAt")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = MongoService.GetUtcNow();
+
+    [BsonElement("createdAtIsUtc")]
+    [BsonIgnoreIfNull]
+    public bool? CreatedAtIsUtc { get; set; }
 
     [BsonElement("metadata")]
     public Dictionary<string, string>? Metadata { get; set; }
