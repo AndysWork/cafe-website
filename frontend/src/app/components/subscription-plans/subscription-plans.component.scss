@@ -1,18 +1,19 @@
 // ==========================================
-// SUBSCRIPTIONS & MEAL PLANS - Zomato Red
+// SUBSCRIPTIONS & MEAL PLANS
 // ==========================================
 
-$primary: var(--brand, #E23744);
-$primary-dark: var(--brand-dark, #CB202D);
+$primary: #008ba9;
+$primary-dark: #00627b;
+$lime: #ddff00;
 $accent-light: #EF4F5F;
 $green: #16a34a;
 $green-bg: #ecfdf5;
-$bg: var(--bg, #FAFAFA);
+$bg: #e7fbff;
 $card-bg: #ffffff;
-$text-dark: var(--text, #1C1C1C);
+$text-dark: #10233f;
 $text-mid: var(--text-mid, #4F4F4F);
 $text-light: var(--text-muted, #828282);
-$border: rgba(226, 55, 68, 0.12);
+$border: rgba(0, 139, 169, 0.16);
 $shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
 $shadow-md: 0 6px 20px rgba(0, 0, 0, 0.08);
 $radius-md: 14px;
@@ -21,7 +22,7 @@ $radius-full: 9999px;
 
 .subscriptions-page {
   min-height: 100vh;
-  background: $bg;
+  background: radial-gradient(ellipse at 100% 35%, #e8ffbe 0%, transparent 42%), linear-gradient(180deg, #acf0fc, $bg 65%);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   padding-bottom: 5rem;
   overflow-x: clip;
@@ -36,14 +37,36 @@ $radius-full: 9999px;
 // ==========================================
 .page-hero {
   position: relative;
-  background:
-    radial-gradient(circle at 20% 50%, rgba(226, 55, 68, 0.95) 0%, transparent 50%),
-    radial-gradient(circle at 80% 30%, rgba(239, 79, 95, 0.85) 0%, transparent 50%),
-    linear-gradient(135deg, #E23744 0%, #CB202D 100%);
-  padding: 3rem 1.5rem 3.5rem;
+  background: radial-gradient(ellipse at 90% 100%, #63b979 0%, transparent 38%), linear-gradient(115deg, #009cc0, #006581);
+  padding: 2.5rem 14rem 3.75rem;
   text-align: center;
   color: white;
-  border-radius: 0 0 32px 32px;
+  border-radius: 0 0 50% 12% / 0 0 24px 18px;
+  isolation: isolate;
+
+  .hero-drink {
+    position: absolute;
+    width: 110px;
+    height: 145px;
+    left: max(2rem, calc((100% - 1120px) / 2));
+    bottom: 20px;
+    transform: rotate(-8deg);
+    filter: drop-shadow(0 10px 12px #003d5550);
+    z-index: -1;
+  }
+
+  .hero-food {
+    position: absolute;
+    right: max(1rem, calc((100% - 1200px) / 2));
+    bottom: 20px;
+    width: 185px;
+    height: 125px;
+    object-fit: cover;
+    object-position: 85% center;
+    border-radius: 60% 40% 40% 60%;
+    box-shadow: 0 10px 20px #003d5530;
+    z-index: -1;
+  }
 
   .hero-content {
     max-width: 750px;
@@ -62,7 +85,9 @@ $radius-full: 9999px;
     }
 
     h1 {
-      font-size: 2.2rem;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-style: italic;
+      font-size: clamp(1.8rem, 3vw, 2.7rem);
       font-weight: 800;
       margin: 0 0 0.6rem;
       letter-spacing: -0.5px;
@@ -78,7 +103,7 @@ $radius-full: 9999px;
 }
 
 .page-container {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: -1.5rem auto 0;
   padding: 0 1rem;
   position: relative;
@@ -103,18 +128,18 @@ $radius-full: 9999px;
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1.4rem;
-    background: white;
-    border: 2px solid #e5e7eb;
+    background: #f5fdff;
+    border: 2px solid #ffffff;
     border-radius: $radius-full;
     font-size: 0.95rem;
     font-weight: 700;
-    color: $text-mid;
+    color: $text-dark;
     cursor: pointer;
-    box-shadow: $shadow-sm;
+    box-shadow: 0 4px 12px #007b9e26;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     white-space: nowrap;
 
-    .tab-icon { font-size: 1.1rem; }
+    .tab-icon { width: 20px; height: 20px; flex-shrink: 0; }
 
     .tab-badge {
       background: #e2e8f0;
@@ -139,14 +164,14 @@ $radius-full: 9999px;
     }
 
     &.active {
-      background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
-      color: white;
-      border-color: #E23744;
-      box-shadow: 0 6px 20px rgba(226, 55, 68, 0.35);
+      background: $lime;
+      color: $text-dark;
+      border-color: #f1ff7f;
+      box-shadow: 0 6px 18px #007b9e26;
 
       .tab-badge {
-        background: rgba(255, 255, 255, 0.25);
-        color: white;
+        background: #ffffffa6;
+        color: $text-dark;
       }
     }
   }
@@ -157,12 +182,13 @@ $radius-full: 9999px;
 // ==========================================
 .category-filter-chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
-  overflow-x: auto;
-  padding-bottom: 0.3rem;
 
   .cat-chip {
+    flex: 0 0 auto;
+    max-width: 100%;
     padding: 0.45rem 1rem;
     background: white;
     border: 1px solid #e2e8f0;
@@ -177,25 +203,27 @@ $radius-full: 9999px;
     &:hover { border-color: $primary; color: $primary; }
 
     &.active {
-      background: #1c1c1c;
-      color: white;
-      border-color: #1c1c1c;
+      background: $lime;
+      color: $text-dark;
+      border-color: $lime;
     }
   }
 }
 
 .plans-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  padding-top: 0.5rem;
 }
 
 .plan-card {
-  background: white;
-  border-radius: $radius-lg;
-  padding: 1.75rem 1.5rem 1.5rem;
-  box-shadow: $shadow-sm;
-  border: 2px solid #f1f5f9;
+  background: linear-gradient(125deg, #fff, #effcff);
+  border-radius: 24px;
+  padding: 1.25rem 1rem 1rem;
+  box-shadow: 0 5px 12px #008ba92b;
+  border: 1px solid #ffffffbd;
+  min-width: 0;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -208,14 +236,14 @@ $radius-full: 9999px;
   }
 
   &.popular {
-    border-color: rgba(226, 55, 68, 0.35);
+    border-color: #77d7e8;
   }
 
   .plan-highlight-badge {
     position: absolute;
     top: -12px;
     right: 20px;
-    background: linear-gradient(135deg, #E23744, #CB202D);
+    background: linear-gradient(135deg, #00a7c7, #006b8e);
     color: white;
     font-size: 0.72rem;
     font-weight: 800;
@@ -223,14 +251,38 @@ $radius-full: 9999px;
     letter-spacing: 0.5px;
     padding: 0.3rem 0.8rem;
     border-radius: $radius-full;
-    box-shadow: 0 4px 12px rgba(226, 55, 68, 0.3);
+    box-shadow: 0 4px 12px #008ba926;
+  }
+
+  &:nth-child(3n + 2) .plan-highlight-badge { background: $lime; color: $text-dark; }
+
+  .plan-overview {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr);
+    grid-template-areas: 'art header' 'art price';
+    gap: 0.5rem 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .plan-artwork {
+    grid-area: art;
+    height: 140px;
+    align-self: start;
+    background: linear-gradient(145deg, #d9f9e4, #fff4bc);
+    border-radius: 16px;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    img { width: 100%; height: 100%; object-fit: cover; }
+    span { font-size: 3.7rem; filter: drop-shadow(0 6px 4px #00627b24); }
   }
 
   .plan-card-header {
-    margin-bottom: 1rem;
+    grid-area: header;
+    margin-bottom: 0;
 
     .plan-title {
-      font-size: 1.25rem;
+      font-size: 1.05rem;
       font-weight: 800;
       color: $text-dark;
       margin: 0 0 0.4rem;
@@ -246,16 +298,15 @@ $radius-full: 9999px;
 
   .plan-price-row {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    padding: 0.75rem 0;
-    margin-bottom: 1rem;
-    border-top: 1px dashed #e2e8f0;
-    border-bottom: 1px dashed #e2e8f0;
+    grid-area: price;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0;
 
     .price-main {
-      .currency { font-size: 1.1rem; font-weight: 700; color: $primary; }
-      .amount { font-size: 1.85rem; font-weight: 800; color: $text-dark; }
+      .currency { font-size: 1.1rem; font-weight: 800; color: $text-dark; }
+      .amount { font-size: 1.5rem; font-weight: 800; color: $text-dark; }
       .period { font-size: 0.82rem; color: $text-light; margin-left: 3px; }
     }
 
@@ -265,12 +316,12 @@ $radius-full: 9999px;
       font-size: 0.78rem;
       font-weight: 800;
       padding: 0.25rem 0.65rem;
-      border-radius: 8px;
+      border-radius: $radius-full;
     }
   }
 
   .plan-items-box {
-    background: #f8fafc;
+    background: #e5f7fb;
     border-radius: 12px;
     padding: 0.85rem;
     margin-bottom: 1rem;
@@ -342,10 +393,10 @@ $radius-full: 9999px;
     .btn-plan-subscribe {
       width: 100%;
       padding: 0.85rem;
-      background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
-      color: white;
+      background: $lime;
+      color: $text-dark;
       border: none;
-      border-radius: 12px;
+      border-radius: $radius-full;
       font-size: 0.95rem;
       font-weight: 800;
       cursor: pointer;
@@ -353,11 +404,11 @@ $radius-full: 9999px;
       align-items: center;
       justify-content: center;
       gap: 0.5rem;
-      box-shadow: 0 4px 14px rgba(226, 55, 68, 0.3);
+      box-shadow: 0 4px 14px #b4cf0030;
       transition: all 0.2s;
 
       &:hover {
-        box-shadow: 0 6px 20px rgba(226, 55, 68, 0.45);
+        box-shadow: 0 6px 20px #008ba930;
         transform: translateY(-1px);
       }
     }
@@ -368,18 +419,26 @@ $radius-full: 9999px;
 // TAB 2: BUILD YOUR OWN COMBO
 // ==========================================
 .combo-builder-intro {
-  background: white;
-  border-radius: $radius-lg;
-  padding: 1.5rem 1.75rem;
-  margin-bottom: 1.5rem;
-  box-shadow: $shadow-sm;
-  border-left: 5px solid $primary;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  background: linear-gradient(120deg, #ffffffc9, #d3f6ffd9);
+  border: 1px solid #ffffffcf;
+  border-radius: 28px;
+  padding: 1.75rem;
+  margin: 1.75rem 0 1.5rem;
+  box-shadow: 0 6px 20px #008ba91a;
+
+  .combo-intro-heading { display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 240px; }
+  .combo-intro-icon { font-size: 3rem; }
 
   h2 {
-    font-size: 1.4rem;
+    font-size: 1.35rem;
     font-weight: 800;
     color: $text-dark;
-    margin: 0 0 0.4rem;
+    margin: 0;
+    em { display: block; color: $primary; font-family: Georgia, 'Times New Roman', serif; font-size: 1.8rem; }
   }
 
   p {
@@ -387,7 +446,26 @@ $radius-full: 9999px;
     color: $text-mid;
     margin: 0;
     line-height: 1.5;
+    flex: 1;
+    min-width: 240px;
   }
+}
+
+.btn-build-combo {
+  border: 0;
+  border-radius: $radius-full;
+  background: $lime;
+  color: $text-dark;
+  padding: 0.85rem 1.25rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.subscriptions-page :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid $primary-dark;
+  outline-offset: 3px;
 }
 
 .combo-builder-layout {
@@ -424,7 +502,7 @@ $radius-full: 9999px;
   }
 
   .selected-counter {
-    background: #fff1f2;
+    background: #e5f7fb;
     color: $primary;
     padding: 0.25rem 0.65rem;
     border-radius: 20px;
@@ -464,11 +542,14 @@ $radius-full: 9999px;
 
   .menu-cat-chips {
     display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: 0.4rem;
-    overflow-x: auto;
-    padding-bottom: 0.3rem;
 
     .menu-chip {
+      flex: 0 0 auto;
+      max-width: 100%;
+      min-height: 34px;
       padding: 0.35rem 0.75rem;
       border: 1px solid #e2e8f0;
       border-radius: $radius-full;
@@ -477,7 +558,8 @@ $radius-full: 9999px;
       font-weight: 600;
       color: #475569;
       cursor: pointer;
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: anywhere;
 
       .chip-count {
         font-size: 0.66rem;
@@ -490,13 +572,13 @@ $radius-full: 9999px;
       }
 
       &.active {
-        background: #1c1c1c;
-        color: white;
-        border-color: #1c1c1c;
+        background: $lime;
+        color: $text-dark;
+        border-color: $lime;
 
         .chip-count {
-          background: rgba(255, 255, 255, 0.2);
-          color: #ffffff;
+          background: #ffffffa6;
+          color: $text-dark;
         }
       }
     }
@@ -542,8 +624,8 @@ $radius-full: 9999px;
 
   &.picked {
     border-color: $primary;
-    background: #fff7f8;
-    box-shadow: 0 8px 20px rgba(226, 55, 68, 0.12);
+    background: #edfbff;
+    box-shadow: 0 8px 20px rgba(0, 139, 169, 0.12);
   }
 
   .combo-card-image-wrapper {
@@ -681,7 +763,7 @@ $radius-full: 9999px;
 
     .btn-add-picker {
       padding: 0.45rem 0.9rem;
-      background: #fff1f2;
+      background: #e5f7fb;
       color: $primary;
       border: 1.5px solid rgba($primary, 0.3);
       border-radius: 8px;
@@ -791,9 +873,9 @@ $radius-full: 9999px;
 
     &.active {
       border-color: $primary;
-      background: #fff1f2;
+      background: #e5f7fb;
       color: $primary;
-      box-shadow: 0 2px 8px rgba(226, 55, 68, 0.15);
+      box-shadow: 0 2px 8px rgba(0, 139, 169, 0.15);
     }
   }
 
@@ -807,7 +889,7 @@ $radius-full: 9999px;
 
     &.best-deal.active {
       border-color: $primary;
-      background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+      background: linear-gradient(135deg, #e5f7fb, #efffc0);
     }
   }
 }
@@ -938,18 +1020,18 @@ $radius-full: 9999px;
     .btn-activate-combo {
       margin-top: 0.75rem;
       padding: 1rem;
-      background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
-      color: white;
+      background: $lime;
+      color: $text-dark;
       border: none;
       border-radius: 12px;
       font-size: 1rem;
       font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 4px 16px rgba(226, 55, 68, 0.4);
+      box-shadow: 0 4px 16px rgba(0, 139, 169, 0.2);
       transition: all 0.2s;
 
       &:hover:not(:disabled) {
-        box-shadow: 0 6px 22px rgba(226, 55, 68, 0.55);
+        box-shadow: 0 6px 22px rgba(0, 139, 169, 0.3);
         transform: translateY(-2px);
       }
 
@@ -1032,7 +1114,7 @@ $radius-full: 9999px;
 
       .progress-fill {
         height: 100%;
-        background: linear-gradient(90deg, #E23744, #f97316);
+        background: linear-gradient(90deg, $primary, $lime);
         border-radius: 10px;
         transition: width 0.4s ease;
       }
@@ -1158,8 +1240,8 @@ $radius-full: 9999px;
 
     .btn-primary {
       padding: 0.75rem 1.4rem;
-      background: linear-gradient(135deg, #E23744, #CB202D);
-      color: white;
+      background: $lime;
+      color: $text-dark;
       border: none;
       border-radius: 10px;
       font-size: 0.9rem;
@@ -1300,7 +1382,7 @@ $radius-full: 9999px;
       font-weight: 800;
       text-transform: uppercase;
       color: $primary;
-      background: #fff1f2;
+      background: #e5f7fb;
       padding: 2px 8px;
       border-radius: 6px;
       margin-bottom: 0.4rem;
@@ -1347,14 +1429,14 @@ $radius-full: 9999px;
   .btn-confirm-subscribe {
     width: 100%;
     padding: 1rem;
-    background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
-    color: white;
+    background: $lime;
+    color: $text-dark;
     border: none;
     border-radius: 12px;
     font-size: 1rem;
     font-weight: 800;
     cursor: pointer;
-    box-shadow: 0 4px 14px rgba(226, 55, 68, 0.4);
+    box-shadow: 0 4px 14px rgba(0, 139, 169, 0.2);
     transition: opacity 0.2s;
 
     &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1404,6 +1486,14 @@ $radius-full: 9999px;
 // RESPONSIVE STYLES
 // ==========================================
 @media (max-width: 900px) {
+  .page-hero {
+    padding-left: 2rem;
+    padding-right: 2rem;
+    .hero-drink, .hero-food { display: none; }
+  }
+
+  .plans-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
   .combo-builder-layout {
     grid-template-columns: 1fr;
     gap: 1.25rem;
@@ -1941,7 +2031,7 @@ $radius-full: 9999px;
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border: 1.5px solid rgba(255, 255, 255, 0.16);
-    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 16px rgba(226, 55, 68, 0.25);
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 16px rgba(0, 139, 169, 0.25);
     border-radius: 18px;
     padding: 8px 10px 8px 16px;
     align-items: center;
@@ -1982,14 +2072,14 @@ $radius-full: 9999px;
       align-items: center;
       gap: 6px;
       padding: 8px 16px;
-      background: linear-gradient(135deg, #E23744 0%, #CB202D 100%);
-      color: white;
+      background: $lime;
+      color: $text-dark;
       border: none;
       border-radius: 999px;
       font-size: 0.84rem;
       font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(226, 55, 68, 0.45);
+      box-shadow: 0 4px 14px rgba(0, 139, 169, 0.25);
 
       .dock-arrow {
         font-size: 1rem;
@@ -2077,6 +2167,15 @@ $radius-full: 9999px;
 }
 
 @media (max-width: 480px) {
+  .combo-builder-intro {
+    padding: 1.15rem;
+    gap: 1rem;
+    .combo-intro-heading, p { min-width: 0; flex-basis: 100%; }
+    .combo-intro-icon { font-size: 2.2rem; }
+    h2 { font-size: 1.1rem; em { font-size: 1.5rem; } }
+    .btn-build-combo { width: 100%; }
+  }
+
   .subscriptions-page {
     padding-bottom: 8rem;
   }

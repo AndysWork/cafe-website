@@ -1,21 +1,42 @@
 <div class="subscriptions-page">
   <!-- Hero Banner -->
   <div class="page-hero">
+    <svg class="hero-drink" viewBox="0 0 100 130" aria-hidden="true">
+      <path d="M66 4 50 83" stroke="#dcff00" stroke-width="7" stroke-linecap="round"/>
+      <path d="M20 40h60l-9 76q-21 13-42 0Z" fill="#e9fbff" stroke="#fff" stroke-width="3"/>
+      <path d="m25 59 6 54q19 11 38 0l6-54Z" fill="#c8874e"/>
+      <path d="m29 64 6 42m9-39 3 43m14-43-3 43" stroke="#f8d8a1" stroke-width="5" stroke-linecap="round"/>
+      <ellipse cx="50" cy="40" rx="31" ry="9" fill="#fff2d6"/>
+      <path d="m34 34 8-8 9 6 8-8 9 11" fill="none" stroke="#c8874e" stroke-width="5" stroke-linecap="round"/>
+    </svg>
     <div class="hero-content">
       <h1>Cafe Meal Subscriptions & Combos</h1>
       <p>Subscribe to our chef-crafted daily meal boxes or build your own recurring meal combo with up to 20% discount and 100% Free Doorstep Delivery.</p>
     </div>
+    <img class="hero-food" src="/images/cafe/hero-pizza-drink.png" alt="" aria-hidden="true" width="1536" height="768" />
   </div>
+
+  <ng-template #comboIntro>
+    <div class="combo-builder-intro" id="combo-builder-start">
+      <div class="combo-intro-heading">
+        <span class="combo-intro-icon" aria-hidden="true">🍱</span>
+        <h2>Build Your <em>Custom Daily Meal Combo</em></h2>
+      </div>
+      <p>Pick items from our cafe menu, choose your preferred delivery time slot, select recurring days, and get up to <strong>20% discount + 100% Free Doorstep Delivery.</strong></p>
+      <button *ngIf="activeTab === 'curated'" type="button" class="btn-build-combo" (click)="setTab('custom')">Build Your Own Combo <span aria-hidden="true">→</span></button>
+    </div>
+  </ng-template>
 
   <div class="page-container">
     <!-- Navigation Tabs -->
-    <div class="tabs-nav">
+    <div class="tabs-nav" role="group" aria-label="Subscription sections">
       <button
         type="button"
         class="nav-tab-btn"
         [class.active]="activeTab === 'curated'"
+        [attr.aria-pressed]="activeTab === 'curated'"
         (click)="setTab('curated')">
-        <span class="tab-icon">🌟</span>
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 7 4 3 5-6 5 6 4-3-3 13H6Z"/><path d="M6 16h12"/></svg>
         <span class="tab-label">Curated Meal Plans</span>
       </button>
 
@@ -23,8 +44,9 @@
         type="button"
         class="nav-tab-btn"
         [class.active]="activeTab === 'custom'"
+        [attr.aria-pressed]="activeTab === 'custom'"
         (click)="setTab('custom')">
-        <span class="tab-icon">🍱</span>
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 7 9-4 9 4-9 4Z"/><path d="m3 12 9 4 9-4M3 17l9 4 9-4"/></svg>
         <span class="tab-label">Build Your Own Combo</span>
         <span class="tab-badge" *ngIf="selectedComboItemsList.length > 0">{{ selectedComboItemsList.length }} items</span>
       </button>
@@ -33,8 +55,9 @@
         type="button"
         class="nav-tab-btn"
         [class.active]="activeTab === 'my-subscriptions'"
+        [attr.aria-pressed]="activeTab === 'my-subscriptions'"
         (click)="setTab('my-subscriptions')">
-        <span class="tab-icon">📋</span>
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v5m8-5v5M4 11h16m-12 4h3m2 3h3"/></svg>
         <span class="tab-label">My Subscriptions</span>
         <span class="active-dot" *ngIf="activeSubscription"></span>
       </button>
@@ -94,6 +117,11 @@
         <div *ngFor="let plan of filteredPlans" class="plan-card" [class.popular]="plan.badgeText">
           <div *ngIf="plan.badgeText" class="plan-highlight-badge">{{ plan.badgeText }}</div>
 
+          <div class="plan-overview">
+          <div class="plan-artwork" aria-hidden="true">
+            <img *ngIf="getPlanImageUrl(plan) as image; else planIllustration" [src]="image" alt="" loading="lazy" />
+            <ng-template #planIllustration><span>{{ getPlanIllustration(plan) }}</span></ng-template>
+          </div>
           <div class="plan-card-header">
             <h3 class="plan-title">{{ plan.name }}</h3>
             <p class="plan-desc">{{ plan.description }}</p>
@@ -108,6 +136,7 @@
             <div class="daily-rate-pill">
               Just {{ getDailyValue(plan) }}/day
             </div>
+          </div>
           </div>
 
           <!-- Included Items -->
@@ -146,16 +175,14 @@
       <div *ngIf="!loadingPlans && filteredPlans.length === 0" class="empty-state">
         <p>No meal plans found in this category.</p>
       </div>
+      <ng-container *ngTemplateOutlet="comboIntro"></ng-container>
     </div>
 
     <!-- ========================================== -->
     <!-- TAB 2: BUILD YOUR OWN COMBO                -->
     <!-- ========================================== -->
     <div class="tab-content" *ngIf="activeTab === 'custom'">
-      <div class="combo-builder-intro" id="combo-builder-start">
-        <h2>🍱 Build Your Custom Daily Meal Combo</h2>
-        <p>Pick items directly from our cafe menu, choose your preferred delivery time slot, select recurring days, and get up to <strong>20% discount</strong> + <strong>100% Free Doorstep Delivery</strong>.</p>
-      </div>
+      <ng-container *ngTemplateOutlet="comboIntro"></ng-container>
 
       <!-- Mobile Sub-Step Wizard Stepper (Only visible on screens <= 768px) -->
       <div class="combo-mobile-stepper">
@@ -197,6 +224,7 @@
                   type="text"
                   [(ngModel)]="menuSearchQuery"
                   placeholder="Search cafe items (e.g. coffee, sandwich, wrap)..."
+                  aria-label="Search cafe items"
                 />
                 <span class="search-icon">🔍</span>
               </div>
@@ -325,8 +353,8 @@
             <h3>Step 2: Combo Name & Delivery Schedule</h3>
 
             <div class="form-group">
-              <label>Combo Name</label>
-              <input type="text" [(ngModel)]="comboName" placeholder="e.g. My Morning Fuel Combo" />
+              <label for="combo-name">Combo Name</label>
+              <input id="combo-name" type="text" [(ngModel)]="comboName" placeholder="e.g. My Morning Fuel Combo" />
             </div>
 
             <div class="form-group">

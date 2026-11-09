@@ -1,21 +1,26 @@
 <div class="reservation-page" [class.compact-reservation]="compact">
   <section class="page-hero" *ngIf="!compact">
     <div class="hero-content">
-      <h1>Reserve a Table</h1>
-      <p>Choose your date, pick a time, and we will keep your table ready.</p>
+      <div class="hero-title">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><rect x="7" y="10" width="34" height="32" rx="5"/><path d="M15 5v10M33 5v10M7 21h34m-24 9 5 5 10-10"/></svg>
+        <h1>Reserve a Table</h1>
+      </div>
+      <p>Plan your cafe date, catch-up or celebration with us!</p>
       <div class="hero-tags">
-        <span class="hero-tag">Instant booking</span>
-        <span class="hero-tag">Quick check-in</span>
-        <span class="hero-tag">Manage reservations</span>
+        <span class="hero-tag"><span aria-hidden="true">✦</span> Instant Booking</span>
+        <span class="hero-tag"><span aria-hidden="true">✓</span> Quick Check-in</span>
+        <span class="hero-tag"><span aria-hidden="true">▦</span> Manage Reservations</span>
       </div>
     </div>
+    <img class="hero-photo" src="/images/cafe/cafe-01.jpg" alt="Maa Tara Cafe outdoor seating under evening lights" width="1365" height="768" />
   </section>
 
-  <div class="reservation-shell">
+  <div class="reservation-shell" [class.booking-view]="activeTab === 'book' && !submitted">
+    <div class="reservation-main">
     <!-- Tabs -->
-    <div class="tabs" *ngIf="!compact">
-      <button class="tab" [class.active]="activeTab === 'book'" (click)="switchTab('book')">Book a Table</button>
-      <button *ngIf="isLoggedIn" class="tab" [class.active]="activeTab === 'my'" (click)="switchTab('my')">My Reservations</button>
+    <div class="tabs" *ngIf="!compact" role="group" aria-label="Reservation sections">
+      <button type="button" class="tab" [class.active]="activeTab === 'book'" [attr.aria-pressed]="activeTab === 'book'" (click)="switchTab('book')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 2v6m8-6v6M4 11h16m-12 5 3 2 5-4"/></svg>Book a Table</button>
+      <button *ngIf="isLoggedIn" type="button" class="tab" [class.active]="activeTab === 'my'" [attr.aria-pressed]="activeTab === 'my'" (click)="switchTab('my')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 2v6m8-6v6M4 11h16m-12 4h3m2 3h3"/></svg>My Reservations</button>
     </div>
 
     <!-- Booking Form -->
@@ -32,8 +37,8 @@
       <div *ngIf="!submitted" class="booking-layout">
         <form class="booking-form" (ngSubmit)="submitReservation()">
           <div class="form-heading">
-            <h2>Booking Details</h2>
-            <p>Fill in your details and choose your preferred slot.</p>
+            <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 3v6m3-6v6m3-6v6M5 7h6v3a3 3 0 0 1-3 3v8M19 3c-4 3-4 9 0 10V3Zm0 10v8"/></svg>Booking Details</h2>
+            <p>Tell us a few details and we'll keep your table ready.</p>
           </div>
 
           <div class="closed-notice" *ngIf="!isDineInCurrentlyAvailable">
@@ -42,36 +47,37 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label>Your Name *</label>
-              <input type="text" [(ngModel)]="form.customerName" name="customerName" placeholder="Enter your name" required />
+              <label for="reservation-name">Your Name *</label>
+              <input id="reservation-name" type="text" [(ngModel)]="form.customerName" name="customerName" autocomplete="name" placeholder="Enter your name" required />
             </div>
             <div class="form-group">
-              <label>Phone Number *</label>
-              <input type="tel" [(ngModel)]="form.customerPhone" name="customerPhone" placeholder="Enter phone number" required />
+              <label for="reservation-phone">Phone Number *</label>
+              <input id="reservation-phone" type="tel" [(ngModel)]="form.customerPhone" name="customerPhone" autocomplete="tel" placeholder="Enter phone number" required />
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label>Date *</label>
-              <input type="date" [(ngModel)]="form.reservationDate" name="reservationDate" [min]="getMinDate()" required />
+              <label for="reservation-date">Date *</label>
+              <input id="reservation-date" type="date" [(ngModel)]="form.reservationDate" name="reservationDate" [min]="getMinDate()" required />
             </div>
             <div class="form-group">
-              <label>Party Size *</label>
-              <select [(ngModel)]="form.partySize" name="partySize">
+              <label for="reservation-party">Party Size *</label>
+              <select id="reservation-party" [(ngModel)]="form.partySize" name="partySize">
                 <option *ngFor="let s of partySizes" [ngValue]="s">{{ s }} {{ s === 1 ? 'Guest' : 'Guests' }}</option>
               </select>
             </div>
           </div>
 
           <div class="form-group">
-            <label>Preferred Time *</label>
-            <div class="time-slots">
+            <label id="reservation-time-label">Preferred Time *</label>
+            <div class="time-slots" role="group" aria-labelledby="reservation-time-label">
               <button
                 *ngFor="let slot of timeSlots"
                 type="button"
                 class="time-chip"
                 [class.selected]="form.timeSlot === slot"
+                [attr.aria-pressed]="form.timeSlot === slot"
                 [disabled]="!isDineInCurrentlyAvailable || submitting"
                 (click)="form.timeSlot = slot"
               >
@@ -81,34 +87,29 @@
           </div>
 
           <div class="form-group">
-            <label>Special Requests</label>
+            <label for="reservation-requests">Special Requests <span class="optional-label">(Optional)</span></label>
             <textarea
+              id="reservation-requests"
               [(ngModel)]="form.specialRequests"
               name="specialRequests"
               rows="3"
-              placeholder="Any special requirements? (e.g., birthday, wheelchair access)"
+              placeholder="Any special requirements? (e.g., birthday, anniversary, wheelchair access)"
             ></textarea>
           </div>
 
           <p *ngIf="!isLoggedIn" class="signin-notice">You can fill in your booking details now. Sign in to confirm your reservation.</p>
           <button *ngIf="!isLoggedIn" type="button" class="btn-submit" (click)="loginToReserve()">Sign in to Reserve</button>
           <button *ngIf="isLoggedIn" type="submit" class="btn-submit" [disabled]="submitting || !isDineInCurrentlyAvailable">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 2v6m8-6v6M4 11h16m-12 5 3 2 5-4"/></svg>
             {{
               !isDineInCurrentlyAvailable
                 ? 'Shop Closed'
                 : (submitting ? 'Booking...' : 'Confirm Reservation')
             }}
+            <span aria-hidden="true">→</span>
           </button>
         </form>
 
-        <aside class="booking-aside">
-          <h3>Before You Confirm</h3>
-          <ul>
-            <li>Arrive 10 minutes early for smoother seating.</li>
-            <li>Need a change? You can cancel from My Reservations.</li>
-            <li>Check-in on reservation day to start dine-in quickly.</li>
-          </ul>
-        </aside>
       </div>
     </div>
 
@@ -185,6 +186,18 @@
         </div>
       </div>
     </div>
+    </div>
+    <aside class="booking-aside" *ngIf="activeTab === 'book' && !submitted">
+      <img *ngIf="!compact" class="aside-photo" src="/images/cafe/cafe-03.jpg" alt="Maa Tara Cafe entrance and heart-shaped seating" width="1365" height="768" loading="lazy" />
+      <div class="booking-tips">
+        <h3><span class="info-icon" aria-hidden="true">i</span> Before You Confirm</h3>
+        <ul>
+          <li>Arrive 10 minutes early for smoother seating.</li>
+          <li>Need a change? You can cancel from My Reservations.</li>
+          <li>Check-in on your reservation day to start dine-in quickly.</li>
+        </ul>
+      </div>
+    </aside>
   </div>
 
   <!-- Check-In Table Selection Modal -->

@@ -179,6 +179,28 @@ export class SubscriptionPlansComponent implements OnInit {
     return '₹' + Math.round(daily);
   }
 
+  getPlanImageUrl(plan: SubscriptionPlan): string | undefined {
+    if (plan.imageUrl) return plan.imageUrl;
+    for (const item of plan.includedItems || []) {
+      if (item.imageUrl) return item.imageUrl;
+      const menuItem = this.menuItems.find(menu => menu.id === item.menuItemId);
+      if (menuItem) {
+        const image = this.getComboMenuImageUrl(menuItem);
+        if (image) return image;
+      }
+    }
+    return undefined;
+  }
+
+  getPlanIllustration(plan: SubscriptionPlan): string {
+    switch (plan.category?.toLowerCase()) {
+      case 'snacks': return '☕';
+      case 'breakfast': return '🥪';
+      case 'dinner': return '🍝';
+      default: return '🍱';
+    }
+  }
+
   openPlanCheckout(plan: SubscriptionPlan) {
     if (!this.authStore.isLoggedIn()) {
       this.uiStore.warning('Please log in to subscribe to meal plans.');

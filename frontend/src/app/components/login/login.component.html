@@ -1,42 +1,18 @@
 <div class="auth-page">
-  <!-- Left Visual Panel -->
-  <div class="auth-visual">
-    <div class="floating-shapes">
-      <div class="shape shape-1"></div>
-      <div class="shape shape-2"></div>
-      <div class="shape shape-3"></div>
-      <div class="shape shape-4"></div>
-      <div class="shape shape-5"></div>
-      <div class="shape shape-6"></div>
-    </div>
-    <div class="visual-content">
-      <div class="brand-icon">☕</div>
-      <h1 class="brand-title">Café Connect</h1>
-      <p class="brand-tagline">Your favorite café experience, just a click away</p>
-      <div class="visual-features">
-        <div class="feature">
-          <span class="feature-emoji">🍰</span>
-          <span class="feature-text">Fresh Menu Daily</span>
-        </div>
-        <div class="feature">
-          <span class="feature-emoji">⭐</span>
-          <span class="feature-text">Earn Loyalty Rewards</span>
-        </div>
-        <div class="feature">
-          <span class="feature-emoji">🚀</span>
-          <span class="feature-text">Quick & Easy Ordering</span>
-        </div>
-      </div>
-    </div>
-  </div>
+  <a class="back-home" routerLink="/" aria-label="Back to Home" title="Back to Home">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"/><path d="M9 21v-8h6v8"/></svg>
+  </a>
+  <img class="auth-background" src="/images/cafe/login-background.png" alt="" aria-hidden="true" width="1152" height="768" fetchpriority="high" />
+  <svg class="mobile-welcome" viewBox="90 0 490 310" aria-hidden="true" focusable="false">
+    <image href="/images/cafe/login-background.png" width="1152" height="768" />
+  </svg>
 
-  <!-- Right Form Panel -->
   <div class="auth-form-panel">
     <div class="form-wrapper">
       <div class="form-header">
-        <div class="logo-badge">☕</div>
-        <h2>Welcome Back</h2>
-        <p>Sign in to continue to your account</p>
+        <h1>Sign In</h1>
+        <p>Continue to Maa Tara Cafe</p>
       </div>
 
       <form (ngSubmit)="onLogin()" class="auth-form" aria-label="Sign in form">
@@ -70,7 +46,7 @@
             autocomplete="current-password"
           />
           <label for="password">Password</label>
-          <button type="button" class="toggle-password" (click)="togglePassword()" tabindex="-1" [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'">
+          <button type="button" class="toggle-password" (click)="togglePassword()" [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'" [attr.aria-pressed]="showPassword">
             <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             <svg *ngIf="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
           </button>
@@ -83,22 +59,26 @@
 
         <button type="submit" class="btn-primary" [disabled]="isLoading">
           <span *ngIf="!isLoading">Sign In</span>
+          <svg *ngIf="!isLoading" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12h16m-7-7 7 7-7 7"/></svg>
           <span *ngIf="isLoading" class="btn-loading">
             <span class="spinner"></span>
             Signing in...
           </span>
         </button>
 
-        <a routerLink="/forgot-password" class="forgot-link">Forgot your password?</a>
+        <a routerLink="/forgot-password" class="forgot-link">Forgot Password?</a>
 
         <div class="divider">
-          <span>or</span>
+          <span class="mobile-divider-label">OR</span>
         </div>
 
         <p class="switch-auth">
-          Don't have an account? <a routerLink="/register" [queryParams]="returnUrl ? { returnUrl: returnUrl } : {}">Create one</a>
+          <span>New to Maa Tara Cafe?</span> <a routerLink="/register" [queryParams]="returnUrl ? { returnUrl: returnUrl } : {}">Create Account</a>
         </p>
       </form>
     </div>
   </div>
+  <svg class="mobile-food" viewBox="0 310 570 458" aria-hidden="true" focusable="false">
+    <image href="/images/cafe/login-background.png" width="1152" height="768" />
+  </svg>
 </div>

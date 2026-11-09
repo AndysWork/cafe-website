@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { OrderService, Order } from '../../services/order.service';
 import { AuthService } from '../../services/auth.service';
@@ -21,7 +22,7 @@ interface QuickReorderPreset {
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './orders.component.html',
   styleUrls: ['./orders.component.scss']
 })
@@ -38,6 +39,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
   successMessage = '';
   expandedOrderId: string | null = null;
   activeFilter: string = 'all';
+  searchQuery = '';
+  readonly deliverySteps = ['Order Placed', 'Preparing', 'Out for Delivery', 'Delivered'];
   activeOrderTypeFilter: 'all' | 'delivery' | 'dine-in' | 'pickup' | 'reservation' = 'all';
   quickReorderPresets: QuickReorderPreset[] = [];
   private routeSub?: Subscription;
@@ -166,6 +169,11 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   get filteredOrders(): Order[] {
     let list = this.orders;
+    const query = this.searchQuery.trim().toLowerCase();
+    if (query) {
+      list = list.filter(order => order.id.toLowerCase().includes(query)
+        || order.items.some(item => item.name.toLowerCase().includes(query)));
+    }
 
     // Filter by Order Type
     if (this.activeOrderTypeFilter !== 'all' && this.activeOrderTypeFilter !== 'reservation') {
@@ -187,17 +195,50 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   get filteredReservations(): TableReservation[] {
-    if (this.activeFilter === 'all') return this.reservations;
+    const query = this.searchQuery.trim().toLowerCase();
+    const reservations = query
+      ? this.reservations.filter(reservation => [reservation.id, reservation.customerName, reservation.reservationDate, reservation.tableNumber]
+        .some(value => value?.toLowerCase().includes(query)))
+      : this.reservations;
+    if (this.activeFilter === 'all') return reservations;
     if (this.activeFilter === 'active') {
-      return this.reservations.filter(r => r.status === 'pending' || r.status === 'confirmed' || r.status === 'seated');
+      return reservations.filter(r => r.status === 'pending' || r.status === 'confirmed' || r.status === 'seated');
     }
     if (this.activeFilter === 'delivered') {
-      return this.reservations.filter(r => r.status === 'completed');
+      return reservations.filter(r => r.status === 'completed');
     }
     if (this.activeFilter === 'cancelled') {
-      return this.reservations.filter(r => r.status === 'cancelled' || r.status === 'no-show');
+      return reservations.filter(r => r.status === 'cancelled' || r.status === 'no-show');
     }
-    return this.reservations;
+    return reservations;
+  }
+
+  getItemImage(item: Order['items'][number]): string | undefined {
+    const menuItem = this.menuItemMap.get(item.menuItemId);
+    return menuItem?.imageThumbnailUrl || menuItem?.imageUrl;
+  }
+
+  getOrderImage(order: Order): string | undefined {
+    for (const item of order.items) {
+      const image = this.getItemImage(item);
+      if (image) return image;
+    }
+    return undefined;
+  }
+
+  getItemCount(order: Order): number {
+    return order.items.reduce((count, item) => count + item.quantity, 0);
+  }
+
+  getDeliveryStep(order: Order): number {
+    switch (order.status) {
+      case 'preparing':
+      case 'ready':
+      case 'served': return 1;
+      case 'out-for-delivery': return 2;
+      case 'delivered': return 3;
+      default: return 0;
+    }
   }
 
   get activeOrderTypeLabel(): string {

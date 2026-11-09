@@ -105,6 +105,57 @@ copyright. The benefits strip is removed; free delivery within 3 km on orders
 of ₹299 or more is displayed inside the Offers dialog. This is promotional
 copy only; it does not change delivery-zone fee calculations.
 
+## Sign In
+
+The login page uses the supplied cafe welcome artwork as its bundled background
+with a rounded white sign-in card and lime actions. The artwork fits without
+cropping on desktop. Mobile uses centered welcome branding above a translucent
+rounded card, an OR divider, an outlined account-creation action, and food artwork
+below the form. Responsive spacing fits standard desktop and mobile viewports
+without page scrolling. Very small windows and zoomed views can
+still scroll to keep all controls accessible. The full navbar is hidden only on
+login; a Back to Home link provides an exit. Username/password authentication,
+role-based destinations, return-URL handling, password recovery and account
+creation are preserved. Password visibility can be toggled by keyboard.
+
+## My Orders
+
+The customer My Orders page uses the turquoise/lime theme with responsive
+photo cards, actual item quantities, status badges and a delivery-progress strip.
+Order thumbnails come from the live menu; an order-type illustration is used
+when no matching image exists. Search matches order IDs and item names and
+combines with the existing fulfillment/status filters. Table Bookings remains
+available and supports searches by booking ID, customer, date or table.
+Delivered cards expose Reorder and View Details; active orders link to tracking.
+Inline expansion preserves payment, receipt, cancellation and dining-bill actions.
+Quick reorder presets remain below the list. Admin order controls are retained.
+
+## Reservations
+
+The customer Reservations page uses a turquoise photo hero, lime booking tabs
+and confirmation button, rounded booking fields and selectable time chips.
+Existing cafe photos illustrate the hero and the "Before You Confirm" panel.
+The form and guidance sit side by side on desktop and stack with the form first
+on smaller screens. Public booking, sign-in draft recovery, outlet availability,
+time slots and guest counts, authenticated submissions, and My Reservations
+actions are unchanged. The homepage's compact reservation popup shares the
+booking controls without the full-page hero, photos or management tabs.
+
+## Meal Subscriptions
+
+The customer Subscriptions page uses a turquoise hero, lime section controls and
+subscribe buttons, and responsive meal-plan cards. Plan names, prices, durations,
+included items and benefits come from the subscription API, not the design reference.
+Plan category filters wrap on narrow screens so their labels remain fully visible
+without horizontal scrolling.
+The desktop combo-menu category filters also wrap into full-height rows; mobile
+continues to use the category drawer.
+Cards use a configured plan image, an included item's image, or a matching live
+menu item's image; category illustrations appear when no image is available.
+The custom-combo introduction also links from curated plans to the live menu
+builder. Existing category filters, mobile selection/schedule steps, delivery
+options, checkout, payment requests, and subscription management remain available.
+
 ## Timezone Standard
 
 IST (India Standard Time) is the business timezone. Calendar dates and timestamp

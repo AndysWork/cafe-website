@@ -1,4 +1,4 @@
-<div class="orders-page">
+<div class="orders-page" [class.customer-orders]="!isAdmin">
   <!-- Hero Header -->
   <div class="orders-hero">
     <div class="hero-bg"></div>
@@ -6,10 +6,11 @@
       <h1>{{ isAdmin ? "All Orders" : "My Orders" }}</h1>
       <p>
         {{
-          isAdmin ? "Manage customer orders" : "Track your orders in real-time"
+          isAdmin ? "Manage customer orders" : "Track, reorder and manage your past orders."
         }}
       </p>
     </div>
+    <img *ngIf="!isAdmin" class="orders-hero-art" src="/images/cafe/hero-pizza-drink.png" alt="" aria-hidden="true" width="1536" height="768" />
     <div class="hero-wave">
       <svg viewBox="0 0 1440 100" preserveAspectRatio="none">
         <path
@@ -27,35 +28,17 @@
   </div>
 
   <div class="orders-content">
-    <div
-      *ngIf="!isAdmin && quickReorderPresets.length > 0"
-      class="quick-reorder-section"
-    >
-      <h3>⚡ Quick Reorder Presets</h3>
-      <div class="quick-preset-list">
-        <button
-          class="quick-preset"
-          *ngFor="let preset of quickReorderPresets; trackBy: trackByKey"
-          (click)="reorderPreset(preset)"
-        >
-          <span class="preset-title">{{ preset.label }}</span>
-          <span class="preset-meta"
-            >Ordered {{ preset.occurrenceCount }} times</span
-          >
-        </button>
-      </div>
-    </div>
-
     <!-- Category / Experience Switcher (Delivery vs Dine-In vs Pickup vs Table Reservations) -->
     <div class="order-type-nav" *ngIf="!isAdmin">
-      <div class="type-pill-group">
+      <div class="type-pill-group" role="group" aria-label="Order types">
         <button
           type="button"
           class="type-pill"
           [class.active]="activeOrderTypeFilter === 'all'"
+          [attr.aria-pressed]="activeOrderTypeFilter === 'all'"
           (click)="setOrderTypeFilter('all')"
         >
-          <span class="type-icon">✨</span>
+          <svg class="type-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 7h14l2 14H3Zm3 1V6a4 4 0 0 1 8 0v2"/></svg>
           <span class="type-text">All Orders</span>
           <span class="type-badge">{{ getOrderTypeCount("all") }}</span>
         </button>
@@ -63,36 +46,40 @@
           type="button"
           class="type-pill pill-delivery"
           [class.active]="activeOrderTypeFilter === 'delivery'"
+          [attr.aria-pressed]="activeOrderTypeFilter === 'delivery'"
           (click)="setOrderTypeFilter('delivery')"
         >
           <span class="type-icon">🛵</span>
-          <span class="type-text">Home Delivery</span>
+          <span class="type-text">Delivery</span>
           <span class="type-badge">{{ getOrderTypeCount("delivery") }}</span>
         </button>
         <button
           type="button"
           class="type-pill pill-dinein"
           [class.active]="activeOrderTypeFilter === 'dine-in'"
+          [attr.aria-pressed]="activeOrderTypeFilter === 'dine-in'"
           (click)="setOrderTypeFilter('dine-in')"
         >
           <span class="type-icon">🍽️</span>
-          <span class="type-text">Dine-In Orders</span>
+          <span class="type-text">Dine-In</span>
           <span class="type-badge">{{ getOrderTypeCount("dine-in") }}</span>
         </button>
         <button
           type="button"
           class="type-pill pill-pickup"
           [class.active]="activeOrderTypeFilter === 'pickup'"
+          [attr.aria-pressed]="activeOrderTypeFilter === 'pickup'"
           (click)="setOrderTypeFilter('pickup')"
         >
           <span class="type-icon">🛍️</span>
-          <span class="type-text">Takeaway / Pickup</span>
+          <span class="type-text">Takeaway</span>
           <span class="type-badge">{{ getOrderTypeCount("pickup") }}</span>
         </button>
         <button
           type="button"
           class="type-pill pill-reservation"
           [class.active]="activeOrderTypeFilter === 'reservation'"
+          [attr.aria-pressed]="activeOrderTypeFilter === 'reservation'"
           (click)="setOrderTypeFilter('reservation')"
         >
           <span class="type-icon">📅</span>
@@ -102,6 +89,10 @@
           }}</span>
         </button>
       </div>
+      <label class="order-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg>
+        <input type="search" [(ngModel)]="searchQuery" placeholder="Search your orders..." aria-label="Search your orders" />
+      </label>
     </div>
 
     <!-- Filter Tabs (Status Filter: All / In Progress / Completed / Cancelled) -->
@@ -113,6 +104,7 @@
         *ngFor="let f of statusFilters; trackBy: trackByKey"
         class="tab"
         [class.active]="activeFilter === f.key"
+        [attr.aria-pressed]="activeFilter === f.key"
         (click)="activeFilter = f.key"
       >
         {{ f.label }}
@@ -152,7 +144,7 @@
 
     <!-- Empty State -->
     <div
-      *ngIf="!isLoading && !errorMessage && orders.length === 0"
+      *ngIf="!isLoading && !errorMessage && orders.length === 0 && activeOrderTypeFilter !== 'reservation'"
       class="empty-state"
     >
       <div class="empty-illustration">🛒</div>
@@ -189,7 +181,7 @@
       </p>
       <button
         class="btn-link"
-        (click)="activeFilter = 'all'; activeOrderTypeFilter = 'all'"
+        (click)="activeFilter = 'all'; activeOrderTypeFilter = 'all'; searchQuery = ''"
       >
         View all orders
       </button>
@@ -345,7 +337,7 @@
         "
       >
         <!-- Collapsed Header — always visible -->
-        <div class="card-header" (click)="toggleExpand(order.id)">
+        <div *ngIf="isAdmin" class="card-header" (click)="toggleExpand(order.id)">
           <div class="header-left">
             <span class="status-dot" [ngClass]="order.status"></span>
             <div class="header-info">
@@ -393,8 +385,41 @@
           </div>
         </div>
 
+        <div class="customer-order-summary" *ngIf="!isAdmin">
+          <div class="order-thumbnail" aria-hidden="true">
+            <img *ngIf="getOrderImage(order) as image; else orderImagePlaceholder" [src]="image" alt="" loading="lazy" />
+            <ng-template #orderImagePlaceholder><span>{{ getOrderTypeIcon(order) }}</span></ng-template>
+          </div>
+          <div class="customer-order-info">
+            <a class="customer-order-title" [routerLink]="['/orders', order.id]" [title]="order.id">Order #{{ order.id | slice: -6 }}</a>
+            <div class="customer-order-meta">{{ formatDate(order.createdAt) }} <span aria-hidden="true">·</span> {{ getItemCount(order) }} {{ getItemCount(order) === 1 ? 'Item' : 'Items' }}</div>
+            <div class="order-preview-items" *ngIf="order.status !== 'out-for-delivery'">
+              <span *ngFor="let item of order.items | slice:0:2">
+                <img *ngIf="getItemImage(item) as image" [src]="image" alt="" loading="lazy" />
+                {{ item.name }} ({{ item.quantity }})
+              </span>
+              <span *ngIf="order.items.length > 2">+{{ order.items.length - 2 }} more</span>
+            </div>
+          </div>
+          <div class="customer-order-badges">
+            <span class="type-badge-pill" [ngClass]="getOrderTypeBadgeClass(order)" [title]="getOrderTypeLabel(order)">{{ getOrderTypeIcon(order) }} {{ getOrderType(order) === 'dine-in' ? 'Dine-In' : getOrderType(order) === 'pickup' ? 'Takeaway' : 'Delivery' }}</span>
+            <span class="status-chip" [ngClass]="order.status">{{ getStatusDisplayText(order.status) }} <span aria-hidden="true">{{ order.status === 'delivered' ? '✓' : order.status === 'cancelled' ? '×' : '' }}</span></span>
+          </div>
+          <div class="customer-order-total">₹{{ order.total | number:'1.0-2' }}</div>
+          <button type="button" class="order-expand" (click)="toggleExpand(order.id)" [attr.aria-expanded]="isExpanded(order.id)" [attr.aria-controls]="'order-details-' + order.id" [attr.aria-label]="(isExpanded(order.id) ? 'Hide details for order ' : 'Show details for order ') + order.id"> <span aria-hidden="true">{{ isExpanded(order.id) ? '⌄' : '›' }}</span></button>
+          <ol class="delivery-progress" *ngIf="getOrderType(order) === 'delivery' && !['scheduled', 'delivered', 'cancelled'].includes(order.status)" aria-label="Delivery progress">
+            <li *ngFor="let step of deliverySteps; let i = index" [class.complete]="i < getDeliveryStep(order)" [class.current]="i === getDeliveryStep(order)" [attr.aria-current]="i === getDeliveryStep(order) ? 'step' : null">
+              <span class="step-marker" aria-hidden="true">{{ i < getDeliveryStep(order) ? '✓' : '' }}</span><span>{{ step }}</span>
+            </li>
+          </ol>
+          <div class="customer-order-actions">
+            <button type="button" class="summary-reorder" *ngIf="order.status === 'delivered'" (click)="reorderItems(order)"><span aria-hidden="true">↶</span> Reorder</button>
+            <a class="summary-details" [class.primary-action]="order.status === 'delivered'" [routerLink]="['/orders', order.id]">{{ !['delivered', 'cancelled'].includes(order.status) ? 'Track Order' : 'View Details' }}</a>
+          </div>
+        </div>
+
         <!-- Expanded Body -->
-        <div class="card-body" *ngIf="isExpanded(order.id)">
+        <div class="card-body" [id]="'order-details-' + order.id" *ngIf="isExpanded(order.id)">
           <!-- Items Table -->
           <div class="items-section">
             <div class="items-header">Items Ordered</div>
@@ -663,6 +688,15 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+    <div *ngIf="!isAdmin && quickReorderPresets.length > 0" class="quick-reorder-section">
+      <h3>⚡ Quick Reorder Presets</h3>
+      <div class="quick-preset-list">
+        <button class="quick-preset" *ngFor="let preset of quickReorderPresets; trackBy: trackByKey" (click)="reorderPreset(preset)">
+          <span class="preset-title">{{ preset.label }}</span>
+          <span class="preset-meta">Ordered {{ preset.occurrenceCount }} times</span>
+        </button>
       </div>
     </div>
   </div>

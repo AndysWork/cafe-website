@@ -110,5 +110,61 @@ describe('public reservation booking', () => {
     expect(fixture.nativeElement.querySelector('.compact-reservation form')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('.tabs')).toBeNull();
     expect(fixture.nativeElement.querySelector('.page-hero')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.aside-photo')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.booking-tips')).not.toBeNull();
+  });
+
+  it('renders the redesigned booking controls with all existing slots and accessible selection', () => {
+    auth.isLoggedIn.and.returnValue(true);
+    const fixture = TestBed.createComponent(TableReservationComponent);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    const component = fixture.componentInstance;
+    expect(root.querySelector('.hero-photo')?.getAttribute('src')).toBe('/images/cafe/cafe-01.jpg');
+    expect(root.querySelector('.aside-photo')).not.toBeNull();
+    expect(root.querySelectorAll('.time-chip').length).toBe(component.timeSlots.length);
+    const slots = root.querySelectorAll<HTMLButtonElement>('.time-chip');
+    slots[1].click();
+    fixture.detectChanges();
+    expect(component.form.timeSlot).toBe('11:30 AM');
+    expect(slots[1].getAttribute('aria-pressed')).toBe('true');
+    expect(slots[0].getAttribute('aria-pressed')).toBe('false');
+    expect(root.querySelector('label[for="reservation-name"]')).not.toBeNull();
+    expect(root.querySelector('#reservation-name')).not.toBeNull();
+    expect(root.querySelector('.btn-submit')?.textContent).toContain('Confirm Reservation');
+    http.expectNone(request => request.method === 'POST');
+  });
+
+  it('switches to live reservation management and restores the booking layout', () => {
+    auth.isLoggedIn.and.returnValue(true);
+    const fixture = TestBed.createComponent(TableReservationComponent);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    root.querySelectorAll<HTMLButtonElement>('.tabs .tab')[1].click();
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.tabs .tab')[1].getAttribute('aria-pressed')).toBe('true');
+    expect(root.querySelector('.booking-aside')).toBeNull();
+    const request = http.expectOne(req => req.method === 'GET' && req.url.endsWith('/reservations/my'));
+    request.flush([]);
+    fixture.detectChanges();
+    expect(root.querySelector('.empty-state')?.textContent).toContain('No reservations yet');
+    root.querySelectorAll<HTMLButtonElement>('.tabs .tab')[0].click();
+    fixture.detectChanges();
+    expect(root.querySelector('.reservation-shell.booking-view')).not.toBeNull();
+    expect(root.querySelector('.booking-aside')).not.toBeNull();
+  });
+
+  it('keeps time selection and confirmation disabled while dine-in is unavailable', () => {
+    auth.isLoggedIn.and.returnValue(true);
+    const fixture = TestBed.createComponent(TableReservationComponent);
+    spyOnProperty(fixture.componentInstance, 'isDineInCurrentlyAvailable', 'get').and.returnValue(false);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    expect([...root.querySelectorAll<HTMLButtonElement>('.time-chip')].every(button => button.disabled)).toBeTrue();
+    expect(root.querySelector<HTMLButtonElement>('.btn-submit')?.disabled).toBeTrue();
+    expect(root.querySelector('.btn-submit')?.textContent).toContain('Shop Closed');
+    fixture.componentInstance.submitReservation();
+    http.expectNone(request => request.method === 'POST');
+    expect(TestBed.inject(UIStore).warning).toHaveBeenCalled();
   });
 });

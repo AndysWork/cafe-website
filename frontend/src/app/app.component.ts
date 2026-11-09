@@ -33,12 +33,12 @@ export class AppComponent {
   private readonly lastRouteStorageKey = 'lastAppRouteBeforeTranslate';
 
   constructor(private router: Router) {
-    // Hide navbar on admin routes & track page views
+    // Keep sign-in focused, without the customer navigation.
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: any) => {
       const currentUrl = (event.urlAfterRedirects || event.url || '').split('?')[0] || '/';
-      this.showNavbar = !currentUrl.startsWith('/admin');
+      this.showNavbar = !currentUrl.startsWith('/admin') && currentUrl !== '/login';
 
       const isCustomer = !currentUrl.startsWith('/admin') &&
                          !currentUrl.startsWith('/kitchen') &&
