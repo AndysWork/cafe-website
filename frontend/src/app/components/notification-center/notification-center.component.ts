@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { NotificationStore } from '../../store/notification.store';
 import { AppNotification } from '../../services/notification-api.service';
-import { parseIstDate } from '../../utils/date-utils';
+import { getStoredTimestampEpoch } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-notification-center',
@@ -451,7 +451,7 @@ export class NotificationCenterComponent {
       return null;
     }
 
-    const parsed = parseIstDate(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    const epoch = getStoredTimestampEpoch(value);
+    return epoch ? new Date(epoch) : null;
   }
 }

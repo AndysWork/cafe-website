@@ -243,10 +243,20 @@ creation marker.
 
 The kitchen queue resolves unmarked, session-linked dine-in order creation
 timestamps as UTC, retaining the existing ObjectId-based compatibility check for
-historical IST wall-clock records. Other unmarked orders remain IST wall-clock.
+historical IST wall-clock records. Phone orders use their UTC creation-time
+contract, independently of their hash-based IDs; an explicit `createdAtIsUtc=false`
+retains IST wall-clock interpretation. Phone creation writes the optional UTC marker
+only when the staged rollout flag is enabled. Older unmarked phone orders from
+before the UTC-writing change cannot be distinguished by ID and require explicit
+classification if historical correction is needed. Other unmarked orders remain IST wall-clock.
 Its `createdAt` response includes an explicit `+05:30` offset, and elapsed minutes
 and completed-today creation-date checks use the same normalized value. This does
 not enable marker writes, migrate stored records, or reinterpret preparation timestamps.
+
+The notification bell interprets notification creation timestamps as stored IST
+wall-clock values, including legacy MongoDB values serialized with `Z`. Explicit
+IST offsets are preserved. Relative ages and older notification dates therefore
+remain independent of the browser timezone; stored notification data is unchanged.
 
 The read-only historical audit found expense and sales dates stored at both
 00:00 UTC and 18:30 UTC. Do not blanket-convert their boundaries or data.

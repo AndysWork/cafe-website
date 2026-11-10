@@ -150,6 +150,7 @@ public sealed class PhoneDeliveryOrderFunction
                 KotNumber = await _orders.GetNextDineInKotNumberAsync(outletId!),
                 ApprovalStatus = "approved", ApprovedByUserId = userId, ApprovedAt = now,
                 Status = "pending", CreatedAt = now, UpdatedAt = now,
+                CreatedAtIsUtc = IstDateHelper.UtcTimestampMarker,
                 DeliveryDistanceKm = routeDistanceKm,
                 DeliveryEtaMinutes = estimatedMinutes,
                 ManualDeliveryFeeOverride = manualOverrideApplied ? deliveryFee : null,

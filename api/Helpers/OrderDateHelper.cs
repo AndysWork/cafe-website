@@ -7,6 +7,11 @@ public static class OrderDateHelper
 {
     public static DateTimeOffset ToKitchenCreatedAtIst(Order order)
     {
+        // Phone IDs are hashes, not creation-time ObjectIds; do not apply the dine-in heuristic.
+        if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+            return DineInTimestampHelper.ToIstOffset(order.CreatedAt, order.CreatedAtIsUtc,
+                order.CreatedAtIsUtc == false);
+
         // Dine-in rounds write UTC even before the optional marker rollout is enabled.
         var isDineInRound = order.OrderType == "dine-in"
             && !string.IsNullOrWhiteSpace(order.DineInSessionId);
