@@ -193,6 +193,43 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     expect(component.matchedItemsRevenue).toBe(100);
   });
 
+  it('collapses item quantities while keeping summaries, search and export available', () => {
+    const fixture = TestBed.createComponent(AdminWebSalesComponent);
+    const view = fixture.componentInstance;
+    view.dashboardAvailable = true;
+    view.orders = [order];
+    const exportCsv = spyOn(view, 'exportItemAnalyticsCsv');
+    fixture.detectChanges();
+    const element: HTMLElement = fixture.nativeElement;
+    const panel = element.querySelector<HTMLElement>('#item-analytics')!;
+    const toggle = panel.querySelector<HTMLButtonElement>('.item-quantity-toggle')!;
+    const details = panel.querySelector<HTMLElement>('#item-quantity-details')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(details.hidden).toBeFalse();
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(details.hidden).toBeTrue();
+    expect(panel.querySelector('.recon-summary-grid')?.textContent).toContain('Total Sold (Match)');
+    expect(panel.querySelector('.filters input')).not.toBeNull();
+    panel.querySelector<HTMLButtonElement>('.filters button')!.click();
+    expect(exportCsv).toHaveBeenCalled();
+    view.itemSearchTerm = 'Tea';
+    fixture.detectChanges();
+    toggle.click();
+    fixture.detectChanges();
+    expect(details.hidden).toBeFalse();
+    expect(details.querySelector('tbody')?.textContent).toContain('Tea');
+    expect(view.itemSearchTerm).toBe('Tea');
+    toggle.click();
+    fixture.detectChanges();
+    spyOn(panel, 'scrollIntoView');
+    view.scrollToSection('item-analytics');
+    fixture.detectChanges();
+    expect(details.hidden).toBeFalse();
+    fixture.destroy();
+  });
+
   it('shows recorded payment types for standalone and split table payments', () => {
     component.collection = collection;
     expect(component.formatPaymentMethod({ ...order, paymentMethod: 'upi-qr' })).toBe('UPI');

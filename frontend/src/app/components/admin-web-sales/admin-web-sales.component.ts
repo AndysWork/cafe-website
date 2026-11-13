@@ -190,6 +190,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   statusFilter = 'all';
   searchTerm = '';
   itemSearchTerm = '';
+  itemQuantitiesExpanded = true;
 
   startDate = `${getIstDateString().slice(0, 7)}-01`;
   endDate = getIstDateString();
@@ -409,6 +410,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   scrollToSection(id: string): void {
+    if (id === 'item-analytics') this.itemQuantitiesExpanded = true;
     this.activeSection = id;
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }

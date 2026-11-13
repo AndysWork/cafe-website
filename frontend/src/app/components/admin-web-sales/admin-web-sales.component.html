@@ -517,7 +517,14 @@
 
   <div class="panel" id="item-analytics">
     <div class="panel-head">
-      <h2>Web Sales Item Quantities</h2>
+      <h2>
+        <button type="button" class="item-quantity-toggle" (click)="itemQuantitiesExpanded = !itemQuantitiesExpanded"
+          [attr.aria-expanded]="itemQuantitiesExpanded" aria-controls="item-quantity-details">
+          <span class="item-quantity-toggle-icon" aria-hidden="true">{{ itemQuantitiesExpanded ? '−' : '+' }}</span>
+          Web Sales Item Quantities
+          <span class="item-quantity-toggle-label">{{ itemQuantitiesExpanded ? 'Collapse' : 'Expand' }}</span>
+        </button>
+      </h2>
       <div class="filters">
         <button type="button" (click)="exportItemAnalyticsCsv()" [disabled]="!filteredWebSalesItemQuantities.length">
           Export CSV
@@ -542,6 +549,7 @@
       </div>
     </div>
 
+    <div id="item-quantity-details" [hidden]="!itemQuantitiesExpanded">
     <div class="table-wrap item-quantity-table" *ngIf="!loading && filteredWebSalesItemQuantities.length > 0">
       <table>
         <thead>
@@ -571,6 +579,7 @@
 
     <div *ngIf="!loading && filteredWebSalesItemQuantities.length === 0" class="state">
       No items found for current date range and item search.
+    </div>
     </div>
   </div>
 
