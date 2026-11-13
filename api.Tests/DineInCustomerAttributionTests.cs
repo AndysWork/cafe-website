@@ -817,6 +817,10 @@ public sealed class DineInCustomerAttributionTests
         Assert.Equal(40, result.GetProperty("cash").GetDecimal());
         Assert.Equal(100, result.GetProperty("total").GetDecimal());
         Assert.Equal("upi-qr", result.GetProperty("sessionMethods").GetProperty(SessionId)[0].GetString());
+        var sessionPayment = result.GetProperty("sessionPayments").GetProperty(SessionId);
+        Assert.Equal(mergedId, sessionPayment.GetProperty("sessionId").GetString());
+        Assert.Equal(60, sessionPayment.GetProperty("upi").GetDecimal());
+        Assert.Equal(0, sessionPayment.GetProperty("cash").GetDecimal());
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { AdminWebSalesComponent } from './admin-web-sales.component';
 import { Order, OrderService } from '../../services/order.service';
@@ -31,7 +32,9 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     createdAt: '2026-11-08T12:00:00Z', updatedAt: '2026-11-08T12:00:00Z'
   };
   const collection = { upi: 80, cash: 30, other: 0, unallocated: 0,
-    total: 110, unknownAmountOrders: 0, sessionMethods: { session: ['upi-qr', 'cash_at_counter'] } };
+    total: 110, unknownAmountOrders: 0, sessionMethods: { session: ['upi-qr', 'cash_at_counter'] },
+    sessionPayments: { session: { sessionId: 'session', tableNumber: 'T1', grandTotal: 110,
+      paymentStatus: 'paid', cash: 30, upi: 80, other: 0, unallocated: 0, total: 110 } } };
 
   beforeEach(() => {
     orderService = jasmine.createSpyObj<OrderService>('OrderService', ['adminReconcileOrder']);
@@ -39,7 +42,13 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     dineIn = jasmine.createSpyObj<DineInService>('DineInService', ['confirmPayment']);
     TestBed.configureTestingModule({
       providers: [
-        { provide: OutletService, useValue: { getSelectedOutletId: () => 'outlet-1' } },
+        provideRouter([]),
+        { provide: OrderService, useValue: orderService },
+        { provide: HttpClient, useValue: http },
+        { provide: DineInService, useValue: dineIn },
+        { provide: DeliveryPartnerService, useValue: {} },
+        { provide: MenuService, useValue: {} },
+        { provide: OutletService, useValue: { getSelectedOutletId: () => 'outlet-1', selectedOutlet$: of(null) } },
         { provide: UIStore, useValue: { warning: jasmine.createSpy('warning'), success: jasmine.createSpy('success'), error: jasmine.createSpy('error') } }
       ]
     });
@@ -189,6 +198,75 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     expect(component.formatPaymentMethod({ ...order, paymentMethod: 'upi-qr' })).toBe('UPI');
     expect(component.formatPaymentMethod({ ...order, paymentMethod: 'cod' })).toBe('Cash / COD');
     expect(component.formatPaymentMethod({ ...order, dineInSessionId: 'session' })).toBe('UPI + Cash');
+  });
+
+  it('groups session rounds together while keeping standalone orders and separate table visits distinct', () => {
+    component.collection = collection;
+    component.reconciliationOrders = [
+      { ...order, id: 'round-1', dineInSessionId: 'session', total: 40, tableNumber: 'T1' },
+      { ...order, id: 'takeaway', orderType: 'pickup', total: 10 },
+      { ...order, id: 'round-2', dineInSessionId: 'session', total: 70, tableNumber: 'T1' },
+      { ...order, id: 'other-visit', dineInSessionId: 'another-session', tableNumber: 'T1' }
+    ];
+
+    const groups = component.orderSessionGroups;
+
+    expect(groups.length).toBe(3);
+    expect(groups[0].orders.map(item => item.id)).toEqual(['round-1', 'round-2']);
+    expect(groups[0].orderValue).toBe(110);
+    expect(groups[0].payment?.cash).toBe(30);
+    expect(groups[0].payment?.upi).toBe(80);
+    expect(groups[1].sessionId).toBeNull();
+    expect(groups[2].payment).toBeNull();
+    component.toggleSessionGroup(groups[0].key);
+    expect(component.collapsedSessions.has(groups[0].key)).toBeTrue();
+    component.toggleSessionGroup(groups[0].key);
+    expect(component.collapsedSessions.has(groups[0].key)).toBeFalse();
+  });
+
+  it('groups merged sessions and preserves the full payment breakdown when orders are filtered', () => {
+    const payment = collection.sessionPayments.session;
+    component.collection = { ...collection, sessionPayments: { session: payment, old: payment } };
+    component.reconciliationOrders = [
+      { ...order, id: 'one', dineInSessionId: 'old', total: 40 },
+      { ...order, id: 'two', dineInSessionId: 'session', total: 70, status: 'pending' }
+    ];
+    expect(component.orderSessionGroups.length).toBe(1);
+    component.statusFilter = 'pending';
+    const group = component.orderSessionGroups[0];
+    expect(group.orders.map(item => item.id)).toEqual(['two']);
+    expect(group.orderValue).toBe(70);
+    expect(group.payment?.total).toBe(110);
+    component.statusFilter = 'all';
+    component.searchTerm = 'old';
+    expect(component.orderSessionGroups[0].orders.map(item => item.id)).toEqual(['one']);
+  });
+
+  it('renders session payment amounts once and retains order actions when expanded', () => {
+    const fixture = TestBed.createComponent(AdminWebSalesComponent);
+    const view = fixture.componentInstance;
+    view.dashboardAvailable = true;
+    view.collection = collection;
+    view.orders = view.reconciliationOrders = [
+      { ...order, id: 'round-1', dineInSessionId: 'session' },
+      { ...order, id: 'round-2', dineInSessionId: 'session' },
+      { ...order, id: 'takeaway', orderType: 'pickup' }
+    ];
+    view.initializeDrafts();
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    const header = element.querySelector<HTMLElement>('.session-group-row')!;
+    expect(header.querySelector('.session-metric.cash')?.textContent).toContain('₹30.00');
+    expect(header.querySelector('.session-metric.upi')?.textContent).toContain('₹80.00');
+    const body = header.parentElement!;
+    expect(body.querySelectorAll('tr').length).toBe(3);
+    expect(body.textContent).toContain('Reconcile');
+    header.querySelector('button')!.click();
+    fixture.detectChanges();
+    expect(body.querySelectorAll('tr').length).toBe(1);
+    expect(element.querySelectorAll('.session-group-row').length).toBe(1);
+    fixture.destroy();
   });
 
   it('preserves an existing packaging charge in reconciliation drafts', () => {

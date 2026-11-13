@@ -785,6 +785,29 @@
   .control-stat.orange { background: #fffaf5; } .orange .stat-icon { color: #ff8700; background: #ffeed5; }
   .collection-summary { display: grid; min-width: 0; gap: 0.45rem; }
   .collection-summary h2 { margin: 0; color: #0c1d4e; font-size: 0.92rem; }
+  .session-group-row td { padding: 0 !important; background: #f3f8ff; border-top: 2px solid #c9dcf4; }
+  .session-group-summary { display: grid; gap: 0.55rem; min-width: 0; padding: 0.7rem 0.75rem; }
+  .session-group-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
+  .session-toggle {
+    display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid #c5d9f3; border-radius: 8px;
+    background: #fff; color: #12386b; padding: 0.35rem 0.55rem; font-size: 0.72rem; font-weight: 750; cursor: pointer;
+  }
+  .session-toggle:hover { background: #e8f2ff; border-color: #9dbce7; }
+  .session-toggle:focus-visible { outline: 2px solid #1675d1; outline-offset: 2px; }
+  .session-toggle-icon { display: grid; place-items: center; width: 1.15rem; height: 1.15rem; border-radius: 5px; background: #e7f1ff; color: #145bab; font-size: 0.85rem; }
+  .session-table-badge { border-radius: 999px; background: #e8f2ff; color: #315a8a; padding: 0.15rem 0.4rem; font-size: 0.62rem; }
+  .session-order-count { color: #526785; font-size: 0.68rem; }
+  .session-group-metrics { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.4rem; }
+  .session-metric { display: grid; align-content: center; gap: 0.15rem; min-width: 105px; padding: 0.38rem 0.55rem; border: 1px solid #dce8f6; border-radius: 8px; background: #fff; }
+  .session-metric small { color: #617895; font-size: 0.58rem; line-height: 1.25; }
+  .session-metric strong { color: #19385f; font-size: 0.74rem; line-height: 1.3; }
+  .session-metric.cash { border-color: #ccebd8; background: #f6fff8; }
+  .session-metric.cash strong { color: #167445; }
+  .session-metric.upi { border-color: #d3ddfb; background: #f7f8ff; }
+  .session-metric.upi strong { color: #3a4eb1; }
+  .session-metric.total-recorded { border-color: #b9d5f7; background: #edf6ff; }
+  .session-payment-unavailable strong { color: #a45b10; }
+  .session-group-note { margin: 0; color: #526785; font-size: 0.63rem; line-height: 1.4; }
   .control-charts { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(240px, 1fr) minmax(260px, 1fr); gap: 0.55rem; }
   .control-card { min-width: 0; border: 1px solid #d6e5f6; border-radius: 11px; background: #fff; box-shadow: 0 2px 8px #183d7019; padding: 0.7rem; }
   .card-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; justify-content: space-between; margin-bottom: 0.45rem; }
@@ -877,6 +900,9 @@
     .mobile-quick-actions a, .mobile-quick-actions button { min-width: 0; display: grid; place-items: center; gap: 0.2rem; border: 1px solid #d8e6f7; border-radius: 9px; background: #fff; color: #0c1d4e; padding: 0.5rem 0.2rem; text-decoration: none; font-size: 0.6rem; font-weight: 700; }
     .mobile-quick-actions span { font-size: 1rem; } .mobile-quick-actions .primary { background: #d3f500; }
     .items-card, .insights-card, .live-preview { display: none; }
+    .session-group-summary { padding: 0.55rem; }
+    .session-group-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .session-metric { min-width: 0; padding: 0.35rem 0.45rem; }
     .control-mobile-nav { position: fixed; z-index: 900; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(5, 1fr); padding: 0.35rem 0.25rem max(0.35rem, env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -3px 15px #1a477525; }
     .control-mobile-nav > button, .control-mobile-nav > a, .control-mobile-nav summary { display: grid; justify-items: center; gap: 0.2rem; border: 0; background: transparent; color: #274772; text-decoration: none; font-size: 0.58rem; font-weight: 700; cursor: pointer; }
     .control-mobile-nav span { font-size: 1.05rem; } .control-mobile-nav details { position: relative; } .control-mobile-nav details > div { bottom: 100%; }

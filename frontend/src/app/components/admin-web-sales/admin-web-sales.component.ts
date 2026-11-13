@@ -31,6 +31,27 @@ interface OrderPeriodCollection {
   total: number;
   unknownAmountOrders: number;
   sessionMethods: Record<string, string[]>;
+  sessionPayments?: Record<string, SessionCollection>;
+}
+
+interface SessionCollection {
+  sessionId: string;
+  tableNumber: string;
+  grandTotal: number;
+  paymentStatus: string;
+  cash: number;
+  upi: number;
+  other: number;
+  unallocated: number;
+  total: number;
+}
+
+interface OrderSessionGroup {
+  key: string;
+  sessionId: string | null;
+  orders: Order[];
+  orderValue: number;
+  payment: SessionCollection | null;
 }
 
 type ComplianceLevel = 'green' | 'amber' | 'red';
@@ -161,6 +182,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   orders: Order[] = [];
   reconciliationOrders: Order[] = [];
+  collapsedSessions = new Set<string>();
   partners: DeliveryPartner[] = [];
   statusFilter = 'all';
   searchTerm = '';
@@ -742,9 +764,38 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       const textMatch = !query ||
         order.id.toLowerCase().includes(query) ||
         (order.username || '').toLowerCase().includes(query) ||
+        (order.dineInSessionId || '').toLowerCase().includes(query) ||
+        (order.tableNumber || '').toLowerCase().includes(query) ||
         (order.phoneNumber || '').toLowerCase().includes(query);
       return statusMatch && textMatch;
     });
+  }
+
+  get orderSessionGroups(): OrderSessionGroup[] {
+    const groups = new Map<string, OrderSessionGroup>();
+    for (const order of this.filteredOrders) {
+      const payment = order.dineInSessionId
+        ? this.collection?.sessionPayments?.[order.dineInSessionId] || null : null;
+      const sessionId = payment?.sessionId || order.dineInSessionId || null;
+      const key = sessionId ? `session:${sessionId}` : `order:${order.id}`;
+      let group = groups.get(key);
+      if (!group) {
+        group = { key, sessionId, orders: [], orderValue: 0, payment };
+        groups.set(key, group);
+      }
+      group.orders.push(order);
+      if (!['cancelled', 'rejected'].includes(order.status)) group.orderValue += order.total;
+    }
+    return [...groups.values()];
+  }
+
+  trackBySessionGroup(_index: number, group: OrderSessionGroup): string {
+    return group.key;
+  }
+
+  toggleSessionGroup(key: string): void {
+    if (this.collapsedSessions.has(key)) this.collapsedSessions.delete(key);
+    else this.collapsedSessions.add(key);
   }
 
   get webSalesItemQuantities(): WebSalesItemQuantityRow[] {

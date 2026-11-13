@@ -37,6 +37,11 @@ public class OrderPeriodCollectionTests
         Assert.Equal(285, result.Total);
         Assert.Equal(2, result.UnknownAmountOrders);
         Assert.Equal(new[] { "cash_at_counter", "upi-qr" }, result.SessionMethods["session"]);
+        var breakdown = result.SessionPayments["session"];
+        Assert.Equal(30, breakdown.Cash);
+        Assert.Equal(20, breakdown.Upi);
+        Assert.Equal(5, breakdown.Unallocated);
+        Assert.Equal(55, breakdown.Total);
     }
 
     [Fact]
@@ -54,6 +59,9 @@ public class OrderPeriodCollectionTests
         var result = OrderPeriodCollection.Calculate(orders, sessions);
         Assert.Equal(50, result.Total);
         Assert.Equal(new[] { "upi-qr" }, result.SessionMethods["old"]);
+        Assert.Equal("current", result.SessionPayments["old"].SessionId);
+        Assert.Equal(result.SessionPayments["current"], result.SessionPayments["old"]);
+        Assert.Equal(50, result.SessionPayments["current"].Upi);
     }
 
     [Fact]

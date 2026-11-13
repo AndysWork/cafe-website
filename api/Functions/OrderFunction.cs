@@ -1317,7 +1317,7 @@ public class OrderFunction
 
     [Function("AdminReconcileOrder")]
     public async Task<HttpResponseData> AdminReconcileOrder(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "admin/orders/{id}/reconcile")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "manage/orders/{id}/reconcile")] HttpRequestData req,
         string id)
     {
         try
@@ -1661,7 +1661,7 @@ public class OrderFunction
 
     [Function("AdminCreateMissedOrder")]
     public async Task<HttpResponseData> AdminCreateMissedOrder(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/orders/reconcile/missed")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "manage/orders/reconcile/missed")] HttpRequestData req)
     {
         try
         {

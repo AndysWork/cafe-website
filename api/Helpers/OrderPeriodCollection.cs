@@ -4,7 +4,12 @@ namespace Cafe.Api.Helpers;
 
 public sealed record OrderPeriodCollectionResult(
     decimal Upi, decimal Cash, decimal Other, decimal Unallocated,
-    decimal Total, int UnknownAmountOrders, Dictionary<string, string[]> SessionMethods);
+    decimal Total, int UnknownAmountOrders, Dictionary<string, string[]> SessionMethods,
+    Dictionary<string, SessionCollection> SessionPayments);
+
+public sealed record SessionCollection(
+    string SessionId, string TableNumber, decimal GrandTotal, string PaymentStatus,
+    decimal Cash, decimal Upi, decimal Other, decimal Unallocated, decimal Total);
 
 public static class OrderPeriodCollection
 {
@@ -15,6 +20,8 @@ public static class OrderPeriodCollection
         var unknownAmountOrders = 0;
         var selectedSessions = new Dictionary<string, DineInSession>();
         var sessionMethods = new Dictionary<string, string[]>();
+        var resolvedSessions = new Dictionary<string, string>();
+        var sessionPayments = new Dictionary<string, SessionCollection>();
 
         void AddPayment(string? method, decimal amount)
         {
@@ -48,6 +55,7 @@ public static class OrderPeriodCollection
                             .Select(entry => entry.PaymentMethod).Where(method => !string.IsNullOrWhiteSpace(method))
                             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                         sessionMethods[order.DineInSessionId] = methods;
+                        resolvedSessions[order.DineInSessionId] = sessionId;
                         break;
                     }
                     sessionId = session.MergedIntoSessionId;
@@ -70,6 +78,9 @@ public static class OrderPeriodCollection
         var seenEntries = new HashSet<string>();
         foreach (var session in selectedSessions.Values)
         {
+            var previousCash = cash;
+            var previousUpi = upi;
+            var previousOther = other;
             decimal confirmedTotal = 0;
             foreach (var entry in session.PaymentEntries ?? new List<DineInPaymentEntry>())
             {
@@ -79,9 +90,15 @@ public static class OrderPeriodCollection
                 confirmedTotal += entry.Amount;
                 AddPayment(entry.PaymentMethod, entry.Amount);
             }
-            unallocated += Math.Max(0, session.AmountPaid - confirmedTotal);
+            var sessionUnallocated = Math.Max(0, session.AmountPaid - confirmedTotal);
+            unallocated += sessionUnallocated;
+            sessionPayments[session.Id!] = new SessionCollection(
+                session.Id!, session.TableNumber, session.GrandTotal, session.PaymentStatus,
+                cash - previousCash, upi - previousUpi, other - previousOther, sessionUnallocated,
+                confirmedTotal + sessionUnallocated);
         }
         return new OrderPeriodCollectionResult(upi, cash, other, unallocated,
-            upi + cash + other + unallocated, unknownAmountOrders, sessionMethods);
+            upi + cash + other + unallocated, unknownAmountOrders, sessionMethods,
+            resolvedSessions.ToDictionary(pair => pair.Key, pair => sessionPayments[pair.Value]));
     }
 }

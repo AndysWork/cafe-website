@@ -543,7 +543,7 @@ export class OrderService {
   }
 
   adminReconcileOrder(orderId: string, payload: AdminReconcileOrderRequest): Observable<Order> {
-    const adminRoute = `${this.apiUrl}/admin/orders/${orderId}/reconcile`;
+    const adminRoute = `${this.apiUrl}/manage/orders/${orderId}/reconcile`;
     const legacyRoute = `${this.apiUrl}/orders/${orderId}/reconcile`;
 
     return this.http.put<Order>(adminRoute, payload).pipe(
@@ -559,7 +559,7 @@ export class OrderService {
   }
 
   adminCreateMissedOrder(payload: AdminCreateMissedOrderRequest): Observable<Order> {
-    const adminRoute = `${this.apiUrl}/admin/orders/reconcile/missed`;
+    const adminRoute = `${this.apiUrl}/manage/orders/reconcile/missed`;
     const legacyRoute = `${this.apiUrl}/orders/reconcile/missed`;
 
     return this.http.post<Order>(adminRoute, payload).pipe(

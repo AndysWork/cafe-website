@@ -802,8 +802,64 @@
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody>
-          <ng-container *ngFor="let order of filteredOrders; trackBy: trackById">
+        <tbody *ngFor="let group of orderSessionGroups; trackBy: trackBySessionGroup">
+          <tr *ngIf="group.sessionId" class="session-group-row">
+            <td colspan="11">
+              <div class="session-group-summary">
+                <div class="session-group-heading">
+                  <button type="button" class="session-toggle" (click)="toggleSessionGroup(group.key)" [attr.aria-expanded]="!collapsedSessions.has(group.key)">
+                    <span class="session-toggle-icon" aria-hidden="true">{{ collapsedSessions.has(group.key) ? '+' : '−' }}</span>
+                    <span>Session #{{ group.sessionId.slice(-6) }}</span>
+                    <span class="session-table-badge" *ngIf="group.payment?.tableNumber || group.orders[0].tableNumber">
+                      Table {{ group.payment?.tableNumber || group.orders[0].tableNumber }}
+                    </span>
+                  </button>
+                  <span class="session-order-count">{{ group.orders.length }} matching orders</span>
+                </div>
+                <div class="session-group-metrics">
+                  <span class="session-metric">
+                    <small>Filtered order value</small>
+                    <strong>{{ formatCurrency(group.orderValue) }}</strong>
+                  </span>
+                <ng-container *ngIf="group.payment as payment; else sessionPaymentUnavailable">
+                  <span class="session-metric">
+                    <small>Session bill · {{ payment.paymentStatus }}</small>
+                    <strong>{{ formatCurrency(payment.grandTotal) }}</strong>
+                  </span>
+                  <span class="session-metric cash">
+                    <small>Cash paid</small>
+                    <strong>{{ formatCurrency(payment.cash) }}</strong>
+                  </span>
+                  <span class="session-metric upi">
+                    <small>UPI paid</small>
+                    <strong>{{ formatCurrency(payment.upi) }}</strong>
+                  </span>
+                  <span class="session-metric" *ngIf="payment.other">
+                    <small>Other</small>
+                    <strong>{{ formatCurrency(payment.other) }}</strong>
+                  </span>
+                  <span class="session-metric" *ngIf="payment.unallocated">
+                    <small>Unallocated</small>
+                    <strong>{{ formatCurrency(payment.unallocated) }}</strong>
+                  </span>
+                  <span class="session-metric total-recorded">
+                    <small>Total recorded</small>
+                    <strong>{{ formatCurrency(payment.total) }}</strong>
+                  </span>
+                </ng-container>
+                <ng-template #sessionPaymentUnavailable>
+                  <span class="session-metric session-payment-unavailable">
+                    <small>Session payments</small>
+                    <strong>{{ collectionLoading ? 'Loading…' : 'Unavailable' }}</strong>
+                  </span>
+                </ng-template>
+                </div>
+                <small class="session-group-note">Payment figures cover the full session, not individual orders. Matching orders follow the selected date, status and search filters.</small>
+              </div>
+            </td>
+          </tr>
+          <ng-container *ngIf="!group.sessionId || !collapsedSessions.has(group.key)">
+          <ng-container *ngFor="let order of group.orders; trackBy: trackById">
             <tr>
               <td>#{{ order.id.slice(-6) }}</td>
               <td>
@@ -818,7 +874,7 @@
                 <small *ngIf="getLoyaltyRedemptionAmount(order) > 0">Loyalty Redemption: -{{ formatCurrency(getLoyaltyRedemptionAmount(order)) }}</small>
               </td>
               <td>
-                <div>{{ formatPaymentMethod(order) }}</div>
+                <div>{{ group.sessionId ? 'See session payment above' : formatPaymentMethod(order) }}</div>
                 <small>{{ order.paymentStatus || '-' }}</small>
               </td>
               <td>
@@ -1097,6 +1153,7 @@
                 </div>
               </td>
             </tr>
+          </ng-container>
           </ng-container>
         </tbody>
       </table>
