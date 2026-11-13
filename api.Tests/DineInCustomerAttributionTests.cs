@@ -561,24 +561,133 @@ public sealed class DineInCustomerAttributionTests
     }
 
     [Fact]
-    public async Task ReconciliationUpdatesSettledBillForReportsWithoutReopeningOrChangingPayments()
+    public async Task ReconciliationUpdatesSettledBillAndRecordedPaymentWithoutReopening()
     {
         await PlaceOrder("Asha");
         _session!.Status = "paid";
         _session.PaymentStatus = "paid";
         _session.AmountPaid = 100;
+        _session.PaymentMethod = "upi-qr";
 
         var response = await Reconcile(_savedOrders[0], 2, manualTotal: 150);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(200, _session.Subtotal);
         Assert.Equal(150, _session.GrandTotal);
-        Assert.Equal(100, _session.AmountPaid);
+        Assert.Equal(150, _session.AmountPaid);
         Assert.Equal("paid", _session.Status);
         Assert.Equal("paid", _session.PaymentStatus);
         var bill = ReadBody(await _function.GetSessionBill(Request(new { }, roleOverride: "admin"), SessionId));
-        Assert.Equal(50, bill.GetProperty("amountDue").GetDecimal());
+        Assert.Equal(0, bill.GetProperty("amountDue").GetDecimal());
         Assert.Equal(-50, bill.GetProperty("orderAdjustments").GetDecimal());
+        Assert.Equal(150, _session.PaymentEntries.Sum(entry => entry.Amount));
+    }
+
+    [Theory]
+    [InlineData(true, "upi-qr", 284)]
+    [InlineData(false, "cash_at_counter", 100)]
+    [InlineData(false, "cod", 100)]
+    public async Task PaidSessionItemChangesUpdateBillPaidAndCollectionUsingSelectedMethod(bool addItem, string method, int expected)
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.Items.Add(new() { MenuItemId = "snack", Name = "Snack", Quantity = 1, Price = 121, Total = 121 });
+        order.Subtotal = order.Total = 221;
+        _session!.GrandTotal = _session.Subtotal = _session.AmountPaid = 221;
+        _session.Status = _session.PaymentStatus = "paid";
+        _session.PaymentEntries = new()
+        {
+            new() { Id = "cash", Amount = 100, PaymentMethod = "cash_at_counter", Status = "confirmed" },
+            new() { Id = "upi", Amount = 121, PaymentMethod = "upi-qr", Status = "confirmed" },
+            new() { Id = "pending", Amount = 10, PaymentMethod = "upi-qr", Status = "pending" }
+        };
+        var items = new List<AdminReconcileOrderItemRequest>
+        {
+            new() { MenuItemId = MenuItemId, Name = "Tea", Quantity = 1, BaseUnitPrice = 100 }
+        };
+        if (addItem)
+        {
+            items.Add(new() { MenuItemId = "snack", Name = "Snack", Quantity = 1, BaseUnitPrice = 121 });
+            items.Add(new() { MenuItemId = "extra", Name = "Extra", Quantity = 1, BaseUnitPrice = 63 });
+        }
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var response = await _orderFunction.AdminReconcileOrder(Request(new
+            {
+                reason = "Correct historical paid bill items",
+                paymentMethod = method,
+                items
+            }, roleOverride: "admin"), order.Id!);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+        Assert.Equal(expected, _session.GrandTotal);
+        Assert.Equal(expected, _session.AmountPaid);
+        Assert.Equal("paid", _session.PaymentStatus);
+        Assert.Equal("paid", _session.Status);
+        Assert.Equal(10, _session.PaymentEntries.Single(entry => entry.Id == "pending").Amount);
+        Assert.All(_session.PaymentEntries.Where(entry => entry.Status == "confirmed"), entry => Assert.True(entry.Amount >= 0));
+        var audit = Assert.Single(_session.Timeline, entry => entry.EventType == "AdminReconciledPaidBill");
+        Assert.Equal("221", audit.Metadata!["previousAmountPaid"]);
+        var collection = OrderPeriodCollection.Calculate(_savedOrders,
+            new Dictionary<string, DineInSession> { [SessionId] = _session });
+        Assert.Equal(expected, collection.Total);
+        Assert.Equal(method == "upi-qr" ? expected : 0, collection.Upi);
+        Assert.Equal(method == "upi-qr" ? 0 : expected, collection.Cash);
+        Assert.Equal(expected, collection.SessionPayments[SessionId].Total);
+        Assert.Equal(expected, collection.SessionPayments[SessionId].GrandTotal);
+    }
+
+    [Fact]
+    public async Task ResavingPreviouslyReconciledPaidBillRepairsStaleRecordedAmount()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.Items[0].Price = order.Items[0].Total = order.Subtotal = order.Total = 284;
+        _session!.GrandTotal = 284;
+        _session.Status = _session.PaymentStatus = "paid";
+        _session.AmountPaid = 221;
+        _session.PaymentEntries = new() { new() { Amount = 221, PaymentMethod = "upi-qr", Status = "confirmed" } };
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Repair earlier paid bill reconciliation",
+            paymentMethod = "upi-qr",
+            items = new[] { new { menuItemId = MenuItemId, name = "Tea", quantity = 1, baseUnitPrice = 284 } }
+        }, roleOverride: "admin"), order.Id!);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(284, _session.GrandTotal);
+        Assert.Equal(284, _session.AmountPaid);
+        Assert.Equal(284, _session.PaymentEntries.Sum(entry => entry.Amount));
+    }
+
+    [Fact]
+    public async Task PaidBillCorrectionRequiresSelectedMethodForSplitPaymentsBeforeSaving()
+    {
+        await PlaceOrder("Asha");
+        _session!.PaymentStatus = "paid";
+        _session.AmountPaid = 100;
+        _session.PaymentEntries = new()
+        {
+            new() { Amount = 40, PaymentMethod = "cash_at_counter", Status = "confirmed" },
+            new() { Amount = 60, PaymentMethod = "upi-qr", Status = "confirmed" }
+        };
+        var response = await Reconcile(_savedOrders[0], 2);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Choose Cash/COD or UPI", ReadBody(response).GetProperty("error").GetString());
+        _orders.Verify(value => value.UpdateOrderAsync(It.IsAny<Order>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CancellingTheOnlyPaidRoundClearsItsRecordedCollectionWithoutNegativeEntries()
+    {
+        await PlaceOrder("Asha");
+        _session!.PaymentStatus = _session.Status = "paid";
+        _session.AmountPaid = 100;
+        _session.PaymentEntries = new() { new() { Amount = 100, PaymentMethod = "upi-qr", Status = "confirmed" } };
+        var response = await Reconcile(_savedOrders[0], 1, status: "cancelled");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, _session.GrandTotal);
+        Assert.Equal(0, _session.AmountPaid);
+        Assert.Equal(0, Assert.Single(_session.PaymentEntries).Amount);
     }
 
     [Fact]

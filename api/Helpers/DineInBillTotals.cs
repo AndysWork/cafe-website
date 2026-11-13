@@ -2,6 +2,7 @@ using Cafe.Api.Models;
 using Cafe.Api.Repositories;
 using Cafe.Api.Services;
 using System.Text.Json;
+using System.Globalization;
 
 namespace Cafe.Api.Helpers;
 
@@ -37,7 +38,8 @@ public static class DineInBillTotals
     }
 
     public static async Task SynchronizeReconciledOrderAsync(
-        IOrderRepository orders, Order reconciledOrder, string? paymentMethod = null)
+        IOrderRepository orders, Order reconciledOrder, string? paymentMethod = null,
+        string? paidSessionPaymentMethod = null, bool reconcilePaidBill = false)
     {
         for (var attempt = 0; attempt < 5; attempt++)
         {
@@ -54,48 +56,100 @@ public static class DineInBillTotals
                 rounds.Add(round);
             }
 
+            var previousBill = session.GrandTotal;
             Apply(session, rounds);
-            if (paymentMethod != null)
+            var correctPaidAmount = reconcilePaidBill
+                && string.Equals(session.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase)
+                && (previousBill != session.GrandTotal || session.AmountPaid != session.GrandTotal
+                    || (session.PaymentEntries ?? new()).Where(entry => string.Equals(entry.Status, "confirmed", StringComparison.OrdinalIgnoreCase))
+                        .Sum(entry => entry.Amount) != session.GrandTotal);
+            if (correctPaidAmount)
+            {
+                var method = ResolvePaidSessionPaymentMethod(session, paidSessionPaymentMethod ?? paymentMethod);
+                ReclassifyPayments(session, reconciledOrder, method, session.GrandTotal);
+            }
+            else if (paymentMethod != null)
                 ReclassifyPayments(session, reconciledOrder, paymentMethod);
-            if (await orders.TryUpdateDineInSessionTotalsAsync(session, expectedUpdatedAt, paymentMethod != null))
+            if (await orders.TryUpdateDineInSessionTotalsAsync(session, expectedUpdatedAt, correctPaidAmount || paymentMethod != null))
                 return;
         }
 
         throw new InvalidOperationException("The table bill changed while it was being updated.");
     }
 
-    private static void ReclassifyPayments(DineInSession session, Order order, string method)
+    public static string ResolvePaidSessionPaymentMethod(DineInSession session, string? selectedMethod)
+    {
+        static string? Normalize(string? method) => method?.Trim().ToLowerInvariant() switch
+        {
+            "cash" or "cash_at_counter" or "cod" => "cash_at_counter",
+            "upi" or "upi-qr" => "upi-qr",
+            _ => null
+        };
+        if (Normalize(selectedMethod) is string selected)
+            return selected;
+        var methods = (session.PaymentEntries ?? new())
+            .Where(entry => string.Equals(entry.Status, "confirmed", StringComparison.OrdinalIgnoreCase))
+            .Select(entry => Normalize(entry.PaymentMethod)).Distinct().ToList();
+        if (methods.Count == 1 && methods[0] is string recorded)
+            return recorded;
+        if (methods.Count == 0 && Normalize(session.PaymentMethod) is string legacy)
+            return legacy;
+        throw new InvalidOperationException("Choose Cash/COD or UPI when reconciling a fully paid session.");
+    }
+
+    private static void ReclassifyPayments(DineInSession session, Order order, string method, decimal? correctedTotal = null)
     {
         var now = MongoService.GetUtcNow();
         var previousSessionMethod = session.PaymentMethod;
+        var previousAmountPaid = session.AmountPaid;
         session.PaymentEntries ??= new();
         session.Timeline ??= new();
         var confirmed = session.PaymentEntries
             .Where(entry => string.Equals(entry.Status, "confirmed", StringComparison.OrdinalIgnoreCase)).ToList();
-        var oldMethods = JsonSerializer.Serialize(confirmed.Select(entry => new { entry.Id, entry.PaymentMethod }));
-        var unallocated = Math.Max(0, session.AmountPaid - confirmed.Sum(entry => entry.Amount));
+        var oldMethods = JsonSerializer.Serialize(confirmed.Select(entry => new { entry.Id, entry.PaymentMethod, entry.Amount }));
+        var confirmedTotal = confirmed.Sum(entry => entry.Amount);
+        var adjustment = correctedTotal.HasValue
+            ? correctedTotal.Value - confirmedTotal
+            : Math.Max(0, session.AmountPaid - confirmedTotal);
         foreach (var entry in confirmed)
             entry.PaymentMethod = method;
-        if (unallocated > 0)
+        if (adjustment < 0)
+        {
+            var reduction = -adjustment;
+            foreach (var entry in confirmed.AsEnumerable().Reverse())
+            {
+                var deducted = Math.Min(entry.Amount, reduction);
+                entry.Amount -= deducted;
+                reduction -= deducted;
+                if (reduction == 0) break;
+            }
+        }
+        if (adjustment > 0)
         {
             session.PaymentEntries.Add(new DineInPaymentEntry
             {
-                Amount = unallocated,
+                Amount = adjustment,
                 PaymentMethod = method,
                 Status = "confirmed",
                 RequestedAt = now,
                 ConfirmedAt = now,
                 ConfirmedBy = order.LastReconciledByUserId,
                 UpiReference = method == "upi-qr" ? order.UpiReference : null,
-                Notes = $"Previously unallocated collection classified by reconciliation of order {order.Id}."
+                Notes = correctedTotal.HasValue
+                    ? $"Historical paid bill correction for order {order.Id}; not a new payment receipt."
+                    : $"Previously unallocated collection classified by reconciliation of order {order.Id}."
             });
         }
+        if (correctedTotal.HasValue)
+            session.AmountPaid = correctedTotal.Value;
         session.PaymentMethod = method;
         session.UpiReference = method == "upi-qr" ? order.UpiReference : null;
         session.Timeline.Add(new DineInSessionEvent
         {
-            EventType = "AdminReconciledPaymentMethod",
-            Message = $"Full-session recorded collection reclassified as {method}. {order.LastReconciliationReason}",
+            EventType = correctedTotal.HasValue ? "AdminReconciledPaidBill" : "AdminReconciledPaymentMethod",
+            Message = correctedTotal.HasValue
+                ? $"Historical paid bill and recorded collection corrected to {correctedTotal.Value:0.00} as {method}. {order.LastReconciliationReason}"
+                : $"Full-session recorded collection reclassified as {method}. {order.LastReconciliationReason}",
             Actor = order.LastReconciledByUserId,
             CreatedAt = now,
             CreatedAtIsUtc = true,
@@ -104,7 +158,9 @@ public static class DineInBillTotals
                 ["orderId"] = order.Id!,
                 ["previousEntryMethods"] = oldMethods,
                 ["paymentMethod"] = method,
-                ["previousSessionMethod"] = previousSessionMethod ?? string.Empty
+                ["previousSessionMethod"] = previousSessionMethod ?? string.Empty,
+                ["previousAmountPaid"] = previousAmountPaid.ToString(CultureInfo.InvariantCulture),
+                ["correctedAmountPaid"] = session.AmountPaid.ToString(CultureInfo.InvariantCulture)
             }
         });
     }

@@ -1339,6 +1339,7 @@ public class OrderFunction
                 return notFound;
             }
 
+            DineInSession? reconciliationSession = null;
             if (!string.IsNullOrWhiteSpace(order.DineInSessionId))
             {
                 DineInSession session;
@@ -1359,6 +1360,7 @@ public class OrderFunction
                     await conflict.WriteAsJsonAsync(new { error = "A table payment is being processed. Retry reconciliation afterwards." });
                     return conflict;
                 }
+                reconciliationSession = session;
             }
 
             var normalizedStatus = reconcileRequest.Status?.Trim().ToLowerInvariant();
@@ -1571,6 +1573,25 @@ public class OrderFunction
                 ? Math.Round(Math.Max(0, reconcileRequest.ManualTotalOverride.Value), 2)
                 : Math.Round(Math.Max(0, gross - order.DiscountAmount - order.LoyaltyDiscountAmount), 2);
 
+            var reconcilePaidBill = reconcileRequest.Items != null || order.Total != oldState.Total
+                || !string.Equals(order.Status, oldState.Status, StringComparison.OrdinalIgnoreCase);
+            string? paidSessionPaymentMethod = null;
+            if (reconcilePaidBill && reconciliationSession != null
+                && string.Equals(reconciliationSession.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    paidSessionPaymentMethod = DineInBillTotals.ResolvePaidSessionPaymentMethod(reconciliationSession, normalizedPaymentMethod);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    _log.LogWarning(ex, "Payment method required for paid session reconciliation of order {OrderId}", id);
+                    var invalidMethod = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await invalidMethod.WriteAsJsonAsync(new { error = ex.Message });
+                    return invalidMethod;
+                }
+            }
+
             if (reconcileRequest.ClearDeliveryPartnerAssignment || string.Equals(order.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
             {
                 order.DeliveryPartnerId = null;
@@ -1643,7 +1664,7 @@ public class OrderFunction
                     await DineInBillTotals.SynchronizeReconciledOrderAsync(_orderRepo, order,
                         reclassifySessionPayments
                             ? (normalizedPaymentMethod == "cod" ? "cash_at_counter" : normalizedPaymentMethod)
-                            : null);
+                            : null, paidSessionPaymentMethod, reconcilePaidBill);
                 }
                 catch (Exception ex)
                 {

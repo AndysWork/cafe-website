@@ -1027,7 +1027,7 @@
                       <select [(ngModel)]="getReconcileDraft(order).paymentMethod">
                         <option *ngFor="let method of reconcilePaymentMethodOptions" [value]="method">{{ method }}</option>
                       </select>
-                      <small *ngIf="order.dineInSessionId">Changing to Cash/COD or UPI moves the full session's recorded collection to that method, replacing any Cash + UPI split. The collected total stays unchanged.</small>
+                      <small *ngIf="order.dineInSessionId">Changing to Cash/COD or UPI applies that method to the full session. For fully paid sessions, item and bill corrections also update recorded payment to the revised bill using this method. Unpaid/partial collections stay unchanged.</small>
                     </label>
                   </div>
 

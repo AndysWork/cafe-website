@@ -1225,12 +1225,17 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     const existing = this.reconcileDraftByOrder[order.id];
     if (existing) return existing;
 
+    const sessionPayment = order.dineInSessionId ? this.collection?.sessionPayments?.[order.dineInSessionId] : null;
+    const recordedMethods = order.dineInSessionId ? this.collection?.sessionMethods?.[order.dineInSessionId] || [] : [];
+    const sessionMethod = recordedMethods.length === 1 ? recordedMethods[0] : null;
+    const paidMethod = sessionMethod === 'upi' || sessionMethod === 'upi-qr' ? 'upi-qr'
+      : ['cash', 'cash_at_counter', 'cod'].includes(sessionMethod || '') ? 'cash_at_counter' : null;
     const draft: ReconcileOrderDraft = {
       reconcileSessionPaymentMethod: false,
       reason: '',
       status: order.status,
       paymentStatus: order.paymentStatus,
-      paymentMethod: order.paymentMethod,
+      paymentMethod: sessionPayment?.paymentStatus === 'paid' && paidMethod ? paidMethod : order.paymentMethod,
       upiReference: order.upiReference || '',
       deliveryAddress: order.deliveryAddress || '',
       phoneNumber: order.phoneNumber || '',

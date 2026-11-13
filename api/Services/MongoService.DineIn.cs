@@ -297,6 +297,7 @@ public partial class MongoService
         if (updatePayments)
         {
             update = update
+                .Set(s => s.AmountPaid, session.AmountPaid)
                 .Set(s => s.PaymentMethod, session.PaymentMethod)
                 .Set(s => s.UpiReference, session.UpiReference)
                 .Set(s => s.PaymentEntries, session.PaymentEntries)

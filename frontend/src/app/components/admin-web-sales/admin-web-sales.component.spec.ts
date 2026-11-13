@@ -274,6 +274,15 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     expect(component.getReconcileDraft({ ...order, id: 'missing' }).packagingCharge).toBeNull();
   });
 
+  it('uses the recorded payment method for a fully paid table order instead of dine-in tab', () => {
+    component.collection = {
+      ...collection,
+      sessionMethods: { session: ['upi-qr'] }
+    };
+    const linkedOrder: Order = { ...order, dineInSessionId: 'session', paymentMethod: 'dine_in_tab' };
+    expect(component.getReconcileDraft(linkedOrder).paymentMethod).toBe('upi-qr');
+  });
+
   it('refreshes operational outstanding balances after confirming a table payment', () => {
     dineIn.confirmPayment.and.returnValue(of({ message: 'confirmed', session: {
       sessionId: 'session', outletId: 'outlet-1', outletName: 'Cafe', tableNumber: 'T1',
