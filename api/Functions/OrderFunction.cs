@@ -1304,6 +1304,24 @@ public class OrderFunction
                 return notFound;
             }
 
+            if (!string.IsNullOrWhiteSpace(order.DineInSessionId))
+            {
+                var session = await _orderRepo.GetDineInSessionByIdAsync(order.DineInSessionId);
+                if (session == null || !string.Equals(session.OutletId, order.OutletId, StringComparison.Ordinal)
+                    || !session.OrderIds.Contains(id))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "The order's linked dine-in session could not be verified." });
+                    return conflict;
+                }
+                if (string.Equals(session.PaymentStatus, "processing", StringComparison.OrdinalIgnoreCase))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "A table payment is being processed. Retry reconciliation afterwards." });
+                    return conflict;
+                }
+            }
+
             var normalizedStatus = reconcileRequest.Status?.Trim().ToLowerInvariant();
             var normalizedPaymentStatus = reconcileRequest.PaymentStatus?.Trim().ToLowerInvariant();
             var normalizedPaymentMethod = reconcileRequest.PaymentMethod?.Trim().ToLowerInvariant();
@@ -1380,6 +1398,9 @@ public class OrderFunction
                     return badItems;
                 }
 
+                var existingDineInItems = !string.IsNullOrWhiteSpace(order.DineInSessionId)
+                    ? order.Items.ToList()
+                    : new List<OrderItem>();
                 order.Items = reconcileRequest.Items.Select(item =>
                 {
                     var addOns = (item.SelectedAddOns ?? new List<OrderItemAddOn>())
@@ -1396,7 +1417,7 @@ public class OrderFunction
                     var unitPrice = Math.Round(baseUnitPrice + addOnTotal, 2);
                     var total = Math.Round(unitPrice * item.Quantity, 2);
 
-                    return new OrderItem
+                    var updatedItem = new OrderItem
                     {
                         MenuItemId = item.MenuItemId.Trim(),
                         Name = item.Name.Trim(),
@@ -1411,6 +1432,26 @@ public class OrderFunction
                         AddOnTotal = addOnTotal,
                         Total = total
                     };
+                    var matchingIndex = existingDineInItems.FindIndex(existing =>
+                        existing.MenuItemId == updatedItem.MenuItemId
+                        && existing.Quantity == updatedItem.Quantity
+                        && existing.Price == updatedItem.Price
+                        && string.Equals(existing.SelectedVariantName, updatedItem.SelectedVariantName, StringComparison.Ordinal)
+                        && (existing.SelectedAddOns ?? new List<OrderItemAddOn>()).Count == addOns.Count
+                        && (existing.SelectedAddOns ?? new List<OrderItemAddOn>())
+                            .Zip(addOns).All(pair => pair.First.Name == pair.Second.Name && pair.First.Price == pair.Second.Price));
+                    if (matchingIndex >= 0)
+                    {
+                        var existing = existingDineInItems[matchingIndex];
+                        updatedItem.CategoryId = existing.CategoryId;
+                        updatedItem.KitchenStatus = existing.KitchenStatus;
+                        updatedItem.KitchenReadyAt = existing.KitchenReadyAt;
+                        updatedItem.KitchenReadyByUserId = existing.KitchenReadyByUserId;
+                        updatedItem.ServedAt = existing.ServedAt;
+                        updatedItem.ServedByUserId = existing.ServedByUserId;
+                        existingDineInItems.RemoveAt(matchingIndex);
+                    }
+                    return updatedItem;
                 }).ToList();
             }
 
@@ -1541,6 +1582,24 @@ public class OrderFunction
                     Reason = order.LastReconciliationReason
                 },
                 outletId: order.OutletId);
+
+            if (!string.IsNullOrWhiteSpace(order.DineInSessionId))
+            {
+                try
+                {
+                    await DineInBillTotals.SynchronizeReconciledOrderAsync(_orderRepo, order);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Order {OrderId} was reconciled but its dine-in bill could not be updated", id);
+                    var syncFailed = req.CreateResponse(HttpStatusCode.ServiceUnavailable);
+                    await syncFailed.WriteAsJsonAsync(new
+                    {
+                        error = "The order was saved, but the table bill could not be updated. Retry reconciliation after checking the table payment."
+                    });
+                    return syncFailed;
+                }
+            }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(MapToOrderResponse(order));

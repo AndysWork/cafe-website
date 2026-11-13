@@ -1339,7 +1339,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       deliveryAddress: draft.deliveryAddress,
       phoneNumber: draft.phoneNumber,
       customerName: draft.customerName,
-      createdAt: draft.createdAt ? getIstIsoString(draft.createdAt) : undefined,
+      createdAt: draft.createdAt && draft.createdAt !== this.toIstDateTimeInput(order.createdAt, order.createdAtIsUtc)
+        ? getIstIsoString(draft.createdAt) : undefined,
       notes: draft.notes,
       preparationNotes: draft.preparationNotes,
       tax: this.optionalNumber(draft.tax),
@@ -1376,6 +1377,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         this.expandedReconcileOrderId = null;
         delete this.reconcileDraftByOrder[order.id];
         await this.loadDashboardData();
+        await this.loadPendingDineInPayments();
+        await this.loadDineInOperationalSignals();
         this.initializeDrafts();
         this.saving = false;
         this.reconcilingOrderId = null;

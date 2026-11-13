@@ -517,18 +517,16 @@ public class DineInOrderWorkflowFunction
         if (session == null)
             throw new InvalidOperationException($"Dine-in session {sessionId} was not found");
 
-        decimal subtotal = 0;
+        var rounds = new List<Order>();
         var allOrdersCancelled = session.OrderIds.Count > 0;
         foreach (var id in session.OrderIds)
         {
             var order = await _orderRepo.GetOrderByIdAsync(id);
             allOrdersCancelled &= order?.Status == "cancelled";
-            if (order != null && order.Status != "cancelled") subtotal += order.Subtotal;
+            if (order != null) rounds.Add(order);
         }
 
-        session.Subtotal = subtotal;
-        session.TaxAmount = 0;
-        session.GrandTotal = Math.Max(0, subtotal - session.DiscountAmount - session.LoyaltyDiscountAmount);
+        DineInBillTotals.Apply(session, rounds);
         session.UpdatedAt = MongoService.GetUtcNow();
         if (cancellationActor != null && allOrdersCancelled
             && session.Status is "active" or "bill_requested"

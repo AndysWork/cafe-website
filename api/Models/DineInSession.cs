@@ -287,6 +287,7 @@ public class DineInBillResponse
     public List<DineInRoundDto> Rounds { get; set; } = new();
     public int TotalItemsCount { get; set; }
     public decimal Subtotal { get; set; }
+    public decimal OrderAdjustments { get; set; }
     public decimal DiscountAmount { get; set; }
     public string? CouponCode { get; set; }
     public int LoyaltyPointsUsed { get; set; }

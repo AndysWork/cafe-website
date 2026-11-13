@@ -19,6 +19,9 @@ export class AdminLayoutComponent implements OnDestroy {
   selectedOutlet$;
   isMobileMenuOpen = false;
   activeDropdown: string | null = null;
+  get isDashboard(): boolean {
+    return this.router.url.split('?')[0].split('#')[0] === '/admin/dashboard';
+  }
   private readonly authStore = inject(AuthStore);
   readonly roleNavigationItems = computed(() => {
     const existingRoutes = new Set(this.menuItems.flatMap(item =>

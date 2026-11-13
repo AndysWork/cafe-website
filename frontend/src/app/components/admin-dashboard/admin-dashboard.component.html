@@ -1,4 +1,202 @@
 <div class="dashboard-page">
+  <section class="overview" aria-labelledby="overview-title">
+    <header class="overview-header">
+      <div>
+        <h1 id="overview-title"><span class="desktop-title">Admin </span>Dashboard</h1>
+        <p>Welcome back<span *ngIf="authStore.userName()">, {{ authStore.userName() }}</span>! <span class="desktop-title">Here's what's happening at your cafe.</span></p>
+      </div>
+      <div class="overview-controls">
+        <label class="period-control">
+          <span aria-hidden="true">▦</span>
+          <span class="sr-only">Dashboard date range</span>
+          <select #periodSelect [value]="periodDays" (change)="setPeriod(periodSelect.value)">
+            <option value="7">Last 7 Days</option>
+            <option value="30">Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
+          </select>
+        </label>
+        <button type="button" class="overview-refresh" (click)="loadDashboardData()" [disabled]="isLoading" aria-label="Refresh dashboard" title="Refresh dashboard">↻</button>
+      </div>
+    </header>
+
+    <div *ngIf="errorMessage" class="overview-notice" role="alert">
+      {{ errorMessage }} <button type="button" (click)="loadDashboardData()">Retry</button>
+    </div>
+    <div *ngIf="isLoading" class="overview-notice" role="status">Loading dashboard data...</div>
+    <ng-container *ngIf="!isLoading && !errorMessage">
+      <p class="overview-definition">Revenue combines online payouts and recorded offline sales. Sales records include online orders and offline transactions.</p>
+      <div class="overview-stats">
+        <article class="overview-stat" *ngFor="let card of overviewCards" [class]="'overview-stat ' + card.color">
+          <span class="overview-stat-icon" aria-hidden="true">{{ card.icon }}</span>
+          <div class="overview-stat-content">
+            <span class="overview-stat-label">{{ card.label }}</span>
+            <strong>{{ card.currency ? '₹' : '' }}{{ overview.current[card.key] | number:'1.0-0' }}</strong>
+            <span class="stat-change" *ngIf="changeFor(card.key) !== null; else noComparison" [class.negative]="changeFor(card.key)! < 0">
+              {{ changeFor(card.key)! < 0 ? '↓' : '↑' }} {{ (changeFor(card.key)! < 0 ? -changeFor(card.key)! : changeFor(card.key)!) | number:'1.0-1' }}%
+              <span class="comparison-detail">vs previous {{ periodDays }} days</span>
+            </span>
+            <ng-template #noComparison><span class="stat-no-comparison">No previous data</span></ng-template>
+          </div>
+        </article>
+      </div>
+
+      <div class="overview-charts">
+        <section class="overview-panel trend-panel" aria-labelledby="trend-title">
+          <div class="overview-panel-heading">
+            <h2 id="trend-title"><span class="heading-icon green-icon">▥</span> Sales Trend</h2>
+            <div class="trend-tabs" aria-label="Trend metric">
+              <button type="button" [class.selected]="trendMetric === 'revenue'" [attr.aria-pressed]="trendMetric === 'revenue'" (click)="setTrendMetric('revenue')">Revenue</button>
+              <button type="button" [class.selected]="trendMetric === 'orders'" [attr.aria-pressed]="trendMetric === 'orders'" (click)="setTrendMetric('orders')">Records</button>
+              <button type="button" [class.selected]="trendMetric === 'average'" [attr.aria-pressed]="trendMetric === 'average'" (click)="setTrendMetric('average')">Average</button>
+            </div>
+            <label class="trend-select"><span class="sr-only">Trend metric</span><select #metricSelect [value]="trendMetric" (change)="setTrendMetric(metricSelect.value)"><option value="revenue">Revenue</option><option value="orders">Records</option><option value="average">Average</option></select></label>
+          </div>
+          <div class="overview-chart" role="img" [attr.aria-label]="'Daily ' + trendMetric + ' for the last ' + periodDays + ' days'">
+            <svg viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
+              <defs><linearGradient id="overview-trend-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#20c45a" stop-opacity=".3"/><stop offset="100%" stop-color="#20c45a" stop-opacity=".02"/></linearGradient></defs>
+              <line *ngFor="let y of [33, 78, 123, 168]" x1="40" [attr.y1]="y" x2="570" [attr.y2]="y" class="chart-grid-line"/>
+              <text x="34" y="36" text-anchor="end" class="chart-text">{{ trendMetric === 'orders' ? '' : '₹' }}{{ trendMax | number:'1.0-0' }}</text>
+              <text x="34" y="172" text-anchor="end" class="chart-text">{{ trendMin | number:'1.0-0' }}</text>
+              <polygon [attr.points]="trendArea" fill="url(#overview-trend-fill)"/>
+              <polyline [attr.points]="trendPoints" class="overview-trend-line"/>
+              <ng-container *ngFor="let day of overview.days; let i = index">
+                <circle [attr.cx]="chartX(i)" [attr.cy]="chartY(day)" r="2.5" class="overview-trend-point"><title>{{ day.date }}: {{ trendValue(day) | number:'1.0-2' }}</title></circle>
+                <text *ngIf="showDateLabel(i)" [attr.x]="chartX(i)" y="190" text-anchor="middle" class="chart-text">{{ chartDate(day.date) }}</text>
+              </ng-container>
+            </svg>
+          </div>
+          <table class="sr-only">
+            <caption>Daily trend data</caption>
+            <thead><tr><th>Date</th><th>Revenue</th><th>Sales records</th><th>Average record value</th></tr></thead>
+            <tbody><tr *ngFor="let day of overview.days"><td>{{ day.date }}</td><td>{{ day.revenue | number:'1.0-2' }}</td><td>{{ day.orders }}</td><td>{{ (day.orders ? day.revenue / day.orders : 0) | number:'1.0-2' }}</td></tr></tbody>
+          </table>
+        </section>
+
+        <section class="overview-panel sources-panel" aria-labelledby="sources-title">
+          <div class="overview-panel-heading"><h2 id="sources-title"><span class="heading-icon blue-icon">♧</span> Sales Sources</h2></div>
+          <div class="source-content">
+            <div class="source-ring" [style.background]="sourceGradient">
+              <div><strong>{{ overview.current.orders | number }}</strong><span>Records</span></div>
+            </div>
+            <ul class="source-legend">
+              <li *ngFor="let source of overview.sources">
+                <span class="source-dot" [style.background]="source.color"></span>
+                <span>{{ source.label }}</span>
+                <strong>{{ (overview.current.orders ? source.count / overview.current.orders * 100 : 0) | number:'1.0-0' }}%</strong>
+              </li>
+            </ul>
+          </div>
+        </section>
+      </div>
+
+      <div class="business-detail-grid">
+        <section class="overview-panel hourly-panel" aria-labelledby="hourly-title">
+          <div class="overview-panel-heading">
+            <h2 id="hourly-title"><span class="heading-icon blue-icon">◷</span> Orders by Time of Day</h2>
+          </div>
+          <p class="panel-caption">App orders by creation time (IST), excluding cancelled orders. Platform imports and recorded offline sales are not included.</p>
+          <ng-container *ngIf="insights.timedOrderCount; else noTimedOrders">
+            <p class="peak-summary">
+              <strong>Peak {{ insights.peakHours.length === 1 ? 'hour' : 'hours' }}:</strong>
+              <ng-container *ngFor="let hour of insights.peakHours | slice:0:3; let last = last">{{ formatHour(hour) }}{{ last ? '' : ', ' }}</ng-container>
+              <span *ngIf="insights.peakHours.length > 3"> and {{ insights.peakHours.length - 3 }} more</span>
+              · {{ maxHourlyOrders | number }} {{ maxHourlyOrders === 1 ? 'order' : 'orders' }} per peak hour
+            </p>
+            <div class="hour-chart" aria-hidden="true">
+              <div class="hour-column" *ngFor="let bucket of insights.hourlyOrders">
+                <div class="hour-bar-track">
+                  <div class="hour-bar" [class.peak]="bucket.count === maxHourlyOrders" [style.height.%]="bucket.count / maxHourlyOrders * 100" [title]="formatHour(bucket.hour) + ': ' + bucket.count + ' orders'"></div>
+                </div>
+                <span class="hour-label">{{ bucket.hour % 4 === 0 ? (bucket.hour | number:'2.0-0') : '' }}</span>
+              </div>
+            </div>
+            <p class="panel-caption">{{ insights.timedOrderCount | number }} timestamped app orders in this period</p>
+            <details class="hour-data">
+              <summary>View hourly order counts</summary>
+              <table>
+                <caption>App orders by hour in Indian Standard Time</caption>
+                <thead><tr><th scope="col">Time</th><th scope="col">Orders</th></tr></thead>
+                <tbody><tr *ngFor="let bucket of insights.hourlyOrders"><td>{{ formatHour(bucket.hour) }}</td><td>{{ bucket.count }}</td></tr></tbody>
+              </table>
+            </details>
+          </ng-container>
+          <ng-template #noTimedOrders><p class="overview-empty">No timestamped app orders in this period.</p></ng-template>
+        </section>
+
+        <section class="overview-panel expenses-panel" aria-labelledby="expenses-title">
+          <div class="overview-panel-heading">
+            <h2 id="expenses-title"><span class="heading-icon">💸</span> Expense Insights</h2>
+            <a routerLink="/admin/expenses">View expenses →</a>
+          </div>
+          <p class="panel-caption">Recorded expenses for the selected period; excludes separate operational expenses.</p>
+          <div class="expense-summary">
+            <div><span>Total expenses</span><strong>₹{{ insights.expenses.total | number:'1.0-0' }}</strong></div>
+            <div><span>Daily average</span><strong>₹{{ insights.expenses.dailyAverage | number:'1.0-0' }}</strong></div>
+            <div><span>Records</span><strong>{{ insights.expenses.count | number }}</strong></div>
+          </div>
+          <p class="expense-comparison" *ngIf="expenseChange !== null; else noExpenseComparison">
+            {{ expenseChange! < 0 ? '↓' : expenseChange! > 0 ? '↑' : '→' }}
+            {{ (expenseChange! < 0 ? -expenseChange! : expenseChange!) | number:'1.0-1' }}% vs previous {{ periodDays }} days
+          </p>
+          <ng-template #noExpenseComparison><p class="expense-comparison">No previous expenses to compare</p></ng-template>
+          <p *ngIf="!insights.expenses.count" class="overview-empty">No recorded expenses in this period.</p>
+          <div class="expense-category" *ngFor="let category of insights.expenses.categories | slice:0:5">
+            <div class="expense-category-label"><strong>{{ category.name }}</strong><span>₹{{ category.amount | number:'1.0-0' }}</span></div>
+            <div class="expense-bar-track"><div class="expense-bar" [style.width.%]="insights.expenses.total > 0 ? category.amount / insights.expenses.total * 100 : 0"></div></div>
+            <small>{{ category.count | number }} {{ category.count === 1 ? 'record' : 'records' }} · {{ (insights.expenses.total > 0 ? category.amount / insights.expenses.total * 100 : 0) | number:'1.0-1' }}% of expenses</small>
+          </div>
+          <p class="largest-expense" *ngIf="insights.expenses.largest as expense">Largest single expense: <strong>{{ expense.name }} · ₹{{ expense.amount | number:'1.0-0' }}</strong> <span>({{ chartDate(expense.date) }})</span></p>
+        </section>
+      </div>
+
+      <div class="overview-lists">
+        <section class="overview-panel" aria-labelledby="items-title">
+          <div class="overview-panel-heading"><h2 id="items-title"><span class="heading-icon">🔥</span> Top Selling Items</h2><a routerLink="/admin/analytics">Analytics →</a></div>
+          <p *ngIf="!overview.items.length" class="overview-empty">No items sold in this period.</p>
+          <div class="overview-list-row" *ngFor="let item of overview.items; let i = index">
+            <span class="rank">{{ i + 1 }}</span>
+            <img *ngIf="itemImage(item.name) as image; else itemPlaceholder" [src]="image" alt="" class="item-image">
+            <ng-template #itemPlaceholder><span class="item-image image-placeholder" aria-hidden="true">🍽️</span></ng-template>
+            <span class="list-copy"><strong>{{ item.name }}</strong><small>{{ item.quantity | number }} items sold</small></span>
+            <span class="count-badge">{{ item.quantity | number }}</span>
+          </div>
+        </section>
+        <section class="overview-panel" aria-labelledby="customers-title">
+          <div class="overview-panel-heading"><h2 id="customers-title"><span class="heading-icon">👑</span> Top Customers (Online)</h2><a routerLink="/admin/analytics">Analytics →</a></div>
+          <p *ngIf="!overview.customers.length" class="overview-empty">No named online customers in this period.</p>
+          <div class="overview-list-row" *ngFor="let customer of overview.customers; let i = index">
+            <span class="rank">{{ i + 1 }}</span>
+            <span class="list-copy"><strong>{{ customer.name }}</strong><small>{{ customer.orders | number }} orders</small></span>
+            <span class="count-badge">₹{{ customer.payout | number:'1.0-0' }}</span>
+          </div>
+        </section>
+        <section class="overview-panel" aria-labelledby="actions-title">
+          <div class="overview-panel-heading"><h2 id="actions-title"><span class="heading-icon">⚡</span> Quick Actions</h2></div>
+          <div class="quick-actions">
+            <a routerLink="/admin/menu"><span>⊕</span> Menu Items</a>
+            <a routerLink="/admin/offers"><span>◇</span> Offers</a>
+            <a routerLink="/admin/web-sales"><span>▣</span> Web Orders</a>
+            <a routerLink="/admin/analytics"><span>▥</span> Sales Report</a>
+          </div>
+        </section>
+      </div>
+      <section class="overview-panel insights-panel" aria-labelledby="insights-title">
+        <div class="overview-panel-heading"><h2 id="insights-title"><span class="heading-icon">✨</span> Business Insights</h2></div>
+        <div class="insight-grid">
+          <div class="insight green"><span>↗</span><p><strong *ngIf="changeFor('revenue') !== null; else noRevenueComparison">Revenue {{ changeFor('revenue')! < 0 ? 'decreased' : 'increased' }} by {{ (changeFor('revenue')! < 0 ? -changeFor('revenue')! : changeFor('revenue')!) | number:'1.0-1' }}%</strong><ng-template #noRevenueComparison><strong>No previous revenue to compare</strong></ng-template><br>vs previous {{ periodDays }} days</p></div>
+          <div class="insight blue"><span>🏆</span><p><strong>{{ overview.items.length ? overview.items[0].name : 'No best seller yet' }}</strong><br>{{ overview.items.length ? (overview.items[0].quantity | number) + ' items sold' : 'No sales in this period' }}</p></div>
+          <div class="insight orange"><span>◎</span><p><strong>Online sales records</strong><br>{{ (overview.current.orders ? (overview.current.orders - overview.sources[4].count) / overview.current.orders * 100 : 0) | number:'1.0-0' }}% of all records</p></div>
+          <div class="insight blue" *ngIf="bestSalesDay as day"><span>📅</span><p><strong>Highest recorded revenue day</strong><br>{{ chartDate(day.date) }} · ₹{{ day.revenue | number:'1.0-0' }}</p></div>
+          <div class="insight orange" *ngIf="insights.expenses.categories.length"><span>◈</span><p><strong>Largest expense category</strong><br>{{ insights.expenses.categories[0].name }} · ₹{{ insights.expenses.categories[0].amount | number:'1.0-0' }}</p></div>
+          <div class="insight green" *ngIf="overview.current.revenue > 0 && insights.expenses.count"><span>◔</span><p><strong>Recorded expenses vs revenue</strong><br>{{ insights.expenses.total / overview.current.revenue * 100 | number:'1.0-1' }}% (not a profit margin)</p></div>
+        </div>
+      </section>
+      <p class="overview-definition">Online customers are distinct named customers in this period, not necessarily new customers. Revenue comparisons use the preceding {{ periodDays }} days.</p>
+    </ng-container>
+  </section>
+
+  <details class="dashboard-details">
+    <summary>Detailed sales and operational health (all time and six-month trends)</summary>
   <div class="main-header">
     <h1>Dashboard Overview</h1>
     <div class="header-actions">
@@ -437,4 +635,5 @@
       </div>
     </div>
   </div>
+  </details>
 </div>

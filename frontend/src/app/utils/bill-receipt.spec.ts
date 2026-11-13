@@ -63,6 +63,17 @@ describe('bill-receipt', () => {
     expect(lines).toContain('-'.repeat(48));
   });
 
+  it('shows order adjustments and a revised balance on a closed bill', () => {
+    const output = text(renderDineInBill(bill({
+      status: 'paid', paymentStatus: 'paid', orderAdjustments: -20,
+      grandTotal: 210, amountPaid: 180, amountDue: 30
+    }))).join('\n');
+    expect(output).toMatch(/Order adjustments\s+-20\.00/);
+    expect(output).toMatch(/BALANCE DUE\s+30\.00/);
+    expect(output).not.toContain('PAID BILL');
+    expect(output).not.toContain('PAID IN FULL');
+  });
+
   it('renders a takeaway bill with token, packaging and payment state', () => {
     const order: WaiterTakeawayOrder = {
       orderId: 'o1', token: 'K-007', status: 'ready', customerName: 'Asha', phoneNumber: '9999999999',

@@ -269,6 +269,29 @@ public partial class MongoService
         return result.ModifiedCount > 0;
     }
 
+    public async Task<bool> TryUpdateDineInSessionTotalsAsync(DineInSession session, DateTime expectedUpdatedAt)
+    {
+        if (string.IsNullOrWhiteSpace(session.Id)) return false;
+        var cleanId = session.Id.Trim();
+        var builder = Builders<DineInSession>.Filter;
+        var idFilter = builder.Eq("_id", cleanId);
+        if (MongoDB.Bson.ObjectId.TryParse(cleanId, out var objId))
+            idFilter = builder.Or(idFilter, builder.Eq("_id", objId));
+
+        var filter = builder.And(idFilter,
+            builder.Eq(s => s.UpdatedAt, expectedUpdatedAt),
+            builder.Ne(s => s.PaymentStatus, "processing"));
+        var now = GetUtcNow();
+        if (now < expectedUpdatedAt.AddMilliseconds(1)) now = expectedUpdatedAt.AddMilliseconds(1);
+        var update = Builders<DineInSession>.Update
+            .Set(s => s.Subtotal, session.Subtotal)
+            .Set(s => s.TaxAmount, session.TaxAmount)
+            .Set(s => s.GrandTotal, session.GrandTotal)
+            .Set(s => s.UpdatedAt, now);
+        var result = await _dineInSessions.UpdateOneAsync(filter, update);
+        return result.MatchedCount == 1;
+    }
+
     public async Task<bool> TransitionDineInPaymentStatusAsync(
         string sessionId,
         IReadOnlyCollection<string> expectedStatuses,

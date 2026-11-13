@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { OutletService } from '../../services/outlet.service';
@@ -69,5 +69,18 @@ describe('AdminLayoutComponent multi-role navigation', () => {
     expect(links()).toContain('/partner/delivery');
     setRoles('admin');
     expect(links()).not.toContain('/partner/delivery');
+  });
+
+  it('offers dashboard shortcuts and opens the existing menu from More', () => {
+    spyOnProperty(TestBed.inject(Router), 'url', 'get').and.returnValue('/admin/dashboard');
+    setRoles('admin');
+    const nav = fixture.nativeElement.querySelector('.dashboard-mobile-nav') as HTMLElement;
+    expect(Array.from(nav.querySelectorAll('a')).map(link => link.getAttribute('href')))
+      .toEqual(['/admin/dashboard', '/admin/web-sales', '/admin/analytics', '/admin/menu']);
+    const more = nav.querySelector('button')!;
+    more.click();
+    fixture.detectChanges();
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    expect(fixture.nativeElement.querySelector('.navbar-menu').classList.contains('active')).toBeTrue();
   });
 });

@@ -77,6 +77,7 @@ export interface DineInBill {
   rounds: DineInRound[];
   totalItemsCount: number;
   subtotal: number;
+  orderAdjustments?: number;
   discountAmount: number;
   couponCode?: string;
   loyaltyPointsUsed: number;

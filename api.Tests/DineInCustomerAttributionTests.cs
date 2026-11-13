@@ -40,6 +40,7 @@ public sealed class DineInCustomerAttributionTests
     private readonly DineInFunction _function;
     private readonly DineInOrderWorkflowFunction _workflow;
     private readonly CafeTableFunction _floor;
+    private readonly OrderFunction _orderFunction;
     private DineInSession? _session;
 
     public DineInCustomerAttributionTests()
@@ -100,6 +101,9 @@ public sealed class DineInCustomerAttributionTests
         _orders.Setup(value => value.GetOrderByIdAsync(It.IsAny<string>()))
             .ReturnsAsync((string id) => _savedOrders.SingleOrDefault(order => order.Id == id));
         _orders.Setup(value => value.UpdateDineInSessionAsync(It.IsAny<DineInSession>())).ReturnsAsync(true);
+        _orders.Setup(value => value.UpdateOrderAsync(It.IsAny<Order>())).ReturnsAsync(true);
+        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>()))
+            .ReturnsAsync((DineInSession session, DateTime _) => { _session = session; return true; });
         _orders.Setup(value => value.TryCloseCancelledDineInSessionAsync(
                 It.IsAny<string>(), It.IsAny<DateTime>(), WaiterId))
             .ReturnsAsync(true);
@@ -128,6 +132,13 @@ public sealed class DineInCustomerAttributionTests
         _floor = new CafeTableFunction(
             new CafeTableRepository(database.Object, NullLogger<CafeTableRepository>.Instance),
             _orders.Object, _outlets.Object, _auth, null!, NullLoggerFactory.Instance);
+        database.Setup(value => value.GetCollection<EventLog>("EventLogs", null))
+            .Returns(new Mock<IMongoCollection<EventLog>> { DefaultValue = DefaultValue.Mock }.Object);
+        _orderFunction = new OrderFunction(
+            _orders.Object, _menu.Object, Mock.Of<IOfferRepository>(), Mock.Of<ILoyaltyRepository>(),
+            _users.Object, Mock.Of<IOperationsRepository>(), null!, _auth, null!,
+            new EventLogService(database.Object, NullLogger<EventLogService>.Instance),
+            null!, null!, NullLoggerFactory.Instance);
     }
 
     [Theory]
@@ -525,6 +536,163 @@ public sealed class DineInCustomerAttributionTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         _orders.Verify(value => value.GetActiveDineInSessionsAsync(It.IsAny<string>()), Times.Never);
     }
+
+    [Theory]
+    [InlineData(2, 200)]
+    [InlineData(1, 100)]
+    public async Task ReconciliationUpdatesDineInBillWithoutChangingPayments(int quantity, int revisedRoundTotal)
+    {
+        await PlaceOrder("Asha");
+        await PlaceOrder("Asha");
+        _session!.AmountPaid = 40;
+        _session.PaymentStatus = "partially_paid";
+        _session.DiscountAmount = 10;
+
+        var response = await Reconcile(_savedOrders[0], quantity);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(revisedRoundTotal + 100, _session.Subtotal);
+        Assert.Equal(revisedRoundTotal + 90, _session.GrandTotal);
+        Assert.Equal(40, _session.AmountPaid);
+        Assert.Equal("partially_paid", _session.PaymentStatus);
+        Assert.Equal("active", _session.Status);
+        var bill = ReadBody(await _function.GetSessionBill(Request(new { }, roleOverride: "admin"), SessionId));
+        Assert.Equal(revisedRoundTotal + 50, bill.GetProperty("amountDue").GetDecimal());
+    }
+
+    [Fact]
+    public async Task ReconciliationUpdatesSettledBillForReportsWithoutReopeningOrChangingPayments()
+    {
+        await PlaceOrder("Asha");
+        _session!.Status = "paid";
+        _session.PaymentStatus = "paid";
+        _session.AmountPaid = 100;
+
+        var response = await Reconcile(_savedOrders[0], 2, manualTotal: 150);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(200, _session.Subtotal);
+        Assert.Equal(150, _session.GrandTotal);
+        Assert.Equal(100, _session.AmountPaid);
+        Assert.Equal("paid", _session.Status);
+        Assert.Equal("paid", _session.PaymentStatus);
+        var bill = ReadBody(await _function.GetSessionBill(Request(new { }, roleOverride: "admin"), SessionId));
+        Assert.Equal(50, bill.GetProperty("amountDue").GetDecimal());
+        Assert.Equal(-50, bill.GetProperty("orderAdjustments").GetDecimal());
+    }
+
+    [Fact]
+    public async Task ReconciliationExcludesCancelledRoundsFromTheBill()
+    {
+        await PlaceOrder("Asha");
+        await PlaceOrder("Asha");
+
+        var response = await Reconcile(_savedOrders[0], 1, status: "cancelled");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(100, _session!.GrandTotal);
+    }
+
+    [Fact]
+    public async Task ReconciliationPreservesKitchenStateForUnchangedItems()
+    {
+        await PlaceOrder("Asha");
+        var original = _savedOrders[0].Items[0];
+        original.KitchenStatus = "served";
+        original.ServedByUserId = WaiterId;
+        original.ServedAt = DateTime.UtcNow;
+
+        var response = await Reconcile(_savedOrders[0], 1);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var item = Assert.Single(_savedOrders[0].Items);
+        Assert.Equal("served", item.KitchenStatus);
+        Assert.Equal(WaiterId, item.ServedByUserId);
+        Assert.Equal(original.ServedAt, item.ServedAt);
+    }
+
+    [Fact]
+    public async Task AddingAndRemovingItemsRecalculatesTheTableBalance()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Add missing item",
+            items = new[]
+            {
+                new { menuItemId = MenuItemId, name = "Tea", quantity = 1, baseUnitPrice = 100 },
+                new { menuItemId = "second", name = "Snack", quantity = 1, baseUnitPrice = 50 }
+            }
+        }, roleOverride: "admin"), order.Id!);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(150, _session!.GrandTotal);
+
+        response = await Reconcile(order, 1);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(100, _session.GrandTotal);
+    }
+
+    [Fact]
+    public async Task ReconciliationRetriesWhenSessionChangesDuringCalculation()
+    {
+        await PlaceOrder("Asha");
+        var attempts = 0;
+        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>()))
+            .ReturnsAsync((DineInSession session, DateTime _) =>
+            {
+                if (++attempts == 1)
+                {
+                    session.AmountPaid = 30;
+                    session.UpdatedAt = session.UpdatedAt.AddSeconds(1);
+                    return false;
+                }
+                _session = session;
+                return true;
+            });
+
+        var response = await Reconcile(_savedOrders[0], 2);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, attempts);
+        Assert.Equal(30, _session!.AmountPaid);
+        Assert.Equal(200, _session.GrandTotal);
+    }
+
+    [Fact]
+    public async Task ReconciliationReportsWhenBillCannotBeUpdatedAfterOrderWasSaved()
+    {
+        await PlaceOrder("Asha");
+        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(false);
+
+        var response = await Reconcile(_savedOrders[0], 2);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("order was saved", ReadBody(response).GetProperty("error").GetString());
+        _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>()), Times.Exactly(5));
+    }
+
+    [Fact]
+    public async Task ReconciliationDoesNotSaveWhenPaymentIsProcessing()
+    {
+        await PlaceOrder("Asha");
+        _session!.PaymentStatus = "processing";
+
+        var response = await Reconcile(_savedOrders[0], 2);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        _orders.Verify(value => value.UpdateOrderAsync(It.IsAny<Order>()), Times.Never);
+    }
+
+    private Task<HttpResponseData> Reconcile(Order order, int quantity, int? manualTotal = null, string? status = null) =>
+        _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct bill items",
+            status = status ?? order.Status,
+            manualTotalOverride = manualTotal,
+            items = new[] { new { menuItemId = MenuItemId, name = "Tea", quantity, baseUnitPrice = 100 } }
+        }, roleOverride: "admin"), order.Id!);
 
     private Task<HttpResponseData> PlaceOrder(string? customerName) =>
         _function.PlaceDineInOrder(Request(new CreateOrderRequest {

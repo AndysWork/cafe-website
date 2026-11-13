@@ -2449,22 +2449,13 @@ public class DineInFunction
 
     private async Task RecalculateSessionTotalsAsync(DineInSession session)
     {
-        decimal subtotal = 0;
+        var orders = new List<Order>();
         foreach (var orderId in session.OrderIds)
         {
             var order = await _orderRepo.GetOrderByIdAsync(orderId);
-            if (order != null && order.Status != "cancelled")
-            {
-                subtotal += order.Subtotal;
-            }
+            if (order != null) orders.Add(order);
         }
-
-        session.Subtotal = subtotal;
-        var discount = session.DiscountAmount + session.LoyaltyDiscountAmount;
-        var taxable = Math.Max(0, subtotal - discount);
-        // GST & Taxes temporarily disabled (0%) per requirement
-        session.TaxAmount = 0m;
-        session.GrandTotal = taxable;
+        DineInBillTotals.Apply(session, orders);
     }
 
     private async Task<DineInBillResponse> BuildBillResponseAsync(DineInSession session)
@@ -2555,6 +2546,8 @@ public class DineInFunction
             Rounds = rounds,
             TotalItemsCount = totalItems,
             Subtotal = session.Subtotal,
+            OrderAdjustments = sessionOrders.Where(order => !string.Equals(order.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
+                .Sum(order => order.Total - order.Subtotal),
             DiscountAmount = session.DiscountAmount,
             CouponCode = session.CouponCode,
             LoyaltyPointsUsed = session.LoyaltyPointsUsed,

@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
+import { of } from 'rxjs';
 import { AdminWebSalesComponent } from './admin-web-sales.component';
 import { Order, OrderService } from '../../services/order.service';
 import { DeliveryPartnerService } from '../../services/delivery-partner.service';
@@ -10,6 +11,7 @@ import { UIStore } from '../../store/ui.store';
 
 describe('AdminWebSalesComponent reconciliation item picker', () => {
   let component: AdminWebSalesComponent;
+  let orderService: jasmine.SpyObj<OrderService>;
   const menuItem: MenuItem = {
     id: 'menu-1',
     name: 'Coffee',
@@ -28,14 +30,15 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
   };
 
   beforeEach(() => {
+    orderService = jasmine.createSpyObj<OrderService>('OrderService', ['adminReconcileOrder']);
     TestBed.configureTestingModule({
       providers: [
         { provide: OutletService, useValue: {} },
-        { provide: UIStore, useValue: { warning: jasmine.createSpy('warning') } }
+        { provide: UIStore, useValue: { warning: jasmine.createSpy('warning'), success: jasmine.createSpy('success') } }
       ]
     });
     component = TestBed.runInInjectionContext(() => new AdminWebSalesComponent(
-      {} as OrderService, {} as DeliveryPartnerService, {} as DineInService,
+      orderService, {} as DeliveryPartnerService, {} as DineInService,
       {} as MenuService, {} as HttpClient
     ));
     component.menuCatalog = [menuItem];
@@ -78,5 +81,40 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     expect(component.getFilteredMenuCatalog('menu-1')).toEqual([menuItem]);
     expect(component.getFilteredMenuCatalog('coffee')).toEqual([menuItem]);
     expect(component.getFilteredMenuCatalog('missing')).toEqual([]);
+  });
+
+  it('refreshes dine-in balances after reconciling an order', async () => {
+    const dineInOrder: Order = { ...order, orderType: 'dine-in' };
+    component.getReconcileDraft(dineInOrder).reason = 'Correct items';
+    orderService.adminReconcileOrder.and.returnValue(of(dineInOrder));
+    spyOn(component, 'loadDashboardData').and.resolveTo();
+    const pending = spyOn(component, 'loadPendingDineInPayments').and.resolveTo();
+    const signals = spyOn(component, 'loadDineInOperationalSignals').and.resolveTo();
+
+    component.submitReconciliation(dineInOrder);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(orderService.adminReconcileOrder).toHaveBeenCalledWith(
+      dineInOrder.id, jasmine.objectContaining({ createdAt: undefined })
+    );
+    expect(pending).toHaveBeenCalled();
+    expect(signals).toHaveBeenCalled();
+    expect(component.saving).toBeFalse();
+  });
+
+  it('submits the created time when it was intentionally changed', async () => {
+    const dineInOrder: Order = { ...order, orderType: 'dine-in' };
+    const draft = component.getReconcileDraft(dineInOrder);
+    draft.reason = 'Correct time';
+    draft.createdAt = '2026-11-09T12:30';
+    orderService.adminReconcileOrder.and.returnValue(of(dineInOrder));
+    spyOn(component, 'loadDashboardData').and.resolveTo();
+    spyOn(component, 'loadPendingDineInPayments').and.resolveTo();
+    spyOn(component, 'loadDineInOperationalSignals').and.resolveTo();
+
+    component.submitReconciliation(dineInOrder);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(orderService.adminReconcileOrder.calls.mostRecent().args[1].createdAt).toBeDefined();
   });
 });

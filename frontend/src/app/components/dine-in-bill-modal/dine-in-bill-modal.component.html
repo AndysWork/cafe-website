@@ -101,9 +101,9 @@
         <div class="tab-notice paid-notice" *ngIf="bill.status === 'paid'">
           <span class="notice-icon">🎉</span>
           <div class="notice-text">
-            <strong>Bill Settled • Thank You!</strong>
-            <p>Your payment of ₹{{ bill.grandTotal | number:'1.2-2' }} has been successfully recorded. Digital invoice generated.</p>
-            <p class="pts-credited-msg">🎁 <strong>+{{ estimatedPointsToEarn }} Loyalty Points</strong> have been credited to your rewards account!</p>
+            <strong>{{ bill.amountDue > 0 ? 'Closed bill revised' : 'Bill Settled • Thank You!' }}</strong>
+            <p>Recorded payment: ₹{{ bill.amountPaid | number:'1.2-2' }}. <span *ngIf="bill.amountDue > 0">Revised balance due: ₹{{ bill.amountDue | number:'1.2-2' }}.</span></p>
+            <p class="pts-credited-msg" *ngIf="bill.amountDue <= 0">🎁 <strong>+{{ estimatedPointsToEarn }} Loyalty Points</strong> have been credited to your rewards account!</p>
           </div>
         </div>
 
@@ -148,6 +148,11 @@
           <div class="summary-row">
             <span>Items Subtotal</span>
             <span>₹{{ bill.subtotal | number:'1.2-2' }}</span>
+          </div>
+
+          <div class="summary-row" *ngIf="bill.orderAdjustments">
+            <span>Order adjustments</span>
+            <span>{{ bill.orderAdjustments > 0 ? '+' : '-' }} ₹{{ (bill.orderAdjustments > 0 ? bill.orderAdjustments : -bill.orderAdjustments) | number:'1.2-2' }}</span>
           </div>
 
           <div class="summary-row discount-row" *ngIf="bill.discountAmount > 0">

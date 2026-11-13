@@ -10,6 +10,9 @@ import { OutletService } from '../../services/outlet.service';
 import { environment } from '../../../environments/environment';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { catchError, filter, map } from 'rxjs/operators';
+import { AuthStore } from '../../store/auth.store';
+import { formatIstDate, getIstDateString } from '../../utils/date-utils';
+import { calculateDashboardInsights, calculateDashboardOverview, DashboardDay, DashboardInsights, DashboardOverview, DashboardSummary } from './dashboard-overview';
 
 interface OnlineSale {
   _id?: string;
@@ -93,7 +96,18 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   private expenseService = inject(ExpenseService);
   private outletService = inject(OutletService);
   private http = inject(HttpClient);
+  readonly authStore = inject(AuthStore);
   private outletSubscription?: Subscription;
+  periodDays: 7 | 30 | 90 = 30;
+  trendMetric: 'revenue' | 'orders' | 'average' = 'revenue';
+  overview: DashboardOverview = calculateDashboardOverview([], [], 30, getIstDateString());
+  insights: DashboardInsights = calculateDashboardInsights([], [], 30, getIstDateString());
+  readonly overviewCards: { key: keyof DashboardSummary; label: string; icon: string; color: string; currency: boolean }[] = [
+    { key: 'revenue', label: 'Total Revenue', icon: '💰', color: 'green', currency: true },
+    { key: 'orders', label: 'Sales Records', icon: '🛒', color: 'blue', currency: false },
+    { key: 'average', label: 'Avg. Record Value', icon: '📈', color: 'purple', currency: true },
+    { key: 'customers', label: 'Online Customers', icon: '👥', color: 'orange', currency: false }
+  ];
 
   stats = [
     { label: 'Total Menu Items', value: '0', icon: '🍽️', color: '#f38181' },
@@ -190,6 +204,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         this.calculateTopCustomers();
         this.calculateOnlineMostOrderedItems();
         this.calculateOfflineMostOrderedItems();
+        this.refreshOverview();
 
         this.isLoading = false;
       },
@@ -199,6 +214,104 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         this.isLoading = false;
       }
     });
+  }
+
+  setPeriod(value: string): void {
+    if (value === '7') this.periodDays = 7;
+    else if (value === '30') this.periodDays = 30;
+    else if (value === '90') this.periodDays = 90;
+    else return;
+    this.refreshOverview();
+  }
+
+  setTrendMetric(value: string): void {
+    if (value === 'revenue' || value === 'orders' || value === 'average') this.trendMetric = value;
+  }
+
+  refreshOverview(): void {
+    const today = getIstDateString();
+    this.overview = calculateDashboardOverview(this.onlineSales, this.offlineSales, this.periodDays, today);
+    this.insights = calculateDashboardInsights(this.allOrders, this.expenses, this.periodDays, today);
+  }
+
+  get maxHourlyOrders(): number {
+    return Math.max(...this.insights.hourlyOrders.map(bucket => bucket.count), 1);
+  }
+
+  formatHour(hour: number): string {
+    const format = (value: number) => `${value % 12 || 12} ${value < 12 ? 'AM' : 'PM'}`;
+    return `${format(hour)}–${format((hour + 1) % 24)}`;
+  }
+
+  get expenseChange(): number | null {
+    const previous = this.insights.expenses.previousTotal;
+    return previous ? (this.insights.expenses.total - previous) / Math.abs(previous) * 100 : null;
+  }
+
+  get bestSalesDay(): DashboardDay | null {
+    return this.overview.days.filter(day => day.orders > 0)
+      .reduce<DashboardDay | null>((best, day) => !best || day.revenue > best.revenue ? day : best, null);
+  }
+
+  changeFor(key: keyof DashboardSummary): number | null {
+    const previous = this.overview.previous[key];
+    return previous ? (this.overview.current[key] - previous) / Math.abs(previous) * 100 : null;
+  }
+
+  trendValue(day: DashboardDay): number {
+    if (this.trendMetric === 'orders') return day.orders;
+    if (this.trendMetric === 'average') return day.orders ? day.revenue / day.orders : 0;
+    return day.revenue;
+  }
+
+  get trendMax(): number {
+    return Math.max(...this.overview.days.map(day => this.trendValue(day)), 0);
+  }
+
+  get trendMin(): number {
+    return Math.min(...this.overview.days.map(day => this.trendValue(day)), 0);
+  }
+
+  chartX(index: number): number {
+    return 40 + index * 530 / Math.max(this.overview.days.length - 1, 1);
+  }
+
+  chartY(day: DashboardDay): number {
+    const min = this.trendMin;
+    return 168 - (this.trendValue(day) - min) / (this.trendMax - min || 1) * 135;
+  }
+
+  get trendPoints(): string {
+    return this.overview.days.map((day, index) => `${this.chartX(index)},${this.chartY(day)}`).join(' ');
+  }
+
+  get trendArea(): string {
+    const baseline = this.chartY({ date: '', revenue: 0, orders: 0 });
+    return `40,${baseline} ${this.trendPoints} 570,${baseline}`;
+  }
+
+  showDateLabel(index: number): boolean {
+    const last = this.overview.days.length - 1;
+    return index === 0 || index === last || (index > 0 && index < last && index % Math.ceil(last / 4) === 0);
+  }
+
+  chartDate(date: string): string {
+    return formatIstDate(date, { month: 'short', day: 'numeric' });
+  }
+
+  get sourceGradient(): string {
+    if (!this.overview.current.orders) return '#e8eef5';
+    let position = 0;
+    return `conic-gradient(${this.overview.sources.filter(source => source.count > 0).map(source => {
+      const start = position;
+      position += source.count / this.overview.current.orders * 100;
+      return `${source.color} ${start}% ${position}%`;
+    }).join(', ')})`;
+  }
+
+  itemImage(name: string): string | undefined {
+    const item = this.menuItems.find(menuItem => menuItem.name?.trim().toLowerCase() === name.toLowerCase());
+    return item?.imageThumbnailUrl || item?.imageUrl;
   }
 
   updateStats(): void {

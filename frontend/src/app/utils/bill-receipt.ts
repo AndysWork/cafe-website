@@ -124,7 +124,7 @@ export function renderDineInBill(bill: DineInBill, width: ReceiptWidth = 32): Re
     }
   }
 
-  const isPaid = bill.status === 'paid' || bill.paymentStatus === 'paid';
+  const isPaid = (bill.status === 'paid' || bill.paymentStatus === 'paid') && bill.amountDue <= 0;
   const lines = header(bill.outletName, isPaid ? 'PAID BILL' : 'BILL', width);
   if (bill.invoiceNumber) lines.push({ text: `Bill no : ${clean(bill.invoiceNumber)}` });
   lines.push({ text: `Table   : ${clean(bill.tableNumber)}`, style: 'bold' });
@@ -134,6 +134,10 @@ export function renderDineInBill(bill: DineInBill, width: ReceiptWidth = 32): Re
   lines.push({ text: '-'.repeat(width) }, ...itemTable(Array.from(merged.values()), width), { text: '-'.repeat(width) });
 
   lines.push({ text: leftRight('Subtotal', money(bill.subtotal), width) });
+  if (bill.orderAdjustments) {
+    const sign = bill.orderAdjustments > 0 ? '+' : '-';
+    lines.push({ text: leftRight('Order adjustments', `${sign}${money(Math.abs(bill.orderAdjustments))}`, width) });
+  }
   if (bill.discountAmount > 0) {
     lines.push({ text: leftRight(bill.couponCode ? `Discount (${bill.couponCode})` : 'Discount', `-${money(bill.discountAmount)}`, width) });
   }

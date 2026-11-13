@@ -1,4 +1,4 @@
-<div class="admin-layout">
+<div class="admin-layout" [class.dashboard-active]="isDashboard">
   <!-- Top Navbar -->
   <header class="admin-navbar">
     <div class="navbar-left">
@@ -168,4 +168,11 @@
   <main class="admin-main">
     <router-outlet></router-outlet>
   </main>
+  <nav *ngIf="isDashboard" class="dashboard-mobile-nav" aria-label="Dashboard navigation">
+    <a routerLink="/admin/dashboard" routerLinkActive="active" aria-current="page"><span aria-hidden="true">⌂</span>Dashboard</a>
+    <a routerLink="/admin/web-sales"><span aria-hidden="true">▤</span>Web Orders</a>
+    <a routerLink="/admin/analytics"><span aria-hidden="true">▥</span>Sales</a>
+    <a routerLink="/admin/menu"><span aria-hidden="true">♧</span>Menu</a>
+    <button type="button" (click)="toggleMobileMenu()" [attr.aria-expanded]="isMobileMenuOpen"><span aria-hidden="true">•••</span>More</button>
+  </nav>
 </div>
