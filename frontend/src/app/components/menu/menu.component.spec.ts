@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { fakeAsync, flushMicrotasks, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
@@ -35,7 +35,10 @@ describe('MenuComponent URL search', () => {
         { provide: MenuService, useValue: {
           categoryDrawerOpen$: of(false),
           menuItemsRefresh$: of(false),
-          setCategoryDrawerOpen: jasmine.createSpy('setCategoryDrawerOpen')
+          setCategoryDrawerOpen: jasmine.createSpy('setCategoryDrawerOpen'),
+          getCategories: jasmine.createSpy('getCategories'),
+          getMenuItems: jasmine.createSpy('getMenuItems'),
+          getSubCategories: jasmine.createSpy('getSubCategories')
         } },
         { provide: CartService, useValue: { cart$: of({ items: [], subtotal: 0, packagingCharges: 0, total: 0, itemCount: 0 }) } },
         { provide: AuthService, useValue: { isLoggedIn: () => false } },
@@ -72,4 +75,25 @@ describe('MenuComponent URL search', () => {
     expect(dineIn.setTableNumber).toHaveBeenCalledWith('12');
     expect(component.applyFilters).toHaveBeenCalledTimes(1);
   });
+
+  it('finds items by their direct or resolved subcategory when opening a shortcut', fakeAsync(() => {
+    const menuService = TestBed.inject(MenuService);
+    (menuService.getCategories as jasmine.Spy).and.returnValue(of([{ id: 'drinks', name: 'Beverages' }]));
+    (menuService.getSubCategories as jasmine.Spy).and.returnValue(of([
+      { id: 'mocktails', name: 'MOCKTAILS', categoryId: 'drinks' }
+    ]));
+    (menuService.getMenuItems as jasmine.Spy).and.returnValue(of([
+      { id: 'mojito', name: 'Virgin Mojito', categoryId: 'drinks', subCategoryId: 'mocktails', onlinePrice: 100 },
+      { id: 'punch', name: 'Fruit Punch', categoryId: 'drinks', subCategoryName: 'Mocktails', onlinePrice: 100 },
+      { id: 'coffee', name: 'Iced Coffee', categoryId: 'drinks', onlinePrice: 100 },
+      { id: 'hidden', name: 'Hidden Mojito', categoryId: 'drinks', subCategoryId: 'mocktails', onlinePrice: 100, isVisibleToCustomers: false }
+    ]));
+    (component.applyFilters as jasmine.Spy).and.callThrough();
+
+    params.next({ search: 'mocktail' });
+    component.loadMenu();
+    flushMicrotasks();
+
+    expect(component.filteredItems.map(item => item.id)).toEqual(['mojito', 'punch']);
+  }));
 });

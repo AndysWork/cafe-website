@@ -2217,6 +2217,9 @@ a.find-cafe-link {
   svg { width: 24px; height: 24px; }
 }
 .home-info-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   width: min(760px, calc(100% - 32px));
   max-width: none;
   max-height: calc(100dvh - 32px);

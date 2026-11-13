@@ -451,10 +451,13 @@ export class MenuComponent implements OnInit, OnDestroy {
 
     if (this.searchQuery.trim()) {
       const query = this.searchQuery.toLowerCase().trim();
+      const subCategoryNameById = this.buildSubCategoryIdNameMap();
       items = items.filter(item =>
         this.getDisplayText(item.name).toLowerCase().includes(query) ||
         (item.description && item.description.toLowerCase().includes(query)) ||
-        (item.categoryName && item.categoryName.toLowerCase().includes(query))
+        (item.categoryName && item.categoryName.toLowerCase().includes(query)) ||
+        this.getDisplayText(item.subCategoryName || subCategoryNameById.get(this.normalizeKey(item.subCategoryId)) || '')
+          .toLowerCase().includes(query)
       );
     }
 
