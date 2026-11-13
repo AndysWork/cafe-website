@@ -36,6 +36,8 @@ export interface Order {
   total: number;
   couponCode?: string;
   discountAmount?: number;
+  isStaffOrder?: boolean;
+  staffDiscountAmount?: number;
   loyaltyPointsUsed?: number;
   loyaltyDiscountAmount?: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'rejected' | 'scheduled';
@@ -95,6 +97,7 @@ export interface AdminReconcileOrderItemRequest {
 }
 
 export interface AdminReconcileOrderRequest {
+  isStaffOrder?: boolean;
   reconcileSessionPaymentMethod?: boolean;
   reason: string;
   status?: string;

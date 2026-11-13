@@ -561,6 +561,193 @@ public sealed class DineInCustomerAttributionTests
     }
 
     [Fact]
+    public async Task StaffDiscountAppliesOnlyToTheSelectedRoundAndIsRecomputedDuringReconciliation()
+    {
+        var response = await _function.PlaceDineInOrder(Request(new CreateOrderRequest
+        {
+            OutletId = OutletId, TableNumber = "T1", IsStaffOrder = true,
+            Items = new() { new() { MenuItemId = MenuItemId, Quantity = 1 } }
+        }));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var staff = Assert.Single(_savedOrders);
+        Assert.True(staff.IsStaffOrder);
+        Assert.Equal(20, staff.StaffDiscountAmount);
+        Assert.Equal(80, staff.Total);
+        var firstBill = ReadBody(response).GetProperty("session");
+        Assert.Equal(20, firstBill.GetProperty("staffDiscountAmount").GetDecimal());
+        Assert.Equal(0, firstBill.GetProperty("orderAdjustments").GetDecimal());
+        Assert.False(firstBill.GetProperty("canApplyCoupon").GetBoolean());
+        var couponResponse = await _function.ApplyCoupon(Request(new { couponCode = "SAVE" }), SessionId);
+        Assert.Equal(HttpStatusCode.BadRequest, couponResponse.StatusCode);
+
+        await PlaceOrder("Asha");
+        Assert.False(_savedOrders[1].IsStaffOrder);
+        Assert.Equal(100, _savedOrders[1].Total);
+        Assert.Equal(180, _session!.GrandTotal);
+        response = await Reconcile(staff, 2);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(40, staff.StaffDiscountAmount);
+        Assert.Equal(160, staff.Total);
+        Assert.Equal(260, _session.GrandTotal);
+        Assert.Equal(40, ReadBody(response).GetProperty("staffDiscountAmount").GetDecimal());
+        response = await Reconcile(staff, 2, manualTotal: 1);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(160, staff.Total);
+        Assert.Equal(260, _session.GrandTotal);
+        var itemVoid = new DineInVoidRequest { OrderId = staff.Id!, MenuItemId = MenuItemId, Quantity = 1 };
+        _session.VoidRequests.Add(itemVoid);
+        response = await _function.ReviewVoidRequest(Request(new { decision = "approved" }, roleOverride: "admin"),
+            SessionId, itemVoid.Id);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(20, staff.StaffDiscountAmount);
+        Assert.Equal(80, staff.Total);
+        Assert.Equal(180, _session.GrandTotal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CustomerCannotRequestStaffDiscount(bool dineIn)
+    {
+        var request = Request(new CreateOrderRequest
+        {
+            OutletId = OutletId, TableNumber = "T1", IsStaffOrder = true,
+            Items = new() { new() { MenuItemId = MenuItemId, Quantity = 1 } }
+        }, isWaiter: false);
+        var response = dineIn ? await _function.PlaceDineInOrder(request) : await _orderFunction.CreateOrder(request);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(_savedOrders);
+        Assert.Null(_session);
+    }
+
+    [Fact]
+    public void SessionCouponsAndLoyaltyCannotDiscountStaffRoundsAgain()
+    {
+        var staff = new Order { IsStaffOrder = true, Subtotal = 100, Total = 80, StaffDiscountAmount = 20, DiscountAmount = 20 };
+        var normal = new Order { Subtotal = 50, Total = 50 };
+        var session = new DineInSession { DiscountAmount = 60, LoyaltyDiscountAmount = 10, LoyaltyPointsUsed = 40 };
+        DineInBillTotals.Apply(session, new[] { staff, normal });
+        Assert.Equal(50, StaffOrderDiscount.CouponEligibleSubtotal(new[] { staff, normal }));
+        Assert.Equal(50, session.DiscountAmount);
+        Assert.Equal(0, session.LoyaltyDiscountAmount);
+        Assert.Equal(80, session.GrandTotal);
+        Assert.Equal(0, session.LoyaltyPointsUsed);
+    }
+
+    [Fact]
+    public async Task AdminCanConvertTakeawayToStaffOrderIncludingPackagingAndReplacingDiscounts()
+    {
+        var order = new Order
+        {
+            Id = "staff-takeaway", OrderType = "pickup", Status = "delivered", PaymentStatus = "paid",
+            PaymentMethod = "cash_at_counter", Subtotal = 100, PackagingCharge = 10, Total = 100,
+            DiscountAmount = 5, LoyaltyDiscountAmount = 5, LoyaltyPointsUsed = 20, CouponCode = "OLD",
+            Items = new() { new() { MenuItemId = MenuItemId, Name = "Tea", Quantity = 1, Price = 100, Total = 100 } }
+        };
+        _savedOrders.Add(order);
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct historical staff takeaway", isStaffOrder = true
+        }, roleOverride: "admin"), order.Id);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(order.IsStaffOrder);
+        Assert.Equal(22, order.StaffDiscountAmount);
+        Assert.Equal(22, order.DiscountAmount);
+        Assert.Equal(88, order.Total);
+        Assert.Null(order.CouponCode);
+        Assert.Equal(0, order.LoyaltyPointsUsed);
+        Assert.Equal(0, order.LoyaltyDiscountAmount);
+        var collection = OrderPeriodCollection.Calculate(_savedOrders, new Dictionary<string, DineInSession>());
+        Assert.Equal(88, collection.Cash);
+        Assert.Equal(88, collection.Total);
+    }
+
+    [Theory]
+    [InlineData("cash_at_counter", true)]
+    [InlineData("upi-qr", true)]
+    [InlineData("upi-qr", false)]
+    public async Task AdminStaffConversionUpdatesOnlySelectedRoundAndPreservesActualPartialCollections(string method, bool paid)
+    {
+        await PlaceOrder("Asha");
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        _session!.Status = paid ? "paid" : "active";
+        _session.PaymentStatus = paid ? "paid" : "partially_paid";
+        _session.AmountPaid = paid ? 200 : 50;
+        _session.PaymentEntries = new() { new() { Amount = _session.AmountPaid, PaymentMethod = method, Status = "confirmed" } };
+        foreach (var staff in new[] { true, true, false })
+        {
+            var response = await _orderFunction.AdminReconcileOrder(Request(new
+            {
+                reason = "Correct historical staff designation", isStaffOrder = staff
+            }, roleOverride: "admin"), order.Id!);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(staff, order.IsStaffOrder);
+            Assert.Equal(staff ? 20 : 0, order.StaffDiscountAmount);
+            Assert.Equal(staff ? 20 : 0, order.DiscountAmount);
+            Assert.Equal(staff ? 80 : 100, order.Total);
+            Assert.False(_savedOrders[1].IsStaffOrder);
+            Assert.Equal(100, _savedOrders[1].Total);
+            var expectedBill = staff ? 180 : 200;
+            var expectedCollection = paid ? expectedBill : 50;
+            Assert.Equal(expectedBill, _session.GrandTotal);
+            Assert.Equal(expectedCollection, _session.AmountPaid);
+            Assert.Equal(expectedCollection, _session.PaymentEntries.Sum(entry => entry.Amount));
+            var collection = OrderPeriodCollection.Calculate(_savedOrders,
+                new Dictionary<string, DineInSession> { [SessionId] = _session });
+            Assert.Equal(expectedCollection, collection.Total);
+            Assert.Equal(method == "upi-qr" ? expectedCollection : 0, collection.Upi);
+            Assert.Equal(method == "cash_at_counter" ? expectedCollection : 0, collection.Cash);
+        }
+    }
+
+    [Fact]
+    public async Task StaffConversionCorrectsPaidSessionWhenReplacingCouponLeavesRoundTotalUnchanged()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.DiscountAmount = 20;
+        order.CouponCode = "OLD";
+        order.Total = 80;
+        _session!.DiscountAmount = 10;
+        _session.CouponCode = "SESSION";
+        _session.Status = _session.PaymentStatus = "paid";
+        _session.GrandTotal = _session.AmountPaid = 70;
+        _session.PaymentEntries = new() { new() { Amount = 70, PaymentMethod = "upi-qr", Status = "confirmed" } };
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Replace historical coupon with staff pricing", isStaffOrder = true
+        }, roleOverride: "admin"), order.Id!);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(80, order.Total);
+        Assert.Equal(20, order.StaffDiscountAmount);
+        Assert.Equal(0, _session.DiscountAmount);
+        Assert.Null(_session.CouponCode);
+        Assert.Equal(80, _session.GrandTotal);
+        Assert.Equal(80, _session.AmountPaid);
+        Assert.Equal(80, _session.PaymentEntries.Sum(entry => entry.Amount));
+    }
+
+    [Theory]
+    [InlineData("dine-in", "waiter", null, HttpStatusCode.Forbidden)]
+    [InlineData("delivery", "admin", null, HttpStatusCode.BadRequest)]
+    [InlineData("dine-in", "admin", 1, HttpStatusCode.BadRequest)]
+    public async Task InvalidStaffConversionIsRejectedBeforeSaving(string type, string role, int? manualTotal, HttpStatusCode expected)
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.OrderType = type;
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct staff designation", isStaffOrder = true, manualTotalOverride = manualTotal
+        }, roleOverride: role), order.Id!);
+        Assert.Equal(expected, response.StatusCode);
+        Assert.False(order.IsStaffOrder);
+        Assert.Equal(100, order.Total);
+        _orders.Verify(value => value.UpdateOrderAsync(It.IsAny<Order>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ReconciliationUpdatesSettledBillAndRecordedPaymentWithoutReopening()
     {
         await PlaceOrder("Asha");

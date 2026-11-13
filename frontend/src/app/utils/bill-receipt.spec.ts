@@ -89,4 +89,21 @@ describe('bill-receipt', () => {
     expect(paid).toContain('TAKEAWAY BILL - PAID');
     expect(paid).toMatch(/Paid \(Cash\)\s+50\.00/);
   });
+
+  it('labels staff discounts on dine-in and takeaway receipts without duplicate adjustments', () => {
+    const dineIn = text(renderDineInBill(bill({
+      subtotal: 100, staffDiscountAmount: 20, discountAmount: 0, orderAdjustments: 0,
+      loyaltyDiscountAmount: 0, grandTotal: 80, amountDue: 80
+    }))).join('\n');
+    expect(dineIn).toMatch(/Staff discount \(20%\)\s+-20\.00/);
+    expect(dineIn).not.toContain('Order adjustments');
+    expect(dineIn).toMatch(/TOTAL\s+Rs\.80\.00/);
+    const takeaway = text(renderTakeawayBill({
+      orderId: 'staff', token: 'K-1', status: 'pending', isStaffOrder: true,
+      staffDiscountAmount: 22, subtotal: 100, packagingCharge: 10, total: 88,
+      paymentStatus: 'unpaid', createdAt: '2026-03-02T10:00:00Z', items: []
+    })).join('\n');
+    expect(takeaway).toMatch(/Staff discount \(20%\)\s+-22\.00/);
+    expect(takeaway).toMatch(/TOTAL\s+Rs\.88\.00/);
+  });
 });

@@ -129,6 +129,12 @@ public class OrderFunction
             // Parse request
             var (orderRequest, validationError) = await ValidationHelper.ValidateBody<CreateOrderRequest>(req);
             if (validationError != null) return validationError;
+            if (orderRequest.IsStaffOrder)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Use the authorized waiter takeaway or dine-in screen for Staff Orders." });
+                return forbidden;
+            }
 
             // Resolve outlet for this order.
             // Admins keep strict access behavior while customers are not blocked by assigned outlet lists.
@@ -1286,6 +1292,7 @@ public class OrderFunction
             var loyaltyCap = Math.Max(0, order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee - order.DiscountAmount);
             order.LoyaltyDiscountAmount = Math.Min(order.LoyaltyDiscountAmount, loyaltyCap);
             order.Total = Math.Max(0, order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee - order.DiscountAmount - order.LoyaltyDiscountAmount);
+            StaffOrderDiscount.Apply(order);
             order.UpdatedAt = MongoService.GetIstNow();
 
             var updated = await _orderRepo.UpdateOrderAsync(order);
@@ -1339,7 +1346,23 @@ public class OrderFunction
                 return notFound;
             }
 
+            var isStaffOrder = reconcileRequest.IsStaffOrder ?? order.IsStaffOrder;
+            if (isStaffOrder && !order.IsStaffOrder
+                && !string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(order.OrderType, "pickup", StringComparison.OrdinalIgnoreCase))
+            {
+                var invalidStaffOrder = req.CreateResponse(HttpStatusCode.BadRequest);
+                await invalidStaffOrder.WriteAsJsonAsync(new { error = "Staff Order discounts are available only for Dine-In and Takeaway orders." });
+                return invalidStaffOrder;
+            }
+
             DineInSession? reconciliationSession = null;
+            if (isStaffOrder && (reconcileRequest.ManualSubtotalOverride.HasValue || reconcileRequest.ManualTotalOverride.HasValue))
+            {
+                var invalidOverride = req.CreateResponse(HttpStatusCode.BadRequest);
+                await invalidOverride.WriteAsJsonAsync(new { error = "Staff Orders use item prices and a fixed 20% discount. Change the items or charges instead of overriding subtotal or total." });
+                return invalidOverride;
+            }
             if (!string.IsNullOrWhiteSpace(order.DineInSessionId))
             {
                 DineInSession session;
@@ -1425,6 +1448,8 @@ public class OrderFunction
 
             var oldState = new
             {
+                order.IsStaffOrder,
+                order.StaffDiscountAmount,
                 order.CreatedAt,
                 order.Status,
                 order.PaymentStatus,
@@ -1553,6 +1578,13 @@ public class OrderFunction
                 order.LoyaltyDiscountAmount = 0;
             }
 
+            if (order.IsStaffOrder && !isStaffOrder)
+            {
+                order.StaffDiscountAmount = 0;
+                order.DiscountAmount = 0;
+            }
+            order.IsStaffOrder = isStaffOrder;
+
             order.Subtotal = reconcileRequest.ManualSubtotalOverride.HasValue
                 ? Math.Round(reconcileRequest.ManualSubtotalOverride.Value, 2)
                 : Math.Round(order.Items.Sum(i => i.Total), 2);
@@ -1572,8 +1604,10 @@ public class OrderFunction
             order.Total = reconcileRequest.ManualTotalOverride.HasValue
                 ? Math.Round(Math.Max(0, reconcileRequest.ManualTotalOverride.Value), 2)
                 : Math.Round(Math.Max(0, gross - order.DiscountAmount - order.LoyaltyDiscountAmount), 2);
+            StaffOrderDiscount.Apply(order);
 
             var reconcilePaidBill = reconcileRequest.Items != null || order.Total != oldState.Total
+                || order.IsStaffOrder != oldState.IsStaffOrder
                 || !string.Equals(order.Status, oldState.Status, StringComparison.OrdinalIgnoreCase);
             string? paidSessionPaymentMethod = null;
             if (reconcilePaidBill && reconciliationSession != null
@@ -1640,6 +1674,8 @@ public class OrderFunction
                 oldState: oldState,
                 newState: new
                 {
+                    order.IsStaffOrder,
+                    order.StaffDiscountAmount,
                     order.CreatedAt,
                     order.Status,
                     order.PaymentStatus,
@@ -2574,6 +2610,8 @@ public class OrderFunction
             Total = order.Total,
             CouponCode = order.CouponCode,
             DiscountAmount = order.DiscountAmount,
+            IsStaffOrder = order.IsStaffOrder,
+            StaffDiscountAmount = order.StaffDiscountAmount,
             LoyaltyPointsUsed = order.LoyaltyPointsUsed,
             LoyaltyDiscountAmount = order.LoyaltyDiscountAmount,
             Status = order.Status,

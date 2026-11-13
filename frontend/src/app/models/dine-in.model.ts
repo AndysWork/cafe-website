@@ -10,6 +10,8 @@ export interface DineInRoundItem {
 }
 
 export interface DineInRound {
+  isStaffOrder?: boolean;
+  staffDiscountAmount?: number;
   roundNumber: number;
   orderId: string;
   status: string; // pending, confirmed, preparing, ready, served, delivered
@@ -78,6 +80,7 @@ export interface DineInBill {
   totalItemsCount: number;
   subtotal: number;
   orderAdjustments?: number;
+  staffDiscountAmount?: number;
   discountAmount: number;
   couponCode?: string;
   loyaltyPointsUsed: number;

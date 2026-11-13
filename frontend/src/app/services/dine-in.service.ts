@@ -400,6 +400,7 @@ export class DineInService {
   }
 
   public placeWaiterDineInOrder(payload: {
+    isStaffOrder?: boolean;
     tableNumber: string;
     outletId?: string;
     customerName?: string;

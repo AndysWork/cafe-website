@@ -134,6 +134,9 @@ export function renderDineInBill(bill: DineInBill, width: ReceiptWidth = 32): Re
   lines.push({ text: '-'.repeat(width) }, ...itemTable(Array.from(merged.values()), width), { text: '-'.repeat(width) });
 
   lines.push({ text: leftRight('Subtotal', money(bill.subtotal), width) });
+  if (bill.staffDiscountAmount) {
+    lines.push({ text: leftRight('Staff discount (20%)', `-${money(bill.staffDiscountAmount)}`, width) });
+  }
   if (bill.orderAdjustments) {
     const sign = bill.orderAdjustments > 0 ? '+' : '-';
     lines.push({ text: leftRight('Order adjustments', `${sign}${money(Math.abs(bill.orderAdjustments))}`, width) });
@@ -180,6 +183,9 @@ export function renderTakeawayBill(order: WaiterTakeawayOrder, outletName?: stri
   lines.push({ text: '-'.repeat(width) }, ...itemTable(items, width), { text: '-'.repeat(width) });
   lines.push({ text: leftRight('Subtotal', money(order.subtotal), width) });
   if (order.packagingCharge > 0) lines.push({ text: leftRight('Packaging', money(order.packagingCharge), width) });
+  if (order.staffDiscountAmount) {
+    lines.push({ text: leftRight('Staff discount (20%)', `-${money(order.staffDiscountAmount)}`, width) });
+  }
   lines.push({ text: leftRight('TOTAL', `Rs.${money(order.total)}`, width), style: 'large' });
   if (isPaid) {
     lines.push({ text: leftRight(`Paid (${paymentMethodLabel(order.paymentMethod)})`, money(order.total), width) });

@@ -40,7 +40,8 @@
       <article class="control-stat blue"><span class="stat-icon">🛒</span><div><span>Orders</span><strong>{{ overview.orders | number }}</strong><small>Non-cancelled</small></div></article>
       <article class="control-stat violet"><span class="stat-icon">▤</span><div><span>Avg. Order Value</span><strong>{{ formatCurrency(overview.average) }}</strong><small>Per app order</small></div></article>
       <article class="control-stat yellow"><span class="stat-icon">◉</span><div><span>Gross Order Value</span><strong>{{ formatCurrency(overview.grossValue) }}</strong><small>Before discounts</small></div></article>
-      <article class="control-stat red"><span class="stat-icon">◆</span><div><span>Order Discounts</span><strong>{{ formatCurrency(overview.discounts) }}</strong><small>Coupon + loyalty</small></div></article>
+      <article class="control-stat red"><span class="stat-icon">◆</span><div><span>Order Discounts</span><strong>{{ formatCurrency(overview.discounts) }}</strong><small>Coupon + loyalty + staff</small></div></article>
+      <article class="control-stat green" title="Staff discounts on non-cancelled orders placed in the selected date range. Already included in Order Discounts."><span class="stat-icon">%</span><div><span>Staff Discount</span><strong>{{ formatCurrency(overview.staffDiscounts) }}</strong><small>{{ overview.staffOrders }} orders · Selected period</small></div></article>
       <article class="control-stat cyan" title="Value of paid orders excluding table-session payments. Already included in App Order Value; this is not total recorded collection."><span class="stat-icon">✓</span><div><span>Paid Order Value</span><strong>{{ formatCurrency(overview.paidOrderValue) }}</strong><small>Excludes table sessions</small></div></article>
       <article class="control-stat orange"><span class="stat-icon">◷</span><div><span>Awaiting Payment</span><strong>{{ formatCurrency(overview.awaitingPaymentValue) }}</strong><small>Full non-session orders</small></div></article>
       <article class="control-stat red"><span class="stat-icon">×</span><div><span>Cancelled / Rejected</span><strong>{{ overview.cancelledOrders | number }}</strong><small>Orders</small></div></article>
@@ -785,21 +786,22 @@
       </div>
     </div>
 
-    <div class="table-wrap" *ngIf="!loading && filteredOrders.length > 0">
-      <table>
+    <div class="table-wrap orders-table-wrap" *ngIf="!loading && filteredOrders.length > 0"
+      tabindex="0" role="region" aria-label="Order management">
+      <table class="orders-table">
         <thead>
           <tr>
-            <th>Order</th>
-            <th>Customer</th>
-            <th>Mode</th>
-            <th>Items</th>
-            <th>Total</th>
-            <th>Payment</th>
-            <th>Status</th>
-            <th>Compliance</th>
-            <th>Partner</th>
-            <th>Placed At</th>
-            <th>Actions</th>
+            <th scope="col">Order</th>
+            <th scope="col">Customer</th>
+            <th scope="col">Mode</th>
+            <th scope="col">Items</th>
+            <th scope="col">Total</th>
+            <th scope="col">Payment</th>
+            <th scope="col">Status</th>
+            <th scope="col">Compliance</th>
+            <th scope="col">Partner</th>
+            <th scope="col">Placed At</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody *ngFor="let group of orderSessionGroups; trackBy: trackBySessionGroup">
@@ -860,34 +862,58 @@
           </tr>
           <ng-container *ngIf="!group.sessionId || !collapsedSessions.has(group.key)">
           <ng-container *ngFor="let order of group.orders; trackBy: trackById">
-            <tr>
-              <td>#{{ order.id.slice(-6) }}</td>
-              <td>
-                <div>{{ order.username }}</div>
-                <small>{{ order.phoneNumber || '-' }}</small>
+            <tr class="order-row" [class.staff-order-row]="order.isStaffOrder">
+              <td data-label="Order" class="order-id-cell">
+                <span class="order-id">#{{ order.id.slice(-6) }}</span>
               </td>
-              <td>{{ formatOrderMode(order) }}</td>
-              <td>{{ getOrderItemsSummary(order) }}</td>
-              <td>
-                <div>{{ formatCurrency(order.total) }}</div>
-                <small>Gross: {{ formatCurrency(getGrossBeforeDiscounts(order)) }}</small>
-                <small *ngIf="getLoyaltyRedemptionAmount(order) > 0">Loyalty Redemption: -{{ formatCurrency(getLoyaltyRedemptionAmount(order)) }}</small>
+              <td data-label="Customer" class="order-customer-cell">
+                <div class="order-cell-stack">
+                  <strong>{{ order.customerName || order.username }}</strong>
+                  <small>{{ order.phoneNumber || 'No phone recorded' }}</small>
+                </div>
               </td>
-              <td>
-                <div>{{ group.sessionId ? 'See session payment above' : formatPaymentMethod(order) }}</div>
-                <small>{{ order.paymentStatus || '-' }}</small>
+              <td data-label="Mode">
+                <div class="order-cell-stack">
+                  <span class="order-mode-chip">{{ formatOrderMode(order) }}</span>
+                  <span class="staff-discount-chip" *ngIf="order.isStaffOrder">Staff Order · 20% off</span>
+                </div>
               </td>
-              <td>
+              <td data-label="Items" class="order-items-cell">
+                <ul class="order-item-list">
+                  <li *ngFor="let item of order.items | slice:0:2">
+                    <span>{{ item.name }}</span><b>×{{ item.quantity }}</b>
+                  </li>
+                </ul>
+                <small *ngIf="order.items.length > 2">+{{ order.items.length - 2 }} more items</small>
+              </td>
+              <td data-label="Total" class="order-amount-cell">
+                <div class="order-cell-stack">
+                  <strong class="order-payable">{{ formatCurrency(order.total) }}</strong>
+                  <small>Gross {{ formatCurrency(getGrossBeforeDiscounts(order)) }}</small>
+                  <small class="order-staff-saving" *ngIf="order.staffDiscountAmount">Staff discount −{{ formatCurrency(order.staffDiscountAmount || 0) }}</small>
+                  <small *ngIf="getLoyaltyRedemptionAmount(order) > 0">Loyalty −{{ formatCurrency(getLoyaltyRedemptionAmount(order)) }}</small>
+                </div>
+              </td>
+              <td data-label="Payment">
+                <div class="order-cell-stack">
+                  <span class="order-payment-method" [class.session-payment-note]="group.sessionId">
+                    {{ group.sessionId ? 'Session payment' : formatPaymentMethod(order) }}
+                  </span>
+                  <small *ngIf="group.sessionId">See collection above</small>
+                  <small class="order-payment-state">{{ order.paymentStatus || '-' }}</small>
+                </div>
+              </td>
+              <td data-label="Status">
                 <div class="control-cell status-cell">
                   <span class="status-chip" [ngClass]="'status-' + (statusDraft[order.id] || order.status)">
                     {{ formatStatusLabel(statusDraft[order.id] || order.status) }}
                   </span>
-                  <select class="status-select" [(ngModel)]="statusDraft[order.id]">
+                  <select class="status-select" [(ngModel)]="statusDraft[order.id]" [attr.aria-label]="'Status for order #' + order.id.slice(-6)">
                     <option *ngFor="let status of statusOptions" [value]="status">{{ formatStatusLabel(status) }}</option>
                   </select>
                 </div>
               </td>
-              <td>
+              <td data-label="Compliance">
                 <div class="compliance-cell" [title]="getWorkflowCompliance(order).reason">
                   <span class="compliance-badge" [ngClass]="getComplianceClass(order)">
                     {{ getWorkflowCompliance(order).label }}
@@ -895,13 +921,13 @@
                   <small>{{ getWorkflowCompliance(order).reason }}</small>
                 </div>
               </td>
-              <td>
+              <td data-label="Partner">
                 <ng-container *ngIf="canAssignPartner(order); else fixedPartner">
                   <div class="control-cell partner-cell">
                     <span class="partner-chip" [class.unassigned]="!partnerDraft[order.id] && !order.deliveryPartnerName">
                       {{ getPartnerDisplayName(partnerDraft[order.id], order.deliveryPartnerName) }}
                     </span>
-                    <select class="partner-select" [(ngModel)]="partnerDraft[order.id]">
+                    <select class="partner-select" [(ngModel)]="partnerDraft[order.id]" [attr.aria-label]="'Partner for order #' + order.id.slice(-6)">
                     <option value="">Select partner</option>
                     <option *ngFor="let p of availablePartners; trackBy: trackByPartnerId" [value]="p.id">
                       {{ p.name }} ({{ p.status }})
@@ -913,11 +939,13 @@
                   <span class="partner-chip fixed-partner">{{ getAssignedPartnerDisplay(order) }}</span>
                 </ng-template>
               </td>
-              <td>
-                <div>{{ formatDate(order.createdAt, order.createdAtIsUtc) }}</div>
-                <small>{{ formatTime(order.createdAt, order.createdAtIsUtc) }} IST</small>
+              <td data-label="Placed at">
+                <div class="order-cell-stack order-timestamp">
+                  <time [attr.datetime]="order.createdAt">{{ formatDate(order.createdAt, order.createdAtIsUtc) }}</time>
+                  <small>IST · Asia/Kolkata</small>
+                </div>
               </td>
-              <td>
+              <td data-label="Actions" class="order-actions-cell">
                 <div class="action-row">
                   <div *ngIf="canBypassConfirmPayment(order)" class="payment-bypass">
                     <input
@@ -926,15 +954,15 @@
                       placeholder="UTR/Ref (optional)" />
                     <button (click)="confirmPayment(order)" [disabled]="saving">Confirm Payment</button>
                   </div>
-                  <button (click)="updateOrderStatus(order)" [disabled]="saving">Save Status</button>
+                  <button class="save-status-action" (click)="updateOrderStatus(order)" [disabled]="saving">Save Status</button>
                   <button *ngIf="canAssignPartner(order)" (click)="assignPartner(order)" [disabled]="saving || !partnerDraft[order.id]">
                     Assign
                   </button>
-                  <button (click)="toggleIssuePanel(order)">
+                  <button (click)="toggleIssuePanel(order)" [attr.aria-expanded]="isIssuePanelOpen(order.id)">
                     {{ isIssuePanelOpen(order.id) ? 'Hide Issues' : 'Issues' }}
                     <span *ngIf="getOpenIssueCount(order.id) > 0">({{ getOpenIssueCount(order.id) }})</span>
                   </button>
-                  <button *ngIf="canReconcileOrder(order)" (click)="toggleReconcilePanel(order)">
+                  <button class="reconcile-action" *ngIf="canReconcileOrder(order)" (click)="toggleReconcilePanel(order)" [attr.aria-expanded]="isReconcilePanelOpen(order.id)">
                     {{ isReconcilePanelOpen(order.id) ? 'Hide Reconcile' : 'Reconcile' }}
                   </button>
                   <a [routerLink]="['/orders', order.id]">Open</a>
@@ -1073,21 +1101,25 @@
                     </label>
                     <label>
                       Discount
-                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).discountAmount" />
+                      <input type="number" min="0" step="0.01"
+                        [ngModel]="getReconcileDraft(order).isStaffOrder ? getReconcileStaffDiscount(order) : getReconcileDraft(order).discountAmount"
+                        (ngModelChange)="getReconcileDraft(order).discountAmount = $event" [disabled]="getReconcileDraft(order).isStaffOrder" />
                     </label>
                     <label>
                       Loyalty Discount
-                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).loyaltyDiscountAmount" />
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).loyaltyDiscountAmount" [disabled]="getReconcileDraft(order).isStaffOrder" />
                     </label>
                     <label>
                       Manual Subtotal (optional)
-                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).manualSubtotalOverride" />
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).manualSubtotalOverride" [disabled]="getReconcileDraft(order).isStaffOrder" />
                     </label>
                     <label>
                       Manual Total (optional)
-                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).manualTotalOverride" />
+                      <input type="number" min="0" step="0.01" [(ngModel)]="getReconcileDraft(order).manualTotalOverride" [disabled]="getReconcileDraft(order).isStaffOrder" />
                     </label>
                   </div>
+
+                  <p *ngIf="getReconcileDraft(order).isStaffOrder" class="staff-order-note">Staff Orders keep a fixed 20% discount on this order/round only, replacing coupons and loyalty. Item and charge corrections automatically recalculate the payable amount. Fully paid session records follow the revised bill; partial collections stay unchanged. These are historical corrections, not automatic refunds.</p>
 
                   <div class="reconcile-controls textarea-row">
                     <label>
@@ -1101,6 +1133,11 @@
                   </div>
 
                   <div class="reconcile-flags">
+                    <label *ngIf="order.orderType === 'dine-in' || order.orderType === 'pickup' || order.isStaffOrder" class="checkbox-inline">
+                      <input type="checkbox" class="reconcile-staff-order"
+                        [ngModel]="getReconcileDraft(order).isStaffOrder" (ngModelChange)="setReconcileStaffOrder(order, $event)" />
+                      Staff Order — apply 20% off
+                    </label>
                     <label *ngIf="order.dineInSessionId" class="checkbox-inline">
                       <input type="checkbox" [(ngModel)]="getReconcileDraft(order).reconcileSessionPaymentMethod"
                         [disabled]="!['cash_at_counter', 'cod', 'upi-qr'].includes(getReconcileDraft(order).paymentMethod)" />
@@ -1149,6 +1186,7 @@
                     <button type="button" (click)="openReconcileItemPicker(order, $event)">Add Item</button>
                     <span class="preview">
                       Preview Subtotal: {{ formatCurrency(getReconcilePreviewSubtotal(order)) }} ·
+                      <ng-container *ngIf="getReconcileDraft(order).isStaffOrder">Staff Discount: {{ formatCurrency(getReconcileStaffDiscount(order)) }} · </ng-container>
                       Preview Total: {{ formatCurrency(getReconcilePreviewTotal(order)) }}
                     </span>
                     <button type="button" (click)="submitReconciliation(order)" [disabled]="saving || reconcilingOrderId === order.id">

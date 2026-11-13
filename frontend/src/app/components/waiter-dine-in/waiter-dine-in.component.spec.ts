@@ -66,6 +66,23 @@ describe('WaiterDineInComponent customer attribution', () => {
     expect(dineIn.placeWaiterDineInOrder.calls.mostRecent().args[0].customerName).toBeUndefined();
   });
 
+  it('previews 20% off only the selected round and clears the choice after submission', () => {
+    component.selectTable('T1');
+    component.addToCart(menuItem);
+    component.isStaffOrder = true;
+    expect(component.cartSubtotal).toBe(20);
+    expect(component.staffDiscountAmount).toBe(4);
+    expect(component.cartTotal).toBe(16);
+    component.submitOrder();
+    expect(dineIn.placeWaiterDineInOrder.calls.mostRecent().args[0].isStaffOrder).toBeTrue();
+    expect(component.isStaffOrder).toBeFalse();
+    component.addToCart(menuItem);
+    expect(component.cartTotal).toBe(20);
+    component.isStaffOrder = true;
+    component.changeQuantity(component.cart[0], -1);
+    expect(component.isStaffOrder).toBeFalse();
+  });
+
   it('restores the active customer when selecting a table and clears it for a new table', () => {
     component.selectTable('T2');
     expect(component.customerName).toBe('Existing customer');

@@ -265,6 +265,8 @@ public class DineInRoundDto
     public string Status { get; set; } = "confirmed"; // pending, confirmed, preparing, ready, served, delivered
     public DateTime CreatedAt { get; set; }
     public decimal RoundSubtotal { get; set; }
+    public bool IsStaffOrder { get; set; }
+    public decimal StaffDiscountAmount { get; set; }
     public string? CustomerName { get; set; }
     public string? WaiterUserId { get; set; }
     public string? WaiterName { get; set; }
@@ -288,6 +290,7 @@ public class DineInBillResponse
     public int TotalItemsCount { get; set; }
     public decimal Subtotal { get; set; }
     public decimal OrderAdjustments { get; set; }
+    public decimal StaffDiscountAmount { get; set; }
     public decimal DiscountAmount { get; set; }
     public string? CouponCode { get; set; }
     public int LoyaltyPointsUsed { get; set; }

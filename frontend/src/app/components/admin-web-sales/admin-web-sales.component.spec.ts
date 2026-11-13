@@ -274,6 +274,59 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     expect(component.getReconcileDraft({ ...order, id: 'missing' }).packagingCharge).toBeNull();
   });
 
+  it('separates staff badges, item quantities and payable values while retaining row actions', () => {
+    const fixture = TestBed.createComponent(AdminWebSalesComponent);
+    const view = fixture.componentInstance;
+    const staffOrder = { ...order, orderType: 'dine-in', dineInSessionId: 'session',
+      isStaffOrder: true, staffDiscountAmount: 19.8, discountAmount: 19.8, subtotal: 99, total: 79.2,
+      items: [
+        { menuItemId: 'tea', name: 'Milk Tea', quantity: 1, price: 50, total: 50 },
+        { menuItemId: 'fries', name: 'Classic French Fries', quantity: 1, price: 49, total: 49 }
+      ] };
+    view.dashboardAvailable = true;
+    view.collection = collection;
+    view.orders = view.reconciliationOrders = [staffOrder];
+    view.initializeDrafts();
+    const saveStatus = spyOn(view, 'updateOrderStatus');
+    const reconcile = spyOn(view, 'toggleReconcilePanel');
+    fixture.detectChanges();
+    const element: HTMLElement = fixture.nativeElement;
+    const row = element.querySelector<HTMLElement>('.order-row')!;
+    expect(row.querySelector('.staff-discount-chip')?.textContent).toContain('20% off');
+    expect(row.querySelectorAll('.order-item-list li').length).toBe(2);
+    expect(row.querySelector('.order-payable')?.textContent).toBe('₹79.20');
+    expect(row.querySelector('.order-staff-saving')?.textContent).toContain('₹19.80');
+    expect(row.querySelector('.order-payment-method')?.textContent).toContain('Session payment');
+    expect(row.querySelector('select')?.getAttribute('aria-label')).toContain('Status for order');
+    row.querySelector<HTMLButtonElement>('.save-status-action')!.click();
+    row.querySelector<HTMLButtonElement>('.reconcile-action')!.click();
+    expect(saveStatus).toHaveBeenCalledWith(staffOrder);
+    expect(reconcile).toHaveBeenCalledWith(staffOrder);
+    fixture.destroy();
+  });
+
+  it('keeps labelled mobile order cards within their container with usable controls', () => {
+    const fixture = TestBed.createComponent(AdminWebSalesComponent);
+    const view = fixture.componentInstance;
+    view.dashboardAvailable = true;
+    view.orders = view.reconciliationOrders = [{ ...order, orderType: 'pickup', isStaffOrder: true,
+      staffDiscountAmount: 20, discountAmount: 20, total: 80 }];
+    view.initializeDrafts();
+    const element: HTMLElement = fixture.nativeElement;
+    const mobile = window.matchMedia('(max-width: 900px)').matches;
+    if (mobile) {
+      element.style.display = 'block';
+      element.style.width = '360px';
+    }
+    fixture.detectChanges();
+    const row = element.querySelector<HTMLElement>('.order-row')!;
+    expect(getComputedStyle(row).display).toBe(mobile ? 'grid' : 'table-row');
+    expect(row.querySelectorAll('td[data-label]').length).toBe(11);
+    expect(row.querySelector<HTMLSelectElement>('.status-select')!.getBoundingClientRect().height).toBeGreaterThanOrEqual(mobile ? 44 : 36);
+    if (mobile) expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth + 1);
+    fixture.destroy();
+  });
+
   it('uses the recorded payment method for a fully paid table order instead of dine-in tab', () => {
     component.collection = {
       ...collection,
@@ -281,6 +334,76 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     };
     const linkedOrder: Order = { ...order, dineInSessionId: 'session', paymentMethod: 'dine_in_tab' };
     expect(component.getReconcileDraft(linkedOrder).paymentMethod).toBe('upi-qr');
+  });
+
+  it('previews and submits staff pricing instead of old discounts and manual overrides', () => {
+    const takeaway = { ...order, orderType: 'pickup', packagingCharge: 10, discountAmount: 5, loyaltyDiscountAmount: 5 };
+    const draft = component.getReconcileDraft(takeaway);
+    draft.reason = 'Correct staff designation';
+    draft.manualSubtotalOverride = 1;
+    draft.manualTotalOverride = 1;
+    component.setReconcileStaffOrder(takeaway, true);
+    expect(draft.manualSubtotalOverride).toBeNull();
+    expect(draft.manualTotalOverride).toBeNull();
+    expect(component.getReconcileStaffDiscount(takeaway)).toBe(22);
+    expect(component.getReconcilePreviewTotal(takeaway)).toBe(88);
+    draft.items[0].quantity = 3;
+    expect(component.getReconcileStaffDiscount(takeaway)).toBe(32);
+    expect(component.getReconcilePreviewTotal(takeaway)).toBe(128);
+    orderService.adminReconcileOrder.and.returnValue(new Subject<Order>());
+    component.submitReconciliation(takeaway);
+    expect(orderService.adminReconcileOrder.calls.mostRecent().args[1]).toEqual(jasmine.objectContaining({
+      isStaffOrder: true, discountAmount: undefined, loyaltyDiscountAmount: undefined,
+      manualSubtotalOverride: undefined, manualTotalOverride: undefined
+    }));
+    component.setReconcileStaffOrder(takeaway, false);
+    expect(component.getReconcilePreviewTotal(takeaway)).toBe(160);
+    component.submitReconciliation(takeaway);
+    expect(orderService.adminReconcileOrder.calls.mostRecent().args[1]).toEqual(jasmine.objectContaining({
+      isStaffOrder: false, discountAmount: 0, loyaltyDiscountAmount: 0
+    }));
+  });
+
+  it('renders the Staff Order reconciliation checkbox and immediately updates the preview', () => {
+    const fixture = TestBed.createComponent(AdminWebSalesComponent);
+    const view = fixture.componentInstance;
+    const takeaway = { ...order, orderType: 'pickup', packagingCharge: 10 };
+    view.dashboardAvailable = true;
+    view.orders = view.reconciliationOrders = [takeaway];
+    view.initializeDrafts();
+    view.expandedReconcileOrderId = takeaway.id;
+    fixture.detectChanges();
+    const element: HTMLElement = fixture.nativeElement;
+    const checkbox = element.querySelector<HTMLInputElement>('.reconcile-staff-order')!;
+    expect(checkbox.checked).toBeFalse();
+    checkbox.click();
+    fixture.detectChanges();
+    expect(view.getReconcileDraft(takeaway).isStaffOrder).toBeTrue();
+    expect(element.querySelector('.reconcile-footer .preview')?.textContent).toContain('Staff Discount: ₹22.00');
+    expect(element.querySelector('.reconcile-footer .preview')?.textContent).toContain('Preview Total: ₹88.00');
+    fixture.destroy();
+  });
+
+  it('reloads staff discount KPIs, order values and collections after applying staff reconciliation', async () => {
+    component.startDate = component.endDate = '2026-11-08';
+    const takeaway = { ...order, orderType: 'pickup', createdAtIsUtc: true };
+    const corrected = { ...takeaway, isStaffOrder: true, staffDiscountAmount: 20, discountAmount: 20, total: 80 };
+    component.getReconcileDraft(takeaway).reason = 'Correct historical staff order';
+    component.setReconcileStaffOrder(takeaway, true);
+    orderService.adminReconcileOrder.and.returnValue(of(corrected));
+    http.get.and.returnValues(of({ success: true, data: { partners: [] } }), of([corrected]),
+      of({ ...collection, cash: 80, upi: 0, total: 80, sessionMethods: {}, sessionPayments: {} }));
+    spyOn(component, 'loadUpiReconciliationReport').and.resolveTo();
+    spyOn(component, 'loadPendingDineInPayments').and.resolveTo();
+    spyOn(component, 'loadDineInOperationalSignals').and.resolveTo();
+    component.submitReconciliation(takeaway);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(component.overview.staffOrders).toBe(1);
+    expect(component.overview.staffDiscounts).toBe(20);
+    expect(component.overview.discounts).toBe(20);
+    expect(component.overview.orderValue).toBe(80);
+    expect(component.overview.paidOrderValue).toBe(80);
+    expect(component.collection?.total).toBe(80);
   });
 
   it('refreshes operational outstanding balances after confirming a table payment', () => {
@@ -397,5 +520,40 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
     expect(component.orderSessionGroups[0].payment?.upi).toBe(110);
     expect(component.formatPaymentMethod(linkedOrder)).toBe('UPI');
     expect(component.saving).toBeFalse();
+  });
+
+  it('displays and searches the reconciled customer name while retaining the username fallback', async () => {
+    const fixture = TestBed.createComponent(AdminWebSalesComponent);
+    const view = fixture.componentInstance;
+    const original = { ...order, orderType: 'pickup', createdAtIsUtc: true };
+    const corrected = { ...original, customerName: 'Updated customer' };
+    view.dashboardAvailable = true;
+    view.startDate = view.endDate = '2026-11-08';
+    view.orders = view.reconciliationOrders = [original];
+    view.initializeDrafts();
+    fixture.detectChanges();
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.querySelector('.order-customer-cell strong')?.textContent).toBe(original.username);
+    const draft = view.getReconcileDraft(original);
+    draft.reason = 'Correct historical customer name';
+    draft.customerName = corrected.customerName;
+    orderService.adminReconcileOrder.and.returnValue(of(corrected));
+    http.get.and.returnValues(of({ success: true, data: { partners: [] } }), of([corrected]), of(collection));
+    spyOn(view, 'loadUpiReconciliationReport').and.resolveTo();
+    spyOn(view, 'loadPendingDineInPayments').and.resolveTo();
+    spyOn(view, 'loadDineInOperationalSignals').and.resolveTo();
+
+    view.submitReconciliation(original);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(orderService.adminReconcileOrder.calls.mostRecent().args[1].customerName).toBe(corrected.customerName);
+    expect(element.querySelector('.order-customer-cell strong')?.textContent).toBe(corrected.customerName);
+    view.searchTerm = '  UPDATED CUSTOMER  ';
+    fixture.detectChanges();
+    expect(view.filteredOrders.map(item => item.id)).toEqual([original.id]);
+    expect(element.querySelector('.order-customer-cell strong')?.textContent).toBe(corrected.customerName);
+    expect(view.orders[0].username).toBe(original.username);
+    fixture.destroy();
   });
 });

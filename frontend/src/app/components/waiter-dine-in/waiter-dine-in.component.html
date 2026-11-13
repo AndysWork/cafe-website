@@ -196,6 +196,15 @@
         <textarea [(ngModel)]="orderNotes" maxlength="500" rows="3" placeholder="Allergies or preparation instructions"></textarea>
       </label>
 
+      <button type="button" class="staff-order-button" [class.selected]="isStaffOrder"
+        [attr.aria-pressed]="isStaffOrder" [disabled]="submittingOrder" (click)="isStaffOrder = !isStaffOrder">
+        Staff Order · 20% off {{ isStaffOrder ? '(Applied)' : '' }}
+      </button>
+      <p class="staff-order-note" *ngIf="isStaffOrder">Applies only to this round, not other table orders. No coupon or loyalty discount on this round.</p>
+      <div class="cart-discount" *ngIf="isStaffOrder">
+        <span>Subtotal ₹{{ cartSubtotal | number:'1.2-2' }}</span>
+        <span>Staff discount (20%) −₹{{ staffDiscountAmount | number:'1.2-2' }}</span>
+      </div>
       <div class="cart-total">
         <span>Round total</span>
         <strong>₹{{ cartTotal | number:'1.0-2' }}</strong>

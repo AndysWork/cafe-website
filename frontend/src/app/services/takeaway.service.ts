@@ -8,6 +8,8 @@ export type TakeawayPaymentTiming = 'upfront' | 'handover';
 export type TakeawayPaymentMethod = 'cash_at_counter' | 'upi-qr';
 
 export interface WaiterTakeawayOrder {
+  isStaffOrder?: boolean;
+  staffDiscountAmount?: number;
   orderId: string;
   token: string;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled' | string;
@@ -38,6 +40,7 @@ export interface WaiterTakeawayOrder {
 }
 
 export interface CreateWaiterTakeawayRequest {
+  isStaffOrder?: boolean;
   customerName: string;
   phoneNumber?: string;
   items: Array<{

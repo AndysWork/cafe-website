@@ -8,6 +8,61 @@ namespace Cafe.Api.Tests;
 
 public sealed class WaiterTakeawayTests
 {
+    [Theory]
+    [InlineData(100, 10, 22, 88)]
+    [InlineData(100.03, 0, 20.01, 80.02)]
+    public void StaffDiscountIncludesPackagingAndReplacesOtherDiscounts(decimal subtotal, decimal packaging, decimal discount, decimal total)
+    {
+        var order = Takeaway();
+        order.IsStaffOrder = true;
+        order.Subtotal = subtotal;
+        order.PackagingCharge = packaging;
+        order.CouponCode = "OLD";
+        order.DiscountAmount = 5;
+        order.LoyaltyPointsUsed = 20;
+        order.LoyaltyDiscountAmount = 5;
+        StaffOrderDiscount.Apply(order);
+        Assert.Equal(discount, order.StaffDiscountAmount);
+        Assert.Equal(discount, order.DiscountAmount);
+        Assert.Equal(total, order.Total);
+        Assert.Null(order.CouponCode);
+        Assert.Equal(0, order.LoyaltyPointsUsed);
+        Assert.Equal(0, order.LoyaltyDiscountAmount);
+        Assert.Contains("Staff discount (20%)", new InvoiceRenderService().Render(order));
+    }
+
+    [Fact]
+    public void StaffDiscountIncludesAllBillChargesAndRecalculatesAfterItemsChange()
+    {
+        var order = Takeaway();
+        order.IsStaffOrder = true;
+        order.Subtotal = 100;
+        order.Tax = 5;
+        order.PlatformCharge = 2;
+        order.DeliveryFee = 3;
+        order.PackagingCharge = 10;
+        StaffOrderDiscount.Apply(order);
+        Assert.Equal(24, order.StaffDiscountAmount);
+        Assert.Equal(96, order.Total);
+        order.Subtotal = 50;
+        StaffOrderDiscount.Apply(order);
+        Assert.Equal(14, order.StaffDiscountAmount);
+        Assert.Equal(56, order.Total);
+    }
+
+    [Fact]
+    public void NormalOrderDiscountsAreNotReplacedByStaffPricing()
+    {
+        var order = Takeaway();
+        order.Subtotal = 100;
+        order.DiscountAmount = 10;
+        order.Total = 90;
+        StaffOrderDiscount.Apply(order);
+        Assert.Equal(90, order.Total);
+        Assert.Equal(10, order.DiscountAmount);
+        Assert.Equal(0, order.StaffDiscountAmount);
+    }
+
     private static Order Takeaway(string status = "pending", string paymentStatus = "unpaid") => new()
     {
         Id = "o1",

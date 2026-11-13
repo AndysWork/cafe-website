@@ -4,6 +4,7 @@
 @outletId = REPLACE_WITH_OUTLET_ID
 @menuItemId = REPLACE_WITH_MENU_ITEM_ID
 @tableNumber = REPLACE_WITH_TABLE_NUMBER
+@orderId = REPLACE_WITH_ORDER_ID
 
 ### Read current full settings before updating (admin)
 GET {{baseUrl}}/outlets/{{outletId}}
@@ -68,6 +69,55 @@ Content-Type: application/json
 {
   "outletId": "{{outletId}}",
   "tableNumber": "{{tableNumber}}",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }]
+}
+
+### Staff takeaway: enable acceptsTakeaway first. Discounts items plus packaging by 20%.
+POST {{baseUrl}}/takeaway/orders
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "customerName": "Staff",
+  "isStaffOrder": true,
+  "paymentTiming": "handover",
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }]
+}
+
+### Staff dine-in: enable acceptsDineIn first. Only this round receives 20% off.
+POST {{baseUrl}}/dine-in/order
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "tableNumber": "{{tableNumber}}",
+  "isStaffOrder": true,
+  "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }]
+}
+
+### Admin: convert an existing Dine-In or Takeaway order to fixed staff pricing.
+### Paid table collections follow the revised bill; choose the recorded method for split sessions.
+### Set isStaffOrder to false to remove staff pricing, or omit it to preserve the existing designation.
+PUT {{baseUrl}}/manage/orders/{{orderId}}/reconcile
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Correct historical staff order designation",
+  "isStaffOrder": true
+}
+
+### Customers cannot claim staff pricing (403).
+POST {{baseUrl}}/dine-in/order
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "outletId": "{{outletId}}",
+  "tableNumber": "{{tableNumber}}",
+  "isStaffOrder": true,
   "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 1 }]
 }
 

@@ -414,6 +414,12 @@ public class DineInFunction
             var isWaiterOrder = RoleHelper.HasAnyRole(
                 AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth),
                 RoleHelper.WaiterRoles);
+            if (orderRequest.IsStaffOrder && !isWaiterOrder)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Only authorized staff can apply the Staff Order discount." });
+                return forbidden;
+            }
             var waiterName = isWaiterOrder ? await ResolveWaiterNameAsync(userId, username) : null;
             var customerName = !string.IsNullOrWhiteSpace(orderRequest.CustomerName)
                 ? orderRequest.CustomerName.Trim() : isWaiterOrder ? null : username;
@@ -615,6 +621,7 @@ public class DineInFunction
                 PlatformCharge = 0,
                 DeliveryFee = 0,
                 Total = roundTotal,
+                IsStaffOrder = orderRequest.IsStaffOrder,
                 PaymentStatus = "unpaid",
                 PaymentMethod = "dine_in_tab",
                 OrderType = "dine-in",
@@ -636,6 +643,7 @@ public class DineInFunction
                 UpdatedAt = MongoService.GetUtcNow()
             };
 
+            StaffOrderDiscount.Apply(order);
             await _orderRepo.CreateOrderAsync(order);
 
             // Append order to session and update running totals
@@ -846,6 +854,19 @@ public class DineInFunction
             if (valError != null) return valError;
 
             var couponCode = request.CouponCode.Trim().ToUpperInvariant();
+            var couponOrders = new List<Order>();
+            foreach (var orderId in session.OrderIds)
+            {
+                var round = await _orderRepo.GetOrderByIdAsync(orderId);
+                if (round != null) couponOrders.Add(round);
+            }
+            var eligibleSubtotal = StaffOrderDiscount.CouponEligibleSubtotal(couponOrders);
+            if (eligibleSubtotal <= 0)
+            {
+                var badCoupon = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badCoupon.WriteAsJsonAsync(new { error = "Coupons cannot be combined with Staff Order discounts. Add a non-staff round to use a coupon." });
+                return badCoupon;
+            }
             var offer = await _offerRepo.GetOfferByCodeAsync(couponCode);
 
             var now = MongoService.GetUtcNow();
@@ -857,7 +878,7 @@ public class DineInFunction
                 return badReq;
             }
 
-            if (session.Subtotal < offer.MinOrderAmount)
+            if (eligibleSubtotal < offer.MinOrderAmount)
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = $"Minimum order amount for this coupon is ₹{offer.MinOrderAmount}" });
@@ -867,7 +888,7 @@ public class DineInFunction
             decimal discount = 0;
             if (offer.DiscountType == "percentage")
             {
-                discount = (session.Subtotal * offer.DiscountValue) / 100m;
+                discount = (eligibleSubtotal * offer.DiscountValue) / 100m;
                 if (offer.MaxDiscount.HasValue && discount > offer.MaxDiscount.Value)
                     discount = offer.MaxDiscount.Value;
             }
@@ -876,7 +897,7 @@ public class DineInFunction
                 discount = offer.DiscountValue;
             }
 
-            discount = Math.Min(discount, session.Subtotal);
+            discount = Math.Min(discount, eligibleSubtotal);
             session.CouponCode = couponCode;
             session.DiscountAmount = Math.Round(discount, 2);
 
@@ -2035,6 +2056,7 @@ public class DineInFunction
 
             order.Subtotal = Math.Round(order.Items.Sum(i => i.Total), 2);
             order.Total = Math.Round(order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee, 2);
+            StaffOrderDiscount.Apply(order);
             order.UpdatedAt = MongoService.GetUtcNow();
             if (!order.Items.Any())
             {
@@ -2492,6 +2514,8 @@ public class DineInFunction
                 Status = order.Status,
                 CreatedAt = order.CreatedAt,
                 RoundSubtotal = order.Subtotal,
+                IsStaffOrder = order.IsStaffOrder,
+                StaffDiscountAmount = order.StaffDiscountAmount,
                 CustomerName = order.CustomerName,
                 WaiterUserId = order.WaiterUserId,
                 WaiterName = order.WaiterName,
@@ -2547,7 +2571,9 @@ public class DineInFunction
             TotalItemsCount = totalItems,
             Subtotal = session.Subtotal,
             OrderAdjustments = sessionOrders.Where(order => !string.Equals(order.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
-                .Sum(order => order.Total - order.Subtotal),
+                .Sum(order => order.Total - order.Subtotal + order.StaffDiscountAmount),
+            StaffDiscountAmount = sessionOrders.Where(order => !string.Equals(order.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
+                .Sum(order => order.StaffDiscountAmount),
             DiscountAmount = session.DiscountAmount,
             CouponCode = session.CouponCode,
             LoyaltyPointsUsed = session.LoyaltyPointsUsed,
@@ -2564,7 +2590,7 @@ public class DineInFunction
             PayeeName = payeeName,
             InvoiceNumber = invoiceNum,
             EstimatedPointsToEarn = pointsToEarn,
-            CanApplyCoupon = session.Status == "active"
+            CanApplyCoupon = session.Status == "active" && StaffOrderDiscount.CouponEligibleSubtotal(sessionOrders) > 0
         };
     }
 

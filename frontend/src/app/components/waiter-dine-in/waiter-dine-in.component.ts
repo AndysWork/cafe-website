@@ -8,6 +8,7 @@ import { MenuItem, MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
 import { getOrderingUnavailableReason } from '../../models/outlet.model';
 import { WaiterTakeawayComponent } from '../waiter-takeaway/waiter-takeaway.component';
+import { staffOrderDiscount } from '../../utils/staff-order-discount';
 
 interface WaiterCartLine {
   menuItem: MenuItem;
@@ -37,6 +38,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   tables: CafeTableFloorView[] = [];
   menuItems: MenuItem[] = [];
   cart: WaiterCartLine[] = [];
+  isStaffOrder = false;
   pendingQrOrders: PendingQrDineInOrder[] = [];
   currentSessionOrders: DineInSessionOrder[] = [];
   editingQrOrderId = '';
@@ -117,8 +119,16 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
     this.toggleAddOn(menuItemId, addOnName, (event.target as HTMLInputElement).checked);
   }
 
-  get cartTotal(): number {
+  get cartSubtotal(): number {
     return this.cart.reduce((total, line) => total + this.linePrice(line) * line.quantity, 0);
+  }
+
+  get staffDiscountAmount(): number {
+    return this.isStaffOrder ? staffOrderDiscount(this.cartSubtotal) : 0;
+  }
+
+  get cartTotal(): number {
+    return Math.round((this.cartSubtotal - this.staffDiscountAmount) * 100) / 100;
   }
 
   get cartItemCount(): number {
@@ -126,6 +136,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   }
 
   selectTable(tableNumber: string): void {
+    this.isStaffOrder = false;
     this.selectedTableNumber = tableNumber;
     this.mobileCartOpen = false;
     this.customerName = this.selectedTable?.customerName || '';
@@ -164,6 +175,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
     }
     if (!this.cart.length) {
       this.mobileCartOpen = false;
+      this.isStaffOrder = false;
     }
   }
 
@@ -204,6 +216,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     const outletId = this.outletService.getSelectedOutletId() || undefined;
     this.subscriptions.add(this.dineInService.placeWaiterDineInOrder({
+      isStaffOrder: this.isStaffOrder,
       tableNumber: this.selectedTableNumber,
       outletId,
       customerName: this.customerName.trim() || undefined,
@@ -218,6 +231,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
       next: response => {
         this.message = response?.message || 'Order sent to the kitchen.';
         this.cart = [];
+        this.isStaffOrder = false;
         this.orderNotes = '';
         this.mobileCartOpen = false;
         this.submittingOrder = false;

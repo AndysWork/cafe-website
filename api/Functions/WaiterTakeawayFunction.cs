@@ -105,6 +105,7 @@ public class WaiterTakeawayFunction
                 DeliveryFee = 0,
                 PackagingCharge = packagingCharge,
                 Total = subtotal + packagingCharge,
+                IsStaffOrder = request.IsStaffOrder,
                 OrderType = "pickup",
                 Channel = "shop",
                 TakeawaySource = TakeawayOrderRules.WaiterSource,
@@ -127,6 +128,7 @@ public class WaiterTakeawayFunction
                 UpdatedAt = now
             };
 
+            StaffOrderDiscount.Apply(order);
             await _orderRepo.CreateOrderAsync(order);
 
             await _outbox.EnqueueAsync("OrderNotificationKitchen", "Order", order.Id!,
@@ -394,6 +396,8 @@ public class WaiterTakeawayFunction
         waiterUserId = order.WaiterUserId,
         waiterName = order.WaiterName,
         subtotal = order.Subtotal,
+        isStaffOrder = order.IsStaffOrder,
+        staffDiscountAmount = order.StaffDiscountAmount,
         packagingCharge = order.PackagingCharge,
         total = order.Total,
         paymentStatus = order.PaymentStatus,
@@ -433,6 +437,8 @@ public class WaiterTakeawayFunction
 
 public class CreateWaiterTakeawayOrderRequest
 {
+    public bool IsStaffOrder { get; set; }
+
     public string? OutletId { get; set; }
 
     [Required]

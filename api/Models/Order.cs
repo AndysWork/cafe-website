@@ -131,6 +131,12 @@ public class Order : ISoftDeletable
     [BsonElement("discountAmount")]
     public decimal DiscountAmount { get; set; }
 
+    [BsonElement("isStaffOrder")]
+    public bool IsStaffOrder { get; set; }
+
+    [BsonElement("staffDiscountAmount")]
+    public decimal StaffDiscountAmount { get; set; }
+
     [BsonElement("loyaltyPointsUsed")]
     public int LoyaltyPointsUsed { get; set; }
 
@@ -438,6 +444,8 @@ public class OrderItemAddOn
 // Request/Response DTOs
 public class CreateOrderRequest
 {
+    public bool IsStaffOrder { get; set; }
+
     [Required(ErrorMessage = "Order must contain at least one item")]
     [MinLength(1, ErrorMessage = "Order must contain at least one item")]
     public List<OrderItemRequest> Items { get; set; } = new();
@@ -521,6 +529,8 @@ public class AdminConfirmPaymentRequest
 
 public class AdminReconcileOrderRequest
 {
+    public bool? IsStaffOrder { get; set; }
+
     public bool ReconcileSessionPaymentMethod { get; set; }
 
     [Required(ErrorMessage = "Reconciliation reason is required")]
@@ -708,6 +718,9 @@ public class DeleteOrderHistoryRequest
 
 public class OrderResponse
 {
+    public bool IsStaffOrder { get; set; }
+    public decimal StaffDiscountAmount { get; set; }
+
     public string? OrderSource { get; set; }
     public string? DeliveryLocationUrl { get; set; }
     public string? RecordedByName { get; set; }

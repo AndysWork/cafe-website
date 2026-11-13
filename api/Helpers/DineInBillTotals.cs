@@ -15,6 +15,14 @@ public static class DineInBillTotals
             .ToList();
         session.Subtotal = activeOrders.Sum(order => order.Subtotal);
         session.TaxAmount = 0;
+        if (activeOrders.Any(order => order.IsStaffOrder))
+        {
+            var eligible = Math.Max(0, activeOrders.Where(order => !order.IsStaffOrder).Sum(order => order.Total));
+            session.DiscountAmount = Math.Min(session.DiscountAmount, eligible);
+            session.LoyaltyDiscountAmount = Math.Min(session.LoyaltyDiscountAmount, eligible - session.DiscountAmount);
+            if (session.LoyaltyDiscountAmount == 0) session.LoyaltyPointsUsed = 0;
+            if (eligible == 0) session.CouponCode = null;
+        }
         session.GrandTotal = Math.Max(0, activeOrders.Sum(order => order.Total)
             - session.DiscountAmount - session.LoyaltyDiscountAmount);
     }

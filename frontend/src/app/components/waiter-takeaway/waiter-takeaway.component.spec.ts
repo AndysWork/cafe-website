@@ -65,6 +65,26 @@ describe('WaiterTakeawayComponent', () => {
     expect(component.cartSubtotal).toBe(25);
   });
 
+  it('previews staff discount on items plus packaging, submits the flag and resets it', () => {
+    component.addToCart(tea);
+    component.customerName = 'Staff';
+    component.isStaffOrder = true;
+    expect(component.staffDiscountAmount).toBe(6);
+    expect(component.cartTotal).toBe(24);
+    component.changeQuantity(component.cart[0], 1);
+    expect(component.staffDiscountAmount).toBe(10);
+    expect(component.cartTotal).toBe(40);
+    component.submitOrder();
+    expect(takeaway.createOrder.calls.mostRecent().args[0].isStaffOrder).toBeTrue();
+    expect(component.isStaffOrder).toBeFalse();
+    component.addToCart(tea);
+    component.isStaffOrder = true;
+    component.changeQuantity(component.cart[0], -1);
+    component.addToCart(tea);
+    expect(component.isStaffOrder).toBeFalse();
+    expect(component.cartTotal).toBe(30);
+  });
+
   it('requires a customer name and a UPI reference for upfront UPI payments', () => {
     component.addToCart(tea);
     expect(component.canSubmit).toBeFalse();
@@ -75,6 +95,25 @@ describe('WaiterTakeawayComponent', () => {
     expect(component.canSubmit).toBeFalse();
     component.upiReference = 'UPI123';
     expect(component.canSubmit).toBeTrue();
+  });
+
+  it('updates the rendered payable when the Staff Order button is switched on and off', () => {
+    const fixture = TestBed.createComponent(WaiterTakeawayComponent);
+    component = fixture.componentInstance;
+    component.addToCart(tea);
+    fixture.detectChanges();
+    const element: HTMLElement = fixture.nativeElement;
+    const button = element.querySelector<HTMLButtonElement>('.staff-order-button')!;
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect(element.querySelector('.cart-total strong')?.textContent).toBe('₹30');
+    button.click();
+    fixture.detectChanges();
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(element.querySelector('.bill-lines')?.textContent).toContain('Staff discount (20%)');
+    expect(element.querySelector('.cart-total strong')?.textContent).toBe('₹24');
+    button.click();
+    fixture.detectChanges();
+    expect(element.querySelector('.cart-total strong')?.textContent).toBe('₹30');
   });
 
   it('blocks new orders when takeaway is switched off for the outlet', () => {

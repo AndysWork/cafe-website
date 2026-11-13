@@ -224,9 +224,15 @@
       </label>
     </fieldset>
 
+    <button type="button" class="staff-order-button" [class.selected]="isStaffOrder"
+      [attr.aria-pressed]="isStaffOrder" [disabled]="submitting" (click)="isStaffOrder = !isStaffOrder">
+      Staff Order · 20% off {{ isStaffOrder ? '(Applied)' : '' }}
+    </button>
+    <p class="staff-order-note" *ngIf="isStaffOrder">20% off this parcel, including packaging. Cannot be combined with coupon or loyalty discounts.</p>
     <div class="bill-lines">
       <div><span>Items</span><span>₹{{ cartSubtotal | number:'1.0-2' }}</span></div>
       <div *ngIf="packagingCharge > 0"><span>Packaging</span><span>₹{{ (cart.length ? packagingCharge : 0) | number:'1.0-2' }}</span></div>
+      <div *ngIf="isStaffOrder"><span>Staff discount (20%)</span><span>-₹{{ staffDiscountAmount | number:'1.2-2' }}</span></div>
     </div>
     <div class="cart-total">
       <span>Takeaway total</span>

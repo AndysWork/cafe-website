@@ -87,4 +87,19 @@ describe('web sales overview', () => {
       expect(result.sources.find(source => source.label === label)?.count).toBe(1);
     }
   });
+
+  it('reports selected-period staff discounts without counting them twice in total discounts', () => {
+    const date = '2026-03-02T10:00:00Z';
+    const result = calculateWebSalesOverview([
+      order('staff-dine-in', date, { isStaffOrder: true, staffDiscountAmount: 20, discountAmount: 20, total: 80 }),
+      order('staff-takeaway', date, { orderType: 'pickup', isStaffOrder: true, staffDiscountAmount: 22, discountAmount: 22, packagingCharge: 10, total: 88 }),
+      order('coupon', date, { discountAmount: 5, total: 95 }),
+      order('cancelled-staff', date, { isStaffOrder: true, staffDiscountAmount: 200, discountAmount: 200, status: 'cancelled' }),
+      order('previous-day', '2026-03-01T10:00:00Z', { isStaffOrder: true, staffDiscountAmount: 50, discountAmount: 50 })
+    ], '2026-03-02', '2026-03-02');
+    expect(result.staffOrders).toBe(2);
+    expect(result.staffDiscounts).toBe(42);
+    expect(result.discounts).toBe(47);
+    expect(result.orderValue).toBe(263);
+  });
 });

@@ -11,6 +11,24 @@
   padding: 28px clamp(16px, 3vw, 40px) 56px;
 }
 
+.staff-order-button {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid #c8d4c6;
+  border-radius: 10px;
+  background: #f3f8f0;
+  color: #35572b;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  &.selected { background: #315d2e; border-color: #315d2e; color: #fff; }
+  &:focus-visible { outline: 2px solid #315d2e; outline-offset: 3px; }
+  &:disabled { cursor: not-allowed; opacity: .6; }
+}
+
+.staff-order-note { margin: 8px 0; color: #52654b; font-size: 12px; line-height: 1.5; }
+.cart-discount { display: grid; gap: 5px; margin-top: 12px; color: #35572b; font-size: 13px; }
+
 .page-header,
 .section-heading,
 .qr-card header,

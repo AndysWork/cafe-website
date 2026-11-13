@@ -60,7 +60,8 @@ public class InvoiceRenderService
         }
         if (order.DiscountAmount > 0)
         {
-            sb.AppendLine($"{"Discount",-36}{-order.DiscountAmount,12:0.##}");
+            var label = order.IsStaffOrder ? "Staff discount (20%)" : "Discount";
+            sb.AppendLine($"{label,-36}{-order.DiscountAmount,12:0.##}");
         }
 
         sb.AppendLine(new string('-', width));

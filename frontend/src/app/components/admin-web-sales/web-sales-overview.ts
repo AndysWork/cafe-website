@@ -28,6 +28,8 @@ export interface WebSalesOverview {
   grossValue: number;
   average: number;
   discounts: number;
+  staffDiscounts: number;
+  staffOrders: number;
   paidOrderValue: number;
   awaitingPaymentValue: number;
   cancelledOrders: number;
@@ -74,6 +76,8 @@ export function calculateWebSalesOverview(orders: Order[], start: string, end: s
   let orderValue = 0;
   let grossValue = 0;
   let discounts = 0;
+  let staffDiscounts = 0;
+  let staffOrders = 0;
   let paidOrderValue = 0;
   let awaitingPaymentValue = 0;
   let cancelledOrders = 0;
@@ -97,6 +101,8 @@ export function calculateWebSalesOverview(orders: Order[], start: string, end: s
       + (Number(order.platformCharge) || 0) + (Number(order.deliveryFee) || 0)
       + (Number(order.packagingCharge) || 0);
     discounts += (Number(order.discountAmount) || 0) + (Number(order.loyaltyDiscountAmount) || 0);
+    staffDiscounts += Number(order.staffDiscountAmount) || 0;
+    if (order.isStaffOrder) staffOrders++;
     if (!order.dineInSessionId && order.paymentMethod !== 'dine_in_tab') {
       const paymentStatus = (order.paymentStatus || '').toLowerCase();
       if (paymentStatus === 'paid') paidOrderValue += value;
@@ -121,7 +127,7 @@ export function calculateWebSalesOverview(orders: Order[], start: string, end: s
   }
   return {
     orders: count, orderValue, grossValue, average: count ? orderValue / count : 0,
-    discounts, paidOrderValue, awaitingPaymentValue, cancelledOrders,
+    discounts, staffDiscounts, staffOrders, paidOrderValue, awaitingPaymentValue, cancelledOrders,
     trend, sources,
     items: Array.from(items.values())
       .map(({ orderIds, ...item }) => ({ ...item, orders: orderIds.size }))

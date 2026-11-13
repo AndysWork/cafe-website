@@ -160,6 +160,11 @@
             <span>- ₹{{ bill.discountAmount | number:'1.2-2' }}</span>
           </div>
 
+          <div class="summary-row discount-row" *ngIf="bill.staffDiscountAmount">
+            <span>Staff discount (20% on staff rounds)</span>
+            <span>- ₹{{ bill.staffDiscountAmount | number:'1.2-2' }}</span>
+          </div>
+
           <div class="summary-row discount-row" *ngIf="bill.loyaltyDiscountAmount > 0">
             <span>Loyalty Points Discount</span>
             <span>- ₹{{ bill.loyaltyDiscountAmount | number:'1.2-2' }}</span>

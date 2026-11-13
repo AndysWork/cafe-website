@@ -15,6 +15,7 @@ import { BillPrintTrigger, BillPrinterService } from '../../services/bill-printe
 import { renderTakeawayBill } from '../../utils/bill-receipt';
 import { BillPrinterControlComponent } from '../bill-printer-control/bill-printer-control.component';
 import { shopMenuPrice } from '../../utils/shop-menu-price';
+import { staffOrderDiscount } from '../../utils/staff-order-discount';
 
 interface TakeawayCartLine {
   menuItem: MenuItem;
@@ -43,6 +44,7 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
   printingOrderId = '';
   menuItems: MenuItem[] = [];
   cart: TakeawayCartLine[] = [];
+  isStaffOrder = false;
   orders: WaiterTakeawayOrder[] = [];
   selectedVariants: Record<string, string> = {};
   selectedAddOns: Record<string, Set<string>> = {};
@@ -99,7 +101,11 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
   }
 
   get cartTotal(): number {
-    return this.cart.length ? this.cartSubtotal + this.packagingCharge : 0;
+    return this.cart.length ? Math.round((this.cartSubtotal + this.packagingCharge - this.staffDiscountAmount) * 100) / 100 : 0;
+  }
+
+  get staffDiscountAmount(): number {
+    return this.isStaffOrder && this.cart.length ? staffOrderDiscount(this.cartSubtotal + this.packagingCharge) : 0;
   }
 
   get cartItemCount(): number {
@@ -158,7 +164,10 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
   changeQuantity(line: TakeawayCartLine, change: number): void {
     line.quantity += change;
     if (line.quantity <= 0) this.cart = this.cart.filter(item => item !== line);
-    if (!this.cart.length) this.mobileCartOpen = false;
+    if (!this.cart.length) {
+      this.mobileCartOpen = false;
+      this.isStaffOrder = false;
+    }
   }
 
   submitOrder(): void {
@@ -173,6 +182,7 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     const payNow = this.paymentTiming === 'upfront';
     this.subscriptions.add(this.takeawayService.createOrder({
+      isStaffOrder: this.isStaffOrder,
       customerName: this.customerName.trim(),
       phoneNumber: this.phoneNumber.trim() || undefined,
       items: this.cart.map(line => ({
@@ -345,6 +355,7 @@ export class WaiterTakeawayComponent implements OnInit, OnDestroy {
   }
 
   private resetForm(): void {
+    this.isStaffOrder = false;
     this.cart = [];
     this.customerName = '';
     this.phoneNumber = '';

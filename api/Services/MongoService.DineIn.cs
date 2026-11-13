@@ -292,6 +292,10 @@ public partial class MongoService
         var update = Builders<DineInSession>.Update
             .Set(s => s.Subtotal, session.Subtotal)
             .Set(s => s.TaxAmount, session.TaxAmount)
+            .Set(s => s.DiscountAmount, session.DiscountAmount)
+            .Set(s => s.CouponCode, session.CouponCode)
+            .Set(s => s.LoyaltyDiscountAmount, session.LoyaltyDiscountAmount)
+            .Set(s => s.LoyaltyPointsUsed, session.LoyaltyPointsUsed)
             .Set(s => s.GrandTotal, session.GrandTotal)
             .Set(s => s.UpdatedAt, now);
         if (updatePayments)

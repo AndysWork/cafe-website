@@ -15,6 +15,7 @@ import { ActiveDineInTable, DineInService } from '../../services/dine-in.service
 import { MenuItem, MenuService } from '../../services/menu.service';
 import { getIstDateString, getIstFileStamp, convertToIst, getIstIsoString, getIstHour, getStoredTimestampEpoch } from '../../utils/date-utils';
 import { calculateWebSalesOverview, orderSource, SalesItem, SalesTrendBucket } from './web-sales-overview';
+import { staffOrderDiscount } from '../../utils/staff-order-discount';
 
 interface WebSalesDashboardResponse {
   success: boolean;
@@ -106,6 +107,7 @@ interface ReconcileItemDraft {
 }
 
 interface ReconcileOrderDraft {
+  isStaffOrder: boolean;
   reconcileSessionPaymentMethod: boolean;
   reason: string;
   status: string;
@@ -764,6 +766,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       const statusMatch = this.statusFilter === 'all' || order.status === this.statusFilter;
       const textMatch = !query ||
         order.id.toLowerCase().includes(query) ||
+        (order.customerName || '').toLowerCase().includes(query) ||
         (order.username || '').toLowerCase().includes(query) ||
         (order.dineInSessionId || '').toLowerCase().includes(query) ||
         (order.tableNumber || '').toLowerCase().includes(query) ||
@@ -1231,6 +1234,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     const paidMethod = sessionMethod === 'upi' || sessionMethod === 'upi-qr' ? 'upi-qr'
       : ['cash', 'cash_at_counter', 'cod'].includes(sessionMethod || '') ? 'cash_at_counter' : null;
     const draft: ReconcileOrderDraft = {
+      isStaffOrder: order.isStaffOrder === true,
       reconcileSessionPaymentMethod: false,
       reason: '',
       status: order.status,
@@ -1452,6 +1456,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
   getReconcilePreviewTotal(order: Order): number {
     const draft = this.getReconcileDraft(order);
+    if (draft.isStaffOrder) {
+      return Math.round((this.getReconcileStaffGross(order) - this.getReconcileStaffDiscount(order)) * 100) / 100;
+    }
     if (typeof draft.manualTotalOverride === 'number' && Number.isFinite(draft.manualTotalOverride)) {
       return Math.max(0, draft.manualTotalOverride);
     }
@@ -1468,6 +1475,27 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     const loyaltyDiscountAmount = draft.loyaltyDiscountAmount || 0;
 
     return Math.max(0, subtotal + tax + platformCharge + deliveryFee + packagingCharge - discountAmount - loyaltyDiscountAmount);
+  }
+
+  setReconcileStaffOrder(order: Order, selected: boolean): void {
+    const draft = this.getReconcileDraft(order);
+    draft.isStaffOrder = selected;
+    draft.discountAmount = 0;
+    draft.loyaltyDiscountAmount = 0;
+    if (selected) {
+      draft.manualSubtotalOverride = null;
+      draft.manualTotalOverride = null;
+    }
+  }
+
+  getReconcileStaffDiscount(order: Order): number {
+    return this.getReconcileDraft(order).isStaffOrder ? staffOrderDiscount(this.getReconcileStaffGross(order)) : 0;
+  }
+
+  private getReconcileStaffGross(order: Order): number {
+    const draft = this.getReconcileDraft(order);
+    return Math.max(0, this.getReconcilePreviewSubtotal(order) + (draft.tax || 0)
+      + (draft.platformCharge || 0) + (draft.deliveryFee || 0) + (draft.packagingCharge || 0));
   }
 
   submitReconciliation(order: Order): void {
@@ -1497,6 +1525,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     }
 
     const payload: AdminReconcileOrderRequest = {
+      isStaffOrder: draft.isStaffOrder,
       reason,
       reconcileSessionPaymentMethod: !!order.dineInSessionId
         && (draft.reconcileSessionPaymentMethod || draft.paymentMethod !== order.paymentMethod)
@@ -1516,10 +1545,10 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       platformCharge: this.optionalNumber(draft.platformCharge),
       deliveryFee: this.optionalNumber(draft.deliveryFee),
       packagingCharge: this.optionalNumber(draft.packagingCharge),
-      discountAmount: this.optionalNumber(draft.discountAmount),
-      loyaltyDiscountAmount: this.optionalNumber(draft.loyaltyDiscountAmount),
-      manualSubtotalOverride: this.optionalNumber(draft.manualSubtotalOverride),
-      manualTotalOverride: this.optionalNumber(draft.manualTotalOverride),
+      discountAmount: draft.isStaffOrder ? undefined : this.optionalNumber(draft.discountAmount),
+      loyaltyDiscountAmount: draft.isStaffOrder ? undefined : this.optionalNumber(draft.loyaltyDiscountAmount),
+      manualSubtotalOverride: draft.isStaffOrder ? undefined : this.optionalNumber(draft.manualSubtotalOverride),
+      manualTotalOverride: draft.isStaffOrder ? undefined : this.optionalNumber(draft.manualTotalOverride),
       clearDeliveryPartnerAssignment: draft.clearDeliveryPartnerAssignment,
       clearCouponAndLoyalty: draft.clearCouponAndLoyalty,
       items: draft.items.map(item => ({
