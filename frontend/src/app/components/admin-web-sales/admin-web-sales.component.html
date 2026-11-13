@@ -1027,6 +1027,7 @@
                       <select [(ngModel)]="getReconcileDraft(order).paymentMethod">
                         <option *ngFor="let method of reconcilePaymentMethodOptions" [value]="method">{{ method }}</option>
                       </select>
+                      <small *ngIf="order.dineInSessionId">Changing to Cash/COD or UPI moves the full session's recorded collection to that method, replacing any Cash + UPI split. The collected total stays unchanged.</small>
                     </label>
                   </div>
 
@@ -1100,6 +1101,11 @@
                   </div>
 
                   <div class="reconcile-flags">
+                    <label *ngIf="order.dineInSessionId" class="checkbox-inline">
+                      <input type="checkbox" [(ngModel)]="getReconcileDraft(order).reconcileSessionPaymentMethod"
+                        [disabled]="!['cash_at_counter', 'cod', 'upi-qr'].includes(getReconcileDraft(order).paymentMethod)" />
+                      Apply the selected method to the full session even if the order already shows it (repair an earlier reconciliation).
+                    </label>
                     <label class="checkbox-inline">
                       <input type="checkbox" [(ngModel)]="getReconcileDraft(order).clearDeliveryPartnerAssignment" />
                       Clear delivery partner assignment

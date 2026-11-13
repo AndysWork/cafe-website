@@ -95,6 +95,7 @@ export interface AdminReconcileOrderItemRequest {
 }
 
 export interface AdminReconcileOrderRequest {
+  reconcileSessionPaymentMethod?: boolean;
   reason: string;
   status?: string;
   paymentStatus?: string;

@@ -102,8 +102,8 @@ public sealed class DineInCustomerAttributionTests
             .ReturnsAsync((string id) => _savedOrders.SingleOrDefault(order => order.Id == id));
         _orders.Setup(value => value.UpdateDineInSessionAsync(It.IsAny<DineInSession>())).ReturnsAsync(true);
         _orders.Setup(value => value.UpdateOrderAsync(It.IsAny<Order>())).ReturnsAsync(true);
-        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>()))
-            .ReturnsAsync((DineInSession session, DateTime _) => { _session = session; return true; });
+        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), It.IsAny<bool>()))
+            .ReturnsAsync((DineInSession session, DateTime _, bool _) => { _session = session; return true; });
         _orders.Setup(value => value.TryCloseCancelledDineInSessionAsync(
                 It.IsAny<string>(), It.IsAny<DateTime>(), WaiterId))
             .ReturnsAsync(true);
@@ -593,6 +593,165 @@ public sealed class DineInCustomerAttributionTests
         Assert.Equal(100, _session!.GrandTotal);
     }
 
+    [Theory]
+    [InlineData("cash_at_counter", 110, 0)]
+    [InlineData("cod", 110, 0)]
+    [InlineData("upi-qr", 0, 110)]
+    public async Task ReconciliationReclassifiesFullSessionAndHistoricalCollections(string method, int cash, int upi)
+    {
+        await PlaceOrder("Asha");
+        await PlaceOrder("Asha");
+        _session!.AmountPaid = 110;
+        _session.PaymentStatus = "partially_paid";
+        _session.PaymentMethod = "cash_at_counter";
+        _session.PaymentEntries = new()
+        {
+            new() { Id = "cash", Amount = 30, PaymentMethod = "cash_at_counter", Status = "confirmed" },
+            new() { Id = "upi", Amount = 70, PaymentMethod = "upi-qr", Status = "confirmed" },
+            new() { Id = "pending", Amount = 90, PaymentMethod = "upi-qr", Status = "pending" }
+        };
+        var order = _savedOrders[0];
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct historic payment method",
+            paymentMethod = method
+        }, roleOverride: "admin"), order.Id!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(110, _session.AmountPaid);
+        Assert.Equal("partially_paid", _session.PaymentStatus);
+        Assert.Equal("upi-qr", _session.PaymentEntries.Single(entry => entry.Id == "pending").PaymentMethod);
+        var audit = Assert.Single(_session.Timeline, entry => entry.EventType == "AdminReconciledPaymentMethod");
+        Assert.Equal("cash_at_counter", audit.Metadata!["previousSessionMethod"]);
+        _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), true), Times.Once);
+
+        var start = new DateTime(2026, 11, 8);
+        _orders.Setup(value => value.GetAllOrdersAsync(null, 1, 500, start, start.AddDays(1)))
+            .ReturnsAsync(_savedOrders);
+        _orders.Setup(value => value.GetDineInSessionsByIdsAsync(It.IsAny<IReadOnlyCollection<string>>()))
+            .ReturnsAsync(new List<DineInSession> { _session });
+        var request = Request(new { }, roleOverride: "admin");
+        Mock.Get(request).SetupGet(value => value.Query).Returns(
+            System.Web.HttpUtility.ParseQueryString("from=2026-11-08&to=2026-11-08"));
+        var report = ReadBody(await _orderFunction.GetOrderPeriodCollection(request));
+        Assert.Equal(cash, report.GetProperty("cash").GetDecimal());
+        Assert.Equal(upi, report.GetProperty("upi").GetDecimal());
+        Assert.Equal(110, report.GetProperty("total").GetDecimal());
+        var session = report.GetProperty("sessionPayments").GetProperty(SessionId);
+        Assert.Equal(cash, session.GetProperty("cash").GetDecimal());
+        Assert.Equal(upi, session.GetProperty("upi").GetDecimal());
+        Assert.Equal(0, session.GetProperty("unallocated").GetDecimal());
+    }
+
+    [Fact]
+    public async Task ReconciliationCanRepairPreviouslySavedMethodAndRetryWithoutAddingCollection()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.PaymentMethod = "upi-qr";
+        _session!.AmountPaid = 40;
+        _session.PaymentEntries = new();
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var response = await _orderFunction.AdminReconcileOrder(Request(new
+            {
+                reason = "Repair earlier reconciliation",
+                paymentMethod = "upi-qr",
+                reconcileSessionPaymentMethod = true
+            }, roleOverride: "admin"), order.Id!);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+        Assert.Equal(40, Assert.Single(_session.PaymentEntries).Amount);
+        Assert.Equal("upi-qr", _session.PaymentEntries[0].PaymentMethod);
+        Assert.Equal(40, _session.AmountPaid);
+    }
+
+    [Fact]
+    public async Task ReconciliationPreservesSplitPaymentsWhenOrderMethodDoesNotChange()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.PaymentMethod = "cash_at_counter";
+        _session!.AmountPaid = 100;
+        _session.PaymentEntries = new()
+        {
+            new() { Amount = 30, PaymentMethod = "cash_at_counter", Status = "confirmed" },
+            new() { Amount = 70, PaymentMethod = "upi-qr", Status = "confirmed" }
+        };
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct only bill amount",
+            paymentMethod = order.PaymentMethod,
+            manualTotalOverride = 150
+        }, roleOverride: "admin"), order.Id!);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(70, _session.PaymentEntries.Single(entry => entry.PaymentMethod == "upi-qr").Amount);
+        Assert.Equal(100, _session.AmountPaid);
+        Assert.Equal(150, _session.GrandTotal);
+        _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), false), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReconciliationRetriesPaymentCorrectionAgainstTheLatestCollection()
+    {
+        await PlaceOrder("Asha");
+        _session!.AmountPaid = 40;
+        _session.PaymentEntries = new() { new() { Amount = 40, PaymentMethod = "cash_at_counter", Status = "confirmed" } };
+        _orders.Setup(value => value.GetDineInSessionByIdAsync(SessionId))
+            .ReturnsAsync(() => BsonSerializer.Deserialize<DineInSession>(_session.ToBson()));
+        var attempts = 0;
+        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), true))
+            .ReturnsAsync((DineInSession session, DateTime _, bool _) =>
+            {
+                if (++attempts == 1)
+                {
+                    _session.AmountPaid += 10;
+                    _session.PaymentEntries.Add(new() { Amount = 10, PaymentMethod = "cash_at_counter", Status = "confirmed" });
+                    _session.UpdatedAt = _session.UpdatedAt.AddSeconds(1);
+                    return false;
+                }
+                _session = session;
+                return true;
+            });
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct historical payment method",
+            paymentMethod = "upi-qr"
+        }, roleOverride: "admin"), _savedOrders[0].Id!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, attempts);
+        Assert.Equal(50, _session.AmountPaid);
+        Assert.Equal(50, _session.PaymentEntries.Sum(entry => entry.Amount));
+        Assert.All(_session.PaymentEntries, entry => Assert.Equal("upi-qr", entry.PaymentMethod));
+        Assert.Single(_session.Timeline, entry => entry.EventType == "AdminReconciledPaymentMethod");
+    }
+
+    [Fact]
+    public async Task ReconciliationCorrectsTheFinalMergedSession()
+    {
+        await PlaceOrder("Asha");
+        var original = _session!;
+        var merged = new DineInSession
+        {
+            Id = "666666666666666666666666", OutletId = OutletId,
+            OrderIds = new(original.OrderIds), AmountPaid = 100,
+            PaymentEntries = new() { new() { Amount = 100, PaymentMethod = "cash_at_counter", Status = "confirmed" } }
+        };
+        original.MergedIntoSessionId = merged.Id;
+        _orders.Setup(value => value.GetDineInSessionByIdAsync(SessionId)).ReturnsAsync(original);
+        _orders.Setup(value => value.GetDineInSessionByIdAsync(merged.Id)).ReturnsAsync(merged);
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct merged table collection",
+            paymentMethod = "upi-qr"
+        }, roleOverride: "admin"), _savedOrders[0].Id!);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(merged.Id, _session!.Id);
+        Assert.Equal("upi-qr", Assert.Single(_session.PaymentEntries).PaymentMethod);
+        Assert.Empty(original.PaymentEntries);
+    }
+
     [Fact]
     public async Task ReconciliationPreservesKitchenStateForUnchangedItems()
     {
@@ -638,8 +797,8 @@ public sealed class DineInCustomerAttributionTests
     {
         await PlaceOrder("Asha");
         var attempts = 0;
-        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>()))
-            .ReturnsAsync((DineInSession session, DateTime _) =>
+        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), false))
+            .ReturnsAsync((DineInSession session, DateTime _, bool _) =>
             {
                 if (++attempts == 1)
                 {
@@ -663,14 +822,14 @@ public sealed class DineInCustomerAttributionTests
     public async Task ReconciliationReportsWhenBillCannotBeUpdatedAfterOrderWasSaved()
     {
         await PlaceOrder("Asha");
-        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>()))
+        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), false))
             .ReturnsAsync(false);
 
         var response = await Reconcile(_savedOrders[0], 2);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Contains("order was saved", ReadBody(response).GetProperty("error").GetString());
-        _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>()), Times.Exactly(5));
+        _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), false), Times.Exactly(5));
     }
 
     [Fact]

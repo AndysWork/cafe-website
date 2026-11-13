@@ -49,6 +49,6 @@ public interface IOrderRepository
     Task<List<DineInSession>> GetDineInSessionsByDateRangeAsync(string outletId, DateTime start, DateTime endExclusive);
     Task<List<DineInSession>> GetUserDineInSessionsAsync(string userId);
     Task<bool> UpdateDineInSessionAsync(DineInSession session);
-    Task<bool> TryUpdateDineInSessionTotalsAsync(DineInSession session, DateTime expectedUpdatedAt);
+    Task<bool> TryUpdateDineInSessionTotalsAsync(DineInSession session, DateTime expectedUpdatedAt, bool updatePayments = false);
     Task<bool> TransitionDineInPaymentStatusAsync(string sessionId, IReadOnlyCollection<string> expectedStatuses, string newStatus);
 }

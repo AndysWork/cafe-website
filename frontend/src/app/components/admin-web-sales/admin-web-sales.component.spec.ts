@@ -342,4 +342,51 @@ describe('AdminWebSalesComponent reconciliation item picker', () => {
 
     expect(orderService.adminReconcileOrder.calls.mostRecent().args[1].createdAt).toBeDefined();
   });
+
+  it('requests full-session payment correction for method changes and explicit historical repairs', () => {
+    const linkedOrder = { ...order, dineInSessionId: 'session' };
+    const draft = component.getReconcileDraft(linkedOrder);
+    draft.reason = 'Correct historical collection method';
+    orderService.adminReconcileOrder.and.returnValue(new Subject<Order>());
+
+    component.submitReconciliation(linkedOrder);
+    expect(orderService.adminReconcileOrder.calls.mostRecent().args[1].reconcileSessionPaymentMethod).toBeFalse();
+    draft.paymentMethod = 'upi-qr';
+    component.submitReconciliation(linkedOrder);
+    expect(orderService.adminReconcileOrder.calls.mostRecent().args[1].reconcileSessionPaymentMethod).toBeTrue();
+    draft.paymentMethod = order.paymentMethod;
+    draft.reconcileSessionPaymentMethod = true;
+    component.submitReconciliation(linkedOrder);
+    expect(orderService.adminReconcileOrder.calls.mostRecent().args[1].reconcileSessionPaymentMethod).toBeTrue();
+  });
+
+  it('reloads corrected historical payment totals and session summaries after reconciliation', async () => {
+    component.startDate = component.endDate = '2026-11-08';
+    const linkedOrder = { ...order, dineInSessionId: 'session', createdAtIsUtc: true };
+    component.collection = collection;
+    const corrected = {
+      ...collection, cash: 0, upi: 110,
+      sessionMethods: { session: ['upi-qr'] },
+      sessionPayments: { session: { ...collection.sessionPayments.session, cash: 0, upi: 110 } }
+    };
+    const draft = component.getReconcileDraft(linkedOrder);
+    draft.reason = 'Correct historical Cash to UPI';
+    draft.paymentMethod = 'upi-qr';
+    orderService.adminReconcileOrder.and.returnValue(of({ ...linkedOrder, paymentMethod: 'upi-qr' }));
+    http.get.and.returnValues(of({ success: true, data: { partners: [] } }),
+      of([{ ...linkedOrder, paymentMethod: 'upi-qr' }]), of(corrected));
+    spyOn(component, 'loadUpiReconciliationReport').and.resolveTo();
+    spyOn(component, 'loadPendingDineInPayments').and.resolveTo();
+    spyOn(component, 'loadDineInOperationalSignals').and.resolveTo();
+
+    component.submitReconciliation(linkedOrder);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(component.collection?.cash).toBe(0);
+    expect(component.collection?.upi).toBe(110);
+    expect(component.collection?.total).toBe(110);
+    expect(component.orderSessionGroups[0].payment?.upi).toBe(110);
+    expect(component.formatPaymentMethod(linkedOrder)).toBe('UPI');
+    expect(component.saving).toBeFalse();
+  });
 });

@@ -521,6 +521,8 @@ public class AdminConfirmPaymentRequest
 
 public class AdminReconcileOrderRequest
 {
+    public bool ReconcileSessionPaymentMethod { get; set; }
+
     [Required(ErrorMessage = "Reconciliation reason is required")]
     [StringLength(300, MinimumLength = 5, ErrorMessage = "Reason must be between 5 and 300 characters")]
     public string Reason { get; set; } = string.Empty;

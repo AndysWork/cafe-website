@@ -275,7 +275,7 @@ public partial class MongoService
         return result.ModifiedCount > 0;
     }
 
-    public async Task<bool> TryUpdateDineInSessionTotalsAsync(DineInSession session, DateTime expectedUpdatedAt)
+    public async Task<bool> TryUpdateDineInSessionTotalsAsync(DineInSession session, DateTime expectedUpdatedAt, bool updatePayments = false)
     {
         if (string.IsNullOrWhiteSpace(session.Id)) return false;
         var cleanId = session.Id.Trim();
@@ -294,6 +294,14 @@ public partial class MongoService
             .Set(s => s.TaxAmount, session.TaxAmount)
             .Set(s => s.GrandTotal, session.GrandTotal)
             .Set(s => s.UpdatedAt, now);
+        if (updatePayments)
+        {
+            update = update
+                .Set(s => s.PaymentMethod, session.PaymentMethod)
+                .Set(s => s.UpiReference, session.UpiReference)
+                .Set(s => s.PaymentEntries, session.PaymentEntries)
+                .Set(s => s.Timeline, session.Timeline);
+        }
         var result = await _dineInSessions.UpdateOneAsync(filter, update);
         return result.MatchedCount == 1;
     }

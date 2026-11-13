@@ -106,6 +106,7 @@ interface ReconcileItemDraft {
 }
 
 interface ReconcileOrderDraft {
+  reconcileSessionPaymentMethod: boolean;
   reason: string;
   status: string;
   paymentStatus: string;
@@ -1225,6 +1226,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     if (existing) return existing;
 
     const draft: ReconcileOrderDraft = {
+      reconcileSessionPaymentMethod: false,
       reason: '',
       status: order.status,
       paymentStatus: order.paymentStatus,
@@ -1491,6 +1493,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
     const payload: AdminReconcileOrderRequest = {
       reason,
+      reconcileSessionPaymentMethod: !!order.dineInSessionId
+        && (draft.reconcileSessionPaymentMethod || draft.paymentMethod !== order.paymentMethod)
+        && ['cash_at_counter', 'cod', 'upi-qr'].includes(draft.paymentMethod),
       status: draft.status,
       paymentStatus: draft.paymentStatus,
       paymentMethod: draft.paymentMethod,

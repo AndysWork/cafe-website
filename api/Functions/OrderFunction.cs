@@ -1341,10 +1341,14 @@ public class OrderFunction
 
             if (!string.IsNullOrWhiteSpace(order.DineInSessionId))
             {
-                var session = await _orderRepo.GetDineInSessionByIdAsync(order.DineInSessionId);
-                if (session == null || !string.Equals(session.OutletId, order.OutletId, StringComparison.Ordinal)
-                    || !session.OrderIds.Contains(id))
+                DineInSession session;
+                try
                 {
+                    session = await DineInBillTotals.GetReconciliationSessionAsync(_orderRepo, order);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    _log.LogWarning(ex, "Unable to verify dine-in session for reconciliation of order {OrderId}", id);
                     var conflict = req.CreateResponse(HttpStatusCode.Conflict);
                     await conflict.WriteAsJsonAsync(new { error = "The order's linked dine-in session could not be verified." });
                     return conflict;
@@ -1404,6 +1408,18 @@ public class OrderFunction
                 });
                 return badPaymentMethod;
             }
+
+            if (reconcileRequest.ReconcileSessionPaymentMethod
+                && normalizedPaymentMethod is not ("cod" or "cash_at_counter" or "upi-qr"))
+            {
+                var invalidSessionMethod = req.CreateResponse(HttpStatusCode.BadRequest);
+                await invalidSessionMethod.WriteAsJsonAsync(new { error = "Choose Cash/COD or UPI to correct the session's recorded collection." });
+                return invalidSessionMethod;
+            }
+            var reclassifySessionPayments = !string.IsNullOrWhiteSpace(order.DineInSessionId)
+                && normalizedPaymentMethod is ("cod" or "cash_at_counter" or "upi-qr")
+                && (reconcileRequest.ReconcileSessionPaymentMethod
+                    || !string.Equals(order.PaymentMethod, normalizedPaymentMethod, StringComparison.OrdinalIgnoreCase));
 
             var oldState = new
             {
@@ -1624,7 +1640,10 @@ public class OrderFunction
             {
                 try
                 {
-                    await DineInBillTotals.SynchronizeReconciledOrderAsync(_orderRepo, order);
+                    await DineInBillTotals.SynchronizeReconciledOrderAsync(_orderRepo, order,
+                        reclassifySessionPayments
+                            ? (normalizedPaymentMethod == "cod" ? "cash_at_counter" : normalizedPaymentMethod)
+                            : null);
                 }
                 catch (Exception ex)
                 {
