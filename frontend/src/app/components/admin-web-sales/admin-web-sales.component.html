@@ -34,14 +34,14 @@
     <p *ngIf="loading" class="control-loading" role="status">Loading sales data…</p>
     <p *ngIf="!loading && !dashboardAvailable" class="control-loading" role="alert">Sales data is unavailable. <button type="button" (click)="onDateRangeChange()">Retry</button></p>
     <ng-container *ngIf="dashboardAvailable">
-    <p class="metric-note">App orders include dine-in, takeaway, phone, website and partner orders. Order metrics exclude cancelled or rejected orders unless noted. Marked paid and awaiting values exclude table-session and partially paid orders. Discounts are recorded order discounts; manual total overrides may differ.</p>
+    <p class="metric-note">App orders include dine-in, takeaway, phone, website and partner orders. Order metrics exclude cancelled or rejected orders unless noted. Paid Order Value is already included in App Order Value. Paid Order Value and Awaiting Payment exclude table-session and partially paid orders. Discounts are recorded order discounts; manual total overrides may differ.</p>
     <div class="control-stats">
       <article class="control-stat green"><span class="stat-icon">₹</span><div><span>App Order Value</span><strong>{{ formatCurrency(overview.orderValue) }}</strong><small>Selected period</small></div></article>
       <article class="control-stat blue"><span class="stat-icon">🛒</span><div><span>Orders</span><strong>{{ overview.orders | number }}</strong><small>Non-cancelled</small></div></article>
       <article class="control-stat violet"><span class="stat-icon">▤</span><div><span>Avg. Order Value</span><strong>{{ formatCurrency(overview.average) }}</strong><small>Per app order</small></div></article>
       <article class="control-stat yellow"><span class="stat-icon">◉</span><div><span>Gross Order Value</span><strong>{{ formatCurrency(overview.grossValue) }}</strong><small>Before discounts</small></div></article>
       <article class="control-stat red"><span class="stat-icon">◆</span><div><span>Order Discounts</span><strong>{{ formatCurrency(overview.discounts) }}</strong><small>Coupon + loyalty</small></div></article>
-      <article class="control-stat cyan"><span class="stat-icon">✓</span><div><span>Marked Paid</span><strong>{{ formatCurrency(overview.paidOrderValue) }}</strong><small>Non-session orders</small></div></article>
+      <article class="control-stat cyan" title="Value of paid orders excluding table-session payments. Already included in App Order Value; this is not total recorded collection."><span class="stat-icon">✓</span><div><span>Paid Order Value</span><strong>{{ formatCurrency(overview.paidOrderValue) }}</strong><small>Excludes table sessions</small></div></article>
       <article class="control-stat orange"><span class="stat-icon">◷</span><div><span>Awaiting Payment</span><strong>{{ formatCurrency(overview.awaitingPaymentValue) }}</strong><small>Full non-session orders</small></div></article>
       <article class="control-stat red"><span class="stat-icon">×</span><div><span>Cancelled / Rejected</span><strong>{{ overview.cancelledOrders | number }}</strong><small>Orders</small></div></article>
     </div>
@@ -197,7 +197,7 @@
       <strong>{{ formatCurrency(averageOrderValue) }}</strong>
     </div>
     <div class="kpi-card">
-      <span class="label">Marked Paid (non-session orders)</span>
+      <span class="label">Paid Order Value (excludes table sessions)</span>
       <strong>{{ formatCurrency(overview.paidOrderValue) }}</strong>
     </div>
     <div class="kpi-card">
