@@ -31,12 +31,42 @@ public class OrderDateTests
         var registry = BsonSerializer.SerializerRegistry;
         var rendered = filter.Render(new RenderArgs<Order>(registry.GetSerializer<Order>(), registry));
         var alternatives = rendered["$or"].AsBsonArray.Select(x => x.AsBsonDocument).ToArray();
-        var utc = alternatives.Single(x => x["createdAtIsUtc"] == BsonBoolean.True);
-        var legacy = alternatives.Single(x => x["createdAtIsUtc"].IsBsonDocument);
-        Assert.Equal(new DateTime(2026, 11, 7, 18, 30, 0, DateTimeKind.Utc), utc["createdAt"]["$gte"].ToUniversalTime());
-        Assert.Equal(new DateTime(2026, 11, 8, 18, 30, 0, DateTimeKind.Utc), utc["createdAt"]["$lt"].ToUniversalTime());
-        Assert.Equal(new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc), legacy["createdAt"]["$gte"].ToUniversalTime());
-        Assert.Equal(new DateTime(2026, 11, 9, 0, 0, 0, DateTimeKind.Utc), legacy["createdAt"]["$lt"].ToUniversalTime());
+        var bounds = alternatives.Select(x => x["createdAt"].AsBsonDocument).ToArray();
+        Assert.Contains(bounds, x => x["$gte"].ToUniversalTime() == new DateTime(2026, 11, 7, 18, 30, 0, DateTimeKind.Utc)
+            && x["$lt"].ToUniversalTime() == new DateTime(2026, 11, 8, 18, 30, 0, DateTimeKind.Utc));
+        Assert.Contains(bounds, x => x["$gte"].ToUniversalTime() == new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc)
+            && x["$lt"].ToUniversalTime() == new DateTime(2026, 11, 9, 0, 0, 0, DateTimeKind.Utc));
+        Assert.Contains("$convert", rendered.ToJson());
+        Assert.Contains("orderSource", rendered.ToJson());
+        Assert.DoesNotContain("\"$not\"", rendered.ToJson());
+        Assert.Contains("\"$nor\"", rendered.ToJson());
+    }
+
+    [Fact]
+    public void UnmarkedDineInAndPhoneOrdersUseUtcAcrossIstMidnight()
+    {
+        var timestamp = new DateTime(2026, 11, 8, 18, 35, 0, DateTimeKind.Utc);
+        var dineIn = new Order { Id = ObjectId.GenerateNewId(timestamp).ToString(), CreatedAt = timestamp,
+            OrderType = "dine-in", DineInSessionId = "session" };
+        var phone = new Order { CreatedAt = timestamp, OrderSource = "phone" };
+        var start = new DateTime(2026, 11, 9);
+
+        foreach (var order in new[] { dineIn, phone })
+        {
+            Assert.True(OrderDateHelper.IsCreatedAtUtc(order));
+            Assert.Equal(new DateTime(2026, 11, 9, 0, 5, 0), OrderDateHelper.ToIstCreatedAt(order));
+            Assert.True(OrderDateHelper.IsCreatedInRange(order, start, start.AddDays(1)));
+        }
+    }
+
+    [Fact]
+    public void UnmarkedLegacyDineInOrderPreservesIstWallClock()
+    {
+        var createdUtc = new DateTime(2026, 11, 8, 18, 35, 0, DateTimeKind.Utc);
+        var legacy = new Order { Id = ObjectId.GenerateNewId(createdUtc).ToString(),
+            CreatedAt = createdUtc.AddMinutes(330), OrderType = "dine-in", DineInSessionId = "session" };
+        Assert.False(OrderDateHelper.IsCreatedAtUtc(legacy));
+        Assert.Equal(new DateTime(2026, 11, 9, 0, 5, 0), OrderDateHelper.ToIstCreatedAt(legacy));
     }
 
     [Theory]

@@ -38,8 +38,8 @@ export interface Order {
   discountAmount?: number;
   loyaltyPointsUsed?: number;
   loyaltyDiscountAmount?: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'scheduled';
-  paymentStatus: 'pending' | 'paid' | 'refunded' | 'unpaid';
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'rejected' | 'scheduled';
+  paymentStatus: 'pending' | 'paid' | 'refunded' | 'unpaid' | 'partially_paid' | 'pending_verification' | 'pending_cash' | 'processing';
   paymentMethod: 'cod' | 'razorpay' | 'upi-qr' | 'dine_in_tab' | 'cash_at_counter';
   razorpayOrderId?: string;
   razorpayPaymentId?: string;

@@ -2142,13 +2142,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     }
 
     // Get all orders (admin) - optionally filtered by outlet (excludes RazorpaySignature)
-    public async Task<List<Order>> GetAllOrdersAsync(string? outletId = null, int? page = null, int? pageSize = null)
+    public async Task<List<Order>> GetAllOrdersAsync(string? outletId = null, int? page = null, int? pageSize = null, DateTime? startDate = null, DateTime? endExclusive = null)
     {
         var notDeleted = Builders<Order>.Filter.Ne(o => o.IsDeleted, true);
         var filter = outletId != null
             ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId) & notDeleted
             : notDeleted;
-        var fluent = _orders.Find(filter).SortByDescending(x => x.CreatedAt)
+        if (startDate.HasValue || endExclusive.HasValue)
+            filter &= Helpers.OrderDateHelper.CreatedInRange(startDate, endExclusive);
+        var fluent = _orders.Find(filter).SortByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .Project<Order>(_orderListProjection);
 
         if (page.HasValue && pageSize.HasValue)
@@ -2157,12 +2159,14 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
     }
 
-    public async Task<long> GetAllOrdersCountAsync(string? outletId = null)
+    public async Task<long> GetAllOrdersCountAsync(string? outletId = null, DateTime? startDate = null, DateTime? endExclusive = null)
     {
         var notDeleted = Builders<Order>.Filter.Ne(o => o.IsDeleted, true);
         var filter = outletId != null
             ? Builders<Order>.Filter.Eq(o => o.OutletId, outletId) & notDeleted
             : notDeleted;
+        if (startDate.HasValue || endExclusive.HasValue)
+            filter &= Helpers.OrderDateHelper.CreatedInRange(startDate, endExclusive);
         return await _orders.CountDocumentsAsync(filter);
     }
 

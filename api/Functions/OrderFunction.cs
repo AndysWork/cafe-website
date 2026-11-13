@@ -690,6 +690,11 @@ public class OrderFunction
     /// <response code="403">User not authorized</response>
     // GET: Get all orders for accessible outlet scope
     [Function("GetAllOrders")]
+    [OpenApiOperation(operationId: "GetAllOrders", tags: new[] { "Orders" }, Summary = "Get orders for an outlet")]
+    [OpenApiParameter(name: "startDate", In = ParameterLocation.Query, Required = false, Type = typeof(string), Description = "Inclusive IST start date (yyyy-MM-dd).")]
+    [OpenApiParameter(name: "endDate", In = ParameterLocation.Query, Required = false, Type = typeof(string), Description = "Inclusive IST end date (yyyy-MM-dd).")]
+    [OpenApiParameter(name: "page", In = ParameterLocation.Query, Required = false, Type = typeof(int), Description = "Page number.")]
+    [OpenApiParameter(name: "pageSize", In = ParameterLocation.Query, Required = false, Type = typeof(int), Description = "Page size (maximum 500).")]
     public async Task<HttpResponseData> GetAllOrders(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "orders")] HttpRequestData req)
     {
@@ -719,18 +724,48 @@ public class OrderFunction
 
             var (page, pageSize) = PaginationHelper.ParsePagination(req);
             var channel = ParseChannelQuery(req.Url.Query);
+            var startText = req.Query["startDate"];
+            var endText = req.Query["endDate"];
+            DateTime? startDate = null;
+            DateTime? endExclusive = null;
+            if (!string.IsNullOrWhiteSpace(startText))
+            {
+                if (!IstDateHelper.TryParseIstDate(startText, out var parsedStart))
+                {
+                    var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await bad.WriteAsJsonAsync(new { error = "Invalid startDate" });
+                    return bad;
+                }
+                startDate = parsedStart.Date;
+            }
+            if (!string.IsNullOrWhiteSpace(endText))
+            {
+                if (!IstDateHelper.TryParseIstDate(endText, out var parsedEnd) || parsedEnd.Date == DateTime.MaxValue.Date)
+                {
+                    var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await bad.WriteAsJsonAsync(new { error = "Invalid endDate" });
+                    return bad;
+                }
+                endExclusive = parsedEnd.Date.AddDays(1);
+            }
+            if (startDate.HasValue && endExclusive.HasValue && startDate.Value >= endExclusive.Value)
+            {
+                var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                await bad.WriteAsJsonAsync(new { error = "startDate must be on or before endDate" });
+                return bad;
+            }
 
             List<Order> orders;
             if (!string.IsNullOrWhiteSpace(channel))
             {
-                var allOrders = await _orderRepo.GetAllOrdersAsync(outletId, null, null);
+                var allOrders = await _orderRepo.GetAllOrdersAsync(outletId, null, null, startDate, endExclusive);
                 orders = allOrders
                     .Where(o => IsChannelMatch(o.Channel, channel!))
                     .ToList();
             }
             else
             {
-                orders = await _orderRepo.GetAllOrdersAsync(outletId, page, pageSize);
+                orders = await _orderRepo.GetAllOrdersAsync(outletId, page, pageSize, startDate, endExclusive);
             }
 
             var orderResponses = orders.Select(MapToOrderResponse).ToList();
@@ -738,7 +773,7 @@ public class OrderFunction
             var response = req.CreateResponse(HttpStatusCode.OK);
             if (string.IsNullOrWhiteSpace(channel) && page.HasValue && pageSize.HasValue)
             {
-                var totalCount = await _orderRepo.GetAllOrdersCountAsync(outletId);
+                var totalCount = await _orderRepo.GetAllOrdersCountAsync(outletId, startDate, endExclusive);
                 PaginationHelper.AddPaginationHeaders(response, totalCount, page.Value, pageSize.Value);
             }
             await response.WriteAsJsonAsync(orderResponses);
@@ -1485,9 +1520,11 @@ public class OrderFunction
                     return badCreatedAt;
                 }
 
-                order.CreatedAt = order.CreatedAtIsUtc == true
+                var createdAtIsUtc = OrderDateHelper.IsCreatedAtUtc(order);
+                order.CreatedAt = createdAtIsUtc
                     ? parsedCreatedAt.UtcDateTime
                     : parsedCreatedAt.DateTime;
+                order.CreatedAtIsUtc = createdAtIsUtc;
             }
 
             if (reconcileRequest.ClearCouponAndLoyalty)
@@ -2306,6 +2343,82 @@ public class OrderFunction
         }
     }
 
+    [Function("GetOrderPeriodCollection")]
+    [OpenApiOperation(operationId: "GetOrderPeriodCollection", tags: new[] { "Orders" }, Summary = "Get recorded collection by order date")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "from", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "First order date in IST (yyyy-MM-dd).")]
+    [OpenApiParameter(name: "to", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "Last order date in IST (yyyy-MM-dd).")]
+    [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID.")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(OrderPeriodCollectionResult), Description = "Recorded collection by payment method.")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid date range.")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "Admin authentication required.")]
+    public async Task<HttpResponseData> GetOrderPeriodCollection(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/reports/order-period-collection")] HttpRequestData req)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+            if (!TryParseDateQuery(req, "from", out var from)
+                || !TryParseDateQuery(req, "to", out var to)
+                || !from.HasValue || !to.HasValue || from.Value > to.Value || to.Value.Date == DateTime.MaxValue.Date)
+            {
+                var invalidRange = req.CreateResponse(HttpStatusCode.BadRequest);
+                await invalidRange.WriteAsJsonAsync(new { error = "Use a valid date range in yyyy-MM-dd format." });
+                return invalidRange;
+            }
+
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var orders = new Dictionary<string, Order>();
+            for (var page = 1; ; page++)
+            {
+                var batch = await _orderRepo.GetAllOrdersAsync(outletId, page, PaginationHelper.MaxPageSize, from, to.Value.Date.AddDays(1));
+                foreach (var order in batch)
+                {
+                    if (string.IsNullOrEmpty(order.Id))
+                        throw new InvalidOperationException("Cannot calculate collection for an order without an ID.");
+                    orders.TryAdd(order.Id, order);
+                }
+                if (batch.Count < PaginationHelper.MaxPageSize) break;
+            }
+
+            var sessions = new Dictionary<string, DineInSession>();
+            var requested = new HashSet<string>();
+            var pending = orders.Values.Select(order => order.DineInSessionId)
+                .Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!).Distinct().ToList();
+            while (pending.Count > 0)
+            {
+                var batchIds = pending.Where(requested.Add).ToArray();
+                if (batchIds.Length == 0) break;
+                pending.Clear();
+                foreach (var chunk in batchIds.Chunk(PaginationHelper.MaxPageSize))
+                {
+                    var batch = await _orderRepo.GetDineInSessionsByIdsAsync(chunk);
+                    foreach (var session in batch)
+                    {
+                        if (string.IsNullOrWhiteSpace(session.Id))
+                            throw new InvalidOperationException("Cannot calculate collection for a session without an ID.");
+                        sessions[session.Id] = session;
+                        if (!string.IsNullOrWhiteSpace(session.MergedIntoSessionId))
+                            pending.Add(session.MergedIntoSessionId);
+                    }
+                }
+            }
+
+            var result = OrderPeriodCollection.Calculate(orders.Values, sessions);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(result);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error calculating order-period collection");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to calculate order-period collection" });
+            return error;
+        }
+    }
+
     [Function("GetUpiPaymentReconciliationReport")]
     public async Task<HttpResponseData> GetUpiPaymentReconciliationReport(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/reports/upi-reconciliation")] HttpRequestData req)
@@ -2326,8 +2439,19 @@ public class OrderFunction
             }
             var toExclusive = to?.Date.AddDays(1);
 
-            var orders = await _orderRepo.GetAllOrdersAsync(outletId);
-            var upiOrders = orders
+            var orders = new Dictionary<string, Order>();
+            for (var page = 1; ; page++)
+            {
+                var batch = await _orderRepo.GetAllOrdersAsync(outletId, page, PaginationHelper.MaxPageSize, from, toExclusive);
+                foreach (var order in batch)
+                {
+                    if (string.IsNullOrEmpty(order.Id))
+                        throw new InvalidOperationException("Cannot generate UPI report for an order without an ID.");
+                    orders.TryAdd(order.Id, order);
+                }
+                if (batch.Count < PaginationHelper.MaxPageSize) break;
+            }
+            var upiOrders = orders.Values
                 .Where(o => string.Equals(o.PaymentMethod, "upi-qr", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(o.PaymentMethod, "upi", StringComparison.OrdinalIgnoreCase))
                 .Where(o => OrderDateHelper.IsCreatedInRange(o, from, toExclusive))
@@ -2371,7 +2495,7 @@ public class OrderFunction
                     upiConfirmedBy = o.UpiConfirmedBy,
                     upiConfirmedAt = o.UpiConfirmedAt,
                     createdAt = o.CreatedAt,
-                    createdAtIsUtc = o.CreatedAtIsUtc,
+                    createdAtIsUtc = OrderDateHelper.IsCreatedAtUtc(o),
                     updatedAt = o.UpdatedAt
                 })
             });
@@ -2406,6 +2530,7 @@ public class OrderFunction
             Subtotal = order.Subtotal,
             Tax = order.Tax,
             PlatformCharge = order.PlatformCharge,
+            PackagingCharge = order.PackagingCharge,
             Total = order.Total,
             CouponCode = order.CouponCode,
             DiscountAmount = order.DiscountAmount,
@@ -2425,7 +2550,7 @@ public class OrderFunction
             PreparationNotes = order.PreparationNotes,
             Notes = order.Notes,
             CreatedAt = order.CreatedAt,
-            CreatedAtIsUtc = order.CreatedAtIsUtc,
+            CreatedAtIsUtc = OrderDateHelper.IsCreatedAtUtc(order),
             UpdatedAt = order.UpdatedAt,
             LastReconciledAt = order.LastReconciledAt,
             LastReconciledByUserId = order.LastReconciledByUserId,

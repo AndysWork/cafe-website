@@ -1,4 +1,159 @@
 <div class="web-sales-admin">
+  <section class="control-center" id="overview" aria-labelledby="control-center-title">
+    <header class="control-header">
+      <div class="control-title">
+        <span class="title-icon" aria-hidden="true">▣</span>
+        <div><h1 id="control-center-title">Web Sales Control Center</h1><p>Orders · Sales · Items · Payments · Operations</p></div>
+      </div>
+      <div class="date-controls">
+        <label><span>From</span><input type="date" [(ngModel)]="startDate" (change)="onDateRangeChange()" [disabled]="loading" aria-label="Start date"></label>
+        <label><span>To</span><input type="date" [(ngModel)]="endDate" (change)="onDateRangeChange()" [disabled]="loading" aria-label="End date"></label>
+        <div class="date-presets" aria-label="Date presets">
+          <button type="button" [disabled]="loading" [class.selected]="selectedRange === 1" (click)="setDateRange(1)">Today</button>
+          <button type="button" [disabled]="loading" [class.selected]="selectedRange === 7" (click)="setDateRange(7)">7 Days</button>
+          <button type="button" [disabled]="loading" [class.selected]="selectedRange === 30" (click)="setDateRange(30)">30 Days</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="control-nav" aria-label="Web sales sections">
+      <button type="button" [class.active]="activeSection === 'overview'" (click)="scrollToSection('overview')"><span>▦</span> Overview</button>
+      <button type="button" [class.active]="activeSection === 'web-order-management'" (click)="scrollToSection('web-order-management')"><span>🛒</span> Live Orders</button>
+      <button type="button" [class.active]="activeSection === 'item-analytics'" (click)="scrollToSection('item-analytics')"><span>▥</span> Item Analytics</button>
+      <a routerLink="/admin/tables"><span>♧</span> Dine-In &amp; Tables</a>
+      <button type="button" [class.active]="activeSection === 'upi-reconciliation'" (click)="scrollToSection('upi-reconciliation')"><span>▣</span> Payments &amp; UPI</button>
+      <button type="button" (click)="scrollToSection('web-order-management')"><span>⊕</span> Reconciliation</button>
+      <a routerLink="/admin/online-sale-tracker">Sales Tracker</a>
+      <a routerLink="/admin/online-profit-tracker">Profit Tracker</a>
+      <details class="control-more">
+        <summary>More ▾</summary>
+        <div><a routerLink="/admin/offers">Offers</a><a routerLink="/admin/discount-mapping">Coupons</a><a routerLink="/admin/loyalty">Loyalty and Referrals</a><a routerLink="/admin/delivery-partners">Delivery Partners</a><a routerLink="/admin/announcements">Home Merchandising</a></div>
+      </details>
+    </nav>
+
+    <p *ngIf="loading" class="control-loading" role="status">Loading sales data…</p>
+    <p *ngIf="!loading && !dashboardAvailable" class="control-loading" role="alert">Sales data is unavailable. <button type="button" (click)="onDateRangeChange()">Retry</button></p>
+    <ng-container *ngIf="dashboardAvailable">
+    <p class="metric-note">App orders include dine-in, takeaway, phone, website and partner orders. Order metrics exclude cancelled or rejected orders unless noted. Marked paid and awaiting values exclude table-session and partially paid orders. Discounts are recorded order discounts; manual total overrides may differ.</p>
+    <div class="control-stats">
+      <article class="control-stat green"><span class="stat-icon">₹</span><div><span>App Order Value</span><strong>{{ formatCurrency(overview.orderValue) }}</strong><small>Selected period</small></div></article>
+      <article class="control-stat blue"><span class="stat-icon">🛒</span><div><span>Orders</span><strong>{{ overview.orders | number }}</strong><small>Non-cancelled</small></div></article>
+      <article class="control-stat violet"><span class="stat-icon">▤</span><div><span>Avg. Order Value</span><strong>{{ formatCurrency(overview.average) }}</strong><small>Per app order</small></div></article>
+      <article class="control-stat yellow"><span class="stat-icon">◉</span><div><span>Gross Order Value</span><strong>{{ formatCurrency(overview.grossValue) }}</strong><small>Before discounts</small></div></article>
+      <article class="control-stat red"><span class="stat-icon">◆</span><div><span>Order Discounts</span><strong>{{ formatCurrency(overview.discounts) }}</strong><small>Coupon + loyalty</small></div></article>
+      <article class="control-stat cyan"><span class="stat-icon">✓</span><div><span>Marked Paid</span><strong>{{ formatCurrency(overview.paidOrderValue) }}</strong><small>Non-session orders</small></div></article>
+      <article class="control-stat orange"><span class="stat-icon">◷</span><div><span>Awaiting Payment</span><strong>{{ formatCurrency(overview.awaitingPaymentValue) }}</strong><small>Full non-session orders</small></div></article>
+      <article class="control-stat red"><span class="stat-icon">×</span><div><span>Cancelled / Rejected</span><strong>{{ overview.cancelledOrders | number }}</strong><small>Orders</small></div></article>
+    </div>
+
+    <section class="collection-summary" aria-labelledby="collection-title">
+      <h2 id="collection-title">Recorded Collection by Payment Type</h2>
+      <p class="metric-note">Based on order date (IST), not payment date. Includes paid standalone orders and confirmed payments for linked dine-in sessions, including partial payments. A session is counted once per selected range; its full payments can include orders from other dates. Cash includes paid COD and may not yet be settled by the delivery partner. Refunded standalone orders are excluded; refunds are not deducted from session payments.</p>
+      <p *ngIf="collectionLoading" class="metric-note" role="status">Loading recorded collection…</p>
+      <p *ngIf="!collectionLoading && !collection" class="metric-note" role="alert">Recorded collection is unavailable. <button type="button" (click)="onDateRangeChange()">Retry</button></p>
+      <div class="control-stats" *ngIf="collection as payments">
+        <article class="control-stat green"><span class="stat-icon">₹</span><div><span>Total Recorded</span><strong>{{ formatCurrency(payments.total) }}</strong><small>All payment types</small></div></article>
+        <article class="control-stat blue"><span class="stat-icon">▣</span><div><span>UPI</span><strong>{{ formatCurrency(payments.upi) }}</strong><small>Confirmed / paid</small></div></article>
+        <article class="control-stat yellow"><span class="stat-icon">₹</span><div><span>Cash / COD</span><strong>{{ formatCurrency(payments.cash) }}</strong><small>Recorded as paid</small></div></article>
+        <article class="control-stat violet"><span class="stat-icon">◉</span><div><span>Other Methods</span><strong>{{ formatCurrency(payments.other) }}</strong><small>Including online gateway</small></div></article>
+        <article class="control-stat orange"><span class="stat-icon">?</span><div><span>Unallocated</span><strong>{{ formatCurrency(payments.unallocated) }}</strong><small>Recorded without payment entries</small></div></article>
+      </div>
+      <p class="metric-note" *ngIf="collection?.unknownAmountOrders">Amounts for {{ collection!.unknownAmountOrders }} partially paid, refunded or unlinked table-tab orders are unavailable and not included.</p>
+    </section>
+
+    <div class="control-charts">
+      <section class="control-card sales-trend" aria-labelledby="sales-trend-title">
+        <div class="card-heading"><h2 id="sales-trend-title"><span>▥</span> Sales Trend</h2>
+          <label><span class="visually-hidden">Trend metric</span><select [(ngModel)]="trendMetric"><option value="value">Order value</option><option value="orders">Orders</option><option value="average">Average value</option></select></label>
+        </div>
+        <p class="chart-caption">Non-cancelled app orders · {{ startDate }} to {{ endDate }} (IST)</p>
+        <div class="sales-chart" role="img" [attr.aria-label]="'Trend of ' + trendMetric + ' for selected date range'">
+          <svg viewBox="0 0 600 190" preserveAspectRatio="none" aria-hidden="true">
+            <defs><linearGradient id="sales-control-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#35d84a" stop-opacity=".35"/><stop offset="100%" stop-color="#35d84a" stop-opacity=".03"/></linearGradient></defs>
+            <line *ngFor="let y of [35, 75, 115, 160]" x1="40" [attr.y1]="y" x2="560" [attr.y2]="y" class="sales-grid-line"/>
+            <text x="35" y="38" text-anchor="end" class="sales-axis">{{ trendMax | number:'1.0-0' }}</text><text x="35" y="164" text-anchor="end" class="sales-axis">0</text>
+            <polygon [attr.points]="trendArea" fill="url(#sales-control-fill)"/>
+            <polyline [attr.points]="trendPoints" class="sales-line"/>
+            <ng-container *ngFor="let bucket of overview.trend; let i = index">
+              <circle [attr.cx]="trendX(i)" [attr.cy]="trendY(bucket)" r="2.5" class="sales-point"><title>{{ bucket.date }}{{ bucket.date !== bucket.endDate ? ' to ' + bucket.endDate : '' }}: {{ trendValue(bucket) | number:'1.0-2' }}</title></circle>
+              <text *ngIf="i === 0 || i === overview.trend.length - 1 || (overview.trend.length > 2 && i === (overview.trend.length - 1) / 2)" [attr.x]="trendX(i)" y="182" text-anchor="middle" class="sales-axis">{{ trendDate(bucket.date) }}</text>
+            </ng-container>
+          </svg>
+        </div>
+        <details class="trend-data"><summary>View trend data</summary><table><thead><tr><th>Period</th><th>Orders</th><th>Order value</th></tr></thead><tbody><tr *ngFor="let bucket of overview.trend"><td>{{ bucket.date }}{{ bucket.endDate !== bucket.date ? ' – ' + bucket.endDate : '' }}</td><td>{{ bucket.orders }}</td><td>{{ formatCurrency(bucket.value) }}</td></tr></tbody></table></details>
+      </section>
+
+      <section class="control-card source-card" aria-labelledby="order-sources-title">
+        <div class="card-heading"><h2 id="order-sources-title"><span>◉</span> Order Sources</h2></div>
+        <p class="chart-caption">Non-cancelled app orders · source or fulfillment type</p>
+        <div class="source-body">
+          <div class="source-ring" [style.background]="sourceGradient"><div><strong>{{ overview.orders | number }}</strong><span>Orders</span></div></div>
+          <ul><li *ngFor="let source of overview.sources"><span class="source-dot" [style.background]="source.color"></span><span>{{ source.label }}</span><strong>{{ (overview.orders ? source.count / overview.orders * 100 : 0) | number:'1.0-0' }}%</strong><small>{{ source.count }}</small></li></ul>
+        </div>
+      </section>
+
+      <section class="control-card attention-card" aria-labelledby="attention-title">
+        <div class="card-heading"><h2 id="attention-title"><span>⚠</span> Operational Attention</h2></div>
+        <button type="button" class="attention-row alert" (click)="scrollToSection('operational-attention')"><span>♨</span> Kitchen SLA Alerts <strong>{{ slaAlertsAvailable ? dineInSlaAlerts.length : 'Unavailable' }}</strong><b>›</b></button>
+        <button type="button" class="attention-row warning" (click)="scrollToSection('operational-attention')"><span>▣</span> Open Tables (Day-End) <strong>{{ openTablesAvailable ? dayEndOpenTables.length : 'Unavailable' }}</strong><b>›</b></button>
+        <button type="button" class="attention-row due" (click)="scrollToSection('operational-attention')"><span>₹</span> Outstanding Dine-In Due <strong>{{ openTablesAvailable ? formatCurrency(dayEndOutstandingAmount) : 'Unavailable' }}</strong><b>›</b></button>
+      </section>
+    </div>
+
+    <div class="control-insights">
+      <section class="control-card items-card" aria-labelledby="item-performance-title">
+        <div class="card-heading"><h2 id="item-performance-title"><span>⬡</span> Item-wise Performance</h2>
+          <div class="item-filters">
+            <input type="search" [(ngModel)]="itemSearchTerm" (ngModelChange)="refreshOverviewItems()" placeholder="Search items" aria-label="Search items">
+            <select [(ngModel)]="overviewCategory" (ngModelChange)="refreshOverviewItems()" aria-label="Item category"><option value="all">All Categories</option><option *ngFor="let category of overviewCategories" [value]="category">{{ category }}</option></select>
+            <select [(ngModel)]="overviewMode" (ngModelChange)="refreshOverviewItems()" aria-label="Order source"><option value="all">All Order Types</option><option *ngFor="let source of overview.sources" [value]="source.label">{{ source.label }}</option></select>
+            <button type="button" (click)="exportOverviewItemsCsv()" [disabled]="!overviewItems.length">⇩ Export CSV</button>
+          </div>
+        </div>
+        <div class="item-summary-table" *ngIf="overviewItems.length; else noOverviewItems">
+          <table><thead><tr><th>#</th><th>Item Name</th><th>Category</th><th>Total Qty</th><th>Orders</th><th>Item Value</th></tr></thead>
+            <tbody><tr *ngFor="let item of overviewItems | slice:0:5; let i = index"><td>{{ i + 1 }}</td><td>{{ item.name }}</td><td><span class="category-chip">{{ item.category }}</span></td><td>{{ item.quantity | number }}</td><td>{{ item.orders | number }}</td><td>{{ formatCurrency(item.value) }}</td></tr></tbody>
+          </table>
+        </div>
+        <ng-template #noOverviewItems><p class="empty-card">No items found for this selection.</p></ng-template>
+        <button type="button" class="text-action" (click)="scrollToSection('item-analytics')">View detailed item analytics →</button>
+      </section>
+      <section class="control-card insights-card" aria-labelledby="sales-insights-title">
+        <div class="card-heading"><h2 id="sales-insights-title"><span>▥</span> Key Sales Insights</h2></div>
+        <div class="insight-row"><span>🏆</span><p><strong>Most Sold Item</strong><ng-container *ngIf="overview.items.length; else noTopItem">{{ overview.items[0].name }}<small> ({{ overview.items[0].quantity }} qty)</small></ng-container><ng-template #noTopItem>No items</ng-template></p></div>
+        <div class="insight-row"><span>🔥</span><p><strong>Highest Item Value</strong>{{ topRevenueOverviewItem?.name || 'No items' }}<small *ngIf="topRevenueOverviewItem"> ({{ formatCurrency(topRevenueOverviewItem!.value) }})</small></p></div>
+        <div class="insight-row"><span>◷</span><p><strong>Peak Order Slot (IST)</strong>{{ overviewPeakHour }}</p></div>
+      </section>
+      <section class="control-card mobile-top-items" aria-labelledby="mobile-top-title">
+        <div class="card-heading"><h2 id="mobile-top-title"><span>♛</span> Top Items (Qty)</h2></div>
+        <p *ngIf="!overview.items.length" class="empty-card">No items sold.</p>
+        <div class="mobile-item" *ngFor="let item of overview.items | slice:0:3; let i = index"><span>{{ i + 1 }}</span><strong>{{ item.name }}</strong><b>{{ item.quantity }}</b></div>
+      </section>
+    </div>
+
+    <div class="mobile-quick-actions">
+      <button type="button" class="primary" (click)="openMissedOrder()"><span>＋</span> Add Order</button>
+      <a routerLink="/admin/tables"><span>▣</span> Tables</a>
+      <button type="button" (click)="exportOverviewItemsCsv()" [disabled]="!overviewItems.length"><span>⇩</span> Export CSV</button>
+      <a routerLink="/admin/analytics"><span>▥</span> View Reports</a>
+    </div>
+
+    <section class="control-card live-preview" aria-labelledby="live-orders-title">
+      <div class="card-heading"><h2 id="live-orders-title"><span>🛒</span> Reconciliation Orders <small>(selected period)</small></h2>
+        <div class="status-tabs"><button *ngFor="let status of ['all', 'pending', 'preparing', 'ready', 'served', 'cancelled']" type="button" [class.selected]="statusFilter === status" (click)="setOrderFilter(status)">{{ status === 'all' ? 'All' : formatStatusLabel(status) }} <small>{{ orderStatusCount(status) }}</small></button></div>
+        <button type="button" class="add-order" (click)="openMissedOrder()">＋ Add Missed Order</button>
+      </div>
+      <div class="live-table" *ngIf="filteredOrders.length; else noOverviewOrders"><table><thead><tr><th>Order</th><th>Customer</th><th>Type</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Placed At (IST)</th><th>Actions</th></tr></thead>
+        <tbody><tr *ngFor="let order of filteredOrders | slice:0:5; trackBy: trackById"><td>#{{ order.id.slice(-6) }}</td><td>{{ order.customerName || order.username }}</td><td>{{ formatOrderMode(order) }}</td><td>{{ getOrderItemsSummary(order) }}</td><td>{{ formatCurrency(order.total) }}</td><td>{{ formatPaymentMethod(order) }} <small>({{ order.paymentStatus }})</small></td><td>{{ formatStatusLabel(order.status) }}</td><td>{{ formatDate(order.createdAt, order.createdAtIsUtc) }}</td><td><button type="button" (click)="toggleReconcilePanel(order); scrollToSection('web-order-management')">Reconcile</button> <a [routerLink]="['/orders', order.id]">Open</a></td></tr></tbody></table></div>
+      <ng-template #noOverviewOrders><p class="empty-card">No orders match this selection.</p></ng-template>
+      <button type="button" class="text-action" (click)="scrollToSection('web-order-management')">View all orders and actions →</button>
+    </section>
+    </ng-container>
+  </section>
+
+  <ng-container *ngIf="dashboardAvailable">
+  <details class="detail-archive">
+    <summary>Detailed sales statistics and additional links</summary>
   <div class="page-header">
     <div>
       <h1>Web Sales Control Center</h1>
@@ -42,16 +197,16 @@
       <strong>{{ formatCurrency(averageOrderValue) }}</strong>
     </div>
     <div class="kpi-card">
-      <span class="label">Web Sales Payout</span>
-      <strong>{{ formatCurrency(webSalesPayout) }}</strong>
+      <span class="label">Marked Paid (non-session orders)</span>
+      <strong>{{ formatCurrency(overview.paidOrderValue) }}</strong>
     </div>
     <div class="kpi-card">
-      <span class="label">Discount Burn</span>
-      <strong>{{ formatCurrency(webSalesDiscount) }}</strong>
+      <span class="label">Order Discounts</span>
+      <strong>{{ formatCurrency(overview.discounts) }}</strong>
     </div>
     <div class="kpi-card">
-      <span class="label">Platform Deductions</span>
-      <strong>{{ formatCurrency(webSalesDeductions) }}</strong>
+      <span class="label">Awaiting Payment (non-session orders)</span>
+      <strong>{{ formatCurrency(overview.awaitingPaymentValue) }}</strong>
     </div>
   </div>
 
@@ -151,13 +306,14 @@
     <div class="panel-head">
       <h2>Web Sales Date Window</h2>
       <div class="date-row">
-        <input type="date" [(ngModel)]="startDate" (change)="onDateRangeChange()" />
-        <input type="date" [(ngModel)]="endDate" (change)="onDateRangeChange()" />
+        <input type="date" [(ngModel)]="startDate" (change)="onDateRangeChange()" [disabled]="loading" />
+        <input type="date" [(ngModel)]="endDate" (change)="onDateRangeChange()" [disabled]="loading" />
       </div>
     </div>
   </div>
+  </details>
 
-  <div class="panel">
+  <div class="panel" id="upi-reconciliation">
     <div class="panel-head">
       <h2>UPI Reconciliation</h2>
       <div class="filters">
@@ -238,7 +394,7 @@
     </ng-container>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="dine-in-payments">
     <div class="panel-head">
       <h2>Dine-In Payments Awaiting Confirmation</h2>
       <button type="button" (click)="loadPendingDineInPayments()" [disabled]="!!confirmingDineInSessionId">Refresh</button>
@@ -282,7 +438,7 @@
     <div class="state" *ngIf="pendingDineInPayments.length === 0">No dine-in payments are waiting for confirmation.</div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="operational-attention">
     <div class="panel-head">
       <h2>Dine-In Operational Safety</h2>
       <button type="button" (click)="loadDineInOperationalSignals()">Refresh</button>
@@ -358,14 +514,14 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="item-analytics">
     <div class="panel-head">
       <h2>Web Sales Item Quantities</h2>
       <div class="filters">
         <button type="button" (click)="exportItemAnalyticsCsv()" [disabled]="!filteredWebSalesItemQuantities.length">
           Export CSV
         </button>
-        <input type="text" [(ngModel)]="itemSearchTerm" placeholder="Search menu item" />
+        <input type="text" [(ngModel)]="itemSearchTerm" (ngModelChange)="refreshOverviewItems()" placeholder="Search menu item" />
         <small *ngIf="webSalesItemQuantities.length > 0">{{ webSalesItemQuantities.length }} unique items</small>
       </div>
     </div>
@@ -660,10 +816,9 @@
                 <div>{{ formatCurrency(order.total) }}</div>
                 <small>Gross: {{ formatCurrency(getGrossBeforeDiscounts(order)) }}</small>
                 <small *ngIf="getLoyaltyRedemptionAmount(order) > 0">Loyalty Redemption: -{{ formatCurrency(getLoyaltyRedemptionAmount(order)) }}</small>
-                <small>Net Paid: {{ formatCurrency(getNetPaidValue(order)) }}</small>
               </td>
               <td>
-                <div>{{ order.paymentMethod || '-' }}</div>
+                <div>{{ formatPaymentMethod(order) }}</div>
                 <small>{{ order.paymentStatus || '-' }}</small>
               </td>
               <td>
@@ -975,4 +1130,12 @@
       <footer><button type="button" (click)="closeReconcileItemPicker()">Cancel</button></footer>
     </section>
   </div>
+  </ng-container>
+  <nav class="control-mobile-nav" aria-label="Web sales mobile navigation">
+    <button type="button" (click)="scrollToSection('overview')"><span>⌂</span>Dashboard</button>
+    <button type="button" (click)="scrollToSection('web-order-management')"><span>🛒</span>Orders</button>
+    <button type="button" (click)="scrollToSection('item-analytics')"><span>▥</span>Items</button>
+    <a routerLink="/admin/tables"><span>♜</span>Dine-In</a>
+    <details><summary><span>•••</span>More</summary><div><a routerLink="/admin/online-sale-tracker">Sales Tracker</a><a routerLink="/admin/online-profit-tracker">Profit Tracker</a><a routerLink="/admin/analytics">Reports</a><button type="button" (click)="scrollToSection('upi-reconciliation')">Payments &amp; UPI</button></div></details>
+  </nav>
 </div>

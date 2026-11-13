@@ -117,6 +117,12 @@ public partial class MongoService
         return await _dineInSessions.Find(filter).FirstOrDefaultAsync();
     }
 
+    public async Task<List<DineInSession>> GetDineInSessionsByIdsAsync(IReadOnlyCollection<string> sessionIds)
+    {
+        return await _dineInSessions.Find(Builders<DineInSession>.Filter.In(s => s.Id, sessionIds))
+            .ToListAsync();
+    }
+
     public async Task<List<DineInSession>> GetActiveDineInSessionsAsync(string outletId)
     {
         var activeStatuses = new[] { "active", "bill_requested" };

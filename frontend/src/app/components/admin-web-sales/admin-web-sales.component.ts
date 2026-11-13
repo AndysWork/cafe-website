@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { RouterModule } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { AdminCreateMissedOrderRequest, AdminReconcileOrderRequest, Order, OrderIssue, OrderService, UpiReconciliationReport } from '../../services/order.service';
@@ -14,43 +14,23 @@ import { UIStore } from '../../store/ui.store';
 import { ActiveDineInTable, DineInService } from '../../services/dine-in.service';
 import { MenuItem, MenuService } from '../../services/menu.service';
 import { getIstDateString, getIstFileStamp, convertToIst, getIstIsoString, getIstHour, getStoredTimestampEpoch } from '../../utils/date-utils';
-
-interface OnlineSaleSummaryItem {
-  id?: string;
-  orderId?: string;
-  platform?: string;
-  payout?: number;
-  billSubTotal?: number;
-  discountAmount?: number;
-  platformDeduction?: number;
-  orderAt?: string;
-  orderedItems?: Array<{
-    itemName?: string;
-    name?: string;
-    quantity?: number;
-    total?: number;
-    price?: number;
-  }>;
-}
+import { calculateWebSalesOverview, orderSource, SalesItem, SalesTrendBucket } from './web-sales-overview';
 
 interface WebSalesDashboardResponse {
   success: boolean;
   data?: {
-    summary?: {
-      totalOrders?: number;
-      activeOrders?: number;
-      deliveredOrders?: number;
-      cancelledOrders?: number;
-      grossOrderValue?: number;
-      averageOrderValue?: number;
-      webSalesPayout?: number;
-      webSalesDiscount?: number;
-      webSalesDeductions?: number;
-    };
-    orders?: Order[];
     partners?: DeliveryPartner[];
-    webSales?: OnlineSaleSummaryItem[];
   };
+}
+
+interface OrderPeriodCollection {
+  upi: number;
+  cash: number;
+  other: number;
+  unallocated: number;
+  total: number;
+  unknownAmountOrders: number;
+  sessionMethods: Record<string, string[]>;
 }
 
 type ComplianceLevel = 'green' | 'amber' | 'red';
@@ -167,32 +147,34 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   private outletService = inject(OutletService);
   private uiStore = inject(UIStore);
   private outletSub?: Subscription;
+  private dashboardRequest = 0;
+  private upiRequest = 0;
+  private loadSequence = 0;
+  private signalsRequest = 0;
+  private pendingRequest = 0;
 
   loading = false;
+  dashboardAvailable = false;
+  collection: OrderPeriodCollection | null = null;
+  collectionLoading = false;
   saving = false;
 
   orders: Order[] = [];
   reconciliationOrders: Order[] = [];
   partners: DeliveryPartner[] = [];
-  webSales: OnlineSaleSummaryItem[] = [];
-  dashboardSummary: NonNullable<WebSalesDashboardResponse['data']>['summary'] = {
-    totalOrders: 0,
-    activeOrders: 0,
-    deliveredOrders: 0,
-    cancelledOrders: 0,
-    grossOrderValue: 0,
-    averageOrderValue: 0,
-    webSalesPayout: 0,
-    webSalesDiscount: 0,
-    webSalesDeductions: 0,
-  };
-
   statusFilter = 'all';
   searchTerm = '';
   itemSearchTerm = '';
 
   startDate = `${getIstDateString().slice(0, 7)}-01`;
   endDate = getIstDateString();
+  selectedRange = 0;
+  activeSection = 'overview';
+  trendMetric: 'value' | 'orders' | 'average' = 'value';
+  overviewCategory = 'all';
+  overviewMode = 'all';
+  overview = calculateWebSalesOverview([], this.startDate, this.endDate);
+  overviewItems: SalesItem[] = [];
 
   statusDraft: Record<string, string> = {};
   partnerDraft: Record<string, string> = {};
@@ -217,6 +199,8 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   dineInSlaAlerts: any[] = [];
   dayEndOpenTables: any[] = [];
   dayEndOutstandingAmount = 0;
+  slaAlertsAvailable = false;
+  openTablesAvailable = false;
   menuCatalog: MenuItem[] = [];
   activeMenuSuggestionKey: string | null = null;
   activeMenuSuggestionIndex = -1;
@@ -243,13 +227,15 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       .pipe(filter(outlet => outlet !== null))
       .subscribe(() => this.loadData());
 
-    if (this.outletService.getSelectedOutlet()) {
-      this.loadData();
-    }
   }
 
   ngOnDestroy(): void {
     this.outletSub?.unsubscribe();
+    this.dashboardRequest++;
+    this.upiRequest++;
+    this.loadSequence++;
+    this.signalsRequest++;
+    this.pendingRequest++;
   }
 
   scrollToOrderManagement(): void {
@@ -258,16 +244,24 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   async loadData(): Promise<void> {
+    const sequence = ++this.loadSequence;
     this.loading = true;
+    this.dashboardAvailable = false;
+    this.collection = null;
     try {
       await this.loadMenuCatalog();
+      if (sequence !== this.loadSequence) return;
       await this.loadDashboardData();
+      if (sequence !== this.loadSequence) return;
       await this.loadUpiReconciliationReport();
+      if (sequence !== this.loadSequence) return;
       await this.loadPendingDineInPayments();
+      if (sequence !== this.loadSequence) return;
       await this.loadDineInOperationalSignals();
+      if (sequence !== this.loadSequence) return;
       this.initializeDrafts();
     } finally {
-      this.loading = false;
+      if (sequence === this.loadSequence) this.loading = false;
     }
   }
 
@@ -291,39 +285,72 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   async loadDashboardData(): Promise<void> {
-    return new Promise((resolve) => {
-      const outletId = this.outletService.getSelectedOutletId();
-      if (!outletId) {
-        this.uiStore.warning('Please select an outlet to load web sales dashboard');
-        resolve();
-        return;
+    const request = ++this.dashboardRequest;
+    const outletId = this.outletService.getSelectedOutletId();
+    if (!outletId) {
+      this.dashboardAvailable = false;
+      this.uiStore.warning('Please select an outlet to load web sales dashboard');
+      return;
+    }
+    const startDate = this.startDate;
+    const endDate = this.endDate;
+    const current = () => request === this.dashboardRequest
+      && outletId === this.outletService.getSelectedOutletId()
+      && startDate === this.startDate && endDate === this.endDate;
+    this.dashboardAvailable = false;
+    this.collection = null;
+    this.collectionLoading = false;
+    const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
+    const range = new URLSearchParams({ startDate, endDate });
+    try {
+      const response = await firstValueFrom(this.http.get<WebSalesDashboardResponse>(
+        `${environment.apiUrl}/online-sales/web-dashboard?${range.toString()}`, { headers }));
+      if (!response?.success || !Array.isArray(response.data?.partners)) {
+        throw new Error('Invalid web sales dashboard response');
       }
-
-      const params = new URLSearchParams({
-        startDate: this.startDate,
-        endDate: this.endDate,
-      });
-
-      const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
-      this.http.get<WebSalesDashboardResponse>(`${environment.apiUrl}/online-sales/web-dashboard?${params.toString()}`, { headers })
-        .subscribe({
-        next: (response) => {
-          const data = response?.data;
-          this.dashboardSummary = data?.summary || this.dashboardSummary;
-          this.orders = [...(data?.orders || [])].sort((a, b) =>
-            this.toEpochMillis(b.createdAt, b.createdAtIsUtc) - this.toEpochMillis(a.createdAt, a.createdAtIsUtc)
-          );
-          this.partners = data?.partners || [];
-          this.webSales = data?.webSales || [];
-          this.loadReconciliationOrders(outletId).finally(() => resolve());
-        },
-        error: (error) => {
-          console.error('Error loading dashboard:', error);
-          this.uiStore.error('Failed to load web sales dashboard');
-          resolve();
+      const allOrders = new Map<string, Order>();
+      const pageSize = 500;
+      for (let page = 1; ; page++) {
+        const params = new URLSearchParams({ startDate, endDate, page: String(page), pageSize: String(pageSize) });
+        const batch = await firstValueFrom(this.http.get<Order[]>(`${environment.apiUrl}/orders?${params.toString()}`, { headers }));
+        if (!current()) return;
+        for (const order of batch) {
+          if (!allOrders.has(order.id)) allOrders.set(order.id, order);
         }
-      });
-    });
+        if (batch.length < pageSize) break;
+      }
+      if (!current()) return;
+      this.partners = response.data.partners;
+      this.orders = [...allOrders.values()].sort((a, b) =>
+        this.toEpochMillis(b.createdAt, b.createdAtIsUtc) - this.toEpochMillis(a.createdAt, a.createdAtIsUtc));
+      this.reconciliationOrders = this.orders.filter(order => this.canReconcileOrder(order));
+      this.refreshOverview();
+      this.dashboardAvailable = true;
+      this.collectionLoading = true;
+      try {
+        const collectionRange = new URLSearchParams({ from: startDate, to: endDate });
+        const collection = await firstValueFrom(this.http.get<OrderPeriodCollection>(
+          `${environment.apiUrl}/manage/reports/order-period-collection?${collectionRange.toString()}`, { headers }));
+        if (!current()) return;
+        if (!collection || !['upi', 'cash', 'other', 'unallocated', 'total', 'unknownAmountOrders']
+          .every(key => typeof collection[key as keyof OrderPeriodCollection] === 'number'
+            && Number.isFinite(collection[key as keyof OrderPeriodCollection]))
+          || !collection.sessionMethods || typeof collection.sessionMethods !== 'object') {
+          throw new Error('Invalid order-period collection response');
+        }
+        this.collection = collection;
+      } catch (error) {
+        if (!current()) return;
+        console.error('Error loading collection:', error);
+        this.uiStore.warning('Recorded collection is temporarily unavailable.');
+      } finally {
+        if (current()) this.collectionLoading = false;
+      }
+    } catch (error) {
+      if (!current()) return;
+      console.error('Error loading dashboard:', error);
+      this.uiStore.error('Failed to load web sales dashboard');
+    }
   }
 
   initializeDrafts(): void {
@@ -337,21 +364,155 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     }
   }
 
-  async onDateRangeChange(): Promise<void> {
-    await this.loadDashboardData();
-    await this.loadUpiReconciliationReport();
-    await this.loadPendingDineInPayments();
-    await this.loadDineInOperationalSignals();
-    this.initializeDrafts();
+  async onDateRangeChange(preset = false): Promise<void> {
+    if (!this.startDate || !this.endDate || this.startDate > this.endDate) {
+      this.dashboardAvailable = false;
+      this.uiStore.warning('Choose a valid date range with the start on or before the end.');
+      return;
+    }
+    if (!preset) this.selectedRange = 0;
+    await this.loadData();
+  }
+
+  setDateRange(days: number): void {
+    const today = getIstDateString();
+    const start = new Date(Date.parse(`${today}T00:00:00Z`) - (days - 1) * 86400000);
+    this.startDate = start.toISOString().slice(0, 10);
+    this.endDate = today;
+    this.selectedRange = days;
+    void this.onDateRangeChange(true);
+  }
+
+  scrollToSection(id: string): void {
+    this.activeSection = id;
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  openMissedOrder(): void {
+    this.showAddMissedOrderPanel = true;
+    this.scrollToSection('web-order-management');
+  }
+
+  refreshOverview(): void {
+    this.overview = calculateWebSalesOverview(this.orders, this.startDate, this.endDate);
+    this.refreshOverviewItems();
+  }
+
+  refreshOverviewItems(): void {
+    const orders = this.overviewMode === 'all'
+      ? this.orders
+      : this.orders.filter(order => orderSource(order) === this.overviewMode);
+    const items = this.overviewMode === 'all'
+      ? this.overview.items
+      : calculateWebSalesOverview(orders, this.startDate, this.endDate).items;
+    const query = this.itemSearchTerm.trim().toLowerCase();
+    this.overviewItems = items.filter(item =>
+      (this.overviewCategory === 'all' || item.category === this.overviewCategory)
+      && (!query || item.name.toLowerCase().includes(query)));
+  }
+
+  get overviewCategories(): string[] {
+    return [...new Set(this.overview.items.map(item => item.category))].sort();
+  }
+
+  get topRevenueOverviewItem(): SalesItem | undefined {
+    return this.overview.items.reduce<SalesItem | undefined>(
+      (top, item) => !top || item.value > top.value ? item : top, undefined);
+  }
+
+  get overviewPeakHour(): string {
+    const hours = new Map<number, number>();
+    for (const order of this.orders) {
+      if (['cancelled', 'rejected'].includes((order.status || '').toLowerCase())) continue;
+      const epoch = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
+      if (!epoch) continue;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(order.createdAt)) continue;
+      const hour = getIstHour(epoch);
+      hours.set(hour, (hours.get(hour) || 0) + 1);
+    }
+    const peak = [...hours.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+    return peak ? `${this.formatHourRange(peak[0])} (${peak[1]} orders)` : 'No orders';
+  }
+
+  get sourceGradient(): string {
+    let position = 0;
+    const segments = this.overview.sources.filter(source => source.count).map(source => {
+      const start = position;
+      position += source.count / this.overview.orders * 100;
+      return `${source.color} ${start}% ${position}%`;
+    });
+    return segments.length ? `conic-gradient(${segments.join(', ')})` : '#e5edf5';
+  }
+
+  trendValue(bucket: SalesTrendBucket): number {
+    return this.trendMetric === 'orders' ? bucket.orders
+      : this.trendMetric === 'average' ? (bucket.orders ? bucket.value / bucket.orders : 0) : bucket.value;
+  }
+
+  get trendMax(): number {
+    return Math.max(1, ...this.overview.trend.map(bucket => this.trendValue(bucket)));
+  }
+
+  trendX(index: number): number {
+    return 40 + (this.overview.trend.length > 1 ? index * 520 / (this.overview.trend.length - 1) : 0);
+  }
+
+  trendY(bucket: SalesTrendBucket): number {
+    return 160 - this.trendValue(bucket) / this.trendMax * 125;
+  }
+
+  get trendPoints(): string {
+    return this.overview.trend.map((bucket, index) => `${this.trendX(index)},${this.trendY(bucket)}`).join(' ');
+  }
+
+  get trendArea(): string {
+    return this.overview.trend.length ? `40,160 ${this.trendPoints} ${this.trendX(this.overview.trend.length - 1)},160` : '';
+  }
+
+  trendDate(date: string): string {
+    return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+      .format(new Date(`${date}T00:00:00Z`));
+  }
+
+  setOrderFilter(status: string): void {
+    this.statusFilter = status;
+  }
+
+  orderStatusCount(status: string): number {
+    return status === 'all' ? this.reconciliationOrders.length
+      : this.reconciliationOrders.filter(order => order.status === status).length;
+  }
+
+  exportOverviewItemsCsv(): void {
+    if (!this.overviewItems.length) {
+      this.uiStore.warning('No items available to export.');
+      return;
+    }
+    const rows = [
+      ['Item', 'Category', 'Quantity', 'Orders', 'Item value'],
+      ...this.overviewItems.map(item => [item.name, item.category, item.quantity, item.orders, item.value])
+    ];
+    const blob = new Blob([rows.map(row => row.map(value => this.escapeCsv(value)).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `web-sales-items-${getIstFileStamp()}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
   async loadDineInOperationalSignals(): Promise<void> {
+    const request = ++this.signalsRequest;
     return new Promise((resolve) => {
       const outletId = this.outletService.getSelectedOutletId();
       if (!outletId) {
         this.dineInSlaAlerts = [];
         this.dayEndOpenTables = [];
         this.dayEndOutstandingAmount = 0;
+        this.slaAlertsAvailable = false;
+        this.openTablesAvailable = false;
         resolve();
         return;
       }
@@ -364,24 +525,36 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
       this.dineInService.getSlaAlerts(outletId).subscribe({
         next: (res) => {
+          if (request !== this.signalsRequest || outletId !== this.outletService.getSelectedOutletId()) { done(); return; }
           this.dineInSlaAlerts = res?.alerts || [];
+          this.slaAlertsAvailable = true;
           done();
         },
-        error: () => {
+        error: (error) => {
+          if (request !== this.signalsRequest || outletId !== this.outletService.getSelectedOutletId()) { done(); return; }
+          console.error('Error loading kitchen SLA alerts:', error);
           this.dineInSlaAlerts = [];
+          this.slaAlertsAvailable = false;
+          this.uiStore.warning('Kitchen SLA alerts are temporarily unavailable.');
           done();
         }
       });
 
       this.dineInService.getDayEndOpenTables(outletId).subscribe({
         next: (res) => {
+          if (request !== this.signalsRequest || outletId !== this.outletService.getSelectedOutletId()) { done(); return; }
           this.dayEndOpenTables = res?.sessions || [];
           this.dayEndOutstandingAmount = res?.totalOutstandingAmount || 0;
+          this.openTablesAvailable = true;
           done();
         },
-        error: () => {
+        error: (error) => {
+          if (request !== this.signalsRequest || outletId !== this.outletService.getSelectedOutletId()) { done(); return; }
+          console.error('Error loading open table balances:', error);
           this.dayEndOpenTables = [];
           this.dayEndOutstandingAmount = 0;
+          this.openTablesAvailable = false;
+          this.uiStore.warning('Open table balances are temporarily unavailable.');
           done();
         }
       });
@@ -389,15 +562,24 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   async loadUpiReconciliationReport(): Promise<void> {
+    const request = ++this.upiRequest;
+    const start = this.startDate;
+    const end = this.endDate;
+    const outlet = this.outletService.getSelectedOutletId();
+    const current = () => request === this.upiRequest && start === this.startDate && end === this.endDate
+      && outlet === this.outletService.getSelectedOutletId();
     this.upiReconLoading = true;
+    this.upiReconciliationReport = null;
     return new Promise((resolve) => {
-      this.orderService.getUpiReconciliationReport(this.startDate, this.endDate).subscribe({
+      this.orderService.getUpiReconciliationReport(start, end).subscribe({
         next: (report) => {
+          if (!current()) { resolve(); return; }
           this.upiReconciliationReport = report;
           this.upiReconLoading = false;
           resolve();
         },
         error: (error) => {
+          if (!current()) { resolve(); return; }
           console.error('Error loading UPI reconciliation report:', error);
           this.uiStore.warning('UPI reconciliation data is temporarily unavailable.');
           this.upiReconciliationReport = null;
@@ -409,6 +591,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   async loadPendingDineInPayments(): Promise<void> {
+    const request = ++this.pendingRequest;
     return new Promise((resolve) => {
       const outletId = this.outletService.getSelectedOutletId();
       if (!outletId) {
@@ -419,12 +602,14 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
       this.dineInService.getActiveTables(outletId).subscribe({
         next: sessions => {
+          if (request !== this.pendingRequest || outletId !== this.outletService.getSelectedOutletId()) { resolve(); return; }
           this.pendingDineInPayments = (sessions || []).filter(session =>
             session.paymentStatus === 'pending_verification' || session.paymentStatus === 'pending_cash'
           );
           resolve();
         },
         error: error => {
+          if (request !== this.pendingRequest || outletId !== this.outletService.getSelectedOutletId()) { resolve(); return; }
           console.error('Error loading pending dine-in payments:', error);
           this.pendingDineInPayments = [];
           this.uiStore.warning('Pending dine-in payments are temporarily unavailable.');
@@ -441,7 +626,9 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       next: response => {
         this.uiStore.success(response.message || `Payment confirmed for table ${session.tableNumber}`);
         this.confirmingDineInSessionId = null;
+        this.loadDashboardData();
         this.loadPendingDineInPayments();
+        this.loadDineInOperationalSignals();
       },
       error: error => {
         console.error('Error confirming dine-in payment:', error);
@@ -560,51 +747,6 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     });
   }
 
-  private async loadReconciliationOrders(outletId: string): Promise<void> {
-    return new Promise((resolve) => {
-      const headers = new HttpHeaders().set('X-Outlet-Id', outletId);
-      this.http.get<Order[]>(`${environment.apiUrl}/orders`, { headers }).subscribe({
-        next: (allOrders) => {
-          const dashboardEligible = (this.orders || []).filter(order => this.canReconcileOrder(order));
-          const allEligible = (allOrders || []).filter(order => this.canReconcileOrder(order));
-          const merged = new Map<string, Order>();
-
-          for (const order of [...dashboardEligible, ...allEligible]) {
-            if (!order?.id) continue;
-            const existing = merged.get(order.id);
-            if (!existing || this.toEpochMillis(order.updatedAt || order.createdAt) >= this.toEpochMillis(existing.updatedAt || existing.createdAt)) {
-              merged.set(order.id, order);
-            }
-          }
-
-          const rangeStart = this.toEpochMillis(this.startDate);
-          const rangeEndExclusive = this.toEpochMillis(this.endDate) + (24 * 60 * 60 * 1000);
-
-          this.reconciliationOrders = [...merged.values()]
-            .filter(order => {
-              const created = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
-              return created >= rangeStart && created < rangeEndExclusive;
-            })
-            .sort((a, b) => this.toEpochMillis(b.createdAt, b.createdAtIsUtc) - this.toEpochMillis(a.createdAt, a.createdAtIsUtc));
-          resolve();
-        },
-        error: (error) => {
-          console.error('Error loading reconciliation orders:', error);
-          const rangeStart = this.toEpochMillis(this.startDate);
-          const rangeEndExclusive = this.toEpochMillis(this.endDate) + (24 * 60 * 60 * 1000);
-          this.reconciliationOrders = (this.orders || [])
-            .filter(order => this.canReconcileOrder(order))
-            .filter(order => {
-              const created = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
-              return created >= rangeStart && created < rangeEndExclusive;
-            })
-            .sort((a, b) => this.toEpochMillis(b.createdAt, b.createdAtIsUtc) - this.toEpochMillis(a.createdAt, a.createdAtIsUtc));
-          resolve();
-        }
-      });
-    });
-  }
-
   get webSalesItemQuantities(): WebSalesItemQuantityRow[] {
     const itemMap = new Map<string, {
       quantity: number;
@@ -614,53 +756,25 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       takeawayQuantity: number;
       phoneOrderQuantity: number;
     }>();
-    const analyticsOrders = this.reconciliationOrders.length > 0 ? this.reconciliationOrders : this.orders;
-    const hasOrderRecords = analyticsOrders.length > 0;
-
-    if (hasOrderRecords) {
-      for (const order of analyticsOrders) {
-        for (const item of order.items || []) {
-          const name = (item.name || 'Unknown item').trim() || 'Unknown item';
-          const quantity = item.quantity || 0;
-          const lineRevenue = this.resolveOrderItemRevenue(item);
-          const existing = itemMap.get(name) || {
-            quantity: 0,
-            revenue: 0,
-            orderIds: new Set<string>(),
-            dineInQuantity: 0,
-            takeawayQuantity: 0,
-            phoneOrderQuantity: 0
-          };
-          existing.quantity += quantity;
-          existing.revenue += lineRevenue;
-          existing.orderIds.add(order.id);
-          this.incrementOrderTypeQuantity(existing, order, quantity);
-          itemMap.set(name, existing);
-        }
-      }
-    } else {
-      for (const sale of this.webSales) {
-        const saleOrderKey = sale.orderId || sale.id || '';
-        for (const item of sale.orderedItems || []) {
-          const name = ((item.itemName || item.name || 'Unknown item').trim()) || 'Unknown item';
-          const quantity = item.quantity || 0;
-          const lineTotal = this.resolveSaleItemRevenue(item);
-          const existing = itemMap.get(name) || {
-            quantity: 0,
-            revenue: 0,
-            orderIds: new Set<string>(),
-            dineInQuantity: 0,
-            takeawayQuantity: 0,
-            phoneOrderQuantity: 0
-          };
-          existing.quantity += quantity;
-          existing.revenue += lineTotal || 0;
-          if (saleOrderKey) {
-            existing.orderIds.add(saleOrderKey);
-          }
-          this.incrementOrderTypeQuantityFromSale(existing, sale, quantity);
-          itemMap.set(name, existing);
-        }
+    for (const order of this.orders) {
+      if (['cancelled', 'rejected'].includes((order.status || '').toLowerCase())) continue;
+      for (const item of order.items || []) {
+        const name = (item.name || 'Unknown item').trim() || 'Unknown item';
+        const quantity = item.quantity || 0;
+        const lineRevenue = this.resolveOrderItemRevenue(item);
+        const existing = itemMap.get(name) || {
+          quantity: 0,
+          revenue: 0,
+          orderIds: new Set<string>(),
+          dineInQuantity: 0,
+          takeawayQuantity: 0,
+          phoneOrderQuantity: 0
+        };
+        existing.quantity += quantity;
+        existing.revenue += lineRevenue;
+        existing.orderIds.add(order.id);
+        this.incrementOrderTypeQuantity(existing, order, quantity);
+        itemMap.set(name, existing);
       }
     }
 
@@ -731,11 +845,13 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         cancellationRate: 0
       };
       existing.orders += 1;
-      existing.quantity += this.getOrderItemsCount(order);
-      existing.revenue += order.total || 0;
+      if (!['cancelled', 'rejected'].includes(order.status)) {
+        existing.quantity += this.getOrderItemsCount(order);
+        existing.revenue += order.total || 0;
+      }
       if (order.status === 'delivered') {
         existing.delivered += 1;
-      } else if (order.status === 'cancelled') {
+      } else if (order.status === 'cancelled' || order.status === 'rejected') {
         existing.cancelled += 1;
       } else {
         existing.inProgress += 1;
@@ -759,8 +875,10 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     if (!this.orders.length) return '-';
     const hourMap = new Map<number, number>();
     for (const order of this.orders) {
+      if (['cancelled', 'rejected'].includes(order.status)) continue;
       const created = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
       if (!created) continue;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(order.createdAt)) continue;
       const hour = getIstHour(created);
       hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
     }
@@ -774,8 +892,10 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
     const hourMap = new Map<number, { orders: number; quantity: number; revenue: number }>();
     for (const order of this.orders) {
+      if (['cancelled', 'rejected'].includes(order.status)) continue;
       const created = this.toEpochMillis(order.createdAt, order.createdAtIsUtc);
       if (!created) continue;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(order.createdAt)) continue;
       const hour = getIstHour(created);
       const existing = hourMap.get(hour) || { orders: 0, quantity: 0, revenue: 0 };
       existing.orders += 1;
@@ -799,57 +919,27 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   get totalOrders(): number {
-    if ((this.dashboardSummary?.totalOrders || 0) > 0) {
-      return this.dashboardSummary?.totalOrders || 0;
-    }
-    if (this.orders.length > 0) {
-      return this.orders.length;
-    }
-    return this.webSales.length;
+    return this.orders.length;
   }
 
   get activeOrders(): number {
-    return this.dashboardSummary?.activeOrders ?? this.orders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length;
+    return this.orders.filter(o => !['delivered', 'served', 'cancelled', 'rejected'].includes(o.status)).length;
   }
 
   get deliveredOrders(): number {
-    if ((this.dashboardSummary?.deliveredOrders || 0) > 0) {
-      return this.dashboardSummary?.deliveredOrders || 0;
-    }
-    if (this.orders.length > 0) {
-      return this.orders.filter(o => o.status === 'delivered').length;
-    }
-    return this.webSales.length;
+    return this.orders.filter(o => o.status === 'delivered').length;
   }
 
   get cancelledOrders(): number {
-    return this.dashboardSummary?.cancelledOrders ?? this.orders.filter(o => o.status === 'cancelled').length;
+    return this.overview.cancelledOrders;
   }
 
   get totalOrderValue(): number {
-    if ((this.dashboardSummary?.grossOrderValue || 0) > 0) {
-      return this.dashboardSummary?.grossOrderValue || 0;
-    }
-    if (this.orders.length > 0) {
-      return this.orders.reduce((sum, o) => sum + (o.total || 0), 0);
-    }
-    return this.webSales.reduce((sum, sale) => sum + (sale.billSubTotal || sale.payout || 0), 0);
+    return this.overview.grossValue;
   }
 
   get averageOrderValue(): number {
-    return this.dashboardSummary?.averageOrderValue ?? (this.totalOrders > 0 ? this.totalOrderValue / this.totalOrders : 0);
-  }
-
-  get webSalesPayout(): number {
-    return this.dashboardSummary?.webSalesPayout ?? this.webSales.reduce((sum, sale) => sum + (sale.payout || 0), 0);
-  }
-
-  get webSalesDiscount(): number {
-    return this.dashboardSummary?.webSalesDiscount ?? this.webSales.reduce((sum, sale) => sum + (sale.discountAmount || 0), 0);
-  }
-
-  get webSalesDeductions(): number {
-    return this.dashboardSummary?.webSalesDeductions ?? this.webSales.reduce((sum, sale) => sum + (sale.platformDeduction || 0), 0);
+    return this.overview.average;
   }
 
   get availablePartners(): DeliveryPartner[] {
@@ -883,16 +973,32 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
     return `₹${(value || 0).toFixed(2)}`;
   }
 
+  formatPaymentMethod(order: Order): string {
+    const label = (method: string): string => {
+      switch (method.toLowerCase()) {
+        case 'upi':
+        case 'upi-qr': return 'UPI';
+        case 'cash':
+        case 'cash_at_counter': return 'Cash';
+        case 'cod': return 'Cash / COD';
+        case 'razorpay': return 'Online';
+        case 'dine_in_tab': return 'Table tab';
+        default: return method || 'Unknown';
+      }
+    };
+    if (order.dineInSessionId) {
+      const methods = this.collection?.sessionMethods[order.dineInSessionId] || [];
+      return methods.length ? [...new Set(methods.map(label))].join(' + ') : 'Table tab';
+    }
+    return label(order.paymentMethod || '');
+  }
+
   getGrossBeforeDiscounts(order: Order): number {
-    return (order.subtotal || 0) + (order.tax || 0) + (order.platformCharge || 0) + (order.deliveryFee || 0);
+    return (order.subtotal || 0) + (order.tax || 0) + (order.platformCharge || 0) + (order.deliveryFee || 0) + (order.packagingCharge || 0);
   }
 
   getLoyaltyRedemptionAmount(order: Order): number {
     return order.loyaltyDiscountAmount || 0;
-  }
-
-  getNetPaidValue(order: Order): number {
-    return order.total || 0;
   }
 
   formatDate(value?: string | Date | number | null, isUtc?: boolean | null): string {
@@ -945,6 +1051,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         next: async () => {
           this.uiStore.success(`Order ${order.id.slice(-6)} updated to ${nextStatus}`);
           await this.loadDashboardData();
+          await this.loadUpiReconciliationReport();
           this.initializeDrafts();
           this.saving = false;
         },
@@ -997,6 +1104,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       next: async () => {
         this.uiStore.success(`Payment confirmed for order ${order.id.slice(-6)}`);
         await this.loadDashboardData();
+        await this.loadUpiReconciliationReport();
         this.initializeDrafts();
         this.saving = false;
       },
@@ -1080,7 +1188,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
       tax: order.tax ?? 0,
       platformCharge: order.platformCharge ?? 0,
       deliveryFee: order.deliveryFee ?? 0,
-      packagingCharge: order.packagingCharge ?? 0,
+      packagingCharge: order.packagingCharge ?? null,
       discountAmount: order.discountAmount ?? 0,
       loyaltyDiscountAmount: order.loyaltyDiscountAmount ?? 0,
       manualSubtotalOverride: null,
@@ -1377,6 +1485,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         this.expandedReconcileOrderId = null;
         delete this.reconcileDraftByOrder[order.id];
         await this.loadDashboardData();
+        await this.loadUpiReconciliationReport();
         await this.loadPendingDineInPayments();
         await this.loadDineInOperationalSignals();
         this.initializeDrafts();
@@ -1518,6 +1627,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
         this.showAddMissedOrderPanel = false;
         this.missedOrderDraft = this.createDefaultMissedOrderDraft();
         await this.loadDashboardData();
+        await this.loadUpiReconciliationReport();
         this.initializeDrafts();
         this.creatingMissedOrder = false;
       },
@@ -1756,20 +1866,7 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
   }
 
   private resolveOrderItemRevenue(item: Order['items'][number]): number {
-    const lineTotal = item.total || 0;
-    if (lineTotal > 0) {
-      return lineTotal;
-    }
-
-    const quantity = item.quantity || 0;
-    if (quantity <= 0) return 0;
-
-    const computedFromUnitPrice = (item.price || 0) * quantity;
-    if (computedFromUnitPrice > 0) {
-      return computedFromUnitPrice;
-    }
-
-    return 0;
+    return item.total ?? (item.price || 0) * (item.quantity || 0);
   }
 
   private incrementOrderTypeQuantity(
@@ -1820,39 +1917,6 @@ export class AdminWebSalesComponent implements OnInit, OnDestroy {
 
     if (!year || !month || !day || !hour || !minute) return '';
     return `${year}-${month}-${day}T${hour}:${minute}`;
-  }
-
-  private incrementOrderTypeQuantityFromSale(
-    aggregate: { dineInQuantity: number; takeawayQuantity: number; phoneOrderQuantity: number },
-    sale: OnlineSaleSummaryItem,
-    quantity: number
-  ): void {
-    const platform = String(sale.platform || '').trim().toLowerCase();
-    if (platform.includes('phone')) {
-      aggregate.phoneOrderQuantity += quantity;
-      return;
-    }
-
-    if (platform.includes('dine')) {
-      aggregate.dineInQuantity += quantity;
-      return;
-    }
-
-    if (platform.includes('takeaway') || platform.includes('pickup')) {
-      aggregate.takeawayQuantity += quantity;
-    }
-  }
-
-  private resolveSaleItemRevenue(
-    item: NonNullable<OnlineSaleSummaryItem['orderedItems']>[number]
-  ): number {
-    const quantity = item.quantity || 0;
-    const lineTotal = item.total ?? ((item.price || 0) * quantity);
-    if ((lineTotal || 0) > 0) {
-      return lineTotal || 0;
-    }
-
-    return 0;
   }
 
   private optionalNumber(value: number | null | undefined): number | undefined {

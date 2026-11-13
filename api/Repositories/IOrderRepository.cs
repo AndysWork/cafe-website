@@ -7,8 +7,8 @@ public interface IOrderRepository
     Task<Order> CreateOrderAsync(Order order);
     Task<List<Order>> GetUserOrdersAsync(string userId, int? page = null, int? pageSize = null);
     Task<long> GetUserOrdersCountAsync(string userId);
-    Task<List<Order>> GetAllOrdersAsync(string? outletId = null, int? page = null, int? pageSize = null);
-    Task<long> GetAllOrdersCountAsync(string? outletId = null);
+    Task<List<Order>> GetAllOrdersAsync(string? outletId = null, int? page = null, int? pageSize = null, DateTime? startDate = null, DateTime? endExclusive = null);
+    Task<long> GetAllOrdersCountAsync(string? outletId = null, DateTime? startDate = null, DateTime? endExclusive = null);
     Task<Order?> GetOrderByIdAsync(string orderId);
     Task<bool> UpdateOrderStatusAsync(string orderId, string status);
     Task<bool> TryUpdateOrderStatusAsync(string orderId, IReadOnlyCollection<string> expectedStatuses, string status);
@@ -43,6 +43,7 @@ public interface IOrderRepository
     Task<DineInSession?> GetActiveDineInSessionByTableAsync(string outletId, string tableNumber);
     Task<DineInSession?> GetLatestDineInSessionByTableAsync(string outletId, string tableNumber);
     Task<DineInSession?> GetDineInSessionByIdAsync(string sessionId);
+    Task<List<DineInSession>> GetDineInSessionsByIdsAsync(IReadOnlyCollection<string> sessionIds);
     Task<List<DineInSession>> GetActiveDineInSessionsAsync(string outletId);
     Task<bool> TryCloseCancelledDineInSessionAsync(string sessionId, DateTime expectedUpdatedAt, string actor);
     Task<List<DineInSession>> GetDineInSessionsByDateRangeAsync(string outletId, DateTime start, DateTime endExclusive);

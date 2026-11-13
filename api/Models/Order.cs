@@ -722,6 +722,7 @@ public class OrderResponse
     public decimal Subtotal { get; set; }
     public decimal Tax { get; set; }
     public decimal PlatformCharge { get; set; }
+    public decimal PackagingCharge { get; set; }
     public decimal Total { get; set; }
     public string? CouponCode { get; set; }
     public decimal DiscountAmount { get; set; }

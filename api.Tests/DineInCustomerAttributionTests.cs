@@ -711,6 +711,146 @@ public sealed class DineInCustomerAttributionTests
         Assert.Equal("paid", _session.Status);
     }
 
+    [Fact]
+    public async Task OrderListFiltersIstDatesAndReturnsPackagingCharge()
+    {
+        var start = new DateTime(2026, 11, 8);
+        var end = new DateTime(2026, 11, 10);
+        _orders.Setup(value => value.GetAllOrdersAsync(null, 2, 500, start, end))
+            .ReturnsAsync(new List<Order> { new() { Id = "123", PackagingCharge = 25,
+                OrderType = "dine-in", DineInSessionId = "session",
+                CreatedAt = new DateTime(2026, 11, 8, 18, 35, 0, DateTimeKind.Utc) } });
+        _orders.Setup(value => value.GetAllOrdersCountAsync(null, start, end)).ReturnsAsync(501);
+        var request = Request(new { }, roleOverride: "admin");
+        var mock = Mock.Get(request);
+        mock.SetupGet(value => value.Url).Returns(new Uri("http://localhost/api/orders?startDate=2026-11-08&endDate=2026-11-09&page=2&pageSize=500"));
+        mock.SetupGet(value => value.Query).Returns(System.Web.HttpUtility.ParseQueryString(request.Url.Query));
+
+        var response = await _orderFunction.GetAllOrders(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(25m, ReadBody(response)[0].GetProperty("packagingCharge").GetDecimal());
+        Assert.True(ReadBody(response)[0].GetProperty("createdAtIsUtc").GetBoolean());
+        _orders.Verify(value => value.GetAllOrdersAsync(null, 2, 500, start, end), Times.Once);
+    }
+
+    [Fact]
+    public async Task OrderListRejectsReversedDateRange()
+    {
+        var request = Request(new { }, roleOverride: "admin");
+        Mock.Get(request).SetupGet(value => value.Query).Returns(
+            System.Web.HttpUtility.ParseQueryString("startDate=2026-11-09&endDate=2026-11-08"));
+
+        var response = await _orderFunction.GetAllOrders(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReconcilePreservesUnmarkedUtcOrderTimestampRepresentation()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.CreatedAtIsUtc = null;
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct order time",
+            createdAt = "2026-11-09T00:05:00+05:30"
+        }, roleOverride: "admin"), order.Id!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(order.CreatedAtIsUtc);
+        Assert.Equal(new DateTime(2026, 11, 8, 18, 35, 0, DateTimeKind.Utc), order.CreatedAt);
+    }
+
+    [Fact]
+    public async Task UpiReportLoadsEveryPageWithinTheSelectedDateRange()
+    {
+        var start = new DateTime(2026, 11, 8);
+        var end = start.AddDays(1);
+        var firstPage = Enumerable.Range(0, 500).Select(index => new Order {
+            Id = index.ToString(), CreatedAt = start.AddHours(12),
+            PaymentMethod = "upi-qr", PaymentStatus = "paid"
+        }).ToList();
+        _orders.Setup(value => value.GetAllOrdersAsync(null, 1, 500, start, end)).ReturnsAsync(firstPage);
+        _orders.Setup(value => value.GetAllOrdersAsync(null, 2, 500, start, end))
+            .ReturnsAsync(new List<Order> { new() {
+                Id = "last", CreatedAt = start.AddHours(10), PaymentMethod = "upi-qr", PaymentStatus = "pending"
+            } });
+        var request = Request(new { }, roleOverride: "admin");
+        Mock.Get(request).SetupGet(value => value.Query).Returns(
+            System.Web.HttpUtility.ParseQueryString("from=2026-11-08&to=2026-11-08"));
+
+        var response = await _orderFunction.GetUpiPaymentReconciliationReport(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var summary = ReadBody(response).GetProperty("summary");
+        Assert.Equal(501, summary.GetProperty("totalUpiOrders").GetInt32());
+        Assert.Equal(500, summary.GetProperty("confirmed").GetInt32());
+        Assert.Equal(1, summary.GetProperty("pending").GetInt32());
+    }
+
+    [Fact]
+    public async Task OrderPeriodCollectionLoadsLinkedSessionsAndResolvesMerges()
+    {
+        var start = new DateTime(2026, 11, 8);
+        _orders.Setup(value => value.GetAllOrdersAsync(null, 1, 500, start, start.AddDays(1)))
+            .ReturnsAsync(new List<Order> {
+                new() { Id = "round", OutletId = OutletId, DineInSessionId = SessionId, PaymentStatus = "paid", Total = 100 },
+                new() { Id = "takeaway", OutletId = OutletId, PaymentMethod = "cash_at_counter", PaymentStatus = "paid", Total = 40 }
+            });
+        var mergedId = "666666666666666666666666";
+        _orders.Setup(value => value.GetDineInSessionsByIdsAsync(It.Is<IReadOnlyCollection<string>>(ids => ids.Contains(SessionId))))
+            .ReturnsAsync(new List<DineInSession> { new() { Id = SessionId, OutletId = OutletId, MergedIntoSessionId = mergedId } });
+        _orders.Setup(value => value.GetDineInSessionsByIdsAsync(It.Is<IReadOnlyCollection<string>>(ids => ids.Contains(mergedId))))
+            .ReturnsAsync(new List<DineInSession> { new() { Id = mergedId, OutletId = OutletId, AmountPaid = 60,
+                PaymentEntries = new() { new() { Id = "entry", Status = "confirmed", PaymentMethod = "upi-qr", Amount = 60 } } } });
+        var request = Request(new { }, roleOverride: "admin");
+        Mock.Get(request).SetupGet(value => value.Query).Returns(
+            System.Web.HttpUtility.ParseQueryString("from=2026-11-08&to=2026-11-08"));
+
+        var response = await _orderFunction.GetOrderPeriodCollection(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = ReadBody(response);
+        Assert.Equal(60, result.GetProperty("upi").GetDecimal());
+        Assert.Equal(40, result.GetProperty("cash").GetDecimal());
+        Assert.Equal(100, result.GetProperty("total").GetDecimal());
+        Assert.Equal("upi-qr", result.GetProperty("sessionMethods").GetProperty(SessionId)[0].GetString());
+    }
+
+    [Fact]
+    public async Task OrderPeriodCollectionIncludesAllPagesWithoutDoubleCountingOrders()
+    {
+        var start = new DateTime(2026, 11, 8);
+        var firstPage = Enumerable.Range(0, 500).Select(index => new Order {
+            Id = index.ToString(), PaymentStatus = "paid", PaymentMethod = "upi-qr", Total = 1
+        }).ToList();
+        _orders.Setup(value => value.GetAllOrdersAsync(null, 1, 500, start, start.AddDays(1))).ReturnsAsync(firstPage);
+        _orders.Setup(value => value.GetAllOrdersAsync(null, 2, 500, start, start.AddDays(1)))
+            .ReturnsAsync(new List<Order> { firstPage[0], new() { Id = "last", PaymentStatus = "paid", PaymentMethod = "cash_at_counter", Total = 1 } });
+        var request = Request(new { }, roleOverride: "admin");
+        Mock.Get(request).SetupGet(value => value.Query).Returns(
+            System.Web.HttpUtility.ParseQueryString("from=2026-11-08&to=2026-11-08"));
+
+        var response = await _orderFunction.GetOrderPeriodCollection(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(501, ReadBody(response).GetProperty("total").GetDecimal());
+    }
+
+    [Fact]
+    public async Task OrderPeriodCollectionRequiresAdminAndAValidDateRange()
+    {
+        var unauthorized = await _orderFunction.GetOrderPeriodCollection(Request(new { }, isWaiter: false));
+        Assert.NotEqual(HttpStatusCode.OK, unauthorized.StatusCode);
+        var request = Request(new { }, roleOverride: "admin");
+        Mock.Get(request).SetupGet(value => value.Query).Returns(
+            System.Web.HttpUtility.ParseQueryString("from=2026-11-09&to=2026-11-08"));
+        var invalid = await _orderFunction.GetOrderPeriodCollection(request);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
     private HttpRequestData Request(
         object body,
         bool isWaiter = true,

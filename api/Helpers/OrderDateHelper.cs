@@ -1,4 +1,5 @@
 using Cafe.Api.Models;
+using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Cafe.Api.Helpers;
@@ -7,23 +8,22 @@ public static class OrderDateHelper
 {
     public static DateTimeOffset ToKitchenCreatedAtIst(Order order)
     {
-        // Phone IDs are hashes, not creation-time ObjectIds; do not apply the dine-in heuristic.
-        if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
-            return DineInTimestampHelper.ToIstOffset(order.CreatedAt, order.CreatedAtIsUtc,
-                order.CreatedAtIsUtc == false);
+        var isUtc = IsCreatedAtUtc(order);
+        return DineInTimestampHelper.ToIstOffset(order.CreatedAt, isUtc, !isUtc);
+    }
 
-        // Dine-in rounds write UTC even before the optional marker rollout is enabled.
-        var isDineInRound = order.OrderType == "dine-in"
-            && !string.IsNullOrWhiteSpace(order.DineInSessionId);
-        var legacyWallClock = order.CreatedAtIsUtc != true
-            && (order.CreatedAtIsUtc == false || !isDineInRound
-                || DineInTimestampHelper.IsLegacyWallClock(order.CreatedAt, order.Id));
-        return DineInTimestampHelper.ToIstOffset(order.CreatedAt, order.CreatedAtIsUtc, legacyWallClock);
+    public static bool IsCreatedAtUtc(Order order)
+    {
+        if (order.CreatedAtIsUtc.HasValue) return order.CreatedAtIsUtc.Value;
+        if (PhoneDeliveryOrderRules.IsPhoneOrder(order)) return true;
+        return order.OrderType == "dine-in"
+            && !string.IsNullOrWhiteSpace(order.DineInSessionId)
+            && !DineInTimestampHelper.IsLegacyWallClock(order.CreatedAt, order.Id);
     }
 
     public static DateTime ToIstCreatedAt(Order order)
     {
-        return order.CreatedAtIsUtc == true
+        return IsCreatedAtUtc(order)
             ? IstDateHelper.NormalizeToIst(DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Utc))
             : DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Unspecified);
     }
@@ -46,8 +46,29 @@ public static class OrderDateHelper
     public static FilterDefinition<Order> CreatedInRange(DateTime? start, DateTime? endExclusive)
     {
         var builder = Builders<Order>.Filter;
-        var utcFilters = new List<FilterDefinition<Order>> { builder.Eq(o => o.CreatedAtIsUtc, true) };
-        var legacyFilters = new List<FilterDefinition<Order>> { builder.Ne(o => o.CreatedAtIsUtc, true) };
+        // Match the same ObjectId-based legacy detection used for unmarked dine-in rounds.
+        var objectIdDate = new BsonDocument("$convert", new BsonDocument
+        {
+            { "input", "$_id" }, { "to", "date" }, { "onError", BsonNull.Value }, { "onNull", BsonNull.Value }
+        });
+        var difference = new BsonDocument("$subtract", new BsonArray { "$createdAt", objectIdDate });
+        var legacyDineIn = new BsonDocumentFilterDefinition<Order>(new BsonDocument("$expr",
+            new BsonDocument("$and", new BsonArray
+            {
+                new BsonDocument("$eq", new BsonArray { new BsonDocument("$type", "$_id"), "objectId" }),
+                new BsonDocument("$gte", new BsonArray { difference, 325 * 60 * 1000 }),
+                new BsonDocument("$lte", new BsonArray { difference, 335 * 60 * 1000 })
+            })));
+        var nonLegacyDineIn = new BsonDocumentFilterDefinition<Order>(
+            new BsonDocument("$nor", new BsonArray { legacyDineIn.Document }));
+        var unmarkedUtc = builder.Eq(o => o.CreatedAtIsUtc, null) &
+            (builder.Eq(o => o.OrderSource, "phone") |
+             (builder.Eq(o => o.OrderType, "dine-in") &
+              builder.Ne(o => o.DineInSessionId, null) &
+              nonLegacyDineIn));
+        var isUtc = builder.Eq(o => o.CreatedAtIsUtc, true) | unmarkedUtc;
+        var utcFilters = new List<FilterDefinition<Order>> { isUtc };
+        var legacyFilters = new List<FilterDefinition<Order>> { !isUtc };
         if (start.HasValue)
         {
             utcFilters.Add(builder.Gte(o => o.CreatedAt, IstDateHelper.IstWallTimeToUtc(start.Value)));
