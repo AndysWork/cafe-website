@@ -1316,7 +1316,7 @@ public class DineInFunction
         try
         {
             var (hasOutletAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(
-                req, _auth, _mongo, req.Query["outletId"]);
+                req, _auth, _userRepo, _mongo, _outletRepo, req.Query["outletId"]);
             if (!hasOutletAccess)
             {
                 var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
@@ -1331,6 +1331,8 @@ public class DineInFunction
             }
 
             var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
+            foreach (var session in sessions)
+                await DineInBillTotals.RecalculateAsync(_orderRepo, session);
             var activeSessions = sessions
                 .Select(session => new
                 {

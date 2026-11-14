@@ -49,6 +49,43 @@ describe('WaiterDineInComponent customer attribution', () => {
 
   afterEach(() => component.ngOnDestroy());
 
+  it('keeps bill-requested tabs visible while excluding inactive and unavailable tables', () => {
+    component.tables = [
+      table('T1'),
+      { ...table('T2'), status: 'bill_requested', sessionId: 's2' },
+      { ...table('T3'), status: 'occupied', sessionId: 's3' },
+      { ...table('T4'), status: 'cleaning' },
+      { ...table('T5'), status: 'out_of_service' },
+      { ...table('T6'), isActive: false }
+    ];
+
+    expect(component.availableTables.map(item => item.tableNumber)).toEqual(['T1', 'T2', 'T3']);
+  });
+
+  it('allows reviewing a requested bill without sending more items until ordering is reopened or the table settles', () => {
+    component.tables = [{ ...table('T2', 'Asha'), status: 'bill_requested', sessionId: 's2' }];
+    dineIn.getDineInSessionOrders.and.returnValue(of({ orders: [round('o2')] }));
+
+    component.selectTable('T2');
+    component.addToCart(menuItem);
+    component.submitOrder();
+
+    expect(component.currentSessionOrders.map(order => order.orderId)).toEqual(['o2']);
+    expect(component.errorMessage).toContain('final bill requested');
+    expect(dineIn.placeWaiterDineInOrder).not.toHaveBeenCalled();
+
+    component.tables = [{ ...table('T2', 'Asha'), status: 'occupied', sessionId: 's2' }];
+    expect(component.orderingUnavailableReason).toBe('');
+
+    component.tables = [table('T2')];
+    component.selectTable('T2');
+    expect(component.currentSessionOrders).toEqual([]);
+    expect(component.customerName).toBe('');
+    expect(component.orderingUnavailableReason).toBe('');
+    component.submitOrder();
+    expect(dineIn.placeWaiterDineInOrder).toHaveBeenCalledWith(jasmine.objectContaining({ tableNumber: 'T2' }));
+  });
+
   it('sends the entered customer name without using the waiter as a customer', () => {
     component.selectTable('T1');
     component.customerName = '  Asha  ';

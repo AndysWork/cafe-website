@@ -1,10 +1,59 @@
 import { Sales } from '../../services/sales.service';
 import { Expense } from '../../services/expense.service';
-import { calculateDashboardInsights, calculateDashboardOverview, DashboardOnlineSale } from './dashboard-overview';
+import { calculateDashboardInsights, calculateDashboardItemSales, calculateDashboardOverview, DashboardOnlineSale } from './dashboard-overview';
+import { Order } from '../../services/order.service';
+import { MenuItem } from '../../services/menu.service';
 
 describe('admin dashboard overview', () => {
   const online = (orderAt: string, payout: number, platform: string, customerName: string, itemName = 'Mojito'): DashboardOnlineSale => ({
     orderAt, payout, platform, customerName, orderedItems: [{ itemName, quantity: 2 }]
+  });
+
+  describe('admin dashboard item sales', () => {
+    const order = (overrides: Partial<Order> = {}): Order => ({
+      id: 'one', userId: 'user', username: 'Customer', subtotal: 100, tax: 0, total: 100,
+      status: 'delivered', paymentStatus: 'paid', paymentMethod: 'cash_at_counter',
+      orderType: 'dine-in', createdAt: '2026-03-01T10:00:00+05:30', updatedAt: '',
+      items: [{ menuItemId: 'tea', name: 'Milk Tea', quantity: 2, price: 50, total: 100 }],
+      ...overrides
+    });
+    const menu: MenuItem[] = [{ id: 'tea', name: 'Milk Tea', categoryId: 'beverage', categoryName: ' Beverage ', onlinePrice: 50 }];
+
+    it('applies item search, catalog category and source filters without including other items in totals', () => {
+      const orders = [
+        order({ items: [...order().items, { menuItemId: 'roll', name: 'Roll', categoryName: 'Snacks', quantity: 1, price: 80, total: 80 }] }),
+        order({ id: 'pickup', orderType: 'pickup' }),
+        order({ id: 'cancelled', status: 'cancelled' }),
+        order({ id: 'old', createdAt: '2026-02-28T10:00:00+05:30' })
+      ];
+      const result = calculateDashboardItemSales(orders, menu, '2026-03-01', '2026-03-01', ' milk ', 'Beverage', 'Dine-In');
+      expect(result.quantity).toBe(2);
+      expect(result.revenue).toBe(100);
+      expect(result.orders).toBe(1);
+      expect(result.rows).toEqual([{ name: 'Milk Tea', category: 'Beverage', quantity: 2, orders: 1,
+        value: 100, dineIn: 2, takeaway: 0, delivery: 0 }]);
+      expect(result.categories).toEqual([{ name: 'Beverage', quantity: 2 }]);
+    });
+
+    it('counts unique orders and quantities by service mode without mutating the source orders', () => {
+      const orders = [order(), order({ id: 'two', orderType: 'pickup' }),
+        order({ id: 'three', orderType: 'delivery', orderSource: 'phone' })];
+      const result = calculateDashboardItemSales(orders, menu, '2026-03-01', '2026-03-01', '', '', '');
+      expect(result.rows[0]).toEqual(jasmine.objectContaining({ quantity: 6, orders: 3, dineIn: 2, takeaway: 2, delivery: 2 }));
+      expect(result.days).toEqual([{ date: '2026-03-01', quantity: 6 }]);
+      expect(orders[0].items[0].categoryName).toBeUndefined();
+    });
+
+    it('includes both days in a multi-day chart bucket and respects the IST midnight boundary', () => {
+      const result = calculateDashboardItemSales([
+        order({ id: 'start', createdAt: '2025-12-01T18:30:00Z', createdAtIsUtc: true }),
+        order({ id: 'next', createdAt: '2025-12-02T18:30:00Z', createdAtIsUtc: true }),
+        order({ id: 'before', createdAt: '2025-12-01T18:29:59Z', createdAtIsUtc: true })
+      ], menu, '2025-12-02', '2026-03-01', '', '', '');
+      expect(result.days[0]).toEqual({ date: '2025-12-02', quantity: 4 });
+      expect(result.days.reduce((sum, day) => sum + day.quantity, 0)).toBe(result.quantity);
+      expect(result.quantity).toBe(4);
+    });
   });
   const offline = (date: string, totalAmount: number, itemName = 'Mojito'): Sales => ({
     id: date, date, totalAmount, paymentMethod: 'cash', recordedBy: '', createdAt: '', updatedAt: '',

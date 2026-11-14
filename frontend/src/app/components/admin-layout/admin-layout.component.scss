@@ -727,6 +727,10 @@
 }
 
 .dashboard-mobile-nav { display: none; }
+.dashboard-active .admin-main { padding: 14px; }
+@media (max-width: 767px) {
+  .dashboard-active .admin-main { padding: 10px 10px 90px; }
+}
 
 // ── Responsive ──────────────────────────────────────────
 @media (min-width: 1025px) {

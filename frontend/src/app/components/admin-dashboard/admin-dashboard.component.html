@@ -1,145 +1,154 @@
 <div class="dashboard-page">
-  <section class="overview" aria-labelledby="overview-title">
-    <header class="overview-header">
-      <div>
-        <h1 id="overview-title"><span class="desktop-title">Admin </span>Dashboard</h1>
-        <p>Welcome back<span *ngIf="authStore.userName()">, {{ authStore.userName() }}</span>! <span class="desktop-title">Here's what's happening at your cafe.</span></p>
-      </div>
-      <div class="overview-controls">
-        <label class="period-control">
-          <span aria-hidden="true">▦</span>
-          <span class="sr-only">Dashboard date range</span>
-          <select #periodSelect [value]="periodDays" (change)="setPeriod(periodSelect.value)">
-            <option value="7">Last 7 Days</option>
-            <option value="30">Last 30 Days</option>
-            <option value="90">Last 90 Days</option>
-          </select>
+  <svg class="command-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <symbol id="dc-dashboard" viewBox="0 0 24 24"><path d="M3 3h18v13H3zM8 21h8M12 16v5M7 12V8m5 4V6m5 6V9"/></symbol>
+      <symbol id="dc-rupee" viewBox="0 0 24 24"><path d="M6 4h12M6 8h12M8 4c8 0 8 8 0 8H6l10 9"/></symbol>
+      <symbol id="dc-cart" viewBox="0 0 24 24"><path d="M2 3h3l3 13h11l3-10H6M9 10h10M10 21h.01M18 21h.01"/><circle cx="10" cy="21" r="1"/><circle cx="18" cy="21" r="1"/></symbol>
+      <symbol id="dc-basket" viewBox="0 0 24 24"><path d="m8 3-4 6m12-6 4 6M2 9h20l-3 12H5ZM9 12v6m6-6v6"/></symbol>
+      <symbol id="dc-chart" viewBox="0 0 24 24"><path d="M3 14h4v7H3zM10 9h4v12h-4zM17 3h4v18h-4z"/></symbol>
+      <symbol id="dc-tag" viewBox="0 0 24 24"><path d="M3 3h9l9 9-9 9-9-9Z"/><circle cx="8" cy="8" r="1"/></symbol>
+      <symbol id="dc-refund" viewBox="0 0 24 24"><path d="m7 3-4 4 4 4M3 7h13a4 4 0 0 1 4 4m-3 10 4-4-4-4m4 4H8a4 4 0 0 1-4-4"/></symbol>
+      <symbol id="dc-cancel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 8 8 8m0-8-8 8"/></symbol>
+      <symbol id="dc-wallet" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 15h4m4 0h2"/></symbol>
+      <symbol id="dc-table" viewBox="0 0 24 24"><path d="M3 8h18v6H3ZM5 3h14v5M5 14v7m14-7v7M2 11v7m20-7v7"/></symbol>
+      <symbol id="dc-kitchen" viewBox="0 0 24 24"><path d="M6 12a5 5 0 1 1 2-9 5 5 0 0 1 8 0 5 5 0 1 1 2 9v8H6ZM6 16h12"/></symbol>
+      <symbol id="dc-delivery" viewBox="0 0 24 24"><circle cx="5" cy="18" r="3"/><circle cx="19" cy="18" r="3"/><path d="M5 18h8l4-11h-4M15 3h4l2 15M4 8h6l-3 6M3 5h6"/></symbol>
+      <symbol id="dc-staff" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M2 21v-4a7 7 0 0 1 14 0v4M17 4a3 3 0 0 1 0 6m2 4a6 6 0 0 1 3 5v2"/></symbol>
+      <symbol id="dc-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2ZM12 9v5m0 3v1"/></symbol>
+      <symbol id="dc-box" viewBox="0 0 24 24"><path d="m3 7 9-5 9 5v11l-9 4-9-4Zm0 0 9 5 9-5M12 12v10M7 4l10 5"/></symbol>
+      <symbol id="dc-bolt" viewBox="0 0 24 24"><path d="m14 2-10 12h7l-1 8 10-13h-7Z"/></symbol>
+      <symbol id="dc-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/></symbol>
+      <symbol id="dc-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 11h18M7 15h3m4 0h3"/></symbol>
+      <symbol id="dc-funnel" viewBox="0 0 24 24"><path d="M2 3h20l-8 9v8l-4 2V12Z"/></symbol>
+      <symbol id="dc-report" viewBox="0 0 24 24"><path d="M5 2h10l4 4v16H5ZM14 2v5h5M8 12h8m-8 4h8"/></symbol>
+    </defs>
+  </svg>
+
+  <section class="command-center" aria-labelledby="command-title">
+    <header class="command-header">
+      <div class="command-brand"><span class="dashboard-mark"><svg class="dc-icon"><use href="#dc-dashboard"/></svg></span><div><h1 id="command-title">{{ managerView ? 'Manager' : 'Admin' }} Dashboard</h1><p><span class="desktop-copy">Operations Command Center · Sales · Orders · Kitchen · Delivery · Staff</span><span class="mobile-copy">Cafe command center</span></p></div></div>
+      <div class="command-controls">
+        <label class="command-control branch-control" *ngIf="availableOutlets$ | async as outlets">
+          <svg class="dc-icon" aria-hidden="true"><use href="#dc-pin"/></svg><span><small>Branch</small><select #branchSelect aria-label="Dashboard branch" [value]="selectedOutlet?._id || selectedOutlet?.id || ''" (change)="selectOutlet(branchSelect.value, outlets)"><option *ngIf="!outlets.length" [value]="selectedOutlet?._id || selectedOutlet?.id || ''">{{ selectedOutlet?.outletName || 'Select outlet' }}</option><option *ngFor="let outlet of outlets" [value]="outlet._id || outlet.id">{{ outlet.outletName }}</option></select></span>
         </label>
-        <button type="button" class="overview-refresh" (click)="loadDashboardData()" [disabled]="isLoading" aria-label="Refresh dashboard" title="Refresh dashboard">↻</button>
+        <label class="command-control period-control">
+          <svg class="dc-icon" aria-hidden="true"><use href="#dc-calendar"/></svg><span><small>Date Range · IST</small><select #commandPeriod [value]="periodDays" (change)="setPeriod(commandPeriod.value)" aria-label="Dashboard date range"><option value="1">Today</option><option value="7">Last 7 Days</option><option value="30">Last 30 Days</option><option value="90">Last 90 Days</option></select></span>
+        </label>
+        <label class="command-control compare-control"><span><small>Compare With</small><select #compare [value]="showComparison ? 'previous' : 'none'" (change)="showComparison = compare.value === 'previous'" aria-label="Dashboard comparison"><option value="previous">Previous {{ periodDays }} {{ periodDays === 1 ? 'Day' : 'Days' }}</option><option value="none">No comparison</option></select></span></label>
+        <button type="button" class="command-refresh" (click)="loadDashboardData()" [disabled]="isLoading" aria-label="Refresh dashboard" title="Refresh dashboard">↻</button>
       </div>
     </header>
 
-    <div *ngIf="errorMessage" class="overview-notice" role="alert">
-      {{ errorMessage }} <button type="button" (click)="loadDashboardData()">Retry</button>
-    </div>
-    <div *ngIf="isLoading" class="overview-notice" role="status">Loading dashboard data...</div>
+    <div *ngIf="errorMessage" class="command-notice error" role="alert">{{ errorMessage }} <button type="button" (click)="loadDashboardData()">Retry</button></div>
+    <div *ngIf="isLoading" class="command-notice" role="status">Loading dashboard data...</div>
     <ng-container *ngIf="!isLoading && !errorMessage">
-      <p class="overview-definition">Revenue combines online payouts and recorded offline sales. Sales records include online orders and offline transactions.</p>
-      <div class="overview-stats">
-        <article class="overview-stat" *ngFor="let card of overviewCards" [class]="'overview-stat ' + card.color">
-          <span class="overview-stat-icon" aria-hidden="true">{{ card.icon }}</span>
-          <div class="overview-stat-content">
-            <span class="overview-stat-label">{{ card.label }}</span>
-            <strong>{{ card.currency ? '₹' : '' }}{{ overview.current[card.key] | number:'1.0-0' }}</strong>
-            <span class="stat-change" *ngIf="changeFor(card.key) !== null; else noComparison" [class.negative]="changeFor(card.key)! < 0">
-              {{ changeFor(card.key)! < 0 ? '↓' : '↑' }} {{ (changeFor(card.key)! < 0 ? -changeFor(card.key)! : changeFor(card.key)!) | number:'1.0-1' }}%
-              <span class="comparison-detail">vs previous {{ periodDays }} days</span>
-            </span>
-            <ng-template #noComparison><span class="stat-no-comparison">No previous data</span></ng-template>
-          </div>
+      <div *ngIf="operationalErrors.length" class="command-notice warning" role="alert">Some live data is unavailable: {{ operationalErrors.join(', ') }}. <button type="button" (click)="loadDashboardData()">Retry</button></div>
+      <div class="command-kpis">
+        <article *ngFor="let card of commandCards; let index = index" class="command-kpi" [class]="'command-kpi ' + card.tone" [class.secondary-kpi]="index > 3" [title]="card.detail">
+          <span class="kpi-icon"><svg class="dc-icon" aria-hidden="true"><use [attr.href]="'#dc-' + card.icon"/></svg></span>
+          <div class="kpi-content"><span>{{ card.label }}</span><strong>{{ card.value === null ? '—' : (card.currency ? '₹' : '') + (card.value | number:'1.0-0') }}</strong><small *ngIf="showComparison && card.change !== null; else kpiDetail" class="metric-change" [class.negative]="card.change! < 0">{{ card.change! < 0 ? '↓' : '↑' }} {{ (card.change! < 0 ? -card.change! : card.change!) | number:'1.0-1' }}% <span class="desktop-copy">vs prev</span></small><ng-template #kpiDetail><small class="metric-detail">{{ card.detail }}</small></ng-template></div>
         </article>
       </div>
-
-      <div class="overview-charts">
-        <section class="overview-panel trend-panel" aria-labelledby="trend-title">
-          <div class="overview-panel-heading">
-            <h2 id="trend-title"><span class="heading-icon green-icon">▥</span> Sales Trend</h2>
-            <div class="trend-tabs" aria-label="Trend metric">
-              <button type="button" [class.selected]="trendMetric === 'revenue'" [attr.aria-pressed]="trendMetric === 'revenue'" (click)="setTrendMetric('revenue')">Revenue</button>
-              <button type="button" [class.selected]="trendMetric === 'orders'" [attr.aria-pressed]="trendMetric === 'orders'" (click)="setTrendMetric('orders')">Records</button>
-              <button type="button" [class.selected]="trendMetric === 'average'" [attr.aria-pressed]="trendMetric === 'average'" (click)="setTrendMetric('average')">Average</button>
-            </div>
-            <label class="trend-select"><span class="sr-only">Trend metric</span><select #metricSelect [value]="trendMetric" (change)="setTrendMetric(metricSelect.value)"><option value="revenue">Revenue</option><option value="orders">Records</option><option value="average">Average</option></select></label>
-          </div>
-          <div class="overview-chart" role="img" [attr.aria-label]="'Daily ' + trendMetric + ' for the last ' + periodDays + ' days'">
-            <svg viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
-              <defs><linearGradient id="overview-trend-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#20c45a" stop-opacity=".3"/><stop offset="100%" stop-color="#20c45a" stop-opacity=".02"/></linearGradient></defs>
-              <line *ngFor="let y of [33, 78, 123, 168]" x1="40" [attr.y1]="y" x2="570" [attr.y2]="y" class="chart-grid-line"/>
-              <text x="34" y="36" text-anchor="end" class="chart-text">{{ trendMetric === 'orders' ? '' : '₹' }}{{ trendMax | number:'1.0-0' }}</text>
-              <text x="34" y="172" text-anchor="end" class="chart-text">{{ trendMin | number:'1.0-0' }}</text>
-              <polygon [attr.points]="trendArea" fill="url(#overview-trend-fill)"/>
-              <polyline [attr.points]="trendPoints" class="overview-trend-line"/>
-              <ng-container *ngFor="let day of overview.days; let i = index">
-                <circle [attr.cx]="chartX(i)" [attr.cy]="chartY(day)" r="2.5" class="overview-trend-point"><title>{{ day.date }}: {{ trendValue(day) | number:'1.0-2' }}</title></circle>
-                <text *ngIf="showDateLabel(i)" [attr.x]="chartX(i)" y="190" text-anchor="middle" class="chart-text">{{ chartDate(day.date) }}</text>
-              </ng-container>
-            </svg>
-          </div>
-          <table class="sr-only">
-            <caption>Daily trend data</caption>
-            <thead><tr><th>Date</th><th>Revenue</th><th>Sales records</th><th>Average record value</th></tr></thead>
-            <tbody><tr *ngFor="let day of overview.days"><td>{{ day.date }}</td><td>{{ day.revenue | number:'1.0-2' }}</td><td>{{ day.orders }}</td><td>{{ (day.orders ? day.revenue / day.orders : 0) | number:'1.0-2' }}</td></tr></tbody>
-          </table>
-        </section>
-
-        <section class="overview-panel sources-panel" aria-labelledby="sources-title">
-          <div class="overview-panel-heading"><h2 id="sources-title"><span class="heading-icon blue-icon">♧</span> Sales Sources</h2></div>
-          <div class="source-content">
-            <div class="source-ring" [style.background]="sourceGradient">
-              <div><strong>{{ overview.current.orders | number }}</strong><span>Records</span></div>
-            </div>
-            <ul class="source-legend">
-              <li *ngFor="let source of overview.sources">
-                <span class="source-dot" [style.background]="source.color"></span>
-                <span>{{ source.label }}</span>
-                <strong>{{ (overview.current.orders ? source.count / overview.current.orders * 100 : 0) | number:'1.0-0' }}%</strong>
-              </li>
-            </ul>
-          </div>
-        </section>
+      <section class="collection-panel" aria-label="Recorded Cash and UPI collections" [attr.aria-busy]="collectionLoading">
+        <div class="collection-metrics">
+          <article class="command-kpi green collection-card">
+            <span class="kpi-icon"><svg class="dc-icon" aria-hidden="true"><use href="#dc-wallet"/></svg></span>
+            <div class="kpi-content"><span>Cash Collection</span><strong>{{ collection ? '₹' + (collection.cash | number:'1.2-2') : '—' }}</strong><small class="metric-detail">{{ rangeLabel }} · Recorded payments</small></div>
+          </article>
+          <article class="command-kpi purple collection-card">
+            <span class="kpi-icon"><svg class="dc-icon" aria-hidden="true"><use href="#dc-rupee"/></svg></span>
+            <div class="kpi-content"><span>UPI Collection</span><strong>{{ collection ? '₹' + (collection.upi | number:'1.2-2') : '—' }}</strong><small class="metric-detail">{{ rangeLabel }} · Recorded payments</small></div>
+          </article>
+        </div>
+        <p *ngIf="collectionLoading" class="data-note" role="status">Loading collections...</p>
+        <p *ngIf="collectionError" class="command-notice error" role="alert">{{ collectionError }} <button type="button" (click)="loadCollections()">Retry</button></p>
+        <p class="data-note" *ngIf="collection as recorded">By order date (IST), matching Web Sales; confirmed dine-in payments counted once per session. Reconciled amounts and methods are included.
+          <span *ngIf="recorded.other">Other methods: ₹{{ recorded.other | number:'1.2-2' }}.</span>
+          <span *ngIf="recorded.unallocated">Unallocated: ₹{{ recorded.unallocated | number:'1.2-2' }} (not included in Cash/UPI).</span>
+          <span *ngIf="recorded.unknownAmountOrders">{{ recorded.unknownAmountOrders }} orders have an unknown collected amount.</span>
+        </p>
+      </section>
+      <div class="mobile-finance">
+        <div><svg class="dc-icon" aria-hidden="true"><use href="#dc-tag"/></svg><span>App discounts<strong>₹{{ appOverview.discounts | number:'1.0-0' }}</strong></span></div>
+        <div><svg class="dc-icon" aria-hidden="true"><use href="#dc-refund"/></svg><span>App refunds<strong>₹{{ periodRefunds | number:'1.0-0' }}</strong></span></div>
+        <div><svg class="dc-icon" aria-hidden="true"><use href="#dc-wallet"/></svg><span>Paid app value<strong>₹{{ appOverview.paidOrderValue | number:'1.0-0' }}</strong></span></div>
+      </div>
+      <div class="mobile-status">
+        <a [routerLink]="dashboardRoute('tables')"><small>Tables</small><strong>{{ floor ? (floor.summary.occupied + floor.summary.billRequested) + ' / ' + floor.summary.total : '—' }}</strong></a>
+        <a [routerLink]="dashboardRoute('kitchen')"><small>Kitchen</small><strong><i></i>{{ currentKitchenOrders.length }}</strong></a>
+        <a [routerLink]="dashboardRoute('orders')"><small>Delivery</small><strong><i></i>{{ activeDeliveryOrders.length }}</strong></a>
+        <a [routerLink]="managerView ? null : dashboardRoute('orders')"><small>Cancelled</small><strong>{{ appOverview.cancelledOrders }}</strong></a>
       </div>
 
-      <div class="business-detail-grid">
-        <section class="overview-panel hourly-panel" aria-labelledby="hourly-title">
-          <div class="overview-panel-heading">
-            <h2 id="hourly-title"><span class="heading-icon blue-icon">◷</span> Orders by Time of Day</h2>
+      <div class="command-grid">
+        <section class="dc-panel funnel-panel" aria-labelledby="funnel-title">
+          <header class="dc-panel-header"><h2 id="funnel-title"><svg class="dc-icon blue" aria-hidden="true"><use href="#dc-funnel"/></svg><span class="desktop-copy">Order Funnel</span><span class="mobile-copy">Order-Source Performance</span> <small class="desktop-copy">(Sources &amp; Status)</small></h2><span class="panel-period">{{ rangeLabel }}</span></header>
+          <div class="funnel-content">
+            <div class="command-ring" [style.background]="sourceGradient" role="img" [attr.aria-label]="overview.current.orders + ' sales records by source'"><div><strong>{{ overview.current.orders | number }}</strong><small>Records</small></div></div>
+            <table class="source-table"><thead><tr><th>Source</th><th class="desktop-copy">Records</th><th>Share</th></tr></thead><tbody><tr *ngFor="let source of overview.sources"><td><i [style.background]="source.color"></i>{{ source.label }}</td><td class="desktop-copy">{{ source.count | number }}</td><td>{{ (overview.current.orders ? source.count / overview.current.orders * 100 : 0) | number:'1.0-1' }}%</td></tr></tbody></table>
+            <table class="status-table"><thead><tr><th>App Status</th><th>Orders</th></tr></thead><tbody><tr *ngFor="let row of statusBreakdown"><td><i [style.background]="row.color"></i>{{ statusLabel(row.status) }}</td><td>{{ row.count | number }}</td></tr></tbody></table>
           </div>
-          <p class="panel-caption">App orders by creation time (IST), excluding cancelled orders. Platform imports and recorded offline sales are not included.</p>
-          <ng-container *ngIf="insights.timedOrderCount; else noTimedOrders">
-            <p class="peak-summary">
-              <strong>Peak {{ insights.peakHours.length === 1 ? 'hour' : 'hours' }}:</strong>
-              <ng-container *ngFor="let hour of insights.peakHours | slice:0:3; let last = last">{{ formatHour(hour) }}{{ last ? '' : ', ' }}</ng-container>
-              <span *ngIf="insights.peakHours.length > 3"> and {{ insights.peakHours.length - 3 }} more</span>
-              · {{ maxHourlyOrders | number }} {{ maxHourlyOrders === 1 ? 'order' : 'orders' }} per peak hour
-            </p>
-            <div class="hour-chart" aria-hidden="true">
-              <div class="hour-column" *ngFor="let bucket of insights.hourlyOrders">
-                <div class="hour-bar-track">
-                  <div class="hour-bar" [class.peak]="bucket.count === maxHourlyOrders" [style.height.%]="bucket.count / maxHourlyOrders * 100" [title]="formatHour(bucket.hour) + ': ' + bucket.count + ' orders'"></div>
-                </div>
-                <span class="hour-label">{{ bucket.hour % 4 === 0 ? (bucket.hour | number:'2.0-0') : '' }}</span>
-              </div>
-            </div>
-            <p class="panel-caption">{{ insights.timedOrderCount | number }} timestamped app orders in this period</p>
-            <details class="hour-data">
-              <summary>View hourly order counts</summary>
-              <table>
-                <caption>App orders by hour in Indian Standard Time</caption>
-                <thead><tr><th scope="col">Time</th><th scope="col">Orders</th></tr></thead>
-                <tbody><tr *ngFor="let bucket of insights.hourlyOrders"><td>{{ formatHour(bucket.hour) }}</td><td>{{ bucket.count }}</td></tr></tbody>
-              </table>
-            </details>
-          </ng-container>
-          <ng-template #noTimedOrders><p class="overview-empty">No timestamped app orders in this period.</p></ng-template>
         </section>
 
-        <section class="overview-panel expenses-panel" aria-labelledby="expenses-title">
-          <div class="overview-panel-heading">
-            <h2 id="expenses-title"><span class="heading-icon">💸</span> Expense Insights</h2>
-            <a routerLink="/admin/expenses">View expenses →</a>
+        <section class="dc-panel kitchen-panel" [class.expanded]="expandedPanels.has('kitchen')">
+          <header class="dc-panel-header"><button class="panel-toggle" type="button" (click)="togglePanel('kitchen')" [disabled]="!isCompact" [attr.aria-expanded]="!isCompact || expandedPanels.has('kitchen')" aria-controls="kitchen-content"><svg class="dc-icon blue" aria-hidden="true"><use href="#dc-kitchen"/></svg><span>Kitchen <span class="desktop-copy">Operations</span><span class="mobile-copy">Workload</span></span><span class="health-pill" [class.bad]="kitchenBreaches > 0">{{ kitchenBreaches ? kitchenBreaches + ' Delayed' : 'Within SLA' }}</span><span class="panel-chevron">›</span></button></header>
+          <div class="collapsible-content" id="kitchen-content">
+            <div class="small-metrics"><div><strong>{{ currentKitchenOrders.length }}</strong><small>In Kitchen</small></div><div [title]="oldestKitchenWait === null ? 'No timestamped orders' : oldestKitchenWait + ' minutes'"><strong>{{ formatQueueWait(oldestKitchenWait) }}</strong><small>Oldest Wait</small></div><div class="red"><strong>{{ kitchenBreaches }}</strong><small>SLA Alerts</small></div></div>
+            <div class="queue-bar" *ngFor="let bucket of kitchenBuckets"><span><i [style.background]="bucket.color"></i>{{ bucket.label }}</span><div><span [style.width.%]="currentKitchenOrders.length ? bucket.count / currentKitchenOrders.length * 100 : 0" [style.background]="bucket.color"></span></div><strong>{{ bucket.count }}</strong></div>
+            <a class="panel-link" [routerLink]="dashboardRoute('kitchen')">Open kitchen display →</a>
           </div>
-          <p class="panel-caption">Recorded expenses for the selected period; excludes separate operational expenses.</p>
+        </section>
+
+        <section class="dc-panel tables-panel" [class.expanded]="expandedPanels.has('tables')">
+          <header class="dc-panel-header"><button class="panel-toggle" type="button" (click)="togglePanel('tables')" [disabled]="!isCompact" [attr.aria-expanded]="!isCompact || expandedPanels.has('tables')" aria-controls="tables-content"><svg class="dc-icon blue" aria-hidden="true"><use href="#dc-table"/></svg><span>Table <span class="desktop-copy">Status</span><span class="mobile-copy">Occupancy</span></span><span class="health-pill mobile-copy">{{ floor && floor.summary.total ? ((floor.summary.occupied + floor.summary.billRequested) / floor.summary.total * 100 | number:'1.0-0') + '%' : '—' }}</span><span class="panel-chevron">›</span></button></header>
+          <div class="collapsible-content" id="tables-content"><ng-container *ngIf="floor as tables; else floorUnavailable">
+            <div class="small-metrics"><div><strong>{{ tables.summary.occupied + tables.summary.billRequested }} / {{ tables.summary.total }}</strong><small>Occupied</small></div><div class="green"><strong>{{ tables.summary.free }}</strong><small>Open Tables</small></div></div>
+            <a class="table-outstanding" routerLink="/staff/cashier"><svg class="dc-icon" aria-hidden="true"><use href="#dc-rupee"/></svg><span><small>Outstanding Due</small><strong>₹{{ tableDues | number:'1.0-0' }}</strong></span><b>›</b></a>
+          </ng-container><ng-template #floorUnavailable><p class="dc-empty">Table data unavailable.</p></ng-template></div>
+        </section>
+
+        <section class="dc-panel delivery-panel" [class.expanded]="expandedPanels.has('delivery')">
+          <header class="dc-panel-header"><button class="panel-toggle" type="button" (click)="togglePanel('delivery')" [disabled]="!isCompact" [attr.aria-expanded]="!isCompact || expandedPanels.has('delivery')" aria-controls="delivery-content"><svg class="dc-icon blue" aria-hidden="true"><use href="#dc-delivery"/></svg><span>Delivery Performance</span><span class="health-pill" [class.bad]="delayedDeliveries > 0">{{ delayedDeliveries ? delayedDeliveries + ' Delayed' : 'On Track' }}</span><span class="panel-chevron">›</span></button></header>
+          <div class="collapsible-content" id="delivery-content"><div class="small-metrics"><div><strong>{{ deliveredCount }}</strong><small>Delivered in Period</small></div><div><strong>{{ activeDeliveryOrders.length }}</strong><small>Active Deliveries</small></div><div class="green"><strong>{{ operations ? operations.summary.availablePartners : '—' }}</strong><small>Available Partners</small></div><div class="red"><strong>{{ delayedDeliveries }}</strong><small>Past Requested Time</small></div></div></div>
+        </section>
+
+        <section class="dc-panel staff-panel" [class.expanded]="expandedPanels.has('staff')">
+          <header class="dc-panel-header"><button class="panel-toggle" type="button" (click)="togglePanel('staff')" [disabled]="!isCompact" [attr.aria-expanded]="!isCompact || expandedPanels.has('staff')" aria-controls="staff-content"><svg class="dc-icon blue" aria-hidden="true"><use href="#dc-staff"/></svg><span>Staff &amp; <span class="desktop-copy">Shift Coverage</span><span class="mobile-copy">Shifts</span></span><span class="health-pill" [class.bad]="actionCount('Staff') > 0">{{ attendance ? (attendance.length ? (actionCount('Staff') ? 'Check Shifts' : 'No recorded issues') : 'No records') : 'Unavailable' }}</span><span class="panel-chevron">›</span></button></header>
+          <div class="collapsible-content" id="staff-content"><div class="small-metrics"><div><strong>{{ attendance ? staffPresent + ' / ' + attendance.length : '—' }}</strong><small>Present / Recorded Today</small></div><div><strong>{{ attendance ? staffOnShift : '—' }}</strong><small>Currently in Shift</small></div><a *ngIf="!managerView" class="shift-link" routerLink="/admin/attendance">Manage staff attendance →</a><span *ngIf="managerView" class="shift-link">Recorded attendance · Read-only</span></div></div>
+        </section>
+
+        <div class="command-sidebar">
+        <aside class="dc-panel action-panel" aria-labelledby="action-center-title">
+          <header class="dc-panel-header"><h2 id="action-center-title"><svg class="dc-icon red" aria-hidden="true"><use href="#dc-alert"/></svg>Action Center <span class="mobile-copy">({{ actionCount('All') }})</span></h2><span class="open-pill">{{ actionCount('All') }} Open</span></header>
+          <div class="action-tabs" aria-label="Action categories"><button type="button" *ngFor="let category of actionCategories" [class.active]="actionCategory === category" [attr.aria-pressed]="actionCategory === category" (click)="actionCategory = category">{{ category }} ({{ actionCount(category) }})</button></div>
+          <div class="action-list"><a *ngFor="let action of visibleActions" [routerLink]="action.route" [attr.aria-disabled]="action.route ? null : true" [attr.title]="action.route ? null : action.cta" class="action-card" [class]="'action-card ' + action.severity"><span class="action-icon"><svg class="dc-icon" aria-hidden="true"><use [attr.href]="'#dc-' + action.icon"/></svg></span><div class="action-copy"><strong>{{ action.title }} <small class="severity">{{ statusLabel(action.severity) }}</small></strong><p>{{ action.detail }}</p><small>Owner: {{ action.owner }}</small></div><div class="action-end"><strong>{{ action.count }}</strong><span>{{ action.cta }}</span></div><b class="mobile-copy">{{ action.route ? '›' : '—' }}</b></a>
+          <p *ngIf="!visibleActions.length" class="dc-empty">{{ operationalErrors.length ? 'No alerts in loaded data. Some sources are unavailable.' : 'All caught up. No open alerts in this category.' }}</p></div>
+        </aside>
+
+        <section class="dc-panel quick-panel" aria-labelledby="command-actions-title">
+          <header class="dc-panel-header"><h2 id="command-actions-title"><svg class="dc-icon" aria-hidden="true"><use href="#dc-bolt"/></svg>Quick Actions</h2></header>
+          <nav class="command-quick desktop-quick" aria-label="Dashboard quick actions">
+            <a *ngFor="let action of quickActions" [routerLink]="action.route"><svg class="dc-icon" aria-hidden="true"><use [attr.href]="'#dc-' + action.icon"/></svg>{{ action.label }}</a>
+          </nav>
+          <nav class="command-quick mobile-quick" aria-label="Mobile dashboard quick actions"><a [routerLink]="dashboardRoute('orders')" class="highlight"><svg class="dc-icon" aria-hidden="true"><use href="#dc-cart"/></svg>{{ managerView ? 'Operations' : 'Live Orders' }}</a><a routerLink="/staff/cashier"><svg class="dc-icon" aria-hidden="true"><use href="#dc-wallet"/></svg>{{ managerView ? 'Settle Tables' : 'Reconcile' }}</a><a [routerLink]="dashboardRoute('tables')"><svg class="dc-icon" aria-hidden="true"><use href="#dc-table"/></svg>Tables</a><a [routerLink]="managerView ? dashboardRoute('counter') : '/admin/menu'"><svg class="dc-icon" aria-hidden="true"><use href="#dc-box"/></svg>{{ managerView ? 'Create Order' : 'Items' }}</a></nav>
+        </section>
+
+        <section class="dc-panel expenses-panel" aria-labelledby="expenses-title">
+          <header class="dc-panel-header">
+            <h2 id="expenses-title"><svg class="dc-icon purple" aria-hidden="true"><use href="#dc-wallet"/></svg>Expense Insights</h2>
+            <a class="panel-link" [routerLink]="managerView ? '/finance/expenses' : '/admin/expenses'">View expenses →</a>
+          </header>
+          <p class="panel-caption">{{ rangeLabel }} · Recorded expenses; excludes separate operational expenses.</p>
           <div class="expense-summary">
             <div><span>Total expenses</span><strong>₹{{ insights.expenses.total | number:'1.0-0' }}</strong></div>
             <div><span>Daily average</span><strong>₹{{ insights.expenses.dailyAverage | number:'1.0-0' }}</strong></div>
             <div><span>Records</span><strong>{{ insights.expenses.count | number }}</strong></div>
           </div>
-          <p class="expense-comparison" *ngIf="expenseChange !== null; else noExpenseComparison">
-            {{ expenseChange! < 0 ? '↓' : expenseChange! > 0 ? '↑' : '→' }}
-            {{ (expenseChange! < 0 ? -expenseChange! : expenseChange!) | number:'1.0-1' }}% vs previous {{ periodDays }} days
+          <p class="expense-comparison" *ngIf="showComparison">
+            <ng-container *ngIf="expenseChange !== null; else noExpenseComparison">{{ expenseChange! < 0 ? '↓' : expenseChange! > 0 ? '↑' : '→' }} {{ (expenseChange! < 0 ? -expenseChange! : expenseChange!) | number:'1.0-1' }}% vs previous {{ periodDays }} days</ng-container>
+            <ng-template #noExpenseComparison>No previous expenses to compare</ng-template>
           </p>
-          <ng-template #noExpenseComparison><p class="expense-comparison">No previous expenses to compare</p></ng-template>
-          <p *ngIf="!insights.expenses.count" class="overview-empty">No recorded expenses in this period.</p>
+          <p *ngIf="!insights.expenses.count" class="dc-empty">No recorded expenses in this period.</p>
           <div class="expense-category" *ngFor="let category of insights.expenses.categories | slice:0:5">
             <div class="expense-category-label"><strong>{{ category.name }}</strong><span>₹{{ category.amount | number:'1.0-0' }}</span></div>
             <div class="expense-bar-track"><div class="expense-bar" [style.width.%]="insights.expenses.total > 0 ? category.amount / insights.expenses.total * 100 : 0"></div></div>
@@ -147,493 +156,34 @@
           </div>
           <p class="largest-expense" *ngIf="insights.expenses.largest as expense">Largest single expense: <strong>{{ expense.name }} · ₹{{ expense.amount | number:'1.0-0' }}</strong> <span>({{ chartDate(expense.date) }})</span></p>
         </section>
-      </div>
-
-      <div class="overview-lists">
-        <section class="overview-panel" aria-labelledby="items-title">
-          <div class="overview-panel-heading"><h2 id="items-title"><span class="heading-icon">🔥</span> Top Selling Items</h2><a routerLink="/admin/analytics">Analytics →</a></div>
-          <p *ngIf="!overview.items.length" class="overview-empty">No items sold in this period.</p>
-          <div class="overview-list-row" *ngFor="let item of overview.items; let i = index">
-            <span class="rank">{{ i + 1 }}</span>
-            <img *ngIf="itemImage(item.name) as image; else itemPlaceholder" [src]="image" alt="" class="item-image">
-            <ng-template #itemPlaceholder><span class="item-image image-placeholder" aria-hidden="true">🍽️</span></ng-template>
-            <span class="list-copy"><strong>{{ item.name }}</strong><small>{{ item.quantity | number }} items sold</small></span>
-            <span class="count-badge">{{ item.quantity | number }}</span>
-          </div>
-        </section>
-        <section class="overview-panel" aria-labelledby="customers-title">
-          <div class="overview-panel-heading"><h2 id="customers-title"><span class="heading-icon">👑</span> Top Customers (Online)</h2><a routerLink="/admin/analytics">Analytics →</a></div>
-          <p *ngIf="!overview.customers.length" class="overview-empty">No named online customers in this period.</p>
-          <div class="overview-list-row" *ngFor="let customer of overview.customers; let i = index">
-            <span class="rank">{{ i + 1 }}</span>
-            <span class="list-copy"><strong>{{ customer.name }}</strong><small>{{ customer.orders | number }} orders</small></span>
-            <span class="count-badge">₹{{ customer.payout | number:'1.0-0' }}</span>
-          </div>
-        </section>
-        <section class="overview-panel" aria-labelledby="actions-title">
-          <div class="overview-panel-heading"><h2 id="actions-title"><span class="heading-icon">⚡</span> Quick Actions</h2></div>
-          <div class="quick-actions">
-            <a routerLink="/admin/menu"><span>⊕</span> Menu Items</a>
-            <a routerLink="/admin/offers"><span>◇</span> Offers</a>
-            <a routerLink="/admin/web-sales"><span>▣</span> Web Orders</a>
-            <a routerLink="/admin/analytics"><span>▥</span> Sales Report</a>
-          </div>
-        </section>
-      </div>
-      <section class="overview-panel insights-panel" aria-labelledby="insights-title">
-        <div class="overview-panel-heading"><h2 id="insights-title"><span class="heading-icon">✨</span> Business Insights</h2></div>
-        <div class="insight-grid">
-          <div class="insight green"><span>↗</span><p><strong *ngIf="changeFor('revenue') !== null; else noRevenueComparison">Revenue {{ changeFor('revenue')! < 0 ? 'decreased' : 'increased' }} by {{ (changeFor('revenue')! < 0 ? -changeFor('revenue')! : changeFor('revenue')!) | number:'1.0-1' }}%</strong><ng-template #noRevenueComparison><strong>No previous revenue to compare</strong></ng-template><br>vs previous {{ periodDays }} days</p></div>
-          <div class="insight blue"><span>🏆</span><p><strong>{{ overview.items.length ? overview.items[0].name : 'No best seller yet' }}</strong><br>{{ overview.items.length ? (overview.items[0].quantity | number) + ' items sold' : 'No sales in this period' }}</p></div>
-          <div class="insight orange"><span>◎</span><p><strong>Online sales records</strong><br>{{ (overview.current.orders ? (overview.current.orders - overview.sources[4].count) / overview.current.orders * 100 : 0) | number:'1.0-0' }}% of all records</p></div>
-          <div class="insight blue" *ngIf="bestSalesDay as day"><span>📅</span><p><strong>Highest recorded revenue day</strong><br>{{ chartDate(day.date) }} · ₹{{ day.revenue | number:'1.0-0' }}</p></div>
-          <div class="insight orange" *ngIf="insights.expenses.categories.length"><span>◈</span><p><strong>Largest expense category</strong><br>{{ insights.expenses.categories[0].name }} · ₹{{ insights.expenses.categories[0].amount | number:'1.0-0' }}</p></div>
-          <div class="insight green" *ngIf="overview.current.revenue > 0 && insights.expenses.count"><span>◔</span><p><strong>Recorded expenses vs revenue</strong><br>{{ insights.expenses.total / overview.current.revenue * 100 | number:'1.0-1' }}% (not a profit margin)</p></div>
         </div>
-      </section>
-      <p class="overview-definition">Online customers are distinct named customers in this period, not necessarily new customers. Revenue comparisons use the preceding {{ periodDays }} days.</p>
+
+        <section class="dc-panel item-panel" [class.expanded]="expandedPanels.has('items')" aria-labelledby="item-sales-title">
+          <header class="dc-panel-header"><button class="panel-toggle" type="button" (click)="togglePanel('items')" [disabled]="!isCompact" [attr.aria-expanded]="!isCompact || expandedPanels.has('items')" aria-controls="item-sales-content"><svg class="dc-icon blue" aria-hidden="true"><use href="#dc-chart"/></svg><span id="item-sales-title">Item-wise Sales <span class="desktop-copy">Intelligence</span><span class="mobile-copy">Analytics</span></span><span class="panel-chevron">›</span></button>
+            <div class="item-filters"><input #itemQuery type="search" [value]="itemSearch" (input)="itemSearch = itemQuery.value; refreshItemSales()" placeholder="Search item (e.g. Milk Tea, Momo...)" aria-label="Search item sales"/><select #categorySelect [value]="itemCategory" (change)="itemCategory = categorySelect.value; refreshItemSales()" aria-label="Item sales category"><option value="">All Categories</option><option *ngFor="let category of itemCategoryOptions" [value]="category">{{ category }}</option></select><select #sourceSelect [value]="itemSource" (change)="itemSource = sourceSelect.value; refreshItemSales()" aria-label="Item sales source"><option value="">All Sources</option><option *ngFor="let source of itemSources" [value]="source">{{ source }}</option></select><button type="button" (click)="exportItemSales()" [disabled]="!itemSales.rows.length">↓ Export CSV</button></div>
+          </header>
+          <div class="item-sparkline mobile-copy"><svg viewBox="0 0 300 96" preserveAspectRatio="none" role="img" aria-label="Ordered item quantity trend"><polygon [attr.points]="'12,92 ' + itemTrendPoints + ' 288,92'" fill="#eaffd3"/><polyline [attr.points]="itemTrendPoints" fill="none" stroke="#52c400" stroke-width="2.5"/></svg></div>
+          <div class="collapsible-content" id="item-sales-content">
+            <div class="item-insights-top">
+              <div class="item-metrics"><div><svg class="dc-icon green" aria-hidden="true"><use href="#dc-box"/></svg><span>Total Qty<strong>{{ itemSales.quantity | number }}</strong></span></div><div><svg class="dc-icon purple" aria-hidden="true"><use href="#dc-tag"/></svg><span>Item Value<strong>₹{{ itemSales.revenue | number:'1.0-0' }}</strong></span></div><div><svg class="dc-icon blue" aria-hidden="true"><use href="#dc-cart"/></svg><span>Orders with Items<strong>{{ itemSales.orders | number }}</strong></span></div><div><svg class="dc-icon amber" aria-hidden="true"><use href="#dc-rupee"/></svg><span>Avg. Item Price<strong>₹{{ (itemSales.quantity ? itemSales.revenue / itemSales.quantity : 0) | number:'1.0-1' }}</strong></span></div></div>
+              <div class="item-quantity-chart"><h3>Item Sales Trend (Qty)</h3><svg viewBox="0 0 300 110" preserveAspectRatio="none" role="img" aria-label="Daily ordered item quantities"><path d="M12 20H288M12 53H288M12 86H288" class="mini-grid"/><polygon [attr.points]="'12,92 ' + itemTrendPoints + ' 288,92'" fill="#e9fbd9"/><polyline [attr.points]="itemTrendPoints" fill="none" stroke="#23ac00" stroke-width="2.5"/><text x="12" y="106">{{ chartDate(rangeStart) }}</text><text x="288" y="106" text-anchor="end">{{ chartDate(overview.days[overview.days.length - 1].date) }}</text></svg></div>
+              <div class="ranked-items"><h3>Top Items (Qty)</h3><div *ngFor="let item of itemSales.rows | slice:0:5; let i = index"><b>{{ i + 1 }}</b><span>{{ item.name }}</span><strong>{{ item.quantity | number }}</strong></div><p *ngIf="!itemSales.rows.length" class="dc-empty">No matching items.</p></div>
+              <div class="ranked-items revenue-ranks"><h3>Top Items (Value)</h3><div *ngFor="let item of topItemsByRevenue; let i = index"><b>{{ i + 1 }}</b><span>{{ item.name }}</span><strong>₹{{ item.value | number:'1.0-0' }}</strong></div></div>
+            </div>
+            <div class="item-insights-bottom"><div class="data-table-wrap"><table class="item-sales-table"><caption class="sr-only">App item sales for {{ rangeLabel }}</caption><thead><tr><th>#</th><th>Item Name</th><th>Category</th><th>Qty Sold</th><th>Orders</th><th>Dine-In</th><th>Takeaway</th><th>Delivery / Other</th><th>Item Value</th><th>Avg. Price</th></tr></thead><tbody><tr *ngFor="let row of itemSales.rows | slice:0:8; let i = index"><td>{{ i + 1 }}</td><td>{{ row.name }}</td><td><span class="category-pill">{{ row.category }}</span></td><td>{{ row.quantity }}</td><td>{{ row.orders }}</td><td>{{ row.dineIn }}</td><td>{{ row.takeaway }}</td><td>{{ row.delivery }}</td><td>₹{{ row.value | number:'1.0-0' }}</td><td>₹{{ (row.quantity ? row.value / row.quantity : 0) | number:'1.0-1' }}</td></tr><tr *ngIf="!itemSales.rows.length"><td colspan="10" class="dc-empty">No items match these filters.</td></tr></tbody></table></div>
+              <div class="category-performance"><h3>Category Performance</h3><div *ngFor="let category of itemSales.categories | slice:0:5"><span>{{ category.name }}</span><i><b [style.width.%]="itemSales.quantity ? category.quantity / itemSales.quantity * 100 : 0"></b></i><strong>{{ category.quantity | number }}</strong></div></div>
+              <div class="mini-hourly"><h3>Hourly Demand (App Orders)</h3><div class="mini-hour-bars"><span *ngFor="let bucket of insights.hourlyOrders" [style.height.%]="bucket.count / maxHourlyOrders * 100" [title]="formatHour(bucket.hour) + ': ' + bucket.count"></span></div><div class="mini-hour-labels"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span></div></div>
+            </div>
+            <p class="data-note">App order items before order-level discounts and settlement. Cancelled orders excluded; imported platform/offline item prices are not estimated. Hourly demand covers all app orders in the period.</p>
+          </div>
+        </section>
+
+        <section class="dc-panel live-panel" aria-labelledby="live-orders-title">
+          <header class="dc-panel-header"><h2 id="live-orders-title"><svg class="dc-icon green" aria-hidden="true"><use href="#dc-cart"/></svg>Live Orders <small>(Latest)</small></h2><div class="order-status-tabs" aria-label="Filter dashboard orders"><button type="button" *ngFor="let status of orderStatuses" [class.active]="orderStatus === status" [attr.aria-pressed]="orderStatus === status" (click)="orderStatus = status">{{ statusLabel(status) }} <span>({{ statusCount(status) }})</span></button></div><input #orderQuery type="search" [value]="orderSearch" (input)="orderSearch = orderQuery.value" placeholder="Search order / customer / item..." aria-label="Search dashboard orders"/><a class="add-order" [routerLink]="dashboardRoute('counter')">＋ Add Order</a></header>
+          <div class="data-table-wrap"><table class="live-orders-table"><caption class="sr-only">Latest app orders for {{ rangeLabel }}</caption><thead><tr><th>Order ID</th><th>Time (IST)</th><th>Customer</th><th>Source</th><th>Table / Type</th><th>Items (Preview)</th><th>Total</th><th>Payment</th><th>Status</th><th>Partner</th><th>Actions</th></tr></thead><tbody><tr *ngFor="let order of liveOrders"><td><a [routerLink]="managerView ? null : ['/orders', order.id]" [title]="order.id">#{{ order.id.slice(-6) }}</a></td><td>{{ orderTime(order) | date:'d MMM, h:mm a':'+0530' }}</td><td>{{ order.customerName || order.username || 'Walk-in customer' }}</td><td><span class="source-pill" [class.phone]="sourceFor(order) === 'Phone'">{{ sourceFor(order) }}</span></td><td>{{ order.tableNumber ? 'Table ' + order.tableNumber : statusLabel(order.orderType || '—') }}</td><td class="item-preview"><span *ngFor="let item of order.items | slice:0:2; let last = last">{{ item.name }} ×{{ item.quantity }}{{ last ? '' : ', ' }}</span><small *ngIf="order.items.length > 2"> +{{ order.items.length - 2 }} more</small></td><td>₹{{ order.total | number:'1.0-0' }}</td><td><span class="payment-pill" [class.unpaid]="order.paymentStatus !== 'paid'">{{ statusLabel(order.paymentStatus) }}</span></td><td><span class="order-state" [class]="'order-state state-' + order.status">{{ statusLabel(order.status) }}</span></td><td>{{ order.deliveryPartnerName || '—' }}</td><td><div *ngIf="!managerView" class="row-actions"><a [routerLink]="['/orders', order.id]">Open</a><a routerLink="/admin/web-sales">Manage</a></div><span *ngIf="managerView">Read-only</span></td></tr><tr *ngIf="!liveOrders.length"><td colspan="11" class="dc-empty">No orders match the selected period and filters.</td></tr></tbody></table></div>
+        </section>
+      </div>
+      <p class="data-note dashboard-definition">{{ rangeLabel }} · Sales figures preserve recorded online payouts plus offline sales. Operational queues, tables, stock and staffing show current data. App payment values exclude consolidated dine-in bills.</p>
     </ng-container>
   </section>
-
-  <details class="dashboard-details">
-    <summary>Detailed sales and operational health (all time and six-month trends)</summary>
-  <div class="main-header">
-    <h1>Dashboard Overview</h1>
-    <div class="header-actions">
-      <button class="btn-refresh" (click)="loadDashboardData()" [disabled]="isLoading">
-        {{ isLoading ? '⏳ Loading...' : '🔄 Refresh Now' }}
-      </button>
-    </div>
-  </div>
-
-  <div class="dashboard-content">
-    <!-- Error Message -->
-    <div *ngIf="errorMessage" class="error-banner">
-      <span>⚠️ {{ errorMessage }}</span>
-      <button (click)="loadDashboardData()">Retry</button>
-    </div>
-
-    <!-- Loading Indicator -->
-    <div *ngIf="isLoading && stats[0].value === '0'" class="loading-overlay">
-      <div class="loading-spinner">⏳ Loading dashboard data...</div>
-    </div>
-
-    <!-- Stats Cards -->
-    <div class="stats-grid">
-      <div
-        class="stat-card"
-        *ngFor="let stat of stats; trackBy: trackByIndex"
-        [style.border-left-color]="stat.color"
-      >
-        <div class="stat-icon" [style.background]="stat.color">
-          {{ stat.icon }}
-        </div>
-        <div class="stat-info">
-          <div class="stat-label">{{ stat.label }}</div>
-          <div class="stat-value">{{ stat.value }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="content-section" *ngIf="outboxHealth as health">
-      <div class="section-header">
-        <h2>Outbox Health & Retry Visibility</h2>
-      </div>
-
-      <div class="stats-grid-five secondary-stats">
-        <div class="stat-card" style="border-left-color: #f59e0b;">
-          <div class="stat-icon" style="background: #f59e0b;">📥</div>
-          <div class="stat-info">
-            <div class="stat-label">Pending</div>
-            <div class="stat-value">{{ health.pendingCount }}</div>
-          </div>
-        </div>
-        <div class="stat-card" style="border-left-color: #0ea5e9;">
-          <div class="stat-icon" style="background: #0ea5e9;">⚙️</div>
-          <div class="stat-info">
-            <div class="stat-label">Processing</div>
-            <div class="stat-value">{{ health.processingCount }}</div>
-          </div>
-        </div>
-        <div class="stat-card" style="border-left-color: #f97316;">
-          <div class="stat-icon" style="background: #f97316;">🔁</div>
-          <div class="stat-info">
-            <div class="stat-label">Retrying</div>
-            <div class="stat-value">{{ health.retryingCount }}</div>
-          </div>
-        </div>
-        <div class="stat-card" style="border-left-color: #ef4444;">
-          <div class="stat-icon" style="background: #ef4444;">🧯</div>
-          <div class="stat-info">
-            <div class="stat-label">Dead Letters</div>
-            <div class="stat-value">{{ health.deadLetterCount }}</div>
-          </div>
-        </div>
-        <div class="stat-card" style="border-left-color: #22c55e;">
-          <div class="stat-icon" style="background: #22c55e;">✅</div>
-          <div class="stat-info">
-            <div class="stat-label">Completed (15m)</div>
-            <div class="stat-value">{{ health.completedLast15Minutes }}</div>
-          </div>
-        </div>
-      </div>
-
-      <div *ngIf="outboxDeadLetters.length > 0" class="collapsible-dead-letters">
-        <button type="button" class="collapse-toggle" (click)="toggleOutboxDeadLetters()">
-          <span>
-            <strong>Recent Failed Retries</strong>
-            <small>{{ outboxDeadLetters.length }} record{{ outboxDeadLetters.length === 1 ? '' : 's' }}</small>
-          </span>
-          <span class="toggle-indicator">{{ showOutboxDeadLetters ? '▲' : '▼' }}</span>
-        </button>
-
-        <div class="table-container" *ngIf="showOutboxDeadLetters">
-          <table>
-            <thead>
-              <tr>
-                <th>Event</th>
-                <th>Aggregate</th>
-                <th>Retry</th>
-                <th>Status</th>
-                <th>Error</th>
-                <th>Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let row of outboxDeadLetters; trackBy: trackByIndex">
-                <td>{{ row.eventType }}</td>
-                <td>{{ row.aggregateType }} / {{ row.aggregateId }}</td>
-                <td>{{ row.retryCount }} / {{ row.maxRetries }}</td>
-                <td>{{ row.status || 'unknown' }}</td>
-                <td>{{ row.error || 'Unknown' }}</td>
-                <td>
-                  <span [class]="row.isPushFailure ? 'status-badge status-failed' : 'status-badge status-warning'">
-                    {{ row.isPushFailure ? 'Push Failure' : 'General Failure' }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Monthly Sales Trend -->
-    <div class="content-section">
-      <div class="section-header">
-        <h2>📈 Monthly Sales Trend (Last 6 Months)</h2>
-      </div>
-
-      <div *ngIf="monthlyTrends.length === 0 && !isLoading" class="empty-state">
-        <p>📊 No sales data available</p>
-      </div>
-
-      <div *ngIf="monthlyTrends.length > 0" class="chart-container">
-        <div class="chart-wrapper">
-          <div class="line-chart">
-            <svg viewBox="0 0 800 350" class="chart-svg">
-              <!-- Grid lines -->
-              <line x1="50" y1="50" x2="50" y2="300" stroke="#e2e8f0" stroke-width="2"/>
-              <line x1="50" y1="300" x2="750" y2="300" stroke="#e2e8f0" stroke-width="2"/>
-
-              <!-- Y-axis labels -->
-              <text x="40" y="60" text-anchor="end" class="axis-label">{{getMaxSales() / 1000}}K</text>
-              <text x="40" y="175" text-anchor="end" class="axis-label">{{getMaxSales() / 2000}}K</text>
-              <text x="40" y="305" text-anchor="end" class="axis-label">0</text>
-
-              <!-- Offline Sales Line -->
-              <polyline
-                [attr.points]="getLinePoints('offline')"
-                fill="none"
-                stroke="#6c5ce7"
-                stroke-width="3"
-                class="trend-line"
-              />
-
-              <!-- Zomato Sales Line -->
-              <polyline
-                [attr.points]="getLinePoints('zomato')"
-                fill="none"
-                stroke="#e74c3c"
-                stroke-width="3"
-                class="trend-line"
-              />
-
-              <!-- Swiggy Sales Line -->
-              <polyline
-                [attr.points]="getLinePoints('swiggy')"
-                fill="none"
-                stroke="#f39c12"
-                stroke-width="3"
-                class="trend-line"
-              />
-
-              <!-- Web Sales Line -->
-              <polyline
-                [attr.points]="getLinePoints('web')"
-                fill="none"
-                stroke="#2980b9"
-                stroke-width="3"
-                class="trend-line"
-              />
-
-              <!-- Total Sales Line -->
-              <polyline
-                [attr.points]="getLinePoints('total')"
-                fill="none"
-                stroke="#2ecc71"
-                stroke-width="4"
-                stroke-dasharray="5,5"
-                class="trend-line"
-              />
-
-              <!-- Data points for Offline -->
-              <circle
-                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
-                [attr.cx]="getXPosition(i)"
-                [attr.cy]="getYPosition(trend.offlineSales)"
-                r="5"
-                fill="#6c5ce7"
-                class="data-point"
-              >
-                <title>{{trend.month}}: Offline ₹{{trend.offlineSales | number}}</title>
-              </circle>
-
-              <!-- Data points for Zomato -->
-              <circle
-                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
-                [attr.cx]="getXPosition(i)"
-                [attr.cy]="getYPosition(trend.zomatoSales)"
-                r="5"
-                fill="#e74c3c"
-                class="data-point"
-              >
-                <title>{{trend.month}}: Zomato ₹{{trend.zomatoSales | number}}</title>
-              </circle>
-
-              <!-- Data points for Swiggy -->
-              <circle
-                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
-                [attr.cx]="getXPosition(i)"
-                [attr.cy]="getYPosition(trend.swiggySales)"
-                r="5"
-                fill="#f39c12"
-                class="data-point"
-              >
-                <title>{{trend.month}}: Swiggy ₹{{trend.swiggySales | number}}</title>
-              </circle>
-
-              <!-- Data points for Web Sales -->
-              <circle
-                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
-                [attr.cx]="getXPosition(i)"
-                [attr.cy]="getYPosition(trend.webSales)"
-                r="5"
-                fill="#2980b9"
-                class="data-point"
-              >
-                <title>{{trend.month}}: Web Sales ₹{{trend.webSales | number}}</title>
-              </circle>
-
-              <!-- Data points for Total -->
-              <circle
-                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
-                [attr.cx]="getXPosition(i)"
-                [attr.cy]="getYPosition(trend.totalSales)"
-                r="6"
-                fill="#2ecc71"
-                class="data-point"
-              >
-                <title>{{trend.month}}: Total ₹{{trend.totalSales | number}}</title>
-              </circle>
-
-              <!-- X-axis labels -->
-              <text
-                *ngFor="let trend of monthlyTrends; let i = index; trackBy: trackByIndex"
-                [attr.x]="getXPosition(i)"
-                y="320"
-                text-anchor="middle"
-                class="axis-label"
-              >
-                {{trend.month}}
-              </text>
-            </svg>
-          </div>
-          <div class="chart-legend">
-            <div class="legend-item">
-              <span class="legend-color" style="background: #6c5ce7;"></span>
-              <span>Offline Sales</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-color" style="background: #e74c3c;"></span>
-              <span>Zomato</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-color" style="background: #f39c12;"></span>
-              <span>Swiggy</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-color" style="background: #2980b9;"></span>
-              <span>Web Sales</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-color" style="background: #2ecc71;"></span>
-              <span>Total (Dashed)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ONLINE SALES SECTION -->
-    <div class="section-divider">
-      <h2 class="section-title">🌐 Online Sales (Zomato, Swiggy & Web Sales)</h2>
-    </div>
-
-    <!-- Online Stats Cards -->
-    <div class="stats-grid-five secondary-stats">
-      <div class="stat-card" style="border-left-color: #e74c3c;">
-        <div class="stat-icon" style="background: #e74c3c;">📦</div>
-        <div class="stat-info">
-          <div class="stat-label">Total Online Orders</div>
-          <div class="stat-value">{{ onlineStats.totalOrders | number }}</div>
-        </div>
-      </div>
-      <div class="stat-card" style="border-left-color: #3498db;">
-        <div class="stat-icon" style="background: #3498db;">💰</div>
-        <div class="stat-info">
-          <div class="stat-label">Online Revenue</div>
-          <div class="stat-value">₹{{ onlineStats.totalRevenue | number:'1.0-0' }}</div>
-        </div>
-      </div>
-      <div class="stat-card" style="border-left-color: #2ecc71;">
-        <div class="stat-icon" style="background: #2ecc71;">📊</div>
-        <div class="stat-info">
-          <div class="stat-label">Daily Avg Payout</div>
-          <div class="stat-value">₹{{ onlineStats.dailyAvgPayout | number:'1.0-0' }}</div>
-        </div>
-      </div>
-      <div class="stat-card" style="border-left-color: #ffd93d;">
-        <div class="stat-icon" style="background: #ffd93d;">⭐</div>
-        <div class="stat-info">
-          <div class="stat-label">Avg Rating</div>
-          <div class="stat-value">{{ onlineStats.avgRating > 0 ? onlineStats.avgRating.toFixed(1) : 'N/A' }}</div>
-        </div>
-      </div>
-      <div class="stat-card" style="border-left-color: #95e1d3;">
-        <div class="stat-icon" style="background: #95e1d3;">👥</div>
-        <div class="stat-info">
-          <div class="stat-label">Unique Customers</div>
-          <div class="stat-value">{{ onlineStats.uniqueCustomers }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Two Column Layout for Online -->
-    <div class="two-column-grid">
-      <!-- Most Ordered Items (Online) -->
-      <div class="content-section">
-        <div class="section-header">
-          <h2>🔥 Most Ordered Items (Online)</h2>
-        </div>
-
-        <div *ngIf="onlineMostOrderedItems.length === 0 && !isLoading" class="empty-state">
-          <p>🍽️ No online orders yet</p>
-        </div>
-
-        <div *ngIf="onlineMostOrderedItems.length > 0" class="list-container">
-          <div class="list-item" *ngFor="let item of onlineMostOrderedItems; let i = index; trackBy: trackByIndex">
-            <div class="item-rank">{{ i + 1 }}</div>
-            <div class="item-info">
-              <div class="item-name">{{ item.itemName }}</div>
-              <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue | number:'1.0-0' }}</div>
-            </div>
-            <div class="item-badge">{{ item.quantity }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Top Customers (Online) -->
-      <div class="content-section">
-        <div class="section-header">
-          <h2>👑 Top Customers (Online)</h2>
-        </div>
-
-        <div *ngIf="topCustomers.length === 0 && !isLoading" class="empty-state">
-          <p>👥 No customers yet</p>
-        </div>
-
-        <div *ngIf="topCustomers.length > 0" class="list-container">
-          <div class="list-item" *ngFor="let customer of topCustomers; let i = index; trackBy: trackByIndex">
-            <div class="item-rank">{{ i + 1 }}</div>
-            <div class="item-info">
-              <div class="item-name">{{ customer.customerName }}</div>
-              <div class="item-detail">{{ customer.totalOrders }} orders</div>
-            </div>
-            <div class="item-badge customer-badge">₹{{ customer.totalSpent | number }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- OFFLINE SALES SECTION -->
-    <div class="section-divider">
-      <h2 class="section-title">🏪 Offline Sales (In-Store)</h2>
-    </div>
-
-    <!-- Offline Stats Cards -->
-    <div class="stats-grid secondary-stats">
-      <div class="stat-card" style="border-left-color: #9b59b6;">
-        <div class="stat-icon" style="background: #9b59b6;">📦</div>
-        <div class="stat-info">
-          <div class="stat-label">Total Offline Orders</div>
-          <div class="stat-value">{{ offlineStats.totalOrders | number }}</div>
-        </div>
-      </div>
-      <div class="stat-card" style="border-left-color: #16a085;">
-        <div class="stat-icon" style="background: #16a085;">💰</div>
-        <div class="stat-info">
-          <div class="stat-label">Offline Revenue</div>
-          <div class="stat-value">₹{{ offlineStats.totalRevenue | number:'1.0-0' }}</div>
-        </div>
-      </div>
-      <div class="stat-card" style="border-left-color: #e67e22;">
-        <div class="stat-icon" style="background: #e67e22;">📊</div>
-        <div class="stat-info">
-          <div class="stat-label">Daily Avg Sales</div>
-          <div class="stat-value">₹{{ offlineStats.dailyAvgSales | number:'1.0-0' }}</div>
-        </div>
-      </div>
-      <div class="stat-card" style="border-left-color: #34495e;">
-        <div class="stat-icon" style="background: #34495e;">💸</div>
-        <div class="stat-info">
-          <div class="stat-label">Daily Avg Expenses</div>
-          <div class="stat-value">₹{{ offlineStats.dailyAvgExpenses | number:'1.0-0' }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Most Ordered Items (Offline) -->
-    <div class="content-section">
-      <div class="section-header">
-        <h2>🔥 Most Ordered Items (Offline)</h2>
-      </div>
-
-      <div *ngIf="offlineMostOrderedItems.length === 0 && !isLoading" class="empty-state">
-        <p>🍽️ No offline orders yet</p>
-      </div>
-
-      <div *ngIf="offlineMostOrderedItems.length > 0" class="list-container">
-        <div class="list-item" *ngFor="let item of offlineMostOrderedItems; let i = index; trackBy: trackByIndex">
-          <div class="item-rank">{{ i + 1 }}</div>
-          <div class="item-info">
-            <div class="item-name">{{ item.itemName }}</div>
-            <div class="item-detail">{{ item.quantity }} orders • ₹{{ item.revenue | number:'1.0-0' }}</div>
-          </div>
-          <div class="item-badge offline-badge">{{ item.quantity }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-  </details>
 </div>

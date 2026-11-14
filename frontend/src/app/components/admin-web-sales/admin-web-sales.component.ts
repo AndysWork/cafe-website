@@ -7,7 +7,7 @@ import { RouterModule } from '@angular/router';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { AdminCreateMissedOrderRequest, AdminReconcileOrderRequest, Order, OrderIssue, OrderService, UpiReconciliationReport } from '../../services/order.service';
+import { AdminCreateMissedOrderRequest, AdminReconcileOrderRequest, Order, OrderIssue, OrderPeriodCollection, OrderService, SessionCollection, UpiReconciliationReport } from '../../services/order.service';
 import { DeliveryPartner, DeliveryPartnerService } from '../../services/delivery-partner.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
@@ -22,29 +22,6 @@ interface WebSalesDashboardResponse {
   data?: {
     partners?: DeliveryPartner[];
   };
-}
-
-interface OrderPeriodCollection {
-  upi: number;
-  cash: number;
-  other: number;
-  unallocated: number;
-  total: number;
-  unknownAmountOrders: number;
-  sessionMethods: Record<string, string[]>;
-  sessionPayments?: Record<string, SessionCollection>;
-}
-
-interface SessionCollection {
-  sessionId: string;
-  tableNumber: string;
-  grandTotal: number;
-  paymentStatus: string;
-  cash: number;
-  upi: number;
-  other: number;
-  unallocated: number;
-  total: number;
 }
 
 interface OrderSessionGroup {

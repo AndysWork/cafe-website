@@ -328,12 +328,41 @@ export interface UpiReconciliationReport {
   items: UpiReconciliationItem[];
 }
 
+export interface OrderPeriodCollection {
+  upi: number;
+  cash: number;
+  other: number;
+  unallocated: number;
+  total: number;
+  unknownAmountOrders: number;
+  sessionMethods: Record<string, string[]>;
+  sessionPayments?: Record<string, SessionCollection>;
+}
+
+export interface SessionCollection {
+  sessionId: string;
+  tableNumber: string;
+  grandTotal: number;
+  paymentStatus: string;
+  cash: number;
+  upi: number;
+  other: number;
+  unallocated: number;
+  total: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class OrderService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
+
+  getPeriodCollection(from: string, to: string): Observable<OrderPeriodCollection> {
+    return this.http.get<OrderPeriodCollection>(`${this.apiUrl}/manage/reports/order-period-collection`, {
+      params: new HttpParams().set('from', from).set('to', to)
+    }).pipe(catchError(handleServiceError('OrderService.getPeriodCollection')));
+  }
 
   // Create new order
   createOrder(orderRequest: CreateOrderRequest): Observable<Order> {

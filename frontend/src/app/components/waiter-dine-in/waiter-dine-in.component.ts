@@ -82,7 +82,7 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   get availableTables(): CafeTableFloorView[] {
     return this.tables.filter(table =>
       table.isActive &&
-      (table.status === 'free' || table.status === 'occupied')
+      (table.status === 'free' || table.status === 'occupied' || table.status === 'bill_requested')
     );
   }
 
@@ -245,7 +245,11 @@ export class WaiterDineInComponent implements OnInit, OnDestroy {
   }
 
   get orderingUnavailableReason(): string {
-    return getOrderingUnavailableReason(this.outletService.getSelectedOutlet(), 'dine-in');
+    const outletReason = getOrderingUnavailableReason(this.outletService.getSelectedOutlet(), 'dine-in');
+    if (outletReason) return outletReason;
+    return this.selectedTable?.status === 'bill_requested'
+      ? `Table ${this.selectedTableNumber} has an open tab with its final bill requested. Settle the bill or ask a manager to reopen ordering before adding items.`
+      : '';
   }
 
   approveQrOrder(order: PendingQrDineInOrder): void {

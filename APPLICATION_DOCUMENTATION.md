@@ -193,11 +193,17 @@
 
 | # | Feature | Description |
 |---|---------|-------------|
-| 1 | **Manager Dashboard** | Operational KPIs for kitchen load, delivery partner availability, and attendance status |
+| 1 | **Manager Dashboard** | Shared responsive Admin command-center view with assigned-outlet sales, expenses, item analytics, stock alerts, attendance, kitchen, tables, and delivery summaries |
 | 2 | **Operations Board** | Unified tabs for kitchen, delivery, parcel assignments, and escalation actions |
 | 3 | **Partner Reassignment** | Reassign delivery partners for active delivery orders |
 | 4 | **Urgent Marking / Resend** | Mark deliveries urgent and resend delivery notifications |
 | 5 | **Parcel Task Assignment** | Assign point-to-point parcel tasks with route quote and round-trip support |
+
+The Manager dashboard uses the same desktop/mobile presentation, date filters, and CSV export as the Admin dashboard. It refreshes every 30 seconds while visible and healthy, and when returning to the tab. Operations, table settlement, kitchen, counter sales, dine-in reports, personal attendance, and payslip links use Manager-accessible routes.
+
+Dashboard data is read-only and restricted to active outlets assigned to the account or a valid linked staff profile. `GET /api/manage/dashboard/outlets` supplies the authorized branch selector; `GET /api/manage/dashboard` reads the selected outlet through `X-Outlet-Id` (or authorized default outlet). Missing assignments show an explicit error rather than loading unscoped data. Kitchen/delivery board and table-floor dashboard reads also validate Manager outlet access.
+
+This does not grant Admin permissions or broaden existing financial, catalog, or inventory edit endpoints. Menu/stock, payment-reconciliation, and staff-management alerts remain visible but require Admin review; Admin-only order-detail links and notification diagnostics are not shown. Sales retain the existing recorded-payout-plus-offline definition, including Web Sales once. Historical costs remain unavailable rather than estimating contribution. The new API endpoints require the updated backend to be deployed; frontend changes alone cannot enable the shared Manager dashboard.
 
 ### 1.6 Delivery Partner (Roles: `partner`, `delivery-partner`)
 
@@ -279,6 +285,16 @@ Wallet functionality has been removed from the product (July 2026).
 
 ### 2.2 Admin Journey
 
+#### Dashboard Command Center
+- **Desktop:** branch, IST date-range and comparison controls; nine KPI cards; source/status breakdown; kitchen, table, delivery and attendance panels; prioritized Action Center and Quick Actions; searchable item analytics with category/source filters and CSV export; latest app orders with search and status filters.
+- **Mobile:** blue two-selector header, four primary KPIs, compact financial/operational summaries, Action Center first, four quick links, source breakdown, expandable operational panels and an item-quantity sparkline. Use **Live Orders** to open the full order workspace.
+- Sales, item analytics and latest orders follow **Today / Last 7 / Last 30 / Last 90 Days**, using IST boundaries. Operations, outstanding table dues, attendance and alerts describe the current outlet state. Both dashboards refresh every 30 seconds while visible and when returning to the tab, or explicitly with Refresh. Failed optional sources show an unavailable warning rather than fabricated healthy values.
+- **Cash Collection / UPI Collection** are visible on desktop and mobile in both dashboards, using the same read-time report as Web Sales (`GET /manage/reports/order-period-collection`). They follow the selected IST order-date range and outlet, not the receipt/reconciliation date or Daily Cash Reconciliation till counts. Confirmed dine-in split payments are counted once per resolved session; pending payments are excluded. Corrected order totals/payment methods and reconciled session payments are recalculated on each report read. Other/unallocated amounts and unknown collection amounts are disclosed separately, not silently counted as Cash/UPI. Switching range/outlet clears old totals immediately; loading or failure displays a dash, never a fabricated zero. Managers can only read collections for an active assigned outlet; no reconciliation/write permissions are added.
+- **Net Sales** retains the existing recorded-payout basis: online payouts (including Web Sales once) plus recorded offline sales. Sales Records and Avg. Sale Value use those records, not app-order counts. App discounts/refunds and paid-app value have their own scope; paid-app value excludes consolidated dine-in bills. Gross Contribution is unavailable because historical item costs are not tracked.
+- Item quantities and values come from non-cancelled app-order items before order-level discounts or settlement. Imported platform/offline item prices are not estimated. Catalog categories fill missing order-item categories. CSV includes all matching items, not just the visible rows.
+- Kitchen alerts use the existing 20-minute SLA; delivery delays use requested delivery deadlines. Attendance coverage means recorded attendance, not an inferred staffing requirement. Action links open the corresponding authorized workspaces.
+- **Expense Insights** stays visible below Quick Actions in the desktop sidebar (stacked after item analytics on mobile) for both Admin and Manager dashboards. It follows the main date range and comparison controls, with totals, daily average, record count, category shares, and largest expense. Expense links retain role-specific access. The former sales/customer-insight and detailed all-time/six-month disclosures have been removed from both dashboards.
+
 #### Initial Setup
 1. **Login** → Use admin credentials → Redirected to admin dashboard
 2. **Create Outlets** → Profile dropdown → "Manage Outlets" → Create outlet with name, address, contact, settings
@@ -316,16 +332,20 @@ In **Manage Outlets**, use the independent On/Off controls on each outlet card, 
 #### Daily Operations
 1. **Create Table QR Codes** → Open Table Management → Generate or rotate a table's QR credential → Download or print the displayed QR code
 2. **Waiter Station** → Open Staff → Waiter Station → Select a free or occupied table → Enter the customer name (optional; existing table customer is retained) → Add items/variants/add-ons → Send order to kitchen. The authenticated waiter's name is stored separately.
+   Tables with a requested final bill remain visible as **Open tab · Bill requested** until settlement. Their rounds can still be reviewed and served; new items remain blocked until a manager reopens ordering. After settlement, the table returns to **Free** on the next floor refresh.
 3. **QR Approval** → Waiter Station → QR approvals → Review or edit a pending customer order → Approve and send to kitchen, or reject with a reason
 4. **Manage KOTs** → Select an occupied table to view its rounds → Request a duplicate print, or cancel an eligible KOT with a reason before preparation begins
 5. **Kitchen Display** → Operations → Kitchen Display → Confirm and start a round → Mark each dine-in item ready; complete the checklist when the final item is marked ready
 6. **Serve Items** → Waiter Station → Select the occupied table → Mark each ready item served
 7. **Cashier Settlement** → Dine-In Payments → Confirm a pending request or record a payment against an active table balance; partial payments retain the outstanding balance and the table closes when fully paid. Bills print on the device's Bluetooth printer when configured ([§4.2.5](#425-bluetooth-bill-printing-from-staff-devices))
+
 8. **Dine-In Report** → Admin → Reports → Dine-In Sales & Audit → Select a date range to review sales, balances, payment methods, and audit events
 9. **Record Sales** → Finance → Sales → "Add Sale" → Enter items, amounts, payment method, date → Save
 10. **Record Expenses** → Finance → Expenses → "Add Expense" → Select type, enter amount, payment method → Save
 11. **Cash Reconciliation** → Finance → Cashier → End of Day → Enter counted cash/coins/online → Compare to expected → Record deficit/surplus
 12. **Daily Performance** → Staff → Daily Performance → Select staff → Enter shift times, orders prepared, good/bad counts, refunds → Save
+
+Dine-in orders have zero platform charge, including generic order creation, Admin edits, historical order entry, and item cancellations. Individual item cancellations update both the order and its linked table-session totals without changing recorded collections. Dine-In Payments and the live table floor calculate dues from current order rounds, excluding cancelled rounds and retaining session discounts and payments; this also displays correct balances for previously stale sessions without a data-repair write. If cancellation saves but session synchronization fails, the API explicitly reports the partial failure: refresh the bill before payment and do not repeat the cancellation.
 
 #### Staff Management
 1. **Add Staff** → Staff → Staff Management → "Add Employee" → Fill personal info, position, employment type, salary → Assign to outlet(s) → Save

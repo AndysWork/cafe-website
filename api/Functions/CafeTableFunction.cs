@@ -19,6 +19,8 @@ public class CafeTableFunction
     private readonly CafeTableRepository _tables;
     private readonly IOrderRepository _orderRepo;
     private readonly IOutletRepository _outletRepo;
+    private readonly IUserRepository _users;
+    private readonly IStaffRepository _staff;
     private readonly AuthService _auth;
     private readonly EventLogService _events;
     private readonly ILogger _log;
@@ -27,6 +29,8 @@ public class CafeTableFunction
         CafeTableRepository tables,
         IOrderRepository orderRepo,
         IOutletRepository outletRepo,
+        IUserRepository users,
+        IStaffRepository staff,
         AuthService auth,
         EventLogService events,
         ILoggerFactory loggerFactory)
@@ -34,6 +38,8 @@ public class CafeTableFunction
         _tables = tables;
         _orderRepo = orderRepo;
         _outletRepo = outletRepo;
+        _users = users;
+        _staff = staff;
         _auth = auth;
         _events = events;
         _log = loggerFactory.CreateLogger<CafeTableFunction>();
@@ -75,11 +81,23 @@ public class CafeTableFunction
 
         try
         {
-            var outletId = await ResolveOutletIdAsync(req, req.Query["outletId"]);
+            string? outletId;
+            var roles = AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth);
+            if (RoleHelper.HasAnyRole(roles, new[] { RoleHelper.Manager })
+                && !RoleHelper.HasAnyRole(roles, new[] { RoleHelper.Admin }))
+            {
+                var (allowed, assignedOutletId, accessError) = await OutletHelper.ValidateOutletAccess(
+                    req, _auth, _users, _staff, _outletRepo, req.Query["outletId"]);
+                if (!allowed) return await Error(req, HttpStatusCode.Forbidden, accessError ?? "Outlet access denied");
+                outletId = assignedOutletId;
+            }
+            else outletId = await ResolveOutletIdAsync(req, req.Query["outletId"]);
             if (outletId == null) return await Error(req, HttpStatusCode.BadRequest, "Outlet ID required");
 
             var tables = await _tables.GetByOutletAsync(outletId, includeInactive: false);
             var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
+            foreach (var session in sessions)
+                await DineInBillTotals.RecalculateAsync(_orderRepo, session);
             var floor = BuildFloor(tables, sessions, MongoService.GetUtcNow());
 
             var summary = new

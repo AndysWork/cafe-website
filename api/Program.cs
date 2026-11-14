@@ -54,6 +54,7 @@ var host = new HostBuilder()
         
         s.AddSingleton<FileUploadService>();
         s.AddSingleton<AuthService>();
+        s.AddSingleton<IManagerDashboardService, ManagerDashboardService>();
         s.AddSingleton<IEmailService, EmailService>();
         s.AddSingleton<IWhatsAppService, WhatsAppService>();
         s.AddSingleton<MarketPriceService>();

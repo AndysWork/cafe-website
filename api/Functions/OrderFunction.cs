@@ -34,6 +34,8 @@ public class OrderFunction
     private readonly IOfferRepository _offerRepo;
     private readonly ILoyaltyRepository _loyaltyRepo;
     private readonly IUserRepository _userRepo;
+    private readonly IStaffRepository _staffRepo;
+    private readonly IOutletRepository _outletRepo;
     private readonly IOperationsRepository _operationsRepo;
     private readonly MongoService _mongo;  // retained for OutletHelper compatibility and static helpers
     private readonly AuthService _auth;
@@ -49,6 +51,8 @@ public class OrderFunction
         IOfferRepository offerRepo,
         ILoyaltyRepository loyaltyRepo,
         IUserRepository userRepo,
+        IStaffRepository staffRepo,
+        IOutletRepository outletRepo,
         IOperationsRepository operationsRepo,
         MongoService mongo,
         AuthService auth,
@@ -63,6 +67,8 @@ public class OrderFunction
         _offerRepo = offerRepo;
         _loyaltyRepo = loyaltyRepo;
         _userRepo = userRepo;
+        _staffRepo = staffRepo;
+        _outletRepo = outletRepo;
         _operationsRepo = operationsRepo;
         _mongo = mongo;
         _auth = auth;
@@ -316,7 +322,7 @@ public class OrderFunction
             // Tax is temporarily disabled until GSTIN onboarding is completed.
             // Platform charge is a flat ₹2 per order for now.
             var tax = 0m;
-            var platformCharge = subtotal > 0 ? 2m : 0m;
+            var platformCharge = subtotal > 0 && orderType != "dine-in" ? 2m : 0m;
 
             // Apply coupon discount
             decimal discountAmount = 0;
@@ -1262,6 +1268,17 @@ public class OrderFunction
                 return badRequest;
             }
 
+            if (!string.IsNullOrWhiteSpace(order.DineInSessionId))
+            {
+                var session = await DineInBillTotals.GetReconciliationSessionAsync(_orderRepo, order);
+                if (string.Equals(session.PaymentStatus, "processing", StringComparison.OrdinalIgnoreCase))
+                {
+                    var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                    await conflict.WriteAsJsonAsync(new { error = "A table payment is being processed. Retry cancellation afterwards." });
+                    return conflict;
+                }
+            }
+
             var qtyToCancel = Math.Min(item.Quantity, Math.Max(1, cancelRequest.Quantity));
             if (qtyToCancel >= item.Quantity)
             {
@@ -1286,7 +1303,7 @@ public class OrderFunction
 
             order.Subtotal = Math.Round(order.Items.Sum(i => i.Total), 2);
             order.Tax = 0m;
-            order.PlatformCharge = order.Subtotal > 0 ? 2m : 0m;
+            order.PlatformCharge = order.Subtotal > 0 && order.OrderType != "dine-in" ? 2m : 0m;
             order.DiscountAmount = Math.Min(order.DiscountAmount, order.Subtotal);
 
             var loyaltyCap = Math.Max(0, order.Subtotal + order.Tax + order.PlatformCharge + order.DeliveryFee - order.DiscountAmount);
@@ -1308,6 +1325,24 @@ public class OrderFunction
                 actorRole: role,
                 newState: new { MenuItemId = menuItemId, QuantityCancelled = qtyToCancel, Subtotal = order.Subtotal, Total = order.Total },
                 outletId: order.OutletId);
+
+            if (!string.IsNullOrWhiteSpace(order.DineInSessionId))
+            {
+                try
+                {
+                    await DineInBillTotals.SynchronizeReconciledOrderAsync(_orderRepo, order);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Item cancellation for order {OrderId} was saved but its dine-in bill could not be updated", id);
+                    var syncFailed = req.CreateResponse(HttpStatusCode.ServiceUnavailable);
+                    await syncFailed.WriteAsJsonAsync(new
+                    {
+                        error = "The item cancellation was saved, but the table bill could not be updated. Refresh the table bill before taking payment; do not repeat the cancellation."
+                    });
+                    return syncFailed;
+                }
+            }
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(MapToOrderResponse(order));
@@ -1590,7 +1625,8 @@ public class OrderFunction
                 : Math.Round(order.Items.Sum(i => i.Total), 2);
 
             order.Tax = Math.Round(reconcileRequest.Tax ?? order.Tax, 2);
-            order.PlatformCharge = Math.Round(reconcileRequest.PlatformCharge ?? order.PlatformCharge, 2);
+            order.PlatformCharge = string.Equals(order.OrderType, "dine-in", StringComparison.OrdinalIgnoreCase)
+                ? 0m : Math.Round(reconcileRequest.PlatformCharge ?? order.PlatformCharge, 2);
             order.DeliveryFee = Math.Round(reconcileRequest.DeliveryFee ?? order.DeliveryFee, 2);
             order.PackagingCharge = Math.Round(reconcileRequest.PackagingCharge ?? order.PackagingCharge, 2);
             order.DiscountAmount = Math.Round(reconcileRequest.DiscountAmount ?? order.DiscountAmount, 2);
@@ -1874,7 +1910,8 @@ public class OrderFunction
                 ? Math.Round(Math.Max(0, createRequest.ManualSubtotalOverride.Value), 2)
                 : computedSubtotal;
             var tax = Math.Round(Math.Max(0, createRequest.Tax ?? 0), 2);
-            var platformCharge = Math.Round(Math.Max(0, createRequest.PlatformCharge ?? 0), 2);
+            var platformCharge = orderType == "dine-in"
+                ? 0m : Math.Round(Math.Max(0, createRequest.PlatformCharge ?? 0), 2);
             var deliveryFee = Math.Round(Math.Max(0, createRequest.DeliveryFee ?? 0), 2);
             var packagingCharge = Math.Round(Math.Max(0, createRequest.PackagingCharge ?? 0), 2);
             var discountAmount = Math.Round(Math.Max(0, createRequest.DiscountAmount ?? 0), 2);
@@ -2433,13 +2470,14 @@ public class OrderFunction
     [OpenApiParameter(name: "X-Outlet-Id", In = ParameterLocation.Header, Required = false, Type = typeof(string), Description = "Outlet ID.")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(OrderPeriodCollectionResult), Description = "Recorded collection by payment method.")]
     [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.BadRequest, Description = "Invalid date range.")]
-    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "Admin authentication required.")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Unauthorized, Description = "Authentication required.")]
+    [OpenApiResponseWithoutBody(statusCode: HttpStatusCode.Forbidden, Description = "Admin or assigned-outlet Manager access required.")]
     public async Task<HttpResponseData> GetOrderPeriodCollection(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/reports/order-period-collection")] HttpRequestData req)
     {
         try
         {
-            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!isAuthorized) return errorResponse!;
             if (!TryParseDateQuery(req, "from", out var from)
                 || !TryParseDateQuery(req, "to", out var to)
@@ -2450,7 +2488,14 @@ public class OrderFunction
                 return invalidRange;
             }
 
-            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            var (hasAccess, outletId, accessError) = await OutletHelper.ValidateOutletAccess(
+                req, _auth, _userRepo, _staffRepo, _outletRepo);
+            if (!hasAccess)
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError });
+                return forbidden;
+            }
             var orders = new Dictionary<string, Order>();
             for (var page = 1; ; page++)
             {

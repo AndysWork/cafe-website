@@ -22,6 +22,8 @@ public class ManagerOperationsFunction
     private readonly IOperationsRepository _ops;
     private readonly IOrderRepository _orders;
     private readonly IUserRepository _users;
+    private readonly IStaffRepository _staff;
+    private readonly IOutletRepository _outlets;
     private readonly AuthService _auth;
     private readonly NotificationService _notification;
     private readonly ILogger<ManagerOperationsFunction> _log;
@@ -30,6 +32,8 @@ public class ManagerOperationsFunction
         IOperationsRepository ops,
         IOrderRepository orders,
         IUserRepository users,
+        IStaffRepository staff,
+        IOutletRepository outlets,
         AuthService auth,
         NotificationService notification,
         ILoggerFactory loggerFactory)
@@ -37,6 +41,8 @@ public class ManagerOperationsFunction
         _ops = ops;
         _orders = orders;
         _users = users;
+        _staff = staff;
+        _outlets = outlets;
         _auth = auth;
         _notification = notification;
         _log = loggerFactory.CreateLogger<ManagerOperationsFunction>();
@@ -51,7 +57,21 @@ public class ManagerOperationsFunction
             var (ok, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
             if (!ok) return authError!;
 
-            var outletId = await ResolveOutletIdAsync(req);
+            var roles = AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth);
+            string? outletId;
+            if (!RoleHelper.HasAnyRole(roles, new[] { RoleHelper.Admin }))
+            {
+                var (allowed, assignedOutletId, accessError) = await OutletHelper.ValidateOutletAccess(
+                    req, _auth, _users, _staff, _outlets);
+                if (!allowed)
+                {
+                    var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                    await forbidden.WriteAsJsonAsync(new { error = accessError ?? "Outlet access denied" });
+                    return forbidden;
+                }
+                outletId = assignedOutletId;
+            }
+            else outletId = await ResolveOutletIdAsync(req);
             if (string.IsNullOrWhiteSpace(outletId))
             {
                 var bad = req.CreateResponse(HttpStatusCode.BadRequest);

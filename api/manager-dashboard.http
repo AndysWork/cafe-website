@@ -1,0 +1,31 @@
+@baseUrl = http://localhost:7071/api
+@managerToken = REPLACE_WITH_MANAGER_TOKEN
+@assignedOutletId = REPLACE_WITH_ASSIGNED_OUTLET_ID
+@unassignedOutletId = REPLACE_WITH_UNASSIGNED_OUTLET_ID
+
+### Assigned active outlets only
+GET {{baseUrl}}/manage/dashboard/outlets
+Authorization: Bearer {{managerToken}}
+
+### Read-only dashboard for an assigned outlet
+GET {{baseUrl}}/manage/dashboard
+Authorization: Bearer {{managerToken}}
+X-Outlet-Id: {{assignedOutletId}}
+
+### Unassigned outlet must return 403
+GET {{baseUrl}}/manage/dashboard
+Authorization: Bearer {{managerToken}}
+X-Outlet-Id: {{unassignedOutletId}}
+
+### No authentication must return 401
+GET {{baseUrl}}/manage/dashboard/outlets
+
+### Current recorded collections by IST order date (same totals as Web Sales)
+GET {{baseUrl}}/manage/reports/order-period-collection?from=2026-11-01&to=2026-11-14
+Authorization: Bearer {{managerToken}}
+X-Outlet-Id: {{assignedOutletId}}
+
+### Unassigned collection outlet must return 403
+GET {{baseUrl}}/manage/reports/order-period-collection?from=2026-11-01&to=2026-11-14
+Authorization: Bearer {{managerToken}}
+X-Outlet-Id: {{unassignedOutletId}}

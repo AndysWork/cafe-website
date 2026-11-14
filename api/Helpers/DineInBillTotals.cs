@@ -8,6 +8,18 @@ namespace Cafe.Api.Helpers;
 
 public static class DineInBillTotals
 {
+    public static async Task RecalculateAsync(IOrderRepository orders, DineInSession session)
+    {
+        var rounds = new List<Order>();
+        foreach (var id in session.OrderIds)
+        {
+            var round = await orders.GetOrderByIdAsync(id)
+                ?? throw new InvalidOperationException("A linked dine-in order was not found.");
+            rounds.Add(round);
+        }
+        Apply(session, rounds);
+    }
+
     public static void Apply(DineInSession session, IEnumerable<Order> orders)
     {
         var activeOrders = orders
@@ -56,16 +68,8 @@ public static class DineInBillTotals
                 throw new InvalidOperationException("A table payment is being processed.");
 
             var expectedUpdatedAt = session.UpdatedAt;
-            var rounds = new List<Order>();
-            foreach (var id in session.OrderIds)
-            {
-                var round = await orders.GetOrderByIdAsync(id)
-                    ?? throw new InvalidOperationException("A linked dine-in order was not found.");
-                rounds.Add(round);
-            }
-
             var previousBill = session.GrandTotal;
-            Apply(session, rounds);
+            await RecalculateAsync(orders, session);
             var correctPaidAmount = reconcilePaidBill
                 && string.Equals(session.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase)
                 && (previousBill != session.GrandTotal || session.AmountPaid != session.GrandTotal

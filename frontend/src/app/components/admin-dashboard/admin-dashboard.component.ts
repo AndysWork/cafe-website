@@ -1,18 +1,39 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, HostListener, Input, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { OrderService, Order, OrderItem } from '../../services/order.service';
+import { OrderService, Order, OrderItem, OrderPeriodCollection } from '../../services/order.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { SalesService, Sales } from '../../services/sales.service';
 import { ExpenseService, Expense } from '../../services/expense.service';
 import { OutletService } from '../../services/outlet.service';
 import { environment } from '../../../environments/environment';
-import { forkJoin, of, Subscription } from 'rxjs';
-import { catchError, filter, map } from 'rxjs/operators';
+import { forkJoin, Observable, of, Subscription, timer } from 'rxjs';
+import { catchError, distinctUntilChanged, filter, map } from 'rxjs/operators';
 import { AuthStore } from '../../store/auth.store';
-import { formatIstDate, getIstDateString } from '../../utils/date-utils';
-import { calculateDashboardInsights, calculateDashboardOverview, DashboardDay, DashboardInsights, DashboardOverview, DashboardSummary } from './dashboard-overview';
+import { formatIstDate, getIstDateString, getIstInputDate, getStoredTimestampEpoch } from '../../utils/date-utils';
+import { calculateDashboardInsights, calculateDashboardItemSales, calculateDashboardOverview, DashboardDay, DashboardInsights, DashboardItemSales, DashboardOverview, DashboardSummary } from './dashboard-overview';
+import { CafeTableService, CafeTableFloorView, FloorSummary } from '../../services/cafe-table.service';
+import { Attendance, AttendanceService } from '../../services/attendance.service';
+import { InventoryService, StockAlert } from '../../services/inventory.service';
+import { ManagerOpsBoardResponse, ManagerOpsService } from '../../services/manager-ops.service';
+import { calculateWebSalesOverview, orderSource, WebSalesOverview } from '../admin-web-sales/web-sales-overview';
+import { downloadFile, toCsv } from '../../utils/file-download';
+import { Outlet } from '../../models/outlet.model';
+import { OutletStore } from '../../store/outlet.store';
+
+type ActionCategory = 'Operations' | 'Payments' | 'Inventory' | 'Staff';
+interface DashboardAction {
+  title: string;
+  detail: string;
+  owner: string;
+  count: number;
+  category: ActionCategory;
+  severity: 'high' | 'medium' | 'low';
+  icon: string;
+  route: string | null;
+  cta: string;
+}
 
 interface OnlineSale {
   _id?: string;
@@ -82,6 +103,24 @@ interface OutboxDeadLettersResponse {
   items: OutboxDeadLetterItem[];
 }
 
+interface DashboardAttendance {
+  staffId: string;
+  status: Attendance['status'];
+  clockIn?: string | null;
+  clockOut?: string | null;
+  sessions?: { clockIn?: string | null; clockOut?: string | null }[];
+}
+
+interface DashboardReadData {
+  menuItems: MenuItem[];
+  onlineSales: OnlineSale[];
+  offlineSales: Sales[];
+  expenses: Expense[];
+  attendance: DashboardAttendance[] | null;
+  stockAlerts: StockAlert[] | null;
+  unavailableSources: string[];
+}
+
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
@@ -90,15 +129,106 @@ interface OutboxDeadLettersResponse {
   styleUrls: ['./admin-dashboard.component.scss']
 })
 export class AdminDashboardComponent implements OnInit, OnDestroy {
+  @Input() managerView = false;
   private orderService = inject(OrderService);
   private menuService = inject(MenuService);
   private salesService = inject(SalesService);
   private expenseService = inject(ExpenseService);
   private outletService = inject(OutletService);
   private http = inject(HttpClient);
+  private tableService = inject(CafeTableService);
+  private attendanceService = inject(AttendanceService);
+  private inventoryService = inject(InventoryService);
+  private managerOps = inject(ManagerOpsService);
+  private outletStore = inject(OutletStore);
   readonly authStore = inject(AuthStore);
   private outletSubscription?: Subscription;
-  periodDays: 7 | 30 | 90 = 30;
+  private outletListSubscription?: Subscription;
+  private dataSubscription?: Subscription;
+  private refreshSubscription?: Subscription;
+  private collectionSubscription?: Subscription;
+  private managerOutlets: Outlet[] = [];
+  readonly availableOutlets$ = this.outletService.availableOutlets$.pipe(map(outlets =>
+    this.managerView ? outlets.filter(outlet => this.isAssignedOutlet(outlet)) : outlets));
+  periodDays: 1 | 7 | 30 | 90 = 30;
+  showComparison = true;
+  operationalErrors: string[] = [];
+  collection: OrderPeriodCollection | null = null;
+  collectionLoading = false;
+  collectionError: string | null = null;
+  operations: ManagerOpsBoardResponse | null = null;
+  floor: { tables: CafeTableFloorView[]; summary: FloorSummary } | null = null;
+  attendance: DashboardAttendance[] | null = null;
+  stockAlerts: StockAlert[] | null = null;
+  periodOrders: Order[] = [];
+  appOverview: WebSalesOverview = calculateWebSalesOverview([], getIstDateString(), getIstDateString());
+  itemSales: DashboardItemSales = calculateDashboardItemSales([], [], getIstDateString(), getIstDateString(), '', '', '');
+  itemSearch = '';
+  itemCategory = '';
+  itemSource = '';
+  orderSearch = '';
+  orderStatus = '';
+  actionCategory: 'All' | ActionCategory = 'All';
+  readonly actionCategories = ['All', 'Operations', 'Payments', 'Inventory', 'Staff'] as const;
+  readonly orderStatuses = ['', 'pending', 'confirmed', 'scheduled', 'preparing', 'ready', 'out-for-delivery', 'served', 'delivered', 'cancelled', 'rejected'];
+  readonly itemSources = ['Dine-In', 'Takeaway', 'Website', 'Phone', 'Partner', 'Other'];
+  expandedPanels = new Set<string>();
+  isCompact = window.innerWidth <= 767;
+  itemCategoryOptions: string[] = [];
+
+  @HostListener('window:resize')
+  onResize(): void { this.isCompact = window.innerWidth <= 767; }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (!document.hidden && !this.isLoading && !this.errorMessage) this.loadDashboardData();
+  }
+
+  dashboardRoute(workspace: 'orders' | 'tables' | 'kitchen' | 'counter'): string {
+    const routes = {
+      orders: this.managerView ? '/manager/operations' : '/admin/web-sales',
+      tables: this.managerView ? '/staff/dine-in' : '/admin/tables',
+      kitchen: this.managerView ? '/kitchen/display' : '/admin/kitchen-display',
+      counter: this.managerView ? '/manager/counter-sale' : '/admin/counter-sale'
+    };
+    return routes[workspace];
+  }
+
+  get quickActions() {
+    return this.managerView ? [
+      { label: 'Create Order', icon: 'cart', route: '/manager/counter-sale' },
+      { label: 'Manage Tables', icon: 'table', route: '/staff/dine-in' },
+      { label: 'Assign Delivery', icon: 'delivery', route: '/manager/operations' },
+      { label: 'Kitchen / KOT', icon: 'kitchen', route: '/kitchen/display' },
+      { label: 'Settle Tables', icon: 'wallet', route: '/staff/cashier' },
+      { label: 'Dine-In Report', icon: 'report', route: '/manager/dine-in-report' },
+      { label: 'My Attendance', icon: 'staff', route: '/staff/attendance' },
+      { label: 'My Payslip', icon: 'rupee', route: '/staff/payslip' }
+    ] : [
+      { label: 'Create Order', icon: 'cart', route: '/admin/counter-sale' },
+      { label: 'Manage Tables', icon: 'table', route: '/admin/tables' },
+      { label: 'Assign Delivery', icon: 'delivery', route: '/admin/web-sales' },
+      { label: 'Update Inventory', icon: 'box', route: '/admin/inventory' },
+      { label: 'Reconcile Payments', icon: 'wallet', route: '/admin/web-sales' },
+      { label: 'Kitchen / KOT', icon: 'kitchen', route: '/admin/kitchen-display' },
+      { label: 'Export Reports', icon: 'report', route: '/admin/reports' },
+      { label: 'Staff Shifts', icon: 'staff', route: '/admin/attendance' }
+    ];
+  }
+
+  get commandCards() {
+    return [
+      { label: 'Net Sales', icon: 'rupee', tone: 'green', value: this.overview.current.revenue, currency: true, change: this.changeFor('revenue'), detail: 'Recorded payouts + offline sales' },
+      { label: 'Sales Records', icon: 'cart', tone: 'blue', value: this.overview.current.orders, currency: false, change: this.changeFor('orders'), detail: 'Online + offline records' },
+      { label: 'Avg. Sale Value', icon: 'basket', tone: 'purple', value: this.overview.current.average, currency: true, change: this.changeFor('average'), detail: 'Per recorded sale' },
+      { label: 'Gross Contribution', icon: 'chart', tone: 'green', value: null, currency: true, change: null, detail: 'Historical costs not tracked' },
+      { label: 'App Discounts', icon: 'tag', tone: 'amber', value: this.appOverview.discounts, currency: true, change: null, detail: 'Coupons + loyalty discounts' },
+      { label: 'App Refunds', icon: 'refund', tone: 'rose', value: this.periodRefunds, currency: true, change: null, detail: 'Refunded order value' },
+      { label: 'Cancellations', icon: 'cancel', tone: 'rose', value: this.appOverview.cancelledOrders, currency: false, change: null, detail: 'App orders in this period' },
+      { label: 'Paid App Orders', icon: 'wallet', tone: 'blue', value: this.appOverview.paidOrderValue, currency: true, change: null, detail: 'Excludes consolidated dine-in bills' },
+      { label: 'Outstanding Dine-In', icon: 'table', tone: 'amber', value: this.tableDues, currency: true, change: null, detail: this.floor ? `${this.unpaidTables} open tables` : 'Table data unavailable' }
+    ];
+  }
   trendMetric: 'revenue' | 'orders' | 'average' = 'revenue';
   overview: DashboardOverview = calculateDashboardOverview([], [], 30, getIstDateString());
   insights: DashboardInsights = calculateDashboardInsights([], [], 30, getIstDateString());
@@ -152,38 +282,108 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   errorMessage: string | null = null;
 
   ngOnInit(): void {
+    this.refreshSubscription = timer(30000, 30000).subscribe(() => {
+      if (!document.hidden && !this.isLoading && !this.errorMessage) this.loadDashboardData();
+    });
+    if (this.managerView) {
+      this.initializeManagerOutlets();
+      return;
+    }
+    this.subscribeToOutlets();
+    this.outletListSubscription = this.outletService.getActiveOutlets().subscribe();
+  }
+
+  private initializeManagerOutlets(): void {
+    this.isLoading = true;
+    this.errorMessage = null;
+    this.outletListSubscription?.unsubscribe();
+    this.outletListSubscription = this.http.get<Outlet[]>(`${environment.apiUrl}/manage/dashboard/outlets`).subscribe({
+      next: outlets => {
+        this.managerOutlets = outlets;
+        this.outletStore.setAvailableOutlets(outlets);
+        const selected = this.selectedOutlet;
+        const outlet = outlets.find(item => (item._id || item.id) === (selected?._id || selected?.id)) || outlets[0];
+        if (!outlet) {
+          this.outletStore.clearSelectedOutlet();
+          this.isLoading = false;
+          this.errorMessage = 'No active outlets are assigned to your Manager account. Contact an administrator.';
+          return;
+        }
+        this.outletService.selectOutlet(outlet);
+        this.subscribeToOutlets();
+      },
+      error: error => {
+        console.error('Unable to load Manager dashboard outlets', error);
+        this.isLoading = false;
+        this.errorMessage = 'Unable to load your assigned outlets. Please retry.';
+      }
+    });
+  }
+
+  private isAssignedOutlet(outlet: Outlet | null): boolean {
+    return !!outlet && this.managerOutlets.some(item => (item._id || item.id) === (outlet._id || outlet.id));
+  }
+
+  private subscribeToOutlets(): void {
+    this.outletSubscription?.unsubscribe();
     // Subscribe to outlet changes and reload data
     this.outletSubscription = this.outletService.selectedOutlet$
-      .pipe(filter(outlet => outlet !== null))
+      .pipe(filter(outlet => outlet !== null || this.managerView),
+        distinctUntilChanged((previous, current) => (previous?._id || previous?.id) === (current?._id || current?.id)))
       .subscribe(() => {
         this.loadDashboardData();
       });
-
-    // Load immediately if outlet is already selected
-    if (this.outletService.getSelectedOutlet()) {
-      this.loadDashboardData();
-    }
   }
 
   ngOnDestroy(): void {
     this.outletSubscription?.unsubscribe();
+    this.outletListSubscription?.unsubscribe();
+    this.dataSubscription?.unsubscribe();
+    this.refreshSubscription?.unsubscribe();
+    this.collectionSubscription?.unsubscribe();
   }
 
   loadDashboardData(): void {
+    this.dataSubscription?.unsubscribe();
+    this.collectionSubscription?.unsubscribe();
+    this.collection = null;
+    this.collectionLoading = false;
+    this.collectionError = null;
+    if (this.managerView && !this.managerOutlets.length) {
+      this.initializeManagerOutlets();
+      return;
+    }
+    if (this.managerView && !this.isAssignedOutlet(this.selectedOutlet)) {
+      this.isLoading = false;
+      this.errorMessage = 'Select one of your assigned outlets to view the dashboard.';
+      return;
+    }
     this.isLoading = true;
     this.errorMessage = null;
+    this.operationalErrors = [];
+    this.loadCollections();
 
-    // Load all data in parallel
-    forkJoin({
-      orders: this.orderService.getAllOrders(),
+    const readData: Observable<DashboardReadData> = this.managerView
+      ? this.http.get<DashboardReadData>(`${environment.apiUrl}/manage/dashboard`)
+      : forkJoin({
       menuItems: this.menuService.getMenuItems(),
-      onlineSales: this.http.get<{ success: boolean; data: OnlineSale[] }>(`${environment.apiUrl}/online-sales?includeWebSales=true`),
+      onlineSales: this.http.get<{ success: boolean; data: OnlineSale[] }>(`${environment.apiUrl}/online-sales?includeWebSales=true`)
+        .pipe(map(response => response.data || [])),
       offlineSales: this.salesService.getAllSales(),
       expenses: this.expenseService.getAllExpenses(),
-      outboxHealth: this.http.get<OutboxHealth>(`${environment.apiUrl}/manage/ops/outbox-health`).pipe(
+      attendance: this.loadOptional(this.attendanceService.getTodayAttendance(), 'Staff attendance'),
+      stockAlerts: this.loadOptional(this.inventoryService.getStockAlerts(), 'Stock alerts'),
+      unavailableSources: of([])
+    });
+    this.dataSubscription = forkJoin({
+      readData,
+      orders: this.orderService.getAllOrders(),
+      operations: this.loadOptional(this.managerOps.getBoard(), 'Kitchen and delivery operations'),
+      floor: this.loadOptional(this.tableService.getFloor(), 'Table occupancy and dues'),
+      outboxHealth: this.managerView ? of(null) : this.http.get<OutboxHealth>(`${environment.apiUrl}/manage/ops/outbox-health`).pipe(
         catchError(() => of(null))
       ),
-      outboxDeadLetters: this.http.get<OutboxDeadLettersResponse>(`${environment.apiUrl}/manage/ops/notification-dead-letters`).pipe(
+      outboxDeadLetters: this.managerView ? of([]) : this.http.get<OutboxDeadLettersResponse>(`${environment.apiUrl}/manage/ops/notification-dead-letters`).pipe(
         // Endpoint returns a wrapper payload { count, items }.
         // Keep dashboard model unchanged by projecting to items.
         map(response => response?.items || []),
@@ -192,10 +392,15 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (data) => {
         this.allOrders = data.orders;
-        this.menuItems = data.menuItems;
-        this.onlineSales = data.onlineSales.data || [];
-        this.offlineSales = data.offlineSales;
-        this.expenses = data.expenses;
+        this.menuItems = data.readData.menuItems;
+        this.onlineSales = data.readData.onlineSales;
+        this.offlineSales = data.readData.offlineSales;
+        this.expenses = data.readData.expenses;
+        this.operations = data.operations;
+        this.floor = data.floor;
+        this.attendance = data.readData.attendance;
+        this.stockAlerts = data.readData.stockAlerts;
+        this.operationalErrors.push(...data.readData.unavailableSources);
         this.outboxHealth = data.outboxHealth;
         this.outboxDeadLetters = data.outboxDeadLetters || [];
 
@@ -217,11 +422,41 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   setPeriod(value: string): void {
-    if (value === '7') this.periodDays = 7;
+    if (value === '1') this.periodDays = 1;
+    else if (value === '7') this.periodDays = 7;
     else if (value === '30') this.periodDays = 30;
     else if (value === '90') this.periodDays = 90;
     else return;
     this.refreshOverview();
+    this.loadCollections();
+  }
+
+  loadCollections(): void {
+    this.collectionSubscription?.unsubscribe();
+    this.collection = null;
+    this.collectionError = null;
+    this.collectionLoading = false;
+    if (!this.selectedOutlet || (this.managerView && !this.isAssignedOutlet(this.selectedOutlet))) return;
+    this.collectionLoading = true;
+    this.collectionSubscription = this.orderService.getPeriodCollection(this.rangeStart, getIstDateString())
+      .pipe(map(collection => {
+        if (!collection || !['cash', 'upi', 'other', 'unallocated', 'total', 'unknownAmountOrders']
+          .every(key => typeof collection[key as keyof OrderPeriodCollection] === 'number'
+            && Number.isFinite(collection[key as keyof OrderPeriodCollection]))) {
+          throw new Error('Invalid collection totals response');
+        }
+        return collection;
+      })).subscribe({
+        next: collection => {
+          this.collection = collection;
+          this.collectionLoading = false;
+        },
+        error: error => {
+          console.error('Unable to load dashboard collections', error);
+          this.collectionError = 'Cash and UPI collections are unavailable. Please retry.';
+          this.collectionLoading = false;
+        }
+      });
   }
 
   setTrendMetric(value: string): void {
@@ -230,8 +465,205 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   refreshOverview(): void {
     const today = getIstDateString();
+    const start = this.rangeStart;
     this.overview = calculateDashboardOverview(this.onlineSales, this.offlineSales, this.periodDays, today);
     this.insights = calculateDashboardInsights(this.allOrders, this.expenses, this.periodDays, today);
+    this.periodOrders = this.allOrders.filter(order => {
+      const epoch = getStoredTimestampEpoch(order.createdAt, order.createdAtIsUtc);
+      if (!epoch) return false;
+      const date = getIstInputDate(new Date(epoch));
+      return date >= start && date <= today;
+    });
+    this.appOverview = calculateWebSalesOverview(this.periodOrders, this.rangeStart, today);
+    this.itemCategoryOptions = calculateDashboardItemSales(this.periodOrders, this.menuItems, start, today, '', '', '')
+      .categories.map(category => category.name).sort();
+    this.refreshItemSales();
+  }
+
+  private loadOptional<T>(request: Observable<T>, label: string): Observable<T | null> {
+    return request.pipe(catchError(error => {
+      console.error(`Unable to load dashboard ${label}`, error);
+      this.operationalErrors.push(label);
+      return of(null);
+    }));
+  }
+
+  get selectedOutlet(): Outlet | null { return this.outletService.getSelectedOutlet(); }
+
+  selectOutlet(id: string, outlets: Outlet[]): void {
+    const outlet = outlets.find(item => (item._id || item.id) === id);
+    if (outlet && (!this.managerView || this.isAssignedOutlet(outlet))) this.outletService.selectOutlet(outlet);
+  }
+
+  get rangeStart(): string {
+    return getIstInputDate(new Date(Date.parse(`${getIstDateString()}T00:00:00+05:30`) - (this.periodDays - 1) * 86400000));
+  }
+
+  get rangeLabel(): string {
+    return this.periodDays === 1 ? 'Today' : `${this.chartDate(this.rangeStart)} - ${this.chartDate(getIstDateString())}`;
+  }
+
+  togglePanel(panel: string): void {
+    if (this.expandedPanels.has(panel)) this.expandedPanels.delete(panel);
+    else this.expandedPanels.add(panel);
+  }
+
+  sourceFor(order: Order): string { return orderSource(order); }
+
+  statusLabel(status: string): string {
+    return status ? status.replace(/-/g, ' ').replace(/\b\w/g, char => char.toUpperCase()) : 'All';
+  }
+
+  get currentKitchenOrders(): Order[] {
+    return this.allOrders.filter(order => ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status));
+  }
+
+  queueAge(order: Order): number | null {
+    const epoch = getStoredTimestampEpoch(order.createdAt, order.createdAtIsUtc);
+    return epoch ? Math.max(0, Math.floor((Date.now() - epoch) / 60000)) : null;
+  }
+
+  get kitchenBuckets(): { label: string; count: number; color: string }[] {
+    const ages = this.currentKitchenOrders.map(order => this.queueAge(order)).filter((age): age is number => age !== null);
+    return [
+      { label: 'High wait (>30 min)', count: ages.filter(age => age > 30).length, color: '#ff5d70' },
+      { label: 'Medium (20-30 min)', count: ages.filter(age => age >= 20 && age <= 30).length, color: '#f5bc16' },
+      { label: 'Within 20 min', count: ages.filter(age => age < 20).length, color: '#53bd69' }
+    ];
+  }
+
+  get kitchenBreaches(): number {
+    return this.currentKitchenOrders.filter(order => order.status !== 'ready' && (this.queueAge(order) ?? 0) >= 20).length;
+  }
+
+  get oldestKitchenWait(): number | null {
+    const ages = this.currentKitchenOrders.map(order => this.queueAge(order)).filter((age): age is number => age !== null);
+    return ages.length ? Math.max(...ages) : null;
+  }
+
+  formatQueueWait(minutes: number | null): string {
+    if (minutes === null) return '—';
+    if (minutes < 60) return `${minutes} min`;
+    if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    return `${Math.floor(minutes / 1440)}d ${Math.floor(minutes % 1440 / 60)}h`;
+  }
+
+  get tableDues(): number | null {
+    return this.floor ? this.floor.tables.reduce((sum, table) => sum + Math.max(0, table.amountDue), 0) : null;
+  }
+
+  get unpaidTables(): number {
+    return this.floor?.tables.filter(table => table.amountDue > 0).length ?? 0;
+  }
+
+  get staffPresent(): number {
+    return new Set(this.attendance?.filter(row => !!row.clockIn).map(row => row.staffId)).size;
+  }
+
+  get staffOnShift(): number {
+    return new Set(this.attendance?.filter(row => row.sessions?.length
+      ? row.sessions.some(session => !!session.clockIn && !session.clockOut)
+      : !!row.clockIn && !row.clockOut).map(row => row.staffId)).size;
+  }
+
+  get activeDeliveryOrders(): Order[] {
+    return this.allOrders.filter(order => order.orderType === 'delivery'
+      && !['delivered', 'cancelled', 'rejected'].includes(order.status));
+  }
+
+  get deliveredCount(): number {
+    return this.periodOrders.filter(order => order.orderType === 'delivery' && order.status === 'delivered').length;
+  }
+
+  get delayedDeliveries(): number {
+    return this.activeDeliveryOrders.filter(order => order.requestedDeliveryAtUtc
+      && Date.parse(order.requestedDeliveryAtUtc) < Date.now()).length;
+  }
+
+  get periodRefunds(): number {
+    return this.periodOrders.filter(order => order.paymentStatus === 'refunded').reduce((sum, order) => sum + order.total, 0);
+  }
+
+  get statusBreakdown(): { status: string; count: number; color: string }[] {
+    return [
+      { status: 'completed', statuses: ['delivered', 'served'], color: '#49ba21' },
+      { status: 'out-for-delivery', statuses: ['out-for-delivery'], color: '#39a1eb' },
+      { status: 'preparing', statuses: ['preparing'], color: '#854df5' },
+      { status: 'ready', statuses: ['ready'], color: '#f7be17' },
+      { status: 'pending / booked', statuses: ['pending', 'confirmed', 'scheduled'], color: '#9da8b9' },
+      { status: 'cancelled', statuses: ['cancelled', 'rejected'], color: '#ff5369' }
+    ].map(row => ({ status: row.status, color: row.color,
+      count: this.periodOrders.filter(order => row.statuses.includes(order.status)).length }));
+  }
+
+  get actions(): DashboardAction[] {
+    const reconciliation = this.allOrders.filter(order => order.paymentStatus === 'pending_verification'
+      && !['cancelled', 'rejected'].includes(order.status)).length;
+    const stock = this.stockAlerts?.filter(alert => !alert.isResolved
+      && ['LowStock', 'OutOfStock', 'ExpiredStock'].includes(alert.type)).length ?? 0;
+    const inventory = stock + this.menuItems.filter(item => item.isAvailable === false).length;
+    return [
+      { title: 'Kitchen SLA Breach', detail: 'Orders waiting 20+ minutes in the kitchen', owner: 'Kitchen Lead',
+        count: this.kitchenBreaches, category: 'Operations', severity: 'high', icon: 'kitchen', route: this.dashboardRoute('kitchen'), cta: 'View Kitchen' },
+      { title: 'Unpaid / Partially Paid Tables', detail: 'Open table balances need settlement', owner: 'Floor Manager',
+        count: this.unpaidTables, category: 'Payments', severity: 'medium', icon: 'table', route: '/staff/cashier', cta: 'Settle Now' },
+      { title: 'Payment Reconciliation', detail: 'Orders awaiting payment verification', owner: 'Accounts',
+        count: reconciliation, category: 'Payments', severity: 'medium', icon: 'wallet',
+        route: this.managerView ? null : '/admin/web-sales', cta: this.managerView ? 'Admin review required' : 'Reconcile' },
+      { title: 'Low Stock / Unavailable Items', detail: 'Unresolved stock alerts and unavailable menu items', owner: 'Store Manager',
+        count: inventory, category: 'Inventory', severity: 'medium', icon: 'box',
+        route: this.managerView ? null : stock ? '/admin/inventory' : '/admin/menu',
+        cta: this.managerView ? 'Read-only · Admin review' : stock ? 'View Inventory' : 'Manage Menu' },
+      { title: 'Delivery Delays', detail: 'Assigned or queued orders past their requested delivery time', owner: 'Delivery Manager',
+        count: this.delayedDeliveries, category: 'Operations', severity: 'medium', icon: 'delivery', route: this.dashboardRoute('orders'), cta: 'View Deliveries' },
+      { title: 'Staff / Shift Issue', detail: 'Staff marked absent or late today', owner: 'Shift Manager',
+        count: this.attendance?.filter(row => ['absent', 'late'].includes(row.status)).length ?? 0,
+        category: 'Staff', severity: 'low', icon: 'staff', route: this.managerView ? null : '/admin/attendance',
+        cta: this.managerView ? 'Read-only · Admin review' : 'Manage Shifts' }
+    ];
+  }
+
+  actionCount(category: string): number {
+    return this.actions.filter(action => action.count > 0 && (category === 'All' || action.category === category)).length;
+  }
+
+  get visibleActions(): DashboardAction[] {
+    return this.actions.filter(action => action.count > 0 && (this.actionCategory === 'All' || action.category === this.actionCategory));
+  }
+
+  get liveOrders(): Order[] {
+    const query = this.orderSearch.trim().toLowerCase();
+    return this.periodOrders.filter(order => (!this.orderStatus || order.status === this.orderStatus)
+      && (!query || [order.id, order.customerName, order.username, order.tableNumber, ...order.items.map(item => item.name)]
+        .some(value => value?.toLowerCase().includes(query))))
+      .sort((a, b) => getStoredTimestampEpoch(b.createdAt, b.createdAtIsUtc) - getStoredTimestampEpoch(a.createdAt, a.createdAtIsUtc))
+      .slice(0, 8);
+  }
+
+  orderTime(order: Order): number { return getStoredTimestampEpoch(order.createdAt, order.createdAtIsUtc); }
+
+  statusCount(status: string): number {
+    return status ? this.periodOrders.filter(order => order.status === status).length : this.periodOrders.length;
+  }
+
+  refreshItemSales(): void {
+    this.itemSales = calculateDashboardItemSales(this.periodOrders, this.menuItems, this.rangeStart, getIstDateString(),
+      this.itemSearch, this.itemCategory, this.itemSource);
+  }
+
+  get topItemsByRevenue() { return [...this.itemSales.rows].sort((a, b) => b.value - a.value).slice(0, 5); }
+
+  get itemTrendPoints(): string {
+    const max = Math.max(...this.itemSales.days.map(day => day.quantity), 1);
+    return this.itemSales.days.map((day, index) =>
+      `${12 + index * 276 / Math.max(this.itemSales.days.length - 1, 1)},${86 - day.quantity / max * 70}`).join(' ');
+  }
+
+  exportItemSales(): void {
+    const text = (value: string) => (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value).replace(/"/g, '""');
+    const csv = toCsv(['Item', 'Category', 'Quantity', 'Orders', 'Dine-in', 'Takeaway', 'Delivery/Other', 'Item total'],
+      this.itemSales.rows.map(row => [text(row.name), text(row.category), row.quantity, row.orders, row.dineIn, row.takeaway, row.delivery, row.value]));
+    downloadFile(csv, `item-sales-${this.rangeStart}-${getIstDateString()}.csv`);
   }
 
   get maxHourlyOrders(): number {

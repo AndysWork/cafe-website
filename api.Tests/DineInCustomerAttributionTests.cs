@@ -65,7 +65,7 @@ public sealed class DineInCustomerAttributionTests
             {
                 var cursor = new Mock<IAsyncCursor<CafeTable>>();
                 cursor.SetupGet(value => value.Current).Returns(new[] {
-                    new CafeTable { OutletId = OutletId, TableNumber = "T1" }
+                    new CafeTable { OutletId = OutletId, TableNumber = "T1", TableKey = "T1" }
                 });
                 cursor.SetupSequence(value => value.MoveNextAsync(It.IsAny<CancellationToken>()))
                     .ReturnsAsync(true).ReturnsAsync(false);
@@ -131,12 +131,12 @@ public sealed class DineInCustomerAttributionTests
             NullLoggerFactory.Instance);
         _floor = new CafeTableFunction(
             new CafeTableRepository(database.Object, NullLogger<CafeTableRepository>.Instance),
-            _orders.Object, _outlets.Object, _auth, null!, NullLoggerFactory.Instance);
+            _orders.Object, _outlets.Object, _users.Object, Mock.Of<IStaffRepository>(), _auth, null!, NullLoggerFactory.Instance);
         database.Setup(value => value.GetCollection<EventLog>("EventLogs", null))
             .Returns(new Mock<IMongoCollection<EventLog>> { DefaultValue = DefaultValue.Mock }.Object);
         _orderFunction = new OrderFunction(
             _orders.Object, _menu.Object, Mock.Of<IOfferRepository>(), Mock.Of<ILoyaltyRepository>(),
-            _users.Object, Mock.Of<IOperationsRepository>(), null!, _auth, null!,
+            _users.Object, Mock.Of<IStaffRepository>(), _outlets.Object, Mock.Of<IOperationsRepository>(), null!, _auth, null!,
             new EventLogService(database.Object, NullLogger<EventLogService>.Instance),
             null!, null!, NullLoggerFactory.Instance);
     }
@@ -663,6 +663,33 @@ public sealed class DineInCustomerAttributionTests
     }
 
     [Theory]
+    [InlineData("dine-in", null, 0)]
+    [InlineData("dine-in", 9, 0)]
+    [InlineData("pickup", null, 2)]
+    [InlineData("pickup", 9, 9)]
+    [InlineData("delivery", 9, 9)]
+    public async Task AdminEditsCannotAddOrRetainPlatformChargesForDineIn(
+        string orderType, int? requestedCharge, decimal expectedCharge)
+    {
+        var order = new Order
+        {
+            Id = "existing-order", OrderType = orderType, Status = "pending",
+            Subtotal = 100, PlatformCharge = 2, Total = 102,
+            Items = new() { new() { MenuItemId = MenuItemId, Name = "Tea", Quantity = 1, Price = 100, Total = 100 } }
+        };
+        _savedOrders.Add(order);
+
+        var response = await _orderFunction.AdminReconcileOrder(Request(new
+        {
+            reason = "Correct platform charge", platformCharge = requestedCharge
+        }, roleOverride: "admin"), order.Id);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(expectedCharge, order.PlatformCharge);
+        Assert.Equal(100 + expectedCharge, order.Total);
+    }
+
+    [Theory]
     [InlineData("cash_at_counter", true)]
     [InlineData("upi-qr", true)]
     [InlineData("upi-qr", false)]
@@ -890,10 +917,13 @@ public sealed class DineInCustomerAttributionTests
     }
 
     [Theory]
-    [InlineData("cash_at_counter", 110, 0)]
-    [InlineData("cod", 110, 0)]
-    [InlineData("upi-qr", 0, 110)]
-    public async Task ReconciliationReclassifiesFullSessionAndHistoricalCollections(string method, int cash, int upi)
+    [InlineData("cash_at_counter", 110, 0, "admin")]
+    [InlineData("cod", 110, 0, "admin")]
+    [InlineData("upi-qr", 0, 110, "admin")]
+    [InlineData("cash_at_counter", 110, 0, "manager")]
+    [InlineData("cod", 110, 0, "manager")]
+    [InlineData("upi-qr", 0, 110, "manager")]
+    public async Task ReconciliationReclassifiesFullSessionAndHistoricalCollections(string method, int cash, int upi, string reportRole)
     {
         await PlaceOrder("Asha");
         await PlaceOrder("Asha");
@@ -922,11 +952,14 @@ public sealed class DineInCustomerAttributionTests
         _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), true), Times.Once);
 
         var start = new DateTime(2026, 11, 8);
-        _orders.Setup(value => value.GetAllOrdersAsync(null, 1, 500, start, start.AddDays(1)))
+        _users.Setup(value => value.GetUserByIdAsync(WaiterId))
+            .ReturnsAsync(new User { Id = WaiterId, AssignedOutlets = new() { OutletId } });
+        _orders.Setup(value => value.GetAllOrdersAsync(OutletId, 1, 500, start, start.AddDays(1)))
             .ReturnsAsync(_savedOrders);
         _orders.Setup(value => value.GetDineInSessionsByIdsAsync(It.IsAny<IReadOnlyCollection<string>>()))
             .ReturnsAsync(new List<DineInSession> { _session });
-        var request = Request(new { }, roleOverride: "admin");
+        var request = Request(new { }, roleOverride: reportRole);
+        request.Headers.Add("X-Outlet-Id", OutletId);
         Mock.Get(request).SetupGet(value => value.Query).Returns(
             System.Web.HttpUtility.ParseQueryString("from=2026-11-08&to=2026-11-08"));
         var report = ReadBody(await _orderFunction.GetOrderPeriodCollection(request));
@@ -985,6 +1018,141 @@ public sealed class DineInCustomerAttributionTests
         Assert.Equal(100, _session.AmountPaid);
         Assert.Equal(150, _session.GrandTotal);
         _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), false), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(1, false, 285)]
+    [InlineData(2, false, 185)]
+    [InlineData(1, true, 245)]
+    [InlineData(2, true, 165)]
+    public async Task ItemCancellationUpdatesMultiRoundDuesWithoutChangingPayments(
+        int quantity, bool staffOrder, decimal expectedTotal)
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.UserId = CustomerId;
+        order.Items[0].Quantity = 3;
+        order.Items[0].Total = order.Subtotal = order.Total = 300;
+        order.IsStaffOrder = staffOrder;
+        StaffOrderDiscount.Apply(order);
+        await PlaceOrder("Asha");
+        _session!.DiscountAmount = 10;
+        _session.LoyaltyDiscountAmount = 5;
+        _session.AmountPaid = 50;
+        _session.PaymentStatus = "partially_paid";
+        _session.PaymentEntries = new() {
+            new() { Amount = 50, PaymentMethod = "cash_at_counter", Status = "confirmed" }
+        };
+
+        var response = await _orderFunction.CancelOrderItem(
+            Request(new { quantity }, isWaiter: false), order.Id!, MenuItemId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, order.PlatformCharge);
+        Assert.Equal(expectedTotal, _session.GrandTotal);
+        Assert.Equal(50, _session.AmountPaid);
+        Assert.Equal(50, Assert.Single(_session.PaymentEntries).Amount);
+        Assert.Equal("partially_paid", _session.PaymentStatus);
+        _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(
+            It.IsAny<DineInSession>(), It.IsAny<DateTime>(), false), Times.Once);
+        var payments = ReadBody(await _function.GetCashierPendingDineInPayments(Request(new { }, roleOverride: "admin")));
+        Assert.Equal(expectedTotal - 50, payments.GetProperty("sessions")[0].GetProperty("amountDue").GetDecimal());
+        var floor = ReadBody(await _floor.GetFloor(Request(new { }, roleOverride: "admin")));
+        Assert.Equal(expectedTotal - 50, floor.GetProperty("data")[0].GetProperty("amountDue").GetDecimal());
+    }
+
+    [Fact]
+    public async Task RemovingAnEntireItemUpdatesTheSessionAndKeepsTheOtherItem()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.UserId = CustomerId;
+        order.Items.Add(new() { MenuItemId = "snack", Name = "Snack", Quantity = 1, Price = 60, Total = 60 });
+        order.Subtotal = order.Total = _session!.GrandTotal = 160;
+
+        var response = await _orderFunction.CancelOrderItem(
+            Request(new { quantity = 1 }, isWaiter: false), order.Id!, MenuItemId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("snack", Assert.Single(order.Items).MenuItemId);
+        Assert.Equal(60, _session.GrandTotal);
+    }
+
+    [Theory]
+    [InlineData(40, 45)]
+    [InlineData(100, 0)]
+    public async Task DuesReadsRecalculateAlreadyStaleSessionsWithoutWritingOrChangingCollections(
+        decimal paid, decimal expectedDue)
+    {
+        await PlaceOrder("Asha");
+        await PlaceOrder("Asha");
+        _savedOrders[1].Status = "cancelled";
+        _session!.DiscountAmount = 10;
+        _session.LoyaltyDiscountAmount = 5;
+        _session.AmountPaid = paid;
+        _session.PaymentEntries = new() {
+            new() { Amount = paid, Status = "confirmed", PaymentMethod = "cash_at_counter" },
+            new() { Amount = 10, Status = "pending", PaymentMethod = "upi-qr" }
+        };
+        _orders.Invocations.Clear();
+
+        _session.GrandTotal = 200;
+        var cashierResponse = await _function.GetCashierPendingDineInPayments(Request(new { }, roleOverride: "admin"));
+        Assert.Equal(HttpStatusCode.OK, cashierResponse.StatusCode);
+        var cashier = ReadBody(cashierResponse);
+        Assert.Equal(85, cashier.GetProperty("sessions")[0].GetProperty("grandTotal").GetDecimal());
+        Assert.Equal(expectedDue, cashier.GetProperty("sessions")[0].GetProperty("amountDue").GetDecimal());
+        Assert.Equal(expectedDue, cashier.GetProperty("payments")[0].GetProperty("amountDue").GetDecimal());
+        Assert.Equal(10, cashier.GetProperty("payments")[0].GetProperty("pendingPayment").GetProperty("amount").GetDecimal());
+
+        _session.GrandTotal = 200;
+        var floorResponse = await _floor.GetFloor(Request(new { }, roleOverride: "admin"));
+        Assert.Equal(HttpStatusCode.OK, floorResponse.StatusCode);
+        var floor = ReadBody(floorResponse).GetProperty("data")[0];
+        Assert.Equal(85, floor.GetProperty("grandTotal").GetDecimal());
+        Assert.Equal(expectedDue, floor.GetProperty("amountDue").GetDecimal());
+        Assert.Equal(paid, _session.AmountPaid);
+        Assert.Equal(paid + 10, _session.PaymentEntries.Sum(entry => entry.Amount));
+        _orders.Verify(value => value.UpdateDineInSessionAsync(It.IsAny<DineInSession>()), Times.Never);
+        _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(
+            It.IsAny<DineInSession>(), It.IsAny<DateTime>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ItemCancellationDoesNotModifyAnOrderDuringTablePaymentProcessing()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.UserId = CustomerId;
+        order.Items[0].Quantity = 2;
+        _session!.PaymentStatus = "processing";
+
+        var response = await _orderFunction.CancelOrderItem(
+            Request(new { quantity = 1 }, isWaiter: false), order.Id!, MenuItemId);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(2, order.Items[0].Quantity);
+        _orders.Verify(value => value.UpdateOrderAsync(It.IsAny<Order>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ItemCancellationReportsWhenItsSavedChangeCannotSynchronizeTheBill()
+    {
+        await PlaceOrder("Asha");
+        var order = _savedOrders[0];
+        order.UserId = CustomerId;
+        order.Items[0].Quantity = 2;
+        _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(
+            It.IsAny<DineInSession>(), It.IsAny<DateTime>(), false)).ReturnsAsync(false);
+
+        var response = await _orderFunction.CancelOrderItem(
+            Request(new { quantity = 1 }, isWaiter: false), order.Id!, MenuItemId);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("do not repeat the cancellation", ReadBody(response).GetProperty("error").GetString());
+        _orders.Verify(value => value.UpdateOrderAsync(order), Times.Once);
+        _orders.Verify(value => value.TryUpdateDineInSessionTotalsAsync(
+            It.IsAny<DineInSession>(), It.IsAny<DateTime>(), false), Times.Exactly(5));
     }
 
     [Fact]
@@ -1299,7 +1467,7 @@ public sealed class DineInCustomerAttributionTests
     }
 
     [Fact]
-    public async Task OrderPeriodCollectionRequiresAdminAndAValidDateRange()
+    public async Task OrderPeriodCollectionRequiresAuthorizedRoleAndAValidDateRange()
     {
         var unauthorized = await _orderFunction.GetOrderPeriodCollection(Request(new { }, isWaiter: false));
         Assert.NotEqual(HttpStatusCode.OK, unauthorized.StatusCode);
@@ -1308,6 +1476,29 @@ public sealed class DineInCustomerAttributionTests
             System.Web.HttpUtility.ParseQueryString("from=2026-11-09&to=2026-11-08"));
         var invalid = await _orderFunction.GetOrderPeriodCollection(request);
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    public async Task ManagerCollectionRejectsUnassignedInactiveOrUnscopedOutlets(bool assigned, bool active, bool scoped)
+    {
+        _users.Setup(value => value.GetUserByIdAsync(WaiterId)).ReturnsAsync(new User {
+            Id = WaiterId, AssignedOutlets = assigned ? new() { OutletId } : new()
+        });
+        _outlets.Setup(value => value.GetOutletByIdAsync(OutletId, It.IsAny<bool>()))
+            .ReturnsAsync(new Outlet { Id = OutletId, IsActive = active });
+        var request = Request(new { }, roleOverride: "manager");
+        if (scoped) request.Headers.Add("X-Outlet-Id", OutletId);
+        Mock.Get(request).SetupGet(value => value.Query).Returns(
+            System.Web.HttpUtility.ParseQueryString("from=2026-11-08&to=2026-11-08"));
+
+        var response = await _orderFunction.GetOrderPeriodCollection(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        _orders.Verify(value => value.GetAllOrdersAsync(It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<int>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>()), Times.Never);
     }
 
     private HttpRequestData Request(

@@ -40,7 +40,7 @@
       <div class="section-heading">
         <div>
           <h2>Choose a table</h2>
-          <p>Select a free table or add to an active session.</p>
+          <p>Select a free table or review an open tab. Tabs remain visible until settlement.</p>
         </div>
         <span *ngIf="loadingTables">Refreshing…</span>
       </div>
@@ -51,14 +51,15 @@
           class="table-chip"
           *ngFor="let table of availableTables"
           [class.selected]="selectedTableNumber === table.tableNumber"
-          [class.occupied]="table.status === 'occupied'"
+          [class.occupied]="table.status === 'occupied' || table.status === 'bill_requested'"
           (click)="selectTable(table.tableNumber)"
         >
           <strong>{{ table.tableNumber }}</strong>
-          <small>{{ table.status === 'occupied' ? 'Open tab' : 'Free' }}</small>
+          <small>{{ table.status === 'free' ? 'Free' : 'Open tab' }}</small>
+          <small *ngIf="table.status === 'bill_requested'">Bill requested</small>
         </button>
       </div>
-      <ng-template #noTables><p class="empty">No free or occupied tables are available.</p></ng-template>
+      <ng-template #noTables><p class="empty">No free tables or open tabs are available.</p></ng-template>
 
       <section class="session-orders" *ngIf="selectedTable?.sessionId">
         <div class="section-heading">
