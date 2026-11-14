@@ -8,6 +8,7 @@ public static class PhoneDeliveryOrderRules
 {
     public const string GuestUserId = "guest_phone_delivery";
     public static bool IsPhoneOrder(Order order) => order.OrderSource == "phone";
+    public static bool IsTimedPhoneOrder(Order order) => IsPhoneOrder(order) && order.RequestedDeliveryAtUtc.HasValue;
 
     public static bool IsValidMapsUrl(string? value)
     {
@@ -64,6 +65,8 @@ public static class PhoneDeliveryOrderRules
         if (order.DeliveryPartnerId != partner.Id || order.OutletId != partner.OutletId)
             return "Phone order is not assigned to this partner in this outlet";
         if (order.Status != "ready") return "Kitchen must mark the phone order ready before pickup";
+        if (!string.IsNullOrWhiteSpace(partner.CurrentOrderId) && partner.CurrentOrderId != order.Id)
+            return "Complete your current delivery before picking up another order";
         return order.PaymentMethod != "cod" && order.PaymentStatus != "paid" ? "Prepaid phone order payment must be paid before pickup" : null;
     }
 
@@ -78,6 +81,7 @@ public static class PhoneDeliveryOrderRules
         paymentMethod = order.PaymentMethod,
         total = order.Total,
         deliveryPartnerName = order.DeliveryPartnerName,
+        requestedDeliveryAtUtc = order.RequestedDeliveryAtUtc,
         etaMinutes = order.DeliveryEtaMinutes
     };
 }

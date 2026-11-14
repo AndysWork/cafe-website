@@ -132,6 +132,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .available-copy p { margin: 2px 0 0; font-size: 9px; color: #2b5680; overflow-wrap: anywhere; }
 .available-copy p .icon { width: 10px; height: 10px; vertical-align: -1px; margin-right: 4px; }
 .accept-button { font-size: 10px; min-width: 71px; min-height: 26px; }
+.available-copy .scheduled-delivery { margin-top: 5px; line-height: 1.5; color: #155889; }
+.available-copy .scheduled-delivery strong { white-space: normal; font-size: 10px; }
 
 .summary-grid { display: grid; grid-template-columns: .92fr 1fr; gap: 9px; }
 .summary-grid .panel { min-height: 98px; }

@@ -63,6 +63,7 @@ describe('PhoneOrdersComponent', () => {
     component.phoneNumber = '9876543210';
     component.deliveryAddress = 'Station Road, near bank';
     component.deliveryLocationUrl = 'https://maps.app.goo.gl/location';
+    component.requestedDeliveryAt = new Date(Date.now() + (24 * 60 + 330) * 60000).toISOString().slice(0, 16);
     component.selectedVariants[item.id] = 'Large';
     component.selectedAddOns[item.id] = ['Cheese'];
     component.addItem(item);
@@ -79,6 +80,29 @@ describe('PhoneOrdersComponent', () => {
     expect(component.canSubmit).toBeFalse();
     component.upiReference = 'UPI123';
     expect(component.canSubmit).toBeTrue();
+  });
+
+  it('requires a future IST delivery date/time and sends its UTC instant in the quote', () => {
+    fill();
+    component.requestedDeliveryAt = '';
+    expect(component.validDetails).toBeFalse();
+    component.requestedDeliveryAt = '2000-01-01T10:00';
+    expect(component.validDetails).toBeFalse();
+    component.requestedDeliveryAt = '2100-01-02T00:15';
+    component.reviewTotal();
+    expect(service.quote.calls.mostRecent().args[0].requestedDeliveryAt).toBe('2100-01-01T18:45:00.000Z');
+    component.clearDraft();
+    expect(component.requestedDeliveryAt).toBe('');
+  });
+
+  it('allows scheduled bookings for busy online partners without enabling legacy or Offline assignments', () => {
+    component.partners = [
+      { id: 'busy', name: 'Courier', phone: '9876543210', vehicleType: 'scooter', status: 'on-delivery' },
+      { id: 'offline', name: 'Paused Courier', phone: '9876543211', vehicleType: 'scooter', status: 'offline' }
+    ];
+    const order = { id: 'scheduled', requestedDeliveryAtUtc: '2100-01-01T18:45:00Z' } as PhoneDeliveryOrder;
+    expect(component.getAssignablePartners(order).map(p => p.id)).toEqual(['busy']);
+    expect(component.getAssignablePartners({ ...order, requestedDeliveryAtUtc: undefined })).toEqual([]);
   });
 
   it('rejects non-Google and unsafe location links', () => {
@@ -218,7 +242,7 @@ describe('PhoneOrdersComponent', () => {
     expect(component.error).toBe('Selected partner is no longer available');
     expect(component.message).toBe('');
     expect(component.busyOrderId).toBe('');
-    expect(partnerService.getDeliveryPartners).toHaveBeenCalledOnceWith(true);
+    expect(partnerService.getDeliveryPartners).toHaveBeenCalledOnceWith(true, true);
     expect(component.partners).toEqual([]);
   });
 
@@ -255,6 +279,7 @@ describe('PhoneOrdersComponent', () => {
     rendered.phoneNumber = '9876543210';
     rendered.deliveryAddress = 'Station Road beside the bank';
     rendered.deliveryLocationUrl = 'https://maps.app.goo.gl/location';
+    rendered.requestedDeliveryAt = new Date(Date.now() + (24 * 60 + 330) * 60000).toISOString().slice(0, 16);
     rendered.addItem(item);
     rendered.reviewTotal();
     fixture.detectChanges();

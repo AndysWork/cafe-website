@@ -14,6 +14,7 @@ export interface AppNotification {
   imageUrl?: string;
   isRead: boolean;
   createdAt: string;
+  createdAtIsUtc?: boolean | null;
 }
 
 export interface NotificationListResponse {

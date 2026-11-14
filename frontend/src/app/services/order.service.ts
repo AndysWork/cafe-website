@@ -22,6 +22,7 @@ export interface OrderItem {
 }
 
 export interface Order {
+  requestedDeliveryAtUtc?: string;
   id: string;
   userId: string;
   username: string;

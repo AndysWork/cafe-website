@@ -10,6 +10,7 @@ describe('PhoneOrderService', () => {
   const request: PhoneOrderRequest = {
     outletId: 'outlet-1', customerName: 'Customer', phoneNumber: '9876543210',
     deliveryAddress: 'Station Road, beside the bank', deliveryLocationUrl: 'https://maps.app.goo.gl/example',
+    requestedDeliveryAt: '2100-01-01T12:30:00Z',
     items: [{ menuItemId: 'item-1', quantity: 2, selectedAddOnNames: [] }], paymentMethod: 'cod'
   };
 

@@ -118,6 +118,7 @@ export interface PartnerDashboard {
     username?: string;
     channel?: string;
     deliveryDueAtUtc?: string;
+    requestedDeliveryAtUtc?: string;
     deliveryRouteUpdatedAt?: string;
     deliveryAddress?: string;
     deliveryLocationUrl?: string;
@@ -132,6 +133,12 @@ export interface PartnerDashboard {
   pendingRequests: Array<{
     id?: string;
     orderSource?: string;
+    deliveryPartnerId?: string;
+    requestedDeliveryAtUtc?: string;
+    customerName?: string;
+    username?: string;
+    paymentMethod?: 'cod' | 'razorpay' | 'upi-qr' | 'cash_at_counter';
+    paymentStatus?: 'pending' | 'paid' | 'refunded';
     status: string;
     total: number;
     phoneNumber?: string;
@@ -215,11 +222,12 @@ export class DeliveryPartnerService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
 
-  getDeliveryPartners(onlyAssignable = false): Observable<DeliveryPartner[]> {
+  getDeliveryPartners(onlyAssignable = false, forScheduledDelivery = false): Observable<DeliveryPartner[]> {
     let params = new HttpParams();
     if (onlyAssignable) {
       params = params.set('forAssignment', 'true');
     }
+    if (forScheduledDelivery) params = params.set('forScheduledDelivery', 'true');
 
     return this.http.get<DeliveryPartner[]>(`${this.apiUrl}/manage/delivery-partners`, { params }).pipe(
       map(partners => partners.map(partner => ({

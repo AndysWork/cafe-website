@@ -11,6 +11,7 @@ import { OrderService } from '../../services/order.service';
 import { getOrderingUnavailableReason } from '../../models/outlet.model';
 import { shopMenuPrice } from '../../utils/shop-menu-price';
 import { decodeHtmlEntities } from '../../utils/text-utils';
+import { convertToIst } from '../../utils/date-utils';
 import { OutletSelectorComponent } from '../outlet-selector/outlet-selector.component';
 
 interface PhoneCartLine {
@@ -53,6 +54,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   phoneNumber = '';
   deliveryAddress = '';
   deliveryLocationUrl = '';
+  requestedDeliveryAt = '';
   preparationNotes = '';
   manualDeliveryFee = '';
   manualApproximateDistanceKm = '';
@@ -101,7 +103,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   }
 
   get hasDraft(): boolean {
-    return this.submitting || !!(this.cart.length || this.customerName || this.phoneNumber || this.deliveryAddress || this.deliveryLocationUrl);
+    return this.submitting || !!(this.cart.length || this.customerName || this.phoneNumber || this.deliveryAddress || this.deliveryLocationUrl || this.requestedDeliveryAt);
   }
 
   get outletMatches(): boolean {
@@ -123,7 +125,16 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
     const normalizedPhone = this.normalizeIndianPhone(this.phoneNumber);
     return this.outletMatches && !this.orderingError && this.cart.length > 0
       && !!this.customerName.trim() && normalizedPhone !== null
-      && !!this.deliveryAddress.trim() && this.validMapsUrl;
+      && !!this.deliveryAddress.trim() && this.validMapsUrl && this.validDeliveryTime;
+  }
+
+  get validDeliveryTime(): boolean {
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(this.requestedDeliveryAt)
+      && convertToIst(this.requestedDeliveryAt).getTime() > Date.now();
+  }
+
+  get minimumDeliveryTime(): string {
+    return new Date(Date.now() + 330 * 60000).toISOString().slice(0, 16);
   }
 
   get validMapsUrl(): boolean {
@@ -201,7 +212,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
 
   reviewTotal(): void {
     if (!this.validDetails || this.quoteBusy) {
-      this.error = 'Add items, customer name, valid phone, delivery address and a Google Maps link, and select an available outlet.';
+      this.error = 'Add items, customer name, valid phone, delivery address, Google Maps link and a future delivery date/time in IST, and select an available outlet.';
       return;
     }
     if (!this.manualOverrideValid) {
@@ -263,6 +274,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
     this.phoneNumber = '';
     this.deliveryAddress = '';
     this.deliveryLocationUrl = '';
+    this.requestedDeliveryAt = '';
     this.preparationNotes = '';
     this.manualDeliveryFee = '';
     this.manualApproximateDistanceKm = '';
@@ -413,7 +425,9 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   }
 
   getAssignablePartners(order: PhoneDeliveryOrder): DeliveryPartner[] {
-    return this.partners.filter(partner => order.paymentMethod !== 'cod' || partner.codAllowed !== false);
+    return this.partners.filter(partner =>
+      (partner.status === 'available' || (!!order.requestedDeliveryAtUtc && partner.status === 'on-delivery'))
+      && (order.paymentMethod !== 'cod' || partner.codAllowed !== false));
   }
 
   hasAssignablePartners(order: PhoneDeliveryOrder): boolean {
@@ -428,7 +442,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   partnerEligibilityHint(order: PhoneDeliveryOrder): string {
     if (this.hasAssignablePartners(order)) return '';
     if (!this.partners.length) {
-      return 'No delivery-partner users are currently available for this outlet. Ensure the user has delivery-partner role and partner status is Available.';
+      return 'No delivery-partner users are currently Online for this outlet. Check shop hours, the delivery-partner role and Online/Offline availability.';
     }
     if ((order.paymentMethod || '').toLowerCase() === 'cod') {
       return 'Available partners exist, but none are COD-enabled. Turn on COD Allowed for at least one available delivery partner.';
@@ -458,6 +472,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
       phoneNumber: normalizedPhone ?? this.phoneNumber.trim(),
       deliveryAddress: this.deliveryAddress.trim(),
       deliveryLocationUrl: this.deliveryLocationUrl.trim(),
+      requestedDeliveryAt: convertToIst(this.requestedDeliveryAt).toISOString(),
       items: this.cart.map(line => ({
         menuItemId: line.item.id, quantity: line.quantity,
         selectedVariantName: line.variantName, selectedAddOnNames: line.addOnNames
@@ -525,9 +540,9 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
 
   private loadPartners(): void {
     const outletId = this.loadedOutletId;
-    this.outletSubscriptions.add(this.partnerService.getDeliveryPartners(true).subscribe({
+    this.outletSubscriptions.add(this.partnerService.getDeliveryPartners(true, true).subscribe({
       next: partners => {
-        if (this.loadedOutletId === outletId) this.partners = partners.filter(partner => partner.status === 'available');
+        if (this.loadedOutletId === outletId) this.partners = partners.filter(partner => partner.status !== 'offline');
       },
       error: (error: unknown) => { this.error = this.errorText(error, 'Could not load delivery partners.'); }
     }));

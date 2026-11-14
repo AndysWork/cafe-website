@@ -33,11 +33,22 @@ public partial class MongoService : Cafe.Api.Repositories.IPhoneDeliveryOrderRep
 
     public async Task<bool> TryPickupPhoneDeliveryAsync(string orderId, DeliveryPartner partner)
     {
+        var reserved = await _deliveryPartners.UpdateOneAsync(
+            p => p.Id == partner.Id && p.IsActive
+                && (p.CurrentOrderId == null || p.CurrentOrderId == "" || p.CurrentOrderId == orderId),
+            Builders<DeliveryPartner>.Update.Set(p => p.Status, "on-delivery").Set(p => p.CurrentOrderId, orderId));
+        if (reserved.MatchedCount == 0) return false;
         var result = await _orders.UpdateOneAsync(o => o.Id == orderId && o.OrderSource == "phone"
             && o.IsDeleted != true && o.OutletId == partner.OutletId && o.DeliveryPartnerId == partner.Id
             && o.Status == "ready" && (o.PaymentMethod == "cod" || o.PaymentStatus == "paid"),
             Builders<Order>.Update.Set(o => o.Status, "out-for-delivery").Set(o => o.UpdatedAt, GetIstNow()));
-        return result.ModifiedCount == 1;
+        if (result.ModifiedCount == 1) return true;
+        var current = await GetOrderByIdAsync(orderId);
+        if (current?.Status == "out-for-delivery" && current.DeliveryPartnerId == partner.Id)
+            return true;
+        await _deliveryPartners.UpdateOneAsync(p => p.Id == partner.Id && p.CurrentOrderId == orderId,
+            Builders<DeliveryPartner>.Update.Set(p => p.Status, "available").Set(p => p.CurrentOrderId, (string?)null));
+        return false;
     }
 
     public async Task<bool> TryCompletePhoneDeliveryAsync(string orderId, DeliveryPartner partner)

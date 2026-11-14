@@ -36,6 +36,10 @@ public class AppNotification
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
+
+    [BsonElement("createdAtIsUtc")]
+    [BsonIgnoreIfNull]
+    public bool? CreatedAtIsUtc { get; set; }
 }
 
 public class NotificationPreferences

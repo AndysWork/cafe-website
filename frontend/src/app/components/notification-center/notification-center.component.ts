@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { NotificationStore } from '../../store/notification.store';
 import { AppNotification } from '../../services/notification-api.service';
-import { getStoredTimestampEpoch } from '../../utils/date-utils';
+import { formatIstDateTime, getStoredTimestampEpoch } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-notification-center',
@@ -65,7 +65,12 @@ import { getStoredTimestampEpoch } from '../../utils/date-utils';
                 <div class="notification-content">
                   <div class="notification-title">{{ notification.title }}</div>
                   <div class="notification-message">{{ notification.message }}</div>
-                  <div class="notification-time">{{ getTimeAgo(notification.createdAt) }}</div>
+                  <div class="notification-time">
+                    {{ getTimeAgo(notification.createdAt, notification.createdAtIsUtc) }}
+                    @if (getNotificationTime(notification.createdAt, notification.createdAtIsUtc); as timestamp) {
+                      <span> · {{ timestamp }}</span>
+                    }
+                  </div>
                 </div>
                 <div class="notification-actions">
                   @if (!notification.isRead) {
@@ -417,8 +422,13 @@ export class NotificationCenterComponent {
     }
   }
 
-  getTimeAgo(dateStr: string): string {
-    const date = this.parseNotificationDate(dateStr);
+  getNotificationTime(dateStr: string, isUtc?: boolean | null): string | null {
+    const date = this.parseNotificationDate(dateStr, isUtc);
+    return date ? `${formatIstDateTime(date)} IST` : null;
+  }
+
+  getTimeAgo(dateStr: string, isUtc?: boolean | null): string {
+    const date = this.parseNotificationDate(dateStr, isUtc);
     if (!date) {
       return 'Time unavailable';
     }
@@ -447,12 +457,12 @@ export class NotificationCenterComponent {
     return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
   }
 
-  private parseNotificationDate(value: string): Date | null {
+  private parseNotificationDate(value: string, isUtc?: boolean | null): Date | null {
     if (!value) {
       return null;
     }
 
-    const epoch = getStoredTimestampEpoch(value);
+    const epoch = getStoredTimestampEpoch(value, isUtc);
     return epoch ? new Date(epoch) : null;
   }
 }

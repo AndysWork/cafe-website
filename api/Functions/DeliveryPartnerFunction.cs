@@ -77,8 +77,9 @@ public class DeliveryPartnerFunction
             if (forAssignment)
             {
                 var usersById = await BuildPartnerUsersByIdAsync(partners);
+                var scheduledDelivery = string.Equals(req.Query["forScheduledDelivery"], "true", StringComparison.OrdinalIgnoreCase);
                 partners = partners
-                    .Where(partner => IsPartnerEligibleForAssignment(partner, usersById))
+                    .Where(partner => IsPartnerEligibleForAssignment(partner, usersById, scheduledDelivery))
                     .ToList();
             }
 
@@ -155,19 +156,19 @@ public class DeliveryPartnerFunction
         return RoleHelper.GetEffectiveRoles(user).Any(IsPartnerRole);
     }
 
-    private static bool IsPartnerEligibleForAssignment(DeliveryPartner partner, IReadOnlyDictionary<string, User> usersById)
+    private static bool IsPartnerEligibleForAssignment(DeliveryPartner partner, IReadOnlyDictionary<string, User> usersById, bool allowBusy = false)
     {
         if (!partner.IsActive) return false;
-        if (!string.Equals(partner.Status, "available", StringComparison.OrdinalIgnoreCase)) return false;
+        if (partner.Status != "available" && !(allowBusy && partner.Status == "on-delivery")) return false;
         if (string.IsNullOrWhiteSpace(partner.UserId)) return false;
         return usersById.TryGetValue(partner.UserId, out var user) && IsUserEligibleForDeliveryPartner(user);
     }
 
-    private static bool IsPartnerEligibleForAssignment(DeliveryPartner? partner, User? user)
+    private static bool IsPartnerEligibleForAssignment(DeliveryPartner? partner, User? user, bool allowBusy = false)
     {
         if (partner == null) return false;
         if (!partner.IsActive) return false;
-        if (!string.Equals(partner.Status, "available", StringComparison.OrdinalIgnoreCase)) return false;
+        if (partner.Status != "available" && !(allowBusy && partner.Status == "on-delivery")) return false;
         if (string.IsNullOrWhiteSpace(partner.UserId)) return false;
         if (string.IsNullOrWhiteSpace(user?.Id)) return false;
         if (!string.Equals(partner.UserId, user.Id, StringComparison.OrdinalIgnoreCase)) return false;
@@ -306,7 +307,7 @@ public class DeliveryPartnerFunction
                 var partners = await _mongo.GetDeliveryPartnersAsync(outletId ?? "default");
                 var usersById = await BuildPartnerUsersByIdAsync(partners);
                 var available = partners
-                    .Where(partner => IsPartnerEligibleForAssignment(partner, usersById))
+                    .Where(partner => IsPartnerEligibleForAssignment(partner, usersById, PhoneDeliveryOrderRules.IsTimedPhoneOrder(order)))
                     .Where(partner => !PhoneDeliveryOrderRules.IsPhoneOrder(order)
                         || PhoneDeliveryOrderRules.AssignmentBlockReason(order, partner) == null)
                     .OrderByDescending(partner => partner.Rating)
@@ -326,7 +327,7 @@ public class DeliveryPartnerFunction
                 var partnerUser = string.IsNullOrWhiteSpace(selectedPartner?.UserId)
                     ? null
                     : await _users.GetUserByIdAsync(selectedPartner.UserId);
-                if (selectedPartner == null || !IsPartnerEligibleForAssignment(selectedPartner, partnerUser))
+                if (selectedPartner == null || !IsPartnerEligibleForAssignment(selectedPartner, partnerUser, PhoneDeliveryOrderRules.IsTimedPhoneOrder(order)))
                 {
                     var conflict = req.CreateResponse(HttpStatusCode.Conflict);
                     await conflict.WriteAsJsonAsync(new { error = "Selected delivery partner must be available and linked to an active user with delivery-partner role" });
@@ -383,8 +384,8 @@ public class DeliveryPartnerFunction
                     assignedOrder.DeliveryDistanceKm = routeLink.DistanceKm;
                     assignedOrder.DeliveryEtaMinutes = routeLink.EtaMinutes;
                     assignedOrder.DeliveryRouteUpdatedAt = MongoService.GetIstNow();
-                    assignedOrder.DeliveryDueAtUtc = routeLink.EtaMinutes > 0
-                        ? MongoService.GetUtcNow().AddMinutes(routeLink.EtaMinutes.Value) : null;
+                    assignedOrder.DeliveryDueAtUtc = assignedOrder.RequestedDeliveryAtUtc ?? (routeLink.EtaMinutes > 0
+                        ? MongoService.GetUtcNow().AddMinutes(routeLink.EtaMinutes.Value) : null);
                     assignedOrder.UpdatedAt = MongoService.GetIstNow();
                     await _orderRepo.UpdateOrderAsync(assignedOrder);
 
@@ -1463,12 +1464,16 @@ public class DeliveryPartnerFunction
 
             var activeShift = await _mongo.GetActiveShiftForPartnerAsync(partner.Id);
             var recentShifts = await _mongo.GetPartnerShiftsAsync(partner.Id!, pageSize: 20);
-            var activeOrders = await _mongo.GetActiveOrdersForPartnerAsync(partner.Id, partner.OutletId);
+            var assignedOrders = await _mongo.GetActiveOrdersForPartnerAsync(partner.Id, partner.OutletId);
+            var bookedOrders = assignedOrders.Where(o => PhoneDeliveryOrderRules.IsTimedPhoneOrder(o)
+                && o.Status != "out-for-delivery").ToList();
+            var activeOrders = assignedOrders.Except(bookedOrders).ToList();
             var parcelTasks = await _mongo.GetParcelTasksForPartnerAsync(partner.Id, null, 100);
             var outletOrders = await _orderRepo.GetAllOrdersAsync(partner.OutletId);
             var pendingRequests = outletOrders
                 .Where(o =>
-                    string.Equals(o.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
+                    !PhoneDeliveryOrderRules.IsPhoneOrder(o)
+                    && string.Equals(o.OrderType, "delivery", StringComparison.OrdinalIgnoreCase)
                     && string.IsNullOrWhiteSpace(o.DeliveryPartnerId)
                     && (string.Equals(o.Status, "pending", StringComparison.OrdinalIgnoreCase)
                         || string.Equals(o.Status, "confirmed", StringComparison.OrdinalIgnoreCase)
@@ -1476,6 +1481,9 @@ public class DeliveryPartnerFunction
                         || string.Equals(o.Status, "ready", StringComparison.OrdinalIgnoreCase)))
                 .OrderByDescending(o => o.CreatedAt)
                 .Take(20)
+                .Concat(bookedOrders)
+                .OrderBy(o => o.RequestedDeliveryAtUtc ?? DateTime.MaxValue)
+                .ThenByDescending(o => o.CreatedAt)
                 .ToList();
             var todayDistance = await _mongo.GetPartnerDistanceAsync(partner.Id, dayStart, dayEnd.AddTicks(-1));
             var fuelPrice = await _mongo.GetFuelPriceAsync(partner.OutletId, dayStart);

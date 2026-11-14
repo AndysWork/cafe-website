@@ -12,6 +12,7 @@ export interface PhoneOrderRequest {
   phoneNumber: string;
   deliveryAddress: string;
   deliveryLocationUrl: string;
+  requestedDeliveryAt: string;
   items: { menuItemId: string; quantity: number; selectedVariantName?: string; selectedAddOnNames: string[] }[];
   paymentMethod: 'cod' | 'cash_at_counter' | 'upi-qr';
   upiReference?: string;
@@ -42,6 +43,7 @@ export interface PhoneDeliveryOrder extends Order {
 }
 
 export interface PhoneOrderTracking {
+  requestedDeliveryAtUtc?: string;
   orderId: string;
   status: string;
   kotNumber?: string;

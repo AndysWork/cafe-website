@@ -1088,13 +1088,14 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<bool> AssignDeliveryPartnerAsync(string partnerId, string orderId)
     {
+        var order = await GetOrderByIdAsync(orderId);
+        var timedPhoneOrder = order != null && Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsTimedPhoneOrder(order);
         var partner = await GetDeliveryPartnerByIdAsync(partnerId);
-        if (partner == null || partner.Status != "available")
+        if (partner == null || (partner.Status != "available" && !(timedPhoneOrder && partner.Status == "on-delivery")))
         {
             return false;
         }
 
-        var order = await GetOrderByIdAsync(orderId);
         if (order != null && Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(order))
         {
             if (Cafe.Api.Helpers.PhoneDeliveryOrderRules.AssignmentBlockReason(order, partner) != null)
@@ -1109,8 +1110,9 @@ public partial class MongoService : IOperationsRepository
                     .Set(o => o.DeliveryRouteUrl, order.DeliveryLocationUrl)
                     .Set(o => o.UpdatedAt, GetIstNow()));
             if (assigned.MatchedCount == 0) return false;
-            await _deliveryPartners.UpdateOneAsync(p => p.Id == partnerId,
-                Builders<DeliveryPartner>.Update.Set(p => p.Status, "on-delivery").Set(p => p.CurrentOrderId, orderId));
+            if (!timedPhoneOrder)
+                await _deliveryPartners.UpdateOneAsync(p => p.Id == partnerId,
+                    Builders<DeliveryPartner>.Update.Set(p => p.Status, "on-delivery").Set(p => p.CurrentOrderId, orderId));
             if (!string.IsNullOrWhiteSpace(order.DeliveryPartnerId) && order.DeliveryPartnerId != partnerId)
                 await _deliveryPartners.UpdateOneAsync(p => p.Id == order.DeliveryPartnerId && p.CurrentOrderId == orderId,
                     Builders<DeliveryPartner>.Update.Set(p => p.Status, "available").Set(p => p.CurrentOrderId, (string?)null));

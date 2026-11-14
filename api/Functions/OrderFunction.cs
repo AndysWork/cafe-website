@@ -2646,6 +2646,7 @@ public class OrderFunction
             OutletId = order.OutletId,
             OrderType = order.OrderType,
             Channel = string.IsNullOrWhiteSpace(order.Channel) ? "web" : order.Channel,
+            RequestedDeliveryAtUtc = order.RequestedDeliveryAtUtc,
             ScheduledFor = order.ScheduledFor,
             IsScheduled = order.IsScheduled,
             DeliveryPartnerId = order.DeliveryPartnerId,

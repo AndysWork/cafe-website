@@ -48,6 +48,11 @@
             <input [(ngModel)]="deliveryLocationUrl" name="deliveryLocationUrl" required type="url" maxlength="2048" placeholder="https://maps.app.goo.gl/..." (ngModelChange)="invalidateQuote()" />
           </label>
           <small>Ask the customer to share their current location or destination pin from Google Maps.</small>
+          <label>Requested delivery date and time (IST) *
+            <input type="datetime-local" name="requestedDeliveryAt" [(ngModel)]="requestedDeliveryAt" required [min]="minimumDeliveryTime" (ngModelChange)="invalidateQuote()" />
+          </label>
+          <small>Enter when the customer wants the order delivered, in Indian Standard Time.</small>
+          <p *ngIf="requestedDeliveryAt && !validDeliveryTime" class="notice error">Choose a future delivery date and time in IST.</p>
           <h3>Manual override (optional)</h3>
           <label>Approximate distance (km)
             <input [(ngModel)]="manualApproximateDistanceKm" name="manualApproximateDistanceKm" inputmode="decimal" type="text" maxlength="10" placeholder="Example: 3.2" (ngModelChange)="invalidateQuote()" />
@@ -158,6 +163,7 @@
         </li>
       </ul>
       <p *ngIf="order.preparationNotes">Kitchen instructions: {{ order.preparationNotes }}</p>
+      <p *ngIf="order.requestedDeliveryAtUtc" class="requested-delivery"><strong>Deliver at {{ order.requestedDeliveryAtUtc | date:'dd MMM y, h:mm a':'+0530' }} IST</strong></p>
       <p class="payment-line">
         <strong>{{ order.total | currency:'INR' }}</strong>
         <span>(delivery {{ order.deliveryFee | currency:'INR' }})</span>

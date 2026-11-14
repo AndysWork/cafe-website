@@ -232,7 +232,13 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   }
 
   canPickup(order: { id?: string; status: string; deliveryPartnerId?: string }): boolean {
-    return !!order.id && order.status === 'ready' && !!order.deliveryPartnerId;
+    return !!order.id && order.status === 'ready' && !!order.deliveryPartnerId
+      && (!this.dashboard?.profile?.currentOrderId || this.dashboard.profile.currentOrderId === order.id);
+  }
+
+  isAssignedTimedOrder(order: { orderSource?: string; requestedDeliveryAtUtc?: string; deliveryPartnerId?: string }): boolean {
+    return order.orderSource === 'phone' && !!order.requestedDeliveryAtUtc
+      && !!order.deliveryPartnerId && order.deliveryPartnerId === this.dashboard?.profile?.id;
   }
 
   pickupOrder(order: { id?: string }): void {
@@ -250,7 +256,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         this.confirmingCod[order.id!] = false;
-        this.uiStore.error(error.error?.error || 'Failed to pickup order');
+        this.uiStore.error(error.message || error.error?.error || 'Failed to pickup order');
       }
     });
   }
@@ -454,6 +460,10 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   }
 
   deliveryDeadline(order: PartnerDashboard['activeOrders'][number]): Date | null {
+    if (order.requestedDeliveryAtUtc) {
+      const timestamp = getStoredTimestampEpoch(order.requestedDeliveryAtUtc, true);
+      return timestamp ? new Date(timestamp) : null;
+    }
     if (order.deliveryDueAtUtc) {
       const timestamp = getStoredTimestampEpoch(order.deliveryDueAtUtc, true);
       return timestamp ? new Date(timestamp) : null;

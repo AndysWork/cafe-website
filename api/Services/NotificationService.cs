@@ -40,6 +40,8 @@ public class NotificationService
             var notification = new AppNotification
             {
                 UserId = userId,
+                CreatedAt = MongoService.GetUtcNow(),
+                CreatedAtIsUtc = true,
                 Type = type,
                 Title = title,
                 Message = message,

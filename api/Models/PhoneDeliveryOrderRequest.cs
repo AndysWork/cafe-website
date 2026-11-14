@@ -15,6 +15,8 @@ public sealed record CreatePhoneDeliveryOrderRequest
     public string DeliveryAddress { get; init; } = string.Empty;
     [Required, StringLength(2048)]
     public string DeliveryLocationUrl { get; init; } = string.Empty;
+    [Required]
+    public DateTimeOffset? RequestedDeliveryAt { get; init; }
     [Required, MinLength(1), MaxLength(100)]
     public List<OrderItemRequest> Items { get; init; } = new();
     [Required, AllowedValuesList("cod", "cash_at_counter", "upi-qr")]

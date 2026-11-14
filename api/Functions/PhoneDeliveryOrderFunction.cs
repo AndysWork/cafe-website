@@ -97,6 +97,9 @@ public sealed class PhoneDeliveryOrderFunction
                     return await Replay(req, existing, requestHash);
             }
 
+            if (request.RequestedDeliveryAt <= DateTimeOffset.UtcNow)
+                return await Error(req, HttpStatusCode.BadRequest, "Requested delivery date and time must be in the future");
+
             var outlet = await _outlets.GetOutletByIdAsync(outletId!, bypassCache: true);
             var unavailable = OutletHelper.GetOrderingUnavailableReason(outlet, "delivery");
             if (unavailable != null) return await Error(req, HttpStatusCode.Conflict, unavailable);
@@ -139,6 +142,8 @@ public sealed class PhoneDeliveryOrderFunction
                 Username = request.CustomerName.Trim(), CustomerName = request.CustomerName.Trim(),
                 PhoneNumber = request.PhoneNumber.Trim(), DeliveryAddress = request.DeliveryAddress.Trim(),
                 DeliveryLocationUrl = request.DeliveryLocationUrl.Trim(),
+                RequestedDeliveryAtUtc = request.RequestedDeliveryAt!.Value.UtcDateTime,
+                DeliveryDueAtUtc = request.RequestedDeliveryAt.Value.UtcDateTime,
                 RecordedByUserId = userId, RecordedByName = string.IsNullOrWhiteSpace(staffName) ? staff?.Username : staffName,
                 Items = items, Subtotal = subtotal, Tax = 0, PlatformCharge = 0, DeliveryFee = deliveryFee, Total = total,
                 PaymentMethod = request.PaymentMethod, PaymentStatus = paid ? "paid" : "pending",

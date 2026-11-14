@@ -37,7 +37,32 @@ describe('NotificationCenterComponent timestamps', () => {
     const fixture = TestBed.createComponent(NotificationCenterComponent);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.notification-time').textContent).toBe('6m ago');
+    const timestamp = fixture.nativeElement.querySelector('.notification-time').textContent;
+    expect(timestamp).toContain('6m ago');
+    expect(timestamp).toContain('10 Nov 2026, 08:20 pm IST');
+  });
+
+  it('renders marked UTC delivery notifications in IST without shifting their age', () => {
+    const store = TestBed.inject(NotificationStore);
+    spyOn(store, 'notifications').and.returnValue([{
+      ...notification, createdAt: '2026-11-10T14:50:00Z', createdAtIsUtc: true
+    }]);
+    const fixture = TestBed.createComponent(NotificationCenterComponent);
+    fixture.detectChanges();
+
+    const timestamp = fixture.nativeElement.querySelector('.notification-time').textContent;
+    expect(timestamp).toContain('6m ago');
+    expect(timestamp).toContain('10 Nov 2026, 08:20 pm IST');
+  });
+
+  it('converts marked zero-offset dates across midnight and preserves explicit IST offsets', () => {
+    const component = TestBed.createComponent(NotificationCenterComponent).componentInstance;
+    expect(component.getNotificationTime('2026-11-10T18:45:00+00:00', true))
+      .toBe('11 Nov 2026, 12:15 am IST');
+    expect(component.getTimeAgo('2026-11-10T14:50:00+00:00', true)).toBe('6m ago');
+    expect(component.getNotificationTime('2026-11-10T20:20:00+05:30', true))
+      .toBe('10 Nov 2026, 08:20 pm IST');
+    expect(component.getNotificationTime('invalid', true)).toBeNull();
   });
 
   it('interprets legacy Z, zero-offset and timezone-less values as IST wall-clock', () => {

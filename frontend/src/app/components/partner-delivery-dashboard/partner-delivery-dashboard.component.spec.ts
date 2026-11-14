@@ -121,6 +121,26 @@ describe('PartnerDeliveryDashboardComponent', () => {
     expect(ui.warning).toHaveBeenCalled();
   });
 
+  it('shows assigned phone bookings with the requested IST time and offers pickup rather than self-acceptance', () => {
+    data.pendingRequests = [{ id: 'booked-phone', orderSource: 'phone', deliveryPartnerId: 'partner1',
+      requestedDeliveryAtUtc: '2100-01-01T18:45:00Z', customerName: 'Scheduled Customer', status: 'pending', total: 250 }];
+    fixture.detectChanges();
+    expect(root.querySelector('.available-panel')?.textContent).toContain('02 Jan 2100, 12:15 AM IST');
+    expect(root.querySelector('.available-panel')?.textContent).toContain('Scheduled Customer');
+    expect(root.querySelector<HTMLButtonElement>('.booked-pickup')?.disabled).toBeTrue();
+    data.pendingRequests[0].status = 'ready';
+    data.profile!.currentOrderId = 'other-delivery';
+    fixture.detectChanges();
+    expect(root.querySelector<HTMLButtonElement>('.booked-pickup')?.disabled).toBeTrue();
+    data.profile!.currentOrderId = undefined;
+    data.profile!.availability!.isOnline = false;
+    service.pickupAssignedOrder.and.returnValue(of({ message: 'Picked up', status: 'out-for-delivery' }));
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('.booked-pickup')!.click();
+    expect(service.pickupAssignedOrder).toHaveBeenCalledOnceWith('booked-phone');
+    expect(service.acceptDeliveryOrder).not.toHaveBeenCalled();
+  });
+
   it('keeps pickup, COD collection and delivery gates intact in the status menu', () => {
     const order = data.activeOrders[0];
     root.querySelector<HTMLButtonElement>('.status-control > button')!.click();

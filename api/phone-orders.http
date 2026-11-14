@@ -5,6 +5,7 @@
 @orderId = REPLACE_WITH_CREATED_ORDER_ID
 @trackingToken = REPLACE_WITH_TOKEN_FROM_TRACKING_PATH
 @partnerToken = REPLACE_WITH_PARTNER_TOKEN
+@requestedDeliveryAt = 2030-01-15T20:00:00+05:30
 
 ### Partner dashboard: live assignments, IST summary, performance, zones and daily incentive
 GET {{baseUrl}}/partner/delivery/dashboard
@@ -45,6 +46,7 @@ Content-Type: application/json
   "phoneNumber": "9876543210",
   "deliveryAddress": "10 Main Road",
   "deliveryLocationUrl": "https://www.google.com/maps?q=22.5,88.3",
+  "requestedDeliveryAt": "{{requestedDeliveryAt}}",
   "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 2 }],
   "paymentMethod": "cod"
 }
@@ -61,6 +63,7 @@ Content-Type: application/json
   "phoneNumber": "9876543210",
   "deliveryAddress": "10 Main Road",
   "deliveryLocationUrl": "https://www.google.com/maps?q=22.5,88.3",
+  "requestedDeliveryAt": "{{requestedDeliveryAt}}",
   "items": [{ "menuItemId": "{{menuItemId}}", "quantity": 2 }],
   "paymentMethod": "cod",
   "preparationNotes": "Pack sauce separately",

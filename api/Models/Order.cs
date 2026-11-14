@@ -207,6 +207,11 @@ public class Order : ISoftDeletable
     [BsonIgnoreIfNull]
     public DateTime? DeliveryDueAtUtc { get; set; }
 
+    [BsonElement("requestedDeliveryAtUtc")]
+    [BsonIgnoreIfNull]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? RequestedDeliveryAtUtc { get; set; }
+
     [BsonElement("deliveryRouteUrl")]
     public string? DeliveryRouteUrl { get; set; }
 
@@ -730,6 +735,7 @@ public class DeleteOrderHistoryRequest
 
 public class OrderResponse
 {
+    public DateTime? RequestedDeliveryAtUtc { get; set; }
     public bool IsStaffOrder { get; set; }
     public decimal StaffDiscountAmount { get; set; }
 
