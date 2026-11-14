@@ -33,6 +33,13 @@
   .command-control select { display: block; border: 0; background: transparent; width: 100%; max-width: 190px; min-width: 95px; font-weight: 750; padding: 1px 14px 1px 0; }
   .command-refresh { font-size: 25px; padding: 3px 11px; }
   .command-refresh:disabled { opacity: .5; }
+  .custom-range { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; padding: 10px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+  .custom-range label { flex: 1 1 160px; max-width: 240px; min-width: 0; font-size: 10px; font-weight: 700; }
+  .custom-range label > span { display: block; margin-bottom: 4px; }
+  .custom-range input { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 7px; font-size: 12px; }
+  .custom-range button { border: 1px solid #087eef; border-radius: 6px; background: #087eef; color: #fff; padding: 8px 12px; font-weight: 700; }
+  .custom-range p { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 10px; }
+  .custom-range .custom-range-error { color: #b91c3a; }
   .command-notice { background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 12px; margin-bottom: 12px; }
   .command-notice.error { color: #b91c3a; background: #fff3f4; }
   .command-notice.warning { color: #8a5706; background: #fff9e9; }
@@ -252,6 +259,9 @@
     .command-control small { display: none; }
     .command-control select { max-width: 100%; min-width: 0; font-size: 11px; }
     .command-control .dc-icon { width: 17px; height: 17px; }
+    .custom-range { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .custom-range label { max-width: none; }
+    .custom-range button, .custom-range p { grid-column: 1 / -1; }
     .command-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-bottom: 7px; }
     .command-kpi { padding: 9px 8px; gap: 8px; align-items: center; min-height: 73px; border-radius: 9px; }
     .kpi-icon { width: 35px; height: 36px; border-radius: 8px; }

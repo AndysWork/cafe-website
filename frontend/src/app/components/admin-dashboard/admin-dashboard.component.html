@@ -32,12 +32,20 @@
           <svg class="dc-icon" aria-hidden="true"><use href="#dc-pin"/></svg><span><small>Branch</small><select #branchSelect aria-label="Dashboard branch" [value]="selectedOutlet?._id || selectedOutlet?.id || ''" (change)="selectOutlet(branchSelect.value, outlets)"><option *ngIf="!outlets.length" [value]="selectedOutlet?._id || selectedOutlet?.id || ''">{{ selectedOutlet?.outletName || 'Select outlet' }}</option><option *ngFor="let outlet of outlets" [value]="outlet._id || outlet.id">{{ outlet.outletName }}</option></select></span>
         </label>
         <label class="command-control period-control">
-          <svg class="dc-icon" aria-hidden="true"><use href="#dc-calendar"/></svg><span><small>Date Range · IST</small><select #commandPeriod [value]="periodDays" (change)="setPeriod(commandPeriod.value)" aria-label="Dashboard date range"><option value="1">Today</option><option value="7">Last 7 Days</option><option value="30">Last 30 Days</option><option value="90">Last 90 Days</option></select></span>
+          <svg class="dc-icon" aria-hidden="true"><use href="#dc-calendar"/></svg><span><small>Date Range · IST</small><select #commandPeriod [value]="dateRange" (change)="setPeriod(commandPeriod.value)" aria-label="Dashboard date range"><option value="1">Today</option><option value="7">Last 7 Days</option><option value="30">Last 30 Days</option><option value="90">Last 90 Days</option><option value="custom">Custom dates</option></select></span>
         </label>
         <label class="command-control compare-control"><span><small>Compare With</small><select #compare [value]="showComparison ? 'previous' : 'none'" (change)="showComparison = compare.value === 'previous'" aria-label="Dashboard comparison"><option value="previous">Previous {{ periodDays }} {{ periodDays === 1 ? 'Day' : 'Days' }}</option><option value="none">No comparison</option></select></span></label>
         <button type="button" class="command-refresh" (click)="loadDashboardData()" [disabled]="isLoading" aria-label="Refresh dashboard" title="Refresh dashboard">↻</button>
       </div>
     </header>
+
+    <form *ngIf="dateRange === 'custom'" class="custom-range" (submit)="$event.preventDefault(); applyCustomRange()" novalidate aria-label="Custom dashboard date range" aria-describedby="custom-range-hint">
+      <label><span>From · IST</span><input #customStart type="date" min="0001-01-01" [value]="customStartDate" (input)="customStartDate = customStart.value; customDateError = null" aria-label="Dashboard start date" [attr.aria-invalid]="customDateError ? true : null" [attr.aria-describedby]="customDateError ? 'custom-range-error' : null"/></label>
+      <label><span>To · IST</span><input #customEnd type="date" min="0001-01-01" [value]="customEndDate" (input)="customEndDate = customEnd.value; customDateError = null" aria-label="Dashboard end date" [attr.aria-invalid]="customDateError ? true : null" [attr.aria-describedby]="customDateError ? 'custom-range-error' : null"/></label>
+      <button type="submit">Apply dates</button>
+      <p id="custom-range-hint">Both dates are inclusive, in IST. Apply dates to update the dashboard; current figures remain unchanged while editing.</p>
+      <p *ngIf="customDateError" id="custom-range-error" class="custom-range-error" role="alert">{{ customDateError }}</p>
+    </form>
 
     <div *ngIf="errorMessage" class="command-notice error" role="alert">{{ errorMessage }} <button type="button" (click)="loadDashboardData()">Retry</button></div>
     <div *ngIf="isLoading" class="command-notice" role="status">Loading dashboard data...</div>

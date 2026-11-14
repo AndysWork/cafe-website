@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { EMPTY, Observable, throwError } from 'rxjs';
+import { catchError, expand, map, reduce } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
 
@@ -400,6 +400,22 @@ export class OrderService {
 
     return this.http.get<Order[]>(`${this.apiUrl}/orders`, { params }).pipe(
       catchError(handleServiceError('OrderService.getAllOrders'))
+    );
+  }
+
+  getAllOrdersWithHistory(): Observable<Order[]> {
+    const pageSize = 500;
+    const readPage = (page: number) => this.http.get<Order[]>(`${this.apiUrl}/orders`, {
+      params: new HttpParams().set('page', page).set('pageSize', pageSize)
+    });
+    return readPage(1).pipe(
+      expand((batch, index) => batch.length === pageSize ? readPage(index + 2) : EMPTY),
+      reduce((orders, batch) => {
+        for (const order of batch) orders.set(order.id, order);
+        return orders;
+      }, new Map<string, Order>()),
+      map(orders => [...orders.values()]),
+      catchError(handleServiceError('OrderService.getAllOrdersWithHistory'))
     );
   }
 

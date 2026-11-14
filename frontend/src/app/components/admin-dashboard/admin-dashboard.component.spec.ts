@@ -170,7 +170,7 @@ describe('AdminDashboardComponent overview', () => {
 
   it('shows failed operational sources as unavailable while keeping loaded sales visible', () => {
     const unavailable = () => throwError(() => new Error('Unavailable for isolated test'));
-    TestBed.overrideProvider(OrderService, { useValue: { getAllOrders: () => of([]) } });
+    TestBed.overrideProvider(OrderService, { useValue: { getAllOrdersWithHistory: () => of([]) } });
     TestBed.overrideProvider(MenuService, { useValue: { getMenuItems: () => of([]) } });
     TestBed.overrideProvider(SalesService, { useValue: { getAllSales: () => of([]) } });
     TestBed.overrideProvider(ExpenseService, { useValue: { getAllExpenses: () => of([]) } });
@@ -242,7 +242,7 @@ describe('AdminDashboardComponent overview', () => {
     TestBed.overrideProvider(HttpClient, { useValue: { get } });
     const getPeriodCollection = jasmine.createSpy('getPeriodCollection').and.returnValue(of(collectionTotals(100, 25.5)));
     TestBed.overrideProvider(OrderService, { useValue: {
-      getAllOrders: () => of([sampleOrder({ paymentStatus: 'pending_verification' })]), getPeriodCollection
+      getAllOrdersWithHistory: () => of([sampleOrder({ paymentStatus: 'pending_verification' })]), getPeriodCollection
     } });
     TestBed.overrideProvider(ManagerOpsService, { useValue: { getBoard: () => of(null) } });
     TestBed.overrideProvider(CafeTableService, { useValue: { getFloor: () => of(null) } });
@@ -287,9 +287,12 @@ describe('AdminDashboardComponent overview', () => {
     const getPeriodCollection = jasmine.createSpy('getPeriodCollection');
     TestBed.overrideProvider(OutletService, { useValue: {
       selectedOutlet$: selected, availableOutlets$: of([]), getSelectedOutlet: () => selected.value,
-      getActiveOutlets: () => of([])
+      getActiveOutlets: () => of([]), selectOutlet: (value: Outlet) => selected.next(value)
     } });
-    TestBed.overrideProvider(OrderService, { useValue: { getAllOrders: () => of([]), getPeriodCollection } });
+    TestBed.overrideProvider(OutletStore, { useValue: {
+      setAvailableOutlets: () => undefined, clearSelectedOutlet: () => selected.next(null)
+    } });
+    TestBed.overrideProvider(OrderService, { useValue: { getAllOrdersWithHistory: () => of([]), getPeriodCollection } });
     TestBed.overrideProvider(MenuService, { useValue: { getMenuItems: () => of([]) } });
     TestBed.overrideProvider(SalesService, { useValue: { getAllSales: () => of([]) } });
     TestBed.overrideProvider(ExpenseService, { useValue: { getAllExpenses: () => of([]) } });
@@ -298,9 +301,122 @@ describe('AdminDashboardComponent overview', () => {
     TestBed.overrideProvider(AttendanceService, { useValue: { getTodayAttendance: () => of([]) } });
     TestBed.overrideProvider(InventoryService, { useValue: { getStockAlerts: () => of([]) } });
     TestBed.overrideProvider(HttpClient, { useValue: { get: (url: string) => of(
-      url.includes('outbox-health') ? null : url.includes('dead-letters') ? { items: [] } : { data: [] }) } });
+      url.endsWith('/manage/dashboard/outlets') ? [outlet('one'), outlet('two')]
+        : url.endsWith('/manage/dashboard') ? {
+          menuItems: [], onlineSales: [], offlineSales: [], expenses: [], attendance: [], stockAlerts: [], unavailableSources: []
+        } : url.includes('outbox-health') ? null : url.includes('dead-letters') ? { items: [] } : { data: [] }) } });
     return { selected, getPeriodCollection };
   }
+
+  for (const managerView of [false, true]) {
+    it(`applies an inclusive historical custom range consistently for ${managerView ? 'Manager' : 'Admin'} and retains it on refresh`, fakeAsync(() => {
+      spyOnProperty(document, 'hidden', 'get').and.returnValue(false);
+      const { selected, getPeriodCollection } = configureAdminCollections();
+      getPeriodCollection.and.returnValue(of(collectionTotals(50, 25)));
+      const fixture = TestBed.createComponent(AdminDashboardComponent);
+      fixture.componentRef.setInput('managerView', managerView);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.onlineSales = [
+        ['2024-02-27T18:29:59Z', 5], ['2024-02-27T18:30:00Z', 10],
+        ['2024-03-01T18:29:59Z', 20], ['2024-03-01T18:30:00Z', 999]
+      ].map(([orderAt, payout]) => ({
+        platform: 'Web Sales', orderId: String(orderAt), customerName: 'Customer', orderAt: String(orderAt),
+        payout: Number(payout), orderedItems: [], billSubTotal: Number(payout), packagingCharges: 0,
+        discountAmount: 0, platformDeduction: 0
+      }));
+      component.allOrders = [
+        sampleOrder({ id: 'before', createdAt: '2024-02-27T18:29:59Z' }),
+        sampleOrder({ id: 'start', createdAt: '2024-02-27T18:30:00Z' }),
+        sampleOrder({ id: 'end', createdAt: '2024-03-01T18:29:59Z' }),
+        sampleOrder({ id: 'after', createdAt: '2024-03-01T18:30:00Z' })
+      ];
+      component.expenses = [
+        { date: '2024-02-27', amount: 9 }, { date: '2024-02-28', amount: 30 },
+        { date: '2024-03-01', amount: 60 }, { date: '2024-03-02', amount: 999 }
+      ].map(expense => ({
+        ...expense, id: expense.date, expenseType: 'Supplies', expenseSource: 'Offline', paymentMethod: 'Cash',
+        recordedBy: '', createdAt: '', updatedAt: ''
+      }));
+      const period = fixture.nativeElement.querySelector('[aria-label="Dashboard date range"]') as HTMLSelectElement;
+      period.value = 'custom';
+      period.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      const start = fixture.nativeElement.querySelector('[aria-label="Dashboard start date"]') as HTMLInputElement;
+      const end = fixture.nativeElement.querySelector('[aria-label="Dashboard end date"]') as HTMLInputElement;
+      start.value = '2024-02-28';
+      start.dispatchEvent(new Event('input'));
+      end.value = '2024-03-01';
+      end.dispatchEvent(new Event('input'));
+      expect(component.rangeEnd).toBe(getIstDateString());
+      expect(getPeriodCollection.calls.count()).toBe(1);
+      (fixture.nativeElement.querySelector('.custom-range') as HTMLFormElement)
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(component.periodDays).toBe(3);
+      expect(component.overview.current.revenue).toBe(30);
+      expect(component.overview.previous.revenue).toBe(5);
+      expect(component.periodOrders.map(order => order.id)).toEqual(['start', 'end']);
+      expect(component.appOverview.orderValue).toBe(80);
+      expect(component.itemSales.quantity).toBe(4);
+      expect(component.liveOrders.map(order => order.id)).toEqual(['end', 'start']);
+      expect(component.insights.expenses.total).toBe(90);
+      expect(component.insights.expenses.previousTotal).toBe(9);
+      expect(component.insights.expenses.dailyAverage).toBe(30);
+      expect(component.insights.timedOrderCount).toBe(2);
+      expect(getPeriodCollection.calls.mostRecent().args).toEqual(['2024-02-28', '2024-03-01']);
+      expect(fixture.nativeElement.querySelector('[aria-label="Dashboard comparison"]').textContent).toContain('Previous 3 Days');
+      expect(fixture.nativeElement.querySelector('.expenses-panel').textContent).toContain('2024-02-28 - 2024-03-01');
+      let filename = '';
+      spyOn(URL, 'createObjectURL').and.returnValue('blob:isolated-custom-range');
+      spyOn(URL, 'revokeObjectURL');
+      spyOn(HTMLAnchorElement.prototype, 'click').and.callFake(function(this: HTMLAnchorElement) { filename = this.download; });
+      component.exportItemSales();
+      expect(filename).toBe('item-sales-2024-02-28-2024-03-01.csv');
+      tick(30000);
+      selected.next(outlet('two'));
+      expect(getPeriodCollection.calls.count()).toBe(4);
+      expect(getPeriodCollection.calls.mostRecent().args).toEqual(['2024-02-28', '2024-03-01']);
+      component.setPeriod('7');
+      fixture.detectChanges();
+      expect(component.rangeEnd).toBe(getIstDateString());
+      expect(component.periodDays).toBe(7);
+      expect(fixture.nativeElement.querySelector('.custom-range')).toBeNull();
+      expect(getPeriodCollection.calls.mostRecent().args).toEqual([component.rangeStart, getIstDateString()]);
+      fixture.destroy();
+    }));
+  }
+
+  it('accepts a single custom day and preserves the last applied range on missing, invalid or reversed dates', () => {
+    const { getPeriodCollection } = configureAdminCollections();
+    getPeriodCollection.and.returnValue(of(collectionTotals(10, 20)));
+    const fixture = TestBed.createComponent(AdminDashboardComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.setPeriod('custom');
+    component.customStartDate = component.customEndDate = '2024-02-29';
+    component.applyCustomRange();
+    fixture.detectChanges();
+    expect(component.periodDays).toBe(1);
+    expect(component.rangeLabel).toBe('2024-02-29 - 2024-02-29');
+    expect(getPeriodCollection.calls.mostRecent().args).toEqual(['2024-02-29', '2024-02-29']);
+    const appliedCollection = component.collection;
+    for (const [start, end] of [
+      ['', '2024-03-01'], ['2024-03-02', '2024-03-01'], ['2024-02-30', '2024-03-01'],
+      ['2024-02-28', ''], ['invalid', '2024-03-01']
+    ]) {
+      component.customStartDate = start;
+      component.customEndDate = end;
+      component.applyCustomRange();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.custom-range [role="alert"]')).not.toBeNull();
+      expect(component.rangeStart).toBe('2024-02-29');
+      expect(component.rangeEnd).toBe('2024-02-29');
+      expect(component.collection).toBe(appliedCollection);
+      expect(getPeriodCollection.calls.count()).toBe(2);
+    }
+    fixture.destroy();
+  });
 
   it('clears and reloads collections for date and outlet changes while ignoring obsolete requests', () => {
     const { selected, getPeriodCollection } = configureAdminCollections();

@@ -18,6 +18,31 @@ describe('OrderService reconciliation routes', () => {
 
   afterEach(() => http.verify());
 
+  it('loads older dashboard orders beyond the first page without counting overlapping orders twice', () => {
+    let ids: string[] = [];
+    service.getAllOrdersWithHistory().subscribe(orders => ids = orders.map(order => order.id));
+    const first = http.expectOne(req => req.url === `${environment.apiUrl}/orders` && req.params.get('page') === '1');
+    expect(first.request.params.get('pageSize')).toBe('500');
+    first.flush(Array.from({ length: 500 }, (_, index) => ({ id: String(index) })));
+    expect(ids).toEqual([]);
+    const second = http.expectOne(req => req.url === `${environment.apiUrl}/orders` && req.params.get('page') === '2');
+    second.flush([{ id: '0' }, { id: 'older-order' }]);
+    expect(ids.length).toBe(501);
+    expect(ids).toContain('older-order');
+  });
+
+  it('fails a history read instead of returning incomplete figures when a later page fails', () => {
+    spyOn(console, 'error');
+    const next = jasmine.createSpy('next');
+    const error = jasmine.createSpy('error');
+    service.getAllOrdersWithHistory().subscribe({ next, error });
+    http.expectOne(req => req.params.get('page') === '1')
+      .flush(Array.from({ length: 500 }, (_, index) => ({ id: String(index) })));
+    http.expectOne(req => req.params.get('page') === '2').flush({ error: 'Unavailable' }, { status: 503, statusText: 'Unavailable' });
+    expect(next).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalled();
+  });
+
   it('reconciles an order through the non-reserved management route', () => {
     const payload = { reason: 'Correct recorded payment', paymentStatus: 'paid' };
     service.adminReconcileOrder('order-1', payload).subscribe();

@@ -150,7 +150,12 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   private managerOutlets: Outlet[] = [];
   readonly availableOutlets$ = this.outletService.availableOutlets$.pipe(map(outlets =>
     this.managerView ? outlets.filter(outlet => this.isAssignedOutlet(outlet)) : outlets));
-  periodDays: 1 | 7 | 30 | 90 = 30;
+  periodDays = 30;
+  dateRange: '1' | '7' | '30' | '90' | 'custom' = '30';
+  customStartDate = '';
+  customEndDate = '';
+  customDateError: string | null = null;
+  private customRange: { start: string; end: string } | null = null;
   showComparison = true;
   operationalErrors: string[] = [];
   collection: OrderPeriodCollection | null = null;
@@ -377,7 +382,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     });
     this.dataSubscription = forkJoin({
       readData,
-      orders: this.orderService.getAllOrders(),
+      orders: this.orderService.getAllOrdersWithHistory(),
       operations: this.loadOptional(this.managerOps.getBoard(), 'Kitchen and delivery operations'),
       floor: this.loadOptional(this.tableService.getFloor(), 'Table occupancy and dues'),
       outboxHealth: this.managerView ? of(null) : this.http.get<OutboxHealth>(`${environment.apiUrl}/manage/ops/outbox-health`).pipe(
@@ -422,11 +427,45 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   setPeriod(value: string): void {
+    if (value === 'custom') {
+      this.dateRange = 'custom';
+      this.customStartDate = this.rangeStart;
+      this.customEndDate = this.rangeEnd;
+      this.customDateError = null;
+      return;
+    }
     if (value === '1') this.periodDays = 1;
     else if (value === '7') this.periodDays = 7;
     else if (value === '30') this.periodDays = 30;
     else if (value === '90') this.periodDays = 90;
     else return;
+    this.dateRange = value;
+    this.customRange = null;
+    this.customDateError = null;
+    this.refreshOverview();
+    this.loadCollections();
+  }
+
+  applyCustomRange(): void {
+    const parseDate = (value: string): number | null => {
+      const epoch = Date.parse(`${value}T00:00:00Z`);
+      return /^\d{4}-\d{2}-\d{2}$/.test(value) && !value.startsWith('0000')
+        && Number.isFinite(epoch) && new Date(epoch).toISOString().slice(0, 10) === value ? epoch : null;
+    };
+    const start = parseDate(this.customStartDate);
+    const end = parseDate(this.customEndDate);
+    if (start === null || end === null) {
+      this.customDateError = 'Choose a valid start date and end date.';
+      return;
+    }
+    if (start > end) {
+      this.customDateError = 'Start date must be on or before end date.';
+      return;
+    }
+    this.customRange = { start: this.customStartDate, end: this.customEndDate };
+    this.periodDays = (end - start) / 86400000 + 1;
+    this.dateRange = 'custom';
+    this.customDateError = null;
     this.refreshOverview();
     this.loadCollections();
   }
@@ -438,7 +477,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     this.collectionLoading = false;
     if (!this.selectedOutlet || (this.managerView && !this.isAssignedOutlet(this.selectedOutlet))) return;
     this.collectionLoading = true;
-    this.collectionSubscription = this.orderService.getPeriodCollection(this.rangeStart, getIstDateString())
+    this.collectionSubscription = this.orderService.getPeriodCollection(this.rangeStart, this.rangeEnd)
       .pipe(map(collection => {
         if (!collection || !['cash', 'upi', 'other', 'unallocated', 'total', 'unknownAmountOrders']
           .every(key => typeof collection[key as keyof OrderPeriodCollection] === 'number'
@@ -464,18 +503,18 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   refreshOverview(): void {
-    const today = getIstDateString();
+    const end = this.rangeEnd;
     const start = this.rangeStart;
-    this.overview = calculateDashboardOverview(this.onlineSales, this.offlineSales, this.periodDays, today);
-    this.insights = calculateDashboardInsights(this.allOrders, this.expenses, this.periodDays, today);
+    this.overview = calculateDashboardOverview(this.onlineSales, this.offlineSales, this.periodDays, end);
+    this.insights = calculateDashboardInsights(this.allOrders, this.expenses, this.periodDays, end);
     this.periodOrders = this.allOrders.filter(order => {
       const epoch = getStoredTimestampEpoch(order.createdAt, order.createdAtIsUtc);
       if (!epoch) return false;
       const date = getIstInputDate(new Date(epoch));
-      return date >= start && date <= today;
+      return date >= start && date <= end;
     });
-    this.appOverview = calculateWebSalesOverview(this.periodOrders, this.rangeStart, today);
-    this.itemCategoryOptions = calculateDashboardItemSales(this.periodOrders, this.menuItems, start, today, '', '', '')
+    this.appOverview = calculateWebSalesOverview(this.periodOrders, start, end);
+    this.itemCategoryOptions = calculateDashboardItemSales(this.periodOrders, this.menuItems, start, end, '', '', '')
       .categories.map(category => category.name).sort();
     this.refreshItemSales();
   }
@@ -496,11 +535,15 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   get rangeStart(): string {
-    return getIstInputDate(new Date(Date.parse(`${getIstDateString()}T00:00:00+05:30`) - (this.periodDays - 1) * 86400000));
+    return this.customRange?.start
+      || getIstInputDate(new Date(Date.parse(`${this.rangeEnd}T00:00:00+05:30`) - (this.periodDays - 1) * 86400000));
   }
 
+  get rangeEnd(): string { return this.customRange?.end || getIstDateString(); }
+
   get rangeLabel(): string {
-    return this.periodDays === 1 ? 'Today' : `${this.chartDate(this.rangeStart)} - ${this.chartDate(getIstDateString())}`;
+    if (this.customRange) return `${this.rangeStart} - ${this.rangeEnd}`;
+    return this.periodDays === 1 ? 'Today' : `${this.chartDate(this.rangeStart)} - ${this.chartDate(this.rangeEnd)}`;
   }
 
   togglePanel(panel: string): void {
@@ -647,7 +690,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   refreshItemSales(): void {
-    this.itemSales = calculateDashboardItemSales(this.periodOrders, this.menuItems, this.rangeStart, getIstDateString(),
+    this.itemSales = calculateDashboardItemSales(this.periodOrders, this.menuItems, this.rangeStart, this.rangeEnd,
       this.itemSearch, this.itemCategory, this.itemSource);
   }
 
@@ -663,7 +706,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     const text = (value: string) => (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value).replace(/"/g, '""');
     const csv = toCsv(['Item', 'Category', 'Quantity', 'Orders', 'Dine-in', 'Takeaway', 'Delivery/Other', 'Item total'],
       this.itemSales.rows.map(row => [text(row.name), text(row.category), row.quantity, row.orders, row.dineIn, row.takeaway, row.delivery, row.value]));
-    downloadFile(csv, `item-sales-${this.rangeStart}-${getIstDateString()}.csv`);
+    downloadFile(csv, `item-sales-${this.rangeStart}-${this.rangeEnd}.csv`);
   }
 
   get maxHourlyOrders(): number {
