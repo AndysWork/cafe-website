@@ -1,6 +1,7 @@
 <!-- Mobile Overlay -->
 <div
   class="mobile-overlay"
+  [class.staff-overlay]="isLoggedIn && !isCustomerOnly"
   [class.active]="isMobileMenuOpen"
   (click)="closeMobileMenu()"
 ></div>
@@ -10,6 +11,7 @@
   [class.mobile-open]="isMobileMenuOpen"
   [class.landing-navbar]="isLandingPage"
   [class.guest-navbar]="!isLoggedIn"
+  [class.staff-navbar]="isLoggedIn && !isCustomerOnly"
   role="navigation"
   aria-label="Main navigation"
 >

@@ -6022,7 +6022,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             Platform = "Web Sales",
             OrderId = order.Id ?? string.Empty,
             CustomerName = order.Username,
-            OrderAt = order.CreatedAtIsUtc == true ? Helpers.OrderDateHelper.ToIstCreatedAt(order) : order.CreatedAt,
+            OrderAt = Helpers.OrderDateHelper.ToIstCreatedAt(order),
             OrderedItems = order.Items?.Select(i => new OrderedItem
             {
                 Quantity = i.Quantity,

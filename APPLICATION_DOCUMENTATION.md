@@ -10,8 +10,9 @@
 > - Kitchen order-level text-to-speech playback in Kitchen Display
 > - Kitchen-only Google translation controls (custom selector-based integration)
 > - Role-aware navbar visibility hardening on home and role dashboards
-> - Grouped multi-role navbar: Home stays visible; permitted links appear once under Dashboards, Operations, Staff, and My Account. Empty groups are hidden. At widths up to 1024px, groups expand inside the mobile drawer instead of scrolling horizontally.
+> - Grouped multi-role navbar: Home stays visible; permitted links appear once under Dashboards, Operations, Staff, and My Account. Empty groups are hidden. Staff/admin navigation uses the drawer below 1400px and compact desktop spacing at wider sizes, reserving room for Order Now, cart, notifications and profile. Guest/customer-only navigation retains its 1024px mobile breakpoint. Profile hover follows the same role-aware breakpoint; drawer menus remain tap/click controlled.
 > - Dine-in QR/waiter order rounds, KOT workflow, item-level kitchen tracking, cashier settlement, reporting, and audit timeline
+> - App orders mapped into Web Sales always expose `orderAt` as normalized IST wall-clock time through `OrderDateHelper.ToIstCreatedAt`. This preserves legacy IST timestamps and converts marked or inferred UTC timestamps once, keeping dashboard daily totals aligned with IST order-date filters without changing stored orders, prices or payments.
 
 ---
 

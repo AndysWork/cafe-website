@@ -134,6 +134,78 @@ describe('NavbarComponent multi-role navigation', () => {
     expect(links()).not.toContain('/partner/delivery');
   });
 
+  it('collapses staff navigation before it overlaps landing actions and keeps wide layouts separate', () => {
+    store.setUser({
+      username: 'A staff display name that is longer than the available profile space',
+      email: 'staff@example.com',
+      role: 'admin',
+      roles: ['admin', 'user', 'manager', 'cashier', 'waiter', 'cook', 'delivery-partner']
+    });
+    fixture.detectChanges();
+    for (const width of [1200, 1399, 1400, 1600]) {
+      const frame = document.createElement('iframe');
+      frame.style.width = `${width}px`;
+      frame.style.height = '800px';
+      frame.style.border = '0';
+      document.body.appendChild(frame);
+      try {
+        const documentInFrame = frame.contentDocument!;
+        for (const style of document.querySelectorAll('style')) documentInFrame.head.appendChild(style.cloneNode(true));
+        documentInFrame.body.style.margin = '0';
+        const rendered: HTMLElement = fixture.nativeElement.cloneNode(true);
+        documentInFrame.body.appendChild(rendered);
+        const notification = rendered.querySelector<HTMLElement>('app-notification-center')!;
+        notification.style.width = '44px';
+        notification.style.flex = '0 0 44px';
+        const frameWindow = frame.contentWindow!;
+        const toggle = rendered.querySelector<HTMLElement>('.mobile-menu-toggle')!;
+        const menu = rendered.querySelector<HTMLElement>('.navbar-menu')!;
+        if (width < 1400) {
+          expect(frameWindow.getComputedStyle(toggle).display).withContext(`toggle at ${width}px`).toBe('flex');
+          expect(frameWindow.getComputedStyle(menu).display).withContext(`closed menu at ${width}px`).toBe('none');
+          menu.classList.add('active');
+          expect(frameWindow.getComputedStyle(menu).display).toBe('flex');
+          const groupMenu = rendered.querySelector<HTMLElement>('.navigation-group-menu')!;
+          expect(frameWindow.getComputedStyle(groupMenu).position).toBe('static');
+          groupMenu.hidden = false;
+          for (const link of menu.querySelectorAll<HTMLElement>('.nav-link, .landing-order, .profile-badge')) {
+            expect(link.getBoundingClientRect().right).withContext(`drawer content within viewport at ${width}px`).toBeLessThanOrEqual(width);
+          }
+        } else {
+          expect(frameWindow.getComputedStyle(toggle).display).toBe('none');
+          const lastGroup = rendered.querySelectorAll<HTMLElement>('.navigation-group');
+          const auth = rendered.querySelector<HTMLElement>('.auth-section')!;
+          const lastGroupRight = lastGroup[lastGroup.length - 1].getBoundingClientRect().right;
+          expect(lastGroupRight + 8).withContext(`navigation clearance at ${width}px`).toBeLessThanOrEqual(auth.getBoundingClientRect().left);
+          expect(auth.getBoundingClientRect().right).withContext(`actions within viewport at ${width}px`).toBeLessThanOrEqual(width);
+        }
+      } finally {
+        frame.remove();
+      }
+    }
+  });
+
+  it('uses the earlier staff breakpoint for hover while preserving customer navigation', fakeAsync(() => {
+    const media = spyOn(window, 'matchMedia').and.callFake(query =>
+      jasmine.createSpyObj<MediaQueryList>('media', ['addEventListener'], {
+        matches: query.includes('1025px')
+      })
+    );
+    setRoles('admin');
+    fixture.componentInstance.openDropdown('profile');
+    expect(fixture.componentInstance.activeDropdown).toBeNull();
+    fixture.componentInstance.toggleDropdown('profile');
+    fixture.componentInstance.scheduleCloseDropdown();
+    tick(250);
+    expect(fixture.componentInstance.activeDropdown).toBe('profile');
+    expect(media).toHaveBeenCalledWith('(min-width: 1400px) and (hover: hover) and (pointer: fine)');
+    setRoles('user');
+    expect(fixture.nativeElement.querySelector('.staff-navbar')).toBeNull();
+    fixture.componentInstance.openDropdown('customer-profile');
+    expect(fixture.componentInstance.activeDropdown).toBe('customer-profile');
+    expect(media).toHaveBeenCalledWith('(min-width: 1025px) and (hover: hover) and (pointer: fine)');
+  }));
+
   it('simplifies customer-only navigation into one account menu', () => {
     setRoles('user', ['user']);
     expect(fixture.componentInstance.isCustomerOnly).toBeTrue();

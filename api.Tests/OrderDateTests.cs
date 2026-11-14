@@ -1,5 +1,9 @@
 using Cafe.Api.Helpers;
 using Cafe.Api.Models;
+using Cafe.Api.Services;
+using System.Globalization;
+using System.Reflection;
+using System.Text.Json;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
@@ -9,6 +13,33 @@ namespace Cafe.Api.Tests;
 
 public class OrderDateTests
 {
+    [Theory]
+    [InlineData(null, "pickup", null, true, "2026-11-09T23:55:00Z", "2026-11-09T23:55:00")]
+    [InlineData(false, "pickup", null, true, "2026-11-09T23:55:00Z", "2026-11-09T23:55:00")]
+    [InlineData(null, "dine-in", null, true, "2026-11-09T23:55:00Z", "2026-11-09T23:55:00")]
+    [InlineData(true, "pickup", null, false, "2026-11-09T18:35:00Z", "2026-11-10T00:05:00")]
+    [InlineData(null, "dine-in", null, false, "2026-11-09T18:35:00Z", "2026-11-10T00:05:00")]
+    [InlineData(null, "delivery", "phone", false, "2026-11-09T18:35:00Z", "2026-11-10T00:05:00")]
+    public void WebSalesSerializeNormalizedIstOrderTime(
+        bool? marker, string orderType, string? source, bool legacy, string timestamp, string expected)
+    {
+        var createdAt = DateTime.Parse(timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+        var order = new Order
+        {
+            Id = ObjectId.GenerateNewId(legacy ? createdAt.AddMinutes(-330) : createdAt).ToString(),
+            CreatedAt = createdAt,
+            CreatedAtIsUtc = marker,
+            OrderType = orderType,
+            OrderSource = source,
+            DineInSessionId = orderType == "dine-in" ? "session" : null
+        };
+        var map = typeof(MongoService).GetMethod("MapOrderToWebSale", BindingFlags.NonPublic | BindingFlags.Static)!
+            .CreateDelegate<Func<Order, OnlineSale>>();
+        using var response = JsonDocument.Parse(JsonSerializer.Serialize(map(order)));
+
+        Assert.Equal(expected, response.RootElement.GetProperty("OrderAt").GetString());
+    }
+
     [Theory]
     [InlineData(true, "2026-11-07T18:29:59Z", false)]
     [InlineData(true, "2026-11-07T18:30:00Z", true)]
