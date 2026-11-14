@@ -354,6 +354,7 @@ public class KitchenDisplayFunction
             if (requestedStatus == "delivered")
             {
                 order.CompletedAt = GetKitchenClock(order);
+                order.CompletedAtIsUtc = order.CreatedAtIsUtc == true;
             }
 
             var success = PhoneDeliveryOrderRules.IsPhoneOrder(order)

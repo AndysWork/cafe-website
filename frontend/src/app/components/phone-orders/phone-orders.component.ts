@@ -290,13 +290,22 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
   }
 
   assign(order: PhoneDeliveryOrder): void {
+    if (!this.outletMatches) {
+      this.error = 'Return to this order\'s outlet before assigning a delivery partner.';
+      return;
+    }
     const partnerId = this.assignments[order.id];
     if (!partnerId) {
       this.error = 'Select a delivery partner first.';
       return;
     }
+    if (!this.hasSelectedAssignablePartner(order)) {
+      this.error = 'The selected partner is no longer available or cannot collect COD. Select an eligible partner.';
+      return;
+    }
     this.busyOrderId = order.id;
     this.error = '';
+    this.message = '';
     this.subscriptions.add(this.partnerService.assignDeliveryPartner({
       orderId: order.id, deliveryPartnerId: partnerId
     }, 'shop').subscribe({
@@ -309,6 +318,7 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
       error: (error: unknown) => {
         this.error = this.errorText(error, 'Could not assign this delivery partner.');
         this.busyOrderId = '';
+        this.loadPartners();
       }
     }));
   }
@@ -408,6 +418,11 @@ export class PhoneOrdersComponent implements OnInit, OnDestroy {
 
   hasAssignablePartners(order: PhoneDeliveryOrder): boolean {
     return this.getAssignablePartners(order).length > 0;
+  }
+
+  hasSelectedAssignablePartner(order: PhoneDeliveryOrder): boolean {
+    const selected = this.assignments[order.id];
+    return !!selected && this.getAssignablePartners(order).some(partner => partner.id === selected);
   }
 
   partnerEligibilityHint(order: PhoneDeliveryOrder): string {

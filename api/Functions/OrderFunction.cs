@@ -1636,11 +1636,16 @@ public class OrderFunction
 
             if (string.Equals(order.Status, "delivered", StringComparison.OrdinalIgnoreCase))
             {
-                order.CompletedAt ??= now;
+                if (!order.CompletedAt.HasValue)
+                {
+                    order.CompletedAt = now;
+                    order.CompletedAtIsUtc = false;
+                }
             }
             else if (!string.IsNullOrWhiteSpace(normalizedStatus))
             {
                 order.CompletedAt = null;
+                order.CompletedAtIsUtc = null;
             }
 
             if (string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
@@ -2117,6 +2122,7 @@ public class OrderFunction
             if (nextStatus == "delivered" && order != null)
             {
                 order.CompletedAt = MongoService.GetIstNow();
+                order.CompletedAtIsUtc = false;
                 order.UpdatedAt = MongoService.GetIstNow();
                 await _orderRepo.UpdateOrderAsync(order);
                 await TryAwardWorkflowLoyaltyPointsAsync(order);

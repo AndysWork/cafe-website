@@ -1,16 +1,17 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { DeliveryPartnerService, PartnerDashboard } from '../../services/delivery-partner.service';
 import { WebPushService } from '../../services/web-push.service';
 import { UIStore } from '../../store/ui.store';
 import { Subscription, interval } from 'rxjs';
+import { getIstHour, getStoredTimestampEpoch } from '../../utils/date-utils';
 
 @Component({
   selector: 'app-partner-delivery-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './partner-delivery-dashboard.component.html',
   styleUrls: ['./partner-delivery-dashboard.component.scss']
 })
@@ -22,26 +23,14 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   private router = inject(Router);
 
   dashboard: PartnerDashboard | null = null;
+  statusOrderId: string | null = null;
+  codOrderId: string | null = null;
+  infoModal: 'performance' | 'incentives' | 'zones' | 'requests' | 'reviews' | null = null;
+  errorMessage: string | null = null;
+  private dashboardRequest = 0;
   loading = true;
-  activeShiftModal: 'start' | 'end' | 'trip' | 'history' | null = null;
-  shiftForm = {
-    startOdometerKm: '',
-    endOdometerKm: '',
-    notes: ''
-  };
-  tripForm = {
-    shiftId: '',
-    tripType: 'delivery',
-    orderId: '',
-    startOdometerKm: '',
-    endOdometerKm: '',
-    startPointLabel: '',
-    endPointLabel: '',
-    notes: ''
-  };
-  submittingShiftStart = false;
-  submittingShiftEnd = false;
-  submittingTrip = false;
+  availabilityChoice = false;
+  updatingAvailability = false;
   codAmountDraft: Record<string, string> = {};
   codReferenceDraft: Record<string, string> = {};
   confirmingCod: Record<string, boolean> = {};
@@ -75,6 +64,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.dashboardRequest++;
     this.pollSub?.unsubscribe();
     this.unregisterAudioUnlockListeners();
     if (this.audioContext && this.audioContext.state !== 'closed') {
@@ -161,14 +151,19 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   }
 
   loadDashboard(): void {
-    this.loading = true;
+    if (this.updatingAvailability) return;
+    const request = ++this.dashboardRequest;
+    this.loading = !this.dashboard;
     this.partnerService.getPartnerDashboard().subscribe({
       next: data => {
+        if (request !== this.dashboardRequest) return;
         const pendingRequestIds = new Set((data.pendingRequests || []).map(r => r.id).filter((id): id is string => !!id));
         const hasNewPendingRequest = this.hasHydratedPendingRequests
           && Array.from(pendingRequestIds).some(id => !this.knownPendingRequestIds.has(id));
 
         this.dashboard = data;
+        this.availabilityChoice = data.profile?.availability?.isOnline === true;
+        this.errorMessage = null;
         this.knownPendingRequestIds = pendingRequestIds;
         if (this.hasHydratedPendingRequests && hasNewPendingRequest) {
           this.playIncomingRequestAlert();
@@ -179,149 +174,27 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
         this.loading = false;
       },
       error: () => {
+        if (request !== this.dashboardRequest) return;
+        this.errorMessage = this.dashboard
+          ? 'Could not refresh delivery data. Showing the last successful update.'
+          : 'Could not load your delivery dashboard. Please try again.';
         this.uiStore.error('Failed to load partner dashboard');
         this.loading = false;
       }
     });
   }
 
-  openShiftModal(modal: 'start' | 'end' | 'trip' | 'history'): void {
-    if (modal === 'trip' && !this.tripForm.shiftId && this.dashboard?.activeShift?.id) {
-      this.tripForm.shiftId = this.dashboard.activeShift.id;
-    }
-    this.activeShiftModal = modal;
-  }
-
-  closeShiftModal(): void {
-    this.activeShiftModal = null;
-  }
-
-  startShift(): void {
-    const startOdometerKm = Number(this.shiftForm.startOdometerKm);
-    if (!Number.isFinite(startOdometerKm) || startOdometerKm < 0) {
-      this.uiStore.error('Enter valid start odometer');
-      return;
-    }
-
-    this.submittingShiftStart = true;
-    this.partnerService.startMyShift({
-      startOdometerKm,
-      notes: this.shiftForm.notes.trim() || undefined
-    }).subscribe({
-      next: shift => {
-        this.uiStore.success('Shift started');
-        this.dashboard = this.dashboard
-          ? { ...this.dashboard, activeShift: shift }
-          : this.dashboard;
-        this.shiftForm.endOdometerKm = '';
-        this.shiftForm.notes = '';
-        this.submittingShiftStart = false;
-        this.closeShiftModal();
-        this.loadDashboard();
-      },
-      error: () => {
-        this.submittingShiftStart = false;
-        this.uiStore.error('Failed to start shift');
-      }
-    });
-  }
-
-  endShift(): void {
-    const activeShiftId = this.dashboard?.activeShift?.id;
-    if (!activeShiftId) {
-      this.uiStore.error('No active shift found');
-      return;
-    }
-
-    const endOdometerKm = Number(this.shiftForm.endOdometerKm);
-    if (!Number.isFinite(endOdometerKm) || endOdometerKm < 0) {
-      this.uiStore.error('Enter valid end odometer');
-      return;
-    }
-
-    this.submittingShiftEnd = true;
-    this.partnerService.endMyShift(activeShiftId, {
-      endOdometerKm,
-      notes: this.shiftForm.notes.trim() || undefined
-    }).subscribe({
-      next: (res) => {
-        const endedDistance = res.shift?.totalDistanceKm;
-        if (typeof endedDistance === 'number') {
-          this.uiStore.success(`Shift ended. Total distance: ${endedDistance.toFixed(2)} km`);
-        } else {
-          this.uiStore.success('Shift ended');
-        }
-        this.shiftForm.startOdometerKm = '';
-        this.shiftForm.endOdometerKm = '';
-        this.shiftForm.notes = '';
-        this.submittingShiftEnd = false;
-        this.closeShiftModal();
-        this.loadDashboard();
-      },
-      error: () => {
-        this.submittingShiftEnd = false;
-        this.uiStore.error('Failed to end shift');
-      }
-    });
-  }
-
-  logTrip(): void {
-    const startOdometerKm = Number(this.tripForm.startOdometerKm);
-    const endOdometerKm = Number(this.tripForm.endOdometerKm);
-
-    if (!this.tripForm.shiftId.trim()) {
-      this.uiStore.error('Shift ID is required');
-      return;
-    }
-
-    if (!Number.isFinite(startOdometerKm) || !Number.isFinite(endOdometerKm) || startOdometerKm < 0 || endOdometerKm < 0) {
-      this.uiStore.error('Enter valid odometer values');
-      return;
-    }
-
-    this.submittingTrip = true;
-    this.partnerService.createMyTrip({
-      shiftId: this.tripForm.shiftId.trim(),
-      tripType: this.tripForm.tripType,
-      orderId: this.tripForm.orderId.trim() || undefined,
-      startOdometerKm,
-      endOdometerKm,
-      startPointLabel: this.tripForm.startPointLabel.trim() || undefined,
-      endPointLabel: this.tripForm.endPointLabel.trim() || undefined,
-      notes: this.tripForm.notes.trim() || undefined
-    }).subscribe({
-      next: () => {
-        this.uiStore.success('Trip logged');
-        this.tripForm = {
-          shiftId: this.dashboard?.activeShift?.id || '',
-          tripType: 'delivery',
-          orderId: '',
-          startOdometerKm: '',
-          endOdometerKm: '',
-          startPointLabel: '',
-          endPointLabel: '',
-          notes: ''
-        };
-        this.submittingTrip = false;
-        this.closeShiftModal();
-        this.loadDashboard();
-      },
-      error: () => {
-        this.submittingTrip = false;
-        this.uiStore.error('Failed to log trip');
-      }
-    });
-  }
-
   private initializeCodDrafts(): void {
-    this.codAmountDraft = {};
-    this.codReferenceDraft = {};
+    const amounts: Record<string, string> = {};
+    const references: Record<string, string> = {};
     for (const order of this.dashboard?.activeOrders || []) {
       if (order.id) {
-        this.codAmountDraft[order.id] = String(order.total || 0);
-        this.codReferenceDraft[order.id] = '';
+        amounts[order.id] = this.codAmountDraft[order.id] ?? String(order.total);
+        references[order.id] = this.codReferenceDraft[order.id] ?? '';
       }
     }
+    this.codAmountDraft = amounts;
+    this.codReferenceDraft = references;
   }
 
   canConfirmCod(order: { paymentMethod?: string; paymentStatus?: string; status: string; id?: string }): boolean {
@@ -416,6 +289,10 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
       this.uiStore.warning('Phone delivery orders are assigned by admin/manager. Wait for assignment.');
       return;
     }
+    if (!this.isOnline || this.updatingAvailability) {
+      this.uiStore.warning('Go Online during shop hours to accept new orders.');
+      return;
+    }
 
     if (!order.id) {
       this.uiStore.error('Invalid order');
@@ -438,6 +315,10 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   }
 
   acceptParcelTask(task: { id?: string }): void {
+    if (!this.isOnline || this.updatingAvailability) {
+      this.uiStore.warning('Go Online during shop hours to accept new parcel tasks.');
+      return;
+    }
     if (!task.id) {
       this.uiStore.error('Invalid parcel task');
       return;
@@ -502,6 +383,97 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   getStarLabel(rating: number): string {
     const full = Math.max(0, Math.min(5, Math.round(rating)));
     return `${'★'.repeat(full)}${'☆'.repeat(5 - full)}`;
+  }
+
+  get isOnline(): boolean {
+    return this.dashboard?.profile?.availability?.isOnline === true;
+  }
+
+  get greeting(): string {
+    const hour = getIstHour(Date.now());
+    return hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  }
+
+  get incentiveProgress(): number {
+    const incentive = this.dashboard?.incentive;
+    return incentive && incentive.targetDeliveries > 0
+      ? Math.max(0, Math.min(100, 100 * incentive.completedDeliveries / incentive.targetDeliveries)) : 0;
+  }
+
+  setAvailability(online: boolean): void {
+    if (this.updatingAvailability || online === this.isOnline) return;
+    if (!this.dashboard?.profile?.availability?.shopIsOpen) {
+      this.availabilityChoice = this.isOnline;
+      this.uiStore.warning(this.dashboard?.profile?.availability?.message || 'Availability is unavailable. Refresh your dashboard.');
+      return;
+    }
+    this.updatingAvailability = true;
+    ++this.dashboardRequest;
+    this.partnerService.updateMyAvailability(online).subscribe({
+      next: response => {
+        if (this.dashboard?.profile) this.dashboard.profile.availability = response.availability;
+        this.availabilityChoice = response.availability.isOnline;
+        this.updatingAvailability = false;
+        this.uiStore.success(response.message);
+        this.loadDashboard();
+      },
+      error: (error: Error) => {
+        this.availabilityChoice = this.isOnline;
+        this.updatingAvailability = false;
+        this.uiStore.error(error.message || 'Could not update availability. Please try again.');
+      }
+    });
+  }
+
+  @HostListener('document:keydown.escape')
+  closeOverlays(): void {
+    this.infoModal = null;
+    this.statusOrderId = null;
+    this.codOrderId = null;
+  }
+
+  displayOrderId(id?: string): string {
+    return id ? (id.length > 12 ? id.slice(-6).toUpperCase() : id) : 'Unavailable';
+  }
+
+  trackOrder(index: number, order: { id?: string }): string | number {
+    return order.id || index;
+  }
+
+  platformLabel(order: { orderSource?: string; channel?: string }): string {
+    const source = order.orderSource?.toLowerCase();
+    if (source === 'phone') return 'Phone';
+    if (source === 'zomato') return 'Zomato';
+    if (source === 'swiggy') return 'Swiggy';
+    return order.channel === 'partner' ? 'Partner' : 'Website';
+  }
+
+  phoneHref(phone?: string): string | null {
+    const number = phone?.replace(/[^\d+]/g, '');
+    return number && /\d{7,}/.test(number.replace(/\+/g, '')) ? `tel:${number}` : null;
+  }
+
+  deliveryDeadline(order: PartnerDashboard['activeOrders'][number]): Date | null {
+    if (order.deliveryDueAtUtc) {
+      const timestamp = getStoredTimestampEpoch(order.deliveryDueAtUtc, true);
+      return timestamp ? new Date(timestamp) : null;
+    }
+    const routeTime = getStoredTimestampEpoch(order.deliveryRouteUpdatedAt);
+    return routeTime && order.deliveryEtaMinutes && order.deliveryEtaMinutes > 0
+      ? new Date(routeTime + order.deliveryEtaMinutes * 60000) : null;
+  }
+
+  hourLabel(hour: number): string {
+    return `${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}`;
+  }
+
+  openCodForm(orderId?: string): void {
+    if (!orderId) {
+      this.uiStore.error('Invalid order');
+      return;
+    }
+    this.statusOrderId = null;
+    this.codOrderId = orderId;
   }
 
   formatStatus(status: string): string {

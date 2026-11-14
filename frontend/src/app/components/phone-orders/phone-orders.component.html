@@ -189,7 +189,7 @@
         <p *ngIf="!hasAssignablePartners(order)" class="partner-warning">
           {{ partnerEligibilityHint(order) }}
         </p>
-        <button type="button" (click)="assign(order)" [disabled]="!assignments[order.id] || !!busyOrderId || !outletMatches">{{ busyOrderId === order.id ? 'Assigning...' : 'Assign partner' }}</button>
+        <button type="button" (click)="assign(order)" [disabled]="!hasSelectedAssignablePartner(order) || !!busyOrderId || !outletMatches">{{ busyOrderId === order.id ? 'Assigning...' : 'Assign partner' }}</button>
       </div>
       <details>
         <summary>Customer tracking link</summary>

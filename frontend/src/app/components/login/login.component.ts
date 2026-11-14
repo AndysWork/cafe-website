@@ -70,7 +70,7 @@ export class LoginComponent {
     });
   }
 
-  /** Lands the user on the screen for their highest-priority role. */
+  /** Delivery work takes precedence over other staff workspaces, but not management. */
   private navigateAfterLogin(roles: string[]): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
     if (returnUrl && returnUrl.startsWith('/')) {
@@ -90,6 +90,11 @@ export class LoginComponent {
       return;
     }
 
+    if (has('partner', 'delivery-partner')) {
+      this.router.navigate(['/partner/delivery']);
+      return;
+    }
+
     if (has('cook', 'chef', 'sous-chef', 'kitchen', 'kitchen-staff', 'kitchen-helper')) {
       this.router.navigate(['/kitchen/dashboard']);
       return;
@@ -98,11 +103,6 @@ export class LoginComponent {
     if (has('waiter', 'cashier')) {
       // Dedicated waiter/cashier screens are added in later phases.
       this.router.navigate(['/staff/attendance']);
-      return;
-    }
-
-    if (has('partner', 'delivery-partner')) {
-      this.router.navigate(['/partner/delivery']);
       return;
     }
 

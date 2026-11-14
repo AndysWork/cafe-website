@@ -2186,7 +2186,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         // If status is delivered, set completedAt
         if (status == "delivered")
         {
-            update = update.Set(x => x.CompletedAt, GetIstNow());
+            update = update.Set(x => x.CompletedAt, GetIstNow()).Set(x => x.CompletedAtIsUtc, false);
         }
 
         var result = await _orders.UpdateOneAsync(x => x.Id == orderId, update);
@@ -2205,7 +2205,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             .Set(x => x.UpdatedAt, GetIstNow());
         if (status == "delivered")
         {
-            update = update.Set(x => x.CompletedAt, GetIstNow());
+            update = update.Set(x => x.CompletedAt, GetIstNow()).Set(x => x.CompletedAtIsUtc, false);
         }
 
         var filter = Builders<Order>.Filter.And(

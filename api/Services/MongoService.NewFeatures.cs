@@ -1,4 +1,5 @@
 using MongoDB.Driver;
+using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
@@ -1022,44 +1023,73 @@ public partial class MongoService : IOperationsRepository
             filter &= filterBuilder.Eq(p => p.OutletId, outletId);
         }
 
-        return await _deliveryPartners.Find(filter)
+        var partners = await _deliveryPartners.Find(filter)
             .SortBy(p => p.Name)
             .ToListAsync();
+        await ApplyPartnerAvailabilityAsync(partners);
+        return partners;
     }
 
     public async Task<DeliveryPartner?> GetDeliveryPartnerByUserIdAsync(string userId)
     {
-        return await _deliveryPartners.Find(p => p.UserId == userId && p.IsActive).FirstOrDefaultAsync();
+        var profiles = await _deliveryPartners.Find(p => p.UserId == userId && p.IsActive).ToListAsync();
+        DeliveryPartner? partner;
+        if (profiles.Count <= 1)
+            partner = profiles.FirstOrDefault();
+        else
+        {
+            var outletIds = profiles.Select(profile => profile.OutletId)
+                .Where(id => ObjectId.TryParse(id, out _)).Distinct().ToList();
+            var outlets = await _outlets.Find(Builders<Outlet>.Filter.In(outlet => outlet.Id, outletIds)).ToListAsync();
+            partner = Cafe.Api.Helpers.DeliveryPartnerProfileSelector.Select(profiles, outlets);
+        }
+        if (partner != null)
+            await ApplyPartnerAvailabilityAsync(new[] { partner });
+        return partner;
     }
 
     public async Task<DeliveryPartner?> GetAvailableDeliveryPartnerAsync(string outletId)
     {
-        var hasValidOutletId = !string.IsNullOrWhiteSpace(outletId)
-            && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase)
-            && ObjectId.TryParse(outletId, out _);
-
-        var filterBuilder = Builders<DeliveryPartner>.Filter;
-        var filter = filterBuilder.Eq(p => p.IsActive, true)
-            & filterBuilder.Eq(p => p.Status, "available");
-        if (hasValidOutletId)
-        {
-            filter &= filterBuilder.Eq(p => p.OutletId, outletId);
-        }
-
-        return await _deliveryPartners.Find(filter)
-            .SortByDescending(p => p.Rating)
-            .FirstOrDefaultAsync();
+        var partners = await GetDeliveryPartnersAsync(outletId);
+        return partners.Where(partner => partner.Status == "available")
+            .OrderByDescending(partner => partner.Rating).FirstOrDefault();
     }
 
     public async Task<DeliveryPartner?> GetDeliveryPartnerByIdAsync(string partnerId)
     {
-        return await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
+        var partner = await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
+        if (partner != null)
+            await ApplyPartnerAvailabilityAsync(new[] { partner });
+        return partner;
+    }
+
+    private async Task ApplyPartnerAvailabilityAsync(IReadOnlyCollection<DeliveryPartner> partners)
+    {
+        if (partners.Count == 0) return;
+        var outletIds = partners.Select(partner => partner.OutletId)
+            .Where(id => ObjectId.TryParse(id, out _)).Distinct().ToList();
+        var outlets = await _outlets.Find(Builders<Outlet>.Filter.In(outlet => outlet.Id, outletIds)).ToListAsync();
+        var now = DateTimeOffset.UtcNow;
+        foreach (var partner in partners)
+        {
+            var outlet = outlets.FirstOrDefault(outlet => outlet.Id == partner.OutletId);
+            if (outlet == null)
+                _logger.LogWarning("Delivery partner {PartnerId} references an unavailable outlet {OutletId}", partner.Id, partner.OutletId);
+            Cafe.Api.Helpers.DeliveryPartnerAvailability.Apply(partner, outlet, now);
+        }
+    }
+
+    public async Task<bool> SetDeliveryPartnerAvailabilityAsync(string partnerId, DateTime? pausedUntilUtc)
+    {
+        var result = await _deliveryPartners.UpdateOneAsync(p => p.Id == partnerId && p.IsActive,
+            Builders<DeliveryPartner>.Update.Set(p => p.AvailabilityPausedUntilUtc, pausedUntilUtc));
+        return result.MatchedCount == 1;
     }
 
     public async Task<bool> AssignDeliveryPartnerAsync(string partnerId, string orderId)
     {
-        var partner = await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
-        if (partner == null)
+        var partner = await GetDeliveryPartnerByIdAsync(partnerId);
+        if (partner == null || partner.Status != "available")
         {
             return false;
         }
@@ -1075,6 +1105,7 @@ public partial class MongoService : IOperationsRepository
                 && (o.Status == "pending" || o.Status == "confirmed" || o.Status == "preparing" || o.Status == "ready"),
                 Builders<Order>.Update.Set(o => o.DeliveryPartnerId, partnerId)
                     .Set(o => o.DeliveryPartnerName, partner.Name)
+                    .Set(o => o.DeliveryAssignedAtUtc, GetUtcNow())
                     .Set(o => o.DeliveryRouteUrl, order.DeliveryLocationUrl)
                     .Set(o => o.UpdatedAt, GetIstNow()));
             if (assigned.MatchedCount == 0) return false;
@@ -1098,6 +1129,7 @@ public partial class MongoService : IOperationsRepository
                 Builders<Order>.Update
                     .Set(o => o.DeliveryPartnerId, partnerId)
                     .Set(o => o.DeliveryPartnerName, partner.Name)
+                    .Set(o => o.DeliveryAssignedAtUtc, GetUtcNow())
                     .Set(o => o.UpdatedAt, GetIstNow()));
         }
         return result.ModifiedCount > 0;
@@ -1105,8 +1137,8 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<bool> TryAssignUnassignedDeliveryPartnerAsync(string partnerId, string orderId)
     {
-        var partner = await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
-        if (partner == null)
+        var partner = await GetDeliveryPartnerByIdAsync(partnerId);
+        if (partner == null || partner.Status != "available")
         {
             return false;
         }
@@ -1124,6 +1156,7 @@ public partial class MongoService : IOperationsRepository
         var orderUpdate = Builders<Order>.Update
             .Set(o => o.DeliveryPartnerId, partnerId)
             .Set(o => o.DeliveryPartnerName, partner.Name)
+            .Set(o => o.DeliveryAssignedAtUtc, GetUtcNow())
             .Set(o => o.UpdatedAt, GetIstNow());
 
         var orderResult = await _orders.UpdateOneAsync(orderFilter, orderUpdate);
@@ -1453,9 +1486,18 @@ public partial class MongoService : IOperationsRepository
             .ToListAsync();
     }
 
-    public async Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId)
+    public Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId)
+        => GetDeliveryPartnerRatingSummaryAsync(partnerId, null, null);
+
+    public async Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(
+        string partnerId, DateTime? fromDate, DateTime? endExclusive)
     {
-        var reviews = await _deliveryPartnerReviews.Find(r => r.PartnerId == partnerId).ToListAsync();
+        var filter = Builders<DeliveryPartnerReview>.Filter.Eq(r => r.PartnerId, partnerId);
+        if (fromDate.HasValue)
+            filter &= Builders<DeliveryPartnerReview>.Filter.Gte(r => r.CreatedAt, DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc));
+        if (endExclusive.HasValue)
+            filter &= Builders<DeliveryPartnerReview>.Filter.Lt(r => r.CreatedAt, DateTime.SpecifyKind(endExclusive.Value, DateTimeKind.Utc));
+        var reviews = await _deliveryPartnerReviews.Find(filter).ToListAsync();
         if (reviews.Count == 0)
         {
             return (0, 0);
@@ -1613,8 +1655,8 @@ public partial class MongoService : IOperationsRepository
         var order = await GetOrderByIdAsync(orderId);
         if (order != null && Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(order))
             return await AssignDeliveryPartnerAsync(partnerId, orderId);
-        var partner = await _deliveryPartners.Find(p => p.Id == partnerId && p.IsActive).FirstOrDefaultAsync();
-        if (partner == null)
+        var partner = await GetDeliveryPartnerByIdAsync(partnerId);
+        if (partner == null || partner.Status != "available")
         {
             return false;
         }
@@ -1624,6 +1666,7 @@ public partial class MongoService : IOperationsRepository
         var orderUpdate = Builders<Order>.Update
             .Set(o => o.DeliveryPartnerId, partner.Id)
             .Set(o => o.DeliveryPartnerName, partner.Name)
+            .Set(o => o.DeliveryAssignedAtUtc, GetUtcNow())
             .Set(o => o.UpdatedAt, now);
 
         var result = await _orders.UpdateOneAsync(

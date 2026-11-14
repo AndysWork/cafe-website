@@ -184,11 +184,51 @@ describe('PhoneOrdersComponent', () => {
 
   it('assigns through the existing shop delivery workflow', () => {
     partnerService.assignDeliveryPartner.and.returnValue(of({ message: 'Assigned' }));
+    component.partners = [{ id: 'partner-1', name: 'Courier', phone: '0000000000', vehicleType: 'bike', status: 'available' }];
     component.assignments['order-1'] = 'partner-1';
     component.assign({ id: 'order-1' } as PhoneDeliveryOrder);
     expect(partnerService.assignDeliveryPartner).toHaveBeenCalledWith({
       orderId: 'order-1', deliveryPartnerId: 'partner-1'
     }, 'shop');
+  });
+
+  it('blocks stale partner selections and COD-disabled partners without sending an assignment', () => {
+    component.assignments['order-1'] = 'partner-1';
+    const order = { id: 'order-1', paymentMethod: 'cod' } as PhoneDeliveryOrder;
+    component.assign(order);
+    expect(partnerService.assignDeliveryPartner).not.toHaveBeenCalled();
+    component.partners = [{ id: 'partner-1', name: 'Courier', phone: '0000000000', vehicleType: 'bike',
+      status: 'available', codAllowed: false }];
+    component.assign(order);
+    expect(partnerService.assignDeliveryPartner).not.toHaveBeenCalled();
+    expect(component.error).toContain('cannot collect COD');
+  });
+
+  it('refreshes partner eligibility after an assignment conflict and surfaces the server reason', () => {
+    component.partners = [{ id: 'partner-1', name: 'Courier', phone: '0000000000', vehicleType: 'bike', status: 'available' }];
+    component.assignments['order-1'] = 'partner-1';
+    component.message = 'Old success';
+    partnerService.getDeliveryPartners.calls.reset();
+    partnerService.assignDeliveryPartner.and.returnValue(throwError(() => new HttpErrorResponse({
+      status: 409, error: { error: 'Selected partner is no longer available' }
+    })));
+
+    component.assign({ id: 'order-1', paymentMethod: 'cod' } as PhoneDeliveryOrder);
+
+    expect(component.error).toBe('Selected partner is no longer available');
+    expect(component.message).toBe('');
+    expect(component.busyOrderId).toBe('');
+    expect(partnerService.getDeliveryPartners).toHaveBeenCalledOnceWith(true);
+    expect(component.partners).toEqual([]);
+  });
+
+  it('prevents assigning from an old outlet view after the selected outlet changes', () => {
+    fill();
+    component.assignments['order-1'] = 'partner-1';
+    selectedOutlet.next({ ...outlet, id: 'outlet-2' });
+    component.assign({ id: 'order-1' } as PhoneDeliveryOrder);
+    expect(partnerService.assignDeliveryPartner).not.toHaveBeenCalled();
+    expect(component.error).toContain('outlet');
   });
 
   it('cancels an active phone order through order status update', () => {

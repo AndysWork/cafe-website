@@ -307,6 +307,8 @@ public class DeliveryPartnerFunction
                 var usersById = await BuildPartnerUsersByIdAsync(partners);
                 var available = partners
                     .Where(partner => IsPartnerEligibleForAssignment(partner, usersById))
+                    .Where(partner => !PhoneDeliveryOrderRules.IsPhoneOrder(order)
+                        || PhoneDeliveryOrderRules.AssignmentBlockReason(order, partner) == null)
                     .OrderByDescending(partner => partner.Rating)
                     .FirstOrDefault();
                 if (available == null)
@@ -324,11 +326,21 @@ public class DeliveryPartnerFunction
                 var partnerUser = string.IsNullOrWhiteSpace(selectedPartner?.UserId)
                     ? null
                     : await _users.GetUserByIdAsync(selectedPartner.UserId);
-                if (!IsPartnerEligibleForAssignment(selectedPartner, partnerUser))
+                if (selectedPartner == null || !IsPartnerEligibleForAssignment(selectedPartner, partnerUser))
                 {
                     var conflict = req.CreateResponse(HttpStatusCode.Conflict);
                     await conflict.WriteAsJsonAsync(new { error = "Selected delivery partner must be available and linked to an active user with delivery-partner role" });
                     return conflict;
+                }
+                if (PhoneDeliveryOrderRules.IsPhoneOrder(order))
+                {
+                    var blockReason = PhoneDeliveryOrderRules.AssignmentBlockReason(order, selectedPartner);
+                    if (blockReason != null)
+                    {
+                        var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                        await conflict.WriteAsJsonAsync(new { error = blockReason });
+                        return conflict;
+                    }
                 }
             }
 
@@ -371,6 +383,8 @@ public class DeliveryPartnerFunction
                     assignedOrder.DeliveryDistanceKm = routeLink.DistanceKm;
                     assignedOrder.DeliveryEtaMinutes = routeLink.EtaMinutes;
                     assignedOrder.DeliveryRouteUpdatedAt = MongoService.GetIstNow();
+                    assignedOrder.DeliveryDueAtUtc = routeLink.EtaMinutes > 0
+                        ? MongoService.GetUtcNow().AddMinutes(routeLink.EtaMinutes.Value) : null;
                     assignedOrder.UpdatedAt = MongoService.GetIstNow();
                     await _orderRepo.UpdateOrderAsync(assignedOrder);
 
@@ -488,6 +502,13 @@ public class DeliveryPartnerFunction
                 return notFound;
             }
 
+            if (partner.Status == "offline")
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Partner is Offline and cannot receive new tasks" });
+                return conflict;
+            }
+
             var route = await _deliveryRoutingService.BuildPointToPointRouteQuoteAsync(request.StartPoint, request.EndPoint);
             if (route == null || !route.DistanceKm.HasValue || route.DistanceKm.Value <= 0)
             {
@@ -583,6 +604,12 @@ public class DeliveryPartnerFunction
                 return notFound;
             }
 
+            if (partner.Status == "offline")
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Go Online during shop hours before accepting new tasks" });
+                return conflict;
+            }
             var accepted = await _mongo.AcceptParcelTaskAsync(taskId, partner.Id);
             if (!accepted)
             {
@@ -897,6 +924,12 @@ public class DeliveryPartnerFunction
                 await forbidden.WriteAsJsonAsync(new { error = "Phone delivery orders must be assigned by an Admin or Manager" });
                 return forbidden;
             }
+            if (partner.Status != "available")
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Partner must be Online and available before accepting new orders" });
+                return conflict;
+            }
             var success = await _mongo.TryAssignUnassignedDeliveryPartnerAsync(partner.Id, orderId);
             if (!success)
             {
@@ -930,6 +963,8 @@ public class DeliveryPartnerFunction
                     routeOrder.DeliveryDistanceKm = routeLink.DistanceKm;
                     routeOrder.DeliveryEtaMinutes = routeLink.EtaMinutes;
                     routeOrder.DeliveryRouteUpdatedAt = MongoService.GetIstNow();
+                    routeOrder.DeliveryDueAtUtc = routeLink.EtaMinutes > 0
+                        ? MongoService.GetUtcNow().AddMinutes(routeLink.EtaMinutes.Value) : null;
                     routeOrder.UpdatedAt = MongoService.GetIstNow();
                     await _orderRepo.UpdateOrderAsync(routeOrder);
                 }
@@ -1087,7 +1122,8 @@ public class DeliveryPartnerFunction
 
             var now = MongoService.GetIstNow();
             order.Status = "delivered";
-            order.CompletedAt = now;
+            order.CompletedAt = MongoService.GetUtcNow();
+            order.CompletedAtIsUtc = true;
             order.UpdatedAt = now;
 
             var updated = PhoneDeliveryOrderRules.IsPhoneOrder(order)
@@ -1150,12 +1186,7 @@ public class DeliveryPartnerFunction
                 return notFound;
             }
 
-            partner.Status = request.Status.ToLower();
-            await _mongo.UpdateDeliveryPartnerAsync(partnerId, partner);
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { message = $"Status updated to {request.Status}" });
-            return response;
+            return await UpdatePartnerAvailabilityAsync(req, partner, request.Status.ToLower() == "available");
         }
         catch (Exception ex)
         {
@@ -1164,6 +1195,66 @@ public class DeliveryPartnerFunction
             await res.WriteAsJsonAsync(new { error = "An error occurred" });
             return res;
         }
+    }
+
+    [Function("UpdateMyDeliveryAvailability")]
+    public async Task<HttpResponseData> UpdateMyDeliveryAvailability(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "partner/delivery/availability")] HttpRequestData req)
+    {
+        try
+        {
+            var (authorized, userId, _, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
+            if (!authorized) return errorResponse!;
+            if (string.IsNullOrWhiteSpace(userId)
+                || !AuthorizationHelper.GetRolesFromAuthorizationHeader(req, _auth).Any(IsPartnerRole))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Delivery-partner access required" });
+                return forbidden;
+            }
+            var (request, validationError) = await ValidationHelper.ValidateBody<UpdatePartnerAvailabilityRequest>(req);
+            if (validationError != null) return validationError;
+            var partner = await _mongo.GetDeliveryPartnerByUserIdAsync(userId);
+            if (partner == null)
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "Delivery partner profile not found" });
+                return notFound;
+            }
+            return await UpdatePartnerAvailabilityAsync(req, partner, request.IsOnline == true);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error updating delivery availability");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Could not update delivery availability" });
+            return error;
+        }
+    }
+
+    private async Task<HttpResponseData> UpdatePartnerAvailabilityAsync(HttpRequestData req, DeliveryPartner partner, bool online)
+    {
+        var outlet = await _outlets.GetOutletByIdAsync(partner.OutletId);
+        var now = DateTimeOffset.UtcNow;
+        var schedule = DeliveryPartnerAvailability.Calculate(outlet, null, now);
+        if (!schedule.ShopIsOpen)
+        {
+            var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+            await conflict.WriteAsJsonAsync(new { error = schedule.Message });
+            return conflict;
+        }
+        var pausedUntil = online ? (DateTime?)null : schedule.NextOpeningAtUtc!.Value.UtcDateTime;
+        if (!await _mongo.SetDeliveryPartnerAvailabilityAsync(partner.Id!, pausedUntil))
+        {
+            var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+            await conflict.WriteAsJsonAsync(new { error = "Partner profile changed. Refresh and try again." });
+            return conflict;
+        }
+        partner.AvailabilityPausedUntilUtc = pausedUntil;
+        DeliveryPartnerAvailability.Apply(partner, outlet, now);
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(new { message = online ? "You are Online" : "You are Offline", availability = partner.Availability });
+        return response;
     }
 
     [Function("UpdateDeliveryPartner")]
@@ -1386,11 +1477,20 @@ public class DeliveryPartnerFunction
                 .OrderByDescending(o => o.CreatedAt)
                 .Take(20)
                 .ToList();
-            var todayDistance = await _mongo.GetPartnerDistanceAsync(partner.Id, dayStart, dayEnd);
+            var todayDistance = await _mongo.GetPartnerDistanceAsync(partner.Id, dayStart, dayEnd.AddTicks(-1));
             var fuelPrice = await _mongo.GetFuelPriceAsync(partner.OutletId, dayStart);
             var codOutstanding = await _mongo.GetOutstandingCodAmountAsync(partner.Id);
             var (avgRating, reviewsCount) = await _mongo.GetDeliveryPartnerRatingSummaryAsync(partner.Id);
             var recentReviews = await _mongo.GetDeliveryPartnerReviewsAsync(partner.Id, 10);
+            var weekStart = dayStart.AddDays(-6);
+            var periodOrders = await _mongo.GetDeliveryDashboardOrdersAsync(partner.OutletId, weekStart, dayEnd);
+            var weekDistance = await _mongo.GetPartnerDistanceAsync(partner.Id, weekStart, dayEnd.AddTicks(-1));
+            var (weekRating, weekReviews) = await _mongo.GetDeliveryPartnerRatingSummaryAsync(partner.Id, weekStart, dayEnd);
+            var analytics = PartnerDashboardAnalytics.Calculate(periodOrders, partner.Id, dayStart,
+                weekDistance, weekReviews > 0 ? weekRating : null, weekReviews);
+            var zones = await _mongo.GetActiveDeliveryZonesAsync(partner.OutletId);
+            var outlet = MongoDB.Bson.ObjectId.TryParse(partner.OutletId, out _)
+                ? await _outlets.GetOutletByIdAsync(partner.OutletId) : null;
 
             var mileage = partner.MileageKmpl <= 0 ? 40 : partner.MileageKmpl;
             var litres = mileage > 0 ? todayDistance / mileage : 0;
@@ -1410,6 +1510,13 @@ public class DeliveryPartnerFunction
                 CodOutstanding = Math.Round(codOutstanding, 2, MidpointRounding.AwayFromZero),
                 AverageRating = avgRating,
                 ReviewsCount = reviewsCount,
+                OutletName = outlet?.OutletName,
+                PickupAddress = outlet?.Address,
+                TodaySummary = analytics.Today with { InProgress = activeOrders.Count },
+                Performance = analytics.Performance,
+                Incentive = analytics.Incentive,
+                PeakHours = analytics.PeakHours,
+                DeliveryZones = zones.Select(z => new PartnerZoneSummary(z.ZoneName, z.MinDistance, z.MaxDistance)).ToList(),
                 RecentReviews = recentReviews.Select(r => new PartnerReviewSummary
                 {
                     OrderId = r.OrderId,
@@ -2170,6 +2277,15 @@ public class DeliveryPartnerFunction
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = "No matching active shift found" });
                 return badReq;
+            }
+
+            var activeOrders = await _mongo.GetActiveOrdersForPartnerAsync(partner.Id, partner.OutletId);
+            var parcelTasks = await _mongo.GetParcelTasksForPartnerAsync(partner.Id, "accepted", 100);
+            if (activeOrders.Count > 0 || parcelTasks.Any(t => t.Status == "accepted"))
+            {
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { error = "Complete active deliveries and parcel tasks before ending your shift" });
+                return conflict;
             }
 
             if (request.EndOdometerKm < activeShift.StartOdometerKm)

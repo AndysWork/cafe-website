@@ -35,9 +35,11 @@ public interface IOperationsRepository
     Task<bool> UpdateDeliveryPartnerLocationAsync(string partnerId, double latitude, double longitude);
     Task<bool> CompleteDeliveryAsync(string partnerId);
     Task<bool> UpdateDeliveryPartnerAsync(string id, DeliveryPartner partner);
+    Task<bool> SetDeliveryPartnerAvailabilityAsync(string partnerId, DateTime? pausedUntilUtc);
     Task<bool> DeleteDeliveryPartnerAsync(string id);
     Task<DeliveryPartner?> GetDeliveryPartnerByUserIdAsync(string userId);
     Task<List<Order>> GetActiveOrdersForPartnerAsync(string partnerId, string? outletId = null);
+    Task<List<Order>> GetDeliveryDashboardOrdersAsync(string outletId, DateTime start, DateTime endExclusive);
 
     // Delivery Partner Operations
     Task<DeliveryShift?> GetActiveShiftForPartnerAsync(string partnerId);
@@ -59,6 +61,7 @@ public interface IOperationsRepository
     Task<DeliveryPartnerReview> AddDeliveryPartnerReviewAsync(DeliveryPartnerReview review);
     Task<List<DeliveryPartnerReview>> GetDeliveryPartnerReviewsAsync(string partnerId, int limit = 10);
     Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId);
+    Task<(double averageRating, int totalReviews)> GetDeliveryPartnerRatingSummaryAsync(string partnerId, DateTime? fromDate, DateTime? endExclusive);
 
     Task<ParcelDeliveryTask> CreateParcelTaskAsync(ParcelDeliveryTask task);
     Task<List<ParcelDeliveryTask>> GetParcelTasksForPartnerAsync(string partnerId, string? status = null, int limit = 100);

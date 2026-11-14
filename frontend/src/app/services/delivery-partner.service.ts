@@ -22,6 +22,7 @@ export interface DeliveryPartner {
   emergencyContactPhone?: string;
   bankOrUpi?: string;
   status: 'available' | 'on-delivery' | 'offline';
+  availability?: PartnerAvailability;
   currentOrderId?: string;
   currentLatitude?: number;
   currentLongitude?: number;
@@ -30,6 +31,15 @@ export interface DeliveryPartner {
   rating?: number;
   outletId?: string;
   createdAt?: string;
+}
+
+export interface PartnerAvailability {
+  isOnline: boolean;
+  shopIsOpen: boolean;
+  openingTime: string | null;
+  closingTime: string | null;
+  nextOpeningAtUtc: string | null;
+  message: string;
 }
 
 export interface AssignDeliveryRequest {
@@ -104,6 +114,11 @@ export interface PartnerDashboard {
     status: string;
     total: number;
     phoneNumber?: string;
+    customerName?: string;
+    username?: string;
+    channel?: string;
+    deliveryDueAtUtc?: string;
+    deliveryRouteUpdatedAt?: string;
     deliveryAddress?: string;
     deliveryLocationUrl?: string;
     deliveryRouteShortUrl?: string;
@@ -120,6 +135,7 @@ export interface PartnerDashboard {
     status: string;
     total: number;
     phoneNumber?: string;
+    channel?: string;
     deliveryAddress?: string;
     createdAt?: string;
     deliveryDistanceKm?: number;
@@ -138,6 +154,34 @@ export interface PartnerDashboard {
     review?: string;
     createdAt: string;
   }>;
+  outletName?: string;
+  pickupAddress?: string;
+  todaySummary?: {
+    completed: number;
+    accepted: number;
+    inProgress: number;
+    cancelled: number;
+    legacyAssignmentDates: number;
+  };
+  performance?: {
+    onTimeRate?: number | null;
+    completionRate?: number | null;
+    customerRating?: number | null;
+    totalDistanceKm: number;
+    completed: number;
+    cancelled: number;
+    timedDeliveries: number;
+    onTimeDeliveries: number;
+    reviews: number;
+  };
+  incentive?: {
+    targetDeliveries: number;
+    rewardAmount: number;
+    completedDeliveries: number;
+    earnedAmount: number;
+  };
+  deliveryZones?: Array<{ name: string; minDistanceKm: number; maxDistanceKm: number }>;
+  peakHours?: Array<{ startHour: number; endHour: number; orders: number }>;
 }
 
 export interface PartnerPayoutSummary {
@@ -254,6 +298,12 @@ export class DeliveryPartnerService {
     return this.http.get<PartnerDashboard>(`${this.apiUrl}/partner/delivery/dashboard`, { params }).pipe(
       catchError(handleServiceError('DeliveryPartnerService.getPartnerDashboard'))
     );
+  }
+
+  updateMyAvailability(isOnline: boolean): Observable<{ message: string; availability: PartnerAvailability }> {
+    return this.http.put<{ message: string; availability: PartnerAvailability }>(
+      `${this.apiUrl}/partner/delivery/availability`, { isOnline }
+    ).pipe(catchError(handleServiceError('DeliveryPartnerService.updateMyAvailability')));
   }
 
   startShift(partnerId: string, payload: { startOdometerKm: number; startLatitude?: number; startLongitude?: number; notes?: string }): Observable<DeliveryShift> {

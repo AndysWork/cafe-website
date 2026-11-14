@@ -61,6 +61,14 @@ public class DeliveryPartner
     [BsonElement("status")]
     public string Status { get; set; } = "available"; // available, on-delivery, offline
 
+    [BsonElement("availabilityPausedUntilUtc")]
+    [BsonIgnoreIfNull]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? AvailabilityPausedUntilUtc { get; set; }
+
+    [BsonIgnore]
+    public PartnerAvailabilityResponse? Availability { get; set; }
+
     [BsonElement("currentOrderId")]
     public string? CurrentOrderId { get; set; }
 
@@ -121,4 +129,20 @@ public class UpdateDeliveryPartnerLocationRequest
 
     [Range(-180, 180)]
     public double Longitude { get; set; }
+}
+
+/// <summary>Shop-hours availability, independent of delivery shifts and current assignments.</summary>
+public sealed record PartnerAvailabilityResponse(
+    bool IsOnline,
+    bool ShopIsOpen,
+    string? OpeningTime,
+    string? ClosingTime,
+    DateTimeOffset? NextOpeningAtUtc,
+    string Message);
+
+/// <summary>Pauses or resumes the signed-in partner during the current shop opening period.</summary>
+public sealed record UpdatePartnerAvailabilityRequest
+{
+    [Required]
+    public bool? IsOnline { get; init; }
 }

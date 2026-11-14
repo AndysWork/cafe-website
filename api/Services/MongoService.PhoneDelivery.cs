@@ -46,7 +46,8 @@ public partial class MongoService : Cafe.Api.Repositories.IPhoneDeliveryOrderRep
         var result = await _orders.UpdateOneAsync(o => o.Id == orderId && o.OrderSource == "phone"
             && o.IsDeleted != true && o.OutletId == partner.OutletId && o.DeliveryPartnerId == partner.Id
             && o.Status == "out-for-delivery" && o.PaymentStatus == "paid",
-            Builders<Order>.Update.Set(o => o.Status, "delivered").Set(o => o.CompletedAt, now).Set(o => o.UpdatedAt, now));
+            Builders<Order>.Update.Set(o => o.Status, "delivered").Set(o => o.CompletedAt, GetUtcNow())
+                .Set(o => o.CompletedAtIsUtc, true).Set(o => o.UpdatedAt, now));
         return result.ModifiedCount == 1;
     }
 

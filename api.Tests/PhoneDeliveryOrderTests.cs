@@ -31,6 +31,7 @@ public sealed class PhoneDeliveryOrderTests
     private readonly Mock<IOutletRepository> _outlets = new();
     private readonly Mock<IOperationsRepository> _operations = new();
     private readonly Mock<IPhoneDeliveryOrderRepository> _phone = new();
+    private readonly Mock<INotificationRepository> _notifications = new();
     private readonly Mock<OutboxService> _outbox;
     private readonly AuthService _auth;
     private readonly PhoneDeliveryOrderFunction _function;
@@ -82,6 +83,9 @@ public sealed class PhoneDeliveryOrderTests
         _orders.Setup(o => o.GetNextDineInKotNumberAsync(OutletId)).ReturnsAsync("KOT-123");
         _orders.Setup(o => o.CreateOrderAsync(It.IsAny<Order>())).ReturnsAsync((Order o) => o);
         _phone.Setup(o => o.MarkPhoneEffectsQueuedAsync(It.IsAny<string>())).Returns(Task.CompletedTask);
+        _notifications.Setup(n => n.GetNotificationPreferencesAsync(It.IsAny<string>()))
+            .ReturnsAsync(new NotificationPreferences { PushNotifications = true, SystemNotifications = true });
+        _notifications.Setup(n => n.CreateNotificationAsync(It.IsAny<AppNotification>())).Returns(Task.CompletedTask);
     }
 
     private static CreatePhoneDeliveryOrderRequest Payload(string paymentMethod = "cod") => new()
@@ -90,6 +94,36 @@ public sealed class PhoneDeliveryOrderTests
         DeliveryAddress = "10 Main Road", DeliveryLocationUrl = "https://www.google.com/maps?q=22.5,88.3&z=18",
         Items = new() { new() { MenuItemId = MenuId, Quantity = 2 } }, PaymentMethod = paymentMethod
     };
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void LinkedPartnerAtActiveOutletTakesPriorityOverLegacyProfile(bool oldOutletActive, bool oldOutletDeleted)
+    {
+        var legacy = new DeliveryPartner { Id = "legacy", UserId = UserId, OutletId = "old-outlet" };
+        var assigned = new DeliveryPartner { Id = "assigned", UserId = UserId, OutletId = OutletId, Status = "on-delivery" };
+        var selected = DeliveryPartnerProfileSelector.Select(new[] { legacy, assigned }, new[]
+        {
+            new Outlet { Id = legacy.OutletId, IsActive = oldOutletActive, IsDeleted = oldOutletDeleted },
+            new Outlet { Id = assigned.OutletId, IsActive = true }
+        });
+
+        Assert.Same(assigned, selected);
+    }
+
+    [Fact]
+    public void LegacyPartnerResolutionIsPreservedWhenNoLinkedOutletIsActive()
+    {
+        var original = new DeliveryPartner { Id = "original", UserId = UserId, OutletId = "old-outlet" };
+        var later = new DeliveryPartner { Id = "later", UserId = UserId, OutletId = OutletId };
+        var selected = DeliveryPartnerProfileSelector.Select(new[] { original, later }, new[]
+        {
+            new Outlet { Id = original.OutletId, IsActive = false },
+            new Outlet { Id = later.OutletId, IsActive = false }
+        });
+
+        Assert.Same(original, selected);
+    }
 
     [Fact]
     public async Task QuoteUsesShopPricingAndServerFeeWithoutMutatingOrRequiringIdempotency()
@@ -280,19 +314,129 @@ public sealed class PhoneDeliveryOrderTests
     }
 
     private DeliveryPartnerFunction PartnerFunctions() => new(_operations.Object, _orders.Object, _phone.Object,
-        _users.Object, _staff.Object, _outlets.Object, null!, null!, null!, _auth, _outbox.Object, NullLoggerFactory.Instance);
+        _users.Object, _staff.Object, _outlets.Object,
+        new NotificationService(_notifications.Object, null!, NullLogger<NotificationService>.Instance),
+        null!, null!, _auth, _outbox.Object, NullLoggerFactory.Instance);
+
+    private DeliveryPartner EligiblePartner(string id = "p1")
+    {
+        var partner = new DeliveryPartner
+        {
+            Id = id, OutletId = OutletId, UserId = id == "p1" ? "666666666666666666666666" : "777777777777777777777777",
+            Name = "Courier", Status = "available", IsActive = true, CodAllowed = true
+        };
+        _operations.Setup(o => o.GetDeliveryPartnerByIdAsync(id)).ReturnsAsync(partner);
+        _users.Setup(u => u.GetUserByIdAsync(partner.UserId))
+            .ReturnsAsync(new User { Id = partner.UserId, Role = "delivery-partner", IsActive = true });
+        return partner;
+    }
 
     [Theory]
-    [InlineData("pending")]
-    [InlineData("preparing")]
-    [InlineData("ready")]
-    public async Task AssignmentEndpointAllowsEarlyAssignmentWithoutDispatchingOrChangingKitchenStatus(string status)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PartnerAvailabilityCanChangeWithActiveWorkWithoutReplacingTheProfile(bool online)
+    {
+        var partner = EligiblePartner();
+        partner.Status = "on-delivery";
+        partner.CurrentOrderId = "existing-order";
+        _operations.Setup(o => o.GetDeliveryPartnerByUserIdAsync(UserId)).ReturnsAsync(partner);
+        _operations.Setup(o => o.SetDeliveryPartnerAvailabilityAsync(partner.Id!, It.IsAny<DateTime?>())).ReturnsAsync(true);
+        var localNow = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromMinutes(330));
+        var outlet = new Outlet { Id = OutletId, Settings = new OutletSettings
+        {
+            OpeningTime = localNow.AddHours(-1).ToString("HH:mm"),
+            ClosingTime = localNow.AddHours(1).ToString("HH:mm")
+        } };
+        _outlets.Setup(o => o.GetOutletByIdAsync(OutletId, It.IsAny<bool>())).ReturnsAsync(outlet);
+
+        var response = await PartnerFunctions().UpdateMyDeliveryAvailability(
+            Request(new { isOnline = online }, "waiter", extraRoles: new[] { "delivery-partner" }));
+        var body = await Read(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(online, body.GetProperty("availability").GetProperty("isOnline").GetBoolean());
+        Assert.Equal("existing-order", partner.CurrentOrderId);
+        var expectedPause = online ? (DateTime?)null
+            : DeliveryPartnerAvailability.Calculate(outlet, null, localNow).NextOpeningAtUtc!.Value.UtcDateTime;
+        _operations.Verify(o => o.SetDeliveryPartnerAvailabilityAsync(partner.Id!, expectedPause), Times.Once);
+        _operations.Verify(o => o.UpdateDeliveryPartnerAsync(It.IsAny<string>(), It.IsAny<DeliveryPartner>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(null, HttpStatusCode.Unauthorized)]
+    [InlineData("cashier", HttpStatusCode.Forbidden)]
+    public async Task PartnerAvailabilityRequiresDeliveryPartnerAuthentication(string? role, HttpStatusCode expected)
+    {
+        var response = await PartnerFunctions().UpdateMyDeliveryAvailability(Request(new { isOnline = false }, role));
+        Assert.Equal(expected, response.StatusCode);
+        _operations.Verify(o => o.SetDeliveryPartnerAvailabilityAsync(It.IsAny<string>(), It.IsAny<DateTime?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PartnerAvailabilityRequiresExplicitOnlineValue()
+    {
+        var response = await PartnerFunctions().UpdateMyDeliveryAvailability(Request(new { }, "delivery-partner"));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        _operations.Verify(o => o.SetDeliveryPartnerAvailabilityAsync(It.IsAny<string>(), It.IsAny<DateTime?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PartnerCannotForceOnlineWhenOutletIsClosed()
+    {
+        var partner = EligiblePartner();
+        _operations.Setup(o => o.GetDeliveryPartnerByUserIdAsync(UserId)).ReturnsAsync(partner);
+        var localNow = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromMinutes(330));
+        _outlets.Setup(o => o.GetOutletByIdAsync(OutletId, It.IsAny<bool>())).ReturnsAsync(new Outlet
+        {
+            Id = OutletId, Settings = new OutletSettings
+            {
+                OpeningTime = localNow.AddHours(1).ToString("HH:mm"),
+                ClosingTime = localNow.AddHours(2).ToString("HH:mm")
+            }
+        });
+        var response = await PartnerFunctions().UpdateMyDeliveryAvailability(Request(new { isOnline = true }, "delivery-partner"));
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("Shop closed", (await Read(response)).GetProperty("error").GetString());
+        _operations.Verify(o => o.SetDeliveryPartnerAvailabilityAsync(It.IsAny<string>(), It.IsAny<DateTime?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task OfflinePartnerCannotAcceptNewOrdersButRetainsAssignedWork()
+    {
+        var partner = EligiblePartner();
+        partner.Status = "offline";
+        partner.CurrentOrderId = "already-assigned";
+        _operations.Setup(o => o.GetDeliveryPartnerByUserIdAsync(UserId)).ReturnsAsync(partner);
+        _orders.Setup(o => o.GetOrderByIdAsync("new-order")).ReturnsAsync(
+            new Order { Id = "new-order", OutletId = OutletId, OrderType = "delivery", Status = "ready" });
+        var response = await PartnerFunctions().AcceptDeliveryOrder(Request(null, "delivery-partner"), "new-order");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("already-assigned", partner.CurrentOrderId);
+        _operations.Verify(o => o.TryAssignUnassignedDeliveryPartnerAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("pending", "cod")]
+    [InlineData("confirmed", "cod")]
+    [InlineData("preparing", "cod")]
+    [InlineData("ready", "cod")]
+    [InlineData("pending", "cash_at_counter")]
+    [InlineData("confirmed", "cash_at_counter")]
+    [InlineData("preparing", "cash_at_counter")]
+    [InlineData("ready", "cash_at_counter")]
+    [InlineData("pending", "upi-qr")]
+    [InlineData("confirmed", "upi-qr")]
+    [InlineData("preparing", "upi-qr")]
+    [InlineData("ready", "upi-qr")]
+    public async Task AssignmentEndpointAllowsEarlyAssignmentWithoutDispatchingOrChangingKitchenStatus(string status, string method)
     {
         var order = new Order { Id = "555555555555555555555555", OrderSource = "phone", OrderType = "delivery",
-            Channel = "shop", OutletId = OutletId, Status = status, DeliveryLocationUrl = "https://maps.app.goo.gl/Abc" };
+            Channel = "shop", OutletId = OutletId, Status = status, PaymentMethod = method,
+            PaymentStatus = method == "cod" ? "pending" : "paid", DeliveryLocationUrl = "https://maps.app.goo.gl/Abc" };
         _orders.Setup(o => o.GetOrderByIdAsync(order.Id)).ReturnsAsync(order);
         _operations.Setup(o => o.AssignDeliveryPartnerAsync("p1", order.Id)).ReturnsAsync(true);
-        _operations.Setup(o => o.GetDeliveryPartnerByIdAsync("p1")).ReturnsAsync(new DeliveryPartner { Id = "p1", OutletId = OutletId });
+        var partner = EligiblePartner();
+        partner.CodAllowed = method == "cod";
         var response = await PartnerFunctions().AssignDeliveryPartner(Request(
             new { orderId = order.Id, deliveryPartnerId = "p1" }, url: "https://localhost/api/manage/delivery-partners/assign?channel=shop"));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -300,6 +444,108 @@ public sealed class PhoneDeliveryOrderTests
         _orders.Verify(o => o.UpdateOrderAsync(It.IsAny<Order>()), Times.Never);
         _orders.Verify(o => o.UpdateOrderStatusAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         _operations.Verify(o => o.AssignDeliveryPartnerAsync("p1", order.Id), Times.Once);
+        _notifications.Verify(n => n.CreateNotificationAsync(It.Is<AppNotification>(n =>
+            n.UserId == partner.UserId && n.ActionUrl == "/partner/delivery")), Times.Once);
+    }
+
+    [Fact]
+    public async Task AutomaticPhoneAssignmentSkipsHigherRatedCodDisabledAndWrongOutletPartners()
+    {
+        var order = new Order { Id = "555555555555555555555555", OrderSource = "phone", OrderType = "delivery",
+            Channel = "shop", OutletId = OutletId, Status = "preparing", PaymentMethod = "cod" };
+        _orders.Setup(o => o.GetOrderByIdAsync(order.Id)).ReturnsAsync(order);
+        var ineligible = EligiblePartner();
+        ineligible.CodAllowed = false;
+        ineligible.Rating = 5;
+        var eligible = EligiblePartner("p2");
+        eligible.Rating = 4;
+        var wrongOutlet = new DeliveryPartner { Id = "p3", UserId = eligible.UserId, OutletId = "other", Rating = 5 };
+        _operations.Setup(o => o.GetDeliveryPartnersAsync(OutletId))
+            .ReturnsAsync(new List<DeliveryPartner> { ineligible, wrongOutlet, eligible });
+        _users.Setup(u => u.GetAllUsersAsync()).ReturnsAsync(new List<User>
+        {
+            new() { Id = ineligible.UserId, Role = "delivery-partner" },
+            new() { Id = eligible.UserId, Role = "waiter", Roles = new() { "delivery-partner" } }
+        });
+        _operations.Setup(o => o.AssignDeliveryPartnerAsync("p2", order.Id)).ReturnsAsync(true);
+
+        var response = await PartnerFunctions().AssignDeliveryPartner(Request(new { orderId = order.Id }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        _operations.Verify(o => o.AssignDeliveryPartnerAsync("p2", order.Id), Times.Once);
+        _operations.Verify(o => o.AssignDeliveryPartnerAsync("p1", It.IsAny<string>()), Times.Never);
+        Assert.Equal("preparing", order.Status);
+    }
+
+    [Fact]
+    public async Task AutomaticPhoneAssignmentDoesNotMutateWhenNoCodEligiblePartnerExists()
+    {
+        var order = new Order { Id = "555555555555555555555555", OrderSource = "phone",
+            OutletId = OutletId, Status = "ready", PaymentMethod = "cod" };
+        _orders.Setup(o => o.GetOrderByIdAsync(order.Id)).ReturnsAsync(order);
+        var partner = EligiblePartner();
+        partner.CodAllowed = false;
+        _operations.Setup(o => o.GetDeliveryPartnersAsync(OutletId))
+            .ReturnsAsync(new List<DeliveryPartner> { partner });
+        _users.Setup(u => u.GetAllUsersAsync()).ReturnsAsync(new List<User>
+        {
+            new() { Id = partner.UserId, Role = "delivery-partner" }
+        });
+
+        var response = await PartnerFunctions().AssignDeliveryPartner(Request(new { orderId = order.Id }));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        _operations.Verify(o => o.AssignDeliveryPartnerAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("offline")]
+    [InlineData("on-delivery")]
+    [InlineData("inactive-partner")]
+    [InlineData("unlinked")]
+    [InlineData("inactive-user")]
+    [InlineData("wrong-role")]
+    [InlineData("wrong-outlet")]
+    [InlineData("cod-disabled")]
+    public async Task PhoneAssignmentRejectsIneligiblePartnersBeforeMutation(string reason)
+    {
+        var order = new Order { Id = "555555555555555555555555", OrderSource = "phone", OrderType = "delivery",
+            Channel = "shop", OutletId = OutletId, Status = "pending", PaymentMethod = "cod" };
+        _orders.Setup(o => o.GetOrderByIdAsync(order.Id)).ReturnsAsync(order);
+        var partner = EligiblePartner();
+        if (reason is "offline" or "on-delivery") partner.Status = reason;
+        if (reason == "inactive-partner") partner.IsActive = false;
+        if (reason == "unlinked") partner.UserId = null;
+        if (reason == "wrong-outlet") partner.OutletId = "other";
+        if (reason == "cod-disabled") partner.CodAllowed = false;
+        if (reason is "inactive-user" or "wrong-role")
+            _users.Setup(u => u.GetUserByIdAsync(partner.UserId!)).ReturnsAsync(new User
+            {
+                Id = partner.UserId, IsActive = reason != "inactive-user",
+                Role = reason == "wrong-role" ? "waiter" : "delivery-partner"
+            });
+
+        var response = await PartnerFunctions().AssignDeliveryPartner(
+            Request(new { orderId = order.Id, deliveryPartnerId = "p1" }));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        _operations.Verify(o => o.AssignDeliveryPartnerAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("out-for-delivery")]
+    [InlineData("delivered")]
+    [InlineData("cancelled")]
+    public async Task PhoneAssignmentRefusesOrdersAfterPickupOrCancellation(string status)
+    {
+        var order = new Order { Id = "555555555555555555555555", OrderSource = "phone",
+            OutletId = OutletId, Status = status };
+        _orders.Setup(o => o.GetOrderByIdAsync(order.Id)).ReturnsAsync(order);
+        EligiblePartner();
+        var response = await PartnerFunctions().AssignDeliveryPartner(
+            Request(new { orderId = order.Id, deliveryPartnerId = "p1" }));
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        _operations.Verify(o => o.AssignDeliveryPartnerAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -325,6 +571,61 @@ public sealed class PhoneDeliveryOrderTests
             Request(null, url: "https://localhost/api/partner/delivery/dashboard?partnerId=p1"));
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         _operations.Verify(o => o.GetActiveOrdersForPartnerAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PartnerCannotEndShiftWithActiveDeliveryOrParcel(bool delivery)
+    {
+        _operations.Setup(o => o.GetDeliveryPartnerByUserIdAsync(UserId))
+            .ReturnsAsync(new DeliveryPartner { Id = "p1", OutletId = OutletId });
+        _operations.Setup(o => o.GetActiveShiftForPartnerAsync("p1"))
+            .ReturnsAsync(new DeliveryShift { Id = "shift1", StartOdometerKm = 100 });
+        _operations.Setup(o => o.GetActiveOrdersForPartnerAsync("p1", OutletId))
+            .ReturnsAsync(delivery ? new List<Order> { new() { Status = "out-for-delivery" } } : new());
+        _operations.Setup(o => o.GetParcelTasksForPartnerAsync("p1", "accepted", 100))
+            .ReturnsAsync(delivery ? new() : new List<ParcelDeliveryTask> { new() { Status = "accepted" } });
+
+        var response = await PartnerFunctions().EndMyDeliveryShift(
+            Request(new { endOdometerKm = 120 }, "delivery-partner", key: null), "shift1");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        _operations.Verify(o => o.EndPartnerShiftAsync(It.IsAny<string>(), It.IsAny<decimal>(),
+            It.IsAny<double?>(), It.IsAny<double?>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DashboardReturnsOutletScopedAnalyticsWithoutAddingIncentiveToFuelPayout()
+    {
+        var today = MongoService.GetIstNow().Date;
+        var orders = Enumerable.Range(0, 10).Select(_ => new Order
+        {
+            OrderType = "delivery", Status = "delivered", DeliveryPartnerId = "p1",
+            CreatedAt = today, CreatedAtIsUtc = false, CompletedAt = today.AddHours(1)
+        }).ToList();
+        _operations.Setup(o => o.GetDeliveryPartnerByUserIdAsync(UserId))
+            .ReturnsAsync(new DeliveryPartner { Id = "p1", OutletId = OutletId, MileageKmpl = 40 });
+        _operations.Setup(o => o.GetPartnerShiftsAsync("p1", null, null, 1, 20)).ReturnsAsync(new List<DeliveryShift>());
+        _operations.Setup(o => o.GetActiveOrdersForPartnerAsync("p1", OutletId)).ReturnsAsync(new List<Order>());
+        _operations.Setup(o => o.GetParcelTasksForPartnerAsync("p1", null, 100)).ReturnsAsync(new List<ParcelDeliveryTask>());
+        _orders.Setup(o => o.GetAllOrdersAsync(OutletId, null, null, null, null)).ReturnsAsync(new List<Order>());
+        _operations.Setup(o => o.GetPartnerDistanceAsync("p1", It.IsAny<DateTime>(), It.IsAny<DateTime>())).ReturnsAsync(40m);
+        _operations.Setup(o => o.GetFuelPriceAsync(OutletId, today)).ReturnsAsync(new FuelPriceDaily { PetrolPricePerLitre = 100 });
+        _operations.Setup(o => o.GetDeliveryPartnerReviewsAsync("p1", 10)).ReturnsAsync(new List<DeliveryPartnerReview>());
+        _operations.Setup(o => o.GetDeliveryDashboardOrdersAsync(OutletId, today.AddDays(-6), today.AddDays(1)))
+            .ReturnsAsync(orders);
+
+        var response = await PartnerFunctions().GetDeliveryPartnerDashboard(Request(null, "delivery-partner", key: null));
+        var body = await Read(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(100m, body.GetProperty("todayPayout").GetDecimal());
+        Assert.Equal(50m, body.GetProperty("incentive").GetProperty("earnedAmount").GetDecimal());
+        Assert.Equal(10, body.GetProperty("todaySummary").GetProperty("completed").GetInt32());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("performance").GetProperty("onTimeRate").ValueKind);
+        Assert.Equal("Core", body.GetProperty("deliveryZones")[0].GetProperty("name").GetString());
+        _operations.Verify(o => o.GetDeliveryDashboardOrdersAsync(OutletId, today.AddDays(-6), today.AddDays(1)), Times.Once);
     }
 
     [Theory]

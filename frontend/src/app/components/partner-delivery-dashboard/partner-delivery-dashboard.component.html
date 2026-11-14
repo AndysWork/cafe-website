@@ -1,151 +1,195 @@
-<section class="partner-shell" *ngIf="!loading && dashboard as d">
-  <header class="hero">
-    <div>
-      <p class="kicker">Delivery Partner Console</p>
-      <h1>{{ d.profile?.name || 'Partner' }}</h1>
-      <p class="subtitle">{{ d.profile?.phone }} • {{ d.profile?.vehicleType | titlecase }}</p>
-    </div>
-    <span class="status-pill" [class.active]="d.activeShift" [class.idle]="!d.activeShift">
-      {{ d.activeShift ? 'Shift Active' : 'Shift Inactive' }}
-    </span>
+<svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <symbol id="pd-wallet" viewBox="0 0 24 24"><path d="M20 8V5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h15V8H5a1.5 1.5 0 0 1 0-3"/><path d="M20 11h-6v6h6M16 14h1M7 2l11 3"/></symbol>
+    <symbol id="pd-bag" viewBox="0 0 24 24"><path d="m8 3 2 4h4l2-4ZM10 7C5 10 3 15 5 19c2 3 12 3 14 0 2-4 0-9-5-12"/><path d="M14 12h-3a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-3M12 10v12"/></symbol>
+    <symbol id="pd-target" viewBox="0 0 24 24"><circle cx="11" cy="13" r="8"/><circle cx="11" cy="13" r="4"/><path d="m11 13 9-9M17 3v4h4"/></symbol>
+    <symbol id="pd-road" viewBox="0 0 24 24"><path d="M8 3 3 21h18L16 3M12 3v4M12 10v4M12 17v4"/></symbol>
+    <symbol id="pd-star" viewBox="0 0 24 24"><path d="m12 2 3 6.5 7 .8-5.2 4.8 1.5 7-6.3-3.5-6.3 3.5 1.5-7L2 9.3l7-.8Z"/></symbol>
+    <symbol id="pd-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v7c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="M8 12h8M12 8v8"/></symbol>
+    <symbol id="pd-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="pd-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="pd-check" viewBox="0 0 24 24"><path d="m5 12 4 4L20 5"/></symbol>
+    <symbol id="pd-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="pd-user" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3Z"/></symbol>
+    <symbol id="pd-phone" viewBox="0 0 24 24"><path d="m7 3 3 5-3 3c2 3 3 4 6 6l3-3 5 3c0 4-2 5-5 4C8 19 5 16 3 8 2 5 3 3 7 3Z"/></symbol>
+    <symbol id="pd-navigation" viewBox="0 0 24 24"><path d="m3 10 18-7-7 18-3-8Z"/></symbol>
+    <symbol id="pd-chart" viewBox="0 0 24 24"><path d="M4 21V13h3v8ZM11 21V7h3v14ZM18 21V2h3v19Z"/></symbol>
+    <symbol id="pd-route" viewBox="0 0 24 24"><circle cx="5" cy="18" r="3"/><circle cx="19" cy="6" r="3"/><path d="M8 18h5a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h5"/></symbol>
+    <symbol id="pd-map" viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2ZM9 3v16M15 5v16"/></symbol>
+    <symbol id="pd-gift" viewBox="0 0 24 24"><path d="M3 8h18v5H3ZM5 13v9h14v-9M12 8v14"/><path d="M12 8C5 9 3 2 7 2c3 0 5 6 5 6s2-6 5-6c4 0 2 7-5 6Z"/></symbol>
+    <symbol id="pd-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="pd-scooter" viewBox="0 0 24 24"><circle cx="5" cy="18" r="3"/><circle cx="19" cy="18" r="3"/><path d="M4 18h9l4-10h-4M16 3h3l2 15M6 6h5M8 6l-3 8M11 13h3"/></symbol>
+    <symbol id="pd-avatar" viewBox="0 0 80 80">
+      <circle cx="40" cy="40" r="39" fill="#b7edff"/>
+      <path d="M12 76c2-16 13-23 28-23s26 7 28 23" fill="#153f57"/>
+      <path d="m31 54 9 13 9-13-4-8H35Z" fill="#f7b677"/>
+      <path d="m31 53 9 14-11-4-6-8m26-2-9 14 11-4 6-8" fill="#057c9e"/>
+      <path d="M24 30v12c0 13 9 21 16 21s16-8 16-21V30Z" fill="#ffd0a0"/>
+      <path d="M24 29c-1-16 7-23 16-23s17 7 16 23l-7-2-9-1-9 1Z" fill="#086f9a"/>
+      <path d="M22 28c11-5 25-5 36 0v6H22Z" fill="#123a56"/>
+      <rect x="36" y="12" width="8" height="6" rx="2" fill="#70d9ef"/>
+      <path d="M26 35v9m28-9v9M31 45c2 10 16 10 18 0" stroke="#754726" stroke-width="2.5" fill="none"/>
+      <path d="M31 34h5m8 0h5" stroke="#243b4b" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<section class="partner-shell" *ngIf="dashboard as d">
+  <header class="dashboard-heading">
+    <div class="dashboard-title"><h1>Delivery Partner Dashboard</h1><p>{{ d.outletName || 'Maa Tara Cafe' }} · Delivery Operations</p></div>
   </header>
 
-  <div class="metrics-grid">
-    <article class="metric-card">
-      <span>Today Distance</span>
-      <strong>{{ d.todayDistanceKm | number:'1.0-2' }} km</strong>
-    </article>
-    <article class="metric-card">
-      <span>Today Payout</span>
-      <strong>Rs {{ d.todayPayout | number:'1.0-2' }}</strong>
-    </article>
-    <article class="metric-card warning">
-      <span>COD Outstanding</span>
-      <strong>Rs {{ d.codOutstanding | number:'1.0-2' }}</strong>
-    </article>
-    <article class="metric-card">
-      <span>Rating</span>
-      <strong>{{ d.averageRating | number:'1.1-2' }} / 5</strong>
-      <small>{{ d.reviewsCount }} reviews</small>
-    </article>
-  </div>
-
-  <section class="panel action-panel">
-    <h2>Shift Actions</h2>
-    <div class="action-buttons">
-      <button class="btn-primary" (click)="openShiftModal('start')">Shift Start</button>
-      <button class="btn-danger" (click)="openShiftModal('end')">Shift End</button>
-      <button class="btn-primary" (click)="openShiftModal('trip')">Log Trip</button>
-      <button class="btn-primary" (click)="openShiftModal('history')">Shift History</button>
+  <main class="dashboard-body">
+    <div class="refresh-error" *ngIf="errorMessage" role="alert">{{ errorMessage }} <button (click)="loadDashboard()">Retry</button></div>
+    <div class="welcome-grid">
+      <section class="welcome-card">
+        <svg class="welcome-avatar" aria-hidden="true"><use href="#pd-avatar"/></svg>
+        <div class="welcome-copy"><p>{{ greeting }},</p><h2>{{ d.profile?.name || 'Delivery Partner' }}</h2><small>Delivery Partner · {{ d.outletName || 'Maa Tara Cafe' }}</small></div>
+        <svg class="welcome-scooter" viewBox="0 0 190 90" aria-hidden="true">
+          <path d="M2 81V61h15V49h17v12h18V34h18v25h10V24h22v41h13V41h17v21h12V19h22v62" fill="#d8f6fd"/>
+          <ellipse cx="133" cy="83" rx="49" ry="3" fill="#c0e4eb"/>
+          <circle cx="100" cy="73" r="13" fill="#124260"/><circle cx="100" cy="73" r="7" fill="#e1f4fb"/>
+          <circle cx="158" cy="73" r="13" fill="#124260"/><circle cx="158" cy="73" r="7" fill="#e1f4fb"/>
+          <path d="m96 64 14-29h12l-6 20h36l11 12h-43l-11 6H97" fill="#e2f400"/><path d="m108 34-2-10h12m-8 8-8 19" fill="none" stroke="#176282" stroke-width="4" stroke-linecap="round"/>
+          <path d="M124 53h26l13 5H124Z" fill="#153e52"/><path d="m161 55 5 17" stroke="#447389" stroke-width="4"/>
+          <circle cx="129" cy="27" r="8" fill="#ffe0b3"/><path d="M121 25c0-12 17-12 18 0Z" fill="#007dab"/>
+          <path d="m126 35-9 13 19 6 6-14-9-7" fill="#f5e700"/><path d="m126 38-11-7h-6m24 22 12 7-4 12" fill="none" stroke="#285569" stroke-width="5" stroke-linecap="round"/>
+        </svg>
+      </section>
+      <section class="availability-card" [class.offline]="!isOnline">
+        <span class="online-dot"></span>
+        <div aria-live="polite"><h2>{{ updatingAvailability ? 'Updating availability...' : isOnline ? 'You are Online' : 'You are Offline' }}</h2><p>{{ d.profile?.availability?.message || 'Availability unavailable. Refresh your dashboard.' }}</p><p *ngIf="d.profile?.availability?.openingTime">Shop hours: {{ d.profile?.availability?.openingTime }} - {{ d.profile?.availability?.closingTime }} IST</p></div>
+        <fieldset class="availability-options" aria-label="Delivery availability" [disabled]="updatingAvailability || !d.profile?.availability?.shopIsOpen">
+          <label><input type="radio" name="deliveryAvailability" [value]="true" [(ngModel)]="availabilityChoice" (ngModelChange)="setAvailability($event)" />Online</label>
+          <label><input type="radio" name="deliveryAvailability" [value]="false" [(ngModel)]="availabilityChoice" (ngModelChange)="setAvailability($event)" />Offline</label>
+        </fieldset>
+      </section>
     </div>
-    <p class="hint">Use these actions to open dedicated screens for shift operations.</p>
-  </section>
 
-  <div class="modal-overlay" *ngIf="activeShiftModal" (click)="closeShiftModal()">
-    <section class="shift-modal" (click)="$event.stopPropagation()">
-      <header class="modal-head">
-        <h3 *ngIf="activeShiftModal === 'start'">Shift Start</h3>
-        <h3 *ngIf="activeShiftModal === 'end'">Shift End</h3>
-        <h3 *ngIf="activeShiftModal === 'trip'">Log Trip</h3>
-        <h3 *ngIf="activeShiftModal === 'history'">Shift History</h3>
-        <button class="btn-close" (click)="closeShiftModal()">Close</button>
-      </header>
+    <div class="metrics-grid">
+      <article class="metric-card earnings" title="Today's distance/fuel reimbursement. Incentives are shown separately.">
+        <span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="#pd-wallet"/></svg></span>
+        <div><h3>Today's Earnings</h3><strong>₹{{ d.todayPayout | number:'1.0-2' }}</strong><small class="metric-chip" *ngIf="d.todaySummary as summary">▲ {{ summary.completed }} deliveries</small></div>
+      </article>
+      <article class="metric-card payout">
+        <span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="#pd-bag"/></svg></span>
+        <div><h3>Today's Payout</h3><strong>₹{{ d.todayPayout | number:'1.0-2' }}</strong><a class="metric-chip" routerLink="/partner/payout">View Payout Details ›</a></div>
+      </article>
+      <article class="metric-card incentive">
+        <span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="#pd-target"/></svg></span>
+        <div><h3>Incentives</h3><strong>{{ d.incentive ? '₹' + (d.incentive.earnedAmount | number:'1.0-2') : '—' }}</strong><small *ngIf="d.incentive as incentive">{{ incentive.earnedAmount > 0 ? 1 : 0 }} of 1 target completed</small></div>
+      </article>
+      <article class="metric-card distance">
+        <span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="#pd-road"/></svg></span>
+        <div><h3>Today's Distance</h3><strong>{{ d.todayDistanceKm | number:'1.0-1' }} <span>km</span></strong></div>
+      </article>
+      <article class="metric-card rating">
+        <span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="#pd-star"/></svg></span>
+        <div><h3>Rating</h3><strong>{{ d.reviewsCount ? (d.averageRating | number:'1.1-1') : '—' }} <span>/ 5</span></strong><button class="metric-chip" (click)="infoModal = 'reviews'">{{ d.reviewsCount }} reviews</button></div>
+      </article>
+    </div>
 
-      <div class="modal-body" *ngIf="activeShiftModal === 'start'">
-        <p *ngIf="d.activeShift" class="hint">You already have an active shift.</p>
-        <div class="field-row">
-          <label>Start Odometer</label>
-          <input type="number" min="0" step="0.01" [(ngModel)]="shiftForm.startOdometerKm" [disabled]="!!d.activeShift" />
-        </div>
-        <div class="field-row">
-          <label>Notes</label>
-          <input type="text" [(ngModel)]="shiftForm.notes" [disabled]="!!d.activeShift" />
-        </div>
-        <button class="btn-primary" (click)="startShift()" [disabled]="!!d.activeShift || submittingShiftStart">
-          {{ submittingShiftStart ? 'Starting...' : 'Start Shift' }}
-        </button>
-      </div>
-
-      <div class="modal-body" *ngIf="activeShiftModal === 'end'">
-        <p *ngIf="!d.activeShift" class="hint">No active shift to end.</p>
-        <div class="field-row">
-          <label>End Odometer</label>
-          <input type="number" min="0" step="0.01" [(ngModel)]="shiftForm.endOdometerKm" [disabled]="!d.activeShift" />
-        </div>
-        <div class="field-row">
-          <label>Notes</label>
-          <input type="text" [(ngModel)]="shiftForm.notes" [disabled]="!d.activeShift" />
-        </div>
-        <button class="btn-danger" (click)="endShift()" [disabled]="!d.activeShift || submittingShiftEnd">
-          {{ submittingShiftEnd ? 'Ending...' : 'End Shift' }}
-        </button>
-      </div>
-
-      <div class="modal-body" *ngIf="activeShiftModal === 'trip'">
-        <p class="hint" *ngIf="!d.activeShift">Start a shift first to log trips.</p>
-        <div class="action-grid trip-grid">
-          <div class="field-row">
-            <label>Shift ID</label>
-            <input type="text" [(ngModel)]="tripForm.shiftId" [disabled]="!d.activeShift" [placeholder]="d.activeShift?.id || 'Shift ID'" />
-          </div>
-          <div class="field-row">
-            <label>Trip Type</label>
-            <select [(ngModel)]="tripForm.tripType" [disabled]="!d.activeShift">
-              <option value="delivery">Delivery</option>
-              <option value="outlet-transfer">Outlet Transfer</option>
-              <option value="market-stop">Market Stop</option>
-              <option value="misc">Misc</option>
-            </select>
-          </div>
-          <div class="field-row">
-            <label>Order ID</label>
-            <input type="text" [(ngModel)]="tripForm.orderId" [disabled]="!d.activeShift" />
-          </div>
-          <div class="field-row">
-            <label>Start Odometer</label>
-            <input type="number" min="0" step="0.01" [(ngModel)]="tripForm.startOdometerKm" [disabled]="!d.activeShift" />
-          </div>
-          <div class="field-row">
-            <label>End Odometer</label>
-            <input type="number" min="0" step="0.01" [(ngModel)]="tripForm.endOdometerKm" [disabled]="!d.activeShift" />
-          </div>
-          <div class="field-row">
-            <label>Start Point</label>
-            <input type="text" [(ngModel)]="tripForm.startPointLabel" [disabled]="!d.activeShift" />
-          </div>
-          <div class="field-row">
-            <label>End Point</label>
-            <input type="text" [(ngModel)]="tripForm.endPointLabel" [disabled]="!d.activeShift" />
-          </div>
-          <div class="field-row full-row">
-            <label>Notes</label>
-            <input type="text" [(ngModel)]="tripForm.notes" [disabled]="!d.activeShift" />
-          </div>
-        </div>
-        <button class="btn-primary" (click)="logTrip()" [disabled]="!d.activeShift || submittingTrip">
-          {{ submittingTrip ? 'Saving...' : 'Log Trip' }}
-        </button>
-      </div>
-
-      <div class="modal-body" *ngIf="activeShiftModal === 'history'">
-        <div *ngIf="!d.recentShifts || d.recentShifts.length === 0" class="empty">No shift history found.</div>
-        <div class="orders" *ngIf="d.recentShifts && d.recentShifts.length > 0">
-          <article class="order-card" *ngFor="let shift of d.recentShifts">
-            <div>
-              <h3>{{ formatStatus(shift.status) }} Shift</h3>
-              <p>Started: {{ shift.startedAt | date:'dd MMM y, h:mm a':'+0530' }} IST</p>
-              <small *ngIf="shift.endedAt">Ended: {{ shift.endedAt | date:'dd MMM y, h:mm a':'+0530' }} IST</small>
+    <div class="delivery-grid">
+      <section class="panel active-panel">
+        <header class="panel-heading"><h2><svg class="icon" aria-hidden="true"><use href="#pd-shield"/></svg>Active Delivery ({{ d.activeOrders.length }})</h2><span class="status-chip" *ngIf="d.activeOrders.length"><i></i> In Progress</span></header>
+        <p class="empty" *ngIf="!d.activeOrders.length">No active deliveries. Your next assignment will appear here.</p>
+        <article class="active-delivery" *ngFor="let order of d.activeOrders; trackBy: trackOrder">
+          <div class="delivery-main">
+            <div class="delivery-copy">
+              <div class="order-heading"><strong [title]="order.id || ''">#{{ displayOrderId(order.id) }}</strong><span class="platform-badge" [class.zomato]="platformLabel(order) === 'Zomato'" [class.swiggy]="platformLabel(order) === 'Swiggy'"><b>{{ platformLabel(order) === 'Website' ? '◎' : platformLabel(order).charAt(0) }}</b>{{ platformLabel(order) }}</span><strong class="order-amount">₹{{ order.total | number:'1.0-2' }}</strong></div>
+              <div class="location-row"><svg class="icon" aria-hidden="true"><use href="#pd-pin"/></svg><div><p>{{ d.outletName || 'Pickup outlet' }}<ng-container *ngIf="d.pickupAddress">, {{ d.pickupAddress }}</ng-container></p><small class="pickup-state"><svg class="icon" aria-hidden="true"><use href="#pd-check"/></svg>{{ order.status === 'ready' ? 'Ready for pickup' : order.status === 'out-for-delivery' ? 'Picked up · On the way' : 'Pickup when order is ready' }}</small></div></div>
+              <div class="location-row"><svg class="icon" aria-hidden="true"><use href="#pd-user"/></svg><div><p>{{ order.customerName || order.username || 'Customer' }}</p><small class="destination"><svg class="icon" aria-hidden="true"><use href="#pd-pin"/></svg>{{ order.deliveryAddress || 'Delivery address unavailable' }}<span *ngIf="order.deliveryDistanceKm"> ({{ order.deliveryDistanceKm | number:'1.0-1' }} km)</span></small><small class="delivery-deadline"><svg class="icon" aria-hidden="true"><use href="#pd-clock"/></svg><ng-container *ngIf="deliveryDeadline(order) as deadline; else noDeadline">Deliver by {{ deadline | date:'h:mm a':'+0530' }}</ng-container><ng-template #noDeadline>{{ order.deliveryEtaMinutes ? order.deliveryEtaMinutes + ' min estimated travel' : 'ETA not available' }}</ng-template></small></div></div>
             </div>
-            <div class="order-meta">
-              <span>{{ shift.startOdometerKm | number:'1.0-2' }} km → {{ (shift.endOdometerKm ?? shift.startOdometerKm) | number:'1.0-2' }} km</span>
-              <strong>{{ shift.totalDistanceKm | number:'1.0-2' }} km</strong>
+            <div class="route-preview" aria-label="Illustrated route overview; use Navigate for the live map">
+              <svg viewBox="0 0 160 120" aria-hidden="true">
+                <rect width="160" height="120" fill="#eff1e9"/><path d="m100 0 60 0v45l-20 15-24-17Z" fill="#ddf0cf"/><path d="m0 92 29-5 30 33H0" fill="#e0edd1"/>
+                <g stroke="#fff" stroke-width="5" fill="none"><path d="m-20 68 80-90M-10 108 116-20M31 140 161-8M75 138 176 24M-15 13l186 124M-18 46l160 113M32-8l137 93"/></g>
+                <path d="M45 25v20q0 7 10 7h26q10 0 10 9v8q0 9 10 9h10l6 10" fill="none" stroke="#0781ff" stroke-width="3" stroke-linecap="round"/>
+                <path d="M45 12c-13 0-14 17 0 27 14-10 13-27 0-27Z" fill="#ff7b23"/><path d="M42 17v10m5-10v10m-8-10v5h6m4-5v10" stroke="#fff" stroke-width="1.5" fill="none"/>
+                <circle cx="118" cy="85" r="11" fill="#0781ff"/><path d="m112 85 6-5 6 5m-10-1v7h8v-7m-5 7v-4h2v4" fill="none" stroke="#fff" stroke-width="1.5"/>
+              </svg>
+              <span class="route-caption"><ng-container *ngIf="order.deliveryDistanceKm; else routeOverview">{{ order.deliveryDistanceKm | number:'1.0-1' }} km</ng-container><ng-template #routeOverview>Route overview</ng-template><ng-container *ngIf="order.deliveryEtaMinutes"> · {{ order.deliveryEtaMinutes }} min</ng-container></span>
             </div>
-          </article>
+          </div>
+          <div class="delivery-actions">
+            <a *ngIf="getDeliveryMapUrl(order) as mapUrl; else noMap" class="navigate-button" [href]="mapUrl" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#pd-navigation"/></svg>Navigate</a><ng-template #noMap><button class="navigate-button" disabled title="Delivery address or route unavailable">Navigate</button></ng-template>
+            <a *ngIf="phoneHref(order.phoneNumber) as phone; else noPhone" class="secondary-button" [href]="phone"><svg class="icon" aria-hidden="true"><use href="#pd-phone"/></svg>Call Customer</a><ng-template #noPhone><button class="secondary-button" disabled title="Customer phone unavailable">Call Customer</button></ng-template>
+            <div class="status-control">
+              <button class="secondary-button" (click)="statusOrderId = statusOrderId === order.id ? null : (order.id || null)" [attr.aria-expanded]="statusOrderId === order.id" [attr.aria-label]="'Update status for order ' + displayOrderId(order.id)">Update Status<svg class="icon chevron" aria-hidden="true"><use href="#pd-chevron"/></svg></button>
+              <div class="status-menu" *ngIf="statusOrderId === order.id">
+                <p>{{ formatStatus(order.status) }}</p>
+                <div class="workflow-step" *ngFor="let step of getWorkflowSteps(order)" [class.completed]="step.completed" [class.active]="step.active"><span class="dot"></span>{{ step.label }}</div>
+                <button *ngIf="canPickup(order)" (click)="statusOrderId = null; pickupOrder(order)" [disabled]="confirmingCod[order.id!]">Pickup &amp; Start Delivery</button>
+                <button *ngIf="canConfirmCod(order)" (click)="openCodForm(order.id)">Confirm COD Payment</button>
+                <button *ngIf="canMarkDelivered(order)" (click)="statusOrderId = null; markDelivered(order)" [disabled]="markingDelivered[order.id!]">Mark Delivered</button>
+              </div>
+            </div>
+          </div>
+          <div class="cod-actions" *ngIf="codOrderId === order.id && canConfirmCod(order)">
+            <label>Collected amount<input type="number" min="0" step="0.01" [(ngModel)]="codAmountDraft[order.id!]" /></label>
+            <label>Reference (optional)<input type="text" [(ngModel)]="codReferenceDraft[order.id!]" /></label>
+            <button class="btn-primary" (click)="confirmCod(order)" [disabled]="confirmingCod[order.id!]">{{ confirmingCod[order.id!] ? 'Confirming...' : 'Confirm COD Payment' }}</button>
+            <button class="btn-close" (click)="codOrderId = null">Close</button>
+          </div>
+        </article>
+      </section>
+      <section class="panel available-panel">
+        <header class="panel-heading"><h2><svg class="icon" aria-hidden="true"><use href="#pd-clock"/></svg>Available Orders ({{ d.pendingRequests.length }})</h2><button class="view-link" (click)="infoModal = 'requests'" [disabled]="!d.pendingRequests.length">View All ›</button></header>
+        <p class="empty" *ngIf="!d.pendingRequests.length">You're all caught up. New delivery requests will appear here.</p>
+        <div class="available-order" *ngFor="let request of d.pendingRequests | slice:0:3; trackBy: trackOrder">
+          <span class="order-scooter"><svg class="icon" aria-hidden="true"><use href="#pd-scooter"/></svg></span>
+          <div class="available-copy"><div><strong [title]="request.id || ''">#{{ displayOrderId(request.id) }}</strong><span class="platform-badge" [class.zomato]="platformLabel(request) === 'Zomato'" [class.swiggy]="platformLabel(request) === 'Swiggy'"><b>{{ platformLabel(request) === 'Website' ? '◎' : platformLabel(request).charAt(0) }}</b>{{ platformLabel(request) }}</span></div><p><svg class="icon" aria-hidden="true"><use href="#pd-pin"/></svg>{{ request.deliveryAddress || 'Address unavailable' }}<span *ngIf="request.deliveryDistanceKm"> ({{ request.deliveryDistanceKm | number:'1.0-1' }} km)</span></p></div>
+          <strong class="request-amount">₹{{ request.total | number:'1.0-2' }}</strong>
+          <button class="accept-button" (click)="acceptRequest(request)" [disabled]="acceptingRequest[request.id!] || isPhoneManagedRequest(request) || !isOnline || updatingAvailability" [title]="isPhoneManagedRequest(request) ? 'Phone orders are assigned by admin or manager' : !isOnline ? 'Go Online during shop hours to accept orders' : 'Accept delivery request'">{{ acceptingRequest[request.id!] ? 'Accepting...' : isPhoneManagedRequest(request) ? 'Admin assigns' : 'Accept' }}</button>
         </div>
-      </div>
-    </section>
-  </div>
+      </section>
+    </div>
 
+    <div class="summary-grid">
+      <section class="panel today-panel">
+        <header class="panel-heading"><h2><svg class="icon" aria-hidden="true"><use href="#pd-clock"/></svg>Today's Summary</h2></header>
+        <div class="summary-metrics">
+          <div><span class="summary-icon green"><svg class="icon" aria-hidden="true"><use href="#pd-check"/></svg></span><div><small>Completed</small><strong>{{ d.todaySummary?.completed ?? '—' }}</strong></div></div>
+          <div [title]="d.todaySummary?.legacyAssignmentDates ? 'Older assignments without a timestamp use their IST order creation date.' : 'Orders assigned to you today'"><span class="summary-icon blue"><svg class="icon" aria-hidden="true"><use href="#pd-scooter"/></svg></span><div><small>Accepted</small><strong>{{ d.todaySummary?.accepted ?? '—' }}</strong></div></div>
+          <div><span class="summary-icon amber"><svg class="icon" aria-hidden="true"><use href="#pd-clock"/></svg></span><div><small>In Progress</small><strong>{{ d.activeOrders.length }}</strong></div></div>
+          <div><span class="summary-icon red"><svg class="icon" aria-hidden="true"><use href="#pd-close"/></svg></span><div><small>Cancelled</small><strong>{{ d.todaySummary?.cancelled ?? '—' }}</strong></div></div>
+        </div>
+      </section>
+      <section class="panel performance-panel">
+        <header class="panel-heading"><h2><svg class="icon" aria-hidden="true"><use href="#pd-chart"/></svg>Performance (Last 7 Days)<span class="info-icon" title="IST calendar days; open details for calculation definitions">ⓘ</span></h2><button class="view-link" (click)="infoModal = 'performance'">View Details ›</button></header>
+        <div class="performance-metrics">
+          <div><svg class="icon green" aria-hidden="true"><use href="#pd-check"/></svg><small>On-time Delivery</small><strong>{{ d.performance?.onTimeRate != null ? (d.performance?.onTimeRate | number:'1.0-1') + '%' : '—' }}</strong></div>
+          <div><svg class="icon blue" aria-hidden="true"><use href="#pd-shield"/></svg><small>Completion Rate</small><strong>{{ d.performance?.completionRate != null ? (d.performance?.completionRate | number:'1.0-1') + '%' : '—' }}</strong></div>
+          <div><svg class="icon amber" aria-hidden="true"><use href="#pd-bag"/></svg><small>Customer Rating</small><strong>{{ d.performance?.customerRating != null ? (d.performance?.customerRating | number:'1.1-1') : '—' }} <span class="amber">★</span></strong></div>
+          <div><svg class="icon blue" aria-hidden="true"><use href="#pd-route"/></svg><small>Total Distance</small><strong>{{ d.performance ? (d.performance.totalDistanceKm | number:'1.0-1') + ' km' : '—' }}</strong></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="insights-grid">
+      <section class="panel zones-panel">
+        <header class="panel-heading"><h2><svg class="icon" aria-hidden="true"><use href="#pd-pin"/></svg>Delivery Zones</h2><button class="status-chip" (click)="infoModal = 'zones'">Your Active Zones</button></header>
+        <p class="zones-list" *ngIf="d.deliveryZones?.length; else noZones"><svg class="icon" aria-hidden="true"><use href="#pd-map"/></svg><span><ng-container *ngFor="let zone of d.deliveryZones; let last = last">{{ zone.name }}{{ last ? '' : ', ' }}</ng-container></span></p>
+        <ng-template #noZones><p class="empty">{{ d.deliveryZones ? 'No active zones configured for your outlet.' : 'Zone data unavailable. Update the API to enable this card.' }}</p></ng-template>
+      </section>
+      <section class="panel peaks-panel">
+        <header class="panel-heading"><h2><svg class="icon" aria-hidden="true"><use href="#pd-chart"/></svg>Peak-Hour Opportunities</h2></header>
+        <div class="peak-window" *ngFor="let peak of d.peakHours; let first = first"><svg class="icon" aria-hidden="true"><use href="#pd-clock"/></svg><strong>{{ hourLabel(peak.startHour) }} – {{ hourLabel(peak.endHour) }}</strong><span [title]="peak.orders + ' delivery orders observed in the last seven IST days'">{{ first ? 'Very High' : 'High Demand' }}</span></div>
+        <p class="empty" *ngIf="!d.peakHours?.length">{{ d.peakHours ? 'No recent delivery demand to compare yet.' : 'Peak-hour data unavailable.' }}</p>
+      </section>
+      <section class="panel targets-panel">
+        <header class="panel-heading"><h2><svg class="icon" aria-hidden="true"><use href="#pd-gift"/></svg>Incentives &amp; Targets</h2><button class="view-link" (click)="infoModal = 'incentives'">View All ›</button></header>
+        <div class="target-row" *ngIf="d.incentive as incentive; else noIncentive">
+          <div class="target-progress"><p>Complete {{ incentive.targetDeliveries }} deliveries today</p><div class="progress-line"><div class="progress-track" role="progressbar" [attr.aria-valuenow]="incentiveProgress * incentive.targetDeliveries / 100" aria-valuemin="0" [attr.aria-valuemax]="incentive.targetDeliveries" aria-label="Daily delivery incentive progress"><span [style.width.%]="incentiveProgress"></span></div><small>{{ incentive.completedDeliveries }} / {{ incentive.targetDeliveries }}</small></div></div>
+          <strong class="reward">+ ₹{{ incentive.rewardAmount | number:'1.0-2' }}</strong>
+        </div>
+        <ng-template #noIncentive><p class="empty">Incentive data unavailable. Update the API to enable this card.</p></ng-template>
+      </section>
+    </div>
+  </main>
+
+  <details class="supplemental-panel">
+    <summary><svg class="icon" aria-hidden="true"><use href="#pd-scooter"/></svg>Parcel tasks &amp; delivery feedback <span>{{ d.pendingParcelTasks.length + d.activeParcelTasks.length }} parcel tasks · COD outstanding ₹{{ d.codOutstanding | number:'1.0-2' }}</span></summary>
   <section class="panel">
     <h2>Pending Parcel Tasks</h2>
     <div *ngIf="d.pendingParcelTasks.length === 0" class="empty">No pending parcel tasks right now.</div>
@@ -165,7 +209,7 @@
         </div>
         <div class="order-meta">
           <span>{{ formatStatus(task.status) }}</span>
-          <button class="btn-primary" (click)="acceptParcelTask(task)" [disabled]="acceptingParcel[task.id!]">
+          <button class="btn-primary" (click)="acceptParcelTask(task)" [disabled]="acceptingParcel[task.id!] || !isOnline || updatingAvailability">
             {{ acceptingParcel[task.id!] ? 'Accepting...' : 'Accept Parcel Task' }}
           </button>
         </div>
@@ -200,98 +244,6 @@
   </section>
 
   <section class="panel">
-    <h2>New Delivery Requests</h2>
-    <div *ngIf="d.pendingRequests.length === 0" class="empty">No unassigned delivery requests right now.</div>
-    <div class="orders" *ngIf="d.pendingRequests.length > 0">
-      <article class="order-card" *ngFor="let request of d.pendingRequests">
-        <div>
-          <h3>#{{ request.id }}</h3>
-          <p>{{ request.deliveryAddress || 'Address unavailable' }}</p>
-          <small>{{ request.createdAt | date:'medium' }}</small>
-          <small *ngIf="request.deliveryDistanceKm || request.deliveryEtaMinutes">
-            {{ request.deliveryDistanceKm ? (request.deliveryDistanceKm | number:'1.0-1') + ' km' : '' }}
-            {{ request.deliveryDistanceKm && request.deliveryEtaMinutes ? ' • ' : '' }}
-            {{ request.deliveryEtaMinutes ? (request.deliveryEtaMinutes + ' min ETA') : '' }}
-          </small>
-        </div>
-        <div class="order-meta">
-          <span>{{ formatStatus(request.status) }}</span>
-          <strong>Rs {{ request.total | number:'1.0-2' }}</strong>
-          <small *ngIf="isPhoneManagedRequest(request)">Admin assigns phone orders</small>
-          <button class="btn-primary" (click)="acceptRequest(request)" [disabled]="acceptingRequest[request.id!] || isPhoneManagedRequest(request)">
-            {{ acceptingRequest[request.id!] ? 'Accepting...' : 'Accept Request' }}
-          </button>
-        </div>
-      </article>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>Active Orders</h2>
-    <div *ngIf="d.activeOrders.length === 0" class="empty">No active orders assigned.</div>
-    <div class="orders" *ngIf="d.activeOrders.length > 0">
-      <article class="order-card live-order-card" *ngFor="let order of d.activeOrders">
-        <div class="live-order-top">
-          <div>
-            <h3>
-              #{{ order.id }}
-              <span *ngIf="isPhoneOrder(order)" class="source-badge">Phone order</span>
-            </h3>
-            <p>{{ order.deliveryAddress || 'Address unavailable' }}</p>
-          </div>
-          <div class="order-meta">
-            <span>{{ formatStatus(order.status) }}</span>
-            <strong>Rs {{ order.total | number:'1.0-2' }}</strong>
-          </div>
-        </div>
-
-        <div class="live-order-pills">
-          <small *ngIf="order.deliveryDistanceKm || order.deliveryEtaMinutes" class="pill-chip">
-            {{ order.deliveryDistanceKm ? (order.deliveryDistanceKm | number:'1.0-1') + ' km' : '' }}
-            {{ order.deliveryDistanceKm && order.deliveryEtaMinutes ? ' • ' : '' }}
-            {{ order.deliveryEtaMinutes ? (order.deliveryEtaMinutes + ' min ETA') : '' }}
-          </small>
-          <small class="pill-chip">Payment: {{ (order.paymentMethod || '-') | uppercase }} • {{ order.paymentStatus || '-' }}</small>
-          <small *ngIf="getDeliveryMapUrl(order) as mapUrl" class="pill-chip route-chip">
-            Route: <a [href]="mapUrl" target="_blank" rel="noopener">Open map link</a>
-          </small>
-        </div>
-
-        <div class="workflow-strip" aria-label="Delivery workflow status">
-          <div
-            class="workflow-step"
-            *ngFor="let step of getWorkflowSteps(order)"
-            [class.completed]="step.completed"
-            [class.active]="step.active">
-            <span class="dot"></span>
-            <span>{{ step.label }}</span>
-          </div>
-        </div>
-
-        <div class="cod-actions" *ngIf="canPickup(order)">
-          <button class="btn-primary" (click)="pickupOrder(order)" [disabled]="confirmingCod[order.id!]">
-            {{ confirmingCod[order.id!] ? 'Picking up...' : 'Pickup & Start Delivery' }}
-          </button>
-        </div>
-
-        <div class="cod-actions" *ngIf="canConfirmCod(order)">
-          <input type="number" min="0" step="0.01" [(ngModel)]="codAmountDraft[order.id!]" placeholder="COD amount" />
-          <input type="text" [(ngModel)]="codReferenceDraft[order.id!]" placeholder="Reference (optional)" />
-          <button class="btn-primary" (click)="confirmCod(order)" [disabled]="confirmingCod[order.id!]">
-            {{ confirmingCod[order.id!] ? 'Confirming...' : 'Confirm COD Payment' }}
-          </button>
-        </div>
-
-        <div class="cod-actions" *ngIf="canMarkDelivered(order)">
-          <button class="btn-primary" (click)="markDelivered(order)" [disabled]="markingDelivered[order.id!]">
-            {{ markingDelivered[order.id!] ? 'Updating...' : 'Mark Delivered' }}
-          </button>
-        </div>
-      </article>
-    </div>
-  </section>
-
-  <section class="panel">
     <h2>Recent Ratings & Reviews</h2>
     <div *ngIf="d.recentReviews.length === 0" class="empty">No reviews yet.</div>
     <div class="orders" *ngIf="d.recentReviews.length > 0">
@@ -308,9 +260,27 @@
       </article>
     </div>
   </section>
+  </details>
+
+  <div class="modal-overlay" *ngIf="infoModal" (click)="infoModal = null">
+    <section class="shift-modal info-modal" role="dialog" aria-modal="true" aria-labelledby="partner-details-title" (click)="$event.stopPropagation()">
+      <header class="modal-head"><h3 id="partner-details-title">{{ infoModal === 'performance' ? 'Your last 7 days' : infoModal === 'incentives' ? 'Daily incentive target' : infoModal === 'zones' ? 'Your outlet delivery zones' : infoModal === 'requests' ? 'Available delivery requests' : 'Ratings & reviews' }}</h3><button class="btn-close" (click)="infoModal = null">Close</button></header>
+      <div class="modal-body">
+        <ng-container *ngIf="infoModal === 'performance'">
+          <p *ngIf="!d.performance" class="empty">Performance data unavailable.</p>
+          <div *ngIf="d.performance as performance" class="detail-copy"><p><strong>On-time delivery:</strong> {{ performance.onTimeDeliveries }} of {{ performance.timedDeliveries }} deliveries with a recorded ETA. Missing ETA or completion timestamps are excluded.</p><p><strong>Completion rate:</strong> {{ performance.completed }} delivered ÷ ({{ performance.completed }} delivered + {{ performance.cancelled }} cancelled). In-progress orders are excluded.</p><p><strong>Customer rating:</strong> {{ performance.reviews }} reviews in the last seven IST calendar days.</p><p><strong>Distance:</strong> {{ performance.totalDistanceKm | number:'1.0-2' }} km from recorded shifts/trips, without counting both sources twice.</p><p>Cancellation dates use the order's recorded last-update time. Legacy assignments without an assignment timestamp use their IST order creation date.</p><p>Peak-hour opportunities reflect observed outlet order activity, not a demand forecast.</p></div>
+        </ng-container>
+        <ng-container *ngIf="infoModal === 'incentives'"><p *ngIf="d.incentive as incentive">Complete {{ incentive.targetDeliveries }} deliveries in one IST calendar day to earn ₹{{ incentive.rewardAmount }}. You have completed {{ incentive.completedDeliveries }} today.</p><p>This bonus is shown separately from distance/fuel reimbursement. It does not change your existing payout or record an automatic payment.</p></ng-container>
+        <ng-container *ngIf="infoModal === 'zones'"><div class="zone-detail" *ngFor="let zone of d.deliveryZones"><strong>{{ zone.name }}</strong><span>{{ zone.minDistanceKm }} – {{ zone.maxDistanceKm }} km</span></div><p class="empty" *ngIf="!d.deliveryZones?.length">No active delivery zones configured for this outlet.</p></ng-container>
+        <ng-container *ngIf="infoModal === 'requests'"><article class="order-card" *ngFor="let request of d.pendingRequests"><div><h3>#{{ displayOrderId(request.id) }} · {{ platformLabel(request) }}</h3><p>{{ request.deliveryAddress || 'Address unavailable' }}</p><small>{{ request.deliveryDistanceKm || '—' }} km · {{ request.deliveryEtaMinutes || '—' }} min ETA</small></div><div class="order-meta"><strong>₹{{ request.total | number:'1.0-2' }}</strong><button class="accept-button" (click)="acceptRequest(request)" [disabled]="acceptingRequest[request.id!] || isPhoneManagedRequest(request) || !isOnline || updatingAvailability">{{ isPhoneManagedRequest(request) ? 'Admin assigns' : acceptingRequest[request.id!] ? 'Accepting...' : 'Accept' }}</button></div></article></ng-container>
+        <ng-container *ngIf="infoModal === 'reviews'"><p class="empty" *ngIf="!d.recentReviews.length">No reviews yet.</p><article class="order-card" *ngFor="let review of d.recentReviews"><div><h3>Order #{{ displayOrderId(review.orderId) }}</h3><p>{{ review.review || 'No written feedback provided.' }}</p></div><strong class="amber">{{ getStarLabel(review.rating) }}</strong></article></ng-container>
+      </div>
+    </section>
+  </div>
 </section>
 
 <section *ngIf="loading" class="loading">
   <div class="spinner"></div>
   <p>Loading partner dashboard...</p>
 </section>
+<section class="dashboard-failure" *ngIf="!loading && !dashboard && errorMessage" role="alert"><h1>Delivery Partner Dashboard</h1><p>{{ errorMessage }}</p><button class="btn-primary" (click)="loadDashboard()">Try again</button></section>

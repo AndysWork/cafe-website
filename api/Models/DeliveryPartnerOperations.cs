@@ -495,7 +495,53 @@ public class PartnerDashboardResponse
     public double AverageRating { get; set; }
     public int ReviewsCount { get; set; }
     public List<PartnerReviewSummary> RecentReviews { get; set; } = new();
+    public string? OutletName { get; set; }
+    public string? PickupAddress { get; set; }
+    public PartnerTodaySummary TodaySummary { get; set; } = new();
+    public PartnerPerformanceSummary Performance { get; set; } = new();
+    public PartnerIncentiveSummary Incentive { get; set; } = new();
+    public List<PartnerZoneSummary> DeliveryZones { get; set; } = new();
+    public List<PartnerPeakWindow> PeakHours { get; set; } = new();
 }
+
+/// <summary>Recorded deliveries and current assignments for today's IST reporting window.</summary>
+public sealed record PartnerTodaySummary
+{
+    public int Completed { get; init; }
+    public int Accepted { get; init; }
+    public int InProgress { get; init; }
+    public int Cancelled { get; init; }
+    public int LegacyAssignmentDates { get; init; }
+}
+
+/// <summary>Delivery performance over the last seven IST calendar days.</summary>
+public sealed record PartnerPerformanceSummary
+{
+    public decimal? OnTimeRate { get; init; }
+    public decimal? CompletionRate { get; init; }
+    public double? CustomerRating { get; init; }
+    public decimal TotalDistanceKm { get; init; }
+    public int Completed { get; init; }
+    public int Cancelled { get; init; }
+    public int TimedDeliveries { get; init; }
+    public int OnTimeDeliveries { get; init; }
+    public int Reviews { get; init; }
+}
+
+/// <summary>A daily delivery incentive, tracked separately from fuel reimbursement.</summary>
+public sealed record PartnerIncentiveSummary
+{
+    public int TargetDeliveries { get; init; } = 10;
+    public decimal RewardAmount { get; init; } = 50;
+    public int CompletedDeliveries { get; init; }
+    public decimal EarnedAmount { get; init; }
+}
+
+/// <summary>An active delivery zone belonging to the partner's outlet.</summary>
+public sealed record PartnerZoneSummary(string Name, double MinDistanceKm, double MaxDistanceKm);
+
+/// <summary>A busy three-hour window observed in recent outlet delivery orders.</summary>
+public sealed record PartnerPeakWindow(int StartHour, int EndHour, int Orders);
 
 public class PartnerReviewSummary
 {

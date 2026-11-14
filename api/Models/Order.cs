@@ -168,6 +168,10 @@ public class Order : ISoftDeletable
     [BsonElement("completedAt")]
     public DateTime? CompletedAt { get; set; }
 
+    [BsonElement("completedAtIsUtc")]
+    [BsonIgnoreIfNull]
+    public bool? CompletedAtIsUtc { get; set; }
+
     [BsonElement("receiptImageUrl")]
     public string? ReceiptImageUrl { get; set; }
 
@@ -194,6 +198,14 @@ public class Order : ISoftDeletable
 
     [BsonElement("deliveryPartnerName")]
     public string? DeliveryPartnerName { get; set; }
+
+    [BsonElement("deliveryAssignedAtUtc")]
+    [BsonIgnoreIfNull]
+    public DateTime? DeliveryAssignedAtUtc { get; set; }
+
+    [BsonElement("deliveryDueAtUtc")]
+    [BsonIgnoreIfNull]
+    public DateTime? DeliveryDueAtUtc { get; set; }
 
     [BsonElement("deliveryRouteUrl")]
     public string? DeliveryRouteUrl { get; set; }

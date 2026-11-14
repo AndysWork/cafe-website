@@ -285,6 +285,23 @@ describe('NavbarComponent multi-role navigation', () => {
     expect(new Set(menuLinks).size).toBe(menuLinks.length);
   });
 
+  it('uses the staff navbar for delivery roles without exposing other staff workspaces', () => {
+    setRoles('delivery-partner');
+    expect(fixture.nativeElement.querySelector('.staff-navbar')).not.toBeNull();
+    for (const route of ['/partner/delivery', '/partner/payout', '/profile']) expect(links()).toContain(route);
+    for (const route of ['/admin/dashboard', '/manager/dashboard', '/phone-orders', '/staff/cashier', '/staff/dine-in']) {
+      expect(links()).not.toContain(route);
+    }
+
+    setRoles('cashier', ['cashier', 'waiter', 'delivery-partner']);
+    fixture.componentInstance.toggleMobileMenu();
+    fixture.detectChanges();
+    for (const route of ['/partner/delivery', '/partner/payout', '/staff/cashier', '/staff/dine-in']) {
+      expect(links()).toContain(route);
+    }
+    expect(links()).not.toContain('/phone-orders');
+  });
+
   it('hides Home on the landing page and shows it on other pages', async () => {
     setRoles('waiter', ['waiter']);
     expect(fixture.componentInstance.isLandingPage).toBeTrue();

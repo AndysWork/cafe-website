@@ -102,6 +102,7 @@ import { getStoredTimestampEpoch } from '../../utils/date-utils';
       position: relative;
       background: none;
       border: none;
+      color: var(--notification-bell-color, #000);
       cursor: pointer;
       padding: 6px 10px;
       font-size: 1.25rem;

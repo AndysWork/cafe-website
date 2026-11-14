@@ -112,6 +112,24 @@ describe('Login presentation', () => {
     expect(navigate).toHaveBeenCalledWith(['/admin/dashboard']);
   });
 
+  for (const assignedRoles of [['delivery-partner'], ['partner'], ['cashier', 'waiter', 'delivery-partner'], ['cook', 'delivery-partner']]) {
+    it(`lands ${assignedRoles.join('/')} on delivery after login`, () => {
+      roles = assignedRoles;
+      const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+      component.onLogin();
+      expect(navigate).toHaveBeenCalledWith(['/partner/delivery']);
+    });
+  }
+
+  for (const managementRole of ['admin', 'manager']) {
+    it(`preserves ${managementRole} landing when a delivery role is also assigned`, () => {
+      roles = [managementRole, 'delivery-partner'];
+      const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+      component.onLogin();
+      expect(navigate).toHaveBeenCalledWith([`/${managementRole}/dashboard`]);
+    });
+  }
+
   it('displays authentication errors and restores the submit button', fakeAsync(() => {
     auth.login.and.returnValue(throwError(() => ({ error: { error: 'Invalid credentials' } })));
     component.onLogin();

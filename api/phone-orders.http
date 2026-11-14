@@ -4,6 +4,35 @@
 @menuItemId = REPLACE_WITH_MENU_ITEM_ID
 @orderId = REPLACE_WITH_CREATED_ORDER_ID
 @trackingToken = REPLACE_WITH_TOKEN_FROM_TRACKING_PATH
+@partnerToken = REPLACE_WITH_PARTNER_TOKEN
+
+### Partner dashboard: live assignments, IST summary, performance, zones and daily incentive
+GET {{baseUrl}}/partner/delivery/dashboard
+Authorization: Bearer {{partnerToken}}
+
+### Dashboard rejects unauthenticated access
+GET {{baseUrl}}/partner/delivery/dashboard
+
+### Pause new assignments until resumed or the next shop opening; current deliveries remain assigned
+PUT {{baseUrl}}/partner/delivery/availability
+Authorization: Bearer {{partnerToken}}
+Content-Type: application/json
+
+{ "isOnline": false }
+
+### Resume during shop hours (409 outside shop hours)
+PUT {{baseUrl}}/partner/delivery/availability
+Authorization: Bearer {{partnerToken}}
+Content-Type: application/json
+
+{ "isOnline": true }
+
+### Missing choice returns 400
+PUT {{baseUrl}}/partner/delivery/availability
+Authorization: Bearer {{partnerToken}}
+Content-Type: application/json
+
+{}
 
 ### Quote (Admin/Manager, no mutation)
 POST {{baseUrl}}/phone-orders/quote
