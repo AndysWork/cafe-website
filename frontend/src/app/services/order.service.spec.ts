@@ -43,6 +43,31 @@ describe('OrderService reconciliation routes', () => {
     expect(error).toHaveBeenCalled();
   });
 
+  it('loads all selected-range and active dashboard pages without counting overlaps twice', () => {
+    let ids: string[] = [];
+    service.getDashboardOrders('2024-02-28', '2024-03-01').subscribe(orders => ids = orders.map(order => order.id));
+    const first = http.expectOne(req => req.url === `${environment.apiUrl}/manage/dashboard/orders` && req.params.get('page') === '1');
+    expect(first.request.params.get('from')).toBe('2024-02-28');
+    expect(first.request.params.get('to')).toBe('2024-03-01');
+    first.flush(Array.from({ length: 500 }, (_, index) => ({ id: String(index) })));
+    const second = http.expectOne(req => req.params.get('page') === '2');
+    second.flush([{ id: '0' }, { id: 'old-active' }]);
+    expect(ids.length).toBe(501);
+    expect(ids).toContain('old-active');
+  });
+
+  it('fails dashboard reads when a later page fails', () => {
+    spyOn(console, 'error');
+    const next = jasmine.createSpy('next');
+    const error = jasmine.createSpy('error');
+    service.getDashboardOrders('2024-02-28', '2024-03-01').subscribe({ next, error });
+    http.expectOne(req => req.params.get('page') === '1')
+      .flush(Array.from({ length: 500 }, (_, index) => ({ id: String(index) })));
+    http.expectOne(req => req.params.get('page') === '2').flush({}, { status: 503, statusText: 'Unavailable' });
+    expect(next).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalled();
+  });
+
   it('reconciles an order through the non-reserved management route', () => {
     const payload = { reason: 'Correct recorded payment', paymentStatus: 'paid' };
     service.adminReconcileOrder('order-1', payload).subscribe();

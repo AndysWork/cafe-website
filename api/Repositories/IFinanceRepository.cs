@@ -7,6 +7,7 @@ public interface IFinanceRepository
 {
     // Sales
     Task<List<Sales>> GetAllSalesAsync(string? outletId = null, int? page = null, int? pageSize = null);
+    Task<List<Sales>> GetDashboardSalesAsync(string outletId, DateTime startUtc, DateTime endUtc);
     Task<long> GetAllSalesCountAsync(string? outletId = null);
     Task<List<Sales>> GetSalesByDateRangeAsync(DateTime startDate, DateTime endDate, string? outletId = null);
     Task<Sales?> GetSalesByIdAsync(string id);
@@ -17,6 +18,7 @@ public interface IFinanceRepository
 
     // Expenses
     Task<List<Expense>> GetAllExpensesAsync(string? outletId = null, int? page = null, int? pageSize = null);
+    Task<List<Expense>> GetDashboardExpensesAsync(string outletId, DateTime startUtc, DateTime endUtc);
     Task<long> GetAllExpensesCountAsync(string? outletId = null);
     Task<List<Expense>> GetExpensesByDateRangeAsync(DateTime startDate, DateTime endDate, string? outletId = null, int? page = null, int? pageSize = null);
     Task<long> GetExpensesByDateRangeCountAsync(DateTime startDate, DateTime endDate, string? outletId = null);
@@ -78,6 +80,7 @@ public interface IFinanceRepository
 
     // Online Sales
     Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null, int? page = null, int? pageSize = null, bool includeWebSales = false);
+    Task<List<OnlineSale>> GetDashboardOnlineSalesAsync(string outletId, DateTime startDate, DateTime endExclusive);
     Task<long> GetOnlineSalesCountAsync(string? platform = null, string? outletId = null, bool includeWebSales = false);
     Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false);
     Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false);

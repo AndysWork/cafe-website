@@ -1,11 +1,11 @@
 import { Component, HostListener, Input, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { OrderService, Order, OrderItem, OrderPeriodCollection } from '../../services/order.service';
-import { MenuService, MenuItem } from '../../services/menu.service';
-import { SalesService, Sales } from '../../services/sales.service';
-import { ExpenseService, Expense } from '../../services/expense.service';
+import { MenuItem } from '../../services/menu.service';
+import { Sales } from '../../services/sales.service';
+import { Expense } from '../../services/expense.service';
 import { OutletService } from '../../services/outlet.service';
 import { environment } from '../../../environments/environment';
 import { forkJoin, Observable, of, Subscription, timer } from 'rxjs';
@@ -14,8 +14,8 @@ import { AuthStore } from '../../store/auth.store';
 import { formatIstDate, getIstDateString, getIstInputDate, getStoredTimestampEpoch } from '../../utils/date-utils';
 import { calculateDashboardInsights, calculateDashboardItemSales, calculateDashboardOverview, DashboardDay, DashboardInsights, DashboardItemSales, DashboardOverview, DashboardSummary } from './dashboard-overview';
 import { CafeTableService, CafeTableFloorView, FloorSummary } from '../../services/cafe-table.service';
-import { Attendance, AttendanceService } from '../../services/attendance.service';
-import { InventoryService, StockAlert } from '../../services/inventory.service';
+import { Attendance } from '../../services/attendance.service';
+import { StockAlert } from '../../services/inventory.service';
 import { ManagerOpsBoardResponse, ManagerOpsService } from '../../services/manager-ops.service';
 import { calculateWebSalesOverview, orderSource, WebSalesOverview } from '../admin-web-sales/web-sales-overview';
 import { downloadFile, toCsv } from '../../utils/file-download';
@@ -74,35 +74,6 @@ interface MostOrderedItem {
   revenue: number;
 }
 
-interface OutboxHealth {
-  pendingCount: number;
-  processingCount: number;
-  retryingCount: number;
-  deadLetterCount: number;
-  completedLast15Minutes: number;
-  capturedAtUtc: string;
-}
-
-interface OutboxDeadLetterItem {
-  id: string;
-  eventType: string;
-  aggregateType: string;
-  aggregateId: string;
-  status?: string;
-  retryCount: number;
-  maxRetries: number;
-  error?: string;
-  createdAt?: string;
-  lastAttemptAt?: string;
-  deadLetteredAt?: string;
-  isPushFailure?: boolean;
-}
-
-interface OutboxDeadLettersResponse {
-  count: number;
-  items: OutboxDeadLetterItem[];
-}
-
 interface DashboardAttendance {
   staffId: string;
   status: Attendance['status'];
@@ -131,14 +102,9 @@ interface DashboardReadData {
 export class AdminDashboardComponent implements OnInit, OnDestroy {
   @Input() managerView = false;
   private orderService = inject(OrderService);
-  private menuService = inject(MenuService);
-  private salesService = inject(SalesService);
-  private expenseService = inject(ExpenseService);
   private outletService = inject(OutletService);
   private http = inject(HttpClient);
   private tableService = inject(CafeTableService);
-  private attendanceService = inject(AttendanceService);
-  private inventoryService = inject(InventoryService);
   private managerOps = inject(ManagerOpsService);
   private outletStore = inject(OutletStore);
   readonly authStore = inject(AuthStore);
@@ -257,9 +223,6 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   topCustomers: TopCustomer[] = [];
   onlineMostOrderedItems: MostOrderedItem[] = [];
   offlineMostOrderedItems: MostOrderedItem[] = [];
-  outboxHealth: OutboxHealth | null = null;
-  outboxDeadLetters: OutboxDeadLetterItem[] = [];
-  showOutboxDeadLetters = false;
   onlineSales: OnlineSale[] = [];
   offlineSales: Sales[] = [];
   allOrders: Order[] = [];
@@ -284,6 +247,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   };
 
   isLoading = true;
+  hasLoadedData = false;
   errorMessage: string | null = null;
 
   ngOnInit(): void {
@@ -336,6 +300,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       .pipe(filter(outlet => outlet !== null || this.managerView),
         distinctUntilChanged((previous, current) => (previous?._id || previous?.id) === (current?._id || current?.id)))
       .subscribe(() => {
+        this.hasLoadedData = false;
         this.loadDashboardData();
       });
   }
@@ -359,41 +324,28 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.managerView && !this.isAssignedOutlet(this.selectedOutlet)) {
+      this.hasLoadedData = false;
       this.isLoading = false;
       this.errorMessage = 'Select one of your assigned outlets to view the dashboard.';
       return;
     }
     this.isLoading = true;
     this.errorMessage = null;
-    this.operationalErrors = [];
+    if (!this.hasLoadedData) this.operationalErrors = [];
+    const loadingErrors: string[] = [];
     this.loadCollections();
 
-    const readData: Observable<DashboardReadData> = this.managerView
-      ? this.http.get<DashboardReadData>(`${environment.apiUrl}/manage/dashboard`)
-      : forkJoin({
-      menuItems: this.menuService.getMenuItems(),
-      onlineSales: this.http.get<{ success: boolean; data: OnlineSale[] }>(`${environment.apiUrl}/online-sales?includeWebSales=true`)
-        .pipe(map(response => response.data || [])),
-      offlineSales: this.salesService.getAllSales(),
-      expenses: this.expenseService.getAllExpenses(),
-      attendance: this.loadOptional(this.attendanceService.getTodayAttendance(), 'Staff attendance'),
-      stockAlerts: this.loadOptional(this.inventoryService.getStockAlerts(), 'Stock alerts'),
-      unavailableSources: of([])
+    const start = this.rangeStart;
+    const end = this.rangeEnd;
+    const previousStart = new Date(Date.parse(`${start}T00:00:00Z`) - this.periodDays * 86400000).toISOString().slice(0, 10);
+    const readData = this.http.get<DashboardReadData>(`${environment.apiUrl}/manage/dashboard/range`, {
+      params: new HttpParams().set('from', previousStart).set('to', end)
     });
     this.dataSubscription = forkJoin({
       readData,
-      orders: this.orderService.getAllOrdersWithHistory(),
-      operations: this.loadOptional(this.managerOps.getBoard(), 'Kitchen and delivery operations'),
-      floor: this.loadOptional(this.tableService.getFloor(), 'Table occupancy and dues'),
-      outboxHealth: this.managerView ? of(null) : this.http.get<OutboxHealth>(`${environment.apiUrl}/manage/ops/outbox-health`).pipe(
-        catchError(() => of(null))
-      ),
-      outboxDeadLetters: this.managerView ? of([]) : this.http.get<OutboxDeadLettersResponse>(`${environment.apiUrl}/manage/ops/notification-dead-letters`).pipe(
-        // Endpoint returns a wrapper payload { count, items }.
-        // Keep dashboard model unchanged by projecting to items.
-        map(response => response?.items || []),
-        catchError(() => of([]))
-      )
+      orders: this.orderService.getDashboardOrders(start, end),
+      operations: this.loadOptional(this.managerOps.getBoard(), 'Kitchen and delivery operations', loadingErrors),
+      floor: this.loadOptional(this.tableService.getFloor(), 'Table occupancy and dues', loadingErrors)
     }).subscribe({
       next: (data) => {
         this.allOrders = data.orders;
@@ -405,17 +357,10 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         this.floor = data.floor;
         this.attendance = data.readData.attendance;
         this.stockAlerts = data.readData.stockAlerts;
-        this.operationalErrors.push(...data.readData.unavailableSources);
-        this.outboxHealth = data.outboxHealth;
-        this.outboxDeadLetters = data.outboxDeadLetters || [];
-
-        this.updateStats();
-        this.calculateMonthlyTrends();
-        this.calculateTopCustomers();
-        this.calculateOnlineMostOrderedItems();
-        this.calculateOfflineMostOrderedItems();
+        this.operationalErrors = [...loadingErrors, ...data.readData.unavailableSources];
         this.refreshOverview();
 
+        this.hasLoadedData = true;
         this.isLoading = false;
       },
       error: (error) => {
@@ -442,8 +387,8 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     this.dateRange = value;
     this.customRange = null;
     this.customDateError = null;
-    this.refreshOverview();
-    this.loadCollections();
+    this.hasLoadedData = false;
+    this.loadDashboardData();
   }
 
   applyCustomRange(): void {
@@ -462,12 +407,17 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       this.customDateError = 'Start date must be on or before end date.';
       return;
     }
+    const days = (end - start) / 86400000 + 1;
+    if (new Date(start - days * 86400000).getUTCFullYear() < 2 || this.customEndDate === '9999-12-31') {
+      this.customDateError = 'Choose dates that leave room for the previous comparison period.';
+      return;
+    }
     this.customRange = { start: this.customStartDate, end: this.customEndDate };
-    this.periodDays = (end - start) / 86400000 + 1;
+    this.periodDays = days;
     this.dateRange = 'custom';
     this.customDateError = null;
-    this.refreshOverview();
-    this.loadCollections();
+    this.hasLoadedData = false;
+    this.loadDashboardData();
   }
 
   loadCollections(): void {
@@ -514,15 +464,16 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       return date >= start && date <= end;
     });
     this.appOverview = calculateWebSalesOverview(this.periodOrders, start, end);
-    this.itemCategoryOptions = calculateDashboardItemSales(this.periodOrders, this.menuItems, start, end, '', '', '')
-      .categories.map(category => category.name).sort();
-    this.refreshItemSales();
+    const unfilteredItems = calculateDashboardItemSales(this.periodOrders, this.menuItems, start, end, '', '', '');
+    this.itemCategoryOptions = unfilteredItems.categories.map(category => category.name).sort();
+    if (this.itemSearch || this.itemCategory || this.itemSource) this.refreshItemSales();
+    else this.itemSales = unfilteredItems;
   }
 
-  private loadOptional<T>(request: Observable<T>, label: string): Observable<T | null> {
+  private loadOptional<T>(request: Observable<T>, label: string, errors: string[]): Observable<T | null> {
     return request.pipe(catchError(error => {
       console.error(`Unable to load dashboard ${label}`, error);
-      this.operationalErrors.push(label);
+      errors.push(label);
       return of(null);
     }));
   }
@@ -1031,8 +982,4 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   trackByIndex(index: number): number { return index; }
-
-  toggleOutboxDeadLetters(): void {
-    this.showOutboxDeadLetters = !this.showOutboxDeadLetters;
-  }
 }

@@ -7,12 +7,121 @@ using System.Text.Json;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
+using Moq;
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace Cafe.Api.Tests;
 
 public class OrderDateTests
 {
+    [Fact]
+    public async Task DashboardFinanceQueriesReturnMoreThanFiveThousandRecordsWithoutApplyingLimits()
+    {
+        var online = new Mock<IMongoCollection<OnlineSale>>();
+        var sales = new Mock<IMongoCollection<Sales>>();
+        var expenses = new Mock<IMongoCollection<Expense>>();
+        var orders = new Mock<IMongoCollection<Order>>();
+        var onlineOptions = new List<FindOptions<OnlineSale, OnlineSale>>();
+        var salesOptions = new List<FindOptions<Sales, Sales>>();
+        var expenseOptions = new List<FindOptions<Expense, Expense>>();
+        var orderOptions = new List<FindOptions<Order, Order>>();
+        var onlineFilters = new List<FilterDefinition<OnlineSale>>();
+        var salesFilters = new List<FilterDefinition<Sales>>();
+        var expenseFilters = new List<FilterDefinition<Expense>>();
+        var date = new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc);
+        var manyOnline = Enumerable.Range(0, 5001).Select(_ => new OnlineSale { OrderAt = date }).ToList();
+        var manySales = Enumerable.Range(0, 5001).Select(_ => new Sales { Date = date }).ToList();
+        var manyExpenses = Enumerable.Range(0, 5001).Select(_ => new Expense { Date = date }).ToList();
+        var manyOrders = Enumerable.Range(0, 5001).Select(_ => new Order { CreatedAt = date, Status = "delivered" }).ToList();
+
+        online.Setup(collection => collection.FindAsync(It.IsAny<FilterDefinition<OnlineSale>>(),
+                It.IsAny<FindOptions<OnlineSale, OnlineSale>>(), It.IsAny<CancellationToken>()))
+            .Callback<FilterDefinition<OnlineSale>, FindOptions<OnlineSale, OnlineSale>, CancellationToken>((filter, options, _) => { onlineFilters.Add(filter); onlineOptions.Add(options); })
+            .ReturnsAsync(() => Cursor(manyOnline));
+        sales.Setup(collection => collection.FindAsync(It.IsAny<FilterDefinition<Sales>>(),
+                It.IsAny<FindOptions<Sales, Sales>>(), It.IsAny<CancellationToken>()))
+            .Callback<FilterDefinition<Sales>, FindOptions<Sales, Sales>, CancellationToken>((filter, options, _) => { salesFilters.Add(filter); salesOptions.Add(options); })
+            .ReturnsAsync(() => Cursor(manySales));
+        expenses.Setup(collection => collection.FindAsync(It.IsAny<FilterDefinition<Expense>>(),
+                It.IsAny<FindOptions<Expense, Expense>>(), It.IsAny<CancellationToken>()))
+            .Callback<FilterDefinition<Expense>, FindOptions<Expense, Expense>, CancellationToken>((filter, options, _) => { expenseFilters.Add(filter); expenseOptions.Add(options); })
+            .ReturnsAsync(() => Cursor(manyExpenses));
+        orders.Setup(collection => collection.FindAsync(It.IsAny<FilterDefinition<Order>>(),
+                It.IsAny<FindOptions<Order, Order>>(), It.IsAny<CancellationToken>()))
+            .Callback<FilterDefinition<Order>, FindOptions<Order, Order>, CancellationToken>((_, options, _) => orderOptions.Add(options))
+            .ReturnsAsync(() => Cursor(orderOptions.Count == 1 ? manyOrders : new List<Order>()));
+
+        var service = (MongoService)RuntimeHelpers.GetUninitializedObject(typeof(MongoService));
+        foreach (var (name, value) in new (string, object)[] {
+            ("_onlineSales", online.Object), ("_sales", sales.Object),
+            ("_expenses", expenses.Object), ("_orders", orders.Object)
+        })
+            typeof(MongoService).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(service, value);
+
+        var from = new DateTime(2026, 11, 8);
+        var end = from.AddDays(1);
+        const string outlet = "222222222222222222222222";
+        Assert.Equal(10002, (await service.GetDashboardOnlineSalesAsync(outlet, from, end)).Count);
+        Assert.Equal(5001, (await service.GetDashboardSalesAsync(outlet, date, date.AddDays(1))).Count);
+        Assert.Equal(5001, (await service.GetDashboardExpensesAsync(outlet, date, date.AddDays(1))).Count);
+        Assert.Null(Assert.Single(onlineOptions).Limit);
+        Assert.Null(Assert.Single(salesOptions).Limit);
+        Assert.Null(Assert.Single(expenseOptions).Limit);
+        Assert.Equal(2, orderOptions.Count);
+        Assert.All(orderOptions, options => Assert.Null(options.Limit));
+        var registry = BsonSerializer.SerializerRegistry;
+        var onlineRange = Assert.Single(onlineFilters).Render(new RenderArgs<OnlineSale>(registry.GetSerializer<OnlineSale>(), registry))["orderAt"].AsBsonDocument;
+        Assert.Equal(new DateTime(2026, 11, 7, 18, 30, 0, DateTimeKind.Utc), onlineRange["$gte"].ToUniversalTime());
+        Assert.Equal(new DateTime(2026, 11, 8, 18, 30, 0, DateTimeKind.Utc), onlineRange["$lt"].ToUniversalTime());
+        var salesRange = Assert.Single(salesFilters).Render(new RenderArgs<Sales>(registry.GetSerializer<Sales>(), registry))["date"].AsBsonDocument;
+        var expenseRange = Assert.Single(expenseFilters).Render(new RenderArgs<Expense>(registry.GetSerializer<Expense>(), registry))["date"].AsBsonDocument;
+        Assert.Equal(date, salesRange["$gte"].ToUniversalTime());
+        Assert.Equal(date.AddDays(1), salesRange["$lt"].ToUniversalTime());
+        Assert.Equal(date, expenseRange["$gte"].ToUniversalTime());
+        Assert.Equal(date.AddDays(1), expenseRange["$lt"].ToUniversalTime());
+    }
+
+    private static IAsyncCursor<T> Cursor<T>(IEnumerable<T> rows)
+    {
+        var cursor = new Mock<IAsyncCursor<T>>();
+        cursor.SetupGet(value => value.Current).Returns(rows);
+        cursor.SetupSequence(value => value.MoveNextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true).ReturnsAsync(false);
+        return cursor.Object;
+    }
+
+    [Fact]
+    public async Task DashboardOrderQueryCombinesPeriodWithLiveQueuesAndRestrictsTheOutlet()
+    {
+        var orders = new Mock<IMongoCollection<Order>>();
+        FilterDefinition<Order>? capturedFilter = null;
+        FindOptions<Order, Order>? capturedOptions = null;
+        orders.Setup(collection => collection.FindAsync(It.IsAny<FilterDefinition<Order>>(),
+                It.IsAny<FindOptions<Order, Order>>(), It.IsAny<CancellationToken>()))
+            .Callback<FilterDefinition<Order>, FindOptions<Order, Order>, CancellationToken>(
+                (filter, options, _) => { capturedFilter = filter; capturedOptions = options; })
+            .ReturnsAsync(() => Cursor(new List<Order>()));
+        var service = (MongoService)RuntimeHelpers.GetUninitializedObject(typeof(MongoService));
+        typeof(MongoService).GetField("_orders", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(service, orders.Object);
+        const string outlet = "222222222222222222222222";
+        await service.GetDashboardOrdersAsync(outlet, new DateTime(2026, 11, 8), new DateTime(2026, 11, 9), 2, 500);
+
+        var registry = BsonSerializer.SerializerRegistry;
+        var filter = capturedFilter!.Render(new RenderArgs<Order>(registry.GetSerializer<Order>(), registry));
+        Assert.Equal(ObjectId.Parse(outlet), filter["outletId"].AsObjectId);
+        var text = filter["$or"].ToJson();
+        Assert.Contains("createdAt", text);
+        Assert.Contains("pending", text);
+        Assert.Contains("confirmed", text);
+        Assert.Contains("preparing", text);
+        Assert.Contains("ready", text);
+        Assert.Contains("delivery", text);
+        Assert.Contains("pending_verification", text);
+        Assert.Equal(500, capturedOptions!.Skip);
+        Assert.Equal(500, capturedOptions.Limit);
+    }
+
     [Theory]
     [InlineData(null, "pickup", null, true, "2026-11-09T23:55:00Z", "2026-11-09T23:55:00")]
     [InlineData(false, "pickup", null, true, "2026-11-09T23:55:00Z", "2026-11-09T23:55:00")]

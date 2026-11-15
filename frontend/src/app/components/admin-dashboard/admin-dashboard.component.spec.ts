@@ -50,6 +50,7 @@ describe('AdminDashboardComponent overview', () => {
   it('keeps expense insights below quick actions and filters them with the main date range without legacy sections', () => {
     const fixture = TestBed.createComponent(AdminDashboardComponent);
     const component = fixture.componentInstance;
+    spyOn(component, 'loadDashboardData').and.callFake(() => component.refreshOverview());
     const today = getIstDateString();
     const tenDaysAgo = getIstInputDate(new Date(Date.parse(`${today}T00:00:00+05:30`) - 10 * 86400000));
     component.onlineSales = [{
@@ -170,7 +171,7 @@ describe('AdminDashboardComponent overview', () => {
 
   it('shows failed operational sources as unavailable while keeping loaded sales visible', () => {
     const unavailable = () => throwError(() => new Error('Unavailable for isolated test'));
-    TestBed.overrideProvider(OrderService, { useValue: { getAllOrdersWithHistory: () => of([]) } });
+    TestBed.overrideProvider(OrderService, { useValue: { getDashboardOrders: () => of([]) } });
     TestBed.overrideProvider(MenuService, { useValue: { getMenuItems: () => of([]) } });
     TestBed.overrideProvider(SalesService, { useValue: { getAllSales: () => of([]) } });
     TestBed.overrideProvider(ExpenseService, { useValue: { getAllExpenses: () => of([]) } });
@@ -178,8 +179,11 @@ describe('AdminDashboardComponent overview', () => {
     TestBed.overrideProvider(CafeTableService, { useValue: { getFloor: unavailable } });
     TestBed.overrideProvider(AttendanceService, { useValue: { getTodayAttendance: unavailable } });
     TestBed.overrideProvider(InventoryService, { useValue: { getStockAlerts: unavailable } });
-    TestBed.overrideProvider(HttpClient, { useValue: { get: (url: string) => of(
-      url.includes('outbox-health') ? null : url.includes('dead-letters') ? { items: [] } : { data: [] }) } });
+    const get = jasmine.createSpy('get').and.returnValue(of({
+      menuItems: [], onlineSales: [], offlineSales: [], expenses: [], attendance: null, stockAlerts: null,
+      unavailableSources: ['Staff attendance', 'Stock alerts']
+    }));
+    TestBed.overrideProvider(HttpClient, { useValue: { get } });
     spyOn(console, 'error');
     const fixture = TestBed.createComponent(AdminDashboardComponent);
     fixture.componentInstance.loadDashboardData();
@@ -189,6 +193,7 @@ describe('AdminDashboardComponent overview', () => {
     expect(fixture.nativeElement.querySelector('.command-notice.warning').textContent).toContain('Table occupancy and dues');
     expect(fixture.nativeElement.querySelector('.tables-panel').textContent).toContain('Table data unavailable');
     expect(fixture.componentInstance.tableDues).toBeNull();
+    expect(get.calls.allArgs().map(args => args[0])).toEqual([jasmine.stringMatching('/manage/dashboard/range$')]);
     expect(console.error).toHaveBeenCalled();
     fixture.destroy();
   });
@@ -242,7 +247,7 @@ describe('AdminDashboardComponent overview', () => {
     TestBed.overrideProvider(HttpClient, { useValue: { get } });
     const getPeriodCollection = jasmine.createSpy('getPeriodCollection').and.returnValue(of(collectionTotals(100, 25.5)));
     TestBed.overrideProvider(OrderService, { useValue: {
-      getAllOrdersWithHistory: () => of([sampleOrder({ paymentStatus: 'pending_verification' })]), getPeriodCollection
+      getDashboardOrders: () => of([sampleOrder({ paymentStatus: 'pending_verification' })]), getPeriodCollection
     } });
     TestBed.overrideProvider(ManagerOpsService, { useValue: { getBoard: () => of(null) } });
     TestBed.overrideProvider(CafeTableService, { useValue: { getFloor: () => of(null) } });
@@ -265,7 +270,7 @@ describe('AdminDashboardComponent overview', () => {
     expect(fixture.nativeElement.querySelectorAll('a[href^="/admin/"]').length).toBe(0);
     expect(fixture.nativeElement.querySelectorAll('.action-card[aria-disabled="true"]').length).toBe(3);
     expect(get.calls.allArgs().map(args => args[0])).toEqual([
-      jasmine.stringMatching('/manage/dashboard/outlets$'), jasmine.stringMatching('/manage/dashboard$')
+      jasmine.stringMatching('/manage/dashboard/outlets$'), jasmine.stringMatching('/manage/dashboard/range$')
     ]);
     getPeriodCollection.and.returnValue(of(collectionTotals(25.5, 100)));
     tick(30000);
@@ -292,7 +297,8 @@ describe('AdminDashboardComponent overview', () => {
     TestBed.overrideProvider(OutletStore, { useValue: {
       setAvailableOutlets: () => undefined, clearSelectedOutlet: () => selected.next(null)
     } });
-    TestBed.overrideProvider(OrderService, { useValue: { getAllOrdersWithHistory: () => of([]), getPeriodCollection } });
+    const getDashboardOrders = jasmine.createSpy('getDashboardOrders').and.returnValue(of([]));
+    TestBed.overrideProvider(OrderService, { useValue: { getDashboardOrders, getPeriodCollection } });
     TestBed.overrideProvider(MenuService, { useValue: { getMenuItems: () => of([]) } });
     TestBed.overrideProvider(SalesService, { useValue: { getAllSales: () => of([]) } });
     TestBed.overrideProvider(ExpenseService, { useValue: { getAllExpenses: () => of([]) } });
@@ -300,18 +306,63 @@ describe('AdminDashboardComponent overview', () => {
     TestBed.overrideProvider(CafeTableService, { useValue: { getFloor: () => of(null) } });
     TestBed.overrideProvider(AttendanceService, { useValue: { getTodayAttendance: () => of([]) } });
     TestBed.overrideProvider(InventoryService, { useValue: { getStockAlerts: () => of([]) } });
-    TestBed.overrideProvider(HttpClient, { useValue: { get: (url: string) => of(
+    const get = jasmine.createSpy('get').and.callFake((url: string) => of(
       url.endsWith('/manage/dashboard/outlets') ? [outlet('one'), outlet('two')]
-        : url.endsWith('/manage/dashboard') ? {
+        : url.endsWith('/manage/dashboard/range') ? {
           menuItems: [], onlineSales: [], offlineSales: [], expenses: [], attendance: [], stockAlerts: [], unavailableSources: []
-        } : url.includes('outbox-health') ? null : url.includes('dead-letters') ? { items: [] } : { data: [] }) } });
-    return { selected, getPeriodCollection };
+        } : { data: [] }));
+    TestBed.overrideProvider(HttpClient, { useValue: { get } });
+    return { selected, getPeriodCollection, getDashboardOrders, get };
   }
+
+  it('keeps data visible during refresh but hides it immediately when the outlet changes', () => {
+    const { selected, getPeriodCollection } = configureAdminCollections();
+    getPeriodCollection.and.returnValue(of(collectionTotals(5, 10)));
+    const pending = new Subject<Order[]>();
+    let loads = 0;
+    TestBed.overrideProvider(OrderService, { useValue: {
+      getDashboardOrders: () => ++loads === 1 ? of([]) : pending,
+      getPeriodCollection
+    } });
+    const fixture = TestBed.createComponent(AdminDashboardComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.command-kpis')).not.toBeNull();
+    fixture.componentInstance.operationalErrors = ['Table occupancy and dues'];
+    fixture.componentInstance.loadDashboardData();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.command-kpis')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain('Refreshing');
+    expect(fixture.nativeElement.querySelector('.command-notice.warning').textContent).toContain('Table occupancy and dues');
+    selected.next(outlet('two'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.command-kpis')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain('Loading');
+    fixture.destroy();
+  });
+
+  it('discards an unfinished range load when another range is selected', () => {
+    const { getPeriodCollection, getDashboardOrders } = configureAdminCollections();
+    getPeriodCollection.and.returnValue(of(collectionTotals(0, 0)));
+    const obsolete = new Subject<Order[]>();
+    const current = new Subject<Order[]>();
+    getDashboardOrders.and.returnValues(of([]), obsolete, current);
+    const fixture = TestBed.createComponent(AdminDashboardComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.setPeriod('7');
+    fixture.componentInstance.setPeriod('1');
+    expect(obsolete.observed).toBeFalse();
+    obsolete.next([sampleOrder({ id: 'obsolete' })]);
+    current.next([sampleOrder({ id: 'current' })]);
+    current.complete();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.periodOrders.map(order => order.id)).toEqual(['current']);
+    fixture.destroy();
+  });
 
   for (const managerView of [false, true]) {
     it(`applies an inclusive historical custom range consistently for ${managerView ? 'Manager' : 'Admin'} and retains it on refresh`, fakeAsync(() => {
       spyOnProperty(document, 'hidden', 'get').and.returnValue(false);
-      const { selected, getPeriodCollection } = configureAdminCollections();
+      const { selected, getPeriodCollection, getDashboardOrders, get } = configureAdminCollections();
       getPeriodCollection.and.returnValue(of(collectionTotals(50, 25)));
       const fixture = TestBed.createComponent(AdminDashboardComponent);
       fixture.componentRef.setInput('managerView', managerView);
@@ -329,7 +380,9 @@ describe('AdminDashboardComponent overview', () => {
         sampleOrder({ id: 'before', createdAt: '2024-02-27T18:29:59Z' }),
         sampleOrder({ id: 'start', createdAt: '2024-02-27T18:30:00Z' }),
         sampleOrder({ id: 'end', createdAt: '2024-03-01T18:29:59Z' }),
-        sampleOrder({ id: 'after', createdAt: '2024-03-01T18:30:00Z' })
+        sampleOrder({ id: 'after', createdAt: '2024-03-01T18:30:00Z' }),
+        sampleOrder({ id: 'old-active', createdAt: '2023-01-01T00:00:00Z', orderType: 'delivery',
+          status: 'scheduled', paymentStatus: 'pending_verification' })
       ];
       component.expenses = [
         { date: '2024-02-27', amount: 9 }, { date: '2024-02-28', amount: 30 },
@@ -337,6 +390,11 @@ describe('AdminDashboardComponent overview', () => {
       ].map(expense => ({
         ...expense, id: expense.date, expenseType: 'Supplies', expenseSource: 'Offline', paymentMethod: 'Cash',
         recordedBy: '', createdAt: '', updatedAt: ''
+      }));
+      getDashboardOrders.and.returnValue(of(component.allOrders));
+      get.and.returnValue(of({
+        menuItems: component.menuItems, onlineSales: component.onlineSales, offlineSales: component.offlineSales,
+        expenses: component.expenses, attendance: [], stockAlerts: [], unavailableSources: []
       }));
       const period = fixture.nativeElement.querySelector('[aria-label="Dashboard date range"]') as HTMLSelectElement;
       period.value = 'custom';
@@ -354,9 +412,15 @@ describe('AdminDashboardComponent overview', () => {
         .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       fixture.detectChanges();
       expect(component.periodDays).toBe(3);
+      expect(getDashboardOrders).toHaveBeenCalledWith('2024-02-28', '2024-03-01');
+      const params = get.calls.mostRecent().args[1].params;
+      expect(params.get('from')).toBe('2024-02-25');
+      expect(params.get('to')).toBe('2024-03-01');
       expect(component.overview.current.revenue).toBe(30);
       expect(component.overview.previous.revenue).toBe(5);
       expect(component.periodOrders.map(order => order.id)).toEqual(['start', 'end']);
+      expect(component.activeDeliveryOrders.map(order => order.id)).toContain('old-active');
+      expect(component.actions.find(action => action.title === 'Payment Reconciliation')?.count).toBe(1);
       expect(component.appOverview.orderValue).toBe(80);
       expect(component.itemSales.quantity).toBe(4);
       expect(component.liveOrders.map(order => order.id)).toEqual(['end', 'start']);
@@ -403,7 +467,8 @@ describe('AdminDashboardComponent overview', () => {
     const appliedCollection = component.collection;
     for (const [start, end] of [
       ['', '2024-03-01'], ['2024-03-02', '2024-03-01'], ['2024-02-30', '2024-03-01'],
-      ['2024-02-28', ''], ['invalid', '2024-03-01']
+      ['2024-02-28', ''], ['invalid', '2024-03-01'], ['0002-01-01', '0002-01-01'],
+      ['9999-12-31', '9999-12-31']
     ]) {
       component.customStartDate = start;
       component.customEndDate = end;

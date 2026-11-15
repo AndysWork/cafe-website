@@ -1,5 +1,6 @@
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
+using Cafe.Api.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace Cafe.Api.Services;
@@ -7,19 +8,32 @@ namespace Cafe.Api.Services;
 public interface IManagerDashboardService
 {
     Task<ManagerDashboardResponse> GetAsync(string outletId, CancellationToken cancellationToken);
+    Task<ManagerDashboardResponse> GetRangeAsync(string outletId, DateTime startDate, DateTime endExclusive, CancellationToken cancellationToken);
 }
 
 public sealed class ManagerDashboardService(
     IFinanceRepository finance, IMenuRepository menu, IInventoryRepository inventory,
     IStaffRepository staff, ILogger<ManagerDashboardService> logger) : IManagerDashboardService
 {
-    public async Task<ManagerDashboardResponse> GetAsync(string outletId, CancellationToken cancellationToken)
+    public Task<ManagerDashboardResponse> GetAsync(string outletId, CancellationToken cancellationToken) =>
+        ReadAsync(outletId, null, null, cancellationToken);
+
+    public Task<ManagerDashboardResponse> GetRangeAsync(string outletId, DateTime startDate, DateTime endExclusive, CancellationToken cancellationToken) =>
+        ReadAsync(outletId, startDate, endExclusive, cancellationToken);
+
+    private async Task<ManagerDashboardResponse> ReadAsync(string outletId, DateTime? startDate, DateTime? endExclusive, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outletId);
         cancellationToken.ThrowIfCancellationRequested();
-        var online = finance.GetOnlineSalesAsync(outletId: outletId, includeWebSales: true);
-        var offline = finance.GetAllSalesAsync(outletId);
-        var expenses = finance.GetAllExpensesAsync(outletId);
+        var online = startDate.HasValue && endExclusive.HasValue
+            ? finance.GetDashboardOnlineSalesAsync(outletId, startDate.Value, endExclusive.Value)
+            : finance.GetOnlineSalesAsync(outletId: outletId, includeWebSales: true);
+        var offline = startDate.HasValue && endExclusive.HasValue
+            ? finance.GetDashboardSalesAsync(outletId, IstDateHelper.IstWallTimeToUtc(startDate.Value), IstDateHelper.IstWallTimeToUtc(endExclusive.Value))
+            : finance.GetAllSalesAsync(outletId);
+        var expenses = startDate.HasValue && endExclusive.HasValue
+            ? finance.GetDashboardExpensesAsync(outletId, IstDateHelper.IstWallTimeToUtc(startDate.Value), IstDateHelper.IstWallTimeToUtc(endExclusive.Value))
+            : finance.GetAllExpensesAsync(outletId);
         var items = menu.GetMenuAsync(outletId);
         var attendance = ReadOptional(() => staff.GetAllTodayAttendanceAsync(outletId), "Staff attendance");
         var alerts = ReadOptional(() => inventory.GetAllAlertsAsync(outletId), "Stock alerts");

@@ -12,6 +12,26 @@ GET {{baseUrl}}/manage/dashboard
 Authorization: Bearer {{managerToken}}
 X-Outlet-Id: {{assignedOutletId}}
 
+### Dashboard finance and current operational data, including comparison dates
+GET {{baseUrl}}/manage/dashboard/range?from=2026-10-25&to=2026-11-14
+Authorization: Bearer {{managerToken}}
+X-Outlet-Id: {{assignedOutletId}}
+
+### Selected-period orders and older active operational orders
+GET {{baseUrl}}/manage/dashboard/orders?from=2026-11-01&to=2026-11-14&page=1
+Authorization: Bearer {{managerToken}}
+X-Outlet-Id: {{assignedOutletId}}
+
+### Range reads must reject unassigned outlets
+GET {{baseUrl}}/manage/dashboard/range?from=2026-10-25&to=2026-11-14
+Authorization: Bearer {{managerToken}}
+X-Outlet-Id: {{unassignedOutletId}}
+
+### Invalid order page must return 400
+GET {{baseUrl}}/manage/dashboard/orders?from=2026-11-01&to=2026-11-14&page=0
+Authorization: Bearer {{managerToken}}
+X-Outlet-Id: {{assignedOutletId}}
+
 ### Unassigned outlet must return 403
 GET {{baseUrl}}/manage/dashboard
 Authorization: Bearer {{managerToken}}

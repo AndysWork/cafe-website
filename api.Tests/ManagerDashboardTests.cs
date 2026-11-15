@@ -80,6 +80,44 @@ public sealed class ManagerDashboardTests
     }
 
     [Fact]
+    public async Task RangeReadsUseInclusiveDatesAndEnforceOutletAssignment()
+    {
+        var from = new DateTime(2024, 2, 25);
+        var endExclusive = new DateTime(2024, 3, 2);
+        _reader.Setup(reader => reader.GetRangeAsync(OutletId, from, endExclusive, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(EmptySnapshot());
+        var query = "from=2024-02-25&to=2024-03-01";
+        Assert.Equal(HttpStatusCode.OK, (await _function.GetRange(Request("manager", OutletId, query: query), default)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await _function.GetRange(Request("manager", OtherId, query: query), default)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _function.GetRange(
+            Request("manager", OutletId, query: "from=2024-03-02&to=2024-03-01"), default)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await _function.GetRange(Request("cashier", OutletId, query: query), default)).StatusCode);
+        _reader.Verify(reader => reader.GetRangeAsync(OutletId, from, endExclusive, It.IsAny<CancellationToken>()), Times.Once);
+        _reader.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task DashboardOrderPagesEnforceOutletAccessAndCarryTheSelectedRange()
+    {
+        var orders = new Mock<IOrderRepository>(MockBehavior.Strict);
+        var from = new DateTime(2024, 2, 28);
+        var endExclusive = new DateTime(2024, 3, 2);
+        orders.Setup(repository => repository.GetDashboardOrdersAsync(OutletId, from, endExclusive, 2, 500))
+            .ReturnsAsync(new List<Order> { new() { Id = "old-active", Status = "pending", CreatedAt = from } });
+        var function = new OrderFunction(orders.Object, null!, null!, null!, _users.Object, _staff.Object,
+            _outlets.Object, null!, null!, _auth, null!, null!, null!, null!, NullLoggerFactory.Instance);
+        var query = "from=2024-02-28&to=2024-03-01&page=2";
+        var response = await function.GetDashboardOrders(Request("manager", OutletId, query: query), default);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single((await Read(response)).EnumerateArray());
+        Assert.Equal(HttpStatusCode.Forbidden, (await function.GetDashboardOrders(Request("manager", OtherId, query: query), default)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await function.GetDashboardOrders(
+            Request("manager", OutletId, query: "from=2024-02-28&to=2024-03-01&page=0"), default)).StatusCode);
+        orders.VerifyAll();
+        orders.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task ChoicesUseAccountOrActiveLinkedStaffAssignmentsAndExcludeOtherOutlets()
     {
         _user.AssignedOutlets.Clear();
@@ -157,12 +195,41 @@ public sealed class ManagerDashboardTests
         inventory.VerifyAll();
     }
 
+    [Fact]
+    public async Task RangeReaderUsesIstBoundariesAndDoesNotTruncateLargeFinanceResults()
+    {
+        var finance = new Mock<IFinanceRepository>(MockBehavior.Strict);
+        var menu = new Mock<IMenuRepository>(MockBehavior.Strict);
+        var inventory = new Mock<IInventoryRepository>(MockBehavior.Strict);
+        var from = new DateTime(2024, 2, 25);
+        var end = new DateTime(2024, 3, 2);
+        var utcFrom = new DateTime(2024, 2, 24, 18, 30, 0, DateTimeKind.Utc);
+        var utcEnd = new DateTime(2024, 3, 1, 18, 30, 0, DateTimeKind.Utc);
+        finance.Setup(repository => repository.GetDashboardOnlineSalesAsync(OutletId, from, end))
+            .ReturnsAsync(Enumerable.Range(0, 5001).Select(_ => new OnlineSale { OrderAt = from, Payout = 1 }).ToList());
+        finance.Setup(repository => repository.GetDashboardSalesAsync(OutletId, utcFrom, utcEnd))
+            .ReturnsAsync(new List<Sales> { new() { Date = utcFrom, TotalAmount = 20 } });
+        finance.Setup(repository => repository.GetDashboardExpensesAsync(OutletId, utcFrom, utcEnd))
+            .ReturnsAsync(new List<Expense> { new() { Date = utcEnd.AddTicks(-1), Amount = 10 } });
+        menu.Setup(repository => repository.GetMenuAsync(OutletId, null, null)).ReturnsAsync(new List<CafeMenuItem>());
+        inventory.Setup(repository => repository.GetAllAlertsAsync(OutletId)).ReturnsAsync(new List<StockAlert>());
+        _staff.Setup(repository => repository.GetAllTodayAttendanceAsync(OutletId)).ReturnsAsync(new List<Attendance>());
+        var reader = new ManagerDashboardService(finance.Object, menu.Object, inventory.Object,
+            _staff.Object, NullLogger<ManagerDashboardService>.Instance);
+        var result = await reader.GetRangeAsync(OutletId, from, end, default);
+        Assert.Equal(5001, result.OnlineSales.Count);
+        Assert.Equal(20, Assert.Single(result.OfflineSales).TotalAmount);
+        Assert.Equal(10, Assert.Single(result.Expenses).Amount);
+        finance.VerifyAll();
+        finance.VerifyNoOtherCalls();
+    }
+
     private static ManagerDashboardResponse EmptySnapshot() => new(
         Array.Empty<DashboardMenuItemResponse>(), Array.Empty<DashboardOnlineSaleResponse>(),
         Array.Empty<DashboardOfflineSaleResponse>(), Array.Empty<DashboardExpenseResponse>(),
         Array.Empty<DashboardAttendanceResponse>(), Array.Empty<DashboardStockAlertResponse>(), Array.Empty<string>());
 
-    private HttpRequestData Request(string? role, string? outletId = null, string? secondary = null)
+    private HttpRequestData Request(string? role, string? outletId = null, string? secondary = null, string query = "")
     {
         var services = new ServiceCollection();
         services.AddOptions<WorkerOptions>().Configure(options =>
@@ -175,7 +242,7 @@ public sealed class ManagerDashboardTests
             additionalRoles: secondary == null ? null : new[] { secondary })}");
         if (outletId != null) headers.Add("X-Outlet-Id", outletId);
         request.SetupGet(value => value.Headers).Returns(headers);
-        request.SetupGet(value => value.Query).Returns(System.Web.HttpUtility.ParseQueryString(""));
+        request.SetupGet(value => value.Query).Returns(System.Web.HttpUtility.ParseQueryString(query));
         request.Setup(value => value.CreateResponse()).Returns(() =>
         {
             var response = new Mock<HttpResponseData>(context.Object);

@@ -2159,6 +2159,21 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
     }
 
+    public async Task<List<Order>> GetDashboardOrdersAsync(string outletId, DateTime startDate, DateTime endExclusive, int page, int pageSize)
+    {
+        var builder = Builders<Order>.Filter;
+        var kitchen = builder.In(order => order.Status, new[] { "pending", "confirmed", "preparing", "ready" });
+        var delivery = builder.Eq(order => order.OrderType, "delivery")
+            & builder.Nin(order => order.Status, new[] { "delivered", "cancelled", "rejected" });
+        var reconciliation = builder.Eq(order => order.PaymentStatus, "pending_verification")
+            & builder.Nin(order => order.Status, new[] { "cancelled", "rejected" });
+        var filter = builder.Eq(order => order.OutletId, outletId)
+            & builder.Ne(order => order.IsDeleted, true)
+            & (Helpers.OrderDateHelper.CreatedInRange(startDate, endExclusive) | kitchen | delivery | reconciliation);
+        return await _orders.Find(filter).SortByDescending(order => order.CreatedAt).ThenByDescending(order => order.Id)
+            .Project<Order>(_orderListProjection).Skip((page - 1) * pageSize).Limit(pageSize).ToListAsync();
+    }
+
     public async Task<long> GetAllOrdersCountAsync(string? outletId = null, DateTime? startDate = null, DateTime? endExclusive = null)
     {
         var notDeleted = Builders<Order>.Filter.Ne(o => o.IsDeleted, true);
@@ -2174,6 +2189,13 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     public async Task<Order?> GetOrderByIdAsync(string orderId)
     {
         return await _orders.Find(x => x.Id == orderId && x.IsDeleted != true).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<Order>> GetOrdersByIdsAsync(IReadOnlyCollection<string> orderIds)
+    {
+        var filter = Builders<Order>.Filter.In(order => order.Id, orderIds)
+            & Builders<Order>.Filter.Ne(order => order.IsDeleted, true);
+        return await _orders.Find(filter).ToListAsync();
     }
 
     // Update order status
@@ -4672,6 +4694,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
     }
 
+    public async Task<List<Sales>> GetDashboardSalesAsync(string outletId, DateTime startUtc, DateTime endUtc)
+    {
+        var builder = Builders<Sales>.Filter;
+        var filter = builder.Eq(sale => sale.OutletId, outletId)
+            & builder.Ne(sale => sale.IsDeleted, true)
+            & builder.Gte(sale => sale.Date, startUtc) & builder.Lt(sale => sale.Date, endUtc);
+        return await _sales.Find(filter).ToListAsync();
+    }
+
     public async Task<long> GetAllSalesCountAsync(string? outletId = null)
     {
         var notDeleted = Builders<Sales>.Filter.Ne(s => s.IsDeleted, true);
@@ -4819,6 +4850,15 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
             return await fluent.Skip((page.Value - 1) * pageSize.Value).Limit(pageSize.Value).ToListAsync();
 
         return await fluent.Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+    }
+
+    public async Task<List<Expense>> GetDashboardExpensesAsync(string outletId, DateTime startUtc, DateTime endUtc)
+    {
+        var builder = Builders<Expense>.Filter;
+        var filter = builder.Eq(expense => expense.OutletId, outletId)
+            & builder.Ne(expense => expense.IsDeleted, true)
+            & builder.Gte(expense => expense.Date, startUtc) & builder.Lt(expense => expense.Date, endUtc);
+        return await _expenses.Find(filter).ToListAsync();
     }
 
     public async Task<long> GetAllExpensesCountAsync(string? outletId = null)
@@ -6043,7 +6083,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         };
     }
 
-    private async Task<List<OnlineSale>> GetWebSalesFromOrdersAsync(DateTime? startOfDay = null, DateTime? endOfDay = null, string? outletId = null)
+    private async Task<List<OnlineSale>> GetWebSalesFromOrdersAsync(DateTime? startOfDay = null, DateTime? endOfDay = null, string? outletId = null, int? limit = Helpers.PaginationHelper.SafetyLimit)
     {
         var orderFilters = new List<FilterDefinition<Order>>
         {
@@ -6059,17 +6099,33 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
 
         var orderFilter = Builders<Order>.Filter.And(orderFilters);
         var marker = Builders<Order>.Filter;
-        var marked = _orders.Find(orderFilter & marker.Eq(o => o.CreatedAtIsUtc, true))
-            .SortByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)
-            .Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
-        var legacy = _orders.Find(orderFilter & marker.Ne(o => o.CreatedAtIsUtc, true))
-            .SortByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)
-            .Limit(Helpers.PaginationHelper.SafetyLimit).ToListAsync();
+        IFindFluent<Order, Order> markedQuery = _orders.Find(orderFilter & marker.Eq(o => o.CreatedAtIsUtc, true))
+            .SortByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id);
+        IFindFluent<Order, Order> legacyQuery = _orders.Find(orderFilter & marker.Ne(o => o.CreatedAtIsUtc, true))
+            .SortByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id);
+        if (limit.HasValue) { markedQuery = markedQuery.Limit(limit.Value); legacyQuery = legacyQuery.Limit(limit.Value); }
+        var marked = markedQuery.ToListAsync();
+        var legacy = legacyQuery.ToListAsync();
         await Task.WhenAll(marked, legacy);
-        var orders = Helpers.OrderDateHelper.TakeLatest(
-            marked.Result.Concat(legacy.Result), Helpers.PaginationHelper.SafetyLimit);
+        var combined = marked.Result.Concat(legacy.Result);
+        var orders = limit.HasValue
+            ? Helpers.OrderDateHelper.TakeLatest(combined, limit.Value)
+            : combined.OrderByDescending(Helpers.OrderDateHelper.ToIstCreatedAt)
+                .ThenByDescending(order => order.Id, StringComparer.Ordinal).ToList();
 
         return orders.Select(MapOrderToWebSale).ToList();
+    }
+
+    public async Task<List<OnlineSale>> GetDashboardOnlineSalesAsync(string outletId, DateTime startDate, DateTime endExclusive)
+    {
+        var builder = Builders<OnlineSale>.Filter;
+        var filter = builder.Eq(sale => sale.OutletId, outletId)
+            & builder.Gte(sale => sale.OrderAt, Helpers.IstDateHelper.IstWallTimeToUtc(startDate))
+            & builder.Lt(sale => sale.OrderAt, Helpers.IstDateHelper.IstWallTimeToUtc(endExclusive));
+        var recorded = _onlineSales.Find(filter).Project<OnlineSale>(_onlineSaleListProjection).ToListAsync();
+        var web = GetWebSalesFromOrdersAsync(startDate, endExclusive.AddDays(-1), outletId, limit: null);
+        await Task.WhenAll(recorded, web);
+        return recorded.Result.Concat(web.Result).ToList();
     }
 
     public async Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null, int? page = null, int? pageSize = null, bool includeWebSales = false)

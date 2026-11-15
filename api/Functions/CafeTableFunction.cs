@@ -96,8 +96,7 @@ public class CafeTableFunction
 
             var tables = await _tables.GetByOutletAsync(outletId, includeInactive: false);
             var sessions = await _orderRepo.GetActiveDineInSessionsAsync(outletId);
-            foreach (var session in sessions)
-                await DineInBillTotals.RecalculateAsync(_orderRepo, session);
+            await DineInBillTotals.RecalculateAllAsync(_orderRepo, sessions);
             var floor = BuildFloor(tables, sessions, MongoService.GetUtcNow());
 
             var summary = new

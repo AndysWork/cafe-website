@@ -100,6 +100,8 @@ public sealed class DineInCustomerAttributionTests
             .ReturnsAsync((Order order) => { _savedOrders.Add(order); return order; });
         _orders.Setup(value => value.GetOrderByIdAsync(It.IsAny<string>()))
             .ReturnsAsync((string id) => _savedOrders.SingleOrDefault(order => order.Id == id));
+        _orders.Setup(value => value.GetOrdersByIdsAsync(It.IsAny<IReadOnlyCollection<string>>()))
+            .ReturnsAsync((IReadOnlyCollection<string> ids) => _savedOrders.Where(order => ids.Contains(order.Id!)).ToList());
         _orders.Setup(value => value.UpdateDineInSessionAsync(It.IsAny<DineInSession>())).ReturnsAsync(true);
         _orders.Setup(value => value.UpdateOrderAsync(It.IsAny<Order>())).ReturnsAsync(true);
         _orders.Setup(value => value.TryUpdateDineInSessionTotalsAsync(It.IsAny<DineInSession>(), It.IsAny<DateTime>(), It.IsAny<bool>()))
@@ -632,6 +634,25 @@ public sealed class DineInCustomerAttributionTests
         Assert.Equal(0, session.LoyaltyDiscountAmount);
         Assert.Equal(80, session.GrandTotal);
         Assert.Equal(0, session.LoyaltyPointsUsed);
+    }
+
+    [Fact]
+    public async Task FloorTotalsBatchRoundsAndRejectMissingLinkedOrders()
+    {
+        _savedOrders.Add(new Order { Id = "one", Subtotal = 100, Total = 100 });
+        _savedOrders.Add(new Order { Id = "two", Subtotal = 80, Total = 80, Status = "cancelled" });
+        var first = new DineInSession { OrderIds = new() { "one", "two" } };
+        var second = new DineInSession { OrderIds = new() { "one" } };
+        await DineInBillTotals.RecalculateAllAsync(_orders.Object, new[] { first, second });
+        Assert.Equal(100, first.GrandTotal);
+        Assert.Equal(100, second.GrandTotal);
+        _orders.Verify(repository => repository.GetOrdersByIdsAsync(
+            It.Is<IReadOnlyCollection<string>>(ids => ids.Count == 2)), Times.Once);
+        _orders.Verify(repository => repository.GetOrderByIdAsync(It.IsAny<string>()), Times.Never);
+
+        first.OrderIds.Add("missing");
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => DineInBillTotals.RecalculateAllAsync(_orders.Object, new[] { first }));
     }
 
     [Fact]

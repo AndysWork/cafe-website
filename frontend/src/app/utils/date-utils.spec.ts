@@ -1,4 +1,4 @@
-import { getIstHour, getStoredTimestampEpoch } from './date-utils';
+import { getIstHour, getIstInputDate, getStoredTimestampEpoch } from './date-utils';
 
 describe('stored order timestamps', () => {
   it('uses the marked UTC instant without the legacy offset adjustment', () => {
@@ -19,5 +19,15 @@ describe('stored order timestamps', () => {
   it('computes the hour in IST rather than the browser timezone', () => {
     expect(getIstHour(Date.parse('2026-11-07T18:30:00Z'))).toBe(0);
     expect(getIstHour(Date.parse('2026-11-08T12:45:00Z'))).toBe(18);
+  });
+
+  it('uses the IST date across midnight, including repeated calls', () => {
+    expect(getIstInputDate('2026-11-07T18:29:59Z')).toBe('2026-11-07');
+    expect(getIstInputDate('2026-11-07T18:30:00Z')).toBe('2026-11-08');
+    expect(getIstInputDate('2026-11-07T18:29:59Z')).toBe('2026-11-07');
+  });
+
+  it('keeps early calendar years in four-digit input-date format', () => {
+    expect(getIstInputDate('0002-01-03T00:00:00+05:30')).toBe('0002-01-03');
   });
 });

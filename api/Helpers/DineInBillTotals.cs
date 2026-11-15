@@ -8,6 +8,27 @@ namespace Cafe.Api.Helpers;
 
 public static class DineInBillTotals
 {
+    public static async Task RecalculateAllAsync(IOrderRepository orders, IReadOnlyCollection<DineInSession> sessions)
+    {
+        var rounds = new Dictionary<string, Order>();
+        var ids = sessions.SelectMany(session => session.OrderIds).Distinct().ToArray();
+        foreach (var chunk in ids.Chunk(PaginationHelper.MaxPageSize))
+        {
+            foreach (var order in await orders.GetOrdersByIdsAsync(chunk))
+            {
+                if (order.Id == null) throw new InvalidOperationException("A linked dine-in order was not found.");
+                rounds.Add(order.Id, order);
+            }
+        }
+
+        foreach (var session in sessions)
+        {
+            var sessionOrders = session.OrderIds.Select(id => rounds.TryGetValue(id, out var order)
+                ? order : throw new InvalidOperationException("A linked dine-in order was not found."));
+            Apply(session, sessionOrders);
+        }
+    }
+
     public static async Task RecalculateAsync(IOrderRepository orders, DineInSession session)
     {
         var rounds = new List<Order>();

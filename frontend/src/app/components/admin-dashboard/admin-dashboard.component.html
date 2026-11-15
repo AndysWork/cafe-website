@@ -48,8 +48,8 @@
     </form>
 
     <div *ngIf="errorMessage" class="command-notice error" role="alert">{{ errorMessage }} <button type="button" (click)="loadDashboardData()">Retry</button></div>
-    <div *ngIf="isLoading" class="command-notice" role="status">Loading dashboard data...</div>
-    <ng-container *ngIf="!isLoading && !errorMessage">
+    <div *ngIf="isLoading" class="command-notice" role="status">{{ hasLoadedData ? 'Refreshing dashboard data...' : 'Loading dashboard data...' }}</div>
+    <ng-container *ngIf="(!isLoading || hasLoadedData) && !errorMessage">
       <div *ngIf="operationalErrors.length" class="command-notice warning" role="alert">Some live data is unavailable: {{ operationalErrors.join(', ') }}. <button type="button" (click)="loadDashboardData()">Retry</button></div>
       <div class="command-kpis">
         <article *ngFor="let card of commandCards; let index = index" class="command-kpi" [class]="'command-kpi ' + card.tone" [class.secondary-kpi]="index > 3" [title]="card.detail">

@@ -8,8 +8,10 @@ public interface IOrderRepository
     Task<List<Order>> GetUserOrdersAsync(string userId, int? page = null, int? pageSize = null);
     Task<long> GetUserOrdersCountAsync(string userId);
     Task<List<Order>> GetAllOrdersAsync(string? outletId = null, int? page = null, int? pageSize = null, DateTime? startDate = null, DateTime? endExclusive = null);
+    Task<List<Order>> GetDashboardOrdersAsync(string outletId, DateTime startDate, DateTime endExclusive, int page, int pageSize);
     Task<long> GetAllOrdersCountAsync(string? outletId = null, DateTime? startDate = null, DateTime? endExclusive = null);
     Task<Order?> GetOrderByIdAsync(string orderId);
+    Task<List<Order>> GetOrdersByIdsAsync(IReadOnlyCollection<string> orderIds);
     Task<bool> UpdateOrderStatusAsync(string orderId, string status);
     Task<bool> TryUpdateOrderStatusAsync(string orderId, IReadOnlyCollection<string> expectedStatuses, string status);
     Task<string> GetNextDineInKotNumberAsync(string outletId);

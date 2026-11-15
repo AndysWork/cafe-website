@@ -692,6 +692,55 @@ public class OrderFunction
         }
     }
 
+    [Function("GetDashboardOrders")]
+    [OpenApiOperation(operationId: "GetDashboardOrders", tags: new[] { "Orders" }, Summary = "Read period and current operational dashboard orders")]
+    [OpenApiSecurity("Bearer", SecuritySchemeType.Http, Scheme = OpenApiSecuritySchemeType.Bearer, BearerFormat = "JWT")]
+    [OpenApiParameter(name: "from", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "Inclusive first IST date (yyyy-MM-dd).")]
+    [OpenApiParameter(name: "to", In = ParameterLocation.Query, Required = true, Type = typeof(string), Description = "Inclusive last IST date (yyyy-MM-dd).")]
+    [OpenApiParameter(name: "page", In = ParameterLocation.Query, Required = true, Type = typeof(int), Description = "Page number; each page contains at most 500 orders.")]
+    [OpenApiResponseWithBody(HttpStatusCode.OK, "application/json", typeof(List<OrderResponse>), Description = "Dashboard orders")]
+    [OpenApiResponseWithoutBody(HttpStatusCode.BadRequest, Description = "Invalid date range or page")]
+    [OpenApiResponseWithoutBody(HttpStatusCode.Forbidden, Description = "Outlet access denied")]
+    public async Task<HttpResponseData> GetDashboardOrders(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "manage/dashboard/orders")] HttpRequestData req,
+        CancellationToken cancellationToken)
+    {
+        var (authorized, _, _, authError) = await AuthorizationHelper.ValidateAdminOrManagerRole(req, _auth);
+        if (!authorized) return authError!;
+        if (!IstDateHelper.TryParseIsoDate(req.Query["from"], out var from)
+            || !IstDateHelper.TryParseIsoDate(req.Query["to"], out var to)
+            || from.Year < 2 || to.Date == DateTime.MaxValue.Date || from > to
+            || !int.TryParse(req.Query["page"], out var page) || page < 1
+            || page > int.MaxValue / PaginationHelper.MaxPageSize)
+        {
+            var invalid = req.CreateResponse(HttpStatusCode.BadRequest);
+            await invalid.WriteAsJsonAsync(new { error = "Use a valid IST date range and page." }, cancellationToken);
+            return invalid;
+        }
+        try
+        {
+            var (allowed, outletId, accessError) = await OutletHelper.ValidateOutletAccess(req, _auth, _userRepo, _staffRepo, _outletRepo);
+            if (!allowed || string.IsNullOrWhiteSpace(outletId))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = accessError ?? "An assigned outlet is required" }, cancellationToken);
+                return forbidden;
+            }
+            var orders = await _orderRepo.GetDashboardOrdersAsync(outletId, from.Date, to.Date.AddDays(1), page, PaginationHelper.MaxPageSize)
+                .WaitAsync(cancellationToken);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(orders.Select(MapToOrderResponse).ToList(), cancellationToken);
+            return response;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _log.LogError(exception, "Unable to load dashboard orders");
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteAsJsonAsync(new { error = "Unable to load dashboard orders" }, cancellationToken);
+            return response;
+        }
+    }
+
     /// <summary>
     /// Retrieves orders in the system (Admin, Manager, Cashier)
     /// </summary>

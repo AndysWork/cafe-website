@@ -419,6 +419,22 @@ export class OrderService {
     );
   }
 
+  getDashboardOrders(from: string, to: string): Observable<Order[]> {
+    const pageSize = 500;
+    const readPage = (page: number) => this.http.get<Order[]>(`${this.apiUrl}/manage/dashboard/orders`, {
+      params: new HttpParams().set('from', from).set('to', to).set('page', page)
+    });
+    return readPage(1).pipe(
+      expand((batch, index) => batch.length === pageSize ? readPage(index + 2) : EMPTY),
+      reduce((orders, batch) => {
+        for (const order of batch) orders.set(order.id, order);
+        return orders;
+      }, new Map<string, Order>()),
+      map(orders => [...orders.values()]),
+      catchError(handleServiceError('OrderService.getDashboardOrders'))
+    );
+  }
+
   // Get order by ID
   getOrderById(orderId: string): Observable<Order> {
     return this.http.get<Order>(`${this.apiUrl}/orders/${orderId}`).pipe(

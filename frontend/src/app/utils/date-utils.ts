@@ -4,6 +4,24 @@
  */
 
 const IST_TIME_ZONE = 'Asia/Kolkata';
+const istDatePartsFormatter = new Intl.DateTimeFormat('en-IN', {
+  timeZone: IST_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+const istTimePartsFormatter = new Intl.DateTimeFormat('en-IN', {
+  timeZone: IST_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false
+});
+const istHourFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: IST_TIME_ZONE,
+  hour: '2-digit',
+  hourCycle: 'h23'
+});
 
 function createIstDate(
   year: number,
@@ -71,12 +89,7 @@ function parseDateInput(value: Date | string): Date {
 }
 
 function getIstParts(date: Date): { year: number; month: number; day: number } {
-  const parts = new Intl.DateTimeFormat('en-IN', {
-    timeZone: IST_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(date);
+  const parts = istDatePartsFormatter.formatToParts(date);
 
   const getPart = (type: Intl.DateTimeFormatPartTypes): number =>
     Number(parts.find(p => p.type === type)?.value || '0');
@@ -89,13 +102,7 @@ function getIstParts(date: Date): { year: number; month: number; day: number } {
 }
 
 function getIstTimeParts(date: Date): { hour: number; minute: number; second: number } {
-  const parts = new Intl.DateTimeFormat('en-IN', {
-    timeZone: IST_TIME_ZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  }).formatToParts(date);
+  const parts = istTimePartsFormatter.formatToParts(date);
 
   const getPart = (type: Intl.DateTimeFormatPartTypes): number =>
     Number(parts.find(p => p.type === type)?.value || '0');
@@ -148,11 +155,7 @@ export function getStoredTimestampEpoch(value?: string | Date | number | null, i
 }
 
 export function getIstHour(epoch: number): number {
-  return Number(new Intl.DateTimeFormat('en-GB', {
-    timeZone: IST_TIME_ZONE,
-    hour: '2-digit',
-    hourCycle: 'h23'
-  }).format(new Date(epoch)));
+  return Number(istHourFormatter.format(new Date(epoch)));
 }
 
 /**
@@ -201,7 +204,7 @@ export function getIstInputDate(date?: Date | string): string {
   const { year, month, day } = getIstParts(parsed);
   const monthStr = String(month).padStart(2, '0');
   const dayStr = String(day).padStart(2, '0');
-  return `${year}-${monthStr}-${dayStr}`;
+  return `${String(year).padStart(4, '0')}-${monthStr}-${dayStr}`;
 }
 
 /**
