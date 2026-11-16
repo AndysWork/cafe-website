@@ -296,6 +296,11 @@ export class AdminLayoutComponent implements OnDestroy {
           route: '/admin/reports'
         },
         {
+          icon: '🧾',
+          label: 'Zomato Sales & Payout Parser',
+          route: '/admin/zomato-sales-payout-parser'
+        },
+        {
           icon: '🍽️',
           label: 'Dine-In Sales & Audit',
           route: '/admin/dine-in-report'

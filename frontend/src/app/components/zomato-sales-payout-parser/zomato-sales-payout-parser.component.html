@@ -1,0 +1,781 @@
+<div class="zp-page">
+  <!-- ===== Desktop header ===== -->
+  <header class="zp-header desktop-only">
+    <div class="zp-brand">
+      <span class="zp-badge">zomato</span>
+      <div>
+        <h1>Zomato Revenue &amp; Settlement Intelligence</h1>
+        <p>Parse order history &amp; settlement reports to see where every rupee goes — and what actually reaches your bank.</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== Mobile header ===== -->
+  <header class="zp-mobile-header mobile-only">
+    <div class="zp-mobile-title">
+      <span class="zp-badge small">z</span>
+      <h1>Zomato Parser</h1>
+    </div>
+    <select class="zp-select" [ngModel]="selectedSnapshotId" (ngModelChange)="onSnapshotSelected($event)" [disabled]="snapshots.length === 0">
+      <option value="" disabled>{{ snapshots.length ? 'Select period' : 'No saved periods' }}</option>
+      <option *ngFor="let s of snapshots" [value]="s.id">{{ snapshotLabel(s) }}</option>
+    </select>
+  </header>
+
+  <!-- ===== Tabs ===== -->
+  <nav class="zp-tabs desktop-only">
+    <button *ngFor="let tab of tabs" type="button" class="zp-tab" [class.active]="activeTab === tab.id" (click)="selectTab(tab.id)">
+      {{ tab.label }}
+    </button>
+  </nav>
+
+  <!-- ===== Toolbar ===== -->
+  <section class="zp-toolbar desktop-only">
+    <div class="zp-toolbar-group">
+      <label class="zp-field">
+        <i class="fa-regular fa-calendar"></i>
+        <select [ngModel]="selectedSnapshotId" (ngModelChange)="onSnapshotSelected($event)" [disabled]="snapshots.length === 0">
+          <option value="" disabled>{{ snapshots.length ? 'Select saved period' : 'No saved periods' }}</option>
+          <option *ngFor="let s of snapshots" [value]="s.id">{{ snapshotLabel(s) }}</option>
+        </select>
+      </label>
+      <label class="zp-field">
+        <span class="zp-field-prefix">Compare:</span>
+        <select [(ngModel)]="compareMode" (ngModelChange)="onCompareModeChanged()">
+          <option value="previous">Previous Period</option>
+          <option value="none">None</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="zp-toolbar-group">
+      <label class="zp-upload" [class.ready]="orderHistoryFile" [title]="orderHistoryFile?.name || 'Upload order history CSV'">
+        <i class="fa-solid" [ngClass]="orderHistoryFile ? 'fa-circle-check' : 'fa-file-csv'"></i>
+        <span>{{ orderHistoryFile ? orderHistoryFile.name : 'Upload Orders (CSV)' }}</span>
+        <input type="file" accept=".csv" (change)="onOrderHistoryFileSelected($event)" />
+      </label>
+      <label class="zp-upload" [class.ready]="settlementFile" [title]="settlementFile?.name || 'Upload settlement XLSX'">
+        <i class="fa-solid" [ngClass]="settlementFile ? 'fa-circle-check' : 'fa-file-excel'"></i>
+        <span>{{ settlementFile ? settlementFile.name : 'Upload Settlement (XLSX)' }}</span>
+        <input type="file" accept=".xlsx" (change)="onSettlementFileSelected($event)" />
+      </label>
+      <button type="button" class="zp-btn yellow" [disabled]="!canParse" (click)="parseReports()">
+        <i class="fa-solid" [ngClass]="isParsing ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
+        {{ isParsing ? 'Parsing…' : 'Parse Reports' }}
+      </button>
+      <div class="zp-split">
+        <button type="button" class="zp-btn purple" (click)="saveSnapshot()" [disabled]="isParsing">
+          <i class="fa-regular fa-floppy-disk"></i> Save Snapshot
+        </button>
+        <button type="button" class="zp-btn purple caret" (click)="saveMenuOpen = !saveMenuOpen" aria-label="More save options">
+          <i class="fa-solid fa-caret-down"></i>
+        </button>
+        <div class="zp-menu" *ngIf="saveMenuOpen">
+          <button type="button" (click)="saveSnapshot()"><i class="fa-regular fa-floppy-disk"></i> Save / update this period</button>
+          <button type="button" (click)="saveMenuOpen = false; selectTab('snapshots')"><i class="fa-solid fa-clock-rotate-left"></i> View saved snapshots</button>
+        </div>
+      </div>
+      <button type="button" class="zp-btn red" [disabled]="!insights || isDeleting" (click)="deleteCurrentPeriod()">
+        <i class="fa-regular fa-trash-can"></i> Delete Period
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== Empty state ===== -->
+  <section class="zp-card zp-empty" *ngIf="!insights && activeTab !== 'snapshots'">
+    <i class="fa-solid fa-file-arrow-up"></i>
+    <h2>{{ isLoadingSnapshots ? 'Loading saved periods…' : 'Upload your Zomato reports to get started' }}</h2>
+    <p>Use the <strong>Order History CSV</strong> and the <strong>Settlement Report XLSX</strong> for the same week.</p>
+    <div class="zp-empty-uploads">
+      <label class="zp-upload" [class.ready]="orderHistoryFile">
+        <i class="fa-solid" [ngClass]="orderHistoryFile ? 'fa-circle-check' : 'fa-file-csv'"></i>
+        <span>{{ orderHistoryFile ? orderHistoryFile.name : 'Upload Orders (CSV)' }}</span>
+        <input type="file" accept=".csv" (change)="onOrderHistoryFileSelected($event)" />
+      </label>
+      <label class="zp-upload" [class.ready]="settlementFile">
+        <i class="fa-solid" [ngClass]="settlementFile ? 'fa-circle-check' : 'fa-file-excel'"></i>
+        <span>{{ settlementFile ? settlementFile.name : 'Upload Settlement (XLSX)' }}</span>
+        <input type="file" accept=".xlsx" (change)="onSettlementFileSelected($event)" />
+      </label>
+      <button type="button" class="zp-btn yellow" [disabled]="!canParse" (click)="parseReports()">
+        <i class="fa-solid" [ngClass]="isParsing ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
+        {{ isParsing ? 'Parsing…' : 'Parse Reports' }}
+      </button>
+    </div>
+  </section>
+
+  <ng-container *ngIf="insights as data">
+    <!-- ================= OVERVIEW ================= -->
+    <ng-container *ngIf="activeTab === 'overview'">
+      <!-- KPI cards (desktop) -->
+      <section class="zp-kpis desktop-only">
+        <div class="zp-kpi" *ngFor="let k of kpis">
+          <span class="zp-chip" [ngClass]="k.tone"><i class="fa-solid" [ngClass]="k.icon"></i></span>
+          <div class="zp-kpi-body">
+            <span class="zp-kpi-label">{{ k.label }}</span>
+            <strong class="zp-kpi-value">{{ k.value }}</strong>
+            <span class="zp-kpi-note" [ngClass]="k.noteTone">{{ k.note }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- KPI cards (mobile 2x2) -->
+      <section class="zp-kpis-mobile mobile-only">
+        <div class="zp-kpi" *ngFor="let k of mobileKpis">
+          <span class="zp-chip" [ngClass]="k.tone"><i class="fa-solid" [ngClass]="k.icon"></i></span>
+          <span class="zp-kpi-label">{{ k.key === 'credited' ? 'Actual Credit' : k.key === 'payout' ? 'Payout' : k.label }}</span>
+          <strong class="zp-kpi-value">{{ k.value }}</strong>
+          <span class="zp-kpi-note" [ngClass]="k.noteTone">{{ k.note }}</span>
+        </div>
+      </section>
+
+      <!-- Row: Sales money flow + reconciliation + period -->
+      <section class="zp-grid row-1">
+        <div class="zp-card zp-flow">
+          <div class="zp-card-head">
+            <h3><span class="desktop-only">Where Your Sales Money Goes</span><span class="mobile-only">Sales Flow</span></h3>
+            <div class="zp-toggle desktop-only">
+              <button type="button" [class.active]="chartMode === 'waterfall'" (click)="chartMode = 'waterfall'">Waterfall</button>
+              <button type="button" [class.active]="chartMode === 'breakdown'" (click)="chartMode = 'breakdown'">Breakdown</button>
+            </div>
+          </div>
+
+          <svg *ngIf="chartMode === 'waterfall'" class="zp-waterfall" [attr.viewBox]="'0 0 ' + waterfallWidth + ' ' + (waterfallHeight + 22)" preserveAspectRatio="xMidYMid meet">
+            <line x1="0" [attr.y1]="waterfallBaseline" [attr.x2]="waterfallWidth" [attr.y2]="waterfallBaseline" class="axis" />
+            <g *ngFor="let bar of waterfallBars; let i = index">
+              <line *ngIf="i > 0" class="connector"
+                    [attr.x1]="waterfallBars[i - 1].x + waterfallBarWidth" [attr.x2]="bar.x"
+                    [attr.y1]="waterfallBars[i - 1].kind === 'positive' ? waterfallBars[i - 1].y : (waterfallBars[i - 1].kind === 'negative' ? waterfallBars[i - 1].y + waterfallBars[i - 1].height : waterfallBars[i - 1].y)"
+                    [attr.y2]="waterfallBars[i - 1].kind === 'positive' ? waterfallBars[i - 1].y : (waterfallBars[i - 1].kind === 'negative' ? waterfallBars[i - 1].y + waterfallBars[i - 1].height : waterfallBars[i - 1].y)" />
+              <rect [attr.x]="bar.x" [attr.y]="bar.y" [attr.width]="waterfallBarWidth" [attr.height]="bar.height" rx="5" [attr.class]="'bar ' + bar.kind" />
+              <text [attr.x]="bar.x + waterfallBarWidth / 2" [attr.y]="bar.labelY" class="value" text-anchor="middle">
+                {{ bar.kind === 'negative' ? '-' : bar.kind === 'positive' ? '+' : '' }}{{ compactCurrency(bar.value < 0 ? -bar.value : bar.value) }}
+              </text>
+              <text [attr.x]="bar.x + waterfallBarWidth / 2" [attr.y]="waterfallBaseline + 18" class="label" text-anchor="middle">{{ bar.label }}</text>
+            </g>
+          </svg>
+
+          <div *ngIf="chartMode === 'breakdown'" class="zp-breakdown-list">
+            <div class="zp-hbar" *ngFor="let row of breakdownRows">
+              <span class="zp-hbar-label">{{ row.label }}</span>
+              <div class="zp-hbar-track"><div class="zp-hbar-fill" [style.width.%]="row.percent" [style.background]="row.color"></div></div>
+              <span class="zp-hbar-value">{{ formatCurrency(row.amount) }}</span>
+            </div>
+          </div>
+
+          <div class="zp-flow-foot">
+            <span><i class="fa-solid fa-circle total"></i> Totals</span>
+            <span><i class="fa-solid fa-circle negative"></i> Deductions</span>
+            <span><i class="fa-solid fa-circle positive"></i> Additions</span>
+            <span><i class="fa-solid fa-circle credit"></i> Credited to bank</span>
+          </div>
+        </div>
+
+        <!-- Reconciliation health -->
+        <div class="zp-card zp-health desktop-only">
+          <div class="zp-card-head"><h3>Reconciliation Health</h3></div>
+          <ul>
+            <li *ngFor="let c of reconciliationChecks" [class.bad]="!c.ok">
+              <i class="fa-solid" [ngClass]="c.ok ? 'fa-circle-check' : 'fa-triangle-exclamation'"></i>
+              <span>{{ c.label }}</span>
+              <strong>{{ c.value }}</strong>
+            </li>
+          </ul>
+          <div class="zp-health-status" [class.bad]="!allReconciled">
+            <i class="fa-solid" [ngClass]="allReconciled ? 'fa-shield-heart' : 'fa-circle-exclamation'"></i>
+            {{ allReconciled ? 'All clear!' : openIssues + ' order(s) need attention' }}
+          </div>
+          <button type="button" class="zp-link" (click)="selectTab('reconciliation')">View details <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+
+        <!-- Period details + actions -->
+        <div class="zp-card zp-period desktop-only">
+          <div class="zp-card-head"><h3>Period Details</h3></div>
+          <dl>
+            <div><dt>Period</dt><dd>{{ periodLabel }}</dd></div>
+            <div><dt>Days</dt><dd>{{ periodDays }}</dd></div>
+            <div><dt>Delivered / Total</dt><dd>{{ data.orderHistorySummary.deliveredOrders }} / {{ data.orderHistorySummary.totalOrders }}</dd></div>
+            <div><dt>Settled orders</dt><dd>{{ data.settlementSummary.settledOrders }}</dd></div>
+            <div><dt>Last updated</dt><dd>{{ lastUpdatedAt ? (lastUpdatedAt | date: 'dd MMM yyyy, h:mm a') : '—' }}</dd></div>
+            <div *ngIf="lastParsedBy"><dt>Parsed by</dt><dd>{{ lastParsedBy }}</dd></div>
+          </dl>
+          <h4>Period Actions</h4>
+          <div class="zp-period-actions">
+            <button type="button" class="zp-btn purple outline" (click)="saveSnapshot()"><i class="fa-regular fa-floppy-disk"></i> Save Snapshot</button>
+            <button type="button" class="zp-btn red outline" [disabled]="isDeleting" (click)="deleteCurrentPeriod()"><i class="fa-regular fa-trash-can"></i> Delete Period</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Mobile summary cards -->
+      <section class="zp-mobile-list mobile-only">
+        <button type="button" class="zp-line-card" (click)="selectTab('reconciliation')">
+          <span class="zp-chip" [ngClass]="allReconciled ? 'green' : 'orange'"><i class="fa-solid fa-scale-balanced"></i></span>
+          <span class="zp-line-text"><small>Reconciliation Health</small><strong>{{ allReconciled ? 'All clear!' : openIssues + ' issue(s)' }}</strong></span>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button type="button" class="zp-line-card" (click)="selectTab('items')">
+          <span class="zp-chip red"><i class="fa-solid fa-trophy"></i></span>
+          <span class="zp-line-text"><small>Top Item</small><strong>{{ topItem?.name || '—' }}</strong></span>
+          <span class="zp-line-meta">{{ topItem?.quantity || 0 }} sold</span>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button type="button" class="zp-line-card" (click)="selectTab('orders')">
+          <span class="zp-chip blue"><i class="fa-solid fa-stopwatch"></i></span>
+          <span class="zp-line-text"><small>Avg KPT</small><strong>{{ data.orderHistorySummary.averageKptMinutes | number: '1.1-1' }} min</strong></span>
+          <span class="zp-line-meta">Rider wait {{ data.orderHistorySummary.averageRiderWaitMinutes | number: '1.1-1' }}m</span>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button type="button" class="zp-line-card" (click)="selectTab('ratings')">
+          <span class="zp-chip yellow"><i class="fa-solid fa-star"></i></span>
+          <span class="zp-line-text"><small>Rating</small><strong>{{ (data.reviewRatingInsights?.averageRating || 0) | number: '1.1-1' }} / 5</strong></span>
+          <span class="zp-line-meta">{{ data.reviewRatingInsights?.ratedOrders || 0 }} ratings</span>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </section>
+
+      <!-- Row: sales trend + hourly + deduction breakdown -->
+      <section class="zp-grid row-2 desktop-only">
+        <div class="zp-card">
+          <div class="zp-card-head">
+            <h3>Sales Trend</h3>
+            <div class="zp-legend">
+              <span><i class="dot gross"></i> Gross</span>
+              <span><i class="dot payout"></i> Payout</span>
+            </div>
+          </div>
+          <svg class="zp-trend" [attr.viewBox]="'0 0 ' + trendWidth + ' ' + trendHeight" preserveAspectRatio="xMidYMid meet">
+            <g *ngFor="let t of trendTicks">
+              <line x1="48" [attr.x2]="trendWidth - 12" [attr.y1]="t.y" [attr.y2]="t.y" class="grid" />
+              <text x="42" [attr.y]="t.y + 4" text-anchor="end" class="tick">{{ t.label }}</text>
+            </g>
+            <polyline [attr.points]="trendGrossPoints" class="line gross" />
+            <polyline [attr.points]="trendPayoutPoints" class="line payout" />
+            <g *ngFor="let p of trendDots">
+              <circle [attr.cx]="p.x" [attr.cy]="p.grossY" r="3.5" class="pt gross" />
+              <circle [attr.cx]="p.x" [attr.cy]="p.payoutY" r="3.5" class="pt payout" />
+              <text [attr.x]="p.x" [attr.y]="trendHeight - 8" text-anchor="middle" class="tick">{{ p.label }}</text>
+            </g>
+          </svg>
+        </div>
+
+        <div class="zp-card">
+          <div class="zp-card-head">
+            <h3>Hourly Order Heatmap</h3>
+            <span class="zp-muted" *ngIf="peakHour">Peak {{ peakHour.label }} · {{ peakHour.orders }} orders</span>
+          </div>
+          <div class="zp-hours">
+            <div class="zp-hour" *ngFor="let h of hourBars" [class.peak]="h.isPeak" [title]="h.label + ': ' + h.orders + ' orders'">
+              <span class="zp-hour-tip" *ngIf="h.isPeak">Peak<br />{{ h.orders }} orders</span>
+              <div class="zp-hour-bar" [style.height.%]="h.height || 2" [style.opacity]="0.35 + (h.height / 100) * 0.65"></div>
+              <span class="zp-hour-label">{{ h.label }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="zp-card">
+          <div class="zp-card-head">
+            <h3>Deduction Breakdown</h3>
+            <span class="zp-muted">{{ formatCurrency(breakdownTotal) }}</span>
+          </div>
+          <div class="zp-hbar" *ngFor="let row of breakdownRows">
+            <span class="zp-hbar-label"><i class="dot" [style.background]="row.color"></i>{{ row.label }}</span>
+            <div class="zp-hbar-track"><div class="zp-hbar-fill" [style.width.%]="row.percent" [style.background]="row.color"></div></div>
+            <span class="zp-hbar-value">{{ formatCurrency(row.amount) }} <small>{{ row.percent | number: '1.0-1' }}%</small></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Row: top items + item table + operational -->
+      <section class="zp-grid row-3 desktop-only">
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Top Items by Quantity</h3></div>
+          <div class="zp-hbar" *ngFor="let item of topItems">
+            <span class="zp-hbar-label" [title]="item.name">{{ item.name }}</span>
+            <div class="zp-hbar-track"><div class="zp-hbar-fill red" [style.width.%]="item.percent"></div></div>
+            <span class="zp-hbar-value">{{ item.quantity }}</span>
+          </div>
+        </div>
+
+        <div class="zp-card">
+          <div class="zp-card-head">
+            <h3>Item Sales (Top 5)</h3>
+            <button type="button" class="zp-link" (click)="selectTab('items')">View all <i class="fa-solid fa-arrow-right"></i></button>
+          </div>
+          <table class="zp-table compact">
+            <thead><tr><th>#</th><th>Item</th><th class="num">Qty</th><th class="num">Revenue</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let item of topItems; let i = index">
+                <td><span class="zp-rank">{{ i + 1 }}</span></td>
+                <td>{{ item.name }}</td>
+                <td class="num">{{ item.quantity }}</td>
+                <td class="num">{{ formatCurrency(item.revenue) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Operational Performance</h3></div>
+          <div class="zp-ops">
+            <div class="zp-op">
+              <span class="zp-chip blue"><i class="fa-solid fa-fire-burner"></i></span>
+              <small>Avg KPT</small>
+              <strong>{{ data.orderHistorySummary.averageKptMinutes | number: '1.1-1' }} min</strong>
+            </div>
+            <div class="zp-op">
+              <span class="zp-chip teal"><i class="fa-solid fa-motorcycle"></i></span>
+              <small>Avg Rider Wait</small>
+              <strong>{{ data.orderHistorySummary.averageRiderWaitMinutes | number: '1.1-1' }} min</strong>
+            </div>
+            <div class="zp-op">
+              <span class="zp-chip orange"><i class="fa-solid fa-flag"></i></span>
+              <small>Order Marking Issues</small>
+              <strong>{{ data.orderHistorySummary.orderMarkingIssues }}</strong>
+            </div>
+            <div class="zp-op">
+              <span class="zp-chip red"><i class="fa-solid fa-comment-dots"></i></span>
+              <small>Customer Complaints</small>
+              <strong>{{ data.orderHistorySummary.customerComplaintCount }}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Row: ratings & reviews -->
+      <section class="zp-card zp-ratings-row desktop-only" *ngIf="data.reviewRatingInsights as r">
+        <div class="zp-card-head">
+          <h3>Ratings &amp; Reviews</h3>
+          <button type="button" class="zp-link" (click)="selectTab('ratings')">View All <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+        <div class="zp-ratings-grid">
+          <div class="zp-rating-big">
+            <strong>{{ r.averageRating | number: '1.1-1' }}<small>/5</small></strong>
+            <div class="zp-stars">
+              <i *ngFor="let s of stars(r.averageRating)" class="fa-star" [ngClass]="s === 'full' ? 'fa-solid' : s === 'half' ? 'fa-solid fa-star-half-stroke' : 'fa-regular'"></i>
+            </div>
+            <span class="zp-muted">{{ r.ratedOrders }} ratings · {{ r.writtenReviews }} reviews</span>
+          </div>
+
+          <div class="zp-rating-trend">
+            <small class="zp-muted">Rating trend (last {{ ratingTrendDots.length }} days)</small>
+            <svg viewBox="0 0 260 90" preserveAspectRatio="xMidYMid meet">
+              <polyline [attr.points]="ratingTrendPoints" class="line rating" />
+              <g *ngFor="let p of ratingTrendDots">
+                <circle [attr.cx]="p.x" [attr.cy]="p.y" r="3.5" class="pt rating" />
+                <text [attr.x]="p.x" [attr.y]="p.y - 7" text-anchor="middle" class="tick">{{ p.value | number: '1.1-1' }}</text>
+                <text [attr.x]="p.x" y="86" text-anchor="middle" class="tick">{{ p.label }}</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="zp-rating-bars">
+            <div class="zp-hbar" *ngFor="let star of [5, 4, 3, 2, 1]">
+              <span class="zp-hbar-label short">{{ star }} <i class="fa-solid fa-star"></i></span>
+              <div class="zp-hbar-track"><div class="zp-hbar-fill" [ngClass]="star >= 4 ? 'green' : star === 3 ? 'yellow' : 'red'" [style.width.%]="ratingPercent(star)"></div></div>
+              <span class="zp-hbar-value">{{ ratingCount(star) }}</span>
+            </div>
+          </div>
+
+          <div class="zp-recent">
+            <small class="zp-muted">Recent Reviews</small>
+            <div class="zp-review" *ngFor="let rv of recentReviews">
+              <span class="zp-review-rating" [ngClass]="rv.rating >= 4 ? 'good' : rv.rating === 3 ? 'mid' : 'bad'">{{ rv.rating }} <i class="fa-solid fa-star"></i></span>
+              <div>
+                <p>{{ rv.text }}</p>
+                <small>{{ shortDate(rv.date) }} · {{ rv.items }}</small>
+              </div>
+            </div>
+            <p class="zp-muted" *ngIf="recentReviews.length === 0">No ratings in this period.</p>
+          </div>
+        </div>
+      </section>
+    </ng-container>
+
+    <!-- ================= ORDERS ================= -->
+    <ng-container *ngIf="activeTab === 'orders'">
+      <section class="zp-stat-strip">
+        <div><small>Total orders</small><strong>{{ data.orderHistorySummary.totalOrders }}</strong></div>
+        <div><small>Delivered</small><strong>{{ data.orderHistorySummary.deliveredOrders }}</strong></div>
+        <div><small>Cancelled / Rejected</small><strong>{{ data.orderHistorySummary.cancelledOrRejectedOrders }}</strong></div>
+        <div><small>Peak hour</small><strong>{{ data.orderHistorySummary.peakOrderHour || '—' }}</strong><em>{{ data.orderHistorySummary.peakOrderHourOrders }} orders</em></div>
+        <div><small>Top sales day</small><strong>{{ shortDate(data.orderHistorySummary.topSalesDay) || '—' }}</strong><em>{{ formatCurrency(data.orderHistorySummary.topSalesDayGrossSales) }}</em></div>
+        <div><small>Avg distance</small><strong>{{ data.orderHistorySummary.averageDistanceKm | number: '1.1-2' }} km</strong></div>
+        <div><small>Avg KPT</small><strong>{{ data.orderHistorySummary.averageKptMinutes | number: '1.1-1' }} min</strong></div>
+        <div><small>Avg rider wait</small><strong>{{ data.orderHistorySummary.averageRiderWaitMinutes | number: '1.1-1' }} min</strong></div>
+      </section>
+
+      <section class="zp-grid two">
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Daily Sales</h3></div>
+          <div class="zp-table-wrap">
+            <table class="zp-table">
+              <thead><tr><th>Date</th><th class="num">Orders</th><th class="num">Gross Sales</th><th class="num">Discounts</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let d of data.dailySales">
+                  <td>{{ longDate(d.date) }}</td>
+                  <td class="num">{{ d.orders }}</td>
+                  <td class="num">{{ formatCurrency(d.grossSales) }}</td>
+                  <td class="num">{{ formatCurrency(d.discounts) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Hourly Orders</h3></div>
+          <div class="zp-table-wrap">
+            <table class="zp-table">
+              <thead><tr><th>Hour</th><th class="num">Orders</th><th class="num">Gross Sales</th><th class="num">AOV</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let h of sortedHourly" [class.highlight]="h.hourLabel === data.orderHistorySummary.peakOrderHour">
+                  <td>{{ h.hourLabel }}</td>
+                  <td class="num">{{ h.orders }}</td>
+                  <td class="num">{{ formatCurrency(h.grossSales) }}</td>
+                  <td class="num">{{ formatCurrency(h.averageOrderValue) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="zp-card">
+        <div class="zp-card-head">
+          <h3>Discount Insights</h3>
+          <span class="zp-muted">Total {{ formatCurrency(data.orderHistorySummary.totalDiscount) }}</span>
+        </div>
+        <div class="zp-stat-strip inner">
+          <div><small>Promo</small><strong>{{ formatCurrency(data.orderHistorySummary.promoDiscount) }}</strong></div>
+          <div><small>Other restaurant</small><strong>{{ formatCurrency(data.orderHistorySummary.otherRestaurantDiscount) }}</strong></div>
+          <div><small>Gold</small><strong>{{ formatCurrency(data.orderHistorySummary.goldDiscount) }}</strong></div>
+          <div><small>Brand pack</small><strong>{{ formatCurrency(data.orderHistorySummary.brandPackDiscount) }}</strong></div>
+          <div><small>Packaging collected</small><strong>{{ formatCurrency(data.orderHistorySummary.packagingCharges) }}</strong></div>
+        </div>
+        <div class="zp-table-wrap">
+          <table class="zp-table">
+            <thead><tr><th>Discount construct</th><th class="num">Orders</th><th class="num">Gross Sales</th><th class="num">Discount</th><th class="num">Avg / order</th><th class="num">Effective %</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let d of data.detailedDiscountInsights">
+                <td>{{ d.discountConstruct }}</td>
+                <td class="num">{{ d.orders }}</td>
+                <td class="num">{{ formatCurrency(d.grossSales) }}</td>
+                <td class="num">{{ formatCurrency(d.discountGiven) }}</td>
+                <td class="num">{{ formatCurrency(d.averageDiscountPerOrder) }}</td>
+                <td class="num">{{ formatPercent(d.effectiveDiscountPercent) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </ng-container>
+
+    <!-- ================= ITEMS ================= -->
+    <ng-container *ngIf="activeTab === 'items'">
+      <section class="zp-grid two">
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>All Items ({{ sortedItems.length }})</h3></div>
+          <div class="zp-table-wrap tall">
+            <table class="zp-table">
+              <thead><tr><th>#</th><th>Item</th><th class="num">Qty sold</th><th class="num">Orders</th><th class="num">Est. revenue</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let item of sortedItems; let i = index">
+                  <td><span class="zp-rank">{{ i + 1 }}</span></td>
+                  <td>{{ item.itemName }}</td>
+                  <td class="num">{{ item.quantitySold }}</td>
+                  <td class="num">{{ item.ordersContainingItem }}</td>
+                  <td class="num">{{ formatCurrency(item.estimatedGrossSales) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Item Ratings</h3></div>
+          <div class="zp-table-wrap tall">
+            <table class="zp-table">
+              <thead><tr><th>Item</th><th class="num">Rated orders</th><th class="num">Avg rating</th><th class="num">Low (≤2★)</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let ir of data.reviewRatingInsights?.itemRatings">
+                  <td>{{ ir.itemName }}</td>
+                  <td class="num">{{ ir.ratedOrders }}</td>
+                  <td class="num">{{ ir.averageRating | number: '1.1-2' }} <i class="fa-solid fa-star star-ic"></i></td>
+                  <td class="num" [class.bad-text]="ir.lowRatings > 0">{{ ir.lowRatings }}</td>
+                </tr>
+                <tr *ngIf="!data.reviewRatingInsights?.itemRatings?.length"><td colspan="4" class="zp-muted">No item ratings available.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </ng-container>
+
+    <!-- ================= SETTLEMENT ================= -->
+    <ng-container *ngIf="activeTab === 'settlement'">
+      <section class="zp-stat-strip">
+        <div><small>Net order value</small><strong>{{ formatCurrency(data.settlementSummary.netOrderValue) }}</strong></div>
+        <div><small>Service &amp; PM fee</small><strong>{{ formatCurrency(data.settlementSummary.serviceFeeAndPmFee) }}</strong></div>
+        <div><small>Tax on service fee</small><strong>{{ formatCurrency(data.settlementSummary.taxesOnServiceFee) }}</strong></div>
+        <div><small>Govt charges</small><strong>{{ formatCurrency(data.settlementSummary.governmentCharges) }}</strong></div>
+        <div><small>Other order deductions</small><strong>{{ formatCurrency(data.settlementSummary.otherOrderLevelDeductions) }}</strong></div>
+        <div><small>TDS 194-O</small><strong>{{ formatCurrency(data.settlementSummary.tds194OTotal) }}</strong></div>
+        <div><small>Net deductions</small><strong>{{ formatCurrency(data.settlementSummary.netDeductions) }}</strong></div>
+        <div><small>Net additions</small><strong>{{ formatCurrency(data.settlementSummary.netAdditions) }}</strong></div>
+      </section>
+
+      <section class="zp-card zp-payout-calc">
+        <div class="zp-card-head"><h3>Actual Payout Credited</h3></div>
+        <div class="zp-calc-row"><span>Settled payout</span><strong>{{ formatCurrency(data.settlementSummary.settledPayout) }}</strong></div>
+        <div class="zp-calc-row plus"><span>+ Additions adjusted</span><strong>{{ formatCurrency(data.settlementSummary.additionalAdditionsAdjusted) }}</strong></div>
+        <div class="zp-calc-row minus"><span>− Additional deductions adjusted</span><strong>{{ formatCurrency(data.settlementSummary.additionalDeductionsAdjusted) }}</strong></div>
+        <div class="zp-calc-row total"><span>= Credited to bank</span><strong>{{ formatCurrency(data.settlementSummary.actualPayoutCredited) }}</strong></div>
+        <p class="zp-muted">Total payout {{ formatCurrency(data.settlementSummary.totalPayout) }} · Unsettled {{ formatCurrency(data.settlementSummary.totalUnsettledAmount) }} · Avg payout/order {{ formatCurrency(data.settlementSummary.averagePayoutPerOrder) }}</p>
+      </section>
+
+      <section class="zp-grid two">
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Daily Settlement</h3></div>
+          <div class="zp-table-wrap">
+            <table class="zp-table">
+              <thead><tr><th>Date</th><th class="num">Orders</th><th class="num">Net order value</th><th class="num">Deductions</th><th class="num">Payout</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let d of data.dailySettlement">
+                  <td>{{ longDate(d.date) }}</td>
+                  <td class="num">{{ d.orders }}</td>
+                  <td class="num">{{ formatCurrency(d.netOrderValue) }}</td>
+                  <td class="num">{{ formatCurrency(d.netDeductions) }}</td>
+                  <td class="num">{{ formatCurrency(d.payout) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Additional Deductions &amp; Additions</h3></div>
+          <div class="zp-table-wrap">
+            <table class="zp-table">
+              <thead><tr><th>Type</th><th>Period</th><th>Status</th><th class="num">Total</th><th class="num">Adjusted</th><th class="num">Outstanding</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let row of data.additionalDeductionDetails">
+                  <td>
+                    <span class="zp-pill" [ngClass]="row.isAddition ? 'green' : 'red'">{{ row.isAddition ? 'Addition' : 'Deduction' }}</span>
+                    {{ row.type }}
+                    <small class="zp-muted block" *ngIf="row.reference">{{ row.reference }}</small>
+                  </td>
+                  <td>{{ row.period }}</td>
+                  <td>{{ row.settlementStatus }}</td>
+                  <td class="num">{{ formatCurrency(row.totalAmount) }}</td>
+                  <td class="num">{{ formatCurrency(row.adjustedAmount) }}</td>
+                  <td class="num">{{ formatCurrency(row.outstandingAmount) }}</td>
+                </tr>
+                <tr *ngFor="let t of data.additionalDeductionTotals" class="total-row">
+                  <td colspan="3">{{ t.label }}</td>
+                  <td class="num">{{ formatCurrency(t.totalAmount) }}</td>
+                  <td class="num">{{ formatCurrency(t.adjustedAmount) }}</td>
+                  <td class="num">{{ formatCurrency(t.outstandingAmount) }}</td>
+                </tr>
+                <tr *ngIf="!data.additionalDeductionDetails.length"><td colspan="6" class="zp-muted">No additional deductions.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="zp-card">
+        <div class="zp-card-head"><h3>Highest Deduction Orders</h3></div>
+        <div class="zp-table-wrap">
+          <table class="zp-table">
+            <thead><tr><th>Order ID</th><th>Date</th><th class="num">Net order value</th><th class="num">Deductions</th><th class="num">Payout</th><th class="num">Deduction %</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let o of data.topLossOrders">
+                <td>{{ o.orderId }}</td>
+                <td>{{ longDate(o.orderDate) }}</td>
+                <td class="num">{{ formatCurrency(o.netOrderValue) }}</td>
+                <td class="num">{{ formatCurrency(o.netDeductions) }}</td>
+                <td class="num">{{ formatCurrency(o.payout) }}</td>
+                <td class="num bad-text">{{ formatPercent(o.deductionRatePercent) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </ng-container>
+
+    <!-- ================= RECONCILIATION ================= -->
+    <ng-container *ngIf="activeTab === 'reconciliation'">
+      <section class="zp-stat-strip">
+        <div *ngFor="let c of reconciliationChecks" [class.bad]="!c.ok"><small>{{ c.label }}</small><strong>{{ c.value }}</strong></div>
+        <div><small>Delivered coverage</small><strong>{{ formatPercent(data.reconciliation.deliveredOrderCoveragePercent) }}</strong></div>
+        <div><small>CSV gross sales</small><strong>{{ formatCurrency(data.reconciliation.csvGrossSales) }}</strong></div>
+        <div><small>Settlement payout</small><strong>{{ formatCurrency(data.reconciliation.settlementPayout) }}</strong></div>
+        <div><small>Gross − payout</small><strong>{{ formatCurrency(data.reconciliation.grossToPayoutDifference) }}</strong><em>Payout is {{ formatPercent(data.reconciliation.payoutToGrossPercent) }} of gross</em></div>
+      </section>
+      <section class="zp-grid two">
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Missing in Settlement</h3></div>
+          <div class="zp-id-list">
+            <span *ngFor="let id of data.reconciliation.missingInSettlementOrderIds">{{ id }}</span>
+            <p class="zp-muted" *ngIf="!data.reconciliation.missingInSettlementOrderIds.length"><i class="fa-solid fa-circle-check ok-text"></i> Every delivered order was settled.</p>
+          </div>
+        </div>
+        <div class="zp-card">
+          <div class="zp-card-head"><h3>Missing in Order History</h3></div>
+          <div class="zp-id-list">
+            <span *ngFor="let id of data.reconciliation.missingInOrderHistoryOrderIds">{{ id }}</span>
+            <p class="zp-muted" *ngIf="!data.reconciliation.missingInOrderHistoryOrderIds.length"><i class="fa-solid fa-circle-check ok-text"></i> Every settled order exists in order history.</p>
+          </div>
+        </div>
+      </section>
+    </ng-container>
+
+    <!-- ================= RATINGS ================= -->
+    <ng-container *ngIf="activeTab === 'ratings'">
+      <ng-container *ngIf="data.reviewRatingInsights as r; else noRatings">
+        <section class="zp-stat-strip">
+          <div><small>Average rating</small><strong>{{ r.averageRating | number: '1.2-2' }} ★</strong></div>
+          <div><small>Rated orders</small><strong>{{ r.ratedOrders }}</strong><em>{{ formatPercent(r.ratingCoveragePercent) }} coverage</em></div>
+          <div class="good"><small>Positive (4–5★)</small><strong>{{ r.positiveRatings }}</strong><em>{{ formatPercent(r.positivePercent) }}</em></div>
+          <div><small>Neutral (3★)</small><strong>{{ r.neutralRatings }}</strong></div>
+          <div class="bad"><small>Negative (1–2★)</small><strong>{{ r.negativeRatings }}</strong><em>{{ formatPercent(r.negativePercent) }}</em></div>
+          <div><small>Written reviews</small><strong>{{ r.writtenReviews }}</strong></div>
+          <div><small>Complaints</small><strong>{{ r.complaintOrders }}</strong></div>
+          <div><small>KPT low vs high rated</small><strong>{{ r.averageKptLowRated !== null ? (r.averageKptLowRated | number: '1.1-1') : '—' }} / {{ r.averageKptHighRated !== null ? (r.averageKptHighRated | number: '1.1-1') : '—' }} min</strong></div>
+        </section>
+
+        <section class="zp-grid two">
+          <div class="zp-card">
+            <div class="zp-card-head"><h3>Rating Distribution</h3></div>
+            <div class="zp-hbar" *ngFor="let star of [5, 4, 3, 2, 1]">
+              <span class="zp-hbar-label short">{{ star }} <i class="fa-solid fa-star"></i></span>
+              <div class="zp-hbar-track"><div class="zp-hbar-fill" [ngClass]="star >= 4 ? 'green' : star === 3 ? 'yellow' : 'red'" [style.width.%]="ratingPercent(star)"></div></div>
+              <span class="zp-hbar-value">{{ ratingCount(star) }} <small>{{ ratingPercent(star) | number: '1.0-1' }}%</small></span>
+            </div>
+            <h4 class="zp-sub">Complaint tags</h4>
+            <div class="zp-id-list">
+              <span *ngFor="let t of r.complaintTags" class="bad">{{ t.tag }} · {{ t.count }}</span>
+              <p class="zp-muted" *ngIf="!r.complaintTags.length">No complaints. 🎉</p>
+            </div>
+          </div>
+          <div class="zp-card">
+            <div class="zp-card-head"><h3>Daily Ratings</h3></div>
+            <div class="zp-table-wrap">
+              <table class="zp-table">
+                <thead><tr><th>Date</th><th class="num">Rated</th><th class="num">Average</th><th class="num">Low (≤2★)</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let d of r.dailyRatings">
+                    <td>{{ longDate(d.date) }}</td>
+                    <td class="num">{{ d.ratedOrders }}</td>
+                    <td class="num">{{ d.averageRating | number: '1.1-2' }}</td>
+                    <td class="num" [class.bad-text]="d.lowRatings > 0">{{ d.lowRatings }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="zp-card">
+          <div class="zp-card-head"><h3>Order Feedback (lowest rated first)</h3></div>
+          <div class="zp-table-wrap tall">
+            <table class="zp-table">
+              <thead><tr><th>Rating</th><th>Order</th><th>Review / Complaint</th><th>Items</th><th class="num">Value</th><th class="num">KPT</th><th>Ready marked</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let f of r.orderFeedback">
+                  <td><span class="zp-review-rating" [ngClass]="(f.rating ?? 0) >= 4 ? 'good' : f.rating === 3 ? 'mid' : 'bad'">{{ f.rating ?? '—' }} <i class="fa-solid fa-star"></i></span></td>
+                  <td>{{ f.orderId }}<small class="zp-muted block">{{ longDate(f.orderDate) }}</small></td>
+                  <td>{{ f.review || '—' }}<small class="bad-text block" *ngIf="f.complaintTag">{{ f.complaintTag }}</small></td>
+                  <td>{{ f.items }}</td>
+                  <td class="num">{{ formatCurrency(f.orderValue) }}</td>
+                  <td class="num">{{ f.kptMinutes !== null ? (f.kptMinutes | number: '1.0-1') + 'm' : '—' }}</td>
+                  <td>{{ f.orderReadyMarked || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </ng-container>
+      <ng-template #noRatings>
+        <section class="zp-card zp-empty small"><p>No ratings data in this snapshot. Re-parse the reports to include reviews &amp; ratings.</p></section>
+      </ng-template>
+    </ng-container>
+  </ng-container>
+
+  <!-- ================= SAVED SNAPSHOTS ================= -->
+  <ng-container *ngIf="activeTab === 'snapshots'">
+    <section class="zp-card">
+      <div class="zp-card-head">
+        <h3>Saved Snapshots</h3>
+        <span class="zp-muted">{{ snapshots.length }} period(s)</span>
+      </div>
+      <div class="zp-table-wrap">
+        <table class="zp-table">
+          <thead><tr><th>Period</th><th class="num">Orders</th><th class="num">Gross</th><th class="num">Payout</th><th class="num">Credited</th><th>Updated</th><th></th></tr></thead>
+          <tbody>
+            <tr *ngFor="let s of snapshots" [class.highlight]="s.id === selectedSnapshotId">
+              <td>{{ snapshotLabel(s) }}</td>
+              <td class="num">{{ s.data.orderHistorySummary.deliveredOrders }}</td>
+              <td class="num">{{ formatCurrency(s.data.orderHistorySummary.grossSales) }}</td>
+              <td class="num">{{ formatCurrency(s.data.settlementSummary.totalPayout) }}</td>
+              <td class="num">{{ formatCurrency(s.data.settlementSummary.actualPayoutCredited) }}</td>
+              <td>{{ s.updatedAt | date: 'dd MMM yyyy, h:mm a' }}<small class="zp-muted block" *ngIf="s.parsedBy">{{ s.parsedBy }}</small></td>
+              <td class="actions">
+                <button type="button" class="zp-btn small purple outline" (click)="loadSnapshot(s)"><i class="fa-regular fa-eye"></i> Load</button>
+                <button type="button" class="zp-btn small red outline" [disabled]="isDeleting" (click)="deleteSnapshot(s)"><i class="fa-regular fa-trash-can"></i></button>
+              </td>
+            </tr>
+            <tr *ngIf="!snapshots.length"><td colspan="7" class="zp-muted">No snapshots saved yet. Parse reports to create one.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="zp-card">
+      <div class="zp-card-head"><h3>Delete Snapshots by Date Range</h3></div>
+      <div class="zp-range">
+        <label>From <input type="date" [(ngModel)]="deleteStartDate" /></label>
+        <label>To <input type="date" [(ngModel)]="deleteEndDate" /></label>
+        <button type="button" class="zp-btn red" [disabled]="isDeleting" (click)="deleteRange()">
+          <i class="fa-solid" [ngClass]="isDeleting ? 'fa-spinner fa-spin' : 'fa-trash-can'"></i> Delete Range
+        </button>
+      </div>
+      <p class="zp-muted">Removes every saved snapshot whose period falls entirely within the selected dates.</p>
+    </section>
+  </ng-container>
+
+  <!-- ===== Mobile bottom navigation ===== -->
+  <nav class="zp-bottom-nav mobile-only">
+    <button type="button" [class.active]="activeTab === 'orders'" (click)="selectTab('orders')"><i class="fa-solid fa-receipt"></i><span>Orders</span></button>
+    <button type="button" [class.active]="activeTab === 'items'" (click)="selectTab('items')"><i class="fa-solid fa-utensils"></i><span>Items</span></button>
+    <button type="button" class="save" (click)="saveSnapshot()"><i class="fa-regular fa-floppy-disk"></i><span>Save</span></button>
+    <button type="button" class="delete" [disabled]="!insights || isDeleting" (click)="deleteCurrentPeriod()"><i class="fa-regular fa-trash-can"></i><span>Delete</span></button>
+    <button type="button" [class.active]="moreSheetOpen" (click)="moreSheetOpen = !moreSheetOpen"><i class="fa-solid fa-ellipsis"></i><span>More</span></button>
+  </nav>
+
+  <!-- ===== Mobile "More" sheet ===== -->
+  <div class="zp-sheet-backdrop mobile-only" *ngIf="moreSheetOpen" (click)="moreSheetOpen = false"></div>
+  <div class="zp-sheet mobile-only" *ngIf="moreSheetOpen">
+    <div class="zp-sheet-handle"></div>
+    <h4>Upload &amp; Parse</h4>
+    <label class="zp-upload" [class.ready]="orderHistoryFile">
+      <i class="fa-solid" [ngClass]="orderHistoryFile ? 'fa-circle-check' : 'fa-file-csv'"></i>
+      <span>{{ orderHistoryFile ? orderHistoryFile.name : 'Upload Orders (CSV)' }}</span>
+      <input type="file" accept=".csv" (change)="onOrderHistoryFileSelected($event)" />
+    </label>
+    <label class="zp-upload" [class.ready]="settlementFile">
+      <i class="fa-solid" [ngClass]="settlementFile ? 'fa-circle-check' : 'fa-file-excel'"></i>
+      <span>{{ settlementFile ? settlementFile.name : 'Upload Settlement (XLSX)' }}</span>
+      <input type="file" accept=".xlsx" (change)="onSettlementFileSelected($event)" />
+    </label>
+    <button type="button" class="zp-btn yellow block" [disabled]="!canParse" (click)="parseReports(); moreSheetOpen = false">
+      <i class="fa-solid" [ngClass]="isParsing ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i> {{ isParsing ? 'Parsing…' : 'Parse Reports' }}
+    </button>
+    <h4>Sections</h4>
+    <div class="zp-sheet-tabs">
+      <button type="button" *ngFor="let tab of tabs" [class.active]="activeTab === tab.id" (click)="selectTab(tab.id)">
+        <i class="fa-solid" [ngClass]="tab.icon"></i>{{ tab.label }}
+      </button>
+    </div>
+  </div>
+</div>

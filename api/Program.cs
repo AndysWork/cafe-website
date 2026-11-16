@@ -53,6 +53,7 @@ var host = new HostBuilder()
         s.AddSingleton<IAnalyticsRepository>(sp => sp.GetRequiredService<MongoService>());
         
         s.AddSingleton<FileUploadService>();
+        s.AddSingleton<ZomatoSalesPayoutInsightService>();
         s.AddSingleton<AuthService>();
         s.AddSingleton<IManagerDashboardService, ManagerDashboardService>();
         s.AddSingleton<IEmailService, EmailService>();

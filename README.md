@@ -5,6 +5,27 @@
 - `frontend/`: Angular application
 - `api/`: Azure Functions (.NET) backend
 
+## Zomato Sales & Payout Parser
+
+Admin users can open **Tools → Zomato Sales & Payout Parser** and upload:
+- Zomato order history CSV
+- Zomato settlement XLSX
+
+The parser returns owner-level insights (order summary, settlement summary,
+reconciliation gaps, top discount constructs, and highest-deduction orders) and
+can be reused for future reporting periods with the same two-file workflow.
+It also includes detailed views like peak order hour, item-wise sold quantity,
+daily/hourly trends, detailed discount metrics, and additional deduction details
+from the settlement workbook tab, including adjusted additional deductions and
+actual payout credited (settled payout + "Total Additions" − "Total Deductions"
+adjusted amounts; section subtotals are not double-counted). It also parses
+reviews & ratings from the order history CSV: rating distribution, positive/negative
+share, written reviews, complaint tags, item-wise and daily ratings, KPT on low vs
+high rated orders, and a per-order feedback list (lowest rating first).
+Each parse is now persisted outlet-wise in the
+database by report period, and admins can delete saved parser records for a
+specific date period directly from the parser tool.
+
 ## Customer Access
 
 Customers can browse the menu and add items to the cart without signing in.

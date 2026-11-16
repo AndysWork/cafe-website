@@ -81,6 +81,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<PasswordResetToken> _passwordResetTokens;
     private readonly IMongoCollection<DailyCashReconciliation> _cashReconciliations;
     private readonly IMongoCollection<OnlineSale> _onlineSales;
+    private readonly IMongoCollection<ZomatoSalesPayoutInsightRecord> _zomatoSalesPayoutInsightRecords;
     private readonly IMongoCollection<OperationalExpense> _operationalExpenses;
     private readonly IMongoCollection<PlatformCharge> _platformCharges;
     private readonly IMongoCollection<PriceForecast> _priceForecasts;
@@ -207,6 +208,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _passwordResetTokens = db.GetCollection<PasswordResetToken>("PasswordResetTokens");
         _cashReconciliations = db.GetCollection<DailyCashReconciliation>("CashReconciliations");
         _onlineSales = db.GetCollection<OnlineSale>("OnlineSales");
+        _zomatoSalesPayoutInsightRecords = db.GetCollection<ZomatoSalesPayoutInsightRecord>("ZomatoSalesPayoutInsightRecords");
         _operationalExpenses = db.GetCollection<OperationalExpense>("OperationalExpenses");
         _platformCharges = db.GetCollection<PlatformCharge>("PlatformCharges");
         _priceForecasts = db.GetCollection<PriceForecast>("PriceForecasts");
