@@ -6,13 +6,27 @@ using System.Text.RegularExpressions;
 
 namespace Cafe.Api.Services;
 
-public class ZomatoSalesPayoutInsightService
+public partial class ZomatoSalesPayoutInsightService
 {
     public async Task<ZomatoSalesPayoutInsightResult> GenerateInsightsAsync(Stream orderHistoryCsvStream, Stream settlementWorkbookStream)
     {
+        return (await ParseReportAsync(orderHistoryCsvStream, settlementWorkbookStream)).Insights;
+    }
+
+    public async Task<ParsedZomatoReport> ParseReportAsync(Stream orderHistoryCsvStream, Stream settlementWorkbookStream)
+    {
         var orderRows = await ParseOrderHistoryAsync(orderHistoryCsvStream);
         var settlementData = ParseSettlementWorkbook(settlementWorkbookStream);
-        return BuildInsights(orderRows, settlementData.SettlementRows, settlementData.AdditionalDeductionRows, settlementData.AdditionalDeductionTotals);
+        var source = new ZomatoReportSourceData
+        {
+            Orders = orderRows,
+            Settlements = settlementData.SettlementRows,
+            AdditionalDeductions = settlementData.AdditionalDeductionRows,
+            AdditionalTotals = settlementData.AdditionalDeductionTotals
+        };
+        return new ParsedZomatoReport(
+            BuildInsights(source.Orders, source.Settlements, source.AdditionalDeductions, source.AdditionalTotals),
+            source);
     }
 
     private async Task<List<OrderHistoryRow>> ParseOrderHistoryAsync(Stream csvStream)
@@ -37,6 +51,8 @@ public class ZomatoSalesPayoutInsightService
                 continue;
             }
 
+            var kpt = ParseDuration(GetCsvField(csv, "KPT duration (minutes)"));
+            var riderWait = ParseDuration(GetCsvField(csv, "Rider wait time (minutes)"));
             rows.Add(new OrderHistoryRow
             {
                 OrderId = orderId.Trim(),
@@ -55,8 +71,10 @@ public class ZomatoSalesPayoutInsightService
                 Total = ParseDecimal(GetCsvField(csv, "Total")),
                 Rating = ParseNullableDecimal(GetCsvField(csv, "Rating")),
                 Review = (GetCsvField(csv, "Review") ?? string.Empty).Trim(),
-                KptMinutes = ParseNullableDecimal(GetCsvField(csv, "KPT duration (minutes)")),
-                RiderWaitMinutes = ParseNullableDecimal(GetCsvField(csv, "Rider wait time (minutes)")),
+                KptMinutes = kpt.Minutes,
+                KptDataStatus = kpt.Status,
+                RiderWaitMinutes = riderWait.Minutes,
+                RiderWaitDataStatus = riderWait.Status,
                 OrderReadyMarked = (GetCsvField(csv, "Order Ready Marked") ?? string.Empty).Trim(),
                 CustomerComplaintTag = (GetCsvField(csv, "Customer complaint tag") ?? string.Empty).Trim()
             });
@@ -402,8 +420,8 @@ public class ZomatoSalesPayoutInsightService
             .ThenByDescending(h => h.GrossSales)
             .ToList();
 
-        var kptValues = deliveredOrders.Where(o => o.KptMinutes.HasValue).Select(o => o.KptMinutes!.Value).ToList();
-        var rwtValues = deliveredOrders.Where(o => o.RiderWaitMinutes.HasValue).Select(o => o.RiderWaitMinutes!.Value).ToList();
+        var kptValues = deliveredOrders.Where(o => o.KptMinutes >= 0).Select(o => o.KptMinutes!.Value).ToList();
+        var rwtValues = deliveredOrders.Where(o => o.RiderWaitMinutes >= 0).Select(o => o.RiderWaitMinutes!.Value).ToList();
         var ratings = deliveredOrders.Where(o => o.Rating.HasValue).Select(o => o.Rating!.Value).ToList();
 
         return new ZomatoSalesPayoutInsightResult
@@ -485,7 +503,8 @@ public class ZomatoSalesPayoutInsightService
             AdditionalDeductionDetails = additionalDeductionRows,
             AdditionalDeductionTotals = additionalDeductionTotals,
             TopLossOrders = topLossOrders,
-            ReviewRatingInsights = BuildReviewRatingInsights(orderRows)
+            ReviewRatingInsights = BuildReviewRatingInsights(orderRows),
+            KitchenOrders = BuildKitchenOrders(deliveredOrders)
         };
     }
 
@@ -867,6 +886,8 @@ public class ZomatoSalesPayoutInsightService
 
 public class ZomatoSalesPayoutInsightResult
 {
+    public List<KitchenOrderTiming>? KitchenOrders { get; set; }
+    public List<string> Notices { get; set; } = new();
     public InsightPeriod Period { get; set; } = new();
     public OrderHistorySummary OrderHistorySummary { get; set; } = new();
     public SettlementSummary SettlementSummary { get; set; } = new();
@@ -994,9 +1015,9 @@ public class SettlementSummary
     public decimal OtherOrderLevelDeductions { get; set; }
     public decimal TotalUnsettledAmount { get; set; }
     public decimal Tds194OTotal { get; set; }
-    public decimal AdditionalDeductionsAdjusted { get; set; }
-    public decimal AdditionalAdditionsAdjusted { get; set; }
-    public decimal ActualPayoutCredited { get; set; }
+    public decimal? AdditionalDeductionsAdjusted { get; set; }
+    public decimal? AdditionalAdditionsAdjusted { get; set; }
+    public decimal? ActualPayoutCredited { get; set; }
     public decimal AveragePayoutPerOrder { get; set; }
     public string? TopPayoutDay { get; set; }
     public decimal TopPayoutDayAmount { get; set; }
@@ -1098,7 +1119,7 @@ public class LossOrderInsight
     public decimal DeductionRatePercent { get; set; }
 }
 
-internal class OrderHistoryRow
+public class OrderHistoryRow
 {
     public string OrderId { get; set; } = string.Empty;
     public DateTime? PlacedAt { get; set; }
@@ -1117,12 +1138,14 @@ internal class OrderHistoryRow
     public decimal? Rating { get; set; }
     public string Review { get; set; } = string.Empty;
     public decimal? KptMinutes { get; set; }
+    public string? KptDataStatus { get; set; }
     public decimal? RiderWaitMinutes { get; set; }
+    public string? RiderWaitDataStatus { get; set; }
     public string OrderReadyMarked { get; set; } = string.Empty;
     public string CustomerComplaintTag { get; set; } = string.Empty;
 }
 
-internal class SettlementRow
+public class SettlementRow
 {
     public string OrderId { get; set; } = string.Empty;
     public DateTime? OrderDate { get; set; }

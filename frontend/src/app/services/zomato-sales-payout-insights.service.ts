@@ -50,9 +50,9 @@ export interface SettlementSummary {
   otherOrderLevelDeductions: number;
   totalUnsettledAmount: number;
   tds194OTotal: number;
-  additionalDeductionsAdjusted: number;
-  additionalAdditionsAdjusted: number;
-  actualPayoutCredited: number;
+  additionalDeductionsAdjusted: number | null;
+  additionalAdditionsAdjusted: number | null;
+  actualPayoutCredited: number | null;
   averagePayoutPerOrder: number;
   topPayoutDay: string | null;
   topPayoutDayAmount: number;
@@ -145,6 +145,8 @@ export interface AdditionalDeductionTotal {
 }
 
 export interface ZomatoSalesPayoutInsights {
+  kitchenOrders?: KitchenOrderTiming[] | null;
+  notices?: string[];
   period: InsightPeriod;
   orderHistorySummary: OrderHistorySummary;
   settlementSummary: SettlementSummary;
@@ -159,6 +161,26 @@ export interface ZomatoSalesPayoutInsights {
   additionalDeductionTotals: AdditionalDeductionTotal[];
   topLossOrders: LossOrderInsight[];
   reviewRatingInsights?: ReviewRatingInsights;
+}
+
+export interface KitchenOrderTiming {
+  orderId: string;
+  placedAt: string | null;
+  kptMinutes: number | null;
+  riderWaitMinutes: number | null;
+  kptStatus: 'valid' | 'missing' | 'invalid';
+  riderWaitStatus: 'valid' | 'missing' | 'invalid';
+  timingsValidated: boolean;
+  items: { name: string; quantity: number }[];
+  itemsText: string;
+  quantity: number;
+  distinctItems: number;
+  deliveryType: string;
+  rating: number | null;
+  review: string;
+  complaint: string;
+  readyMarked: string;
+  orderValue: number;
 }
 
 export interface ReviewRatingInsights {
@@ -244,6 +266,16 @@ export class ZomatoSalesPayoutInsightsService {
     return this.http.get<SnapshotListResponse>(`${this.apiUrl}/reports/zomato-sales-payout/insights`).pipe(
       map((response) => response.data ?? []),
       catchError(handleServiceError('ZomatoSalesPayoutInsightsService.listSavedSnapshots'))
+    );
+  }
+
+  getDateRangeInsights(startDate: string, endDate: string): Observable<ZomatoSalesPayoutInsights> {
+    return this.http.get<{ success: boolean; data: ZomatoSalesPayoutInsights }>(
+      `${this.apiUrl}/reports/zomato-sales-payout/insights/range`,
+      { params: { startDate, endDate } }
+    ).pipe(
+      map((response) => response.data),
+      catchError(handleServiceError('ZomatoSalesPayoutInsightsService.getDateRangeInsights'))
     );
   }
 

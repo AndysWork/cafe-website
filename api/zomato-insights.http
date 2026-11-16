@@ -1,0 +1,18 @@
+@baseUrl = http://localhost:7071/api
+@adminToken = REPLACE_WITH_ADMIN_TOKEN
+@outletId = REPLACE_WITH_OUTLET_ID
+
+### Exact-date insights from retained report rows (inclusive order dates)
+GET {{baseUrl}}/reports/zomato-sales-payout/insights/range?startDate=2026-10-28&endDate=2026-10-30
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Invalid range returns 400
+GET {{baseUrl}}/reports/zomato-sales-payout/insights/range?startDate=2026-11-02&endDate=2026-11-01
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Missing source coverage returns 409 with upload instructions
+GET {{baseUrl}}/reports/zomato-sales-payout/insights/range?startDate=2000-01-01&endDate=2000-01-02
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}

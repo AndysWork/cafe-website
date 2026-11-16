@@ -16,10 +16,13 @@
       <span class="zp-badge small">z</span>
       <h1>Zomato Parser</h1>
     </div>
-    <select class="zp-select" [ngModel]="selectedSnapshotId" (ngModelChange)="onSnapshotSelected($event)" [disabled]="snapshots.length === 0">
-      <option value="" disabled>{{ snapshots.length ? 'Select period' : 'No saved periods' }}</option>
-      <option *ngFor="let s of snapshots" [value]="s.id">{{ snapshotLabel(s) }}</option>
-    </select>
+    <div class="zp-mobile-filters">
+      <select class="zp-select" [ngModel]="selectedSnapshotId" (ngModelChange)="onSnapshotSelected($event)" [disabled]="snapshots.length === 0 || isLoadingRange || isParsing || isDeleting">
+        <option value="" disabled>{{ snapshots.length ? 'Select period' : 'No saved periods' }}</option>
+        <option *ngFor="let s of snapshots" [value]="s.id">{{ snapshotLabel(s) }}</option>
+      </select>
+      <ng-container *ngTemplateOutlet="customRangeControl; context: { id: 'mobile-date-range' }"></ng-container>
+    </div>
   </header>
 
   <!-- ===== Tabs ===== -->
@@ -34,21 +37,22 @@
     <div class="zp-toolbar-group">
       <label class="zp-field">
         <i class="fa-regular fa-calendar"></i>
-        <select [ngModel]="selectedSnapshotId" (ngModelChange)="onSnapshotSelected($event)" [disabled]="snapshots.length === 0">
+        <select [ngModel]="selectedSnapshotId" (ngModelChange)="onSnapshotSelected($event)" [disabled]="snapshots.length === 0 || isLoadingRange || isParsing || isDeleting">
           <option value="" disabled>{{ snapshots.length ? 'Select saved period' : 'No saved periods' }}</option>
           <option *ngFor="let s of snapshots" [value]="s.id">{{ snapshotLabel(s) }}</option>
         </select>
       </label>
+      <ng-container *ngTemplateOutlet="customRangeControl; context: { id: 'desktop-date-range' }"></ng-container>
       <label class="zp-field">
         <span class="zp-field-prefix">Compare:</span>
-        <select [(ngModel)]="compareMode" (ngModelChange)="onCompareModeChanged()">
+        <select [(ngModel)]="compareMode" (ngModelChange)="onCompareModeChanged()" [disabled]="isCustomRange">
           <option value="previous">Previous Period</option>
           <option value="none">None</option>
         </select>
       </label>
     </div>
 
-    <div class="zp-toolbar-group">
+    <div class="zp-toolbar-group" #desktopUploads tabindex="-1" aria-label="Upload order history CSV and settlement XLSX, then Parse Reports">
       <label class="zp-upload" [class.ready]="orderHistoryFile" [title]="orderHistoryFile?.name || 'Upload order history CSV'">
         <i class="fa-solid" [ngClass]="orderHistoryFile ? 'fa-circle-check' : 'fa-file-csv'"></i>
         <span>{{ orderHistoryFile ? orderHistoryFile.name : 'Upload Orders (CSV)' }}</span>
@@ -64,7 +68,7 @@
         {{ isParsing ? 'Parsing…' : 'Parse Reports' }}
       </button>
       <div class="zp-split">
-        <button type="button" class="zp-btn purple" (click)="saveSnapshot()" [disabled]="isParsing">
+        <button type="button" class="zp-btn purple" (click)="saveSnapshot()" [disabled]="isParsing || isLoadingRange || isCustomRange">
           <i class="fa-regular fa-floppy-disk"></i> Save Snapshot
         </button>
         <button type="button" class="zp-btn purple caret" (click)="saveMenuOpen = !saveMenuOpen" aria-label="More save options">
@@ -75,10 +79,47 @@
           <button type="button" (click)="saveMenuOpen = false; selectTab('snapshots')"><i class="fa-solid fa-clock-rotate-left"></i> View saved snapshots</button>
         </div>
       </div>
-      <button type="button" class="zp-btn red" [disabled]="!insights || isDeleting" (click)="deleteCurrentPeriod()">
+      <button type="button" class="zp-btn red" [disabled]="!insights || isDeleting || isLoadingRange || isCustomRange" (click)="deleteCurrentPeriod()">
         <i class="fa-regular fa-trash-can"></i> Delete Period
       </button>
     </div>
+  </section>
+
+  <ng-template #customRangeControl let-id="id">
+    <div class="zp-custom-range" (keydown.escape)="dateRangeOpen = false; rangeButton.focus(); $event.stopPropagation()">
+      <button #rangeButton type="button" class="zp-range-trigger" [class.active]="isCustomRange || dateRangeOpen"
+              [attr.aria-expanded]="dateRangeOpen" [attr.aria-controls]="dateRangeOpen ? id : null"
+              aria-haspopup="dialog" [disabled]="isLoadingRange || isParsing || isDeleting" (click)="toggleDateRange()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M8 15h3" /></svg>
+        <span class="zp-range-trigger-text">
+          <small>Date Range - IST</small>
+          <strong [title]="isCustomRange ? periodLabel : 'Custom Range'">{{ isLoadingRange ? 'Applying...' : customRangeLabel }}</strong>
+        </span>
+        <svg class="zp-range-chevron" [class.open]="dateRangeOpen" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+      </button>
+      <div *ngIf="dateRangeOpen" class="zp-range-panel" [id]="id" role="dialog" aria-label="Custom date range" [attr.aria-busy]="isLoadingRange">
+        <h3>Custom Range</h3>
+        <form class="zp-range" (ngSubmit)="applyDateRange()">
+          <label>From
+            <input type="date" name="reportStartDate" [(ngModel)]="reportStartDate" [max]="reportEndDate" [disabled]="isLoadingRange" required />
+          </label>
+          <label>To
+            <input type="date" name="reportEndDate" [(ngModel)]="reportEndDate" [min]="reportStartDate" [disabled]="isLoadingRange" required />
+          </label>
+          <p class="zp-muted">Both dates are inclusive. Older reports may need one re-upload.</p>
+          <p class="zp-range-error" role="alert" *ngIf="rangeError">{{ rangeError }}</p>
+          <button *ngIf="rangeError && rangeNeedsUpload" type="button" class="zp-btn purple outline" (click)="openReportUploads()">Upload Missing Reports</button>
+          <div class="zp-range-panel-actions">
+            <button type="button" class="zp-link" *ngIf="isCustomRange" (click)="resetDateRange()" [disabled]="isLoadingRange || !snapshots.length">Reset</button>
+            <button type="button" class="zp-btn purple outline" (click)="dateRangeOpen = false; rangeButton.focus()" [disabled]="isLoadingRange">Cancel</button>
+            <button type="submit" class="zp-btn purple" [disabled]="isLoadingRange || isParsing || isDeleting">{{ isLoadingRange ? 'Applying...' : 'Apply' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </ng-template>
+  <section class="zp-card zp-report-notices" *ngIf="insights?.notices?.length" aria-label="Custom report limitations">
+    <p *ngFor="let notice of insights?.notices">{{ notice }}</p>
   </section>
 
   <!-- ===== Empty state ===== -->
@@ -105,6 +146,15 @@
   </section>
 
   <ng-container *ngIf="insights as data">
+    <app-kitchen-performance *ngIf="activeTab === 'kitchen'"
+      [orders]="kitchenOrders" [period]="data.period" [previousOrders]="kitchenPreviousOrders"
+      [previousPeriod]="kitchenPreviousPeriod" [loading]="kitchenLoading" [error]="kitchenError"
+      [comparisonLoading]="kitchenComparisonLoading" [comparisonError]="kitchenComparisonError"
+      [needsUpload]="kitchenNeedsUpload" [comparisonNeedsUpload]="kitchenComparisonNeedsUpload"
+      [notice]="kitchenNotice" [comparisonEnabled]="kitchenComparisonEnabled"
+      (comparisonEnabledChange)="toggleKitchenComparison($event)" (retry)="loadKitchenData(true)"
+      (uploadReports)="openReportUploads()" (viewSavedReports)="selectTab('snapshots')">
+    </app-kitchen-performance>
     <!-- ================= OVERVIEW ================= -->
     <ng-container *ngIf="activeTab === 'overview'">
       <!-- KPI cards (desktop) -->
@@ -167,7 +217,7 @@
             <span><i class="fa-solid fa-circle total"></i> Totals</span>
             <span><i class="fa-solid fa-circle negative"></i> Deductions</span>
             <span><i class="fa-solid fa-circle positive"></i> Additions</span>
-            <span><i class="fa-solid fa-circle credit"></i> Credited to bank</span>
+            <span *ngIf="data.settlementSummary.actualPayoutCredited !== null"><i class="fa-solid fa-circle credit"></i> Credited to bank</span>
           </div>
         </div>
 
@@ -201,8 +251,8 @@
           </dl>
           <h4>Period Actions</h4>
           <div class="zp-period-actions">
-            <button type="button" class="zp-btn purple outline" (click)="saveSnapshot()"><i class="fa-regular fa-floppy-disk"></i> Save Snapshot</button>
-            <button type="button" class="zp-btn red outline" [disabled]="isDeleting" (click)="deleteCurrentPeriod()"><i class="fa-regular fa-trash-can"></i> Delete Period</button>
+            <button type="button" class="zp-btn purple outline" [disabled]="isCustomRange || isLoadingRange" (click)="saveSnapshot()"><i class="fa-regular fa-floppy-disk"></i> Save Snapshot</button>
+            <button type="button" class="zp-btn red outline" [disabled]="isDeleting || isCustomRange || isLoadingRange" (click)="deleteCurrentPeriod()"><i class="fa-regular fa-trash-can"></i> Delete Period</button>
           </div>
         </div>
       </section>
@@ -530,6 +580,7 @@
         <div class="zp-calc-row plus"><span>+ Additions adjusted</span><strong>{{ formatCurrency(data.settlementSummary.additionalAdditionsAdjusted) }}</strong></div>
         <div class="zp-calc-row minus"><span>− Additional deductions adjusted</span><strong>{{ formatCurrency(data.settlementSummary.additionalDeductionsAdjusted) }}</strong></div>
         <div class="zp-calc-row total"><span>= Credited to bank</span><strong>{{ formatCurrency(data.settlementSummary.actualPayoutCredited) }}</strong></div>
+        <p class="zp-muted" *ngIf="data.settlementSummary.actualPayoutCredited === null">Unavailable for partial or overlapping report periods. Weekly adjustments cannot be assigned exactly to these dates.</p>
         <p class="zp-muted">Total payout {{ formatCurrency(data.settlementSummary.totalPayout) }} · Unsettled {{ formatCurrency(data.settlementSummary.totalUnsettledAmount) }} · Avg payout/order {{ formatCurrency(data.settlementSummary.averagePayoutPerOrder) }}</p>
       </section>
 
@@ -576,7 +627,7 @@
                   <td class="num">{{ formatCurrency(t.adjustedAmount) }}</td>
                   <td class="num">{{ formatCurrency(t.outstandingAmount) }}</td>
                 </tr>
-                <tr *ngIf="!data.additionalDeductionDetails.length"><td colspan="6" class="zp-muted">No additional deductions.</td></tr>
+                <tr *ngIf="!data.additionalDeductionDetails.length"><td colspan="6" class="zp-muted">{{ data.settlementSummary.additionalDeductionsAdjusted === null ? 'Weekly adjustments are unavailable for this date selection.' : 'No additional deductions.' }}</td></tr>
               </tbody>
             </table>
           </div>
@@ -721,8 +772,16 @@
               <td class="num">{{ formatCurrency(s.data.settlementSummary.actualPayoutCredited) }}</td>
               <td>{{ s.updatedAt | date: 'dd MMM yyyy, h:mm a' }}<small class="zp-muted block" *ngIf="s.parsedBy">{{ s.parsedBy }}</small></td>
               <td class="actions">
-                <button type="button" class="zp-btn small purple outline" (click)="loadSnapshot(s)"><i class="fa-regular fa-eye"></i> Load</button>
-                <button type="button" class="zp-btn small red outline" [disabled]="isDeleting" (click)="deleteSnapshot(s)"><i class="fa-regular fa-trash-can"></i></button>
+                <div class="zp-snapshot-actions">
+                  <button type="button" class="zp-btn small purple outline" (click)="loadSnapshot(s)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+                    Load
+                  </button>
+                  <button type="button" class="zp-btn small red outline" [disabled]="isDeleting" (click)="deleteSnapshot(s)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg>
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
             <tr *ngIf="!snapshots.length"><td colspan="7" class="zp-muted">No snapshots saved yet. Parse reports to create one.</td></tr>
@@ -748,8 +807,8 @@
   <nav class="zp-bottom-nav mobile-only">
     <button type="button" [class.active]="activeTab === 'orders'" (click)="selectTab('orders')"><i class="fa-solid fa-receipt"></i><span>Orders</span></button>
     <button type="button" [class.active]="activeTab === 'items'" (click)="selectTab('items')"><i class="fa-solid fa-utensils"></i><span>Items</span></button>
-    <button type="button" class="save" (click)="saveSnapshot()"><i class="fa-regular fa-floppy-disk"></i><span>Save</span></button>
-    <button type="button" class="delete" [disabled]="!insights || isDeleting" (click)="deleteCurrentPeriod()"><i class="fa-regular fa-trash-can"></i><span>Delete</span></button>
+    <button type="button" class="save" [disabled]="isCustomRange || isLoadingRange || isParsing" (click)="saveSnapshot()"><i class="fa-regular fa-floppy-disk"></i><span>Save</span></button>
+    <button type="button" class="delete" [disabled]="!insights || isDeleting || isCustomRange || isLoadingRange" (click)="deleteCurrentPeriod()"><i class="fa-regular fa-trash-can"></i><span>Delete</span></button>
     <button type="button" [class.active]="moreSheetOpen" (click)="moreSheetOpen = !moreSheetOpen"><i class="fa-solid fa-ellipsis"></i><span>More</span></button>
   </nav>
 

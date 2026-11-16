@@ -1,0 +1,65 @@
+:host { display: block; color: #1e1b4b; }
+.kp-card { padding: 18px; margin-bottom: 16px; background: #fff; border: 1px solid #e8e6f5; border-radius: 14px; min-width: 0; }
+h2 { font-size: 1.15rem; margin: 0; }
+h3 { font-size: 0.95rem; margin: 0 0 12px; }
+h3 span { font-size: 0.75rem; color: #6b7280; font-weight: 400; }
+p, li { font-size: 0.82rem; line-height: 1.6; }
+p { margin: 8px 0; }
+small { font-size: 0.72rem; color: #6b7280; }
+.kp-muted { color: #6b7280; }
+.kp-warning { color: #854d0e; background: #fffbeb; border-radius: 7px; padding: 8px 10px; }
+.kp-error { color: #b91c1c; }
+.kp-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.kp-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+label { display: flex; flex-direction: column; gap: 4px; color: #6b7280; font-size: 0.76rem; font-weight: 600; min-width: 0; }
+input, select { box-sizing: border-box; height: 36px; border: 1px solid #ddd9ed; border-radius: 7px; padding: 0 9px; font: inherit; color: #1e1b4b; background: #fff; max-width: 100%; }
+input[type=number] { width: 130px; }
+.kp-check { flex-direction: row; align-items: center; min-height: 36px; }
+.kp-check input { height: auto; }
+button { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #6d28d9; border-radius: 7px; background: #6d28d9; color: #fff; font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+button.secondary { background: #fff; color: #6d28d9; border-color: #ddd9ed; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.kp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.kp-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.kp-stats small, .kp-stats strong, .kp-stats em { display: block; }
+.kp-stats strong { font-size: 1.15rem; margin-top: 5px; }
+.kp-stats em { color: #6b7280; font-size: 0.72rem; font-style: normal; margin-top: 3px; }
+.kp-quality { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.8rem; }
+.kp-quality p { flex-basis: 100%; margin: 0; color: #6b7280; }
+.kp-actions { border-left: 3px solid #6d28d9; }
+.kp-actions ul { padding-left: 20px; margin: 0; }
+.kp-bucket { display: grid; grid-template-columns: 90px 1fr 30px; gap: 10px; align-items: center; margin: 14px 0; font-size: 0.8rem; }
+.kp-track { background: #f4f3fc; height: 12px; border-radius: 4px; overflow: hidden; }
+.kp-track div { height: 100%; background: #8b5cf6; border-radius: inherit; }
+.kp-daily { min-width: 90px; height: 5px; margin-top: 5px; }
+.kp-daily.wait div { background: #f59e0b; }
+.kp-scroll { overflow: auto; max-height: 460px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+th, td { padding: 9px 10px; border-bottom: 1px solid #efedf7; text-align: left; vertical-align: top; }
+thead th { position: sticky; top: 0; background: #faf9fe; z-index: 1; font-weight: 600; white-space: nowrap; }
+td small { display: block; margin-top: 3px; overflow-wrap: anywhere; }
+.kp-heat { min-width: 1100px; table-layout: fixed; font-size: 0.7rem; }
+.kp-heat th:first-child { width: 115px; }
+.kp-heat td { text-align: center; padding: 10px 3px; border: 2px solid white; }
+.kp-heat thead th { text-align: center; }
+.kp-pagination { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; font-size: 0.76rem; }
+.kp-pagination span { margin-right: auto; color: #6b7280; }
+.kp-exceptions { min-width: 1000px; }
+.kp-exceptions td { max-width: 240px; overflow-wrap: anywhere; }
+.kp-scatter { width: 100%; height: auto; }
+.kp-scatter .axis { stroke: #b8b2cd; }
+.kp-scatter .target { stroke: #6d28d9; stroke-dasharray: 5 5; }
+.kp-scatter circle { opacity: 0.65; }
+.kp-scatter text { font-size: 11px; fill: #6b7280; }
+.kp-signal-list > div { border-left: 3px solid; padding: 6px 12px; margin: 6px 0 12px; }
+.kp-signal-list strong { font-size: 0.82rem; }
+.kp-signal-list p { margin: 3px 0; color: #6b7280; }
+@media (max-width: 1000px) { .kp-grid { grid-template-columns: 1fr; gap: 0; } }
+@media (max-width: 600px) {
+  .kp-card { padding: 14px; }
+  .kp-controls > label { flex: 1 1 130px; }
+  .kp-controls input:not([type=checkbox]), .kp-controls select { width: 100%; }
+  .kp-controls .kp-check { flex-basis: 100%; }
+  .kp-stats strong { font-size: 1rem; }
+}

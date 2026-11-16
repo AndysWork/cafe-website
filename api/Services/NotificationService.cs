@@ -1,6 +1,7 @@
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 
 namespace Cafe.Api.Services;
 
@@ -27,6 +28,12 @@ public class NotificationService
     public async Task<bool> SendAsync(string userId, string type, string title, string message,
         Dictionary<string, string>? data = null, string? actionUrl = null, string? imageUrl = null)
     {
+        if (!ObjectId.TryParse(userId, out _))
+        {
+            _logger.LogDebug("Notification skipped for non-account recipient {UserId} (type: {Type})", userId, type);
+            return false;
+        }
+
         try
         {
             // Check user preferences

@@ -11,7 +11,8 @@ public partial class MongoService
         DateTime periodStartDate,
         DateTime periodEndDate,
         BsonDocument insightsPayload,
-        string parsedBy)
+        string parsedBy,
+        BsonDocument sourceData)
     {
         if (string.IsNullOrWhiteSpace(outletId))
         {
@@ -35,6 +36,7 @@ public partial class MongoService
             PeriodStartDate = normalizedStart,
             PeriodEndDate = normalizedEnd,
             InsightsPayload = insightsPayload,
+            SourceData = sourceData,
             ParsedBy = parsedBy,
             CreatedAt = existing?.CreatedAt ?? now,
             UpdatedAt = now
@@ -59,9 +61,25 @@ public partial class MongoService
 
         return await _zomatoSalesPayoutInsightRecords
             .Find(Builders<ZomatoSalesPayoutInsightRecord>.Filter.Eq(x => x.OutletId, outletId))
+            .Project<ZomatoSalesPayoutInsightRecord>(Builders<ZomatoSalesPayoutInsightRecord>.Projection.Exclude(x => x.SourceData))
             .SortByDescending(x => x.PeriodStartDate)
             .Limit(limit)
             .ToListAsync();
+    }
+
+    public async Task<List<ZomatoSalesPayoutInsightRecord>> GetZomatoSourceRecordsByPeriodAsync(
+        string outletId, DateTime startDate, DateTime endDate, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(outletId))
+            throw new ArgumentException("Outlet ID is required.", nameof(outletId));
+
+        var filter = Builders<ZomatoSalesPayoutInsightRecord>.Filter.And(
+            Builders<ZomatoSalesPayoutInsightRecord>.Filter.Eq(x => x.OutletId, outletId),
+            Builders<ZomatoSalesPayoutInsightRecord>.Filter.Lte(x => x.PeriodStartDate, endDate.Date),
+            Builders<ZomatoSalesPayoutInsightRecord>.Filter.Gte(x => x.PeriodEndDate, startDate.Date));
+        return await _zomatoSalesPayoutInsightRecords.Find(filter)
+            .Project<ZomatoSalesPayoutInsightRecord>(Builders<ZomatoSalesPayoutInsightRecord>.Projection.Exclude(x => x.InsightsPayload))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<long> DeleteZomatoSalesPayoutInsightRecordsByPeriodAsync(string outletId, DateTime startDate, DateTime endDate)

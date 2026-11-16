@@ -1,0 +1,215 @@
+<section class="kp-card">
+  <div class="kp-heading"><div><h2>Kitchen &amp; Pickup Performance</h2><p>Delivered orders only. Report-local order times; targets are your settings, not Zomato limits.</p></div></div>
+  <form class="kp-controls" (ngSubmit)="applyTargets()">
+    <label>KPT target (min)<input type="number" name="kptTarget" min="0" step="any" [(ngModel)]="draftKpt" required /></label>
+    <label>Rider-wait target (min)<input type="number" name="waitTarget" min="0" step="any" [(ngModel)]="draftWait" required /></label>
+    <button type="submit">Update Targets</button>
+    <label class="kp-check"><input type="checkbox" name="compare" [ngModel]="comparisonEnabled" (ngModelChange)="comparisonEnabledChange.emit($event)" /> Compare previous equal-length period</label>
+  </form>
+  <p class="kp-error" role="alert" *ngIf="targetError">{{ targetError }}</p>
+  <p class="kp-muted">Defaults: KPT 20 min, wait 5 min. Changes apply to this view and its comparison. Breaches mean strictly above target.</p>
+  <p role="status" *ngIf="loading">Loading order-level timings...</p>
+  <div class="kp-warning" role="alert" *ngIf="error && needsUpload">
+    <strong>Order-level report data needed</strong>
+    <p>{{ error }}</p>
+    <p>A saved summary alone cannot recreate individual KPT and rider-wait timings. Upload the original Order History CSV and Settlement XLSX covering these dates, then click Parse Reports. Your saved financial report has not been changed.</p>
+    <div class="kp-controls">
+      <button type="button" (click)="uploadReports.emit()">Upload Reports</button>
+      <button type="button" class="secondary" (click)="viewSavedReports.emit()">View Saved Reports</button>
+    </div>
+  </div>
+  <div class="kp-error" role="alert" *ngIf="error && !needsUpload">{{ error }} <button type="button" class="secondary" (click)="retry.emit()">Retry</button></div>
+  <p class="kp-muted" *ngIf="notice">{{ notice }}</p>
+</section>
+
+<ng-container *ngIf="analysis as a">
+  <section class="kp-card kp-quality">
+    <strong>{{ a.orders.length }} delivered orders</strong>
+    <span>KPT: {{ a.kpt.valid }} valid / {{ a.kpt.missing }} missing / {{ a.kpt.invalid }} invalid</span>
+    <span>Wait: {{ a.wait.valid }} valid / {{ a.wait.missing }} missing / {{ a.wait.invalid }} invalid</span>
+    <p>Zero-minute timings are included. Missing and invalid timings are excluded from duration statistics and breach-rate denominators.</p>
+    <p *ngIf="a.missingDates">{{ a.missingDates }} orders lack a usable date/hour and are excluded from charts requiring those fields, not from overall metrics.</p>
+    <p *ngIf="a.unvalidated">{{ a.unvalidated }} orders come from older retained source data without full input validation. Re-upload originals to distinguish malformed timings reliably.</p>
+    <p *ngIf="!a.orders.length">No delivered orders in this selection. Timing metrics are unavailable, not zero.</p>
+  </section>
+
+  <section class="kp-card" *ngIf="comparisonEnabled">
+    <h3>Previous-period comparison <span *ngIf="previousPeriod">{{ previousPeriod.startDate }} to {{ previousPeriod.endDate }}</span></h3>
+    <p class="kp-muted">Immediately preceding equal number of calendar days. Positive timing/rate changes mean slower performance.</p>
+    <p role="status" *ngIf="comparisonLoading">Loading previous-period coverage...</p>
+    <div class="kp-warning" *ngIf="comparisonError" role="status">
+      <p>Comparison unavailable: {{ comparisonError }}</p>
+      <ng-container *ngIf="comparisonNeedsUpload; else retryComparison">
+        <p>Current-period analytics remain available. Upload the original reports for the comparison dates to enable comparison, or turn comparison off.</p>
+        <button type="button" class="secondary" (click)="uploadReports.emit()">Upload Comparison Reports</button>
+      </ng-container>
+      <ng-template #retryComparison><button type="button" class="secondary" (click)="retry.emit()">Retry</button></ng-template>
+    </div>
+    <p *ngIf="previous as p">{{ p.orders.length }} prior delivered orders; KPT n={{ p.kpt.valid }}, wait n={{ p.wait.valid }}. Prior missing/invalid: KPT {{ p.kpt.missing }}/{{ p.kpt.invalid }}, wait {{ p.wait.missing }}/{{ p.wait.invalid }}.</p>
+  </section>
+
+  <div class="kp-grid">
+    <section class="kp-card" *ngFor="let card of metricCards">
+      <h3>{{ card.label }} <span>Target {{ card.target }} min · n={{ card.stats.valid }}</span></h3>
+      <div class="kp-stats">
+        <div><small>Average</small><strong>{{ minutes(card.stats.average) }}</strong><em *ngIf="previous">{{ delta(card.stats.average, card.previous?.average) }} vs prior</em></div>
+        <div><small>Median</small><strong>{{ minutes(card.stats.median) }}</strong><em *ngIf="previous">{{ delta(card.stats.median, card.previous?.median) }} vs prior</em></div>
+        <div><small>P90</small><strong>{{ minutes(card.stats.p90) }}</strong><em *ngIf="previous">{{ delta(card.stats.p90, card.previous?.p90) }} vs prior</em></div>
+        <div><small>Above target</small><strong>{{ card.stats.breaches }} · {{ percent(card.stats.breachPercent) }}</strong><em *ngIf="previous">{{ delta(card.stats.breachPercent, card.previous?.breachPercent, ' pp') }} vs prior</em></div>
+      </div>
+      <p class="kp-muted">Fastest: {{ minutes(card.stats.minimum) }} <span *ngIf="card.stats.fastestOrder">(#{{ card.stats.fastestOrder }})</span><br />Slowest: {{ minutes(card.stats.maximum) }} <span *ngIf="card.stats.slowestOrder">(#{{ card.stats.slowestOrder }})</span></p>
+      <small>P90 uses linear interpolation: 90% of the observed timing distribution falls at or below it.</small>
+    </section>
+  </div>
+
+  <section class="kp-card kp-actions">
+    <h3>Operational investigation signals</h3>
+    <ul><li *ngFor="let recommendation of a.recommendations">{{ recommendation }}</li></ul>
+    <p><strong>{{ a.wait.valid ? (a.wait.excessMinutes | number:'1.1-1') : '—' }} excess rider-wait minutes</strong> above your {{ targets.riderWait }} min target across {{ a.wait.breaches }} orders ({{ a.wait.valid }} valid wait samples). This is not a financial-loss estimate.</p>
+  </section>
+
+  <div class="kp-grid">
+    <section class="kp-card" *ngFor="let distribution of a.distributions">
+      <h3>{{ distribution.label }} distribution</h3>
+      <div class="kp-bucket" *ngFor="let bucket of distribution.rows">
+        <span>{{ bucket.label }}</span><div class="kp-track"><div [style.width.%]="bucket.orders / ((distribution.metric === 'kptMinutes' ? a.kpt.valid : a.wait.valid) || 1) * 100"></div></div>
+        <strong>{{ bucket.orders }}</strong>
+      </div>
+      <p class="kp-muted">Fixed buckets; valid timings only. Sample counts also appear in customer-impact analysis below.</p>
+    </section>
+  </div>
+
+  <section class="kp-card">
+    <div class="kp-heading"><h3>Day × hour heatmap</h3><div class="kp-controls">
+      <button type="button" [class.secondary]="heatMetric !== 'kpt'" (click)="heatMetric = 'kpt'">KPT</button>
+      <button type="button" [class.secondary]="heatMetric !== 'wait'" (click)="heatMetric = 'wait'">Rider wait</button>
+    </div></div>
+    <p class="kp-muted">Average minutes by order placement hour. Green: within target; red: above target; —: no valid sample. Hover a cell for order/sample/breach counts. One-order cells are not evidence of a recurring issue.</p>
+    <div class="kp-scroll"><table class="kp-heat">
+      <thead><tr><th>Report date</th><th *ngFor="let hour of hours">{{ hour | number:'2.0-0' }}</th></tr></thead>
+      <tbody><tr *ngFor="let day of a.heatmap"><th>{{ day.date | date:'EEE, dd MMM':'UTC' }}</th>
+        <td *ngFor="let cell of day.cells" [style.background]="heatColor(cell)" [title]="heatTitle(cell)">{{ cell[heatMetric] === null ? '—' : (cell[heatMetric] | number:'1.1-1') }}</td>
+      </tr></tbody>
+    </table></div>
+  </section>
+
+  <div class="kp-grid">
+    <section class="kp-card">
+      <h3>Daily trend</h3>
+      <div class="kp-scroll"><table>
+        <thead><tr><th>Date</th><th>Orders</th><th>KPT avg / P90 (n)</th><th>Wait avg / P90 (n)</th><th>KPT / wait breaches</th></tr></thead>
+        <tbody><tr *ngFor="let day of a.daily"><td>{{ day.label }}</td><td>{{ day.orders }}</td>
+          <td>{{ minutes(day.kpt.average) }} / {{ minutes(day.kpt.p90) }} ({{ day.kpt.valid }})<div class="kp-track kp-daily"><div [style.width.%]="(day.kpt.average ?? 0) / trendMaximum * 100"></div></div></td>
+          <td>{{ minutes(day.wait.average) }} / {{ minutes(day.wait.p90) }} ({{ day.wait.valid }})<div class="kp-track kp-daily wait"><div [style.width.%]="(day.wait.average ?? 0) / trendMaximum * 100"></div></div></td>
+          <td>{{ day.kpt.breaches }} / {{ day.wait.breaches }}</td></tr></tbody>
+      </table></div>
+    </section>
+    <section class="kp-card">
+      <h3>Hourly load &amp; consistency</h3>
+      <div class="kp-scroll"><table>
+        <thead><tr><th>Hour</th><th>Orders</th><th>KPT avg (n)</th><th>Wait avg (n)</th><th>Breach days / active days</th></tr></thead>
+        <tbody><tr *ngFor="let hour of a.hourly"><td>{{ hour.label }}</td><td>{{ hour.orders }}</td><td>{{ minutes(hour.kpt.average) }} ({{ hour.kpt.valid }})</td><td>{{ minutes(hour.wait.average) }} ({{ hour.wait.valid }})</td><td>{{ hour.breachDays }} / {{ hour.activeDays }}</td></tr></tbody>
+      </table></div>
+      <p class="kp-muted">Breach days include either target. Compare volume with timings; this chart does not establish staffing requirements.</p>
+    </section>
+  </div>
+
+  <section class="kp-card">
+    <h3>Kitchen versus handoff signals</h3>
+    <p class="kp-warning">Investigation signals, not proof of responsibility. Never add KPT and rider wait: these durations may overlap.</p>
+    <div class="kp-grid">
+      <div>
+        <svg class="kp-scatter" viewBox="0 0 620 290" role="img" aria-label="KPT against rider wait scatter chart">
+          <line x1="45" y1="245" x2="575" y2="245" class="axis" /><line x1="45" y1="30" x2="45" y2="245" class="axis" />
+          <line [attr.x1]="45 + targets.kpt / a.scatterMaxKpt * 530" [attr.x2]="45 + targets.kpt / a.scatterMaxKpt * 530" y1="30" y2="245" class="target" />
+          <line x1="45" x2="575" [attr.y1]="245 - targets.riderWait / a.scatterMaxWait * 215" [attr.y2]="245 - targets.riderWait / a.scatterMaxWait * 215" class="target" />
+          <circle *ngFor="let point of a.scatter" [attr.cx]="point.x" [attr.cy]="point.y" r="4" [attr.fill]="signalColors[point.signal]">
+            <title>#{{ point.order.orderId }} · {{ point.order.placedAt }} · {{ point.order.deliveryType }}
+KPT {{ minutes(point.order.kptMinutes) }} · Wait {{ minutes(point.order.riderWaitMinutes) }} · {{ point.order.itemsText }}
+Ready: {{ markingLabel(point.order.readyMarked) }} · Rating: {{ point.order.rating ?? 'unrated' }} · Value: {{ point.order.orderValue | currency:'INR':'symbol':'1.2-2':'en-IN' }}
+Review: {{ point.order.review || 'none' }} · Complaint: {{ point.order.complaint || 'none' }}</title>
+          </circle>
+          <text x="45" y="263">0</text><text x="530" y="263">{{ a.scatterMaxKpt | number:'1.0-1' }}</text>
+          <text x="0" y="34">{{ a.scatterMaxWait | number:'1.0-1' }}</text><text x="8" y="245">0</text>
+          <text x="260" y="285">KPT (minutes)</text><text transform="translate(14 175) rotate(-90)">Rider wait (minutes)</text>
+        </svg>
+        <p class="kp-muted">{{ a.paired }} paired valid timings; {{ a.orders.length - a.paired }} orders excluded from this chart. Dashed lines are your targets.</p>
+      </div>
+      <div class="kp-signal-list"><div *ngFor="let signal of a.signals; let index = index" [style.border-left-color]="signalColors[index]"><strong>{{ signal.count }} · {{ signal.label }}</strong><p>{{ signal.hint }}</p></div></div>
+    </div>
+  </section>
+
+  <section class="kp-card">
+    <h3>Order complexity &amp; item comparisons</h3>
+    <div class="kp-controls">
+      <label>Group by<select [(ngModel)]="cohortDimension" (ngModelChange)="cohortPage = 1">
+        <option value="items">Item present in order</option><option value="combinations">Exact item combinations</option><option value="quantity">Total item quantity</option><option value="distinct">Distinct-item count</option><option value="basket">Basket size</option><option value="delivery">Delivery type</option>
+      </select></label>
+      <label>Search groups<input type="search" [(ngModel)]="cohortSearch" (ngModelChange)="cohortPage = 1" /></label>
+      <label>Minimum orders<select [(ngModel)]="minimumSample" (ngModelChange)="cohortPage = 1"><option [ngValue]="1">1</option><option [ngValue]="5">5</option><option [ngValue]="10">10</option><option [ngValue]="20">20</option></select></label>
+      <label>Sort<select [(ngModel)]="cohortSort" (ngModelChange)="cohortPage = 1"><option value="volume">Most orders</option><option value="kpt">Highest average KPT</option><option value="wait">Highest average wait</option><option value="kpt-p90">Highest P90 KPT</option><option value="wait-p90">Highest P90 wait</option></select></label>
+    </div>
+    <p class="kp-warning">Timings describe whole orders containing an item, not that item's cooking time. Items can appear in multiple groups; do not sum item-group counts. Fewer than 5 orders is a small sample. Basket sizes use total quantity, not order value.</p>
+    <ng-container *ngIf="cohortRows as groups">
+      <div class="kp-scroll"><table><thead><tr><th>Group</th><th>Orders</th><th>KPT avg / P90 (n)</th><th>Wait avg / P90 (n)</th><th>KPT / wait breach %</th><th>Rating (n)</th></tr></thead>
+        <tbody><tr *ngFor="let group of groups.slice((cohortPage - 1) * pageSize, cohortPage * pageSize)">
+          <td>{{ group.label }}<small *ngIf="group.orders < 5">Small sample</small></td><td>{{ group.orders }}</td>
+          <td>{{ minutes(group.kpt.average) }} / {{ minutes(group.kpt.p90) }} ({{ group.kpt.valid }})</td><td>{{ minutes(group.wait.average) }} / {{ minutes(group.wait.p90) }} ({{ group.wait.valid }})</td>
+          <td>{{ percent(group.kpt.breachPercent) }} / {{ percent(group.wait.breachPercent) }}</td><td>{{ group.averageRating === null ? '—' : (group.averageRating | number:'1.1-1') }} ({{ group.rated }})</td>
+        </tr><tr *ngIf="!groups.length"><td colspan="6">No groups match these filters.</td></tr></tbody>
+      </table></div>
+      <div class="kp-pagination"><span>{{ groups.length }} groups · Page {{ cohortPage }} / {{ pages(groups.length) }}</span><button type="button" class="secondary" [disabled]="cohortPage <= 1" (click)="cohortPage = cohortPage - 1">Previous</button><button type="button" class="secondary" [disabled]="cohortPage >= pages(groups.length)" (click)="cohortPage = cohortPage + 1">Next</button></div>
+    </ng-container>
+  </section>
+
+  <div class="kp-grid">
+    <section class="kp-card">
+      <h3>Ready-marking discipline</h3>
+      <div class="kp-scroll"><table><thead><tr><th>Marking</th><th>Orders / share</th><th>KPT avg (n)</th><th>Wait avg (n)</th></tr></thead>
+        <tbody><tr *ngFor="let group of a.marking"><td>{{ group.label }}</td><td>{{ group.orders }} / {{ percent(a.orders.length ? group.orders / a.orders.length * 100 : null) }}</td><td>{{ minutes(group.kpt.average) }} ({{ group.kpt.valid }})</td><td>{{ minutes(group.wait.average) }} ({{ group.wait.valid }})</td></tr></tbody>
+      </table></div>
+      <p class="kp-muted">Unknown includes blank and unrecognized markings; it is not counted as correct.</p>
+    </section>
+    <section class="kp-card">
+      <h3>Missed / incorrect marking by hour</h3>
+      <div class="kp-scroll"><table><thead><tr><th>Hour</th><th>Issues</th><th>Wait avg (n)</th></tr></thead><tbody>
+        <tr *ngFor="let group of a.markingHours"><td>{{ group.label }}</td><td>{{ group.orders }}</td><td>{{ minutes(group.wait.average) }} ({{ group.wait.valid }})</td></tr>
+        <tr *ngIf="!a.markingHours.length"><td colspan="3">No missed or incorrect markings recorded.</td></tr>
+      </tbody></table></div>
+    </section>
+  </div>
+
+  <section class="kp-card">
+    <h3>Customer impact by delay bucket</h3>
+    <p class="kp-warning">Low rating means below 3 stars; its rate uses rated orders only. Complaint rates use all orders in the bucket. Small samples and correlations do not prove that delays caused a review or complaint.</p>
+    <div class="kp-scroll"><table><thead><tr><th>Metric / bucket</th><th>Orders</th><th>Rated orders</th><th>Average rating</th><th>Low ratings / rate</th><th>Complaints / rate</th></tr></thead><tbody>
+      <ng-container *ngFor="let distribution of a.distributions"><tr *ngFor="let group of distribution.rows">
+        <td>{{ distribution.label }} · {{ group.label }}<small *ngIf="group.rated < 5">Small rated sample</small></td><td>{{ group.orders }}</td><td>{{ group.rated }}</td><td>{{ group.averageRating === null ? '—' : (group.averageRating | number:'1.2-2') }}</td><td>{{ group.lowRatings }} / {{ percent(group.lowRatingPercent) }}</td><td>{{ group.complaints }} / {{ group.orders ? percent(group.complaintPercent) : '—' }}</td>
+      </tr></ng-container>
+    </tbody></table></div>
+  </section>
+
+  <section class="kp-card">
+    <h3>Delayed-order exceptions</h3>
+    <div class="kp-controls">
+      <label>Search orders, items, reviews<input type="search" [(ngModel)]="exceptionSearch" (ngModelChange)="exceptionPage = 1" /></label>
+      <label>Target exceeded<select [(ngModel)]="exceptionKind" (ngModelChange)="exceptionPage = 1"><option value="either">Either</option><option value="kpt">KPT</option><option value="wait">Rider wait</option><option value="both">Both</option></select></label>
+      <label>Ready marking<select [(ngModel)]="exceptionMarking" (ngModelChange)="exceptionPage = 1"><option>All</option><option>Correct</option><option>Missed</option><option>Incorrect</option><option>Unknown</option></select></label>
+      <label>Sort<select [(ngModel)]="exceptionSort" (ngModelChange)="exceptionPage = 1"><option value="wait">Longest rider wait</option><option value="kpt">Longest KPT</option><option value="newest">Newest first</option><option value="value">Highest order value</option></select></label>
+    </div>
+    <ng-container *ngIf="exceptionRows as exceptions">
+      <div class="kp-scroll"><table class="kp-exceptions"><thead><tr><th>Order / report time</th><th>Items / quantity</th><th>KPT</th><th>Rider wait</th><th>Excess wait</th><th>Ready marked</th><th>Rating / review / complaint</th><th>Order value</th></tr></thead><tbody>
+        <tr *ngFor="let order of exceptions.slice((exceptionPage - 1) * pageSize, exceptionPage * pageSize)">
+          <td>#{{ order.orderId }}<small>{{ order.placedAt ? (order.placedAt.slice(0, 10) + ' ' + order.placedAt.slice(11, 16)) : 'Unknown time' }}</small></td>
+          <td>{{ order.itemsText || 'Unknown items' }}<small>{{ order.quantity }} total / {{ order.distinctItems }} distinct · {{ order.deliveryType || 'Unknown delivery type' }}</small></td>
+          <td [class.kp-error]="(validTiming(order, 'kptMinutes') ?? 0) > targets.kpt">{{ minutes(validTiming(order, 'kptMinutes')) }}<small *ngIf="order.kptStatus !== 'valid'">{{ order.kptStatus }}</small></td>
+          <td [class.kp-error]="(validTiming(order, 'riderWaitMinutes') ?? 0) > targets.riderWait">{{ minutes(validTiming(order, 'riderWaitMinutes')) }}<small *ngIf="order.riderWaitStatus !== 'valid'">{{ order.riderWaitStatus }}</small></td>
+          <td>{{ minutes(excessWait(order)) }}</td><td>{{ markingLabel(order.readyMarked) }}<small>{{ order.readyMarked || 'Not recorded' }}</small></td>
+          <td>{{ order.rating === null ? 'Unrated' : order.rating + ' stars' }}<small>{{ order.review || 'No written review' }}</small><small *ngIf="order.complaint">Complaint: {{ order.complaint }}</small></td>
+          <td>{{ order.orderValue | currency:'INR':'symbol':'1.2-2':'en-IN' }}</td>
+        </tr><tr *ngIf="!exceptions.length"><td colspan="8">No orders exceed the selected targets and filters.</td></tr>
+      </tbody></table></div>
+      <div class="kp-pagination"><span>{{ exceptions.length }} exceptions · Page {{ exceptionPage }} / {{ pages(exceptions.length) }}</span><button type="button" class="secondary" [disabled]="exceptionPage <= 1" (click)="exceptionPage = exceptionPage - 1">Previous</button><button type="button" class="secondary" [disabled]="exceptionPage >= pages(exceptions.length)" (click)="exceptionPage = exceptionPage + 1">Next</button></div>
+    </ng-container>
+  </section>
+</ng-container>

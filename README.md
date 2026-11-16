@@ -26,6 +26,59 @@ Each parse is now persisted outlet-wise in the
 database by report period, and admins can delete saved parser records for a
 specific date period directly from the parser tool.
 
+Use **Custom Range** beside the saved-period selector to open the compact date
+picker, select **From / To**, and click **Apply** to recalculate insights for
+an inclusive range of report-local order dates, combining saved uploads. Order
+IDs are deduplicated across overlapping uploads, with the latest uploaded row
+winning. New parses retain source rows in the same outlet-scoped snapshot; older
+summary-only snapshots must be re-uploaded once. Missing source coverage produces
+an explicit error rather than a partial report. Date-range views are read-only
+and do not create or delete snapshots.
+
+Order-level payout is filtered by order date, not bank transfer date. Additional
+adjustments and actual bank credit are shown only when the selection contains
+complete, non-overlapping source-report periods. For partial or overlapping
+periods these amounts are unavailable (not prorated or shown as zero).
+`GET /api/reports/zomato-sales-payout/insights/range?startDate=yyyy-MM-dd&endDate=yyyy-MM-dd`
+requires an admin and outlet context; incomplete source coverage returns HTTP 409.
+
+### Kitchen & Pickup Performance
+
+The parser's **Kitchen & Pickup** tab analyses delivered orders: mean, median,
+P90 (linear interpolation), fastest/slowest orders, fixed duration distributions,
+target breaches, daily trends, day-by-hour heatmaps, hourly volume and recurring
+delay signals. Its KPT-versus-wait scatter shows four investigation groups;
+the durations may overlap and are never added together.
+
+Editable cafe targets default to **20 minutes KPT / 5 minutes rider wait**;
+these are not Zomato SLAs. Targets apply to the current view, including its
+optional immediately preceding equal-length-period comparison. Comparison
+requires exact date coverage and reports unavailable data explicitly.
+Timing changes use minutes; breach-rate changes use percentage points.
+
+Cohorts cover items present, exact item/quantity combinations, total quantity,
+distinct items, basket size and delivery type, with searchable, paginated results
+and minimum-sample filters. Ready-marking groups and hourly marking issues,
+rating/complaint rates by delay bucket, and searchable/filterable delayed-order
+exceptions help investigate individual cases. Excess rider-wait minutes are
+operational totals, not monetary loss estimates.
+
+All metrics show sample counts. Zero waits are valid; blank and malformed/negative
+timings are distinguished and excluded from duration denominators. Missing dates,
+older source-validation coverage and small samples are flagged. Times remain
+report-local. Item timings describe whole orders containing the item, not its
+individual cooking time; rating/complaint associations do not establish causation.
+
+Timing facts are saved with new snapshots and recalculated for custom dates.
+Older snapshots lazily rebuild timing facts from retained source uploads without
+replacing their financial summaries. Latest uploads win for overlapping order IDs.
+Summary-only records need the original reports uploaded again; older retained
+sources also need re-uploading to fully recover malformed-input provenance.
+Missing source coverage is shown with an upload action, not an endless Retry
+prompt. Upload the original CSV and XLSX for the missing dates and click
+**Parse Reports** before requesting that range again. Missing comparison data
+does not block current-period analytics.
+
 ## Customer Access
 
 Customers can browse the menu and add items to the cart without signing in.
@@ -41,6 +94,10 @@ Drafts are held in memory only and are not retained across a browser reload.
 My Reservations is shown only when signed in; the API continues to require
 authentication for booking and private reservation access.
 The cart and selected table remain available when a customer signs in.
+
+In-app notifications target registered account IDs only. Guest placeholders
+(including `guest_dinein` and `guest_takeaway`) are skipped before preference
+lookups or notification writes; registered-user notification preferences still apply.
 
 ### My Profile
 

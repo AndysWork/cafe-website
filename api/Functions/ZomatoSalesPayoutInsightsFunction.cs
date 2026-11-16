@@ -106,7 +106,8 @@ public class ZomatoSalesPayoutInsightsFunction
 
             using var orderHistoryStream = new MemoryStream(orderHistoryPart.Data);
             using var settlementStream = new MemoryStream(settlementPart.Data);
-            var insights = await _insightService.GenerateInsightsAsync(orderHistoryStream, settlementStream);
+            var parsed = await _insightService.ParseReportAsync(orderHistoryStream, settlementStream);
+            var insights = parsed.Insights;
             if (!IstDateHelper.TryParseIsoDate(insights.Period.StartDate, out var periodStartDate) ||
                 !IstDateHelper.TryParseIsoDate(insights.Period.EndDate, out var periodEndDate))
             {
@@ -125,7 +126,8 @@ public class ZomatoSalesPayoutInsightsFunction
                 periodStartDate,
                 periodEndDate,
                 BsonDocument.Parse(JsonSerializer.Serialize(insights)),
-                userId ?? "system");
+                userId ?? "system",
+                BsonDocument.Parse(JsonSerializer.Serialize(parsed.SourceData)));
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
@@ -206,6 +208,63 @@ public class ZomatoSalesPayoutInsightsFunction
             _log.LogError(ex, "Error loading saved Zomato sales and payout insights.");
             var error = req.CreateResponse(HttpStatusCode.InternalServerError);
             await error.WriteAsJsonAsync(new { success = false, error = "Failed to load saved insights." });
+            return error;
+        }
+    }
+
+    [Function("GetZomatoSalesPayoutInsightsByDateRange")]
+    public async Task<HttpResponseData> GetZomatoSalesPayoutInsightsByDateRange(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "reports/zomato-sales-payout/insights/range")] HttpRequestData req,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var (isAuthorized, _, _, errorResponse) = await AuthorizationHelper.ValidateAdminRole(req, _auth);
+            if (!isAuthorized) return errorResponse!;
+
+            var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
+            if (string.IsNullOrWhiteSpace(outletId))
+            {
+                var badOutlet = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badOutlet.WriteAsJsonAsync(new { success = false, error = "Outlet context is required. Please select an outlet and try again." });
+                return badOutlet;
+            }
+
+            if (!IstDateHelper.TryParseIsoDate(req.Query["startDate"], out var startDate) ||
+                !IstDateHelper.TryParseIsoDate(req.Query["endDate"], out var endDate) || endDate < startDate)
+            {
+                var badRange = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRange.WriteAsJsonAsync(new
+                {
+                    success = false,
+                    error = "Select startDate and endDate in yyyy-MM-dd format, with endDate on or after startDate."
+                });
+                return badRange;
+            }
+
+            var records = await _mongo.GetZomatoSourceRecordsByPeriodAsync(outletId, startDate, endDate, cancellationToken);
+            ZomatoSalesPayoutInsightResult insights;
+            try
+            {
+                insights = _insightService.GenerateRangeInsights(records, startDate, endDate);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _log.LogWarning(ex, "Custom-date Zomato insights require complete source data.");
+                var conflict = req.CreateResponse(HttpStatusCode.Conflict);
+                await conflict.WriteAsJsonAsync(new { success = false, error = ex.Message });
+                return conflict;
+            }
+
+            var ok = req.CreateResponse(HttpStatusCode.OK);
+            await ok.WriteAsJsonAsync(new { success = true, data = insights });
+            return ok;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error calculating custom-date Zomato insights.");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { success = false, error = "Failed to calculate custom-date insights." });
             return error;
         }
     }

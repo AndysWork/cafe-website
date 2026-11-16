@@ -23,6 +23,10 @@ public class ZomatoSalesPayoutInsightRecord
     [BsonElement("insightsPayload")]
     public BsonDocument InsightsPayload { get; set; } = new();
 
+    [BsonElement("sourceData")]
+    [BsonIgnoreIfNull]
+    public BsonDocument? SourceData { get; set; }
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = MongoService.GetIstNow();
 
