@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Azure.Core.Serialization;
 using Cafe.Api.Functions;
+using Cafe.Api.Helpers;
 using Cafe.Api.Models;
 using Cafe.Api.Repositories;
 using Cafe.Api.Services;
@@ -9,6 +10,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using MongoDB.Bson;
 using Moq;
 using Xunit;
 
@@ -173,6 +175,9 @@ public sealed class ManagerDashboardTests
         finance.Setup(repository => repository.GetAllSalesAsync(OutletId, null, null))
             .ReturnsAsync(new List<Sales> { new() { Date = legacyDate, TotalAmount = 100 } });
         finance.Setup(repository => repository.GetAllExpensesAsync(OutletId, null, null)).ReturnsAsync(new List<Expense>());
+        finance.Setup(repository => repository.GetZomatoSourceRecordsByPeriodAsync(
+                OutletId, DateTime.MinValue, DateTime.MaxValue, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ZomatoSalesPayoutInsightRecord>());
         menu.Setup(repository => repository.GetMenuAsync(OutletId, null, null))
             .ReturnsAsync(new List<CafeMenuItem> { new() { Name = "Hidden Tea", IsVisibleToCustomers = false, IsAvailable = false } });
         inventory.Setup(repository => repository.GetAllAlertsAsync(OutletId))
@@ -211,6 +216,9 @@ public sealed class ManagerDashboardTests
             .ReturnsAsync(new List<Sales> { new() { Date = utcFrom, TotalAmount = 20 } });
         finance.Setup(repository => repository.GetDashboardExpensesAsync(OutletId, utcFrom, utcEnd))
             .ReturnsAsync(new List<Expense> { new() { Date = utcEnd.AddTicks(-1), Amount = 10 } });
+        finance.Setup(repository => repository.GetZomatoSourceRecordsByPeriodAsync(
+                OutletId, from, end.AddDays(-1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ZomatoSalesPayoutInsightRecord>());
         menu.Setup(repository => repository.GetMenuAsync(OutletId, null, null)).ReturnsAsync(new List<CafeMenuItem>());
         inventory.Setup(repository => repository.GetAllAlertsAsync(OutletId)).ReturnsAsync(new List<StockAlert>());
         _staff.Setup(repository => repository.GetAllTodayAttendanceAsync(OutletId)).ReturnsAsync(new List<Attendance>());
@@ -222,6 +230,84 @@ public sealed class ManagerDashboardTests
         Assert.Equal(10, Assert.Single(result.Expenses).Amount);
         finance.VerifyAll();
         finance.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RangeReaderMergesParsedZomatoOrdersOnceWithSettlementPayouts()
+    {
+        var finance = new Mock<IFinanceRepository>(MockBehavior.Strict);
+        var menu = new Mock<IMenuRepository>(MockBehavior.Strict);
+        var inventory = new Mock<IInventoryRepository>(MockBehavior.Strict);
+        var from = new DateTime(2025, 10, 26);
+        var end = new DateTime(2025, 10, 28);
+        var utcFrom = IstDateHelper.IstWallTimeToUtc(from);
+        var utcEnd = IstDateHelper.IstWallTimeToUtc(end);
+        OrderHistoryRow Order(string id, DateTime at, string items = "2 x Cold Coffee, 1 x Fries") => new()
+        {
+            OrderId = id, PlacedAt = at, Status = "Delivered", ItemsInOrder = items,
+            BillSubtotal = 300, RestaurantDiscountPromo = 30, Rating = 4, Review = "Nice"
+        };
+        static BsonDocument Serialize(ZomatoReportSourceData data) => BsonDocument.Parse(JsonSerializer.Serialize(data));
+        var older = new ZomatoSalesPayoutInsightRecord
+        {
+            Id = "a", UpdatedAt = new DateTime(2025, 11, 1), PeriodStartDate = from, PeriodEndDate = from.AddDays(1),
+            SourceData = Serialize(new ZomatoReportSourceData
+            {
+                Orders = { Order("Z1", from.AddHours(13), "9 x Stale") },
+                AdditionalDeductions = { new AdditionalDeductionRow { AdjustedAmount = 500 } }
+            })
+        };
+        var latest = new ZomatoSalesPayoutInsightRecord
+        {
+            Id = "b", UpdatedAt = new DateTime(2025, 11, 2), PeriodStartDate = from, PeriodEndDate = from.AddDays(1),
+            SourceData = Serialize(new ZomatoReportSourceData
+            {
+                AdditionalTotals =
+                {
+                    new AdditionalDeductionTotal { Label = "Total Deductions", AdjustedAmount = 120.456m },
+                    new AdditionalDeductionTotal { Label = "Total Additions", AdjustedAmount = 10 }
+                },
+                AdditionalDeductions = { new AdditionalDeductionRow { AdjustedAmount = 999 } },
+                Orders =
+                {
+                    Order("Z1", from.AddHours(13)), Order("LEGACY", from.AddHours(14)),
+                    Order("OUT", end.AddHours(1)), Order("Z2", from.AddDays(1).AddHours(20))
+                },
+                Settlements =
+                {
+                    new SettlementRow { OrderId = "Z1", OrderLevelPayout = 210, NetDeductions = 60 },
+                    new SettlementRow { OrderId = "CANCELLED", OrderDate = from.AddHours(9), OrderLevelPayout = 50 }
+                }
+            })
+        };
+        finance.Setup(repository => repository.GetDashboardOnlineSalesAsync(OutletId, from, end))
+            .ReturnsAsync(new List<OnlineSale> { new() { Platform = "zomato", OrderId = "LEGACY", OrderAt = from, Payout = 99 } });
+        finance.Setup(repository => repository.GetDashboardSalesAsync(OutletId, utcFrom, utcEnd)).ReturnsAsync(new List<Sales>());
+        finance.Setup(repository => repository.GetDashboardExpensesAsync(OutletId, utcFrom, utcEnd)).ReturnsAsync(new List<Expense>());
+        finance.Setup(repository => repository.GetZomatoSourceRecordsByPeriodAsync(
+                OutletId, from, end.AddDays(-1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ZomatoSalesPayoutInsightRecord> { older, latest });
+        menu.Setup(repository => repository.GetMenuAsync(OutletId, null, null)).ReturnsAsync(new List<CafeMenuItem>());
+        inventory.Setup(repository => repository.GetAllAlertsAsync(OutletId)).ReturnsAsync(new List<StockAlert>());
+        _staff.Setup(repository => repository.GetAllTodayAttendanceAsync(OutletId)).ReturnsAsync(new List<Attendance>());
+        var reader = new ManagerDashboardService(finance.Object, menu.Object, inventory.Object,
+            _staff.Object, NullLogger<ManagerDashboardService>.Instance);
+
+        var result = await reader.GetRangeAsync(OutletId, from, end, default);
+
+        Assert.Equal(new[] { "LEGACY", "CANCELLED", "Z1", "Z2" }, result.OnlineSales.Select(sale => sale.OrderId));
+        var z1 = result.OnlineSales.Single(sale => sale.OrderId == "Z1");
+        Assert.Equal("Zomato", z1.Platform);
+        Assert.Equal(210, z1.Payout);
+        Assert.Equal(60, z1.PlatformDeduction);
+        Assert.Equal(30, z1.DiscountAmount);
+        Assert.Equal(new[] { ("Cold Coffee", 2), ("Fries", 1) }, z1.OrderedItems.Select(item => (item.ItemName, item.Quantity)));
+        Assert.Equal(new DateTimeOffset(from.AddHours(13), TimeSpan.FromMinutes(330)), z1.OrderAt);
+        Assert.Equal(0, result.OnlineSales.Single(sale => sale.OrderId == "Z2").Payout);
+        Assert.Empty(result.OnlineSales.Single(sale => sale.OrderId == "CANCELLED").OrderedItems);
+        var adjustment = Assert.Single(result.ZomatoAdjustments!);
+        Assert.Equal(new DashboardZomatoAdjustmentResponse("2025-10-26", "2025-10-27", 120.46m, 10), adjustment);
+        Assert.Empty(result.UnavailableSources);
     }
 
     private static ManagerDashboardResponse EmptySnapshot() => new(

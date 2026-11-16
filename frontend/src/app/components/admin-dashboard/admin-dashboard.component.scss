@@ -46,6 +46,22 @@
   .command-notice button { border: 0; background: transparent; text-decoration: underline; font-weight: 700; }
   .command-kpis { display: grid; grid-template-columns: 1.15fr .85fr 1fr 1.2fr 1fr 1fr .95fr 1.2fr 1.2fr; gap: 7px; margin-bottom: 10px; }
   .collection-panel { margin-bottom: 10px; }
+  .revenue-breakdown { margin-bottom: 10px; padding: 10px; border: 1px solid #e0e9fa; border-radius: 10px; background: linear-gradient(145deg, #fff, #effbf3); box-shadow: 0 2px 4px #265ca512; }
+  .revenue-equation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .rev-term { display: flex; flex-direction: column; gap: 2px; min-width: 110px; padding: 7px 10px; border: 1px solid #dce7f8; border-radius: 8px; background: #fff; }
+  .rev-term span { font-size: 9px; font-weight: 700; color: var(--muted); }
+  .rev-term strong { font-size: 16px; color: var(--ink); }
+  .rev-term small { font-size: 8px; color: var(--muted); }
+  .rev-term.zomato { border-color: #ffc9d3; background: #fff6f8; }
+  .rev-term.total { border-color: #9fdb12; background: #f6ffd9; }
+  .rev-term.total strong { color: #0f7a1f; }
+  .rev-op { font-size: 18px; font-weight: 800; color: #5d6b85; }
+  .zomato-payout-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px; margin: 9px 0 0; }
+  .zomato-payout-detail > div { display: flex; justify-content: space-between; gap: 6px; padding: 6px 8px; border-radius: 6px; background: #ffffffb3; font-size: 9px; }
+  .zomato-payout-detail dt { color: var(--muted); }
+  .zomato-payout-detail dd { margin: 0; font-weight: 750; white-space: nowrap; }
+  .zomato-payout-detail .net { background: #fff0f3; }
+  .zomato-payout-detail .muted { opacity: .75; }
   .collection-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
   .command-kpi { display: flex; align-items: flex-start; gap: 8px; padding: 10px 8px; min-width: 0; border: 1px solid #e0e9fa; border-radius: 10px; background: linear-gradient(145deg, #fff, #f1f7ff); box-shadow: 0 2px 4px #265ca512; color: var(--ink); }
   .command-kpi.green { background: linear-gradient(145deg, #fff, #effbf3); }
@@ -247,6 +263,8 @@
     font-size: 12px;
     .desktop-copy, .secondary-kpi, .compare-control, .command-refresh, .desktop-quick { display: none; }
     .mobile-copy { display: inline; }
+    .rev-term { flex: 1 1 40%; min-width: 0; }
+    .rev-op { font-size: 14px; }
     .command-header { display: block; margin: -10px -10px 9px; padding: 12px 10px 9px; border-radius: 10px 10px 0 0; background: linear-gradient(125deg, #039bef, #0066bb); color: #fff; }
     .command-brand { gap: 8px; margin-bottom: 11px; }
     .dashboard-mark { width: 34px; height: 33px; border-radius: 8px; background: #2fb9f4; box-shadow: inset 0 0 0 1px #71d5ff; }

@@ -21,7 +21,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideHttpClient(withInterceptors([errorInterceptor, authInterceptor, outletInterceptor, analyticsInterceptor])),
     // Refresh existing workers too: their fetches retain the CSP from installation.
-    provideServiceWorker('ngsw-worker.js?policy=blob-images-v1', {
+    provideServiceWorker('ngsw-worker.js?policy=font-awesome-v2', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000'
     }),

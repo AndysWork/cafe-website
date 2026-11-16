@@ -7,10 +7,83 @@ import { getIstHour, getIstInputDate, getStoredTimestampEpoch } from '../../util
 
 export interface DashboardOnlineSale {
   platform: string;
+  orderId?: string;
   customerName?: string;
   orderAt: Date | string;
   orderedItems: Array<{ quantity: number; itemName: string }>;
+  billSubTotal?: number;
+  discountAmount?: number;
+  platformDeduction?: number;
   payout: number;
+}
+
+export interface DashboardZomatoAdjustment {
+  periodStart: string;
+  periodEnd: string;
+  additionalDeductions: number;
+  additionalAdditions: number;
+}
+
+export interface DashboardRevenueBreakdown {
+  webSales: number;
+  webOrders: number;
+  zomato: {
+    orders: number;
+    orderPayout: number;
+    platformDeductions: number;
+    additionalDeductions: number;
+    additionalAdditions: number;
+    netPayout: number;
+    reportsApplied: number;
+    partialReports: number;
+  };
+  swiggyPayout: number;
+  otherOnline: number;
+  offlineSales: number;
+  total: number;
+}
+
+/**
+ * Total Revenue = Web Sales + Zomato net payout (+ Swiggy, other online and recorded offline sales when present).
+ * Zomato report-level adjustments (ads etc.) apply only when the report period lies fully inside the range.
+ */
+export function calculateRevenueBreakdown(
+  onlineSales: DashboardOnlineSale[],
+  offlineSales: Sales[],
+  adjustments: DashboardZomatoAdjustment[],
+  start: string,
+  end: string
+): DashboardRevenueBreakdown {
+  const inRange = (date: string) => date >= start && date <= end;
+  const result: DashboardRevenueBreakdown = {
+    webSales: 0, webOrders: 0, swiggyPayout: 0, otherOnline: 0, offlineSales: 0, total: 0,
+    zomato: { orders: 0, orderPayout: 0, platformDeductions: 0, additionalDeductions: 0, additionalAdditions: 0, netPayout: 0, reportsApplied: 0, partialReports: 0 }
+  };
+  for (const sale of onlineSales) {
+    if (!inRange(dateKey(sale.orderAt))) continue;
+    const payout = Number(sale.payout) || 0;
+    const platform = (sale.platform || '').trim().toLowerCase();
+    if (platform === 'web sales') { result.webSales += payout; result.webOrders++; }
+    else if (platform === 'zomato') {
+      result.zomato.orders++;
+      result.zomato.orderPayout += payout;
+      result.zomato.platformDeductions += Number(sale.platformDeduction) || 0;
+    } else if (platform === 'swiggy') result.swiggyPayout += payout;
+    else result.otherOnline += payout;
+  }
+  for (const sale of offlineSales) {
+    if (inRange(dateKey(sale.date))) result.offlineSales += Number(sale.totalAmount) || 0;
+  }
+  for (const report of adjustments) {
+    if (report.periodStart >= start && report.periodEnd <= end) {
+      result.zomato.additionalDeductions += Number(report.additionalDeductions) || 0;
+      result.zomato.additionalAdditions += Number(report.additionalAdditions) || 0;
+      result.zomato.reportsApplied++;
+    } else if (report.periodStart <= end && report.periodEnd >= start) result.zomato.partialReports++;
+  }
+  result.zomato.netPayout = result.zomato.orderPayout - result.zomato.additionalDeductions + result.zomato.additionalAdditions;
+  result.total = result.webSales + result.zomato.netPayout + result.swiggyPayout + result.otherOnline + result.offlineSales;
+  return result;
 }
 
 export interface DashboardDay {
@@ -69,14 +142,71 @@ export interface DashboardItemSales {
   orders: number;
 }
 
+const normalizeItemName = (name: string): string => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+function platformLabel(platform: string): string {
+  const value = (platform || '').trim().toLowerCase();
+  return value === 'zomato' ? 'Zomato' : value === 'swiggy' ? 'Swiggy' : '';
+}
+
+/** Converts parsed/recorded platform sales into order-shaped rows so item and hourly analytics include them. */
+export function platformSalesAsOrders(onlineSales: DashboardOnlineSale[], menu: MenuItem[]): Map<Order, string> {
+  const byName = new Map<string, MenuItem>();
+  for (const item of menu) {
+    const key = normalizeItemName(item.name);
+    if (key && !byName.has(key)) byName.set(key, item);
+  }
+  const result = new Map<Order, string>();
+  onlineSales.forEach((sale, index) => {
+    const label = platformLabel(sale.platform);
+    const epoch = new Date(sale.orderAt).getTime();
+    if (!label || !Number.isFinite(epoch)) return;
+    const lines = (sale.orderedItems || [])
+      .filter(item => item.itemName?.trim() && item.quantity > 0)
+      .map(item => ({ item, product: byName.get(normalizeItemName(item.itemName)) }));
+    const weights = lines.map(line => line.item.quantity * (Number(line.product?.onlinePrice) || 0));
+    const priced = weights.every(weight => weight > 0);
+    const totalWeight = priced
+      ? weights.reduce((sum, weight) => sum + weight, 0)
+      : lines.reduce((sum, line) => sum + line.item.quantity, 0);
+    const subtotal = Number(sale.billSubTotal) || 0;
+    const order = {
+      id: `${label}-${sale.orderId || index}`,
+      status: 'delivered',
+      orderType: 'delivery',
+      createdAt: new Date(epoch).toISOString(),
+      createdAtIsUtc: true,
+      subtotal,
+      total: subtotal - (Number(sale.discountAmount) || 0),
+      items: lines.map((line, lineIndex) => {
+        const share = totalWeight ? (priced ? weights[lineIndex] : line.item.quantity) / totalWeight : 0;
+        const total = Math.round(subtotal * share * 100) / 100;
+        return {
+          menuItemId: line.product?.id || '',
+          name: line.product?.name?.trim() || line.item.itemName.trim(),
+          categoryName: line.product?.categoryName?.trim() || line.product?.category?.trim() || 'Uncategorized',
+          quantity: line.item.quantity,
+          price: line.item.quantity ? total / line.item.quantity : 0,
+          total
+        };
+      })
+    } as unknown as Order;
+    result.set(order, label);
+  });
+  return result;
+}
+
 export function calculateDashboardItemSales(
   orders: Order[], menu: MenuItem[], start: string, end: string,
-  search: string, category: string, source: string
+  search: string, category: string, source: string, onlineSales: DashboardOnlineSale[] = []
 ): DashboardItemSales {
   const catalog = new Map(menu.map(item => [item.id, item]));
   const query = search.trim().toLowerCase();
-  const filtered = orders.filter(order => !source || orderSource(order) === source).map(order => ({
+  const platformOrders = platformSalesAsOrders(onlineSales, menu);
+  const sourceOf = (order: Order): string => platformOrders.get(order) || orderSource(order);
+  const filtered = [...orders, ...platformOrders.keys()].filter(order => !source || sourceOf(order) === source).map(order => ({
     ...order,
+    dashboardSource: sourceOf(order),
     items: (order.items || []).map(item => {
       const product = catalog.get(item.menuItemId);
       return { ...item, categoryName: item.categoryName?.trim() || product?.categoryName?.trim() || product?.category?.trim() || 'Uncategorized' };
@@ -99,7 +229,7 @@ export function calculateDashboardItemSales(
       if (day) day.quantity += item.quantity;
       const key = `${item.name.trim().toLowerCase()}\u0000${item.categoryName.toLowerCase()}`;
       const mode = modes.get(key) || { dineIn: 0, takeaway: 0, delivery: 0 };
-      const orderMode = orderSource(order);
+      const orderMode = order.dashboardSource;
       if (orderMode === 'Dine-In') mode.dineIn += item.quantity;
       else if (orderMode === 'Takeaway') mode.takeaway += item.quantity;
       else mode.delivery += item.quantity;
@@ -129,12 +259,18 @@ export function calculateDashboardInsights(
   orders: Pick<Order, 'createdAt' | 'createdAtIsUtc' | 'status'>[],
   expenses: Expense[],
   periodDays: number,
-  today: string
+  today: string,
+  onlineSales: DashboardOnlineSale[] = []
 ): DashboardInsights {
   const start = shiftDate(today, 1 - periodDays);
   const previousStart = shiftDate(start, -periodDays);
   const hourlyOrders = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
-  for (const order of orders) {
+  const platformOrders = onlineSales
+    .filter(sale => platformLabel(sale.platform))
+    .map(sale => new Date(sale.orderAt).getTime())
+    .filter(epoch => Number.isFinite(epoch))
+    .map(epoch => ({ createdAt: new Date(epoch).toISOString(), createdAtIsUtc: true, status: 'delivered' as const }));
+  for (const order of [...orders, ...platformOrders]) {
     if (['cancelled', 'rejected'].includes((order.status || '').toLowerCase())) continue;
     if (!order.createdAt || /^\d{4}-\d{2}-\d{2}$/.test(order.createdAt.trim())) continue;
     const epoch = getStoredTimestampEpoch(order.createdAt, order.createdAtIsUtc);

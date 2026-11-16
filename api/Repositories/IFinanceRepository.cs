@@ -81,6 +81,7 @@ public interface IFinanceRepository
     // Online Sales
     Task<List<OnlineSale>> GetOnlineSalesAsync(string? platform = null, string? outletId = null, int? page = null, int? pageSize = null, bool includeWebSales = false);
     Task<List<OnlineSale>> GetDashboardOnlineSalesAsync(string outletId, DateTime startDate, DateTime endExclusive);
+    Task<List<ZomatoSalesPayoutInsightRecord>> GetZomatoSourceRecordsByPeriodAsync(string outletId, DateTime startDate, DateTime endDate, CancellationToken cancellationToken);
     Task<long> GetOnlineSalesCountAsync(string? platform = null, string? outletId = null, bool includeWebSales = false);
     Task<List<OnlineSale>> GetOnlineSalesByDateRangeAsync(string? platform, DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false);
     Task<List<DailyOnlineIncomeResponse>> GetDailyOnlineIncomeAsync(DateTime startDate, DateTime endDate, string? outletId = null, bool includeWebSales = false);

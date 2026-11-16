@@ -5,6 +5,22 @@
 - `frontend/`: Angular application
 - `api/`: Azure Functions (.NET) backend
 
+## Production CSP and service worker
+
+Deploy the frontend build and its `staticwebapp.config.json` together.
+Font Awesome loads from cdnjs; that origin is allowed in `style-src`,
+`font-src`, and `connect-src` because the Angular service worker fetches these
+assets too. Production critical-CSS inlining is disabled so Angular emits
+ordinary stylesheet links rather than CSP-blocked inline `onload` handlers;
+script and stylesheet minification remain enabled. Do not add `unsafe-inline`
+to `script-src` to work around stylesheet loading.
+
+The service-worker registration's policy version changes when its required CSP
+changes, since installed workers retain their installation-time policy.
+After deployment, the app applies downloaded updates on the next navigation
+rather than interrupting the current screen. If an old worker still controls
+the page, close the site's tabs and reopen it.
+
 ## Zomato Sales & Payout Parser
 
 Admin users can open **Tools → Zomato Sales & Payout Parser** and upload:
@@ -62,6 +78,20 @@ and minimum-sample filters. Ready-marking groups and hourly marking issues,
 rating/complaint rates by delay bucket, and searchable/filterable delayed-order
 exceptions help investigate individual cases. Excess rider-wait minutes are
 operational totals, not monetary loss estimates.
+
+The Admin Dashboard also includes saved Zomato parser reports. Delivered orders
+are merged into online sales (orders already present in legacy online sales are
+skipped), payouts come from matching settlement rows (0 until a settlement is
+uploaded), and settlement-only payouts are included. Platform items are
+categorized by matching menu names (unmatched items appear as "Uncategorized");
+per-item values are estimated from the order subtotal.
+
+The dashboard's **Total Revenue** card and breakdown panel show
+`Total Revenue = Web Sales + Zomato Net Payout` (plus Swiggy, other online and
+recorded offline sales when present). Zomato Net Payout = order-level payouts −
+report additional deductions (ads etc.) + additional additions. Weekly
+adjustments are applied only when the whole report period is inside the selected
+range; partially overlapping reports are flagged and never prorated.
 
 All metrics show sample counts. Zero waits are valid; blank and malformed/negative
 timings are distinguished and excluded from duration denominators. Missing dates,

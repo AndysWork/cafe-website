@@ -630,7 +630,7 @@ public partial class ZomatoSalesPayoutInsightService
                 acc.OrderIds.Add(order.OrderId);
                 if (quantityTotal > 0)
                 {
-                    var estimatedRevenue = order.Total * (item.Quantity / quantityTotal);
+                    var estimatedRevenue = order.Total * ((decimal)item.Quantity / quantityTotal);
                     acc.EstimatedRevenue += estimatedRevenue;
                 }
             }

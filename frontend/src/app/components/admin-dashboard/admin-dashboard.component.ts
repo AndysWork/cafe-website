@@ -12,7 +12,7 @@ import { forkJoin, Observable, of, Subscription, timer } from 'rxjs';
 import { catchError, distinctUntilChanged, filter, map } from 'rxjs/operators';
 import { AuthStore } from '../../store/auth.store';
 import { formatIstDate, getIstDateString, getIstInputDate, getStoredTimestampEpoch } from '../../utils/date-utils';
-import { calculateDashboardInsights, calculateDashboardItemSales, calculateDashboardOverview, DashboardDay, DashboardInsights, DashboardItemSales, DashboardOverview, DashboardSummary } from './dashboard-overview';
+import { calculateDashboardInsights, calculateDashboardItemSales, calculateDashboardOverview, calculateRevenueBreakdown, DashboardDay, DashboardInsights, DashboardItemSales, DashboardOverview, DashboardRevenueBreakdown, DashboardSummary, DashboardZomatoAdjustment } from './dashboard-overview';
 import { CafeTableService, CafeTableFloorView, FloorSummary } from '../../services/cafe-table.service';
 import { Attendance } from '../../services/attendance.service';
 import { StockAlert } from '../../services/inventory.service';
@@ -90,6 +90,7 @@ interface DashboardReadData {
   attendance: DashboardAttendance[] | null;
   stockAlerts: StockAlert[] | null;
   unavailableSources: string[];
+  zomatoAdjustments?: DashboardZomatoAdjustment[];
 }
 
 @Component({
@@ -142,7 +143,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   actionCategory: 'All' | ActionCategory = 'All';
   readonly actionCategories = ['All', 'Operations', 'Payments', 'Inventory', 'Staff'] as const;
   readonly orderStatuses = ['', 'pending', 'confirmed', 'scheduled', 'preparing', 'ready', 'out-for-delivery', 'served', 'delivered', 'cancelled', 'rejected'];
-  readonly itemSources = ['Dine-In', 'Takeaway', 'Website', 'Phone', 'Partner', 'Other'];
+  readonly itemSources = ['Dine-In', 'Takeaway', 'Website', 'Phone', 'Partner', 'Zomato', 'Swiggy', 'Other'];
   expandedPanels = new Set<string>();
   isCompact = window.innerWidth <= 767;
   itemCategoryOptions: string[] = [];
@@ -189,7 +190,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   get commandCards() {
     return [
-      { label: 'Net Sales', icon: 'rupee', tone: 'green', value: this.overview.current.revenue, currency: true, change: this.changeFor('revenue'), detail: 'Recorded payouts + offline sales' },
+      { label: 'Total Revenue', icon: 'rupee', tone: 'green', value: this.revenueBreakdown.total, currency: true, change: this.revenueChange, detail: 'Web Sales + Zomato net payout' },
       { label: 'Sales Records', icon: 'cart', tone: 'blue', value: this.overview.current.orders, currency: false, change: this.changeFor('orders'), detail: 'Online + offline records' },
       { label: 'Avg. Sale Value', icon: 'basket', tone: 'purple', value: this.overview.current.average, currency: true, change: this.changeFor('average'), detail: 'Per recorded sale' },
       { label: 'Gross Contribution', icon: 'chart', tone: 'green', value: null, currency: true, change: null, detail: 'Historical costs not tracked' },
@@ -202,6 +203,13 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
   trendMetric: 'revenue' | 'orders' | 'average' = 'revenue';
   overview: DashboardOverview = calculateDashboardOverview([], [], 30, getIstDateString());
+  zomatoAdjustments: DashboardZomatoAdjustment[] = [];
+  revenueBreakdown: DashboardRevenueBreakdown = calculateRevenueBreakdown([], [], [], '', '');
+  previousRevenueBreakdown: DashboardRevenueBreakdown = this.revenueBreakdown;
+  get revenueChange(): number | null {
+    const previous = this.previousRevenueBreakdown.total;
+    return previous ? (this.revenueBreakdown.total - previous) / Math.abs(previous) * 100 : null;
+  }
   insights: DashboardInsights = calculateDashboardInsights([], [], 30, getIstDateString());
   readonly overviewCards: { key: keyof DashboardSummary; label: string; icon: string; color: string; currency: boolean }[] = [
     { key: 'revenue', label: 'Total Revenue', icon: '💰', color: 'green', currency: true },
@@ -352,6 +360,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         this.menuItems = data.readData.menuItems;
         this.onlineSales = data.readData.onlineSales;
         this.offlineSales = data.readData.offlineSales;
+        this.zomatoAdjustments = data.readData.zomatoAdjustments || [];
         this.expenses = data.readData.expenses;
         this.operations = data.operations;
         this.floor = data.floor;
@@ -456,7 +465,11 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     const end = this.rangeEnd;
     const start = this.rangeStart;
     this.overview = calculateDashboardOverview(this.onlineSales, this.offlineSales, this.periodDays, end);
-    this.insights = calculateDashboardInsights(this.allOrders, this.expenses, this.periodDays, end);
+    const shift = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+    this.revenueBreakdown = calculateRevenueBreakdown(this.onlineSales, this.offlineSales, this.zomatoAdjustments, start, end);
+    this.previousRevenueBreakdown = calculateRevenueBreakdown(
+      this.onlineSales, this.offlineSales, this.zomatoAdjustments, shift(start, -this.periodDays), shift(start, -1));
+    this.insights = calculateDashboardInsights(this.allOrders, this.expenses, this.periodDays, end, this.onlineSales);
     this.periodOrders = this.allOrders.filter(order => {
       const epoch = getStoredTimestampEpoch(order.createdAt, order.createdAtIsUtc);
       if (!epoch) return false;
@@ -464,7 +477,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       return date >= start && date <= end;
     });
     this.appOverview = calculateWebSalesOverview(this.periodOrders, start, end);
-    const unfilteredItems = calculateDashboardItemSales(this.periodOrders, this.menuItems, start, end, '', '', '');
+    const unfilteredItems = calculateDashboardItemSales(this.periodOrders, this.menuItems, start, end, '', '', '', this.onlineSales);
     this.itemCategoryOptions = unfilteredItems.categories.map(category => category.name).sort();
     if (this.itemSearch || this.itemCategory || this.itemSource) this.refreshItemSales();
     else this.itemSales = unfilteredItems;
@@ -642,7 +655,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   refreshItemSales(): void {
     this.itemSales = calculateDashboardItemSales(this.periodOrders, this.menuItems, this.rangeStart, this.rangeEnd,
-      this.itemSearch, this.itemCategory, this.itemSource);
+      this.itemSearch, this.itemCategory, this.itemSource, this.onlineSales);
   }
 
   get topItemsByRevenue() { return [...this.itemSales.rows].sort((a, b) => b.value - a.value).slice(0, 5); }

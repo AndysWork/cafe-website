@@ -8,7 +8,12 @@ public sealed record ManagerDashboardResponse(
     IReadOnlyList<DashboardExpenseResponse> Expenses,
     IReadOnlyList<DashboardAttendanceResponse>? Attendance,
     IReadOnlyList<DashboardStockAlertResponse>? StockAlerts,
-    IReadOnlyList<string> UnavailableSources);
+    IReadOnlyList<string> UnavailableSources,
+    IReadOnlyList<DashboardZomatoAdjustmentResponse>? ZomatoAdjustments = null);
+
+/// <summary>Report-level Zomato additional deductions/additions (e.g. ads) for one uploaded settlement period.</summary>
+public sealed record DashboardZomatoAdjustmentResponse(
+    string PeriodStart, string PeriodEnd, decimal AdditionalDeductions, decimal AdditionalAdditions);
 
 /// <summary>Catalog identity and availability, including items hidden from customers.</summary>
 public sealed record DashboardMenuItemResponse(string Id, string Name, string CategoryId, string Category, decimal OnlinePrice, bool IsAvailable);

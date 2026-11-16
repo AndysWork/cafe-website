@@ -37,16 +37,40 @@ public sealed class ManagerDashboardService(
         var items = menu.GetMenuAsync(outletId);
         var attendance = ReadOptional(() => staff.GetAllTodayAttendanceAsync(outletId), "Staff attendance");
         var alerts = ReadOptional(() => inventory.GetAllAlertsAsync(outletId), "Stock alerts");
-        await Task.WhenAll(online, offline, expenses, items, attendance, alerts).WaitAsync(cancellationToken);
+        var zomatoStart = startDate ?? DateTime.MinValue;
+        var zomatoEndExclusive = endExclusive ?? DateTime.MaxValue;
+        var zomatoReports = ReadOptional(() => finance.GetZomatoSourceRecordsByPeriodAsync(
+            outletId, zomatoStart, endExclusive?.AddDays(-1) ?? DateTime.MaxValue, cancellationToken), "Zomato parser reports");
+        await Task.WhenAll(online, offline, expenses, items, attendance, alerts, zomatoReports).WaitAsync(cancellationToken);
         var attendanceResult = await attendance;
         var alertsResult = await alerts;
+        var zomatoReportsResult = await zomatoReports;
         var unavailable = new List<string>();
         if (attendanceResult == null) unavailable.Add("Staff attendance");
         if (alertsResult == null) unavailable.Add("Stock alerts");
+        var onlineSales = await online;
+        IReadOnlyList<DashboardZomatoAdjustmentResponse> zomatoAdjustments = [];
+        if (zomatoReportsResult == null) unavailable.Add("Zomato parser reports");
+        else if (zomatoReportsResult.Count > 0)
+        {
+            try
+            {
+                onlineSales = onlineSales.Concat(ZomatoSalesPayoutInsightService.ToDashboardOnlineSales(
+                    zomatoReportsResult, zomatoStart, zomatoEndExclusive,
+                    onlineSales.Where(sale => string.Equals(sale.Platform, "Zomato", StringComparison.OrdinalIgnoreCase))
+                        .Select(sale => sale.OrderId))).ToList();
+                zomatoAdjustments = ZomatoSalesPayoutInsightService.ToDashboardAdjustments(zomatoReportsResult);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogError(exception, "Unable to merge Zomato parser reports into the Manager dashboard");
+                unavailable.Add("Zomato parser reports");
+            }
+        }
         return new(
             (await items).Select(item => new DashboardMenuItemResponse(item.Id, item.Name,
                 item.CategoryId ?? "", item.Category, item.OnlinePrice, item.IsAvailable)).ToArray(),
-            (await online).Select(sale => new DashboardOnlineSaleResponse(
+            onlineSales.Select(sale => new DashboardOnlineSaleResponse(
                 sale.Platform, sale.OrderId, sale.CustomerName, Timestamp(sale.OrderAt),
                 sale.OrderedItems.Select(item => new DashboardOrderedItemResponse(item.ItemName, item.Quantity)).ToArray(),
                 sale.BillSubTotal, sale.PackagingCharges, sale.DiscountAmount, sale.Payout,
@@ -66,7 +90,8 @@ public sealed class ManagerDashboardService(
             alertsResult?.Select(alert => new DashboardStockAlertResponse(
                 alert.Id, alert.InventoryId, alert.IngredientName, alert.Type.ToString(), alert.Severity.ToString(),
                 alert.Message, alert.IsResolved, Timestamp(alert.CreatedAt))).ToArray(),
-            unavailable);
+            unavailable,
+            zomatoAdjustments);
     }
 
     private async Task<List<T>?> ReadOptional<T>(Func<Task<List<T>>> read, string source)

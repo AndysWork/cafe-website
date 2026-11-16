@@ -1,12 +1,33 @@
 import { Sales } from '../../services/sales.service';
 import { Expense } from '../../services/expense.service';
-import { calculateDashboardInsights, calculateDashboardItemSales, calculateDashboardOverview, DashboardOnlineSale } from './dashboard-overview';
+import { calculateDashboardInsights, calculateDashboardItemSales, calculateDashboardOverview, calculateRevenueBreakdown, DashboardOnlineSale } from './dashboard-overview';
 import { Order } from '../../services/order.service';
 import { MenuItem } from '../../services/menu.service';
 
 describe('admin dashboard overview', () => {
   const online = (orderAt: string, payout: number, platform: string, customerName: string, itemName = 'Mojito'): DashboardOnlineSale => ({
     orderAt, payout, platform, customerName, orderedItems: [{ itemName, quantity: 2 }]
+  });
+
+  it('builds total revenue from web sales and Zomato net payout, applying only fully covered report adjustments', () => {
+    const zomato = { ...online('2025-10-27T12:00:00+05:30', 300, 'Zomato', 'Z'), platformDeduction: 80 };
+    const sales = [online('2025-10-26T10:00:00+05:30', 200, 'Web Sales', 'W'), zomato,
+      online('2025-11-05T10:00:00+05:30', 999, 'Zomato', 'Out of range')];
+    const adjustments = [
+      { periodStart: '2025-10-26', periodEnd: '2025-11-01', additionalDeductions: 50, additionalAdditions: 10 },
+      { periodStart: '2025-11-02', periodEnd: '2025-11-08', additionalDeductions: 70, additionalAdditions: 0 }
+    ];
+
+    const week = calculateRevenueBreakdown(sales, [], adjustments, '2025-10-26', '2025-11-01');
+    expect(week.webSales).toBe(200);
+    expect(week.zomato).toEqual({ orders: 1, orderPayout: 300, platformDeductions: 80, additionalDeductions: 50,
+      additionalAdditions: 10, netPayout: 260, reportsApplied: 1, partialReports: 0 });
+    expect(week.total).toBe(460);
+
+    const partial = calculateRevenueBreakdown(sales, [], adjustments, '2025-10-27', '2025-11-03');
+    expect(partial.zomato.additionalDeductions).toBe(0);
+    expect(partial.zomato.partialReports).toBe(2);
+    expect(partial.total).toBe(300);
   });
 
   describe('admin dashboard item sales', () => {
@@ -53,6 +74,36 @@ describe('admin dashboard overview', () => {
       expect(result.days[0]).toEqual({ date: '2025-12-02', quantity: 4 });
       expect(result.days.reduce((sum, day) => sum + day.quantity, 0)).toBe(result.quantity);
       expect(result.quantity).toBe(4);
+    });
+
+    it('adds parsed Zomato items as delivery rows with menu categories and price-weighted values', () => {
+      const zomato: DashboardOnlineSale[] = [
+        { platform: 'Zomato', orderId: 'Z1', orderAt: '2026-03-01T13:00:00+05:30', payout: 120, billSubTotal: 200,
+          orderedItems: [{ itemName: 'milk-tea', quantity: 2 }, { itemName: 'Mystery Wrap', quantity: 1 }] },
+        { platform: 'Web Sales', orderId: 'W1', orderAt: '2026-03-01T13:00:00+05:30', payout: 90, billSubTotal: 100,
+          orderedItems: [{ itemName: 'Milk Tea', quantity: 5 }] },
+        { platform: 'Zomato', orderId: 'OLD', orderAt: '2026-02-28T13:00:00+05:30', payout: 50, billSubTotal: 50,
+          orderedItems: [{ itemName: 'Milk Tea', quantity: 1 }] }
+      ];
+      const result = calculateDashboardItemSales([order()], menu, '2026-03-01', '2026-03-01', '', '', '', zomato);
+      expect(result.orders).toBe(2);
+      expect(result.rows.find(row => row.name === 'Milk Tea')).toEqual(jasmine.objectContaining({
+        quantity: 4, orders: 2, dineIn: 2, delivery: 2 }));
+      expect(result.rows.find(row => row.name === 'Milk Tea')!.value).toBeCloseTo(233.33, 2);
+      expect(result.rows.find(row => row.name === 'Mystery Wrap')).toEqual(jasmine.objectContaining({
+        category: 'Uncategorized', quantity: 1, delivery: 1 }));
+      const onlyZomato = calculateDashboardItemSales([order()], menu, '2026-03-01', '2026-03-01', '', '', 'Zomato', zomato);
+      expect(onlyZomato.quantity).toBe(3);
+      expect(onlyZomato.orders).toBe(1);
+    });
+
+    it('counts platform orders in hourly demand without double counting web sales', () => {
+      const insights = calculateDashboardInsights([], [], 1, '2026-03-01', [
+        { platform: 'Zomato', orderAt: '2026-03-01T13:10:00+05:30', payout: 1, orderedItems: [] },
+        { platform: 'Web Sales', orderAt: '2026-03-01T13:10:00+05:30', payout: 1, orderedItems: [] }
+      ]);
+      expect(insights.hourlyOrders[13].count).toBe(1);
+      expect(insights.peakHours).toEqual([13]);
     });
   });
   const offline = (date: string, totalAmount: number, itemName = 'Mojito'): Sales => ({

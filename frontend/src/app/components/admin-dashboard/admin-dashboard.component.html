@@ -57,6 +57,37 @@
           <div class="kpi-content"><span>{{ card.label }}</span><strong>{{ card.value === null ? '—' : (card.currency ? '₹' : '') + (card.value | number:'1.0-0') }}</strong><small *ngIf="showComparison && card.change !== null; else kpiDetail" class="metric-change" [class.negative]="card.change! < 0">{{ card.change! < 0 ? '↓' : '↑' }} {{ (card.change! < 0 ? -card.change! : card.change!) | number:'1.0-1' }}% <span class="desktop-copy">vs prev</span></small><ng-template #kpiDetail><small class="metric-detail">{{ card.detail }}</small></ng-template></div>
         </article>
       </div>
+      <section class="revenue-breakdown" aria-label="Total revenue breakdown">
+        <div class="revenue-equation">
+          <div class="rev-term"><span>Web Sales</span><strong>₹{{ revenueBreakdown.webSales | number:'1.0-0' }}</strong><small>{{ revenueBreakdown.webOrders }} app orders</small></div>
+          <span class="rev-op" aria-hidden="true">+</span>
+          <div class="rev-term zomato"><span>Zomato Net Payout</span><strong>₹{{ revenueBreakdown.zomato.netPayout | number:'1.0-0' }}</strong><small>{{ revenueBreakdown.zomato.orders }} orders</small></div>
+          <ng-container *ngIf="revenueBreakdown.swiggyPayout">
+            <span class="rev-op" aria-hidden="true">+</span>
+            <div class="rev-term"><span>Swiggy Payout</span><strong>₹{{ revenueBreakdown.swiggyPayout | number:'1.0-0' }}</strong></div>
+          </ng-container>
+          <ng-container *ngIf="revenueBreakdown.otherOnline">
+            <span class="rev-op" aria-hidden="true">+</span>
+            <div class="rev-term"><span>Other Online</span><strong>₹{{ revenueBreakdown.otherOnline | number:'1.0-0' }}</strong></div>
+          </ng-container>
+          <ng-container *ngIf="revenueBreakdown.offlineSales">
+            <span class="rev-op" aria-hidden="true">+</span>
+            <div class="rev-term"><span>Recorded Offline</span><strong>₹{{ revenueBreakdown.offlineSales | number:'1.0-0' }}</strong></div>
+          </ng-container>
+          <span class="rev-op" aria-hidden="true">=</span>
+          <div class="rev-term total"><span>Total Revenue</span><strong>₹{{ revenueBreakdown.total | number:'1.0-0' }}</strong><small>{{ rangeLabel }}</small></div>
+        </div>
+        <dl class="zomato-payout-detail" *ngIf="revenueBreakdown.zomato.orders || revenueBreakdown.zomato.reportsApplied">
+          <div><dt>Zomato order payouts</dt><dd>₹{{ revenueBreakdown.zomato.orderPayout | number:'1.2-2' }}</dd></div>
+          <div><dt>− Additional deductions (ads etc.)</dt><dd>₹{{ revenueBreakdown.zomato.additionalDeductions | number:'1.2-2' }}</dd></div>
+          <div *ngIf="revenueBreakdown.zomato.additionalAdditions"><dt>+ Additional additions</dt><dd>₹{{ revenueBreakdown.zomato.additionalAdditions | number:'1.2-2' }}</dd></div>
+          <div class="net"><dt>= Zomato net payout</dt><dd>₹{{ revenueBreakdown.zomato.netPayout | number:'1.2-2' }}</dd></div>
+          <div class="muted"><dt>Commission, fees &amp; taxes (already deducted)</dt><dd>₹{{ revenueBreakdown.zomato.platformDeductions | number:'1.2-2' }}</dd></div>
+        </dl>
+        <p class="data-note" *ngIf="revenueBreakdown.zomato.partialReports">
+          {{ revenueBreakdown.zomato.partialReports }} uploaded Zomato report{{ revenueBreakdown.zomato.partialReports > 1 ? 's' : '' }} only partly overlap{{ revenueBreakdown.zomato.partialReports > 1 ? '' : 's' }} this range, so {{ revenueBreakdown.zomato.partialReports > 1 ? 'their' : 'its' }} weekly additional deductions are not included (they are never prorated). Choose a range covering the full report period for the exact bank credit.
+        </p>
+      </section>
       <section class="collection-panel" aria-label="Recorded Cash and UPI collections" [attr.aria-busy]="collectionLoading">
         <div class="collection-metrics">
           <article class="command-kpi green collection-card">
@@ -180,9 +211,9 @@
             </div>
             <div class="item-insights-bottom"><div class="data-table-wrap"><table class="item-sales-table"><caption class="sr-only">App item sales for {{ rangeLabel }}</caption><thead><tr><th>#</th><th>Item Name</th><th>Category</th><th>Qty Sold</th><th>Orders</th><th>Dine-In</th><th>Takeaway</th><th>Delivery / Other</th><th>Item Value</th><th>Avg. Price</th></tr></thead><tbody><tr *ngFor="let row of itemSales.rows | slice:0:8; let i = index"><td>{{ i + 1 }}</td><td>{{ row.name }}</td><td><span class="category-pill">{{ row.category }}</span></td><td>{{ row.quantity }}</td><td>{{ row.orders }}</td><td>{{ row.dineIn }}</td><td>{{ row.takeaway }}</td><td>{{ row.delivery }}</td><td>₹{{ row.value | number:'1.0-0' }}</td><td>₹{{ (row.quantity ? row.value / row.quantity : 0) | number:'1.0-1' }}</td></tr><tr *ngIf="!itemSales.rows.length"><td colspan="10" class="dc-empty">No items match these filters.</td></tr></tbody></table></div>
               <div class="category-performance"><h3>Category Performance</h3><div *ngFor="let category of itemSales.categories | slice:0:5"><span>{{ category.name }}</span><i><b [style.width.%]="itemSales.quantity ? category.quantity / itemSales.quantity * 100 : 0"></b></i><strong>{{ category.quantity | number }}</strong></div></div>
-              <div class="mini-hourly"><h3>Hourly Demand (App Orders)</h3><div class="mini-hour-bars"><span *ngFor="let bucket of insights.hourlyOrders" [style.height.%]="bucket.count / maxHourlyOrders * 100" [title]="formatHour(bucket.hour) + ': ' + bucket.count"></span></div><div class="mini-hour-labels"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span></div></div>
+              <div class="mini-hourly"><h3>Hourly Demand (App + Zomato/Swiggy)</h3><div class="mini-hour-bars"><span *ngFor="let bucket of insights.hourlyOrders" [style.height.%]="bucket.count / maxHourlyOrders * 100" [title]="formatHour(bucket.hour) + ': ' + bucket.count"></span></div><div class="mini-hour-labels"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span></div></div>
             </div>
-            <p class="data-note">App order items before order-level discounts and settlement. Cancelled orders excluded; imported platform/offline item prices are not estimated. Hourly demand covers all app orders in the period.</p>
+            <p class="data-note">App order items before order-level discounts and settlement, plus Zomato/Swiggy items from uploaded reports (value estimated by splitting the bill subtotal by menu price; unmatched names are Uncategorized). Cancelled orders excluded. Hourly demand covers app and platform orders in the period.</p>
           </div>
         </section>
 
