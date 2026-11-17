@@ -95,6 +95,7 @@ public interface IOperationsRepository
     Task<List<CustomerSubscription>> GetCustomerSubscriptionsAsync(string? outletId = null, string? paymentStatus = null, int limit = 200);
     Task<CustomerSubscription?> GetCustomerSubscriptionByIdAsync(string id);
     Task<bool> UpdateCustomerSubscriptionAsync(string id, CustomerSubscription sub);
+    Task<int> ResumeDueSubscriptionPausesAsync(DateTime now);
 
     // Customer Segments
     Task<List<CustomerSegment>> GetCustomerSegmentsAsync(string? segment = null, int page = 1, int pageSize = 50);

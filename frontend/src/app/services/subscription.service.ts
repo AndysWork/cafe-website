@@ -5,6 +5,12 @@ import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
 
+export const SUBSCRIPTION_TERMS = [
+  { durationDays: 7, discountPercent: 3, pauseLimit: 1, maxPauseDays: 3 },
+  { durationDays: 14, discountPercent: 5, pauseLimit: 1, maxPauseDays: 5 },
+  { durationDays: 30, discountPercent: 10, pauseLimit: 2, maxPauseDays: 7 }
+] as const;
+
 export interface SubscriptionItem {
   menuItemId: string;
   menuItemName: string;
@@ -64,6 +70,10 @@ export interface CustomerSubscription {
   paymentReference?: string;
   pausedAt?: string;
   totalDaysPaused?: number;
+  pauseEndsAtUtc?: string;
+  pausesRemaining?: number;
+  pauseLimit?: number;
+  maxPauseDays?: number;
   createdAt?: string;
 }
 
@@ -167,8 +177,8 @@ export class SubscriptionService {
     );
   }
 
-  pauseSubscription(id: string): Observable<{ message: string; subscription: CustomerSubscription }> {
-    return this.http.post<{ message: string; subscription: CustomerSubscription }>(`${this.apiUrl}/subscriptions/${id}/pause`, {}).pipe(
+  pauseSubscription(id: string, days: number): Observable<{ message: string; subscription: CustomerSubscription }> {
+    return this.http.post<{ message: string; subscription: CustomerSubscription }>(`${this.apiUrl}/subscriptions/${id}/pause`, { days }).pipe(
       catchError(handleServiceError('SubscriptionService.pauseSubscription'))
     );
   }

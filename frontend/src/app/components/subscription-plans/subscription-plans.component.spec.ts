@@ -1,8 +1,8 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { ActivatedRoute, Params, Router, provideRouter } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
 import { SubscriptionPlansComponent } from './subscription-plans.component';
-import { SubscriptionPlan, SubscriptionService } from '../../services/subscription.service';
+import { CustomerSubscription, SubscriptionPlan, SubscriptionService } from '../../services/subscription.service';
 import { MenuItem, MenuService } from '../../services/menu.service';
 import { AuthStore } from '../../store/auth.store';
 import { AuthService } from '../../services/auth.service';
@@ -39,7 +39,7 @@ describe('Subscription plans presentation', () => {
     loggedIn = true;
     queryParams = new BehaviorSubject<Params>({});
     service = jasmine.createSpyObj<SubscriptionService>('SubscriptionService', [
-      'getPlans', 'getMySubscription', 'subscribe', 'createCustomCombo'
+      'getPlans', 'getMySubscription', 'subscribe', 'createCustomCombo', 'pauseSubscription', 'resumeSubscription'
     ]);
     service.getPlans.and.returnValue(of(plans));
     service.getMySubscription.and.returnValue(of({ active: null, history: [] }));
@@ -121,7 +121,7 @@ describe('Subscription plans presentation', () => {
     root.querySelector<HTMLButtonElement>('.btn-add-picker')!.click();
     await render();
     expect(component.getItemQuantity('coffee')).toBe(1);
-    expect(component.comboPricingSummary).toEqual({ gross: 2400, discount: 480, finalPayable: 1920 });
+    expect(component.comboPricingSummary).toEqual({ gross: 2400, discount: 240, finalPayable: 2160 });
     component.setTab('curated');
     component.setTab('custom');
     expect(component.getItemQuantity('coffee')).toBe(1);
@@ -139,7 +139,7 @@ describe('Subscription plans presentation', () => {
     expect(component.selectedPlanForCheckout).toBe(plans[0]);
     expect(component.checkoutName).toBe('Cafe Customer');
     expect(component.checkoutPhone).toBe('1234567890');
-    expect(component.getCuratedCalculatedPrice()).toEqual({ base: 1800, discount: 360, total: 1440, discountPct: 20 });
+    expect(component.getCuratedCalculatedPrice()).toEqual({ base: 1800, discount: 180, total: 1620, discountPct: 10 });
     expect(root.querySelector('.plan-modal-overlay')).not.toBeNull();
     expect(service.subscribe).not.toHaveBeenCalled();
     component.closePlanCheckout();
@@ -170,4 +170,110 @@ describe('Subscription plans presentation', () => {
     expect(root.querySelectorAll('.nav-tab-btn')[2].getAttribute('aria-pressed')).toBe('true');
     expect(service.getMySubscription).toHaveBeenCalledTimes(2);
   });
+
+  const activeSubscription = (overrides: Partial<CustomerSubscription> = {}): CustomerSubscription => ({
+    id: 'sub', userId: 'customer', planName: 'Lunch Box', amountPaid: 2600,
+    startDate: '2026-11-01T10:00:00', endDate: '2026-12-01T10:00:00',
+    status: 'active', durationDays: 30, pausesRemaining: 2, pauseLimit: 2, maxPauseDays: 7, ...overrides
+  });
+
+  it('submits the selected pause duration and displays remaining allowance and the IST resume time', async () => {
+    queryParams.next({ tab: 'my' });
+    const sub = activeSubscription();
+    service.getMySubscription.and.returnValue(of({ active: sub, history: [] }));
+    service.pauseSubscription.and.returnValue(of({ message: 'Paused for 3 days', subscription: {
+      ...sub, status: 'paused', pausesRemaining: 1, pauseEndsAtUtc: new Date(Date.now() + 3 * 86400000).toISOString()
+    } }));
+    spyOn(window, 'confirm').and.returnValue(true);
+    await render();
+    const root: HTMLElement = fixture.nativeElement;
+    const select = root.querySelector<HTMLSelectElement>('.pause-duration select')!;
+    select.value = select.options[2].value;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('.btn-sub-pause')!.click();
+    fixture.detectChanges();
+    expect(service.pauseSubscription).toHaveBeenCalledOnceWith('sub', 3);
+    expect(root.querySelector('.subscription-pause-policy')?.textContent).toContain('1 of 2 pauses remaining for this subscription');
+    expect(root.querySelector('.subscription-pause-policy')?.textContent).toContain('IST');
+    expect(root.querySelector('.subscription-pause-policy')?.textContent).toContain('Deliveries resume automatically');
+    expect(root.querySelector('.btn-sub-resume')).not.toBeNull();
+    fixture.destroy();
+  });
+
+  it('disables pausing when the subscription allowance has been used and rejects invalid durations', async () => {
+    queryParams.next({ tab: 'my' });
+    service.getMySubscription.and.returnValue(of({ active: activeSubscription({ pausesRemaining: 0 }), history: [] }));
+    await render();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector<HTMLButtonElement>('.btn-sub-pause')!.disabled).toBeTrue();
+    expect(root.querySelector<HTMLSelectElement>('.pause-duration select')!.disabled).toBeTrue();
+    component.pauseActiveSubscription();
+    expect(service.pauseSubscription).not.toHaveBeenCalled();
+    expect(ui.error).toHaveBeenCalledWith('You have used all pauses for this subscription.');
+    component.activeSubscription = activeSubscription();
+    component.pauseDays = 8;
+    component.pauseActiveSubscription();
+    expect(service.pauseSubscription).not.toHaveBeenCalled();
+    expect(ui.error).toHaveBeenCalledWith('Choose a pause duration between 1 and 7 days for this subscription.');
+  });
+
+  it('resumes early and displays the returned extended end date', async () => {
+    queryParams.next({ tab: 'my' });
+    const sub = activeSubscription({ status: 'paused', pausesRemaining: 1 });
+    service.getMySubscription.and.returnValue(of({ active: sub, history: [] }));
+    service.resumeSubscription.and.returnValue(of({ message: 'Extended by 2 days', subscription: {
+      ...sub, status: 'active', endDate: '2026-12-03T10:00:00', totalDaysPaused: 2
+    } }));
+    await render();
+    fixture.nativeElement.querySelector('.btn-sub-resume').click();
+    fixture.detectChanges();
+    expect(service.resumeSubscription).toHaveBeenCalledOnceWith('sub');
+    expect(component.activeSubscription?.endDate).toBe('2026-12-03T10:00:00');
+    expect(component.activeSubscription?.pausesRemaining).toBe(1);
+    expect(fixture.nativeElement.querySelector('.btn-sub-pause')).not.toBeNull();
+  });
+
+  it('reloads the subscription at its automatic-resume deadline', fakeAsync(() => {
+    const paused = activeSubscription({
+      status: 'paused', pauseEndsAtUtc: new Date(Date.now() + 2000).toISOString()
+    });
+    service.getMySubscription.and.returnValues(
+      of({ active: paused, history: [] }),
+      of({ active: activeSubscription({ totalDaysPaused: 1 }), history: [] })
+    );
+    fixture.detectChanges();
+    expect(component.activeSubscription?.status).toBe('paused');
+    tick(3001);
+    expect(service.getMySubscription).toHaveBeenCalledTimes(2);
+    expect(component.activeSubscription?.status).toBe('active');
+    fixture.destroy();
+  }));
+
+  for (const [days, percent, maxPauseDays, limit] of [[7, 3, 3, 1], [14, 5, 5, 1], [30, 10, 7, 2]]) {
+    it(`applies ${percent}% discount and ${maxPauseDays}-day pause options for the ${days}-day subscription`, async () => {
+      service.getMySubscription.and.returnValue(of({ active: activeSubscription({
+        durationDays: days, maxPauseDays, pauseLimit: limit, pausesRemaining: limit
+      }), history: [] }));
+      queryParams.next({ tab: 'my' });
+      await render();
+      const options = fixture.nativeElement.querySelectorAll('.pause-duration option') as NodeListOf<HTMLOptionElement>;
+      expect(options.length).toBe(maxPauseDays);
+      expect(component.pauseDays).toBe(maxPauseDays);
+      component.pauseDays = maxPauseDays + 1;
+      component.pauseActiveSubscription();
+      expect(service.pauseSubscription).not.toHaveBeenCalled();
+      component.openPlanCheckout(plans[0]);
+      component.checkoutDurationDays = days;
+      expect(component.getCuratedCalculatedPrice().discountPct).toBe(percent);
+      expect(component.getCuratedCalculatedPrice().total).toBeCloseTo(60 * days * (1 - percent / 100), 2);
+      component.comboDurationDays = days;
+      component.comboItems.set('coffee', { menuItem: coffee, quantity: 1 });
+      expect(component.comboPricingSummary.finalPayable).toBeCloseTo(80 * days * (1 - percent / 100), 2);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.plan-modal-overlay .duration-pill-selector').textContent).toContain('3% OFF');
+      expect(fixture.nativeElement.querySelector('.plan-modal-overlay .duration-pill-selector').textContent).toContain('5% OFF');
+      expect(fixture.nativeElement.querySelector('.plan-modal-overlay .duration-pill-selector').textContent).toContain('10% OFF');
+    });
+  }
 });

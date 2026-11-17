@@ -32,7 +32,7 @@ public class SubscriptionPlan : ISoftDeletable
     public decimal Price { get; set; }
 
     [BsonElement("durationDays")]
-    [Range(1, 365)]
+    [AllowedValues(7, 14, 30)]
     public int DurationDays { get; set; } = 30;
 
     [BsonElement("benefits")]
@@ -157,6 +157,24 @@ public class CustomerSubscription
     [BsonElement("totalDaysPaused")]
     public int TotalDaysPaused { get; set; }
 
+    [BsonElement("pauseEndsAtUtc")]
+    public DateTime? PauseEndsAtUtc { get; set; }
+
+    [BsonElement("pauseStartsUtc")]
+    public List<DateTime> PauseStartsUtc { get; set; } = new();
+
+    [BsonElement("revision")]
+    public int Revision { get; set; }
+
+    [BsonIgnore]
+    public int PauseLimit => SubscriptionTerms.ForExistingSubscription(DurationDays).PauseLimit;
+
+    [BsonIgnore]
+    public int MaxPauseDays => SubscriptionTerms.ForExistingSubscription(DurationDays).MaxPauseDays;
+
+    [BsonIgnore]
+    public int PausesRemaining => Math.Max(0, PauseLimit - SubscriptionPausePolicy.PausesUsed(this));
+
     [BsonElement("amountPaid")]
     public decimal AmountPaid { get; set; }
 
@@ -216,7 +234,7 @@ public class CreateSubscriptionPlanRequest
     [Range(1, 100000)]
     public decimal Price { get; set; }
 
-    [Range(1, 365)]
+    [AllowedValues(7, 14, 30)]
     public int DurationDays { get; set; } = 30;
 
     public List<string> Benefits { get; set; } = new();
@@ -260,7 +278,7 @@ public class CreateCustomComboSubscriptionRequest
 
     public List<string> DeliveryDays { get; set; } = new() { "Everyday" };
 
-    [Range(3, 365)]
+    [AllowedValues(7, 14, 30)]
     public int DurationDays { get; set; } = 30;
 
     [Required]
@@ -289,4 +307,11 @@ public class ConfirmSubscriptionPaymentRequest
 {
     [StringLength(100)]
     public string? PaymentReference { get; set; }
+}
+
+/// <summary>Pauses deliveries for one to seven days, with early resumption allowed.</summary>
+public sealed record PauseSubscriptionRequest
+{
+    [Range(1, SubscriptionPausePolicy.MaximumDays)]
+    public int Days { get; init; }
 }

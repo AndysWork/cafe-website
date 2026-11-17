@@ -308,6 +308,32 @@ The custom-combo introduction also links from curated plans to the live menu
 builder. Existing category filters, mobile selection/schedule steps, delivery
 options, checkout, payment requests, and subscription management remain available.
 
+New subscriptions and plans support only these durations, for both curated plans
+and custom combos:
+
+| Duration | Discount | Pauses per subscription | Maximum days per pause |
+| --- | --- | --- | --- |
+| 7 days | 3% | 1 | 3 |
+| 14 days | 5% | 1 | 5 |
+| 30 days | 10% | 2 | 7 |
+
+Pause allowances apply across the entire purchased subscription, not per month.
+Choose a duration in **My Subscriptions**; deliveries resume automatically at that
+deadline, or earlier using **Resume Deliveries**. The subscription end date extends
+by the days actually paused, rounded up for partial days and capped at the selected
+duration. Remaining pauses and the automatic-resume time (IST) appear beside the controls.
+Existing 7-, 14- and 30-day subscriptions use the new pause caps without changing
+paid amounts or stored discounts. Legacy non-standard durations retain a two-pause,
+seven-days-per-pause allowance; they cannot be purchased again.
+The backend enforces these limits, records pause history, and uses versioned
+updates to prevent duplicate extensions from simultaneous requests.
+`ResumeSubscriptionPauses` runs every minute; subscription reads also reconcile
+overdue pauses if the timer was delayed. Existing open pauses without a deadline
+are capped at their duration's pause limit. Completed pauses from before pause
+history was introduced cannot be counted retroactively against the allowance.
+The function host requires its normal storage connection
+for timer scheduling. Example API requests are in [subscriptions.http](api/subscriptions.http).
+
 ## Timezone Standard
 
 IST (India Standard Time) is the business timezone. Calendar dates and timestamp

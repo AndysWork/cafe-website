@@ -947,17 +947,18 @@ public partial class MongoService : IOperationsRepository
 
     public async Task<CustomerSubscription?> GetActiveSubscriptionAsync(string userId)
     {
-        return await _customerSubscriptions.Find(s =>
-            s.UserId == userId && (s.Status == "active" || s.Status == "paused") && s.EndDate >= GetIstNow())
-            .SortByDescending(s => s.CreatedAt)
-            .FirstOrDefaultAsync();
+        var now = GetIstNow();
+        var subscriptions = await GetUserSubscriptionsAsync(userId);
+        return subscriptions.FirstOrDefault(s =>
+            s.Status == "paused" || (s.Status == "active" && s.EndDate > now));
     }
 
     public async Task<List<CustomerSubscription>> GetUserSubscriptionsAsync(string userId)
     {
-        return await _customerSubscriptions.Find(s => s.UserId == userId)
+        var subscriptions = await _customerSubscriptions.Find(s => s.UserId == userId)
             .SortByDescending(s => s.CreatedAt)
             .ToListAsync();
+        return await RefreshSubscriptionPausesAsync(subscriptions);
     }
 
     public async Task<List<CustomerSubscription>> GetCustomerSubscriptionsAsync(string? outletId = null, string? paymentStatus = null, int limit = 200)
@@ -968,10 +969,11 @@ public partial class MongoService : IOperationsRepository
         if (!string.IsNullOrWhiteSpace(paymentStatus))
             filter &= Builders<CustomerSubscription>.Filter.Eq(s => s.PaymentStatus, paymentStatus);
 
-        return await _customerSubscriptions.Find(filter)
+        var subscriptions = await _customerSubscriptions.Find(filter)
             .SortByDescending(s => s.CreatedAt)
             .Limit(Math.Clamp(limit, 1, 500))
             .ToListAsync();
+        return await RefreshSubscriptionPausesAsync(subscriptions);
     }
 
     public async Task<CustomerSubscription?> GetCustomerSubscriptionByIdAsync(string id)
@@ -983,7 +985,9 @@ public partial class MongoService : IOperationsRepository
         {
             filter = Builders<CustomerSubscription>.Filter.Or(filter, Builders<CustomerSubscription>.Filter.Eq("_id", objId));
         }
-        return await _customerSubscriptions.Find(filter).FirstOrDefaultAsync();
+        var sub = await _customerSubscriptions.Find(filter).FirstOrDefaultAsync();
+        if (sub == null) return null;
+        return (await RefreshSubscriptionPausesAsync(new() { sub }))[0];
     }
 
     public async Task<bool> UpdateCustomerSubscriptionAsync(string id, CustomerSubscription sub)
@@ -996,8 +1000,51 @@ public partial class MongoService : IOperationsRepository
         {
             filter = Builders<CustomerSubscription>.Filter.Or(filter, Builders<CustomerSubscription>.Filter.Eq("_id", objId));
         }
+        var revisions = Builders<CustomerSubscription>.Filter;
+        filter &= sub.Revision == 0
+            ? revisions.Or(revisions.Eq(s => s.Revision, 0), revisions.Exists("revision", false))
+            : revisions.Eq(s => s.Revision, sub.Revision);
+        sub.Revision++;
         var result = await _customerSubscriptions.ReplaceOneAsync(filter, sub);
         return result.ModifiedCount > 0;
+    }
+
+    public async Task<int> ResumeDueSubscriptionPausesAsync(DateTime now)
+    {
+        var filter = Builders<CustomerSubscription>.Filter;
+        // Include old deadlines that now exceed the subscription's shorter pause cap.
+        var earliestCap = now.AddDays(-SubscriptionTerms.ForDuration(7).MaxPauseDays);
+        var due = await _customerSubscriptions.Find(filter.Eq(s => s.Status, "paused")
+            & (filter.Lte(s => s.PauseEndsAtUtc, Helpers.IstDateHelper.IstWallTimeToUtc(now))
+                | (filter.Ne(s => s.PauseEndsAtUtc, null) & filter.Lte(s => s.PausedAt, Helpers.IstDateHelper.IstWallTimeToUtc(earliestCap)))
+                | (filter.Eq(s => s.PauseEndsAtUtc, null) & filter.Lte(s => s.PausedAt, DateTime.SpecifyKind(earliestCap, DateTimeKind.Utc)))
+                | (filter.Eq(s => s.PausedAt, null) & filter.Lte(s => s.UpdatedAt, DateTime.SpecifyKind(earliestCap, DateTimeKind.Utc)))))
+            .ToListAsync();
+        var resumed = 0;
+        foreach (var sub in due)
+        {
+            if (!SubscriptionPausePolicy.IsDue(sub, now)) continue;
+            SubscriptionPausePolicy.Resume(sub, now);
+            if (await UpdateCustomerSubscriptionAsync(sub.Id!, sub)) resumed++;
+        }
+        return resumed;
+    }
+
+    private async Task<List<CustomerSubscription>> RefreshSubscriptionPausesAsync(List<CustomerSubscription> subscriptions)
+    {
+        var now = GetIstNow();
+        for (var index = 0; index < subscriptions.Count; index++)
+        {
+            var sub = subscriptions[index];
+            if (SubscriptionPausePolicy.IsDue(sub, now)) SubscriptionPausePolicy.Resume(sub, now);
+            else if (!SubscriptionPausePolicy.UpdateDeadline(sub)) continue;
+            if (!await UpdateCustomerSubscriptionAsync(sub.Id!, sub))
+            {
+                subscriptions[index] = await _customerSubscriptions.Find(s => s.Id == sub.Id).FirstOrDefaultAsync()
+                    ?? throw new InvalidOperationException("Subscription was removed while resuming its pause.");
+            }
+        }
+        return subscriptions;
     }
 
     #endregion

@@ -1,0 +1,32 @@
+@baseUrl = http://localhost:7071/api
+@token = replace-with-customer-token
+@subscriptionId = replace-with-subscription-id
+
+### Pause (7-day subscription: 1 pause/3 days; 14-day: 1/5; 30-day: 2/7)
+POST {{baseUrl}}/subscriptions/{{subscriptionId}}/pause
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "days": 3
+}
+
+### Invalid duration: 400
+POST {{baseUrl}}/subscriptions/{{subscriptionId}}/pause
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "days": 8
+}
+
+### Resume early; partial days round up, capped at the selected pause duration
+POST {{baseUrl}}/subscriptions/{{subscriptionId}}/resume
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### Includes lifetime pausesRemaining, pauseLimit, maxPauseDays and the UTC automatic-resume timestamp
+GET {{baseUrl}}/subscriptions/my
+Authorization: Bearer {{token}}

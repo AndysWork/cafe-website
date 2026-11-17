@@ -105,7 +105,7 @@ public class SubscriptionFunction
                 DurationDays = request.DurationDays > 0 ? request.DurationDays : 30,
                 Benefits = request.Benefits?.Select(InputSanitizer.Sanitize).ToList() ?? new List<string>(),
                 FreeDelivery = request.FreeDelivery,
-                DiscountPercent = request.DiscountPercent,
+                DiscountPercent = SubscriptionTerms.ForDuration(request.DurationDays).DiscountPercent,
                 DailyItemLimit = request.DailyItemLimit,
                 BadgeText = request.BadgeText,
                 ImageUrl = request.ImageUrl,
@@ -165,7 +165,7 @@ public class SubscriptionFunction
             existing.DurationDays = request.DurationDays > 0 ? request.DurationDays : 30;
             existing.Benefits = request.Benefits?.Select(InputSanitizer.Sanitize).ToList() ?? new List<string>();
             existing.FreeDelivery = request.FreeDelivery;
-            existing.DiscountPercent = request.DiscountPercent;
+            existing.DiscountPercent = SubscriptionTerms.ForDuration(request.DurationDays).DiscountPercent;
             existing.DailyItemLimit = request.DailyItemLimit;
             existing.BadgeText = request.BadgeText;
             existing.ImageUrl = request.ImageUrl;
@@ -265,15 +265,19 @@ public class SubscriptionFunction
                 return notFound;
             }
 
-            var durationDays = request.DurationDays.HasValue && request.DurationDays.Value > 0
-                ? request.DurationDays.Value
-                : plan.DurationDays;
+            var durationDays = request.DurationDays ?? plan.DurationDays;
+            if (!SubscriptionTerms.IsSupportedDuration(durationDays))
+            {
+                var invalid = req.CreateResponse(HttpStatusCode.BadRequest);
+                await invalid.WriteAsJsonAsync(new { error = "Choose a subscription duration of 7, 14 or 30 days." });
+                return invalid;
+            }
 
             // Calculate price based on duration
             decimal dailyRate = plan.DurationDays > 0 ? (plan.Price / plan.DurationDays) : (plan.Price / 30m);
-            decimal basePrice = Math.Round(dailyRate * durationDays, 2);
-            decimal discountPct = durationDays >= 30 ? 20m : (durationDays >= 14 ? 15m : 10m);
-            decimal discountAmt = Math.Round(basePrice * (discountPct / 100m), 2);
+            decimal basePrice = Math.Round(dailyRate * durationDays, 2, MidpointRounding.AwayFromZero);
+            decimal discountPct = SubscriptionTerms.ForDuration(durationDays).DiscountPercent;
+            decimal discountAmt = Math.Round(basePrice * (discountPct / 100m), 2, MidpointRounding.AwayFromZero);
             decimal finalAmount = basePrice - discountAmt;
 
             var now = MongoService.GetIstNow();
@@ -391,7 +395,7 @@ public class SubscriptionFunction
                 return badReq;
             }
 
-            var durationDays = Math.Clamp(request.DurationDays, 3, 365);
+            var durationDays = request.DurationDays;
             var deliveryDays = request.DeliveryDays != null && request.DeliveryDays.Count > 0
                 ? request.DeliveryDays
                 : new List<string> { "Everyday" };
@@ -407,12 +411,8 @@ public class SubscriptionFunction
 
             decimal grossAmount = dailySubtotal * totalDrops;
 
-            // Industry standard recurring subscription discount:
-            // >= 30 days: 20% off
-            // >= 14 days: 15% off
-            // >= 7 days: 10% off
-            decimal discountPercent = durationDays >= 30 ? 20m : (durationDays >= 14 ? 15m : 10m);
-            decimal discountAmount = Math.Round(grossAmount * (discountPercent / 100m), 2);
+            decimal discountPercent = SubscriptionTerms.ForDuration(durationDays).DiscountPercent;
+            decimal discountAmount = Math.Round(grossAmount * (discountPercent / 100m), 2, MidpointRounding.AwayFromZero);
             decimal finalPayable = Math.Round(grossAmount - discountAmount, 2);
 
             var now = MongoService.GetIstNow();
@@ -524,7 +524,8 @@ public class SubscriptionFunction
             subscription.EndDate = now.AddDays(subscription.DurationDays);
             subscription.UpdatedAt = now;
 
-            await _mongo.UpdateCustomerSubscriptionAsync(id, subscription);
+            if (!await _mongo.UpdateCustomerSubscriptionAsync(id, subscription))
+                return await SubscriptionChanged(req);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { message = "Subscription payment confirmed and plan activated", subscription });
@@ -552,6 +553,9 @@ public class SubscriptionFunction
             var (isAuthenticated, userId, role, errorResponse) = await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
             if (!isAuthenticated) return errorResponse!;
 
+            var (request, validationError) = await ValidationHelper.ValidateBody<PauseSubscriptionRequest>(req);
+            if (validationError != null) return validationError;
+
             var sub = await _mongo.GetCustomerSubscriptionByIdAsync(id);
             if (sub == null)
             {
@@ -567,21 +571,23 @@ public class SubscriptionFunction
                 return forbidden;
             }
 
-            if (sub.Status != "active")
+            var now = MongoService.GetIstNow();
+            var pauseError = SubscriptionPausePolicy.ValidatePause(sub, request.Days, now);
+            if (pauseError != null)
             {
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badReq.WriteAsJsonAsync(new { error = $"Cannot pause a subscription that is currently {sub.Status}." });
+                await badReq.WriteAsJsonAsync(new { error = pauseError });
                 return badReq;
             }
 
-            sub.Status = "paused";
-            sub.PausedAt = MongoService.GetIstNow();
-            await _mongo.UpdateCustomerSubscriptionAsync(id, sub);
+            SubscriptionPausePolicy.Pause(sub, request.Days, now);
+            if (!await _mongo.UpdateCustomerSubscriptionAsync(id, sub))
+                return await SubscriptionChanged(req);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
-                message = "Subscription paused successfully. You can resume anytime to extend your plan.",
+                message = $"Deliveries paused for {request.Days} day(s). They will resume automatically; you can also resume early. Your end date will extend by the pause days used.",
                 subscription = sub
             });
             return response;
@@ -625,27 +631,27 @@ public class SubscriptionFunction
 
             if (sub.Status != "paused")
             {
+                if (sub.Status == "active" && sub.TotalDaysPaused > 0)
+                {
+                    var alreadyResumed = req.CreateResponse(HttpStatusCode.OK);
+                    await alreadyResumed.WriteAsJsonAsync(new { message = "Your subscription has already resumed.", subscription = sub });
+                    return alreadyResumed;
+                }
                 var badReq = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badReq.WriteAsJsonAsync(new { error = $"Subscription is not paused (current status: {sub.Status})." });
                 return badReq;
             }
 
             var now = MongoService.GetIstNow();
-            var pausedDays = sub.PausedAt.HasValue
-                ? Math.Max(1, (int)Math.Ceiling((now - sub.PausedAt.Value).TotalDays))
-                : 1;
+            var pausedDays = SubscriptionPausePolicy.Resume(sub, now);
 
-            sub.Status = "active";
-            sub.EndDate = sub.EndDate.AddDays(pausedDays);
-            sub.TotalDaysPaused += pausedDays;
-            sub.PausedAt = null;
-
-            await _mongo.UpdateCustomerSubscriptionAsync(id, sub);
+            if (!await _mongo.UpdateCustomerSubscriptionAsync(id, sub))
+                return await SubscriptionChanged(req);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
-                message = $"Welcome back! Your subscription is active again and extended by {pausedDays} day(s) until {sub.EndDate:dd MMM yyyy}.",
+                message = $"Your subscription was extended by {pausedDays} day(s) until {sub.EndDate:dd MMM yyyy}. Current status: {sub.Status}.",
                 subscription = sub
             });
             return response;
@@ -688,7 +694,10 @@ public class SubscriptionFunction
             }
 
             sub.Status = "cancelled";
-            await _mongo.UpdateCustomerSubscriptionAsync(id, sub);
+            sub.PausedAt = null;
+            sub.PauseEndsAtUtc = null;
+            if (!await _mongo.UpdateCustomerSubscriptionAsync(id, sub))
+                return await SubscriptionChanged(req);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
@@ -732,6 +741,13 @@ public class SubscriptionFunction
         }
     }
 
+    private static async Task<HttpResponseData> SubscriptionChanged(HttpRequestData req)
+    {
+        var response = req.CreateResponse(HttpStatusCode.Conflict);
+        await response.WriteAsJsonAsync(new { error = "This subscription changed. Please refresh and try again." });
+        return response;
+    }
+
     private async Task<List<SubscriptionPlan>> SeedDefaultCuratedPlansAsync(string outletId)
     {
         var defaultPlans = new List<SubscriptionPlan>
@@ -745,9 +761,9 @@ public class SubscriptionFunction
                 Price = 2999m,
                 DurationDays = 30,
                 BadgeText = "Morning Favorite",
-                Benefits = new List<string> { "Free Daily Doorstep Delivery", "Daily Breakfast Time Window (8:00 AM - 10:00 AM)", "15% Flat Savings vs Menu Pricing", "Pause or Skip Anytime" },
+                Benefits = new List<string> { "Free Daily Doorstep Delivery", "Daily Breakfast Time Window (8:00 AM - 10:00 AM)", "10% Subscription Discount", "Up to 2 Pauses, 7 Days Each" },
                 FreeDelivery = true,
-                DiscountPercent = 15m,
+                DiscountPercent = SubscriptionTerms.ForDuration(30).DiscountPercent,
                 DailyItemLimit = 2,
                 IncludedItems = new List<SubscriptionItem>
                 {
@@ -767,7 +783,7 @@ public class SubscriptionFunction
                 BadgeText = "Most Popular",
                 Benefits = new List<string> { "Guaranteed Lunch Delivery (12:30 PM - 2:00 PM)", "Free Fast Delivery", "Chef's Rotating Daily Specials", "Zero Hassle Daily Ordering" },
                 FreeDelivery = true,
-                DiscountPercent = 20m,
+                DiscountPercent = SubscriptionTerms.ForDuration(30).DiscountPercent,
                 DailyItemLimit = 3,
                 IncludedItems = new List<SubscriptionItem>
                 {
@@ -788,7 +804,7 @@ public class SubscriptionFunction
                 BadgeText = "Great Value",
                 Benefits = new List<string> { "Evening Break Window (4:00 PM - 5:30 PM)", "Free Daily Delivery", "Snack Variety Everyday", "Work & Study Essential" },
                 FreeDelivery = true,
-                DiscountPercent = 15m,
+                DiscountPercent = SubscriptionTerms.ForDuration(30).DiscountPercent,
                 DailyItemLimit = 2,
                 IncludedItems = new List<SubscriptionItem>
                 {
@@ -806,9 +822,9 @@ public class SubscriptionFunction
                 Price = 5499m,
                 DurationDays = 30,
                 BadgeText = "Chef's Choice",
-                Benefits = new List<string> { "Dinner Slot (7:30 PM - 9:30 PM)", "Free Priority Delivery", "Gourmet Multi-Course Meals", "Pause on Weekends Option" },
+                Benefits = new List<string> { "Dinner Slot (7:30 PM - 9:30 PM)", "Free Priority Delivery", "Gourmet Multi-Course Meals", "Up to 2 Pauses, 7 Days Each" },
                 FreeDelivery = true,
-                DiscountPercent = 20m,
+                DiscountPercent = SubscriptionTerms.ForDuration(30).DiscountPercent,
                 DailyItemLimit = 3,
                 IncludedItems = new List<SubscriptionItem>
                 {

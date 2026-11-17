@@ -1,8 +1,8 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
-import { SubscriptionService, SubscriptionPlan, CustomerSubscription, SubscriptionItem } from '../../services/subscription.service';
+import { SubscriptionService, SubscriptionPlan, CustomerSubscription, SubscriptionItem, SUBSCRIPTION_TERMS } from '../../services/subscription.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { AuthStore } from '../../store/auth.store';
 import { AuthService } from '../../services/auth.service';
@@ -21,7 +21,7 @@ interface SelectedComboItem {
   templateUrl: './subscription-plans.component.html',
   styleUrls: ['./subscription-plans.component.scss']
 })
-export class SubscriptionPlansComponent implements OnInit {
+export class SubscriptionPlansComponent implements OnInit, OnDestroy {
   private subscriptionService = inject(SubscriptionService);
   private menuService = inject(MenuService);
   public authStore = inject(AuthStore);
@@ -85,6 +85,15 @@ export class SubscriptionPlansComponent implements OnInit {
   subscriptionHistory: CustomerSubscription[] = [];
   loadingMySubscriptions = false;
   processingAction = false;
+  pauseDays = 7;
+  readonly subscriptionTerms = SUBSCRIPTION_TERMS;
+  get maxPauseDays(): number { return this.activeSubscription?.maxPauseDays ?? 0; }
+  get pauseDurationOptions(): number[] { return Array.from({ length: this.maxPauseDays }, (_, index) => index + 1); }
+  private pauseRefreshTimer?: ReturnType<typeof setTimeout>;
+
+  ngOnDestroy(): void {
+    clearTimeout(this.pauseRefreshTimer);
+  }
 
   // Time Slot Options
   readonly timeSlots: string[] = [
@@ -208,7 +217,7 @@ export class SubscriptionPlansComponent implements OnInit {
       return;
     }
     this.selectedPlanForCheckout = plan;
-    this.checkoutDurationDays = plan.durationDays || 30;
+    this.checkoutDurationDays = this.subscriptionTerms.some(terms => terms.durationDays === plan.durationDays) ? plan.durationDays : 30;
     this.populateUserDetails();
   }
 
@@ -221,10 +230,10 @@ export class SubscriptionPlansComponent implements OnInit {
     if (!this.selectedPlanForCheckout) return { base: 0, discount: 0, total: 0, discountPct: 0 };
     const plan = this.selectedPlanForCheckout;
     const dailyRate = plan.durationDays > 0 ? plan.price / plan.durationDays : plan.price / 30;
-    const base = Math.round(dailyRate * this.checkoutDurationDays);
-    const discountPct = this.checkoutDurationDays >= 30 ? 20 : (this.checkoutDurationDays >= 14 ? 15 : 10);
-    const discount = Math.round(base * (discountPct / 100));
-    const total = base - discount;
+    const base = this.roundSubscriptionAmount(dailyRate * this.checkoutDurationDays);
+    const discountPct = this.termsForDuration(this.checkoutDurationDays).discountPercent;
+    const discount = this.roundSubscriptionAmount(base * (discountPct / 100));
+    const total = this.roundSubscriptionAmount(base - discount);
     return { base, discount, total, discountPct };
   }
 
@@ -400,17 +409,23 @@ export class SubscriptionPlansComponent implements OnInit {
   }
 
   get comboDiscountPercentage(): number {
-    if (this.comboDurationDays >= 30) return 20;
-    if (this.comboDurationDays >= 14) return 15;
-    return 10;
+    return this.termsForDuration(this.comboDurationDays).discountPercent;
   }
 
   get comboPricingSummary(): { gross: number; discount: number; finalPayable: number } {
     const gross = this.comboDailySubtotal * this.comboTotalDrops;
-    const discount = Math.round(gross * (this.comboDiscountPercentage / 100));
-    const finalPayable = Math.max(0, gross - discount);
+    const discount = this.roundSubscriptionAmount(gross * (this.comboDiscountPercentage / 100));
+    const finalPayable = this.roundSubscriptionAmount(Math.max(0, gross - discount));
     return { gross, discount, finalPayable };
   }
+
+  private termsForDuration(days: number) {
+    const terms = this.subscriptionTerms.find(terms => terms.durationDays === days);
+    if (!terms) throw new Error('Choose a subscription duration of 7, 14 or 30 days.');
+    return terms;
+  }
+
+  private roundSubscriptionAmount(value: number): number { return Math.round(value * 100) / 100; }
 
   toggleCustomDay(day: { name: string; selected: boolean }) {
     day.selected = !day.selected;
@@ -496,7 +511,7 @@ export class SubscriptionPlansComponent implements OnInit {
   // --- MY SUBSCRIPTIONS ---
   loadMySubscriptions() {
     if (!this.authStore.isLoggedIn()) {
-      this.activeSubscription = null;
+      this.setActiveSubscription(null);
       this.subscriptionHistory = [];
       return;
     }
@@ -504,25 +519,34 @@ export class SubscriptionPlansComponent implements OnInit {
     this.loadingMySubscriptions = true;
     this.subscriptionService.getMySubscription().subscribe({
       next: (res) => {
-        this.activeSubscription = res?.active || null;
+        this.setActiveSubscription(res?.active || null);
         this.subscriptionHistory = (res?.history || []).filter(s => s.id !== this.activeSubscription?.id);
         this.loadingMySubscriptions = false;
       },
-      error: () => {
+      error: (err) => {
         this.loadingMySubscriptions = false;
+        this.uiStore.error(err?.error?.error || 'Failed to load your subscriptions');
       }
     });
   }
 
   pauseActiveSubscription() {
     if (!this.activeSubscription?.id || this.processingAction) return;
-    if (!confirm('Pause deliveries? Your subscription will pause and your end date will be extended when you resume.')) return;
+    if (!Number.isInteger(this.pauseDays) || this.pauseDays < 1 || this.pauseDays > this.maxPauseDays) {
+      this.uiStore.error(`Choose a pause duration between 1 and ${this.maxPauseDays} days for this subscription.`);
+      return;
+    }
+    if (this.activeSubscription.pausesRemaining === 0) {
+      this.uiStore.error('You have used all pauses for this subscription.');
+      return;
+    }
+    if (!confirm(`Pause deliveries for ${this.pauseDays} day(s)? Deliveries will resume automatically. You may resume early; partial pause days count as full days when extending your end date.`)) return;
 
     this.processingAction = true;
-    this.subscriptionService.pauseSubscription(this.activeSubscription.id).subscribe({
+    this.subscriptionService.pauseSubscription(this.activeSubscription.id, this.pauseDays).subscribe({
       next: (res) => {
         this.processingAction = false;
-        this.activeSubscription = res.subscription;
+        this.setActiveSubscription(res.subscription);
         this.uiStore.success(res.message || 'Subscription paused.');
       },
       error: (err) => {
@@ -539,7 +563,7 @@ export class SubscriptionPlansComponent implements OnInit {
     this.subscriptionService.resumeSubscription(this.activeSubscription.id).subscribe({
       next: (res) => {
         this.processingAction = false;
-        this.activeSubscription = res.subscription;
+        this.setActiveSubscription(res.subscription.status === 'expired' ? null : res.subscription);
         this.uiStore.success(res.message || 'Subscription resumed and timeline extended!');
       },
       error: (err) => {
@@ -547,6 +571,18 @@ export class SubscriptionPlansComponent implements OnInit {
         this.uiStore.error(err?.error?.error || 'Failed to resume subscription');
       }
     });
+  }
+
+  private setActiveSubscription(subscription: CustomerSubscription | null): void {
+    clearTimeout(this.pauseRefreshTimer);
+    this.activeSubscription = subscription;
+    if (subscription?.maxPauseDays) this.pauseDays = Math.min(this.pauseDays, subscription.maxPauseDays);
+    if (subscription?.status === 'paused' && subscription.pauseEndsAtUtc) {
+      const delay = Date.parse(subscription.pauseEndsAtUtc) - Date.now();
+      if (Number.isFinite(delay)) {
+        this.pauseRefreshTimer = setTimeout(() => this.loadMySubscriptions(), Math.max(1000, delay + 1000));
+      }
+    }
   }
 
   cancelActiveSubscription() {

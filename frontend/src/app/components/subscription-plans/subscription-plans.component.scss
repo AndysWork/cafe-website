@@ -1183,10 +1183,26 @@ $radius-full: 9999px;
     }
   }
 
+  .subscription-pause-policy {
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: #64748b;
+    p { margin: 0.4rem 0; }
+  }
+
   .active-sub-actions {
     display: flex;
+    align-items: flex-end;
     gap: 0.75rem;
     flex-wrap: wrap;
+
+    .pause-duration {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.85rem;
+      select { padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 8px; background: white; }
+    }
 
     button {
       padding: 0.7rem 1.4rem;
@@ -1196,6 +1212,7 @@ $radius-full: 9999px;
       cursor: pointer;
       border: none;
       transition: all 0.2s;
+      &:disabled { opacity: 0.5; cursor: not-allowed; }
     }
 
     .btn-sub-pause {
