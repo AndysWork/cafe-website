@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { EMPTY, Observable, throwError } from 'rxjs';
-import { catchError, expand, map, reduce } from 'rxjs/operators';
+import { catchError, expand, map, reduce, tap } from 'rxjs/operators';
+import { JourneyTrackingService } from './journey-tracking.service';
 import { environment } from '../../environments/environment';
 import { handleServiceError } from '../utils/error-handler';
 
@@ -356,6 +357,7 @@ export interface SessionCollection {
 })
 export class OrderService {
   private http = inject(HttpClient);
+  private readonly journey = inject(JourneyTrackingService);
   private apiUrl = environment.apiUrl;
 
   getPeriodCollection(from: string, to: string): Observable<OrderPeriodCollection> {
@@ -367,7 +369,9 @@ export class OrderService {
   // Create new order
   createOrder(orderRequest: CreateOrderRequest): Observable<Order> {
     const headers = new HttpHeaders({ 'X-Idempotency-Key': crypto.randomUUID() });
-    return this.http.post<Order>(`${this.apiUrl}/orders`, orderRequest, { headers }).pipe(
+    const journey = this.journey.orderContext();
+    return this.http.post<Order>(`${this.apiUrl}/orders`, { ...orderRequest, ...(journey ? { journey } : {}) }, { headers }).pipe(
+      tap(order => { if (journey && order.id) this.journey.confirmOrder(order.id, journey); }),
       catchError(handleServiceError('OrderService.createOrder'))
     );
   }

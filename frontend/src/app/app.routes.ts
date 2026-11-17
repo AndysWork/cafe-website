@@ -77,6 +77,7 @@ export const routes: Routes = [
       { path: 'staff-performance', loadComponent: () => import('./components/staff-performance/staff-performance.component').then(m => m.StaffPerformanceComponent) },
       { path: 'daily-performance', loadComponent: () => import('./components/daily-performance-entry/daily-performance-entry.component').then(m => m.DailyPerformanceEntryComponent) },
       { path: 'user-analytics', loadComponent: () => import('./components/user-analytics/user-analytics.component').then(m => m.UserAnalyticsComponent) },
+      { path: 'customer-journey', loadComponent: () => import('./components/customer-journey/customer-journey.component').then(m => m.CustomerJourneyComponent) },
       { path: 'delivery-zones', loadComponent: () => import('./components/admin-delivery-zones/admin-delivery-zones.component').then(m => m.AdminDeliveryZonesComponent) },
       { path: 'reports', loadComponent: () => import('./components/admin-report-export/admin-report-export.component').then(m => m.AdminReportExportComponent) },
       { path: 'dine-in-report', loadComponent: () => import('./components/dine-in-report/dine-in-report.component').then(m => m.DineInReportComponent) },

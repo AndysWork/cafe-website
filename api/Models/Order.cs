@@ -461,6 +461,8 @@ public class OrderItemAddOn
 // Request/Response DTOs
 public class CreateOrderRequest
 {
+    public JourneyContext? Journey { get; set; }
+
     public bool IsStaffOrder { get; set; }
 
     [Required(ErrorMessage = "Order must contain at least one item")]

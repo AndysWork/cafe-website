@@ -19,6 +19,7 @@ import QRCode from 'qrcode';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { Offer } from '../../services/offers.service';
 import { DineInService } from '../../services/dine-in.service';
+import { JourneyTrackingService } from '../../services/journey-tracking.service';
 
 @Component({
   selector: 'app-checkout',
@@ -28,6 +29,8 @@ import { DineInService } from '../../services/dine-in.service';
   styleUrls: ['./checkout.component.scss']
 })
 export class CheckoutComponent implements OnInit, OnDestroy {
+  private readonly journey = inject(JourneyTrackingService);
+  private lastJourneyQuote = '';
   private readonly checkoutDraftStorageKey = 'checkout_draft';
   isUpiQrEnabled = false;
   readonly fixedPlatformCharge = 2;
@@ -786,7 +789,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.loyaltyPointsToUse = 0;
       this.maxLoyaltyDiscount = 0;
     }
-
+    const fee = this.orderType !== 'delivery' ? 0 : this.deliveryZoneName ? this.deliveryFee : undefined;
+    const quote = `${this.cart.itemCount}:${this.grandTotal}:${fee}`;
+    if (this.cart.itemCount > 0 && quote !== this.lastJourneyQuote) {
+      this.journey.trackCheckout(!this.lastJourneyQuote, this.grandTotal, fee);
+      this.lastJourneyQuote = quote;
+    }
   }
 
   private buildCouponValidationKey(): string {

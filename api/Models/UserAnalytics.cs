@@ -9,6 +9,9 @@ namespace Cafe.Api.Models;
 /// </summary>
 public class UserActivityEvent
 {
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc), BsonIgnoreIfNull]
+    public DateTime? ExpiresAt { get; set; }
+
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
@@ -55,6 +58,9 @@ public class UserActivityEvent
 /// </summary>
 public class UserSession
 {
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc), BsonIgnoreIfNull]
+    public DateTime? ExpiresAt { get; set; }
+
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
@@ -165,6 +171,7 @@ public class RecentSessionInfo
 
 public class TrackEventRequest
 {
+    public JourneyContext? Journey { get; set; }
     public string EventType { get; set; } = string.Empty;
     public string? FeatureName { get; set; }
     public string? Detail { get; set; }
@@ -176,6 +183,14 @@ public class TrackEventRequest
 
 public class TrackBatchRequest
 {
+    public JourneyContext? Journey { get; set; }
     public List<TrackEventRequest> Events { get; set; } = new();
+}
+
+/// <summary>Legacy screen session tracking requires the same consented session capability.</summary>
+public sealed record LegacyJourneySessionRequest
+{
+    public JourneyContext? Journey { get; init; }
+    public string Action { get; init; } = "start";
 }
 

@@ -16,6 +16,7 @@ import { DineInService } from '../../services/dine-in.service';
 import { DineInBill } from '../../models/dine-in.model';
 import { decodeHtmlEntities } from '../../utils/text-utils';
 import { getIstInputDate, getIstIsoString } from '../../utils/date-utils';
+import { JourneyTrackingService } from '../../services/journey-tracking.service';
 
 interface MenuSubCategoryAccordionGroup {
   key: string;
@@ -38,6 +39,7 @@ interface MenuCategoryAccordionGroup {
   styleUrls: ['./menu.component.scss']
 })
 export class MenuComponent implements OnInit, OnDestroy {
+  private readonly journey = inject(JourneyTrackingService);
   private readonly checkoutDraftStorageKey = 'checkout_draft';
   private readonly orderStartHour = 0;
   private readonly orderCutoffHour = 24;
@@ -512,6 +514,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   filterByCategory(categoryId: string | null) {
+    if (categoryId) this.journey.trackCategory(categoryId);
     this.selectedCategoryId = categoryId;
     this.showCategoryDrawer = false;
     this.menuService.setCategoryDrawerOpen(false);
@@ -557,6 +560,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   navigateToSubCategory(category: MenuCategory, subCategoryName: string): void {
+    this.journey.trackCategory(category.id);
     this.selectedCategoryId = category.id;
     this.showCategoryDrawer = false;
     this.applyFilters();
@@ -717,6 +721,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   openDetail(item: MenuItem) {
+    this.journey.trackItem(item.id);
     this.selectedMenuItem = item;
     this.showDetailModal = true;
   }
@@ -734,6 +739,7 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   openCustomization(item: MenuItem) {
     if (!this.canAddToCart(item)) return;
+    this.journey.trackItem(item.id);
 
     this.customizationItem = item;
     this.customizationQuantity = 1;

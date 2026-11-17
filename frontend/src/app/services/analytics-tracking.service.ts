@@ -1,8 +1,10 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { AuthService } from './auth.service';
+import { DestroyRef, Injectable, effect, inject } from '@angular/core';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from '../../environments/environment';
-import { Subject, bufferTime, filter, distinctUntilChanged, skip } from 'rxjs';
+import { AnalyticsConsentService } from './analytics-consent.service';
+import { JourneyTrackingService } from './journey-tracking.service';
+import { JourneyContext } from '../models/customer-journey.model';
+import { AuthStore } from '../store/auth.store';
 
 export interface TrackEvent {
   eventType: string;
@@ -14,192 +16,120 @@ export interface TrackEvent {
   sessionId?: string;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class AnalyticsTrackingService {
-  private http = inject(HttpClient);
-  private authService = inject(AuthService);
-  private apiUrl = environment.apiUrl;
-
-  private sessionId: string | null = null;
-  private heartbeatInterval: any = null;
-  private eventBuffer$ = new Subject<TrackEvent>();
+  private readonly http = inject(HttpClient);
+  private readonly consent = inject(AnalyticsConsentService);
+  private readonly journey = inject(JourneyTrackingService);
+  private readonly auth = inject(AuthStore);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly base = `${environment.apiUrl}/analytics`;
+  private events: { context: JourneyContext; event: TrackEvent }[] = [];
+  private legacySession: JourneyContext | null = null;
 
   constructor() {
-    // Buffer events and send in batches every 10 seconds
-    this.eventBuffer$.pipe(
-      bufferTime(10000),
-      filter(events => events.length > 0)
-    ).subscribe(events => this.flushEvents(events));
-
-    // Listen for login/logout to manage sessions — skip initial emission
-    this.authService.currentUser$.pipe(
-      distinctUntilChanged(),
-      skip(1)
-    ).subscribe(user => {
-      if (user) {
-        this.startSession();
-      } else if (this.sessionId) {
-        this.endSession();
-      }
+    effect(() => {
+      const context = this.journey.context();
+      const permitted = this.consent.linkAccount() && this.auth.isLoggedIn();
+      if (!this.consent.analytics()) this.events = [];
+      if (this.legacySession?.sessionId === context?.sessionId && permitted) return;
+      if (this.legacySession) this.sessionAction(this.legacySession, 'end');
+      this.legacySession = permitted ? context : null;
+      if (this.legacySession) this.sessionAction(this.legacySession, 'start');
     });
-
-    // Generate session ID for anonymous users too
-    if (!this.sessionId) {
-      this.sessionId = this.generateSessionId();
-    }
-
-    // Track page unload
-    if (typeof window !== 'undefined') {
-      window.addEventListener('beforeunload', () => {
-        this.flushEventsSync();
-        if (this.authService.isLoggedIn()) {
-          this.endSessionSync();
-        }
-      });
-    }
-  }
-
-  private generateSessionId(): string {
-    return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-  }
-
-  private startSession(): void {
-    this.sessionId = this.generateSessionId();
-
-    this.http.post(`${this.apiUrl}/analytics/session`, {
-      sessionId: this.sessionId,
-      action: 'start'
-    }).subscribe({
-      error: () => {} // Silent fail for tracking
-    });
-
-    // Start heartbeat (every 5 minutes)
-    this.stopHeartbeat();
-    this.heartbeatInterval = setInterval(() => {
-      if (this.sessionId) {
-        this.http.post(`${this.apiUrl}/analytics/heartbeat`, {
-          sessionId: this.sessionId
-        }).subscribe({ error: () => {} });
-      }
+    const timer = setInterval(() => this.flush(), 10000);
+    const heartbeat = setInterval(() => {
+      if (this.consent.linkAccount() && this.legacySession)
+        this.http.post(`${this.base}/heartbeat`, { journey: this.legacySession })
+          .subscribe({ error: error => this.deliveryError(error) });
     }, 300000);
-  }
-
-  private endSession(): void {
-    if (this.sessionId) {
-      this.http.post(`${this.apiUrl}/analytics/session`, {
-        sessionId: this.sessionId,
-        action: 'end'
-      }).subscribe({ error: () => {} });
-    }
-    this.stopHeartbeat();
-    this.sessionId = this.generateSessionId(); // New anonymous session ID
-  }
-
-  private endSessionSync(): void {
-    if (this.sessionId && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      navigator.sendBeacon(
-        `${this.apiUrl}/analytics/session`,
-        JSON.stringify({ sessionId: this.sessionId, action: 'end' })
-      );
-    }
-    this.stopHeartbeat();
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
-  }
-
-  // ─── Public tracking methods ───
-
-  trackPageView(pageName: string): void {
-    this.eventBuffer$.next({
-      eventType: 'FeatureUsage',
-      featureName: pageName,
-      sessionId: this.sessionId || undefined
+    const unload = () => this.flush(true);
+    window.addEventListener('pagehide', unload);
+    this.destroyRef.onDestroy(() => {
+      clearInterval(timer);
+      clearInterval(heartbeat);
+      window.removeEventListener('pagehide', unload);
     });
   }
 
-  trackFeatureUsage(featureName: string, detail?: string): void {
-    this.eventBuffer$.next({
-      eventType: 'FeatureUsage',
-      featureName,
-      detail,
-      sessionId: this.sessionId || undefined
-    });
+  trackPageView(pageName: string, path?: string): void {
+    this.journey.trackPage(path ?? `/${pageName.toLowerCase().replaceAll(' ', '-')}`);
+    this.push({ eventType: 'FeatureUsage', featureName: path?.split(/[?#]/)[0].split('/').filter(Boolean)[0] ?? pageName });
+  }
+
+  trackFeatureUsage(featureName: string, _detail?: string): void {
+    this.push({ eventType: 'FeatureUsage', featureName });
   }
 
   trackLogin(): void {
-    this.eventBuffer$.next({
-      eventType: 'Login',
-      sessionId: this.sessionId || undefined
-    });
-    // Flush login event immediately
-    this.flushEvents([{
-      eventType: 'Login',
-      sessionId: this.sessionId || undefined
-    }]);
+    this.push({ eventType: 'Login' });
+    this.flush();
   }
 
-  trackLogout(): void {
-    this.eventBuffer$.next({
-      eventType: 'Logout',
-      sessionId: this.sessionId || undefined
-    });
+  trackLogout(): void { this.push({ eventType: 'Logout' }); }
+  trackCartView(): void { this.push({ eventType: 'CartView' }); }
+
+  trackCartAdd(itemName: string, itemId?: string, quantity = 1): void {
+    this.journey.trackCart('cart_add', itemId, quantity);
+    this.push({ eventType: 'CartAdd', featureName: itemName, detail: itemId });
   }
 
-  trackCartView(): void {
-    this.eventBuffer$.next({
-      eventType: 'CartView',
-      sessionId: this.sessionId || undefined
-    });
+  trackCartRemove(itemName: string, itemId?: string, quantity = 1): void {
+    this.journey.trackCart('cart_remove', itemId, quantity);
+    this.push({ eventType: 'CartRemove', featureName: itemName, detail: itemId });
   }
 
-  trackCartAdd(itemName: string, itemId?: string): void {
-    this.eventBuffer$.next({
-      eventType: 'CartAdd',
-      featureName: itemName,
-      detail: itemId,
-      sessionId: this.sessionId || undefined
-    });
-  }
-
-  trackCartRemove(itemName: string, itemId?: string): void {
-    this.eventBuffer$.next({
-      eventType: 'CartRemove',
-      featureName: itemName,
-      detail: itemId,
-      sessionId: this.sessionId || undefined
-    });
-  }
+  trackCartUpdate(): void { this.journey.trackCart('cart_update'); }
 
   trackApiCall(endpoint: string, method: string, statusCode: number, responseTimeMs: number): void {
-    this.eventBuffer$.next({
-      eventType: 'ApiCall',
-      detail: endpoint,
-      httpMethod: method,
-      statusCode,
-      responseTimeMs,
-      sessionId: this.sessionId || undefined
-    });
+    this.push({ eventType: 'ApiCall', detail: endpoint.split(/[/?#]/)[0],
+      httpMethod: method, statusCode, responseTimeMs });
   }
 
-  // ─── Flush logic ───
-
-  private flushEvents(events: TrackEvent[]): void {
-    if (events.length === 0) return;
-
-    this.http.post(`${this.apiUrl}/analytics/track/batch`, {
-      events: events
-    }).subscribe({ error: () => {} }); // Silent fail
+  private push(event: TrackEvent): void {
+    const context = this.journey.orderContext();
+    if (!context) return;
+    if (this.events.length >= 200) {
+      console.warn('Legacy analytics queue is full; an event could not be recorded.');
+      return;
+    }
+    this.events.push({ context, event: { ...event, sessionId: context.sessionId } });
   }
 
-  private flushEventsSync(): void {
-    // Use sendBeacon for synchronous flush on page unload
-    // Note: buffered events are lost on unload since we can't access the buffer synchronously
+  private sessionAction(context: JourneyContext, action: 'start' | 'end'): void {
+    if (!this.consent.analytics()) return;
+    this.http.post(`${this.base}/session`, { journey: context, action })
+      .subscribe({ error: error => this.deliveryError(error) });
+  }
+
+  private flush(beacon = false): void {
+    if (!this.consent.analytics()) { this.events = []; return; }
+    const pending = this.events.splice(0);
+    const groups = new Map<string, { journey: JourneyContext; events: TrackEvent[] }>();
+    for (const entry of pending) {
+      let group = groups.get(entry.context.sessionId);
+      if (!group) {
+        group = { journey: entry.context, events: [] };
+        groups.set(entry.context.sessionId, group);
+      }
+      group.events.push(entry.event);
+    }
+    for (const group of groups.values()) {
+      while (group.events.length) {
+        const payload = { journey: group.journey, events: group.events.splice(0, 50) };
+        if (beacon && navigator.sendBeacon) {
+          if (!navigator.sendBeacon(`${this.base}/track/batch`,
+            new Blob([JSON.stringify(payload)], { type: 'application/json' })))
+            console.warn('The browser could not queue the final legacy analytics batch.');
+        } else {
+          this.http.post(`${this.base}/track/batch`, payload)
+            .subscribe({ error: error => this.deliveryError(error) });
+        }
+      }
+    }
+  }
+
+  private deliveryError(error: HttpErrorResponse): void {
+    console.warn('Consented legacy analytics delivery failed', error.status);
   }
 }

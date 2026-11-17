@@ -47,22 +47,28 @@ export class CartService {
 
   addItem(item: Omit<CartItem, 'quantity'>, quantity: number = 1): void {
     this.cartStore.addItem(item, quantity);
-    this.analyticsTracking.trackCartAdd(item.name, item.menuItemId);
+    this.analyticsTracking.trackCartAdd(item.name, item.menuItemId, quantity);
   }
 
   updateQuantity(menuItemId: string, quantity: number): void {
+    const previous = this.cartStore.cart().items.find(item => item.cartLineId === menuItemId || item.menuItemId === menuItemId);
     this.cartStore.updateQuantity(menuItemId, quantity);
+    if (previous && quantity > previous.quantity)
+      this.analyticsTracking.trackCartAdd(previous.name, previous.menuItemId, quantity - previous.quantity);
+    else if (previous && quantity < previous.quantity)
+      this.analyticsTracking.trackCartRemove(previous.name, previous.menuItemId, previous.quantity - Math.max(0, quantity));
   }
 
   removeItem(menuItemId: string): void {
     const removed = this.cartStore.removeItem(menuItemId);
     if (removed) {
-      this.analyticsTracking.trackCartRemove(removed.name, removed.menuItemId);
+      this.analyticsTracking.trackCartRemove(removed.name, removed.menuItemId, removed.quantity);
     }
   }
 
   clearCart(): void {
     this.cartStore.clearCart();
+    this.analyticsTracking.trackCartUpdate();
   }
 
   setPreparationNotes(notes: string): void {

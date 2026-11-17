@@ -64,6 +64,7 @@ public partial class MongoService : IAnalyticsRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to track analytics event of type {EventType}", evt.EventType);
+            throw;
         }
     }
 
@@ -78,12 +79,16 @@ public partial class MongoService : IAnalyticsRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to track {Count} analytics events in batch", events.Count);
+            throw;
         }
     }
 
     // ─── Session Management ───
 
-    public async Task<UserSession> CreateSessionAsync(string userId, string username, string role, string sessionId)
+    public Task<UserSession> CreateSessionAsync(string userId, string username, string role, string sessionId) =>
+        CreateSessionAsync(userId, username, role, sessionId, DateTime.UtcNow.AddDays(30));
+
+    public async Task<UserSession> CreateSessionAsync(string userId, string username, string role, string sessionId, DateTime expiresAt)
     {
         // Step 1: Mark any previous active sessions for this user as inactive
         var filter = Builders<UserSession>.Filter.And(
@@ -105,6 +110,7 @@ public partial class MongoService : IAnalyticsRepository
             Username = username,
             UserRole = role,
             SessionId = sessionId,
+            ExpiresAt = expiresAt,
             LoginTime = MongoService.GetIstNow(),
             LastActiveTime = MongoService.GetIstNow(),
             IsActive = true
@@ -145,6 +151,7 @@ public partial class MongoService : IAnalyticsRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to end session {SessionId}", sessionId);
+            throw;
         }
     }
 
@@ -159,6 +166,7 @@ public partial class MongoService : IAnalyticsRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update session activity for {SessionId}", sessionId);
+            throw;
         }
     }
 

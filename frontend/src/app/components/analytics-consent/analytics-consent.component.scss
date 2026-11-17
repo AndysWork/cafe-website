@@ -1,0 +1,15 @@
+:host { font-family: inherit; }
+.privacy-toggle { position: fixed; bottom: 12px; left: 12px; z-index: 1090; border: 1px solid #d6cce8; border-radius: 20px; padding: 8px 13px; background: #fff; color: #594474; font: 600 11px inherit; box-shadow: 0 2px 10px #34234c13; }
+.privacy-panel { position: fixed; bottom: 54px; left: 16px; z-index: 1200; box-sizing: border-box; width: min(500px, calc(100vw - 32px)); max-height: calc(100dvh - 90px); overflow-y: auto; padding: 24px; background: #fff; border: 1px solid #e4dcef; border-radius: 20px; box-shadow: 0 15px 70px #31214633; color: #373044; }
+.privacy-heading { display: flex; align-items: center; gap: 12px; small { color: #8262ad; font-size: 9px; font-weight: 800; letter-spacing: 1.5px; } h2 { font-size: 18px; margin: 4px 0; line-height: 1.3; } }
+.privacy-symbol { display: grid; place-items: center; background: #f0e9fa; color: #8355c2; width: 38px; height: 38px; border-radius: 12px; font-weight: 800; flex-shrink: 0; }
+.close { align-self: flex-start; margin-left: auto; font-size: 24px; border: 0; background: none; color: #82768f; padding: 0 3px; }
+p { font-size: 12px; line-height: 1.7; color: #71677c; }
+.choice { display: flex; gap: 10px; padding: 13px 0; border-top: 1px solid #f1edf6; input { accent-color: #8956c9; margin: 3px 0 0; width: 16px; height: 16px; flex-shrink: 0; } strong { display: block; font-size: 12px; } small { display: block; font-size: 11px; line-height: 1.65; color: #817588; margin-top: 4px; } }
+.fine-print { font-size: 10px; }
+.privacy-error { background: #fff2ed; color: #984525; padding: 10px; border-radius: 8px; }
+.privacy-actions { display: flex; gap: 10px; button { flex: 1; padding: 12px; border-radius: 10px; font-weight: 700; font-size: 12px; cursor: pointer; } }
+.decline { color: #60506f; background: #f6f3fa; border: 1px solid #e9e1f1; }
+.save { background: #8657bf; color: #fff; border: 1px solid #8657bf; }
+button:focus-visible, input:focus-visible { outline: 3px solid #bca3df; outline-offset: 3px; }
+@media (max-width: 500px) { .privacy-panel { padding: 18px; left: 12px; width: calc(100vw - 24px); } .privacy-heading h2 { font-size: 16px; } }

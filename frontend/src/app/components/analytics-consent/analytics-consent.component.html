@@ -1,0 +1,27 @@
+<button type="button" class="privacy-toggle" (click)="show()" aria-controls="analytics-privacy-panel"
+  [attr.aria-expanded]="open()">Privacy choices</button>
+<section *ngIf="open()" id="analytics-privacy-panel" class="privacy-panel" aria-labelledby="privacy-title">
+  <div class="privacy-heading">
+    <span class="privacy-symbol" aria-hidden="true">P</span>
+    <div><small>YOUR CHOICE, ALWAYS</small><h2 id="privacy-title">A little insight. Your permission.</h2></div>
+    <button class="close" type="button" aria-label="Close privacy choices without changing preferences" (click)="open.set(false)">&#215;</button>
+  </div>
+  <p>Optional analytics help Maa Tara Cafe improve its menu and checkout. Shopping works the same if you decline.</p>
+  <label class="choice">
+    <input type="checkbox" [(ngModel)]="analyticsEnabled" />
+    <span><strong>Allow website analytics</strong><small>Pseudonymous visits, menu interactions, cart activity and active page time. Detailed journeys are retained for up to 30 days.</small></span>
+  </label>
+  <label class="choice">
+    <input type="checkbox" [(ngModel)]="linkAccount" [disabled]="!analyticsEnabled" />
+    <span><strong>Also link journeys to my signed-in account</strong><small>Separate, optional permission. Without this, analytics do not store your account ID or name. Earlier anonymous journeys are not linked retroactively.</small></span>
+  </label>
+  <p class="fine-print">No passwords, payment credentials, addresses, typed searches, query strings or precise locations are collected by this tracker. Choices expire after 30 days. Withdrawing stops future tracking and requests erasure of the current session; earlier sessions expire under the retention policy.</p>
+  <p *ngIf="consent.error()" class="privacy-error" role="alert">{{ consent.error() }}</p>
+  <p *ngIf="tracking.erasureError()" class="privacy-error" role="alert">
+    {{ tracking.erasureError() }} <button type="button" (click)="tracking.retryErasure()">Retry erasure</button>
+  </p>
+  <div class="privacy-actions">
+    <button type="button" class="decline" (click)="save(false)">Decline analytics</button>
+    <button type="button" class="save" (click)="save()">Save my choices</button>
+  </div>
+</section>

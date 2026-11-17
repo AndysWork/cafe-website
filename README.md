@@ -21,6 +21,75 @@ After deployment, the app applies downloaded updates on the next navigation
 rather than interrupting the current screen. If an old worker still controls
 the page, close the site's tabs and reopen it.
 
+## Customer Journey & Traffic Intelligence
+
+Open **Admin → Analytics → Customer Journey & Traffic**
+(`/admin/customer-journey`). This is separate from the existing User Analytics
+screen. Seven tabs cover Overview, Live Visitors, User Journey, Menu Intelligence,
+Conversion & Abandonment, User Analytics, and Reports.
+
+- **Visitor Journey Explorer:** search pseudonymous sessions or explicitly linked
+  accounts; inspect chronological page, menu, cart, checkout and confirmed-order
+  events. Per-page active time covers the whole selected journey, not just the
+  current timeline page.
+- **Insights:** daily traffic, navigation paths, category/item interest, viewed-item
+  add/order rates, net item quantities, device/cart-value/delivery-charge
+  abandonment breakdowns, first-time/returning comparisons, and CSV exports.
+- **Consent:** tracking is off until opt-in. Account linking requires a separate
+  permission. Declining does not prevent shopping. The persistent **Privacy
+  choices** control stops tracking and requests erasure of the current session.
+  Earlier anonymous history is not retrospectively linked on sign-in.
+- **Retention:** new detailed journey and consented legacy records expire within
+  30 days using UTC MongoDB TTL indexes; reporting also excludes expired records
+  immediately, without waiting for TTL cleanup. Existing pre-feature legacy
+  analytics retain their previous policy and are not imported into this module.
+  Consent expires after 30 days; changing permissions does not extend its deadline.
+- **Privacy:** only normalized page names and allowlisted measurements are sent,
+  not query strings, search text, addresses, passwords or payment credentials.
+  Session tokens are capabilities: never publish them or add them to logs.
+  Reports require an administrator and one selected outlet.
+
+### Metric definitions and coverage
+
+These are **consented, attributed website journeys**, not a replacement for full
+web/Zomato sales reporting. Collection begins after deployment and opt-in; there
+is no historical backfill. Visitors are consent-scoped pseudonymous identifiers,
+not guaranteed unique people. First-time means unrecognized in retained history.
+Registered business accounts are explicitly labelled as an all-outlets count.
+Known signed-in staff/admin traffic is reported separately and excluded from
+customer funnels; genuinely anonymous staff cannot be recognized as staff.
+
+Active engagement counts focused, visible activity only, stopping after 60
+seconds without input. Live activity uses a 90-second freshness window and is
+independent of historical date filters. Report dates are inclusive IST dates
+within the last 30 calendar days.
+
+Overall conversion is sessions with backend-confirmed order placements divided
+by customer sessions. The sequential funnel additionally requires stages in
+order; direct/restored carts can skip stages. Nonempty carts become abandoned
+only after 30 minutes inactive, excluding carts continued into a new session.
+An earlier purchase does not hide a later abandoned cart.
+
+Orders are confirmed from saved backend records, never browser-supplied totals.
+Cancelled/deleted orders remain placements but are excluded from net revenue and
+item quantities. Item conversion requires ordering after viewing that item.
+High-interest/low-conversion flags require at least five viewing sessions and
+less than 10% viewer order conversion; they are investigation signals.
+
+### Deployment and API checks
+
+Deploy frontend and backend together: legacy ingestion now requires a valid
+consented journey capability and can no longer silently link the JWT account.
+The application database identity needs collection/index creation and normal
+read/write/delete permissions for `JourneySessions`, `JourneyEvents` and the
+legacy analytics collections. Indexes initialize on first use; no seed data
+or migration/backfill is required.
+
+Request examples, including authorization/retention errors, are in
+[api/customer-journey.http](api/customer-journey.http). Reports explicitly reject
+selections exceeding 20,000 retained sessions or 200,000 retained events;
+narrow the date range instead of accepting silently truncated results.
+
 ## Zomato Sales & Payout Parser
 
 Admin users can open **Tools → Zomato Sales & Payout Parser** and upload:

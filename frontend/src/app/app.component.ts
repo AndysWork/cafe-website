@@ -9,6 +9,7 @@ import { NetworkStatusService } from './services/network-status.service';
 import { OfflineQueueService } from './services/offline-queue.service';
 import { DineInBarComponent } from './components/dine-in-bar/dine-in-bar.component';
 import { DineInBillModalComponent } from './components/dine-in-bill-modal/dine-in-bill-modal.component';
+import { AnalyticsConsentComponent } from './components/analytics-consent/analytics-consent.component';
 
 @Component({
   selector: 'app-root',
@@ -18,7 +19,8 @@ import { DineInBillModalComponent } from './components/dine-in-bill-modal/dine-i
     CommonModule,
     ToastContainerComponent,
     DineInBarComponent,
-    DineInBillModalComponent
+    DineInBillModalComponent,
+    AnalyticsConsentComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -71,7 +73,7 @@ export class AppComponent {
 
       // Track page view for analytics
       const pageName = this.getPageName(currentUrl);
-      this.analyticsTracking.trackPageView(pageName);
+      this.analyticsTracking.trackPageView(pageName, currentUrl);
     });
   }
 

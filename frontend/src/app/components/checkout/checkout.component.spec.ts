@@ -12,6 +12,7 @@ import { DeliveryZoneService } from '../../services/delivery-zone.service';
 import { OutletService } from '../../services/outlet.service';
 import { DineInService } from '../../services/dine-in.service';
 import { UIStore } from '../../store/ui.store';
+import { JourneyTrackingService } from '../../services/journey-tracking.service';
 
 describe('CheckoutComponent presentation', () => {
   let fixture: ComponentFixture<CheckoutComponent>;
@@ -22,6 +23,7 @@ describe('CheckoutComponent presentation', () => {
     await TestBed.configureTestingModule({
       imports: [CheckoutComponent],
       providers: [
+        { provide: JourneyTrackingService, useValue: { trackCheckout: jasmine.createSpy('trackCheckout') } },
         provideRouter([]),
         ...[CartService, OrderService, PaymentService, AddressService, AuthService,
           OffersService, LoyaltyService, DeliveryZoneService, DineInService, UIStore]

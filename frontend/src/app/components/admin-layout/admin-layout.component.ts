@@ -249,6 +249,11 @@ export class AdminLayoutComponent implements OnDestroy {
           route: '/admin/user-analytics'
         },
         {
+          icon: '📍',
+          label: 'Customer Journey & Traffic',
+          route: '/admin/customer-journey'
+        },
+        {
           icon: '🛒',
           label: 'Online Sales',
           route: '/admin/online-sale-tracker'

@@ -44,6 +44,7 @@ public class OrderFunction
     private readonly EventLogService _eventLog;
     private readonly OutboxService _outbox;
     private readonly IdempotencyService _idempotency;
+    private readonly ICustomerJourneyService? _journeys;
 
     public OrderFunction(
         IOrderRepository orderRepo,
@@ -60,7 +61,8 @@ public class OrderFunction
         EventLogService eventLog,
         OutboxService outbox,
         IdempotencyService idempotency,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        ICustomerJourneyService? journeys = null)
     {
         _orderRepo = orderRepo;
         _menuRepo = menuRepo;
@@ -77,6 +79,7 @@ public class OrderFunction
         _outbox = outbox;
         _idempotency = idempotency;
         _log = loggerFactory.CreateLogger<OrderFunction>();
+        _journeys = journeys;
     }
 
     /// <summary>
@@ -510,6 +513,17 @@ public class OrderFunction
                 }
 
                 var createdOrder = await _orderRepo.CreateOrderAsync(order);
+                if (orderRequest.Journey != null && _journeys != null)
+                {
+                    try
+                    {
+                        await _journeys.ConfirmOrderAsync(orderRequest.Journey, createdOrder, CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogWarning(ex, "Order {OrderId} was saved, but journey attribution failed; client confirmation can retry", createdOrder.Id);
+                    }
+                }
             _log.LogInformation("Order {OrderId} created by user {Username}", createdOrder.Id, username);
 
             // Event sourcing: record order creation (FLAW 15)

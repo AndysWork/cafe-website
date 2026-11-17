@@ -16,12 +16,15 @@ public class UserAnalyticsFunction
     private readonly ILogger<UserAnalyticsFunction> _log;
     private readonly MongoService _mongo;
     private readonly AuthService _auth;
+    private readonly ICustomerJourneyService? _journeys;
 
-    public UserAnalyticsFunction(ILogger<UserAnalyticsFunction> log, MongoService mongo, AuthService auth)
+    public UserAnalyticsFunction(ILogger<UserAnalyticsFunction> log, MongoService mongo, AuthService auth,
+        ICustomerJourneyService? journeys = null)
     {
         _log = log;
         _mongo = mongo;
         _auth = auth;
+        _journeys = journeys;
     }
 
     /// <summary>
@@ -35,48 +38,30 @@ public class UserAnalyticsFunction
     {
         try
         {
-            // Auth is optional — anonymous browsing is still tracked
-            string? userId = null;
-            string? username = null;
-            string? role = null;
-
-            var token = req.Headers.Contains("Authorization")
-                ? req.Headers.GetValues("Authorization").FirstOrDefault()?.Replace("Bearer ", "")
-                : null;
-
-            if (!string.IsNullOrEmpty(token))
-            {
-                var principal = _auth.ValidateToken(token);
-                if (principal != null)
-                {
-                    userId = _auth.GetUserIdFromToken(token);
-                    role = _auth.GetRoleFromToken(token);
-                    username = principal.Identity?.Name;
-                }
-            }
-
             var (body, validationError) = await ValidationHelper.ValidateBody<TrackEventRequest>(req);
             if (validationError != null) return validationError;
+            var (session, consentError) = await ConsentedSession(req, body.Journey);
+            if (consentError != null) return consentError;
 
             // Sanitize inputs
             var evt = new UserActivityEvent
             {
-                UserId = userId,
-                Username = username,
+                UserId = session!.AccountId,
+                Username = session.AccountLabel,
                 EventType = InputSanitizer.Sanitize(body.EventType),
                 FeatureName = body.FeatureName != null ? InputSanitizer.Sanitize(body.FeatureName) : null,
                 Detail = body.Detail != null ? InputSanitizer.Sanitize(body.Detail) : null,
                 ResponseTimeMs = body.ResponseTimeMs,
                 HttpMethod = body.HttpMethod != null ? InputSanitizer.Sanitize(body.HttpMethod) : null,
                 StatusCode = body.StatusCode,
-                SessionId = body.SessionId != null ? InputSanitizer.Sanitize(body.SessionId) : null,
-                UserRole = role,
-                OutletId = req.Headers.Contains("X-Outlet-Id")
-                    ? req.Headers.GetValues("X-Outlet-Id").FirstOrDefault()
-                    : null
+                SessionId = session.Id,
+                UserRole = session.UserRole,
+                OutletId = session.OutletId,
+                ExpiresAt = session.ExpiresAt
             };
 
             await _mongo.TrackEventAsync(evt);
+            await _journeys!.EraseIfRevokedAsync(session.Id, CancellationToken.None);
 
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(new { success = true });
@@ -102,27 +87,10 @@ public class UserAnalyticsFunction
     {
         try
         {
-            string? userId = null;
-            string? username = null;
-            string? role = null;
-
-            var token = req.Headers.Contains("Authorization")
-                ? req.Headers.GetValues("Authorization").FirstOrDefault()?.Replace("Bearer ", "")
-                : null;
-
-            if (!string.IsNullOrEmpty(token))
-            {
-                var principal = _auth.ValidateToken(token);
-                if (principal != null)
-                {
-                    userId = _auth.GetUserIdFromToken(token);
-                    role = _auth.GetRoleFromToken(token);
-                    username = principal.Identity?.Name;
-                }
-            }
-
             var (body, validationError) = await ValidationHelper.ValidateBody<TrackBatchRequest>(req);
             if (validationError != null) return validationError;
+            var (session, consentError) = await ConsentedSession(req, body.Journey);
+            if (consentError != null) return consentError;
 
             if (body.Events.Count == 0)
             {
@@ -139,26 +107,24 @@ public class UserAnalyticsFunction
                 return badReq;
             }
 
-            var outletId = req.Headers.Contains("X-Outlet-Id")
-                ? req.Headers.GetValues("X-Outlet-Id").FirstOrDefault()
-                : null;
-
             var events = body.Events.Select(e => new UserActivityEvent
             {
-                UserId = userId,
-                Username = username,
+                UserId = session!.AccountId,
+                Username = session.AccountLabel,
                 EventType = InputSanitizer.Sanitize(e.EventType),
                 FeatureName = e.FeatureName != null ? InputSanitizer.Sanitize(e.FeatureName) : null,
                 Detail = e.Detail != null ? InputSanitizer.Sanitize(e.Detail) : null,
                 ResponseTimeMs = e.ResponseTimeMs,
                 HttpMethod = e.HttpMethod != null ? InputSanitizer.Sanitize(e.HttpMethod) : null,
                 StatusCode = e.StatusCode,
-                SessionId = e.SessionId != null ? InputSanitizer.Sanitize(e.SessionId) : null,
-                UserRole = role,
-                OutletId = outletId
+                SessionId = session.Id,
+                UserRole = session.UserRole,
+                OutletId = session.OutletId,
+                ExpiresAt = session.ExpiresAt
             }).ToList();
 
             await _mongo.TrackEventsBatchAsync(events);
+            await _journeys!.EraseIfRevokedAsync(session!.Id, CancellationToken.None);
 
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(new { success = true, tracked = events.Count });
@@ -184,29 +150,36 @@ public class UserAnalyticsFunction
     {
         try
         {
-            var body = await req.ReadFromJsonAsync<Dictionary<string, string>>();
-            var sessionId = body?.GetValueOrDefault("sessionId") ?? Guid.NewGuid().ToString();
-            var action = body?.GetValueOrDefault("action") ?? "start";
+            var (body, validationError) = await ValidationHelper.ValidateBody<LegacyJourneySessionRequest>(req);
+            if (validationError != null) return validationError;
+            var (session, consentError) = await ConsentedSession(req, body.Journey);
+            if (consentError != null) return consentError;
+            if (session!.AccountId == null)
+            {
+                var denied = req.CreateResponse(HttpStatusCode.Forbidden);
+                await denied.WriteAsJsonAsync(new { error = "Separate account-linking consent is required for account sessions." });
+                return denied;
+            }
+            var sessionId = session.Id;
+            var action = body.Action;
 
             if (action == "end")
             {
-                // End session does not require auth — just needs sessionId
                 await _mongo.EndSessionAsync(InputSanitizer.Sanitize(sessionId));
+            }
+            else if (action == "start")
+            {
+                await _mongo.CreateSessionAsync(
+                    session.AccountId, session.AccountLabel ?? "Account",
+                    session.UserRole, session.Id, session.ExpiresAt);
             }
             else
             {
-                // Start session requires authentication
-                var (isAuthorized, userId, role, errorResponse) =
-                    await AuthorizationHelper.ValidateAuthenticatedUser(req, _auth);
-                if (!isAuthorized) return errorResponse!;
-
-                var user = await _mongo.GetUserByIdAsync(userId!);
-                await _mongo.CreateSessionAsync(
-                    userId!,
-                    user?.Username ?? "unknown",
-                    role ?? "user",
-                    InputSanitizer.Sanitize(sessionId));
+                var invalid = req.CreateResponse(HttpStatusCode.BadRequest);
+                await invalid.WriteAsJsonAsync(new { error = "Action must be start or end." });
+                return invalid;
             }
+            await _journeys!.EraseIfRevokedAsync(session.Id, CancellationToken.None);
 
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(new { success = true, sessionId });
@@ -231,13 +204,12 @@ public class UserAnalyticsFunction
     {
         try
         {
-            var body = await req.ReadFromJsonAsync<Dictionary<string, string>>();
-            var sessionId = body?.GetValueOrDefault("sessionId");
-
-            if (!string.IsNullOrEmpty(sessionId))
-            {
-                await _mongo.UpdateSessionActivityAsync(InputSanitizer.Sanitize(sessionId));
-            }
+            var (body, validationError) = await ValidationHelper.ValidateBody<LegacyJourneySessionRequest>(req);
+            if (validationError != null) return validationError;
+            var (session, consentError) = await ConsentedSession(req, body.Journey);
+            if (consentError != null) return consentError;
+            await _mongo.UpdateSessionActivityAsync(session!.Id);
+            await _journeys!.EraseIfRevokedAsync(session.Id, CancellationToken.None);
 
             var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteAsJsonAsync(new { success = true });
@@ -246,8 +218,25 @@ public class UserAnalyticsFunction
         catch (Exception ex)
         {
             _log.LogError(ex, "Error updating heartbeat");
-            var res = req.CreateResponse(HttpStatusCode.OK); // Don't fail on heartbeat
+            var res = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await res.WriteAsJsonAsync(new { error = "Could not update analytics heartbeat." });
             return res;
+        }
+    }
+
+    private async Task<(JourneySession? session, HttpResponseData? error)> ConsentedSession(HttpRequestData req, JourneyContext? context)
+    {
+        try
+        {
+            if (_journeys == null) throw new InvalidOperationException("Journey consent validation is unavailable.");
+            return (await _journeys.ValidateAsync(context, CancellationToken.None), null);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _log.LogWarning("Rejected legacy analytics without a valid consented session");
+            var denied = req.CreateResponse(HttpStatusCode.Forbidden);
+            await denied.WriteAsJsonAsync(new { error = "A valid, explicitly consented journey session is required." });
+            return (null, denied);
         }
     }
 

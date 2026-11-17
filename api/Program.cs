@@ -51,6 +51,7 @@ var host = new HostBuilder()
         s.AddSingleton<IOperationsRepository>(sp => sp.GetRequiredService<MongoService>());
         s.AddSingleton<INotificationRepository>(sp => sp.GetRequiredService<MongoService>());
         s.AddSingleton<IAnalyticsRepository>(sp => sp.GetRequiredService<MongoService>());
+        s.AddSingleton<ICustomerJourneyService, CustomerJourneyService>();
         
         s.AddSingleton<FileUploadService>();
         s.AddSingleton<ZomatoSalesPayoutInsightService>();

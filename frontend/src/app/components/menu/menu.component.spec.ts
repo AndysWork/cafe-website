@@ -11,6 +11,7 @@ import { MenuService } from '../../services/menu.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
 import { MenuComponent } from './menu.component';
+import { JourneyTrackingService } from '../../services/journey-tracking.service';
 
 describe('MenuComponent URL search', () => {
   let params: BehaviorSubject<Params>;
@@ -29,6 +30,7 @@ describe('MenuComponent URL search', () => {
     dineIn.setTableNumber.calls.reset();
     TestBed.configureTestingModule({
       providers: [
+        { provide: JourneyTrackingService, useValue: { trackItem: jasmine.createSpy('trackItem'), trackCategory: jasmine.createSpy('trackCategory') } },
         { provide: ActivatedRoute, useValue: { queryParams: params, snapshot: { queryParams: {} } } },
         { provide: Router, useValue: { navigate: jasmine.createSpy('navigate') } },
         { provide: DineInService, useValue: dineIn },

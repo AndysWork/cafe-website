@@ -15,6 +15,7 @@ import { AuthService } from '../../services/auth.service';
 import { OrderService, Order, OrderItem } from '../../services/order.service';
 import { CartService } from '../../services/cart.service';
 import { MenuService, MenuItem as ServiceMenuItem } from '../../services/menu.service';
+import { JourneyTrackingService } from '../../services/journey-tracking.service';
 import { UIStore } from '../../store/ui.store';
 import { getIstIsoString } from '../../utils/date-utils';
 import { HomePanel, HomePanelService } from '../../services/home-panel.service';
@@ -50,6 +51,7 @@ interface MenuItem {
 }
 
 export interface LandingShowcaseItem {
+  id?: string;
   name: string;
   imageUrl: string;
   price: number | null;
@@ -64,6 +66,7 @@ export function selectShowcaseItem(items: MenuItem[], search: string, icon: stri
   if (!item) return null;
   const price = item.webPrice ?? item.shopSellingPrice ?? item.onlinePrice;
   return {
+    id: item.id,
     name: item.name || item.catalogueName,
     imageUrl: item.imageThumbnailUrl || item.imageUrl || '',
     price: typeof price === 'number' && Number.isFinite(price) ? price : null,
@@ -312,6 +315,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   loadingLastOrder = false;
   isReorderingLastOrder = false;
   private latestMenuMap = new Map<string, ServiceMenuItem>();
+  private readonly journey = inject(JourneyTrackingService);
 
   private analyticsTracking = inject(AnalyticsTrackingService);
 
@@ -738,6 +742,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       const categoryName = this.getCategoryNameById(item.categoryId);
       const price = item.webPrice ?? item.shopSellingPrice ?? item.onlinePrice;
       return {
+        id: item.id,
         name: item.name || item.catalogueName || item.description || 'Menu Item',
         price: typeof price === 'number' && Number.isFinite(price) ? price : null,
         imageUrl: item.imageThumbnailUrl || item.imageUrl || '',
@@ -818,6 +823,11 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   browseMenu(search = ''): void {
     this.analyticsTracking.trackFeatureUsage('Menu Browse', search || 'all');
     this.router.navigate(['/menu'], { queryParams: search ? { search } : {} });
+  }
+
+  browseShowcase(item: LandingShowcaseItem): void {
+    if (item.id) this.journey.trackItem(item.id, false);
+    this.browseMenu(item.name);
   }
 
   loadPublicStats() {

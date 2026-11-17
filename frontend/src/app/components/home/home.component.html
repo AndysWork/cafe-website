@@ -134,7 +134,7 @@
         type="button"
         class="special-tile"
         *ngFor="let item of showcaseItems; trackBy: trackByName"
-        (click)="browseMenu(item.name)"
+        (click)="browseShowcase(item)"
       >
         <div class="special-image">
           <img

@@ -16,12 +16,12 @@ describe('landing menu showcase', () => {
       item('Burger Add-on', { imageUrl: 'addon.jpg', isAddOnOnly: true }),
       item('Chicken Burger', { imageUrl: 'burger.jpg', webPrice: 90, onlinePrice: 100 })
     ], 'burger', '🍔');
-    expect(result).toEqual({ name: 'Chicken Burger', imageUrl: 'burger.jpg', price: 90, icon: '🍔' });
+    expect(result).toEqual({ id: 'Chicken Burger', name: 'Chicken Burger', imageUrl: 'burger.jpg', price: 90, icon: '🍔' });
   });
 
   it('uses a fallback icon and no invented price, or omits absent categories', () => {
     expect(selectShowcaseItem([item('Veg Momo')], 'momo', '🥟'))
-      .toEqual({ name: 'Veg Momo', imageUrl: '', price: null, icon: '🥟' });
+      .toEqual({ id: 'Veg Momo', name: 'Veg Momo', imageUrl: '', price: null, icon: '🥟' });
     expect(selectShowcaseItem([item('Veg Momo')], 'pasta', '🍝')).toBeNull();
   });
 
@@ -32,7 +32,7 @@ describe('landing menu showcase', () => {
     const specialBurger = item('Chicken Burger', { imageUrl: 'chicken.jpg', webPrice: 120 });
     const sections = selectLandingSections([burger, pasta, hidden, specialBurger], [pasta, burger, hidden], true);
     expect(sections.discovery.map(entry => entry.name)).toEqual(['Veg Pasta', 'Veg Burger']);
-    expect(sections.specials).toEqual([{ name: 'Chicken Burger', imageUrl: 'chicken.jpg', price: 120, icon: '🍔' }]);
+    expect(sections.specials).toEqual([{ id: 'Chicken Burger', name: 'Chicken Burger', imageUrl: 'chicken.jpg', price: 120, icon: '🍔' }]);
   });
 
   it('uses distinct image-bearing discovery items when no featured items are configured', () => {

@@ -1,0 +1,100 @@
+@baseUrl = http://localhost:7071/api/analytics/journey
+@adminToken = paste-admin-jwt
+@customerToken = paste-customer-jwt
+@outletId = paste-outlet-object-id
+@sessionId = paste-session-id-from-create-response
+@sessionToken = paste-capability-from-create-response
+@orderId = paste-real-owned-order-id
+@from = {{$localDatetime "YYYY-MM-DD" -6 d}}
+@to = {{$localDatetime "YYYY-MM-DD"}}
+
+### Explicit opt-in; omit Authorization for an anonymous session.
+# LinkAccount is independently optional; only a validated JWT can supply identity.
+POST {{baseUrl}}/sessions
+Content-Type: application/json
+
+{
+  "analyticsConsent": true,
+  "linkAccount": false,
+  "consentVersion": "journey-v1",
+  "consentExpiresAt": "{{$datetime iso8601 1 d}}",
+  "visitorId": "{{$guid}}",
+  "outletId": "{{outletId}}",
+  "device": "desktop"
+}
+
+### Record activity; preserve each event ID when retrying a batch.
+# Success: 204. Browser order_placed events are rejected.
+POST {{baseUrl}}/events
+Content-Type: application/json
+
+{
+  "context": { "sessionId": "{{sessionId}}", "token": "{{sessionToken}}" },
+  "events": [
+    { "id": "{{$guid}}", "type": "page_view", "page": "/menu", "occurredAt": "{{$datetime iso8601}}" }
+  ]
+}
+
+### Retry real order attribution (204); another customer's order returns 404.
+# Orders are reloaded server-side; never send totals, quantities, or customer IDs.
+POST {{baseUrl}}/orders
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "context": { "sessionId": "{{sessionId}}", "token": "{{sessionToken}}" },
+  "orderId": "{{orderId}}"
+}
+
+### Inclusive IST dates, at most the last 30 calendar days.
+GET {{baseUrl}}/dashboard?from={{from}}&to={{to}}
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Search sessions; staff is an explicit separate segment.
+GET {{baseUrl}}/sessions?from={{from}}&to={{to}}&segment=customers&page=1&q=
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Timeline: 100 events per page; page engagement covers the entire selected journey.
+GET {{baseUrl}}/sessions/{{sessionId}}?from={{from}}&to={{to}}&page=1
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Live activity ignores historical report dates.
+GET {{baseUrl}}/live
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Export sessions, menu, pages, or daily (UTF-8 CSV).
+GET {{baseUrl}}/export?from={{from}}&to={{to}}&report=sessions&segment=customers
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Withdraw consent and erase the current session, including new legacy analytics (204).
+POST {{baseUrl}}/revoke
+Content-Type: application/json
+
+{
+  "context": { "sessionId": "{{sessionId}}", "token": "{{sessionToken}}" }
+}
+
+### Error: invalid/revoked capability (403).
+POST {{baseUrl}}/events
+Content-Type: application/json
+
+{
+  "context": { "sessionId": "{{sessionId}}", "token": "{{sessionToken}}" },
+  "events": [
+    { "id": "{{$guid}}", "type": "page_view", "page": "/menu", "occurredAt": "{{$datetime iso8601}}" }
+  ]
+}
+
+### Error: administrator reports require authentication (401).
+GET {{baseUrl}}/dashboard
+X-Outlet-Id: {{outletId}}
+
+### Error: dates outside retention are rejected (400), not reported as zero traffic.
+GET {{baseUrl}}/dashboard?from=2000-01-01&to=2000-01-02
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
