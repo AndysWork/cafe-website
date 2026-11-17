@@ -668,8 +668,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   exportItemSales(): void {
     const text = (value: string) => (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value).replace(/"/g, '""');
-    const csv = toCsv(['Item', 'Category', 'Quantity', 'Orders', 'Dine-in', 'Takeaway', 'Delivery/Other', 'Item total'],
-      this.itemSales.rows.map(row => [text(row.name), text(row.category), row.quantity, row.orders, row.dineIn, row.takeaway, row.delivery, row.value]));
+    const csv = toCsv(['Item', 'Category', 'Web/App Qty', 'Zomato Qty', 'Web + Zomato Qty', 'Total Qty (All Sources)', 'Orders', 'Dine-in', 'Takeaway', 'Delivery/Other', 'Item total'],
+      this.itemSales.rows.map(row => [text(row.name), text(row.category), row.webQuantity, row.zomatoQuantity,
+        row.webQuantity + row.zomatoQuantity, row.quantity, row.orders, row.dineIn, row.takeaway, row.delivery, row.value]));
     downloadFile(csv, `item-sales-${this.rangeStart}-${this.rangeEnd}.csv`);
   }
 

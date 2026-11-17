@@ -189,7 +189,7 @@
   .revenue-ranks strong { background: transparent; color: var(--ink); padding: 0; }
   .item-insights-bottom { display: grid; grid-template-columns: minmax(0, 3fr) minmax(110px, .7fr) minmax(100px, .7fr); gap: 8px; margin-top: 8px; }
   .data-table-wrap { min-width: 0; overflow-x: auto; scrollbar-width: thin; }
-  .item-sales-table { min-width: 690px; }
+  .item-sales-table { min-width: 850px; }
   .item-sales-table th, .item-sales-table td { font-size: 8px; padding: 4px; white-space: nowrap; }
   .item-sales-table td:nth-child(2) { white-space: normal; min-width: 95px; font-weight: 650; }
   .category-pill, .source-pill, .payment-pill, .order-state { display: inline-block; padding: 2px 5px; border-radius: 5px; background: #e6f4ff; color: #163566; font-size: 8px; font-weight: 700; white-space: nowrap; }

@@ -52,7 +52,7 @@ describe('admin dashboard overview', () => {
       expect(result.revenue).toBe(100);
       expect(result.orders).toBe(1);
       expect(result.rows).toEqual([{ name: 'Milk Tea', category: 'Beverage', quantity: 2, orders: 1,
-        value: 100, dineIn: 2, takeaway: 0, delivery: 0 }]);
+        value: 100, dineIn: 2, takeaway: 0, delivery: 0, webQuantity: 2, zomatoQuantity: 0 }]);
       expect(result.categories).toEqual([{ name: 'Beverage', quantity: 2 }]);
     });
 
@@ -88,13 +88,32 @@ describe('admin dashboard overview', () => {
       const result = calculateDashboardItemSales([order()], menu, '2026-03-01', '2026-03-01', '', '', '', zomato);
       expect(result.orders).toBe(2);
       expect(result.rows.find(row => row.name === 'Milk Tea')).toEqual(jasmine.objectContaining({
-        quantity: 4, orders: 2, dineIn: 2, delivery: 2 }));
+        quantity: 4, orders: 2, dineIn: 2, delivery: 2, webQuantity: 2, zomatoQuantity: 2 }));
       expect(result.rows.find(row => row.name === 'Milk Tea')!.value).toBeCloseTo(233.33, 2);
       expect(result.rows.find(row => row.name === 'Mystery Wrap')).toEqual(jasmine.objectContaining({
         category: 'Uncategorized', quantity: 1, delivery: 1 }));
       const onlyZomato = calculateDashboardItemSales([order()], menu, '2026-03-01', '2026-03-01', '', '', 'Zomato', zomato);
       expect(onlyZomato.quantity).toBe(3);
       expect(onlyZomato.orders).toBe(1);
+      expect(onlyZomato.rows.find(row => row.name === 'Milk Tea')).toEqual(jasmine.objectContaining({
+        webQuantity: 0, zomatoQuantity: 2 }));
+    });
+
+    it('keeps Swiggy out of the web and Zomato quantities and excludes cancelled and out-of-range orders', () => {
+      const sales: DashboardOnlineSale[] = [
+        { platform: 'Zomato', orderAt: '2026-03-01T10:00:00+05:30', payout: 0,
+          orderedItems: [{ itemName: 'Milk Tea', quantity: 3 }] },
+        { platform: 'Swiggy', orderAt: '2026-03-01T10:00:00+05:30', payout: 0,
+          orderedItems: [{ itemName: 'Milk Tea', quantity: 4 }] },
+        { platform: 'Zomato', orderAt: '2026-02-28T10:00:00+05:30', payout: 0,
+          orderedItems: [{ itemName: 'Milk Tea', quantity: 10 }] }
+      ];
+      const orders = [order(), order({ id: 'cancelled', status: 'cancelled' }),
+        order({ id: 'old', createdAt: '2026-02-28T10:00:00+05:30' })];
+      const result = calculateDashboardItemSales(orders, menu, '2026-03-01', '2026-03-01', '', '', '', sales);
+      expect(result.rows[0]).toEqual(jasmine.objectContaining({ webQuantity: 2, zomatoQuantity: 3, quantity: 9 }));
+      const swiggy = calculateDashboardItemSales(orders, menu, '2026-03-01', '2026-03-01', '', '', 'Swiggy', sales);
+      expect(swiggy.rows[0]).toEqual(jasmine.objectContaining({ webQuantity: 0, zomatoQuantity: 0, quantity: 4 }));
     });
 
     it('counts platform orders in hourly demand without double counting web sales', () => {

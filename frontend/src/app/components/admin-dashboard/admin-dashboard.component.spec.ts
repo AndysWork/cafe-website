@@ -100,6 +100,42 @@ describe('AdminDashboardComponent overview', () => {
     createdAtIsUtc: true, updatedAt: '', ...overrides
   });
 
+  it('shows and exports web, Zomato and combined item quantities separately from other sources', async () => {
+    const fixture = TestBed.createComponent(AdminDashboardComponent);
+    const component = fixture.componentInstance;
+    spyOn(component, 'loadDashboardData').and.callFake(() => component.refreshOverview());
+    component.allOrders = [sampleOrder()];
+    component.menuItems = [{ id: 'tea', name: 'Tea', categoryId: 'beverage', categoryName: 'Beverage', onlinePrice: 20 }];
+    component.onlineSales = [
+      { platform: 'Zomato', orderId: 'z1', orderAt: new Date().toISOString(), payout: 0,
+        orderedItems: [{ itemName: 'Tea', quantity: 3 }], billSubTotal: 60,
+        packagingCharges: 0, discountAmount: 0, platformDeduction: 0 },
+      { platform: 'Swiggy', orderId: 's1', orderAt: new Date().toISOString(), payout: 0,
+        orderedItems: [{ itemName: 'Tea', quantity: 4 }], billSubTotal: 80,
+        packagingCharges: 0, discountAmount: 0, platformDeduction: 0 }
+    ];
+    component.isLoading = false;
+    component.refreshOverview();
+    fixture.detectChanges();
+
+    const cells = Array.from(fixture.nativeElement.querySelectorAll('.item-sales-table tbody tr:first-child td') as NodeListOf<HTMLElement>)
+      .map(cell => cell.textContent?.trim());
+    expect(cells.slice(3, 7)).toEqual(['2', '3', '5', '9']);
+    let exported: Blob | undefined;
+    spyOn(URL, 'createObjectURL').and.callFake((blob: Blob | MediaSource) => {
+      if (blob instanceof Blob) exported = blob;
+      return 'blob:item-sales';
+    });
+    spyOn(URL, 'revokeObjectURL');
+    spyOn(HTMLAnchorElement.prototype, 'click');
+    component.exportItemSales();
+    expect(exported).toBeDefined();
+    const csv = await exported!.text();
+    expect(csv).toContain('Web/App Qty,Zomato Qty,Web + Zomato Qty,Total Qty (All Sources)');
+    expect(csv).toContain('"Tea","Beverage","2","3","5","9"');
+    fixture.destroy();
+  });
+
   it('initializes branch options on direct dashboard visits and forwards a branch selection', () => {
     const outlets = [{ id: 'one', outletName: 'First Outlet' }, { id: 'two', outletName: 'Second Outlet' }];
     const getActiveOutlets = jasmine.createSpy('getActiveOutlets').and.returnValue(of(outlets));

@@ -85,6 +85,10 @@ skipped), payouts come from matching settlement rows (0 until a settlement is
 uploaded), and settlement-only payouts are included. Platform items are
 categorized by matching menu names (unmatched items appear as "Uncategorized");
 per-item values are estimated from the order subtotal.
+Item-wise Sales shows web/app, Zomato and combined web + Zomato quantities
+alongside the total across all selected sources, both on screen and in the CSV.
+Web/app includes dine-in, takeaway and phone orders; the source filter applies
+to every quantity column. Matched item names and categories are grouped together.
 
 The dashboard's **Total Revenue** card and breakdown panel show
 `Total Revenue = Web Sales + Zomato Net Payout` (plus Swiggy, other online and

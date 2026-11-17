@@ -131,6 +131,8 @@ export interface DashboardItemRow extends SalesItem {
   dineIn: number;
   takeaway: number;
   delivery: number;
+  webQuantity: number;
+  zomatoQuantity: number;
 }
 
 export interface DashboardItemSales {
@@ -207,6 +209,7 @@ export function calculateDashboardItemSales(
   const filtered = [...orders, ...platformOrders.keys()].filter(order => !source || sourceOf(order) === source).map(order => ({
     ...order,
     dashboardSource: sourceOf(order),
+    dashboardIsPlatform: platformOrders.has(order),
     items: (order.items || []).map(item => {
       const product = catalog.get(item.menuItemId);
       return { ...item, categoryName: item.categoryName?.trim() || product?.categoryName?.trim() || product?.category?.trim() || 'Uncategorized' };
@@ -215,9 +218,9 @@ export function calculateDashboardItemSales(
   })).filter(order => order.items.length > 0);
   const overview = calculateWebSalesOverview(filtered, start, end);
   const days = new Map(overview.trend.map(bucket => [bucket.date, { date: bucket.date, quantity: 0 }]));
-  const modes = new Map<string, { dineIn: number; takeaway: number; delivery: number }>();
+  const modes = new Map<string, { dineIn: number; takeaway: number; delivery: number; webQuantity: number; zomatoQuantity: number }>();
   for (const order of filtered) {
-    if (['cancelled', 'rejected'].includes(order.status)) continue;
+    if (['cancelled', 'rejected'].includes((order.status || '').toLowerCase())) continue;
     const epoch = getStoredTimestampEpoch(order.createdAt, order.createdAtIsUtc);
     if (!epoch) continue;
     const date = getIstInputDate(new Date(epoch));
@@ -225,14 +228,16 @@ export function calculateDashboardItemSales(
     const bucket = overview.trend.find(bucket => date >= bucket.date && date <= bucket.endDate);
     const day = bucket ? days.get(bucket.date) : undefined;
     for (const item of order.items) {
-      if (item.quantity <= 0) continue;
+      if (!item.name?.trim() || item.quantity <= 0) continue;
       if (day) day.quantity += item.quantity;
       const key = `${item.name.trim().toLowerCase()}\u0000${item.categoryName.toLowerCase()}`;
-      const mode = modes.get(key) || { dineIn: 0, takeaway: 0, delivery: 0 };
+      const mode = modes.get(key) || { dineIn: 0, takeaway: 0, delivery: 0, webQuantity: 0, zomatoQuantity: 0 };
       const orderMode = order.dashboardSource;
       if (orderMode === 'Dine-In') mode.dineIn += item.quantity;
       else if (orderMode === 'Takeaway') mode.takeaway += item.quantity;
       else mode.delivery += item.quantity;
+      if (orderMode === 'Zomato') mode.zomatoQuantity += item.quantity;
+      else if (!order.dashboardIsPlatform) mode.webQuantity += item.quantity;
       modes.set(key, mode);
     }
   }
