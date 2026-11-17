@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject } from '@angular/core';
+import { Component, DestroyRef, effect, inject, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -76,14 +76,16 @@ export class CustomerJourneyComponent {
   constructor() {
     effect(() => {
       const outletId = this.outlet.selectedOutletId();
-      this.cancel();
-      this.data = undefined;
-      this.live = undefined;
-      this.sessions = undefined;
-      this.timeline = undefined;
-      this.selectedId = '';
-      this.error = '';
-      if (outletId) this.refresh();
+      untracked(() => {
+        this.cancel();
+        this.data = undefined;
+        this.live = undefined;
+        this.sessions = undefined;
+        this.timeline = undefined;
+        this.selectedId = '';
+        this.error = '';
+        if (outletId) this.refresh();
+      });
     });
     const timer = setInterval(() => {
       if (this.outlet.selectedOutletId() && !document.hidden &&
@@ -132,8 +134,7 @@ export class CustomerJourneyComponent {
   }
 
   loadLive(): void {
-    if (!this.outlet.selectedOutletId()) return;
-    this.liveRequest?.unsubscribe();
+    if (!this.outlet.selectedOutletId() || (this.liveRequest && !this.liveRequest.closed)) return;
     this.liveRequest = this.api.live().subscribe({
       next: live => { this.live = live; this.liveError = ''; },
       error: error => { this.liveError = this.message(error); }

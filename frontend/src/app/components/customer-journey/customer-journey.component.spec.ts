@@ -5,7 +5,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { CustomerJourneyComponent } from './customer-journey.component';
 import { CustomerJourneyService } from '../../services/customer-journey.service';
 import { OutletStore } from '../../store/outlet.store';
-import { JourneyDashboard } from '../../models/customer-journey.model';
+import { JourneyDashboard, JourneyLive } from '../../models/customer-journey.model';
 
 describe('Customer journey dashboard', () => {
   let fixture: ComponentFixture<CustomerJourneyComponent>;
@@ -107,5 +107,45 @@ describe('Customer journey dashboard', () => {
     expect(component.data).toBeUndefined();
     expect(component.loading).toBeFalse();
     expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain('Analytics unavailable.');
+  });
+
+  it('lets an unfinished live request complete instead of cancelling it on the next poll', () => {
+    const live = new Subject<JourneyLive>();
+    api.live.calls.reset();
+    api.live.and.returnValue(live);
+    component.loadLive();
+    component.loadLive();
+    expect(api.live).toHaveBeenCalledTimes(1);
+    expect(live.observed).toBeTrue();
+    live.next({ generatedAt: new Date().toISOString(), sessions: [], recentEvents: [] });
+    live.complete();
+    component.loadLive();
+    expect(api.live).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not restart outlet requests when incidental HTTP interceptor signals change', () => {
+    const token = signal('original-token');
+    api.dashboard.and.callFake(() => {
+      token();
+      return of(snapshot());
+    });
+    outletId.set('333333333333333333333333');
+    fixture.detectChanges();
+    api.dashboard.calls.reset();
+    token.set('refreshed-token');
+    fixture.detectChanges();
+    expect(api.dashboard).not.toHaveBeenCalled();
+  });
+
+  it('still cancels an unfinished live request when the selected outlet changes', () => {
+    const previous = new Subject<JourneyLive>();
+    api.live.and.returnValue(previous);
+    component.loadLive();
+    const current = new Subject<JourneyLive>();
+    api.live.and.returnValue(current);
+    outletId.set('333333333333333333333333');
+    fixture.detectChanges();
+    expect(previous.observed).toBeFalse();
+    expect(current.observed).toBeTrue();
   });
 });

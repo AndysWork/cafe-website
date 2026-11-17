@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Cafe.Api.Helpers;
 using Cafe.Api.Models;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -22,8 +24,10 @@ public sealed class CustomerJourneyService : ICustomerJourneyService
     private readonly IMongoCollection<Outlet> _outlets;
     private readonly IMongoCollection<UserActivityEvent> _legacyEvents;
     private readonly IMongoCollection<UserSession> _legacySessions;
-    private readonly SemaphoreSlim _indexLock = new(1, 1);
-    private bool _indexed;
+    private readonly IHostApplicationLifetime _lifetime;
+    private readonly ILogger<CustomerJourneyService> _log;
+    private readonly object _indexLock = new();
+    private Task? _indexInitialization;
 
     private static readonly HashSet<string> BrowserEvents = new(StringComparer.Ordinal)
     {
@@ -40,8 +44,11 @@ public sealed class CustomerJourneyService : ICustomerJourneyService
         "/dashboard", "/dine-in", "/track-order", "/reviews", "/reservations", "/finance"
     };
 
-    public CustomerJourneyService(IMongoDatabase database)
+    public CustomerJourneyService(IMongoDatabase database, IHostApplicationLifetime lifetime,
+        ILogger<CustomerJourneyService> log)
     {
+        _lifetime = lifetime;
+        _log = log;
         _sessions = database.GetCollection<JourneySession>("JourneySessions");
         _events = database.GetCollection<JourneyEvent>("JourneyEvents");
         _menu = database.GetCollection<CafeMenuItem>("CafeMenu");
@@ -53,13 +60,25 @@ public sealed class CustomerJourneyService : ICustomerJourneyService
         _legacySessions = database.GetCollection<UserSession>("UserSessions");
     }
 
-    private async Task EnsureIndexesAsync(CancellationToken ct)
+    private Task EnsureIndexesAsync(CancellationToken ct)
     {
-        if (_indexed) return;
-        await _indexLock.WaitAsync(ct);
+        ct.ThrowIfCancellationRequested();
+        lock (_indexLock)
+        {
+            if (_indexInitialization == null || _indexInitialization.IsFaulted || _indexInitialization.IsCanceled)
+                _indexInitialization = CreateIndexesAsync();
+            return _indexInitialization.WaitAsync(ct);
+        }
+    }
+
+    private async Task CreateIndexesAsync()
+    {
+        // Index setup belongs to the host; a disconnected browser only cancels its own wait.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.ApplicationStopping);
+        timeout.CancelAfter(TimeSpan.FromMinutes(1));
+        var ct = timeout.Token;
         try
         {
-            if (_indexed) return;
             await _sessions.Indexes.CreateManyAsync(new[]
             {
                 new CreateIndexModel<JourneySession>(Builders<JourneySession>.IndexKeys.Ascending(s => s.ExpiresAt),
@@ -80,9 +99,23 @@ public sealed class CustomerJourneyService : ICustomerJourneyService
             await _legacySessions.Indexes.CreateOneAsync(new CreateIndexModel<UserSession>(
                 Builders<UserSession>.IndexKeys.Ascending(s => s.ExpiresAt),
                 new CreateIndexOptions { Name = "consented_session_retention", ExpireAfter = TimeSpan.Zero }), cancellationToken: ct);
-            _indexed = true;
+            _log.LogInformation("Customer journey indexes initialized");
         }
-        finally { _indexLock.Release(); }
+        catch (OperationCanceledException) when (_lifetime.ApplicationStopping.IsCancellationRequested)
+        {
+            _log.LogInformation("Customer journey index initialization cancelled because the host is stopping");
+            throw;
+        }
+        catch (OperationCanceledException ex) when (timeout.IsCancellationRequested)
+        {
+            _log.LogError(ex, "Customer journey index initialization exceeded its one-minute timeout");
+            throw new TimeoutException("Customer journey index initialization timed out.", ex);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Customer journey index initialization failed; a subsequent request can retry");
+            throw;
+        }
     }
 
     public async Task<JourneySessionResponse> CreateSessionAsync(

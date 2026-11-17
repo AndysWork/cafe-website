@@ -84,6 +84,10 @@ The application database identity needs collection/index creation and normal
 read/write/delete permissions for `JourneySessions`, `JourneyEvents` and the
 legacy analytics collections. Indexes initialize on first use; no seed data
 or migration/backfill is required.
+Concurrent requests share one index-initialization task. Browser cancellations
+cancel only that request's wait, not shared setup; setup has a one-minute timeout,
+stops on host shutdown, and retries on a later request after failure. Live polling
+waits for an in-flight response rather than cancelling it every 15 seconds.
 
 Request examples, including authorization/retention errors, are in
 [api/customer-journey.http](api/customer-journey.http). Reports explicitly reject

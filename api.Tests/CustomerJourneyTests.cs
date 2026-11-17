@@ -5,6 +5,8 @@ using Cafe.Api.Functions;
 using Cafe.Api.Helpers;
 using Cafe.Api.Models;
 using Cafe.Api.Services;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
@@ -226,7 +228,7 @@ public sealed class CustomerJourneyTests
         outlets.Setup(c => c.FindAsync(It.IsAny<FilterDefinition<Outlet>>(),
             It.IsAny<FindOptions<Outlet, BsonDocument>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => Cursor(new[] { new BsonDocument("_id", ObjectId.Parse(OutletId)) }));
-        var service = new CustomerJourneyService(db.Object);
+        var service = Service(db.Object);
         var request = new CreateJourneySessionRequest
         {
             AnalyticsConsent = true, ConsentVersion = "journey-v1", VisitorId = Guid.NewGuid().ToString(),
@@ -273,7 +275,7 @@ public sealed class CustomerJourneyTests
             It.IsAny<FindOptions<JourneyEvent, JourneyEvent>>(), It.IsAny<CancellationToken>()))
             .Callback<FilterDefinition<JourneyEvent>, FindOptions<JourneyEvent, JourneyEvent>, CancellationToken>((f, _, _) => eventFilter = f)
             .ReturnsAsync(() => Cursor(Array.Empty<JourneyEvent>()));
-        var service = new CustomerJourneyService(db.Object);
+        var service = Service(db.Object);
         var result = await service.GetSessionsAsync(OutletId, new(DateTime.UtcNow.AddDays(-1), DateTime.UtcNow), "customers", null, 1, default);
         Assert.Empty(result.Sessions);
         var registry = BsonSerializer.SerializerRegistry;
@@ -308,7 +310,7 @@ public sealed class CustomerJourneyTests
         events.Setup(c => c.FindAsync(It.IsAny<FilterDefinition<JourneyEvent>>(),
             It.IsAny<FindOptions<JourneyEvent, JourneyEvent>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => Cursor(activity));
-        var result = await new CustomerJourneyService(db.Object).GetTimelineAsync(OutletId, Range, id, 2, default);
+        var result = await Service(db.Object).GetTimelineAsync(OutletId, Range, id, 2, default);
         Assert.NotNull(result);
         Assert.Equal(2, result.Events.Count);
         Assert.Equal(102, result.Total);
@@ -352,7 +354,7 @@ public sealed class CustomerJourneyTests
                 Id = Guid.NewGuid().ToString(), Type = "page_view", Page = "/dine-in", OccurredAt = DateTimeOffset.UtcNow
             }]
         };
-        var service = new CustomerJourneyService(db.Object);
+        var service = Service(db.Object);
         await service.TrackAsync(request, default);
         await service.TrackAsync(request, default);
         var registry = BsonSerializer.SerializerRegistry;
@@ -364,6 +366,86 @@ public sealed class CustomerJourneyTests
             Assert.Equal($"{session.Id}:{request.Events[0].Id}", operation.Filter.Render(args)["_id"].AsString);
             Assert.True(operation.Update.Render(args).AsBsonDocument.Contains("$setOnInsert"));
         });
+    }
+
+    [Fact]
+    public async Task CancellingTheFirstRequestDoesNotCancelSharedIndexInitialization()
+    {
+        var (service, indexes, sessions) = InitializationFixture();
+        var gate = new TaskCompletionSource<IEnumerable<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken indexToken = default;
+        indexes.Setup(i => i.CreateManyAsync(It.IsAny<IEnumerable<CreateIndexModel<JourneySession>>>(), It.IsAny<CancellationToken>()))
+            .Callback<IEnumerable<CreateIndexModel<JourneySession>>, CancellationToken>((_, ct) => indexToken = ct)
+            .Returns((IEnumerable<CreateIndexModel<JourneySession>> _, CancellationToken ct) => gate.Task.WaitAsync(ct));
+        using var cancelled = new CancellationTokenSource();
+        var first = service.CreateSessionAsync(SessionRequest(), null, cancelled.Token);
+        var second = service.CreateSessionAsync(SessionRequest(), null, default);
+        var sharedToken = indexToken;
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        Assert.False(sharedToken.IsCancellationRequested);
+        Assert.False(second.IsCompleted);
+        gate.SetResult(Array.Empty<string>());
+        await second;
+        await service.CreateSessionAsync(SessionRequest(), null, default);
+        indexes.Verify(i => i.CreateManyAsync(It.IsAny<IEnumerable<CreateIndexModel<JourneySession>>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        sessions.Verify(c => c.InsertOneAsync(It.IsAny<JourneySession>(), It.IsAny<InsertOneOptions>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task FailedIndexInitializationIsSurfacedAndTheNextRequestCanRetry()
+    {
+        var (service, indexes, _) = InitializationFixture();
+        indexes.SetupSequence(i => i.CreateManyAsync(It.IsAny<IEnumerable<CreateIndexModel<JourneySession>>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Index creation failed"))
+            .ReturnsAsync(Array.Empty<string>());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateSessionAsync(SessionRequest(), null, default));
+        await service.CreateSessionAsync(SessionRequest(), null, default);
+        indexes.Verify(i => i.CreateManyAsync(It.IsAny<IEnumerable<CreateIndexModel<JourneySession>>>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task HostShutdownStillCancelsSharedIndexInitialization()
+    {
+        using var stopping = new CancellationTokenSource();
+        var (service, indexes, _) = InitializationFixture(stopping.Token);
+        var gate = new TaskCompletionSource<IEnumerable<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        indexes.Setup(i => i.CreateManyAsync(It.IsAny<IEnumerable<CreateIndexModel<JourneySession>>>(), It.IsAny<CancellationToken>()))
+            .Returns((IEnumerable<CreateIndexModel<JourneySession>> _, CancellationToken ct) => gate.Task.WaitAsync(ct));
+        var request = service.CreateSessionAsync(SessionRequest(), null, default);
+        stopping.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
+    }
+
+    private static CreateJourneySessionRequest SessionRequest() => new()
+    {
+        AnalyticsConsent = true, ConsentVersion = "journey-v1", VisitorId = Guid.NewGuid().ToString(),
+        OutletId = OutletId, ConsentExpiresAt = DateTimeOffset.UtcNow.AddDays(1)
+    };
+
+    private static CustomerJourneyService Service(IMongoDatabase db, CancellationToken stopping = default) =>
+        new(db, Mock.Of<IHostApplicationLifetime>(lifetime => lifetime.ApplicationStopping == stopping),
+            NullLogger<CustomerJourneyService>.Instance);
+
+    private static (CustomerJourneyService Service, Mock<IMongoIndexManager<JourneySession>> Indexes,
+        Mock<IMongoCollection<JourneySession>> Sessions) InitializationFixture(CancellationToken stopping = default)
+    {
+        var db = new Mock<IMongoDatabase>();
+        var sessions = Collection<JourneySession>(db, "JourneySessions");
+        Collection<JourneyEvent>(db, "JourneyEvents");
+        Collection<UserActivityEvent>(db, "UserActivityEvents");
+        Collection<UserSession>(db, "UserSessions");
+        var outlets = Collection<Outlet>(db, "Outlets");
+        sessions.Setup(c => c.FindAsync(It.IsAny<FilterDefinition<JourneySession>>(),
+            It.IsAny<FindOptions<JourneySession, JourneySession>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => Cursor(Array.Empty<JourneySession>()));
+        outlets.Setup(c => c.FindAsync(It.IsAny<FilterDefinition<Outlet>>(),
+            It.IsAny<FindOptions<Outlet, BsonDocument>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => Cursor(new[] { new BsonDocument("_id", ObjectId.Parse(OutletId)) }));
+        return (Service(db.Object, stopping), Mock.Get(sessions.Object.Indexes), sessions);
     }
 
     private static Mock<IMongoCollection<T>> Collection<T>(Mock<IMongoDatabase> db, string name)
