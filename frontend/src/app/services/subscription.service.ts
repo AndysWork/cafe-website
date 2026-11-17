@@ -19,6 +19,7 @@ export interface SubscriptionItem {
   categoryName?: string;
   imageUrl?: string;
   isVeg?: boolean;
+  servingDays?: string[];
 }
 
 export interface SubscriptionPlan {
@@ -27,6 +28,8 @@ export interface SubscriptionPlan {
   description?: string;
   category?: string;
   price: number;
+  pricingMode?: 'fixed' | 'per_day';
+  isDraft?: boolean;
   durationDays: number;
   benefits: string[];
   includedItems?: SubscriptionItem[];
@@ -109,6 +112,22 @@ export interface MySubscriptionResponse {
   history: CustomerSubscription[];
 }
 
+export interface SubscriptionOverview {
+  totalSubscriptions: number;
+  newSubscriptionsThisMonth: number;
+  previousMonthSubscriptions: number;
+  monthlyRevenue: number;
+  previousMonthRevenue: number;
+  planSubscribers: Record<string, number>;
+}
+
+export interface SubscriptionMenuSet {
+  id?: string;
+  name: string;
+  items: SubscriptionItem[];
+  outletId?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SubscriptionService {
   private http = inject(HttpClient);
@@ -125,6 +144,26 @@ export class SubscriptionService {
     return this.http.get<SubscriptionPlan[]>(`${this.apiUrl}/manage/subscriptions/plans`).pipe(
       catchError(handleServiceError('SubscriptionService.getAllPlans'))
     );
+  }
+
+  getOverview(): Observable<SubscriptionOverview> {
+    return this.http.get<SubscriptionOverview>(`${this.apiUrl}/manage/subscriptions/overview`)
+      .pipe(catchError(handleServiceError('SubscriptionService.getOverview')));
+  }
+
+  getMenuSets(): Observable<SubscriptionMenuSet[]> {
+    return this.http.get<SubscriptionMenuSet[]>(`${this.apiUrl}/manage/subscriptions/menu-sets`)
+      .pipe(catchError(handleServiceError('SubscriptionService.getMenuSets')));
+  }
+
+  saveMenuSet(name: string, items: SubscriptionItem[]): Observable<SubscriptionMenuSet> {
+    return this.http.post<SubscriptionMenuSet>(`${this.apiUrl}/manage/subscriptions/menu-sets`, { name, items })
+      .pipe(catchError(handleServiceError('SubscriptionService.saveMenuSet')));
+  }
+
+  deleteMenuSet(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/manage/subscriptions/menu-sets/${id}`)
+      .pipe(catchError(handleServiceError('SubscriptionService.deleteMenuSet')));
   }
 
   createPlan(plan: Partial<SubscriptionPlan>): Observable<SubscriptionPlan> {

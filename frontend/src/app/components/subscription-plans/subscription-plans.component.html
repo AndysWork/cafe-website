@@ -11,7 +11,7 @@
     </svg>
     <div class="hero-content">
       <h1>Cafe Meal Subscriptions & Combos</h1>
-      <p>Subscribe to our chef-crafted daily meal boxes or build your own recurring meal combo with up to 10% discount and 100% Free Doorstep Delivery.</p>
+      <p>Subscribe to our chef-crafted meal boxes or build your own recurring meal combo with up to 10% discount. Delivery benefits are shown with each plan.</p>
     </div>
     <img class="hero-food" src="/images/cafe/hero-pizza-drink.png" alt="" aria-hidden="true" width="1536" height="768" />
   </div>
@@ -146,6 +146,7 @@
               <li *ngFor="let item of plan.includedItems">
                 <span class="item-qty-tag">{{ item.dailyQuantity }}x</span>
                 <span class="item-name">{{ item.menuItemName }}</span>
+                <small *ngIf="item.servingDays?.length && !item.servingDays?.includes('Everyday')">({{ item.servingDays?.join(', ') }})</small>
               </li>
             </ul>
           </div>
@@ -153,6 +154,7 @@
           <!-- Plan Benefits -->
           <div class="plan-benefits-box">
             <ul class="benefits-list">
+              <li *ngIf="plan.freeDelivery !== false"><span class="check-icon">✓</span><span>Free delivery</span></li>
               <li *ngFor="let b of plan.benefits">
                 <span class="check-icon">✓</span>
                 <span>{{ b }}</span>
@@ -596,7 +598,7 @@
             <div class="detail-tile">
               <span class="tile-icon">💰</span>
               <div class="tile-content">
-                <span class="tile-label">Total Paid (Free Delivery)</span>
+                <span class="tile-label">Total Paid{{ activeSubscription.freeDelivery ? ' (Free Delivery)' : '' }}</span>
                 <strong>₹{{ activeSubscription.amountPaid | number:'1.0-0' }}</strong>
               </div>
             </div>
@@ -604,10 +606,11 @@
 
           <!-- Included Items -->
           <div class="active-items-section" *ngIf="activeSubscription.items && activeSubscription.items.length > 0">
-            <h4>Daily Meal Basket:</h4>
+            <h4>Meal Basket:</h4>
             <div class="active-items-chips">
               <span *ngFor="let item of activeSubscription.items" class="meal-item-chip">
                 <strong>{{ item.dailyQuantity }}x</strong> {{ item.menuItemName }}
+                <small *ngIf="item.servingDays?.length && !item.servingDays?.includes('Everyday')">({{ item.servingDays?.join(', ') }})</small>
               </span>
             </div>
           </div>
@@ -778,7 +781,7 @@
           </div>
           <div class="price-line free-delivery">
             <span>Daily Delivery</span>
-            <strong>FREE (₹0)</strong>
+            <strong>{{ selectedPlanForCheckout.freeDelivery !== false ? 'FREE (₹0)' : 'Not included in plan' }}</strong>
           </div>
           <div class="price-line total">
             <span>Total Payable</span>

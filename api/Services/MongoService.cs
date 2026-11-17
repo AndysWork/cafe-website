@@ -114,6 +114,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
     private readonly IMongoCollection<HappyHourRule> _happyHourRules;
     private readonly IMongoCollection<PurchaseOrder> _purchaseOrders;
     private readonly IMongoCollection<SubscriptionPlan> _subscriptionPlans;
+    private readonly IMongoCollection<SubscriptionMenuSet> _subscriptionMenuSets;
     private readonly IMongoCollection<CustomerSubscription> _customerSubscriptions;
     private readonly IMongoCollection<DeliveryPartner> _deliveryPartners;
     private readonly IMongoCollection<DeliveryShift> _deliveryShifts;
@@ -241,6 +242,7 @@ public partial class MongoService : IMenuRepository, IUserRepository, IOrderRepo
         _happyHourRules = db.GetCollection<HappyHourRule>("HappyHourRules");
         _purchaseOrders = db.GetCollection<PurchaseOrder>("PurchaseOrders");
         _subscriptionPlans = db.GetCollection<SubscriptionPlan>("SubscriptionPlans");
+        _subscriptionMenuSets = db.GetCollection<SubscriptionMenuSet>("SubscriptionMenuSets");
         _customerSubscriptions = db.GetCollection<CustomerSubscription>("CustomerSubscriptions");
         _deliveryPartners = db.GetCollection<DeliveryPartner>("DeliveryPartners");
         _deliveryShifts = db.GetCollection<DeliveryShift>("DeliveryShifts");

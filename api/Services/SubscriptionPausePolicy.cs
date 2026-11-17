@@ -65,11 +65,7 @@ public static class SubscriptionPausePolicy
     {
         if (sub.Status != "paused") throw new InvalidOperationException("Subscription is not paused.");
         var started = PauseStartedAt(sub);
-        if (now < started) throw new InvalidOperationException("Pause start is in the future.");
-        var end = ResumeAt(sub);
-        var consumedUntil = now < end ? now : end;
-        var days = Math.Clamp((int)Math.Ceiling((consumedUntil - started).TotalDays), 1,
-            SubscriptionTerms.ForExistingSubscription(sub.DurationDays).MaxPauseDays);
+        var days = ConsumedDays(sub, now);
         var startedUtc = IstDateHelper.IstWallTimeToUtc(started);
         if (!sub.PauseStartsUtc.Contains(startedUtc)) sub.PauseStartsUtc.Add(startedUtc);
         sub.EndDate = sub.EndDate.AddDays(days);
@@ -78,6 +74,16 @@ public static class SubscriptionPausePolicy
         sub.PausedAt = null;
         sub.PauseEndsAtUtc = null;
         return days;
+    }
+
+    public static int ConsumedDays(CustomerSubscription sub, DateTime now)
+    {
+        var started = PauseStartedAt(sub);
+        if (now < started) throw new InvalidOperationException("Pause start is in the future.");
+        var end = ResumeAt(sub);
+        var consumedUntil = now < end ? now : end;
+        return Math.Clamp((int)Math.Ceiling((consumedUntil - started).TotalDays), 1,
+            SubscriptionTerms.ForExistingSubscription(sub.DurationDays).MaxPauseDays);
     }
 
     private static DateTime PauseStartedAt(CustomerSubscription sub)

@@ -31,6 +31,12 @@ public class SubscriptionPlan : ISoftDeletable
     [Range(1, 100000)]
     public decimal Price { get; set; }
 
+    [BsonElement("pricingMode")]
+    public string PricingMode { get; set; } = "fixed";
+
+    [BsonElement("isDraft")]
+    public bool IsDraft { get; set; }
+
     [BsonElement("durationDays")]
     [AllowedValues(7, 14, 30)]
     public int DurationDays { get; set; } = 30;
@@ -90,6 +96,9 @@ public class SubscriptionItem
 
     [BsonElement("isVeg")]
     public bool? IsVeg { get; set; }
+
+    [BsonElement("servingDays")]
+    public List<string> ServingDays { get; set; } = new() { "Everyday" };
 }
 
 public class CustomerSubscription
@@ -233,6 +242,11 @@ public class CreateSubscriptionPlanRequest
 
     [Range(1, 100000)]
     public decimal Price { get; set; }
+
+    [AllowedValuesList("fixed", "per_day")]
+    public string PricingMode { get; set; } = "fixed";
+    public bool IsActive { get; set; } = true;
+    public bool IsDraft { get; set; }
 
     [AllowedValues(7, 14, 30)]
     public int DurationDays { get; set; } = 30;

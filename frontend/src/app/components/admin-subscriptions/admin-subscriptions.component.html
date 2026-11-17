@@ -1,136 +1,172 @@
-<div class="admin-container">
-  <div class="page-header">
-    <h1>📦 Subscription Plans</h1>
-    <button class="btn-create" (click)="openCreateModal()">➕ Create Plan</button>
+<svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <symbol id="sp-layers" viewBox="0 0 24 24"><path d="m3 7 9-5 9 5-9 5-9-5Zm0 5 9 5 9-5M3 17l9 5 9-5"/></symbol>
+  <symbol id="sp-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="sp-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M2 21v-3a7 7 0 0 1 14 0v3H2Zm14-18a4 4 0 0 1 0 8m3 3a6 6 0 0 1 3 6"/></symbol>
+  <symbol id="sp-chart" viewBox="0 0 24 24"><path d="M5 21V12m7 9V3m7 18V7"/></symbol>
+  <symbol id="sp-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/></symbol>
+  <symbol id="sp-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+  <symbol id="sp-edit" viewBox="0 0 24 24"><path d="m16 3 5 5-13 13H3v-5L16 3Zm-3 3 5 5"/></symbol>
+  <symbol id="sp-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
+  <symbol id="sp-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="17" rx="2"/><path d="M7 2v6m10-6v6M3 11h18m-14 4h3m4 0h3m-10 4h3"/></symbol>
+  <symbol id="sp-arrow" viewBox="0 0 24 24"><path d="M3 12h18m-7-7 7 7-7 7"/></symbol>
+  <symbol id="sp-close" viewBox="0 0 24 24"><path d="m5 5 14 14M5 19 19 5"/></symbol>
+  <symbol id="sp-file" viewBox="0 0 24 24"><path d="M5 2h9l5 5v15H5V2Zm9 0v6h5M8 12h8m-8 4h8"/></symbol>
+  <symbol id="sp-filter" viewBox="0 0 24 24"><path d="M2 3h20l-8 9v8l-4-2v-6L2 3Z"/></symbol>
+  <symbol id="sp-tag" viewBox="0 0 24 24"><path d="M3 3h9l10 10-9 9L3 12V3Z"/><circle cx="8" cy="8" r="1"/></symbol>
+  <symbol id="sp-star" viewBox="0 0 24 24"><path d="m12 2 3 6 7 1-5 5 1 8-6-4-6 4 1-8-5-5 7-1 3-6Z"/></symbol>
+  <symbol id="sp-shield" viewBox="0 0 24 24"><path d="m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6l9-4Z"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="sp-save" viewBox="0 0 24 24"><path d="M3 3h15l3 3v15H3V3Zm4 0v7h10V3M7 21v-7h10v7"/></symbol>
+</svg>
+
+<div class="subscription-admin">
+  <div class="list-layout" [class.with-drawer]="editorStep === 'details'" *ngIf="!editorStep || editorStep === 'details'">
+    <main class="list-pane">
+      <header class="page-heading">
+        <div class="heading-copy"><svg class="icon brand"><use href="#sp-layers"/></svg><div><h1>Subscription Plans</h1><p>Create and manage meal subscription plans with weekly, biweekly and monthly options.</p></div></div>
+        <button class="primary" type="button" (click)="openCreateModal()"><svg class="icon"><use href="#sp-plus"/></svg>Create Plan</button>
+      </header>
+
+      <section class="stat-grid" aria-label="Subscription overview">
+        <article class="stat violet"><span class="stat-icon"><svg class="icon"><use href="#sp-layers"/></svg></span><div><span>Total Plans</span><strong>{{ loading ? '—' : plans.length }}</strong></div></article>
+        <article class="stat green"><span class="stat-icon"><svg class="icon"><use href="#sp-check"/></svg></span><div><span>Active Plans</span><strong>{{ loading ? '—' : activePlanCount }}</strong></div></article>
+        <article class="stat cyan"><span class="stat-icon"><svg class="icon"><use href="#sp-users"/></svg></span><div><span>Total Subscriptions</span><strong>{{ overview ? (overview.totalSubscriptions | number) : '—' }}</strong><small *ngIf="overview && growth(overview.newSubscriptionsThisMonth, overview.previousMonthSubscriptions) !== null">{{ growth(overview.newSubscriptionsThisMonth, overview.previousMonthSubscriptions) | number:'1.0-1' }}% vs last month</small></div></article>
+        <article class="stat amber"><span class="stat-icon"><svg class="icon"><use href="#sp-chart"/></svg></span><div><span>Monthly Revenue</span><strong>{{ overview ? '₹' + (overview.monthlyRevenue | number:'1.0-0') : '—' }}</strong><small *ngIf="overview && growth(overview.monthlyRevenue, overview.previousMonthRevenue) !== null">{{ growth(overview.monthlyRevenue, overview.previousMonthRevenue) | number:'1.0-1' }}% vs last month</small></div></article>
+      </section>
+      <p *ngIf="metricsError" class="notice error" role="alert">{{ metricsError }} <button type="button" class="text-button" (click)="reload()">Refresh</button></p>
+
+      <div class="plan-toolbar">
+        <label class="search-field"><svg class="icon"><use href="#sp-search"/></svg><input type="search" aria-label="Search plans" placeholder="Search plans..." [(ngModel)]="planSearch" (ngModelChange)="page = 1"></label>
+        <select aria-label="Filter plan status" [(ngModel)]="statusFilter" (ngModelChange)="page = 1"><option value="">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="draft">Draft</option></select>
+        <select aria-label="Filter plan duration" [(ngModel)]="durationFilter" (ngModelChange)="page = 1"><option value="">All Durations</option><option *ngFor="let term of terms" [value]="term.durationDays">{{ durationName(term.durationDays) }} ({{ term.durationDays }} days)</option></select>
+        <button type="button" class="secondary" (click)="resetFilters()">↻ Reset</button>
+      </div>
+
+      <div class="table-wrap plans-table">
+        <table>
+          <caption class="sr-only">Subscription plans for the selected outlet</caption>
+          <thead><tr><th>Plan Details</th><th>Duration</th><th>Discount</th><th>Pauses</th><th>Menu Items</th><th>Price</th><th>Subscribers</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr *ngIf="loading"><td colspan="9" class="empty" role="status">Loading subscription plans...</td></tr>
+            <tr *ngFor="let plan of pagePlans; trackBy: trackById">
+              <td><div class="plan-identity"><img *ngIf="planImage(plan); else planFallback" [src]="planImage(plan)" alt=""><ng-template #planFallback><span class="meal-fallback">♨</span></ng-template><div><strong>{{ plan.name }}</strong><small>{{ plan.description }}</small></div></div></td>
+              <td><span class="duration-badge" [class.weekly]="plan.durationDays === 7" [class.biweekly]="plan.durationDays === 14" [class.monthly]="plan.durationDays === 30"><svg class="icon"><use href="#sp-calendar"/></svg><span><b>{{ durationName(plan.durationDays) }}</b><small>({{ plan.durationDays }} days)</small></span></span></td>
+              <td>{{ termsFor(plan)?.discountPercent ?? plan.discountPercent ?? 0 }}%</td>
+              <td class="pause-cell"><b>{{ termsFor(plan)?.pauseLimit ?? 2 }}</b><small>({{ termsFor(plan)?.maxPauseDays ?? 7 }} days)</small></td>
+              <td><div class="image-stack"><ng-container *ngFor="let item of plan.includedItems | slice:0:3"><img *ngIf="imageFor(item)" [src]="imageFor(item)" alt=""></ng-container></div><small>{{ plan.includedItems?.length || 0 }} items</small></td>
+              <td class="price-cell"><strong>₹{{ plan.price | number:'1.0-2' }}</strong><small>(₹{{ plan.price / plan.durationDays | number:'1.0-2' }}/day)</small></td>
+              <td>{{ overview ? (overview.planSubscribers[plan.id || ''] || 0) : '—' }}</td>
+              <td><button class="status-pill" [class.active]="plan.isActive" [attr.aria-label]="(plan.isActive ? 'Deactivate ' : 'Activate ') + plan.name" (click)="toggleActive(plan)"><i></i>{{ plan.isDraft ? 'Draft' : plan.isActive ? 'Active' : 'Inactive' }}</button></td>
+              <td><div class="row-actions"><button type="button" class="icon-button" [attr.aria-label]="'Edit ' + plan.name" (click)="openEditModal(plan)"><svg class="icon"><use href="#sp-edit"/></svg></button><button type="button" class="icon-button danger" [attr.aria-label]="'Delete ' + plan.name" (click)="deletePlan(plan)"><svg class="icon"><use href="#sp-trash"/></svg></button></div></td>
+            </tr>
+            <tr *ngIf="!loading && !filteredPlans.length"><td colspan="9" class="empty">{{ plans.length ? 'No plans match these filters.' : 'No plans yet. Create your first subscription plan.' }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <footer class="pagination"><span>Showing {{ firstRow }} – {{ lastRow }} of <b>{{ filteredPlans.length }} plans</b></span><div><button type="button" class="icon-button" aria-label="Previous page" [disabled]="page <= 1" (click)="page = page - 1">‹</button><span class="page-number">{{ page }}</span><button type="button" class="icon-button" aria-label="Next page" [disabled]="page >= pageCount" (click)="page = page + 1">›</button><select aria-label="Plans per page" [(ngModel)]="pageSize" (ngModelChange)="page = 1"><option [ngValue]="10">10 / page</option><option [ngValue]="20">20 / page</option><option [ngValue]="50">50 / page</option></select></div></footer>
+      <p class="metric-note">Revenue is confirmed subscription payments this IST calendar month. Subscribers counts active or paused paid customers per plan.</p>
+
+      <section class="panel pending-payments" *ngIf="pendingPayments.length">
+        <h2>Pending Payment Confirmation <span class="count">{{ pendingPayments.length }}</span></h2>
+        <div class="payment-row" *ngFor="let subscription of pendingPayments; trackBy: trackById">
+          <div><strong>{{ subscription.customerName || 'Customer' }}</strong><small>{{ subscription.planName }} · {{ subscription.paymentMethod === 'cash_at_counter' ? 'Cash' : 'UPI' }}</small></div>
+          <strong>₹{{ subscription.amountDue | number:'1.2-2' }}</strong>
+          <input type="text" [(ngModel)]="paymentReferenceDraft[subscription.id!]" aria-label="Payment reference" placeholder="Payment reference (optional)">
+          <button type="button" class="primary" (click)="confirmSubscriptionPayment(subscription)" [disabled]="confirmingPaymentId !== null">{{ confirmingPaymentId === subscription.id ? 'Confirming...' : 'Confirm Payment' }}</button>
+        </div>
+      </section>
+    </main>
+
+    <aside *ngIf="editorStep === 'details'" class="details-drawer panel" role="dialog" aria-labelledby="editor-title" (keydown.escape)="closeModal()">
+      <header class="drawer-header"><div class="heading-copy"><svg class="icon brand"><use href="#sp-layers"/></svg><div><h2 id="editor-title" #editorHeading tabindex="-1">{{ currentPlan ? 'Edit' : 'Create' }} Subscription Plan</h2><p>Set plan details, select menu items and review.</p></div></div><button type="button" class="icon-button quiet" aria-label="Close plan editor" (click)="closeModal()"><svg class="icon"><use href="#sp-close"/></svg></button></header>
+      <ng-container *ngTemplateOutlet="stepper"></ng-container>
+      <div class="drawer-body">
+        <h3>Plan Details</h3>
+        <label class="field">Plan Name <span class="required">*</span><input type="text" [(ngModel)]="planForm.name" maxlength="200" placeholder="e.g. Weekend Gourmet Plan"></label>
+        <label class="field">Description <span class="required">*</span><textarea rows="2" [(ngModel)]="planForm.description" maxlength="500" placeholder="Describe this subscription plan"></textarea></label>
+        <fieldset><legend>Subscription Duration <span class="required">*</span></legend><div class="duration-options"><label *ngFor="let term of terms" [class.selected]="planForm.durationDays === term.durationDays"><input type="radio" name="plan-duration" [value]="term.durationDays" [(ngModel)]="planForm.durationDays"><svg class="icon"><use href="#sp-calendar"/></svg><b>{{ durationName(term.durationDays) }}</b><span>{{ term.durationDays }} days</span><strong>{{ term.discountPercent }}% discount</strong></label></div></fieldset>
+        <div class="rules-box"><h4>ⓘ Plan Rules (auto-applied)</h4><div><span>Discount on Plan Price</span><b>{{ selectedTerms?.discountPercent }}%</b></div><div><span>Total Pauses Allowed</span><b>{{ selectedTerms?.pauseLimit }}</b></div><div><span>Max Days per Pause</span><b>{{ selectedTerms?.maxPauseDays }} days</b></div></div>
+        <fieldset><legend>Pricing <span class="required">*</span></legend><div class="pricing-modes"><label [class.selected]="planForm.pricingMode === 'fixed'"><input type="radio" name="pricing-mode" value="fixed" [ngModel]="planForm.pricingMode" (ngModelChange)="setPricingMode($event)">Fixed Price (Plan Price)</label><label [class.selected]="planForm.pricingMode === 'per_day'"><input type="radio" name="pricing-mode" value="per_day" [ngModel]="planForm.pricingMode" (ngModelChange)="setPricingMode($event)">Price per Day</label></div></fieldset>
+        <div class="price-inputs"><label class="field">{{ planForm.pricingMode === 'fixed' ? 'Plan Price' : 'Price per Day' }} (₹) <span class="required">*</span><input type="number" min="0.01" step="0.01" [(ngModel)]="planForm.priceInput"></label><div class="effective-price"><span>Effective Price After Discount</span><strong>₹{{ sellingPrice | number:'1.2-2' }}</strong><small>Saves ₹{{ discountAmount | number:'1.2-2' }} · {{ selectedTerms?.discountPercent }}% off</small></div></div>
+        <h3>Plan Features</h3>
+        <div class="feature-list"><label><input type="checkbox" [(ngModel)]="planForm.freeDelivery">Free Delivery</label><label *ngFor="let feature of features"><input type="checkbox" [ngModel]="planForm.benefits.includes(feature)" (ngModelChange)="toggleFeature(feature, $event)">{{ feature }}</label></div>
+        <div class="benefit-entry"><input type="text" aria-label="Additional plan benefit" placeholder="Add another benefit" [(ngModel)]="benefitInput" (keydown.enter)="addBenefit(); $event.preventDefault()"><button type="button" class="icon-button" aria-label="Add benefit" (click)="addBenefit()"><svg class="icon"><use href="#sp-plus"/></svg></button></div>
+        <div class="benefit-chips"><button type="button" *ngFor="let benefit of customBenefits" [attr.aria-label]="'Remove benefit ' + benefit" (click)="toggleFeature(benefit, false)">{{ benefit }} ×</button></div>
+        <details class="optional-details"><summary>Plan image &amp; category</summary><label class="field">Image URL<input type="url" [(ngModel)]="planForm.imageUrl" placeholder="https://..."></label><label class="field">Category<select [(ngModel)]="planForm.category"><option value="all-day">All day</option><option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="snacks">Snacks</option><option value="dinner">Dinner</option></select></label><label class="field">Badge text<input type="text" [(ngModel)]="planForm.badgeText"></label></details>
+        <p *ngIf="formError" class="notice error" role="alert">{{ formError }}</p>
+      </div>
+      <footer class="drawer-footer"><button type="button" class="secondary" (click)="closeModal()">Cancel</button><button type="button" class="primary" (click)="nextStep()">Next: Select Menu Items <svg class="icon"><use href="#sp-arrow"/></svg></button></footer>
+    </aside>
   </div>
 
-  <section class="pending-payments" *ngIf="pendingPayments.length > 0">
-    <h2>Pending Payment Confirmation</h2>
-    <div class="payment-row" *ngFor="let subscription of pendingPayments; trackBy: trackById">
-      <div>
-        <strong>{{ subscription.customerName || 'Customer' }}</strong>
-        <span>{{ subscription.planName }} · {{ subscription.paymentMethod === 'cash_at_counter' ? 'Cash' : 'UPI' }}</span>
+  <main class="wizard" *ngIf="editorStep === 'menu' || editorStep === 'review'" (keydown.escape)="closeModal()">
+    <header class="wizard-header"><div class="heading-copy"><svg class="icon brand"><use href="#sp-layers"/></svg><div><h1 #editorHeading tabindex="-1">{{ currentPlan ? 'Edit' : 'Create' }} Subscription Plan</h1><p>{{ editorStep === 'menu' ? 'Build a meal plan by selecting menu items, quantities and schedule.' : 'Review all details and publish your subscription plan.' }}</p></div></div><ng-container *ngTemplateOutlet="stepper"></ng-container><button type="button" class="icon-button quiet" aria-label="Close plan editor" (click)="closeModal()" [disabled]="saving"><svg class="icon"><use href="#sp-close"/></svg></button></header>
+    <p *ngIf="formError" class="notice error" role="alert">{{ formError }}</p>
+
+    <div class="menu-workspace" *ngIf="editorStep === 'menu'">
+      <section class="panel menu-catalog">
+        <h2>Add Menu Items</h2>
+        <div class="segmented" role="group" aria-label="Menu selection source"><button type="button" [class.active]="menuTab === 'menu'" (click)="menuTab = 'menu'">Menu Items</button><button type="button" [class.active]="menuTab === 'sets'" (click)="menuTab = 'sets'">Saved Sets</button></div>
+        <ng-container *ngIf="menuTab === 'menu'">
+          <div class="menu-search"><label class="search-field"><svg class="icon"><use href="#sp-search"/></svg><input type="search" aria-label="Search menu items" [(ngModel)]="menuSearch" placeholder="Search menu items..."></label><button type="button" class="icon-button" [class.selected]="availableOnly" [attr.aria-pressed]="availableOnly" aria-label="Show only available menu items" (click)="availableOnly = !availableOnly"><svg class="icon"><use href="#sp-filter"/></svg></button></div>
+          <div class="catalog-body">
+            <nav class="category-nav" aria-label="Menu categories"><button type="button" [class.active]="!menuCategory" (click)="menuCategory = ''">All Items ({{ menuItems.length }})</button><button type="button" *ngFor="let category of categories" [class.active]="menuCategory === category.name" (click)="menuCategory = category.name">{{ category.name }} ({{ category.count }})</button></nav>
+            <div class="menu-results">
+              <p class="empty" *ngIf="loadingMenuItems">Loading menu...</p>
+              <article class="menu-item" *ngFor="let item of filteredMenu; trackBy: trackById">
+                <input type="checkbox" [attr.aria-label]="'Select ' + item.name" [checked]="isSelected(item)" (change)="toggleMenuItem(item)">
+                <img *ngIf="item.imageThumbnailUrl || item.imageUrl; else itemFallback" [src]="item.imageThumbnailUrl || item.imageUrl" alt=""><ng-template #itemFallback><span class="food-placeholder">♨</span></ng-template>
+                <div><strong>{{ item.name }}</strong><small *ngIf="item.isAvailable === false">Unavailable</small></div><b>₹{{ item.onlinePrice | number:'1.0-2' }}</b><button type="button" class="add-item" [disabled]="isSelected(item)" (click)="toggleMenuItem(item)">{{ isSelected(item) ? 'Added' : 'Add' }}</button>
+              </article>
+              <p class="empty" *ngIf="!loadingMenuItems && !filteredMenu.length">No matching menu items.</p>
+            </div>
+          </div>
+        </ng-container>
+        <div class="saved-sets" *ngIf="menuTab === 'sets'">
+          <p *ngIf="loadingSets" class="empty">Loading saved sets...</p><p *ngIf="!loadingSets && !menuSets.length" class="empty">No saved sets yet. Select menu items and save the selection below.</p>
+          <article *ngFor="let set of menuSets; trackBy: trackById"><div><strong>{{ set.name }}</strong><small>{{ set.items.length }} items</small></div><button type="button" class="secondary" (click)="applyMenuSet(set)">Use Set</button><button type="button" class="icon-button danger" [attr.aria-label]="'Delete saved set ' + set.name" (click)="deleteMenuSet(set)"><svg class="icon"><use href="#sp-trash"/></svg></button></article>
+        </div>
+      </section>
+      <div class="selection-column">
+        <section class="panel selected-menu"><header class="panel-heading"><h2><svg class="icon brand"><use href="#sp-file"/></svg>Selected Menu Items ({{ planForm.includedItems.length }})</h2><button type="button" class="text-button danger" [disabled]="!planForm.includedItems.length" (click)="planForm.includedItems = []">Clear All</button></header><ng-container *ngTemplateOutlet="selectedTable; context: { editable: true }"></ng-container>
+          <div class="save-set-row"><input type="text" aria-label="Saved set name" maxlength="100" placeholder="Name this menu set" [(ngModel)]="setName"><button type="button" class="secondary" [disabled]="savingSet || !planForm.includedItems.length" (click)="saveMenuSet()">{{ savingSet ? 'Saving...' : 'Save Set' }}</button></div>
+        </section>
+        <section class="panel schedule-panel"><header class="panel-heading"><h2><svg class="icon brand"><use href="#sp-calendar"/></svg>Meal Schedule Preview <small>({{ durationName(planForm.durationDays) }} Plan)</small></h2><div class="segmented compact"><button type="button" [class.active]="scheduleView === 'week'" (click)="scheduleView = 'week'">Week View</button><button type="button" [class.active]="scheduleView === 'list'" (click)="scheduleView = 'list'">List View</button></div></header><ng-container *ngTemplateOutlet="schedule"></ng-container></section>
+        <section class="panel"><h2><svg class="icon brand"><use href="#sp-layers"/></svg>Plan Summary</h2><ng-container *ngTemplateOutlet="termsSummary"></ng-container><p class="rules-banner">ⓘ {{ planForm.durationDays }} days with {{ selectedTerms?.discountPercent }}% discount. Customer can pause {{ selectedTerms?.pauseLimit }} time(s) for up to {{ selectedTerms?.maxPauseDays }} days each.</p></section>
       </div>
-      <strong>₹{{ subscription.amountDue | number:'1.2-2' }}</strong>
-      <input
-        type="text"
-        [(ngModel)]="paymentReferenceDraft[subscription.id!]"
-        placeholder="Payment reference (optional)"
-        [disabled]="confirmingPaymentId === subscription.id">
-      <button
-        type="button"
-        class="btn-save"
-        (click)="confirmSubscriptionPayment(subscription)"
-        [disabled]="confirmingPaymentId !== null">
-        {{ confirmingPaymentId === subscription.id ? 'Confirming...' : 'Confirm Payment' }}
-      </button>
     </div>
-  </section>
 
-  <div *ngIf="loading" class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>
-
-  <div *ngIf="!loading && plans.length === 0" class="empty-state">
-    <div class="empty-icon">📦</div><h2>No Plans Yet</h2><p>Create subscription plans for regular customers.</p>
-    <button class="btn-create-empty" (click)="openCreateModal()">Create First Plan</button>
-  </div>
-
-  <div *ngIf="!loading && plans.length > 0" class="cards-grid">
-    <div class="card" *ngFor="let p of plans; trackBy: trackById">
-      <div class="card-header">
-        <div>
-          <div class="card-title">{{ p.name }}</div>
-          <div class="card-subtitle">{{ p.durationDays }} days</div>
-        </div>
-        <span class="badge" [class.active]="p.isActive" [class.inactive]="!p.isActive"
-              (click)="toggleActive(p)" title="Click to toggle">{{ p.isActive ? 'Active' : 'Inactive' }}</span>
+    <div class="review-workspace" *ngIf="editorStep === 'review'">
+      <div class="review-column">
+        <section class="panel overview-panel"><header class="panel-heading"><h2><svg class="icon brand"><use href="#sp-file"/></svg>Plan Overview</h2><span class="ready-pill">● Ready to Publish</span></header><div class="review-plan-identity"><img *ngIf="planForm.imageUrl || (planForm.includedItems[0] && imageFor(planForm.includedItems[0]))" [src]="planForm.imageUrl || imageFor(planForm.includedItems[0])" alt=""><div><h3>{{ planForm.name }}</h3><p>{{ planForm.description }}</p></div><button type="button" class="icon-button" aria-label="Edit plan details" (click)="editorStep = 'details'"><svg class="icon"><use href="#sp-edit"/></svg></button></div><ng-container *ngTemplateOutlet="termsSummary"></ng-container></section>
+        <section class="panel schedule-panel"><header class="panel-heading"><h2><svg class="icon brand"><use href="#sp-calendar"/></svg>Menu Schedule <small>({{ durationName(planForm.durationDays) }})</small></h2><button type="button" class="secondary small-button" (click)="editorStep = 'menu'"><svg class="icon"><use href="#sp-edit"/></svg>Edit Menu</button></header><ng-container *ngTemplateOutlet="schedule"></ng-container></section>
+        <section class="panel"><h2><svg class="icon brand"><use href="#sp-users"/></svg>Selected Menu Items ({{ planForm.includedItems.length }})</h2><ng-container *ngTemplateOutlet="selectedTable; context: { editable: false }"></ng-container></section>
       </div>
-      <div class="card-body">
-        <div class="plan-price-display">₹{{ p.price }}</div>
-        <p *ngIf="p.description" class="plan-description">{{ p.description }}</p>
-        <div *ngIf="p.benefits && p.benefits.length > 0" class="plan-benefits-list">
-          <div *ngFor="let b of p.benefits" class="benefit-item">✓ {{ b }}</div>
-        </div>
-        <div *ngIf="p.includedItems && p.includedItems.length > 0" class="plan-items-list">
-          <div class="items-heading">Daily Items:</div>
-          <div *ngFor="let item of p.includedItems" class="item-entry">• {{ item.menuItemName }} × {{ item.dailyQuantity }}</div>
-        </div>
-      </div>
-      <div class="card-footer">
-        <button class="btn-edit" (click)="openEditModal(p)">✏️ Edit</button>
-        <button class="btn-delete" (click)="deletePlan(p)">🗑️ Delete</button>
+      <div class="review-column">
+        <section class="panel profitability"><h2><svg class="icon brand"><use href="#sp-chart"/></svg>Pricing &amp; Profitability</h2>
+          <div class="price-box"><div><span>Regular Price (per {{ planForm.durationDays }} days)</span><b>₹{{ basePrice | number:'1.2-2' }}</b></div><div><span>Discount ({{ selectedTerms?.discountPercent }}%)</span><b class="positive">− ₹{{ discountAmount | number:'1.2-2' }}</b></div><div class="selling-price"><strong>Subscription Price (per {{ planForm.durationDays }} days)</strong><b>₹{{ sellingPrice | number:'1.2-2' }}</b></div></div>
+          <div class="profit-line"><span>Estimated Food Cost ({{ planForm.durationDays }} days)</span><b>{{ estimatedFoodCost === null ? 'Unavailable' : '₹' + (estimatedFoodCost | number:'1.2-2') }}</b></div><div class="profit-line"><span>Estimated Gross Margin</span><b [class.positive]="grossMargin !== null && grossMargin >= 0" [class.negative]="grossMargin !== null && grossMargin < 0">{{ grossMargin === null ? '—' : '₹' + (grossMargin | number:'1.2-2') }}</b></div><div class="profit-line"><span>Margin %</span><b [class.positive]="marginPercent !== null && marginPercent >= 0" [class.negative]="marginPercent !== null && marginPercent < 0">{{ marginPercent === null ? '—' : (marginPercent | number:'1.1-1') + '%' }}</b></div>
+          <p class="metric-note" *ngIf="missingCostCount">{{ missingCostCount }} item(s) have no recorded food cost. Add their making prices in Menu Management to calculate profitability.</p><p class="metric-note">Estimate uses current menu making prices and the next {{ planForm.durationDays }} calendar days starting today (IST). Excludes delivery, labour and other overheads.</p>
+        </section>
+        <section class="panel"><h2><svg class="icon brand"><use href="#sp-star"/></svg>Plan Features</h2><div class="review-features"><span *ngIf="planForm.freeDelivery">● Free Delivery</span><span *ngFor="let benefit of planForm.benefits">● {{ benefit }}</span></div><p *ngIf="!planForm.freeDelivery && !planForm.benefits.length" class="muted">No additional features selected.</p></section>
+        <section class="panel"><h2><svg class="icon brand"><use href="#sp-shield"/></svg>Subscription Rules</h2><p class="rules-banner"><svg class="icon"><use href="#sp-calendar"/></svg><span>This is a {{ durationName(planForm.durationDays) }} plan ({{ planForm.durationDays }} days) with {{ selectedTerms?.discountPercent }}% discount.<br>Customer can pause <b>{{ selectedTerms?.pauseLimit }} time(s)</b> for up to <b>{{ selectedTerms?.maxPauseDays }} days</b> each, across the entire subscription.</span></p></section>
+        <section class="panel"><h2><svg class="icon brand"><use href="#sp-layers"/></svg>Publish Plan</h2><label class="publish-toggle"><span class="check-disc"><svg class="icon"><use href="#sp-check"/></svg></span><span><b>Activate Plan Immediately</b><small>Plan will be available for customers to subscribe.</small></span><input type="checkbox" class="switch" [(ngModel)]="planForm.isActive"></label></section>
       </div>
     </div>
-  </div>
+    <footer class="wizard-footer"><button type="button" class="secondary" [disabled]="saving" (click)="goBack()"><svg class="icon reversed"><use href="#sp-arrow"/></svg>Back: {{ editorStep === 'menu' ? 'Plan Details' : 'Menu Items' }}</button><div><button *ngIf="editorStep === 'review'" type="button" class="secondary" [disabled]="saving" (click)="savePlan(true)"><svg class="icon"><use href="#sp-save"/></svg>Save as Draft</button><button type="button" class="primary" [disabled]="saving" (click)="editorStep === 'menu' ? nextStep() : savePlan()"><svg *ngIf="editorStep === 'review'" class="icon"><use href="#sp-check"/></svg>{{ saving ? 'Saving...' : editorStep === 'menu' ? 'Next: Review & Publish' : currentPlan ? 'Update Plan' : 'Publish Plan' }}<svg *ngIf="editorStep === 'menu'" class="icon"><use href="#sp-arrow"/></svg></button></div></footer>
+  </main>
 </div>
 
-<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
-  <div class="modal-content" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h2>{{ isEditMode ? 'Edit' : 'Create' }} Subscription Plan</h2>
-      <button class="btn-close" (click)="closeModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <form (ngSubmit)="savePlan()">
-        <div class="form-group"><label>Plan Name *</label><input type="text" [(ngModel)]="planForm.name" name="name" required></div>
-        <div class="form-group"><label>Description</label><textarea [(ngModel)]="planForm.description" name="description" rows="2"></textarea></div>
-        <div class="form-row">
-          <div class="form-group"><label>Price (₹) *</label><input type="number" [(ngModel)]="planForm.price" name="price" min="0" required></div>
-          <div class="form-group"><label>Duration (days) *</label><select [(ngModel)]="planForm.durationDays" name="durationDays" required><option [ngValue]="7">7 days — 3% discount</option><option [ngValue]="14">14 days — 5% discount</option><option [ngValue]="30">30 days — 10% discount</option></select></div>
-        </div>
-        <div class="form-group">
-          <label>Benefits</label>
-          <div class="benefit-input-row">
-            <input type="text" [(ngModel)]="benefitInput" name="benefitInput" placeholder="e.g., Free delivery">
-            <button type="button" class="btn-add-sm" (click)="addBenefit()">➕</button>
-          </div>
-          <div *ngFor="let b of planForm.benefits; let i = index" class="benefit-tag">
-            <span>✓ {{ b }}</span>
-            <button type="button" class="btn-remove-tag" (click)="removeBenefit(i)">✕</button>
-          </div>
-        </div>
-        <h4 class="section-heading">Daily Items</h4>
-        <p class="section-subtext" *ngIf="loadingMenuItems">Loading menu options...</p>
-        <div *ngFor="let item of planForm.includedItems; let i = index; trackBy: trackByIndex" class="form-row items-row">
-          <div class="form-group">
-            <label>Menu Item *</label>
-            <div class="menu-typeahead-wrap">
-              <input
-                type="text"
-                [(ngModel)]="item.menuItemSearch"
-                [name]="'itemSearch'+i"
-                (focus)="openMenuSuggestions(i)"
-                (input)="onMenuSearchInput(i)"
-                (blur)="onMenuSearchBlur(i)"
-                placeholder="Search menu by name/category"
-                autocomplete="off"
-                required>
-              <button type="button" class="btn-clear-menu" *ngIf="item.menuItemSearch" (mousedown)="$event.preventDefault()" (click)="clearMenuItem(i)">✕</button>
-            </div>
-
-            <div class="menu-typeahead-list" *ngIf="activeSuggestionRow === i">
-              <button
-                type="button"
-                class="menu-suggestion-btn"
-                *ngFor="let m of getRowMenuSuggestions(i); trackBy: trackByMenuItemId"
-                (mousedown)="selectMenuItemForRow(i, m, $event)">
-                <span class="suggestion-name">{{ m.name }}</span>
-                <span class="suggestion-meta">{{ m.categoryName || m.category || 'General' }}</span>
-              </button>
-              <div class="menu-suggestion-empty" *ngIf="getRowMenuSuggestions(i).length === 0">
-                No matching menu items.
-              </div>
-            </div>
-          </div>
-          <div class="form-group"><label>Name</label><input type="text" [(ngModel)]="item.menuItemName" [name]="'itemName'+i" placeholder="Select from search results" readonly></div>
-          <div class="form-group qty-group"><label>Qty</label><input type="number" [(ngModel)]="item.dailyQuantity" [name]="'qty'+i" min="1"></div>
-          <button type="button" class="btn-remove-item" (click)="removeItem(i)" *ngIf="planForm.includedItems.length > 1">🗑️</button>
-        </div>
-        <button type="button" class="btn-add-item" (click)="addItem()">➕ Add Item</button>
-        <div class="modal-actions">
-          <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
-          <button type="submit" class="btn-save">{{ isEditMode ? 'Update' : 'Create' }} Plan</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+<ng-template #stepper>
+  <ol class="stepper" aria-label="Plan creation progress"><li [class.current]="editorStep === 'details'" [class.complete]="editorStep !== 'details'" [attr.aria-current]="editorStep === 'details' ? 'step' : null"><span>{{ editorStep === 'details' ? '1' : '✓' }}</span>Plan Details</li><li [class.current]="editorStep === 'menu'" [class.complete]="editorStep === 'review'" [attr.aria-current]="editorStep === 'menu' ? 'step' : null"><span>{{ editorStep === 'review' ? '✓' : '2' }}</span>Menu Items</li><li [class.current]="editorStep === 'review'" [attr.aria-current]="editorStep === 'review' ? 'step' : null"><span>3</span>Review &amp; Publish</li></ol>
+</ng-template>
+<ng-template #termsSummary>
+  <div class="terms-summary"><div><span class="summary-icon blue"><svg class="icon"><use href="#sp-calendar"/></svg></span><span>Duration<strong>{{ durationName(planForm.durationDays) }} ({{ planForm.durationDays }} Days)</strong></span></div><div><span class="summary-icon green"><svg class="icon"><use href="#sp-tag"/></svg></span><span>Discount<strong>{{ selectedTerms?.discountPercent }}%</strong></span></div><div><span class="summary-icon violet">Ⅱ</span><span>Total Pauses<strong>{{ selectedTerms?.pauseLimit }}</strong></span></div><div><span class="summary-icon pink"><svg class="icon"><use href="#sp-calendar"/></svg></span><span>Max Days per Pause<strong>{{ selectedTerms?.maxPauseDays }} Days</strong></span></div></div>
+</ng-template>
+<ng-template #selectedTable let-editable="editable">
+  <div class="table-wrap"><table class="selected-table"><thead><tr><th>Item</th><th>Qty / Meal</th><th>Serving Days</th><th *ngIf="editable">Actions</th></tr></thead><tbody><tr *ngFor="let item of planForm.includedItems"><td><div class="selected-identity"><img *ngIf="imageFor(item); else selectedFallback" [src]="imageFor(item)" alt=""><ng-template #selectedFallback><span class="food-placeholder">♨</span></ng-template><b>{{ item.menuItemName }}</b></div></td><td><div class="quantity-control" *ngIf="editable; else staticQuantity"><button type="button" [attr.aria-label]="'Decrease ' + item.menuItemName + ' quantity'" [disabled]="item.dailyQuantity <= 1" (click)="changeQuantity(item, -1)">−</button><output>{{ item.dailyQuantity }}</output><button type="button" [attr.aria-label]="'Increase ' + item.menuItemName + ' quantity'" [disabled]="item.dailyQuantity >= 20" (click)="changeQuantity(item, 1)">+</button></div><ng-template #staticQuantity>{{ item.dailyQuantity }}</ng-template></td><td><details class="serving-picker" *ngIf="editable; else staticDays"><summary>{{ servingLabel(item) }}</summary><div><label *ngFor="let day of weekdays"><input type="checkbox" [attr.aria-label]="item.menuItemName + ' on ' + day" [checked]="servesOn(item, day)" (change)="toggleServingDay(item, day)">{{ day }}</label></div></details><ng-template #staticDays>{{ servingLabel(item) }}</ng-template></td><td *ngIf="editable"><button type="button" class="icon-button danger" [attr.aria-label]="'Remove ' + item.menuItemName" (click)="removeItem(item)"><svg class="icon"><use href="#sp-trash"/></svg></button></td></tr><tr *ngIf="!planForm.includedItems.length"><td [attr.colspan]="editable ? 4 : 3" class="empty">Add menu items to build this plan.</td></tr></tbody></table></div>
+</ng-template>
+<ng-template #schedule>
+  <div class="week-grid" *ngIf="scheduleView === 'week'; else scheduleList"><article *ngFor="let day of weekdays"><h4>{{ day }}</h4><p *ngFor="let item of mealsOn(day)"><span>✓</span> {{ item.menuItemName }}<small *ngIf="item.dailyQuantity > 1"> ×{{ item.dailyQuantity }}</small></p><p *ngIf="!mealsOn(day).length" class="muted">No meals</p></article></div>
+  <ng-template #scheduleList><div class="schedule-list"><div *ngFor="let day of weekdays"><b>{{ day }}</b><span *ngFor="let item of mealsOn(day)">{{ item.menuItemName }} ×{{ item.dailyQuantity }}</span><span *ngIf="!mealsOn(day).length" class="muted">No meals</span></div></div></ng-template>
+  <p class="metric-note">Weekly serving pattern repeats throughout the plan.</p>
+</ng-template>

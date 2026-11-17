@@ -9,7 +9,7 @@ using System.Net;
 
 namespace Cafe.Api.Functions;
 
-public class SubscriptionFunction
+public partial class SubscriptionFunction
 {
     private readonly IOperationsRepository _mongo;
     private readonly IMenuRepository _menuRepo;
@@ -38,7 +38,7 @@ public class SubscriptionFunction
             var plans = await _mongo.GetSubscriptionPlansAsync(outletId, activeOnly: true);
 
             // Auto-seed industry standard curated plans if catalog is currently empty
-            if (plans.Count == 0)
+            if (plans.Count == 0 && (await _mongo.GetSubscriptionPlansAsync(outletId)).Count == 0)
             {
                 plans = await SeedDefaultCuratedPlansAsync(outletId);
             }
@@ -92,6 +92,8 @@ public class SubscriptionFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<CreateSubscriptionPlanRequest>(req);
             if (validationError != null) return validationError;
+            var itemsError = await ValidatePlanItems(req, request.IncludedItems);
+            if (itemsError != null) return itemsError;
 
             var outletId = OutletHelper.GetOutletIdForAdmin(req, _auth);
 
@@ -102,6 +104,8 @@ public class SubscriptionFunction
                 Description = request.Description != null ? InputSanitizer.Sanitize(request.Description) : string.Empty,
                 Category = string.IsNullOrWhiteSpace(request.Category) ? "all-day" : request.Category.Trim().ToLowerInvariant(),
                 Price = request.Price,
+                PricingMode = request.PricingMode,
+                IsDraft = request.IsDraft,
                 DurationDays = request.DurationDays > 0 ? request.DurationDays : 30,
                 Benefits = request.Benefits?.Select(InputSanitizer.Sanitize).ToList() ?? new List<string>(),
                 FreeDelivery = request.FreeDelivery,
@@ -109,23 +113,15 @@ public class SubscriptionFunction
                 DailyItemLimit = request.DailyItemLimit,
                 BadgeText = request.BadgeText,
                 ImageUrl = request.ImageUrl,
-                IncludedItems = request.IncludedItems?.Select(i => new SubscriptionItem
-                {
-                    MenuItemId = i.MenuItemId,
-                    MenuItemName = InputSanitizer.Sanitize(i.MenuItemName),
-                    DailyQuantity = i.DailyQuantity,
-                    UnitPrice = i.UnitPrice,
-                    CategoryName = i.CategoryName,
-                    ImageUrl = i.ImageUrl,
-                    IsVeg = i.IsVeg
-                }).ToList(),
-                IsActive = true,
+                IncludedItems = CopyPlanItems(request.IncludedItems),
+                IsActive = request.IsActive && !request.IsDraft,
                 CreatedAt = MongoService.GetIstNow()
             };
 
             await _mongo.CreateSubscriptionPlanAsync(plan);
 
             var response = req.CreateResponse(HttpStatusCode.Created);
+            response.Headers.Add("Location", $"/api/manage/subscriptions/plans/{plan.Id}");
             await response.WriteAsJsonAsync(plan);
             return response;
         }
@@ -149,6 +145,8 @@ public class SubscriptionFunction
 
             var (request, validationError) = await ValidationHelper.ValidateBody<CreateSubscriptionPlanRequest>(req);
             if (validationError != null) return validationError;
+            var itemsError = await ValidatePlanItems(req, request.IncludedItems);
+            if (itemsError != null) return itemsError;
 
             var existing = await _mongo.GetSubscriptionPlanByIdAsync(id);
             if (existing == null)
@@ -162,6 +160,9 @@ public class SubscriptionFunction
             existing.Description = request.Description != null ? InputSanitizer.Sanitize(request.Description) : string.Empty;
             existing.Category = string.IsNullOrWhiteSpace(request.Category) ? existing.Category : request.Category.Trim().ToLowerInvariant();
             existing.Price = request.Price;
+            existing.PricingMode = request.PricingMode;
+            existing.IsDraft = request.IsDraft;
+            existing.IsActive = request.IsActive && !request.IsDraft;
             existing.DurationDays = request.DurationDays > 0 ? request.DurationDays : 30;
             existing.Benefits = request.Benefits?.Select(InputSanitizer.Sanitize).ToList() ?? new List<string>();
             existing.FreeDelivery = request.FreeDelivery;
@@ -169,16 +170,7 @@ public class SubscriptionFunction
             existing.DailyItemLimit = request.DailyItemLimit;
             existing.BadgeText = request.BadgeText;
             existing.ImageUrl = request.ImageUrl;
-            existing.IncludedItems = request.IncludedItems?.Select(i => new SubscriptionItem
-            {
-                MenuItemId = i.MenuItemId,
-                MenuItemName = InputSanitizer.Sanitize(i.MenuItemName),
-                DailyQuantity = i.DailyQuantity,
-                UnitPrice = i.UnitPrice,
-                CategoryName = i.CategoryName,
-                ImageUrl = i.ImageUrl,
-                IsVeg = i.IsVeg
-            }).ToList();
+            existing.IncludedItems = CopyPlanItems(request.IncludedItems);
 
             await _mongo.UpdateSubscriptionPlanAsync(id, existing);
 
@@ -252,13 +244,13 @@ public class SubscriptionFunction
             }
 
             var plan = await _mongo.GetSubscriptionPlanByIdAsync(request.PlanId);
-            if (plan == null || !plan.IsActive)
+            if (plan == null || !plan.IsActive || plan.IsDraft)
             {
                 var plans = await _mongo.GetSubscriptionPlansAsync(request.OutletId ?? "default", activeOnly: true);
                 plan = plans.FirstOrDefault(p => p.Id == request.PlanId);
             }
 
-            if (plan == null || !plan.IsActive)
+            if (plan == null || !plan.IsActive || plan.IsDraft)
             {
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(new { error = "Subscription plan not found or inactive" });
@@ -290,7 +282,7 @@ public class SubscriptionFunction
                 PlanId = plan.Id,
                 PlanName = plan.Name,
                 OutletId = string.IsNullOrWhiteSpace(request.OutletId) ? plan.OutletId : request.OutletId.Trim(),
-                Items = plan.IncludedItems ?? new List<SubscriptionItem>(),
+                Items = CopyPlanItems(plan.IncludedItems),
                 DeliveryTimeSlot = string.IsNullOrWhiteSpace(request.DeliveryTimeSlot) ? "12:30 PM - 2:00 PM" : request.DeliveryTimeSlot.Trim(),
                 DeliveryDays = request.DeliveryDays != null && request.DeliveryDays.Count > 0 ? request.DeliveryDays : new List<string> { "Everyday" },
                 DeliveryAddress = InputSanitizer.Sanitize(request.DeliveryAddress ?? string.Empty),
@@ -304,7 +296,7 @@ public class SubscriptionFunction
                 DiscountAmount = discountAmt,
                 AmountPaid = 0,
                 AmountDue = finalAmount,
-                FreeDelivery = true,
+                FreeDelivery = plan.FreeDelivery,
                 PaymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? "upi-qr" : request.PaymentMethod,
                 PaymentStatus = "pending",
                 CreatedAt = now,

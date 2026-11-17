@@ -96,6 +96,10 @@ public interface IOperationsRepository
     Task<CustomerSubscription?> GetCustomerSubscriptionByIdAsync(string id);
     Task<bool> UpdateCustomerSubscriptionAsync(string id, CustomerSubscription sub);
     Task<int> ResumeDueSubscriptionPausesAsync(DateTime now);
+    Task<SubscriptionOverviewResponse> GetSubscriptionOverviewAsync(string outletId);
+    Task<List<SubscriptionMenuSet>> GetSubscriptionMenuSetsAsync(string outletId);
+    Task<SubscriptionMenuSet> CreateSubscriptionMenuSetAsync(SubscriptionMenuSet set);
+    Task<bool> DeleteSubscriptionMenuSetAsync(string outletId, string id);
 
     // Customer Segments
     Task<List<CustomerSegment>> GetCustomerSegmentsAsync(string? segment = null, int page = 1, int pageSize = 50);

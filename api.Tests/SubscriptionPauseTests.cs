@@ -371,6 +371,193 @@ public sealed class SubscriptionPauseTests
             It.IsAny<CustomerSubscription>(), It.IsAny<ReplaceOptions>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public void OverviewUsesConfirmedPaymentsAndIstCalendarMonthBoundaries()
+    {
+        var month = new DateTime(2026, 11, 1);
+        var result = SubscriptionPlanAnalytics.Calculate(new[]
+        {
+            new CustomerSubscription { PaymentStatus = "paid", AmountPaid = 700, CreatedAt = month.AddDays(-3), PaymentConfirmedAt = month },
+            new CustomerSubscription { PaymentStatus = "paid", AmountPaid = 900, CreatedAt = month.AddTicks(-1) },
+            new CustomerSubscription { PaymentStatus = "pending", AmountPaid = 9999, CreatedAt = month },
+            new CustomerSubscription { PaymentStatus = "failed", AmountPaid = 9999, CreatedAt = month },
+            new CustomerSubscription { PaymentStatus = "paid", AmountPaid = 100, CreatedAt = month.AddMonths(1) }
+        }, month.AddDays(10));
+        Assert.Equal(3, result.TotalSubscriptions);
+        Assert.Equal(1, result.NewSubscriptionsThisMonth);
+        Assert.Equal(1, result.PreviousMonthSubscriptions);
+        Assert.Equal(700, result.MonthlyRevenue);
+        Assert.Equal(900, result.PreviousMonthRevenue);
+    }
+
+    [Fact]
+    public void OverviewCountsDistinctCurrentPaidCustomersAndCapsOverduePauses()
+    {
+        CustomerSubscription Current(string user, string status = "active") => new()
+        {
+            UserId = user, PlanId = "plan", PaymentStatus = "paid", Status = status,
+            EndDate = Now.AddDays(1), DurationDays = 7
+        };
+        var overdue = Current("overdue", "paused");
+        overdue.EndDate = Now.AddDays(-4);
+        overdue.PausedAt = IstDateHelper.IstWallTimeToUtc(Now.AddDays(-10));
+        overdue.PauseEndsAtUtc = overdue.PausedAt.Value.AddDays(7);
+        var pending = Current("pending");
+        pending.PaymentStatus = "pending";
+        var expired = Current("expired");
+        expired.EndDate = Now.AddTicks(-1);
+        var result = SubscriptionPlanAnalytics.Calculate(new[]
+        {
+            Current("same"), Current("same"), Current("paused", "paused"), Current("cancelled", "cancelled"),
+            overdue, pending, expired
+        }, Now);
+        Assert.Equal(2, result.PlanSubscribers["plan"]);
+    }
+
+    [Theory]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, true)]
+    public async Task AdminPlanCreationPersistsPricingFeaturesSchedulesAndDraftActivation(bool draft, bool active, bool expectedActive)
+    {
+        var repository = new Mock<IOperationsRepository>();
+        SubscriptionPlan? stored = null;
+        repository.Setup(r => r.CreateSubscriptionPlanAsync(It.IsAny<SubscriptionPlan>()))
+            .Callback<SubscriptionPlan>(p => stored = BsonSerializer.Deserialize<SubscriptionPlan>(p.ToBson()))
+            .ReturnsAsync((SubscriptionPlan p) => p);
+        var (function, auth) = CreateFunction(repository);
+        var response = await function.CreateSubscriptionPlan(Request(new
+        {
+            name = "Breakfast", description = "Fresh", durationDays = 14, price = 1400,
+            pricingMode = "per_day", isDraft = draft, isActive = active, freeDelivery = false,
+            includedItems = new[] { new { menuItemId = "coffee", menuItemName = "Coffee", dailyQuantity = 2,
+                unitPrice = 80, categoryName = "Drinks", imageUrl = "/coffee.jpg", servingDays = new[] { "Mon", "Wed" } } }
+        }, auth, "admin"));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotNull(stored);
+        Assert.Equal(expectedActive, stored!.IsActive);
+        Assert.Equal(draft, stored.IsDraft);
+        Assert.Equal("per_day", stored.PricingMode);
+        Assert.Equal(1400, stored.Price);
+        Assert.Equal(5, stored.DiscountPercent);
+        Assert.False(stored.FreeDelivery);
+        var item = Assert.Single(stored.IncludedItems!);
+        Assert.Equal(new[] { "Mon", "Wed" }, item.ServingDays);
+        Assert.Equal(2, item.DailyQuantity);
+        Assert.Equal(80, item.UnitPrice);
+        Assert.Equal("/coffee.jpg", item.ImageUrl);
+    }
+
+    [Fact]
+    public async Task AdminCanDeactivateAndUpdateAnExistingPlan()
+    {
+        var existing = new SubscriptionPlan { Id = "plan", IsActive = true };
+        var repository = new Mock<IOperationsRepository>();
+        repository.Setup(r => r.GetSubscriptionPlanByIdAsync("plan")).ReturnsAsync(existing);
+        repository.Setup(r => r.UpdateSubscriptionPlanAsync("plan", existing)).ReturnsAsync(true);
+        var (function, auth) = CreateFunction(repository);
+        var response = await function.UpdateSubscriptionPlan(Request(new
+        {
+            name = "Updated", durationDays = 7, price = 700, isActive = false,
+            includedItems = new[] { new { menuItemId = "coffee", menuItemName = "Coffee" } }
+        }, auth, "admin"), "plan");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(existing.IsActive);
+        Assert.Equal(new[] { "Everyday" }, Assert.Single(existing.IncludedItems!).ServingDays);
+    }
+
+    [Theory]
+    [InlineData("Funday", 1)]
+    [InlineData("Mon", 0)]
+    [InlineData("Tue", 21)]
+    public async Task InvalidPlanSchedulesOrQuantitiesAreRejectedBeforePersistence(string day, int quantity)
+    {
+        var repository = new Mock<IOperationsRepository>();
+        var (function, auth) = CreateFunction(repository);
+        var response = await function.CreateSubscriptionPlan(Request(new
+        {
+            name = "Invalid plan", durationDays = 7, price = 700,
+            includedItems = new[] { new { menuItemId = "coffee", menuItemName = "Coffee",
+                dailyQuantity = quantity, servingDays = new[] { day } } }
+        }, auth, "admin"));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        repository.Verify(r => r.CreateSubscriptionPlanAsync(It.IsAny<SubscriptionPlan>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CuratedPurchaseSnapshotsServingDaysAndCannotPurchaseADraft()
+    {
+        var plan = new SubscriptionPlan
+        {
+            Id = "plan", Name = "Breakfast", IsActive = true, DurationDays = 7, Price = 700, FreeDelivery = false,
+            IncludedItems = new() { new() { MenuItemId = "coffee", MenuItemName = "Coffee", ServingDays = new() { "Mon", "Fri" } } }
+        };
+        var repository = new Mock<IOperationsRepository>();
+        repository.Setup(r => r.GetUserSubscriptionsAsync(UserId)).ReturnsAsync(new List<CustomerSubscription>());
+        repository.Setup(r => r.GetSubscriptionPlanByIdAsync("plan")).ReturnsAsync(plan);
+        repository.Setup(r => r.GetSubscriptionPlansAsync("default", true)).ReturnsAsync(new List<SubscriptionPlan> { plan });
+        CustomerSubscription? purchased = null;
+        repository.Setup(r => r.CreateCustomerSubscriptionAsync(It.IsAny<CustomerSubscription>()))
+            .Callback<CustomerSubscription>(s => purchased = s).ReturnsAsync((CustomerSubscription s) => s);
+        var (function, auth) = CreateFunction(repository);
+        Assert.Equal(HttpStatusCode.OK, (await function.Subscribe(Request(new { planId = "plan" }, auth))).StatusCode);
+        Assert.Equal(new[] { "Mon", "Fri" }, Assert.Single(purchased!.Items).ServingDays);
+        Assert.False(purchased.FreeDelivery);
+        plan.IncludedItems[0].ServingDays.Add("Tue");
+        Assert.Equal(2, purchased.Items[0].ServingDays.Count);
+        plan.IsDraft = true;
+        Assert.Equal(HttpStatusCode.NotFound, (await function.Subscribe(Request(new { planId = "plan" }, auth))).StatusCode);
+    }
+
+    [Fact]
+    public async Task DraftOnlyCatalogStaysHiddenWithoutSeedingNewCustomerPlans()
+    {
+        var repository = new Mock<IOperationsRepository>();
+        repository.Setup(r => r.GetSubscriptionPlansAsync("default", true)).ReturnsAsync(new List<SubscriptionPlan>());
+        repository.Setup(r => r.GetSubscriptionPlansAsync("default", false))
+            .ReturnsAsync(new List<SubscriptionPlan> { new() { Name = "Draft", IsDraft = true, IsActive = false } });
+        var (function, auth) = CreateFunction(repository);
+        var response = await function.GetSubscriptionPlans(Request(new { }, auth));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        repository.Verify(r => r.CreateSubscriptionPlanAsync(It.IsAny<SubscriptionPlan>()), Times.Never);
+        response.Body.Position = 0;
+        Assert.Empty(JsonSerializer.Deserialize<List<SubscriptionPlan>>(await new StreamReader(response.Body).ReadToEndAsync())!);
+    }
+
+    [Fact]
+    public async Task SavedMenuSetsAndMetricsRequireAdminAndUseTheSelectedOutlet()
+    {
+        var repository = new Mock<IOperationsRepository>();
+        repository.Setup(r => r.CreateSubscriptionMenuSetAsync(It.IsAny<SubscriptionMenuSet>()))
+            .ReturnsAsync((SubscriptionMenuSet s) => { s.Id = "set"; return s; });
+        repository.Setup(r => r.DeleteSubscriptionMenuSetAsync("branch", "set")).ReturnsAsync(true);
+        repository.Setup(r => r.GetSubscriptionMenuSetsAsync("branch")).ReturnsAsync(new List<SubscriptionMenuSet>());
+        repository.Setup(r => r.GetSubscriptionOverviewAsync("branch"))
+            .ReturnsAsync(new SubscriptionOverviewResponse(2, 1, 0, 100, 0, new Dictionary<string, int>()));
+        var (function, auth) = CreateFunction(repository);
+        Assert.Equal(HttpStatusCode.Forbidden, (await function.GetSubscriptionOverview(Request(new { }, auth))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await function.GetSubscriptionMenuSets(Request(new { }, auth))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await function.CreateSubscriptionMenuSet(Request(new { }, auth))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await function.DeleteSubscriptionMenuSet(Request(new { }, auth), "set")).StatusCode);
+        var request = Request(new
+        {
+            name = "Breakfast", items = new[] { new { menuItemId = "coffee", menuItemName = "Coffee",
+                dailyQuantity = 2, servingDays = new[] { "Mon" } } }
+        }, auth, "admin");
+        request.Headers.Add("X-Outlet-Id", "branch");
+        var created = await function.CreateSubscriptionMenuSet(request);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Contains("/set", Assert.Single(created.Headers.GetValues("Location")));
+        repository.Verify(r => r.CreateSubscriptionMenuSetAsync(It.Is<SubscriptionMenuSet>(s =>
+            s.OutletId == "branch" && s.Items[0].ServingDays.SequenceEqual(new[] { "Mon" }))), Times.Once);
+        Assert.Equal(HttpStatusCode.OK, (await function.GetSubscriptionOverview(request)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await function.GetSubscriptionMenuSets(request)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await function.DeleteSubscriptionMenuSet(request, "set")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await function.DeleteSubscriptionMenuSet(request, "missing")).StatusCode);
+        repository.Verify(r => r.GetSubscriptionOverviewAsync("branch"), Times.Once);
+        repository.Verify(r => r.GetSubscriptionMenuSetsAsync("branch"), Times.Once);
+    }
+
     private static (SubscriptionFunction, AuthService) CreateFunction(Mock<IOperationsRepository> repository)
     {
         var previous = Environment.GetEnvironmentVariable("Jwt__Secret");
@@ -383,15 +570,17 @@ public sealed class SubscriptionPauseTests
         finally { Environment.SetEnvironmentVariable("Jwt__Secret", previous); }
     }
 
-    private static HttpRequestData Request(object payload, AuthService auth)
+    private static HttpRequestData Request(object payload, AuthService auth, string role = "user")
     {
         var services = new ServiceCollection();
         services.AddOptions<WorkerOptions>().Configure(o => o.Serializer = new JsonObjectSerializer(new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         var context = new Mock<FunctionContext>();
         context.SetupProperty(c => c.InstanceServices, services.BuildServiceProvider());
         var request = new Mock<HttpRequestData>(context.Object);
-        var headers = new HttpHeadersCollection { { "Authorization", $"Bearer {auth.GenerateJwtToken(UserId, "customer", "user")}" } };
+        var headers = new HttpHeadersCollection { { "Authorization", $"Bearer {auth.GenerateJwtToken(UserId, "customer", role)}" } };
         request.SetupGet(r => r.Headers).Returns(headers);
+        request.SetupGet(r => r.Url).Returns(new Uri("http://localhost/api/subscriptions/plans"));
+        request.SetupGet(r => r.Query).Returns(System.Web.HttpUtility.ParseQueryString(string.Empty));
         request.SetupGet(r => r.Body).Returns(new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload))));
         request.Setup(r => r.CreateResponse()).Returns(() =>
         {

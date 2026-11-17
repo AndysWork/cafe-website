@@ -1,6 +1,58 @@
 @baseUrl = http://localhost:7071/api
 @token = replace-with-customer-token
 @subscriptionId = replace-with-subscription-id
+@adminToken = replace-with-admin-token
+@outletId = replace-with-outlet-id
+@menuSetId = replace-with-menu-set-id
+
+### Live overview: paid subscriptions, IST month revenue and current subscribers per plan
+GET {{baseUrl}}/manage/subscriptions/overview
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Saved menu sets for the selected outlet
+GET {{baseUrl}}/manage/subscriptions/menu-sets
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Save a reusable menu selection and serving schedule (201 + Location)
+POST {{baseUrl}}/manage/subscriptions/menu-sets
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+Content-Type: application/json
+
+{
+  "name": "Weekday breakfast",
+  "items": [
+    { "menuItemId": "replace-with-menu-item-id", "menuItemName": "Coffee", "dailyQuantity": 1, "servingDays": ["Mon", "Tue", "Wed", "Thu", "Fri"] }
+  ]
+}
+
+### Delete a saved set (204; missing or other-outlet ID returns 404)
+DELETE {{baseUrl}}/manage/subscriptions/menu-sets/{{menuSetId}}
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+
+### Create a complete draft: canonical price is the full-period amount before discount
+POST {{baseUrl}}/manage/subscriptions/plans
+Authorization: Bearer {{adminToken}}
+X-Outlet-Id: {{outletId}}
+Content-Type: application/json
+
+{
+  "name": "Breakfast Plan",
+  "description": "Coffee on weekdays.",
+  "durationDays": 7,
+  "pricingMode": "per_day",
+  "price": 700,
+  "isDraft": true,
+  "isActive": false,
+  "freeDelivery": true,
+  "benefits": ["Flexible Pause"],
+  "includedItems": [
+    { "menuItemId": "replace-with-menu-item-id", "menuItemName": "Coffee", "dailyQuantity": 1, "servingDays": ["Mon", "Tue", "Wed", "Thu", "Fri"] }
+  ]
+}
 
 ### Pause (7-day subscription: 1 pause/3 days; 14-day: 1/5; 30-day: 2/7)
 POST {{baseUrl}}/subscriptions/{{subscriptionId}}/pause

@@ -862,7 +862,7 @@ public partial class MongoService : IOperationsRepository
         var filterBuilder = Builders<SubscriptionPlan>.Filter;
         var filter = filterBuilder.Ne(p => p.IsDeleted, true);
         if (activeOnly)
-            filter &= filterBuilder.Eq(p => p.IsActive, true);
+            filter &= filterBuilder.Eq(p => p.IsActive, true) & filterBuilder.Ne(p => p.IsDraft, true);
 
         if (!string.IsNullOrWhiteSpace(outletId) && !string.Equals(outletId, "default", StringComparison.OrdinalIgnoreCase))
         {
@@ -943,6 +943,34 @@ public partial class MongoService : IOperationsRepository
     {
         await _customerSubscriptions.InsertOneAsync(sub);
         return sub;
+    }
+
+    public async Task<SubscriptionOverviewResponse> GetSubscriptionOverviewAsync(string outletId)
+    {
+        var subscriptions = await _customerSubscriptions.Find(s => s.OutletId == outletId && s.PaymentStatus == "paid")
+            .Project<CustomerSubscription>(Builders<CustomerSubscription>.Projection
+                .Include(s => s.UserId).Include(s => s.PlanId).Include(s => s.Status)
+                .Include(s => s.EndDate).Include(s => s.PausedAt).Include(s => s.PauseEndsAtUtc)
+                .Include(s => s.DurationDays).Include(s => s.UpdatedAt).Include(s => s.PaymentStatus)
+                .Include(s => s.PaymentConfirmedAt).Include(s => s.CreatedAt).Include(s => s.AmountPaid))
+            .ToListAsync();
+        return SubscriptionPlanAnalytics.Calculate(subscriptions, GetIstNow());
+    }
+
+    public async Task<List<SubscriptionMenuSet>> GetSubscriptionMenuSetsAsync(string outletId) =>
+        await _subscriptionMenuSets.Find(s => s.OutletId == outletId).SortBy(s => s.Name).ToListAsync();
+
+    public async Task<SubscriptionMenuSet> CreateSubscriptionMenuSetAsync(SubscriptionMenuSet set)
+    {
+        await _subscriptionMenuSets.InsertOneAsync(set);
+        return set;
+    }
+
+    public async Task<bool> DeleteSubscriptionMenuSetAsync(string outletId, string id)
+    {
+        if (!ObjectId.TryParse(id, out _)) return false;
+        var result = await _subscriptionMenuSets.DeleteOneAsync(s => s.OutletId == outletId && s.Id == id);
+        return result.DeletedCount > 0;
     }
 
     public async Task<CustomerSubscription?> GetActiveSubscriptionAsync(string userId)

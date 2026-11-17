@@ -308,6 +308,30 @@ The custom-combo introduction also links from curated plans to the live menu
 builder. Existing category filters, mobile selection/schedule steps, delivery
 options, checkout, payment requests, and subscription management remain available.
 
+Admins manage plans in a searchable, paginated table with status and duration
+filters. **Create Plan** opens the details drawer, followed by full-page menu
+selection and review/publish steps. Fixed and per-day entry both save a canonical
+full-period base price; the duration discount is applied once at checkout.
+Plans retain their configured images, benefits, delivery flag and category.
+Drafts are inactive and unavailable to customer purchases; existing paid
+subscriptions are not changed by plan edits.
+
+Menu selections support quantities and individual serving weekdays. The weekly
+pattern repeats over the subscription and is copied into the purchased basket.
+Reusable named menu sets are stored per outlet in `SubscriptionMenuSets` and can
+be applied or deleted. Existing items without serving days remain everyday items.
+This schedule describes the basket; it does not introduce automatic delivery
+order generation.
+
+The admin overview uses confirmed (`paid`) subscriptions: lifetime subscription
+count, current/prior IST calendar-month payment counts and actual `AmountPaid`
+revenue, and distinct current paid customers per plan (including valid pauses).
+Pending payment confirmation remains on the management page. Profitability is
+an estimate from recorded menu making prices, quantities and scheduled weekdays,
+assuming a start today in IST and excluding delivery/labour/overheads. Missing
+costs are reported rather than treated as zero; the full margin is withheld.
+Feature checkboxes persist descriptive benefits, not new fulfilment workflows.
+
 New subscriptions and plans support only these durations, for both curated plans
 and custom combos:
 
