@@ -5,6 +5,20 @@
 - `frontend/`: Angular application
 - `api/`: Azure Functions (.NET) backend
 
+## Phone-order customer invoices
+
+The customer's private phone-order tracking link includes **View invoice** and
+**Download invoice** (a text receipt). No customer sign-in is required. Invoices
+show the saved items, charges, total, current payment/order status and outlet
+branding, and remain accessible after delivery. Reopening the invoice reloads it
+so payment changes are reflected.
+
+`GET /api/public/phone-orders/{id}/invoice?token={trackingToken}` requires the same
+private token as tracking and returns `{ "invoiceText": "..." }`. Invalid tokens,
+missing orders and non-phone orders return 404. Responses are private/no-store.
+The invoice includes customer details; treat the shared link as confidential.
+Deploy both the API and frontend to enable this feature.
+
 ## CSRF tokens and Azure workers
 
 CSRF tokens are user-bound, valid for 60 minutes, and stored as SHA-256 hashes
@@ -68,6 +82,11 @@ Conversion & Abandonment, User Analytics, and Reports.
   permission. Declining does not prevent shopping. The persistent **Privacy
   choices** control stops tracking and requests erasure of the current session.
   Earlier anonymous history is not retrospectively linked on sign-in.
+- **Privacy controls:** **Privacy choices** is a normal-flow link at the bottom of
+  each page, not a floating button covering content or mobile actions. Mobile
+  footer spacing keeps it above fixed navigation when scrolled to the bottom.
+  The preferences panel still opens on first visit and can be reopened from
+  the footer.
 - **Retention:** new detailed journey and consented legacy records expire within
   30 days using UTC MongoDB TTL indexes; reporting also excludes expired records
   immediately, without waiting for TTL cleanup. Existing pre-feature legacy

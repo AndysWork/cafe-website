@@ -63,4 +63,17 @@ describe('PhoneOrderService', () => {
     expect(req.request.params.get('ngsw-bypass')).toBe('true');
     req.flush({ orderId: 'order-1', status: 'preparing' });
   });
+
+  it('loads invoices with only the private token and bypasses staff headers and cached responses', () => {
+    let text = '';
+    service.invoice('order-1', 'private-token').subscribe(invoice => text = invoice.invoiceText);
+    const req = http.expectOne(req => req.url.endsWith('/public/phone-orders/order-1/invoice'));
+    expect(req.request.method).toBe('GET');
+    expect(req.request.headers.has('Authorization')).toBeFalse();
+    expect(req.request.headers.has('X-Outlet-Id')).toBeFalse();
+    expect(req.request.params.get('token')).toBe('private-token');
+    expect(req.request.params.get('ngsw-bypass')).toBe('true');
+    req.flush({ invoiceText: 'Invoice total: 200' });
+    expect(text).toBe('Invoice total: 200');
+  });
 });

@@ -50,7 +50,8 @@ public sealed class PhoneDeliveryOrderTests
         _outbox = new Mock<OutboxService>(Mock.Of<IMongoDatabase>(), NullLogger<OutboxService>.Instance);
         _outbox.Setup(o => o.EnqueueOnceAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object>())).Returns(Task.CompletedTask);
         _function = new PhoneDeliveryOrderFunction(_orders.Object, _menu.Object, _users.Object, _staff.Object,
-            _outlets.Object, _operations.Object, _phone.Object, _auth, _outbox.Object, NullLoggerFactory.Instance);
+            _outlets.Object, _operations.Object, _phone.Object, _auth, _outbox.Object, NullLoggerFactory.Instance,
+            new InvoiceRenderService());
         _users.Setup(u => u.GetUserByIdAsync(UserId)).ReturnsAsync(new User
         {
             Id = UserId, FirstName = "Staff", LastName = "Recorder", AssignedOutlets = new() { OutletId }
@@ -862,6 +863,81 @@ public sealed class PhoneDeliveryOrderTests
             url: $"https://localhost/api/public/phone-orders/{id}/tracking?token={PhoneDeliveryOrderRules.NewTrackingToken()}"), id);
         Assert.Equal(HttpStatusCode.NotFound, invalid.StatusCode);
         Assert.Contains("no-store", invalid.Headers.GetValues("Cache-Control").Single());
+    }
+
+    [Theory]
+    [InlineData("preparing", "pending")]
+    [InlineData("delivered", "paid")]
+    [InlineData("cancelled", "pending")]
+    public async Task PrivateLinkProvidesCurrentInvoiceWithoutLogin(string status, string payment)
+    {
+        var id = "555555555555555555555555";
+        var token = PhoneDeliveryOrderRules.NewTrackingToken();
+        _outlets.Setup(o => o.GetOutletByIdAsync(OutletId, false))
+            .ReturnsAsync(new Outlet { Id = OutletId, OutletName = "Test Cafe" });
+        _orders.Setup(o => o.GetOrderByIdAsync(id)).ReturnsAsync(new Order
+        {
+            Id = id, OutletId = OutletId, OrderSource = "phone", PhoneTrackingToken = token,
+            CustomerName = "Guest Customer", Username = "recorder", Status = status, PaymentStatus = payment,
+            PaymentMethod = "cod", CreatedAt = new DateTime(2026, 11, 18, 12, 0, 0, DateTimeKind.Utc),
+            CreatedAtIsUtc = true, Subtotal = 160, Tax = 8, DeliveryFee = 25, Total = 193,
+            Items = new() { new() { Name = "Roll", Quantity = 2, Price = 80, Total = 160 } },
+            RecordedByName = "INTERNAL STAFF", PhoneRequestHash = "INTERNAL HASH"
+        });
+        var response = await _function.Invoice(Request(null, role: null,
+            url: $"https://localhost/api/public/phone-orders/{id}/invoice?token={token}"), id);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("no-store", Assert.Single(response.Headers.GetValues("Cache-Control")));
+        Assert.Equal("no-referrer", Assert.Single(response.Headers.GetValues("Referrer-Policy")));
+        var invoice = (await Read(response)).GetProperty("invoiceText").GetString()!;
+        Assert.Contains("PHONE ORDER INVOICE", invoice);
+        Assert.Contains("Test Cafe", invoice);
+        Assert.Contains("Guest Customer", invoice);
+        Assert.Contains("05:30 PM", invoice);
+        Assert.Contains("Roll", invoice);
+        Assert.Contains("Delivery Fee", invoice);
+        Assert.Contains("193", invoice);
+        Assert.Contains(status, invoice);
+        Assert.Contains(payment, invoice);
+        Assert.DoesNotContain("recorder", invoice);
+        Assert.DoesNotContain("INTERNAL", invoice);
+        Assert.DoesNotContain(token, invoice);
+    }
+
+    [Theory]
+    [InlineData("missing-token")]
+    [InlineData("wrong-token")]
+    [InlineData("non-phone")]
+    [InlineData("missing-order")]
+    [InlineData("invalid-id")]
+    public async Task PublicInvoiceDoesNotExposeOrdersWithoutMatchingPhoneTrackingToken(string scenario)
+    {
+        var id = scenario == "invalid-id" ? "invalid" : "555555555555555555555555";
+        var token = PhoneDeliveryOrderRules.NewTrackingToken();
+        _orders.Setup(o => o.GetOrderByIdAsync(id)).ReturnsAsync(scenario == "missing-order" ? null : new Order
+        {
+            Id = id, OrderSource = scenario == "non-phone" ? "web" : "phone",
+            PhoneTrackingToken = scenario == "wrong-token" ? PhoneDeliveryOrderRules.NewTrackingToken() : token
+        });
+        var url = $"https://localhost/api/public/phone-orders/{id}/invoice"
+            + (scenario == "missing-token" ? "" : $"?token={token}");
+        var response = await _function.Invoice(Request(null, role: null, url: url), id);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("no-store", Assert.Single(response.Headers.GetValues("Cache-Control")));
+        Assert.False((await Read(response)).TryGetProperty("invoiceText", out _));
+        if (scenario is "missing-token" or "invalid-id")
+            _orders.Verify(o => o.GetOrderByIdAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PublicInvoiceDatabaseFailureReturnsSafeRetryableError()
+    {
+        var id = "555555555555555555555555";
+        _orders.Setup(o => o.GetOrderByIdAsync(id)).ThrowsAsync(new TimeoutException("PRIVATE DATABASE DETAIL"));
+        var response = await _function.Invoice(Request(null, role: null,
+            url: $"https://localhost/api/public/phone-orders/{id}/invoice?token={PhoneDeliveryOrderRules.NewTrackingToken()}"), id);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.DoesNotContain("PRIVATE", (await Read(response)).GetRawText());
     }
 
     [Theory]

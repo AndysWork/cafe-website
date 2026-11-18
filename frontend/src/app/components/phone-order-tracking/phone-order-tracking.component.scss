@@ -8,4 +8,7 @@ li[aria-current="step"] { background: #eef7f3; border-radius: 6px; }
 .error { background: #fff0f0; color: #8b1d1d; padding: 12px; }
 .privacy, .updated { font-size: .85rem; color: #53646b; }
 a { color: #005b9a; }
+button { padding: 10px 16px; border: 1px solid #0f6252; border-radius: 6px; background: #eef7f3; color: #0f6252; cursor: pointer; }
+button:disabled { opacity: .6; cursor: wait; }
+.invoice { overflow-x: auto; padding: 12px; background: #f7f8f9; font-size: .8rem; }
 @media (max-width: 640px) { .tracking { margin: 12px; padding: 18px; } }

@@ -8,9 +8,11 @@ public class InvoiceRenderService
     public string Render(Order order, Outlet? outlet, int width = 48)
     {
         var branding = ResolveBranding(outlet);
+        var isPhoneOrder = Cafe.Api.Helpers.PhoneDeliveryOrderRules.IsPhoneOrder(order);
         var sb = new StringBuilder();
         var invoiceNumber = BuildInvoiceNumber(order);
-        var printedAt = MongoService.GetIstNow().ToString("dd MMM yyyy hh:mm tt");
+        var printedAt = (isPhoneOrder ? Cafe.Api.Helpers.OrderDateHelper.ToIstCreatedAt(order) : MongoService.GetIstNow())
+            .ToString("dd MMM yyyy hh:mm tt");
 
         sb.AppendLine(Center(branding.CafeName, width));
         if (!string.IsNullOrWhiteSpace(branding.Tagline))
@@ -25,12 +27,14 @@ public class InvoiceRenderService
         {
             sb.AppendLine(Center($"Email: {branding.Email}", width));
         }
-        sb.AppendLine(Center("COUNTER SALE INVOICE", width));
+        sb.AppendLine(Center(isPhoneOrder ? "PHONE ORDER INVOICE" : "COUNTER SALE INVOICE", width));
         sb.AppendLine(new string('-', width));
         sb.AppendLine($"Invoice : {invoiceNumber}");
         sb.AppendLine($"Order   : {(order.Id?.Length >= 6 ? order.Id[^6..].ToUpperInvariant() : order.Id)}");
         sb.AppendLine($"Date    : {printedAt}");
-        sb.AppendLine($"Customer: {Safe(order.Username, "Walk-in Customer")}");
+        sb.AppendLine($"Customer: {Safe(isPhoneOrder ? order.CustomerName ?? order.Username : order.Username, "Walk-in Customer")}");
+        if (isPhoneOrder)
+            sb.AppendLine($"Status  : {order.Status}");
         if (!string.IsNullOrWhiteSpace(order.PhoneNumber))
         {
             sb.AppendLine($"Phone   : {order.PhoneNumber}");

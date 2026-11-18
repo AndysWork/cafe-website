@@ -57,6 +57,10 @@ export interface PhoneOrderTracking {
   supportPhone?: string;
 }
 
+export interface PhoneOrderInvoice {
+  invoiceText: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PhoneOrderService {
   private readonly http = inject(HttpClient);
@@ -86,6 +90,13 @@ export class PhoneOrderService {
   track(orderId: string, token: string): Observable<PhoneOrderTracking> {
     return this.publicHttp.get<PhoneOrderTracking>(
       `${this.apiUrl}/public/phone-orders/${encodeURIComponent(orderId)}/tracking`, {
+        params: new HttpParams().set('token', token).set('ngsw-bypass', 'true')
+      });
+  }
+
+  invoice(orderId: string, token: string): Observable<PhoneOrderInvoice> {
+    return this.publicHttp.get<PhoneOrderInvoice>(
+      `${this.apiUrl}/public/phone-orders/${encodeURIComponent(orderId)}/invoice`, {
         params: new HttpParams().set('token', token).set('ngsw-bypass', 'true')
       });
   }

@@ -24,11 +24,13 @@ public sealed class PhoneDeliveryOrderFunction
     private readonly DeliveryRoutingService? _deliveryRoutingService;
     private readonly AuthService _auth;
     private readonly OutboxService _outbox;
+    private readonly InvoiceRenderService _invoices;
     private readonly ILogger _log;
 
     public PhoneDeliveryOrderFunction(IOrderRepository orders, IMenuRepository menu, IUserRepository users,
         IStaffRepository staff, IOutletRepository outlets, IOperationsRepository operations,
         IPhoneDeliveryOrderRepository phone, AuthService auth, OutboxService outbox, ILoggerFactory loggerFactory,
+        InvoiceRenderService invoices,
         DeliveryRoutingService? deliveryRoutingService = null)
     {
         _orders = orders;
@@ -41,6 +43,7 @@ public sealed class PhoneDeliveryOrderFunction
         _deliveryRoutingService = deliveryRoutingService;
         _auth = auth;
         _outbox = outbox;
+        _invoices = invoices;
         _log = loggerFactory.CreateLogger<PhoneDeliveryOrderFunction>();
     }
 
@@ -252,9 +255,8 @@ public sealed class PhoneDeliveryOrderFunction
             return await Error(req, HttpStatusCode.NotFound, "Tracking link not found");
         try
         {
-            var order = await _orders.GetOrderByIdAsync(id);
-            if (order == null || !PhoneDeliveryOrderRules.IsPhoneOrder(order)
-                || !PhoneDeliveryOrderRules.IsValidTrackingToken(order.PhoneTrackingToken, token))
+            var order = await FindPublicOrder(id, token);
+            if (order == null)
                 return await Error(req, HttpStatusCode.NotFound, "Tracking link not found");
             return await Json(req, HttpStatusCode.OK, PhoneDeliveryOrderRules.PublicTracking(order));
         }
@@ -265,12 +267,45 @@ public sealed class PhoneDeliveryOrderFunction
         }
     }
 
+    [Function("GetPublicPhoneDeliveryInvoice")]
+    public async Task<HttpResponseData> Invoice(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "public/phone-orders/{id}/invoice")] HttpRequestData req,
+        string id)
+    {
+        try
+        {
+            var order = await FindPublicOrder(id, req.Query["token"]);
+            if (order == null)
+                return await Error(req, HttpStatusCode.NotFound, "Invoice link not found");
+
+            var outlet = string.IsNullOrWhiteSpace(order.OutletId)
+                ? null : await _outlets.GetOutletByIdAsync(order.OutletId);
+            return await Json(req, HttpStatusCode.OK, new PhoneOrderInvoiceResponse(_invoices.Render(order, outlet)));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Phone invoice lookup failed");
+            return await Error(req, HttpStatusCode.ServiceUnavailable, "Invoice is temporarily unavailable");
+        }
+    }
+
+    private async Task<Order?> FindPublicOrder(string id, string? token)
+    {
+        if (!ObjectId.TryParse(id, out _) || token?.Length != 43) return null;
+        var order = await _orders.GetOrderByIdAsync(id);
+        return order != null && PhoneDeliveryOrderRules.IsPhoneOrder(order)
+            && PhoneDeliveryOrderRules.IsValidTrackingToken(order.PhoneTrackingToken, token) ? order : null;
+    }
+
     private async Task<HttpResponseData> Replay(HttpRequestData req, Order order, string requestHash)
     {
         if (!PhoneDeliveryOrderRules.IsPhoneOrder(order) || order.PhoneRequestHash != requestHash)
             return await Error(req, HttpStatusCode.Conflict, "Idempotency key reused with a different request");
         return await Created(req, order);
     }
+
+    /// <summary>Customer invoice available only with the phone order's private tracking token.</summary>
+    public sealed record PhoneOrderInvoiceResponse(string InvoiceText);
 
     private async Task<HttpResponseData> Created(HttpRequestData req, Order order)
     {

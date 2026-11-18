@@ -1,0 +1,9 @@
+@baseUrl = http://localhost:7071/api
+@orderId = replace-with-phone-order-id
+@trackingToken = replace-with-private-tracking-token
+
+### Customer invoice: no JWT or outlet header required
+GET {{baseUrl}}/public/phone-orders/{{orderId}}/invoice?token={{trackingToken}}
+
+### Invalid or missing token returns 404, never an invoice
+GET {{baseUrl}}/public/phone-orders/{{orderId}}/invoice

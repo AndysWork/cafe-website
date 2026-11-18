@@ -11,10 +11,20 @@
     </ol>
     <p>Total: <strong>{{ order.total | currency:'INR' }}</strong></p>
     <p>{{ order.paymentMethod === 'cod' ? 'Cash on delivery' : order.paymentMethod === 'upi-qr' ? 'Prepaid UPI' : 'Prepaid cash' }} / {{ order.paymentStatus | titlecase }}</p>
+    <button type="button" (click)="toggleInvoice()" [disabled]="invoiceLoading"
+      [attr.aria-expanded]="showInvoice" aria-controls="phone-order-invoice">
+      {{ invoiceLoading ? 'Loading invoice...' : showInvoice ? 'Hide invoice' : 'View invoice' }}
+    </button>
+    <p *ngIf="invoiceError" class="error" role="alert">{{ invoiceError }}</p>
+    <section *ngIf="showInvoice" id="phone-order-invoice" aria-label="Order invoice">
+      <h2>Your invoice</h2>
+      <pre class="invoice">{{ invoiceText }}</pre>
+      <button type="button" (click)="downloadInvoice()">Download invoice</button>
+    </section>
     <p *ngIf="order.deliveryPartnerName">Delivery partner: {{ order.deliveryPartnerName }}</p>
     <p *ngIf="order.etaMinutes && order.status === 'out-for-delivery'">Estimated travel time: {{ order.etaMinutes }} minutes (may vary).</p>
     <p class="updated">Last successful check: {{ lastChecked | date:'mediumTime' }}. {{ order.status === 'delivered' || order.status === 'cancelled' ? 'Tracking complete.' : 'Updates every 15 seconds.' }}</p>
     <a *ngIf="order.supportPhone" [href]="'tel:' + order.supportPhone">Call the cafe: {{ order.supportPhone }}</a>
   </ng-container>
-  <p class="privacy">This is a private tracking link. Share it only with people who need to follow this delivery.</p>
+  <p class="privacy">This private link provides delivery tracking and your invoice, including customer details. Share it only with people you trust.</p>
 </main>
