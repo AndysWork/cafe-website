@@ -5,6 +5,7 @@ import { AnalyticsConsentService } from './analytics-consent.service';
 import { JourneyTrackingService } from './journey-tracking.service';
 import { JourneyContext } from '../models/customer-journey.model';
 import { AuthStore } from '../store/auth.store';
+import { postAnalyticsKeepalive } from '../utils/analytics-keepalive';
 
 export interface TrackEvent {
   eventType: string;
@@ -102,7 +103,7 @@ export class AnalyticsTrackingService {
       .subscribe({ error: error => this.deliveryError(error) });
   }
 
-  private flush(beacon = false): void {
+  private flush(keepalive = false): void {
     if (!this.consent.analytics()) { this.events = []; return; }
     const pending = this.events.splice(0);
     const groups = new Map<string, { journey: JourneyContext; events: TrackEvent[] }>();
@@ -117,10 +118,9 @@ export class AnalyticsTrackingService {
     for (const group of groups.values()) {
       while (group.events.length) {
         const payload = { journey: group.journey, events: group.events.splice(0, 50) };
-        if (beacon && navigator.sendBeacon) {
-          if (!navigator.sendBeacon(`${this.base}/track/batch`,
-            new Blob([JSON.stringify(payload)], { type: 'application/json' })))
-            console.warn('The browser could not queue the final legacy analytics batch.');
+        if (keepalive) {
+          void postAnalyticsKeepalive(`${this.base}/track/batch`, payload)
+            .catch(error => console.warn('Final legacy analytics delivery failed', error));
         } else {
           this.http.post(`${this.base}/track/batch`, payload)
             .subscribe({ error: error => this.deliveryError(error) });

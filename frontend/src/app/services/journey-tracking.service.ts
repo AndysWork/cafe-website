@@ -7,6 +7,7 @@ import { OutletStore } from '../store/outlet.store';
 import { CartStore } from '../store/cart.store';
 import { AnalyticsConsentService } from './analytics-consent.service';
 import { JourneyBrowserEvent, JourneyContext, JourneySessionResponse } from '../models/customer-journey.model';
+import { postAnalyticsKeepalive } from '../utils/analytics-keepalive';
 
 interface StoredJourney {
   context: JourneyContext;
@@ -241,20 +242,19 @@ export class JourneyTrackingService {
     if (!subscription.closed) this.starting = subscription;
   }
 
-  flush(beacon = false): void {
+  flush(keepalive = false): void {
     const context = this.orderContext();
     if (!context || this.pending.length === 0) return;
-    if (this.sending && !beacon) return;
-    if (beacon && navigator.sendBeacon) {
+    if (this.sending && !keepalive) return;
+    if (keepalive) {
+      const generation = this.generation;
       while (this.pending.length) {
         const events = this.pending.splice(0, 50);
-        const queued = navigator.sendBeacon(`${this.base}/events`,
-          new Blob([JSON.stringify({ context, events })], { type: 'application/json' }));
-        if (!queued) {
-          this.pending.unshift(...events);
-          console.warn('The browser could not queue the final journey analytics batch.');
-          break;
-        }
+        void postAnalyticsKeepalive(`${this.base}/events`, { context, events }).catch(error => {
+          console.warn('Final journey analytics delivery failed', error);
+          if (generation === this.generation && this.consent.analytics())
+            this.pending.unshift(...events);
+        });
       }
       return;
     }

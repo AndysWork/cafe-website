@@ -64,6 +64,13 @@ Conversion & Abandonment, User Analytics, and Reports.
   Session tokens are capabilities: never publish them or add them to logs.
   Reports require an administrator and one selected outlet.
 
+Final journey and legacy analytics batches use `fetch` with `keepalive: true`
+and `credentials: 'omit'`. They authenticate with the consented journey capability
+in the JSON body, not cookies or JWT headers. Do not replace these requests with
+`sendBeacon`: its credentials-included mode conflicts with the API's
+non-credentialed cross-origin policy. Deploy the frontend to apply this fix;
+enabling credentialed CORS is not required.
+
 ### Metric definitions and coverage
 
 These are **consented, attributed website journeys**, not a replacement for full

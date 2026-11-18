@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { TestBed, fakeAsync, flushMicrotasks, tick } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AnalyticsConsentService } from './analytics-consent.service';
@@ -31,6 +31,7 @@ describe('Consented journey tracking', () => {
     spyOn(document, 'hasFocus').and.returnValue(true);
     spyOnProperty(document, 'visibilityState', 'get').and.returnValue('visible');
     spyOn(navigator, 'sendBeacon').and.returnValue(true);
+    spyOn(window, 'fetch').and.resolveTo(new Response(null, { status: 204 }));
     TestBed.configureTestingModule({ providers: [
       provideHttpClient(), provideHttpClientTesting(),
       { provide: AuthStore, useValue: { user, roles } },
@@ -121,19 +122,24 @@ describe('Consented journey tracking', () => {
     window.dispatchEvent(new Event('blur'));
     tick(60000);
     http.expectNone(`${base}/events`);
-    expect(navigator.sendBeacon).toHaveBeenCalled();
+    expect(window.fetch).toHaveBeenCalled();
     http.verify();
     TestBed.resetTestingModule();
   }));
 
-  it('flushes a capability-authenticated final batch so a JWT is not needed by sendBeacon', () => {
+  it('flushes a capability-authenticated final batch without cookie credentials or a JWT', () => {
     enable();
     tracker.trackPage('/cart');
     tracker.flush(true);
-    const args = (navigator.sendBeacon as jasmine.Spy).calls.mostRecent().args;
+    const args = (window.fetch as jasmine.Spy).calls.mostRecent().args;
     expect(args[0]).toBe(`${base}/events`);
-    expect(args[1] instanceof Blob).toBeTrue();
-    expect(args[1].size).toBeGreaterThan(0);
+    const options: RequestInit = args[1];
+    expect(options.method).toBe('POST');
+    expect(options.keepalive).toBeTrue();
+    expect(options.credentials).toBe('omit');
+    expect(options.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(JSON.parse(options.body as string).context).toEqual(context);
+    expect(navigator.sendBeacon).not.toHaveBeenCalled();
     http.verify();
   });
 
@@ -151,14 +157,52 @@ describe('Consented journey tracking', () => {
     TestBed.resetTestingModule();
   }));
 
-  it('drains every bounded batch on final beacon delivery', () => {
+  it('drains every bounded batch on final keepalive delivery', () => {
     enable();
     for (let i = 0; i < 120; i++) tracker.trackPage('/dine-in/table-1?private=excluded');
     tracker.flush(true);
-    expect(navigator.sendBeacon).toHaveBeenCalledTimes(3);
+    expect(window.fetch).toHaveBeenCalledTimes(3);
+    const batches = (window.fetch as jasmine.Spy).calls.allArgs()
+      .map(args => JSON.parse(args[1].body));
+    expect(batches.map(batch => batch.events.length)).toEqual([50, 50, 20]);
+    expect(batches.every(batch => batch.context.sessionId === context.sessionId)).toBeTrue();
     tracker.flush();
     http.verify();
   });
+
+  it('retries a failed final batch through normal delivery while the journey is still active', fakeAsync(() => {
+    spyOn(console, 'warn');
+    (window.fetch as jasmine.Spy).and.resolveTo(new Response(null, { status: 503 }));
+    enable();
+    tracker.trackPage('/menu');
+    tracker.flush(true);
+    flushMicrotasks();
+    expect(console.warn).toHaveBeenCalled();
+    tracker.flush();
+    const request = http.expectOne(`${base}/events`);
+    expect(request.request.body.context).toEqual(context);
+    expect(request.request.body.events.some((event: JourneyBrowserEvent) => event.page === '/menu')).toBeTrue();
+    request.flush(null);
+    http.verify();
+    TestBed.resetTestingModule();
+  }));
+
+  it('does not requeue a failed final batch after consent is withdrawn', fakeAsync(() => {
+    spyOn(console, 'warn');
+    let reject!: (reason: Error) => void;
+    (window.fetch as jasmine.Spy).and.returnValue(new Promise<Response>((_, fail) => { reject = fail; }));
+    enable();
+    tracker.trackPage('/menu');
+    tracker.flush(true);
+    consent.save(false, false);
+    TestBed.flushEffects();
+    http.expectOne(`${base}/revoke`).flush(null);
+    reject(new TypeError('Network unavailable'));
+    flushMicrotasks();
+    tracker.flush();
+    http.verify();
+    TestBed.resetTestingModule();
+  }));
 
   it('preserves all queued events and the continuation marker when signing in', () => {
     enable(true);
