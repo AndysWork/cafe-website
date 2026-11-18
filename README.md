@@ -30,6 +30,20 @@ ordinary stylesheet links rather than CSP-blocked inline `onload` handlers;
 script and stylesheet minification remain enabled. Do not add `unsafe-inline`
 to `script-src` to work around stylesheet loading.
 
+Google Translate loads its widget stylesheet from
+`https://www.gstatic.com/_/translate_http/` and calls
+`https://translate-pa.googleapis.com`; the stylesheet and API origins are allowed
+in the style/connect directives, with `/v1/` also allowed in `script-src` for its
+JSONP language requests. Its sandboxed iframe needs one inline bootstrap script.
+The `sha256-R6kjt5FwTd5vAw94Q08NLDZsSaGTzg4NsdIfKtECSp0=` source
+allows only that exact script, verified against Google's `TE_20261115` widget,
+not arbitrary inline JavaScript. If Google changes it, inspect the new bootstrap
+and verify its hash before updating the policy; do not enable `unsafe-inline`
+or `unsafe-eval`. `frame-src 'self'`, `frame-ancestors 'self'`, and
+`X-Frame-Options: SAMEORIGIN` permit the widget's local helper frames while
+continuing to prevent other origins from framing the cafe site.
+Unrelated third-party scripts remain blocked.
+
 The service-worker registration's policy version changes when its required CSP
 changes, since installed workers retain their installation-time policy.
 After deployment, the app applies downloaded updates on the next navigation

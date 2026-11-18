@@ -21,7 +21,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideHttpClient(withInterceptors([errorInterceptor, authInterceptor, outletInterceptor, analyticsInterceptor])),
     // Refresh existing workers too: their fetches retain the CSP from installation.
-    provideServiceWorker('ngsw-worker.js?policy=font-awesome-v2', {
+    provideServiceWorker('ngsw-worker.js?policy=google-translate-v3', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000'
     }),
