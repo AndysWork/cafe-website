@@ -191,6 +191,10 @@ export class AdminSubscriptionsComponent implements OnInit, OnDestroy {
   get sellingPrice(): number { return this.round(this.basePrice - this.discountAmount); }
   durationName(days: number): string { return days === 7 ? 'Weekly' : days === 14 ? 'Biweekly' : days === 30 ? 'Monthly' : `${days} days`; }
   termsFor(plan: SubscriptionPlan) { return this.terms.find(terms => terms.durationDays === plan.durationDays); }
+  sellingPriceFor(plan: SubscriptionPlan): number {
+    const discountPercent = this.termsFor(plan)?.discountPercent ?? plan.discountPercent ?? 0;
+    return this.round(plan.price - this.round(plan.price * discountPercent / 100));
+  }
   private round(value: number): number { return Math.round((value + Number.EPSILON) * 100) / 100; }
   growth(current: number, previous: number): number | null { return previous > 0 ? (current - previous) / previous * 100 : null; }
 

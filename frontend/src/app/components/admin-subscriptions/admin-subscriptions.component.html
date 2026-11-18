@@ -53,7 +53,7 @@
               <td>{{ termsFor(plan)?.discountPercent ?? plan.discountPercent ?? 0 }}%</td>
               <td class="pause-cell"><b>{{ termsFor(plan)?.pauseLimit ?? 2 }}</b><small>({{ termsFor(plan)?.maxPauseDays ?? 7 }} days)</small></td>
               <td><div class="image-stack"><ng-container *ngFor="let item of plan.includedItems | slice:0:3"><img *ngIf="imageFor(item)" [src]="imageFor(item)" alt=""></ng-container></div><small>{{ plan.includedItems?.length || 0 }} items</small></td>
-              <td class="price-cell"><strong>₹{{ plan.price | number:'1.0-2' }}</strong><small>(₹{{ plan.price / plan.durationDays | number:'1.0-2' }}/day)</small></td>
+              <td class="price-cell"><del *ngIf="sellingPriceFor(plan) < plan.price" aria-label="Original price">₹{{ plan.price | number:'1.0-2' }}</del> <strong aria-label="Price after discount">₹{{ sellingPriceFor(plan) | number:'1.0-0' }}</strong><small>(₹{{ sellingPriceFor(plan) / plan.durationDays | number:'1.0-2' }}/day)</small></td>
               <td>{{ overview ? (overview.planSubscribers[plan.id || ''] || 0) : '—' }}</td>
               <td><button class="status-pill" [class.active]="plan.isActive" [attr.aria-label]="(plan.isActive ? 'Deactivate ' : 'Activate ') + plan.name" (click)="toggleActive(plan)"><i></i>{{ plan.isDraft ? 'Draft' : plan.isActive ? 'Active' : 'Inactive' }}</button></td>
               <td><div class="row-actions"><button type="button" class="icon-button" [attr.aria-label]="'Edit ' + plan.name" (click)="openEditModal(plan)"><svg class="icon"><use href="#sp-edit"/></svg></button><button type="button" class="icon-button danger" [attr.aria-label]="'Delete ' + plan.name" (click)="deletePlan(plan)"><svg class="icon"><use href="#sp-trash"/></svg></button></div></td>

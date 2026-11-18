@@ -76,6 +76,29 @@ describe('Admin subscription workflow', () => {
     expect(component.pagePlans.map(p => p.id)).toEqual(['0']);
   });
 
+  for (const [price, displayedTotal, dailyPrice] of [[693, '672', '96.03'], [710, '689', '98.39']] as const) {
+    it(`shows the original ${price} crossed out and the discounted total rounded to ${displayedTotal}`, () => {
+      component.plans = [{ ...plan, price, discountPercent: 10 }];
+      fixture.detectChanges();
+      const cell: HTMLElement = fixture.nativeElement.querySelector('.price-cell');
+      expect(cell.querySelector('del')?.textContent).toBe(`₹${price}`);
+      expect(cell.querySelector('strong')?.textContent).toBe(`₹${displayedTotal}`);
+      expect(cell.querySelector('small')?.textContent).toBe(`(₹${dailyPrice}/day)`);
+      component.openEditModal(component.plans[0]);
+      expect(component.sellingPriceFor(component.plans[0])).toBe(component.sellingPrice);
+      expect(component.plans[0].price).toBe(price);
+    });
+  }
+
+  it('does not cross out the original price when no discount applies', () => {
+    component.plans = [{ ...plan, durationDays: 10 }];
+    fixture.detectChanges();
+    const cell: HTMLElement = fixture.nativeElement.querySelector('.price-cell');
+    expect(cell.querySelector('del')).toBeNull();
+    expect(cell.querySelector('strong')?.textContent).toBe('₹700');
+    expect(cell.querySelector('small')?.textContent).toBe('(₹70/day)');
+  });
+
   it('does not present unavailable metrics as zero', () => {
     api.getOverview.and.returnValue(throwError(() => new Error('offline')));
     component.reload();
