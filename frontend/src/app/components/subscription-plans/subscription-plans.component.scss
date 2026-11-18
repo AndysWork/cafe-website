@@ -305,6 +305,7 @@ $radius-full: 9999px;
     margin: 0;
 
     .price-main {
+      .original-price { font-size: 0.9rem; color: $text-light; margin-right: 6px; }
       .currency { font-size: 1.1rem; font-weight: 800; color: $text-dark; }
       .amount { font-size: 1.5rem; font-weight: 800; color: $text-dark; }
       .period { font-size: 0.82rem; color: $text-light; margin-left: 3px; }

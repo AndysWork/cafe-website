@@ -77,13 +77,39 @@ describe('Subscription plans presentation', () => {
     expect(root.querySelector('h1')?.textContent).toContain('Cafe Meal Subscriptions');
     expect(root.querySelectorAll('.plan-card').length).toBe(2);
     expect(root.querySelector('.plan-title')?.textContent).toBe('Cafe Breakfast');
-    expect(root.querySelector('.amount')?.textContent).toBe('1,800');
+    expect(root.querySelector('.original-price')?.textContent).toBe('₹1,800');
+    expect(root.querySelector('.amount')?.textContent).toBe('1,620');
     expect(root.querySelector('.period')?.textContent).toContain('30 Days');
-    expect(root.querySelector('.daily-rate-pill')?.textContent).toContain('₹60/day');
+    expect(root.querySelector('.daily-rate-pill')?.textContent).toContain('₹54/day');
     expect(root.querySelector('.items-list')?.textContent).toContain('Coffee');
     expect(root.querySelector('.benefits-list')?.textContent).toContain('Freshly prepared');
     expect(root.querySelector('.plan-artwork img')?.getAttribute('src')).toBe('/breakfast.jpg');
     expect(root.querySelectorAll('.plan-artwork span')[0].textContent).toBe('🍱');
+  });
+
+  for (const [price, displayedTotal] of [[693, '672'], [710, '689']] as const) {
+    it(`shows the weekly base price ${price} crossed out and the rounded discounted total ${displayedTotal}`, async () => {
+      const weeklyPlan = { ...plans[0], price, durationDays: 7, discountPercent: 10 };
+      service.getPlans.and.returnValue(of([weeklyPlan]));
+      await render();
+      const root: HTMLElement = fixture.nativeElement;
+      expect(root.querySelector('del.original-price')?.textContent).toBe(`₹${price}`);
+      expect(root.querySelector('.amount')?.textContent).toBe(displayedTotal);
+      root.querySelector<HTMLButtonElement>('.btn-plan-subscribe')!.click();
+      await render();
+      expect(component.getCuratedCalculatedPrice().total).toBe(component.sellingPriceFor(weeklyPlan));
+      expect(weeklyPlan.price).toBe(price);
+      expect(service.subscribe).not.toHaveBeenCalled();
+    });
+  }
+
+  it('does not cross out a price when no discount applies', async () => {
+    service.getPlans.and.returnValue(of([{ ...plans[0], price: 700, durationDays: 10 }]));
+    await render();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('.original-price')).toBeNull();
+    expect(root.querySelector('.amount')?.textContent).toBe('700');
+    expect(root.querySelector('.daily-rate-pill')?.textContent).toContain('₹70/day');
   });
 
   it('uses plan, included-item, and matching menu imagery in priority order', async () => {

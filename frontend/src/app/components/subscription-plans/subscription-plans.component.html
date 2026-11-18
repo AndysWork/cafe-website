@@ -129,8 +129,9 @@
 
           <div class="plan-price-row">
             <div class="price-main">
+              <del *ngIf="sellingPriceFor(plan) < plan.price" class="original-price" aria-label="Original price">₹{{ plan.price | number:'1.0-2' }}</del>
               <span class="currency">₹</span>
-              <span class="amount">{{ plan.price | number:'1.0-0' }}</span>
+              <span class="amount" aria-label="Price after discount">{{ sellingPriceFor(plan) | number:'1.0-0' }}</span>
               <span class="period">/ {{ plan.durationDays }} Days</span>
             </div>
             <div class="daily-rate-pill">

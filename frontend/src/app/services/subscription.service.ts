@@ -43,6 +43,13 @@ export interface SubscriptionPlan {
   createdAt?: string;
 }
 
+export function getSubscriptionPlanSellingPrice(plan: SubscriptionPlan): number {
+  const discountPercent = SUBSCRIPTION_TERMS.find(terms => terms.durationDays === plan.durationDays)?.discountPercent
+    ?? plan.discountPercent ?? 0;
+  const round = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+  return round(plan.price - round(plan.price * discountPercent / 100));
+}
+
 export interface CustomerSubscription {
   id?: string;
   userId: string;

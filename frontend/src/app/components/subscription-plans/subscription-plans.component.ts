@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
-import { SubscriptionService, SubscriptionPlan, CustomerSubscription, SubscriptionItem, SUBSCRIPTION_TERMS } from '../../services/subscription.service';
+import { SubscriptionService, SubscriptionPlan, CustomerSubscription, SubscriptionItem, SUBSCRIPTION_TERMS, getSubscriptionPlanSellingPrice } from '../../services/subscription.service';
 import { MenuService, MenuItem } from '../../services/menu.service';
 import { AuthStore } from '../../store/auth.store';
 import { AuthService } from '../../services/auth.service';
@@ -182,9 +182,13 @@ export class SubscriptionPlansComponent implements OnInit, OnDestroy {
     return this.plans.filter(p => (p.category || 'all-day').toLowerCase() === this.selectedPlanCategory.toLowerCase());
   }
 
+  sellingPriceFor(plan: SubscriptionPlan): number {
+    return getSubscriptionPlanSellingPrice(plan);
+  }
+
   getDailyValue(plan: SubscriptionPlan): string {
     const days = plan.durationDays > 0 ? plan.durationDays : 30;
-    const daily = plan.price / days;
+    const daily = this.sellingPriceFor(plan) / days;
     return '₹' + Math.round(daily);
   }
 

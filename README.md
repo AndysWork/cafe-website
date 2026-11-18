@@ -440,8 +440,8 @@ Admins manage plans in a searchable, paginated table with status and duration
 filters. **Create Plan** opens the details drawer, followed by full-page menu
 selection and review/publish steps. Fixed and per-day entry both save a canonical
 full-period base price; the duration discount is applied once at checkout.
-The admin table crosses out the base price when discounted and shows the
-discounted total rounded to whole rupees, with its effective daily rate below.
+The admin table and customer plan cards cross out the base price when discounted
+and show the discounted total rounded to whole rupees, with its effective daily rate.
 This display rounding does not change checkout or payment amounts.
 Plans retain their configured images, benefits, delivery flag and category.
 Drafts are inactive and unavailable to customer purchases; existing paid
