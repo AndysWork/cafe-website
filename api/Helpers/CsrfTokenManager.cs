@@ -1,158 +1,111 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using MongoDB.Bson.Serialization.Attributes;
+using MongoDB.Driver;
 
 namespace Cafe.Api.Helpers;
 
 /// <summary>
-/// CSRF token management for preventing Cross-Site Request Forgery attacks
+/// Stores user-bound CSRF tokens in the shared database so they survive worker changes and restarts.
 /// </summary>
-public class CsrfTokenManager
+public sealed class CsrfTokenManager
 {
-    private static readonly ConcurrentDictionary<string, CsrfToken> _tokens = new();
-    private static DateTime _lastGlobalCleanup = DateTime.UtcNow;
-    private static readonly TimeSpan GlobalCleanupInterval = TimeSpan.FromMinutes(30);
     private const int TokenExpiryMinutes = 60;
     private const int MaxTokensPerUser = 10;
+    private readonly IMongoCollection<CsrfToken> _tokens;
+    private readonly object _indexLock = new();
+    private Task? _indexInitialization;
 
-    /// <summary>
-    /// Generates a new CSRF token for a user
-    /// </summary>
-    public static string GenerateToken(string userId)
+    public CsrfTokenManager(IMongoDatabase database)
     {
-        // Generate cryptographically secure random token
-        var tokenBytes = new byte[32];
-        using (var rng = RandomNumberGenerator.Create())
-        {
-            rng.GetBytes(tokenBytes);
-        }
-        var token = Convert.ToBase64String(tokenBytes);
+        _tokens = database.GetCollection<CsrfToken>("CsrfTokens");
+    }
 
-        // Store token with expiry
-        var csrfToken = new CsrfToken
+    public async Task<string> GenerateTokenAsync(string userId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        await EnsureIndexesAsync();
+
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var now = DateTime.UtcNow;
+        await _tokens.InsertOneAsync(new CsrfToken
         {
-            Token = token,
+            TokenHash = Hash(token),
             UserId = userId,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(TokenExpiryMinutes),
-            CreatedAt = DateTime.UtcNow
-        };
+            CreatedAt = now,
+            ExpiresAt = now.AddMinutes(TokenExpiryMinutes)
+        });
 
-        _tokens.AddOrUpdate(token, csrfToken, (_, __) => csrfToken);
-
-        // Cleanup old tokens for this user
-        CleanupUserTokens(userId);
-
-        // Periodic global cleanup of expired tokens
-        if (DateTime.UtcNow - _lastGlobalCleanup > GlobalCleanupInterval)
+        var oldestTokens = await _tokens.Find(t => t.UserId == userId)
+            .SortByDescending(t => t.CreatedAt)
+            .ThenByDescending(t => t.TokenHash)
+            .Skip(MaxTokensPerUser)
+            .ToListAsync();
+        if (oldestTokens.Count > 0)
         {
-            _lastGlobalCleanup = DateTime.UtcNow;
-            CleanupExpiredTokens();
+            await _tokens.DeleteManyAsync(Builders<CsrfToken>.Filter.In(
+                t => t.TokenHash, oldestTokens.Select(t => t.TokenHash)));
         }
 
         return token;
     }
 
-    /// <summary>
-    /// Validates a CSRF token
-    /// </summary>
-    public static bool ValidateToken(string token, string userId)
+    public async Task<bool> ValidateTokenAsync(string token, string userId)
     {
         if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(userId))
             return false;
 
-        if (!_tokens.TryGetValue(token, out var csrfToken))
-            return false;
-
-        // Check if token belongs to user
-        if (csrfToken.UserId != userId)
-            return false;
-
-        // Check if token is expired
-        if (csrfToken.ExpiresAt < DateTime.UtcNow)
-        {
-            _tokens.TryRemove(token, out _);
-            return false;
-        }
-
-        return true;
+        return await _tokens.Find(ValidTokenFilter(token, userId)).FirstOrDefaultAsync() != null;
     }
 
-    /// <summary>
-    /// Validates and consumes a CSRF token (one-time use)
-    /// </summary>
-    public static bool ValidateAndConsumeToken(string token, string userId)
+    public async Task<bool> ValidateAndConsumeTokenAsync(string token, string userId)
     {
-        if (!ValidateToken(token, userId))
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(userId))
             return false;
 
-        // Remove token after validation (one-time use)
-        _tokens.TryRemove(token, out _);
-        return true;
+        return await _tokens.FindOneAndDeleteAsync(ValidTokenFilter(token, userId)) != null;
     }
 
-    /// <summary>
-    /// Removes a specific token
-    /// </summary>
-    public static void RevokeToken(string token)
+    public Task RevokeTokenAsync(string token) =>
+        _tokens.DeleteOneAsync(t => t.TokenHash == Hash(token));
+
+    public Task RevokeUserTokensAsync(string userId) =>
+        _tokens.DeleteManyAsync(t => t.UserId == userId);
+
+    public Task CleanupExpiredTokensAsync() =>
+        _tokens.DeleteManyAsync(t => t.ExpiresAt <= DateTime.UtcNow);
+
+    private static FilterDefinition<CsrfToken> ValidTokenFilter(string token, string userId) =>
+        Builders<CsrfToken>.Filter.Eq(t => t.TokenHash, Hash(token))
+        & Builders<CsrfToken>.Filter.Eq(t => t.UserId, userId)
+        & Builders<CsrfToken>.Filter.Gt(t => t.ExpiresAt, DateTime.UtcNow);
+
+    private static string Hash(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    private Task EnsureIndexesAsync()
     {
-        _tokens.TryRemove(token, out _);
-    }
-
-    /// <summary>
-    /// Removes all tokens for a user
-    /// </summary>
-    public static void RevokeUserTokens(string userId)
-    {
-        var userTokens = _tokens.Where(kvp => kvp.Value.UserId == userId).ToList();
-        foreach (var kvp in userTokens)
+        lock (_indexLock)
         {
-            _tokens.TryRemove(kvp.Key, out _);
-        }
-    }
-
-    /// <summary>
-    /// Cleanup expired tokens and limit tokens per user
-    /// </summary>
-    private static void CleanupUserTokens(string userId)
-    {
-        // Remove expired tokens
-        var expiredTokens = _tokens.Where(kvp => kvp.Value.ExpiresAt < DateTime.UtcNow).ToList();
-        foreach (var kvp in expiredTokens)
-        {
-            _tokens.TryRemove(kvp.Key, out _);
-        }
-
-        // Limit tokens per user
-        var userTokens = _tokens.Where(kvp => kvp.Value.UserId == userId)
-            .OrderBy(kvp => kvp.Value.CreatedAt)
-            .ToList();
-
-        if (userTokens.Count > MaxTokensPerUser)
-        {
-            var tokensToRemove = userTokens.Take(userTokens.Count - MaxTokensPerUser);
-            foreach (var kvp in tokensToRemove)
+            if (_indexInitialization == null || _indexInitialization.IsFaulted || _indexInitialization.IsCanceled)
             {
-                _tokens.TryRemove(kvp.Key, out _);
+                _indexInitialization = _tokens.Indexes.CreateManyAsync(new[]
+                {
+                    new CreateIndexModel<CsrfToken>(Builders<CsrfToken>.IndexKeys.Ascending(t => t.ExpiresAt),
+                        new CreateIndexOptions { Name = "csrf_token_expiry", ExpireAfter = TimeSpan.Zero }),
+                    new CreateIndexModel<CsrfToken>(Builders<CsrfToken>.IndexKeys
+                        .Ascending(t => t.UserId).Descending(t => t.CreatedAt).Descending(t => t.TokenHash))
+                });
             }
-        }
-    }
-
-    /// <summary>
-    /// Periodic cleanup of expired tokens (call from background task)
-    /// </summary>
-    public static void CleanupExpiredTokens()
-    {
-        var expiredTokens = _tokens.Where(kvp => kvp.Value.ExpiresAt < DateTime.UtcNow).ToList();
-        foreach (var kvp in expiredTokens)
-        {
-            _tokens.TryRemove(kvp.Key, out _);
+            return _indexInitialization;
         }
     }
 }
 
-public class CsrfToken
+public sealed class CsrfToken
 {
-    public string Token { get; set; } = string.Empty;
+    [BsonId]
+    public string TokenHash { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }

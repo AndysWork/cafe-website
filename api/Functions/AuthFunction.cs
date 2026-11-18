@@ -16,13 +16,16 @@ public class AuthFunction
 {
     private readonly IUserRepository _mongo;
     private readonly AuthService _auth;
+    private readonly CsrfTokenManager _csrfTokens;
     private readonly IEmailService _emailService;
     private readonly ILogger _log;
 
-    public AuthFunction(IUserRepository mongo, AuthService auth, IEmailService emailService, ILoggerFactory loggerFactory)
+    public AuthFunction(IUserRepository mongo, AuthService auth, IEmailService emailService, ILoggerFactory loggerFactory,
+        CsrfTokenManager csrfTokens)
     {
         _mongo = mongo;
         _auth = auth;
+        _csrfTokens = csrfTokens;
         _emailService = emailService;
         _log = loggerFactory.CreateLogger<AuthFunction>();
     }
@@ -143,7 +146,7 @@ public class AuthFunction
             var token = _auth.GenerateJwtToken(user.Id!, user.Username, primaryRole, user.DefaultOutletId, user.AssignedOutlets, effectiveRoles);
 
             // Generate CSRF token
-            var csrfToken = CsrfTokenManager.GenerateToken(user.Id!);
+            var csrfToken = await _csrfTokens.GenerateTokenAsync(user.Id!);
 
             // Log successful login
             auditLogger.LogAuthentication(user.Id!, "Login Success", true, ipAddress, userAgent);

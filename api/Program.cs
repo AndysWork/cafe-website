@@ -56,6 +56,7 @@ var host = new HostBuilder()
         s.AddSingleton<FileUploadService>();
         s.AddSingleton<ZomatoSalesPayoutInsightService>();
         s.AddSingleton<AuthService>();
+        s.AddSingleton<CsrfTokenManager>();
         s.AddSingleton<IManagerDashboardService, ManagerDashboardService>();
         s.AddSingleton<IEmailService, EmailService>();
         s.AddSingleton<IWhatsAppService, WhatsAppService>();

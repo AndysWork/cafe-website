@@ -13,11 +13,13 @@ namespace Cafe.Api.Functions;
 public class SecurityAdminFunction
 {
     private readonly AuthService _auth;
+    private readonly CsrfTokenManager _csrfTokens;
     private readonly ILogger _log;
 
-    public SecurityAdminFunction(AuthService auth, ILoggerFactory loggerFactory)
+    public SecurityAdminFunction(AuthService auth, ILoggerFactory loggerFactory, CsrfTokenManager csrfTokens)
     {
         _auth = auth;
+        _csrfTokens = csrfTokens;
         _log = loggerFactory.CreateLogger<SecurityAdminFunction>();
     }
 
@@ -35,7 +37,7 @@ public class SecurityAdminFunction
             if (!isAuthorized)
                 return errorResponse!;
 
-            var token = CsrfTokenManager.GenerateToken(userId!);
+            var token = await _csrfTokens.GenerateTokenAsync(userId!);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
@@ -71,7 +73,7 @@ public class SecurityAdminFunction
             var (requestBody, validationError) = await ValidationHelper.ValidateBody<CsrfValidationRequest>(req);
             if (validationError != null) return validationError;
 
-            var isValid = CsrfTokenManager.ValidateToken(requestBody.Token, userId!);
+            var isValid = await _csrfTokens.ValidateTokenAsync(requestBody.Token, userId!);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new

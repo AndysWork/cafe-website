@@ -5,6 +5,21 @@
 - `frontend/`: Angular application
 - `api/`: Azure Functions (.NET) backend
 
+## CSRF tokens and Azure workers
+
+CSRF tokens are user-bound, valid for 60 minutes, and stored as SHA-256 hashes
+in the shared MongoDB `CsrfTokens` collection, not in worker memory. All API
+workers must use the same application database. The database identity needs
+collection/index creation and read/write/delete permissions for this collection;
+expiry and user indexes are created on first token issuance. Expired tokens
+are rejected immediately and removed by MongoDB's TTL index.
+
+Deploy the backend fix before retrying Kitchen Display updates. Previously
+issued in-memory tokens will be rejected once; the frontend uses the returned
+`csrf_token_invalid` challenge to refresh the token and retry once. CSRF
+protection must remain enabled in production. No seed data or manual migration
+is needed.
+
 ## Production CSP and service worker
 
 Deploy the frontend build and its `staticwebapp.config.json` together.

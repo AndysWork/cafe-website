@@ -38,11 +38,13 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
     };
 
     private readonly AuthService _authService;
+    private readonly CsrfTokenManager _csrfTokens;
     private readonly bool _csrfValidationEnabled;
 
-    public CsrfValidationMiddleware(AuthService authService)
+    public CsrfValidationMiddleware(AuthService authService, CsrfTokenManager csrfTokens)
     {
         _authService = authService;
+        _csrfTokens = csrfTokens;
 
         var disableFlag = Environment.GetEnvironmentVariable("Security__DisableCsrf");
         var isDisabledByFlag = bool.TryParse(disableFlag, out var disableParsed) && disableParsed;
@@ -117,9 +119,9 @@ public class CsrfValidationMiddleware : IFunctionsWorkerMiddleware
             ? csrfValues.FirstOrDefault()
             : null;
 
-        if (string.IsNullOrWhiteSpace(csrfToken) || !CsrfTokenManager.ValidateToken(csrfToken, userId))
+        if (string.IsNullOrWhiteSpace(csrfToken) || !await _csrfTokens.ValidateTokenAsync(csrfToken, userId))
         {
-            var refreshedCsrfToken = CsrfTokenManager.GenerateToken(userId);
+            var refreshedCsrfToken = await _csrfTokens.GenerateTokenAsync(userId);
             var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
             forbidden.Headers.Add("X-CSRF-Token", refreshedCsrfToken);
             await forbidden.WriteAsJsonAsync(new
