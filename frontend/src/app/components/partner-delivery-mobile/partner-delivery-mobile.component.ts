@@ -27,6 +27,14 @@ export class PartnerDeliveryMobileComponent implements OnInit, OnDestroy {
   accepting: Record<string, boolean> = {};
   private refreshHandle?: number;
   private knownPendingIds = new Set<string>();
+  private readonly refreshOnFocus = () => {
+    this.loadDashboard(false);
+  };
+  private readonly refreshOnVisible = () => {
+    if (document.visibilityState === 'visible') {
+      this.loadDashboard(false);
+    }
+  };
 
   async ngOnInit(): Promise<void> {
     await this.alerts.initialize();
@@ -41,6 +49,8 @@ export class PartnerDeliveryMobileComponent implements OnInit, OnDestroy {
 
     window.addEventListener('online', this.onConnectivityChanged);
     window.addEventListener('offline', this.onConnectivityChanged);
+    window.addEventListener('focus', this.refreshOnFocus);
+    window.addEventListener('visibilitychange', this.refreshOnVisible);
   }
 
   ngOnDestroy(): void {
@@ -50,6 +60,8 @@ export class PartnerDeliveryMobileComponent implements OnInit, OnDestroy {
 
     window.removeEventListener('online', this.onConnectivityChanged);
     window.removeEventListener('offline', this.onConnectivityChanged);
+    window.removeEventListener('focus', this.refreshOnFocus);
+    window.removeEventListener('visibilitychange', this.refreshOnVisible);
   }
 
   async loadDashboard(showLoader: boolean): Promise<void> {

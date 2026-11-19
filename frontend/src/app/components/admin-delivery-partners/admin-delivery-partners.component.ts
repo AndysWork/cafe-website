@@ -5,7 +5,7 @@ import { DeliveryPartnerService, DeliveryPartner, PartnerPayoutSummary, Assignab
 import { OrderService } from '../../services/order.service';
 import { OutletService } from '../../services/outlet.service';
 import { UIStore } from '../../store/ui.store';
-import { Subscription, forkJoin, of } from 'rxjs';
+import { Subscription, forkJoin, interval, of } from 'rxjs';
 import { catchError, filter, map } from 'rxjs/operators';
 
 @Component({
@@ -20,6 +20,7 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
   private uiStore = inject(UIStore);
   private orderService = inject(OrderService);
   private outletSub?: Subscription;
+  private refreshSub?: Subscription;
 
   partners: DeliveryPartner[] = [];
   loading = true;
@@ -161,17 +162,28 @@ export class AdminDeliveryPartnersComponent implements OnInit, OnDestroy {
       .subscribe(() => this.loadPartners());
     if (this.outletService.getSelectedOutlet()) this.loadPartners();
     this.loadAssignableUsers();
+    this.refreshSub = interval(15000).subscribe(() => this.loadPartners(false));
   }
 
-  ngOnDestroy() { this.outletSub?.unsubscribe(); }
+  ngOnDestroy() {
+    this.outletSub?.unsubscribe();
+    this.refreshSub?.unsubscribe();
+  }
 
-  loadPartners() {
-    this.loading = true;
+  loadPartners(showLoader = true) {
+    if (showLoader) {
+      this.loading = true;
+    }
     this.partnerService.getDeliveryPartners().subscribe({
       next: p => {
         this.reconcilePartnerStatuses(p);
       },
-      error: () => { this.uiStore.error('Failed to load delivery partners'); this.loading = false; }
+      error: () => {
+        this.uiStore.error('Failed to load delivery partners');
+        if (showLoader) {
+          this.loading = false;
+        }
+      }
     });
   }
 

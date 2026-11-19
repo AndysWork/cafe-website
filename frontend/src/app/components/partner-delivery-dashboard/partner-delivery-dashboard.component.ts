@@ -45,9 +45,16 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
   private audioContext: AudioContext | null = null;
   private audioUnlocked = false;
   private readonly unlockAudioHandler = () => this.unlockAudio();
+  private readonly visibilityRefreshHandler = () => {
+    if (document.visibilityState === 'visible') {
+      this.loadDashboard();
+    }
+  };
+  private readonly focusRefreshHandler = () => this.loadDashboard();
 
   ngOnInit(): void {
     this.registerAudioUnlockListeners();
+    this.registerRefreshListeners();
 
     this.webPush.registerPartnerWebPush('partner-dashboard').catch(() => {
       // Keep dashboard functional even if push registration fails.
@@ -67,6 +74,7 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
     this.dashboardRequest++;
     this.pollSub?.unsubscribe();
     this.unregisterAudioUnlockListeners();
+    this.unregisterRefreshListeners();
     if (this.audioContext && this.audioContext.state !== 'closed') {
       this.audioContext.close().catch(() => {
         // Ignore teardown errors.
@@ -84,6 +92,15 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
     window.addEventListener('touchstart', this.unlockAudioHandler, { passive: true });
   }
 
+  private registerRefreshListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.addEventListener('visibilitychange', this.visibilityRefreshHandler);
+    window.addEventListener('focus', this.focusRefreshHandler);
+  }
+
   private unregisterAudioUnlockListeners(): void {
     if (typeof window === 'undefined') {
       return;
@@ -92,6 +109,15 @@ export class PartnerDeliveryDashboardComponent implements OnInit, OnDestroy {
     window.removeEventListener('pointerdown', this.unlockAudioHandler);
     window.removeEventListener('keydown', this.unlockAudioHandler);
     window.removeEventListener('touchstart', this.unlockAudioHandler);
+  }
+
+  private unregisterRefreshListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.removeEventListener('visibilitychange', this.visibilityRefreshHandler);
+    window.removeEventListener('focus', this.focusRefreshHandler);
   }
 
   private unlockAudio(): void {
